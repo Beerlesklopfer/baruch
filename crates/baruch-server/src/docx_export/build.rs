@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Das Werk als [`DocxDocument`]: Titelei, aktuelle Fassungen in Lesereihenfolge, Bilder und – auf Wunsch – je
-//! Abschnitt der jüngste offene Vorschlag als Änderungsverfolgung. Nur lesende Zugriffe auf den Speicher.
+//! The work as a [`DocxDocument`]: front matter, current revisions in reading order, images and – on request – per
+//! section the newest open proposal as tracked changes. Only reading access to the store.
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -14,28 +14,28 @@ use super::{DocxExportOptions, WARN_MORE_PROPOSALS};
 use crate::AppState;
 use crate::rpc::RpcError;
 
-/// So viele einzelne Meldungen über Typst-Inseln stehen in der Antwort; der Rest wird gezählt.
+/// This many individual messages about Typst islands stand in the answer; the rest is counted.
 const MAX_ISLAND_WARNINGS: usize = 5;
 
-/// Ergebnis von [`document`].
+/// Result of [`document`].
 pub(super) struct Built {
     pub document: DocxDocument,
-    /// Jüngster Zeitpunkt des Stands (für `docProps/core.xml`); gleicher Stand → gleiche Datei.
+    /// Latest time of the state (for `docProps/core.xml`); same state → same file.
     pub modified: String,
-    /// Zahl der Vorschläge, die als Änderungsverfolgung im Dokument stehen.
+    /// Number of proposals that stand in the document as tracked changes.
     pub proposals: usize,
     pub warnings: Vec<DocxWarning>,
 }
 
-/// Offene Vorschläge des Werks, wie die Oberfläche sie zählt (ohne ausgeblendete Fassungen).
+/// Open proposals of the work as the UI counts them (without hidden revisions).
 pub(super) struct OpenProposals {
-    /// Abschnitte mit mindestens einem offenen Vorschlag.
+    /// Sections with at least one open proposal.
     pub sections: usize,
     pub total: usize,
 }
 
-/// Offene Vorschläge eines Abschnitts nach Nummer: Status „vorgeschlagen“ und nicht unter der Marke „bis hierhin“
-/// ausgeblendet (dieselbe Regel wie in der Oberfläche, [`revision_fold::is_hidden`]).
+/// Open proposals of a section by number: status „vorgeschlagen“ and not hidden below the marker „bis hierhin“
+/// (the same rule as in the UI, [`revision_fold::is_hidden`]).
 fn open_of(node: &Node, mark: Option<u32>) -> Vec<&Revision> {
     let mut open: Vec<&Revision> = node
         .revisions
@@ -54,8 +54,8 @@ pub(super) async fn open_proposals(state: &AppState, work: WorkId) -> Result<Ope
     Ok(OpenProposals { sections: counts.iter().filter(|n| **n > 0).count(), total: counts.iter().sum() })
 }
 
-/// Zeitpunkt der Datenbank (`JJJJ-MM-TTThh:mm:ss[.fff][Z]`, auch mit Leerzeichen statt `T`) als ISO 8601 UTC ohne
-/// Sekundenbruchteile; unlesbar → `None`.
+/// Time of the database (`JJJJ-MM-TTThh:mm:ss[.fff][Z]`, also with a space instead of `T`) as ISO 8601 UTC without
+/// fractions of a second; unreadable → `None`.
 fn normalize_stamp(stamp: &str) -> Option<String> {
     let head: String = stamp.trim().chars().take(19).collect();
     let well_formed = head.len() == 19
@@ -68,7 +68,7 @@ fn normalize_stamp(stamp: &str) -> Option<String> {
     well_formed.then(|| format!("{}T{}Z", &head[..10], &head[11..]))
 }
 
-/// Alternativtext aus den Bildangaben des Werks eintragen, wo der Quelltext keinen nennt.
+/// Enter the alternative text from the image details of the work where the source names none.
 fn fill_alt(blocks: &mut [Block], alts: &[String]) {
     for block in blocks {
         match block {
@@ -89,8 +89,8 @@ fn author_handle(author: &Author) -> &str {
     }
 }
 
-/// Meldungen ordnen: gleiche nur einmal, von den Typst-Inseln die ersten [`MAX_ISLAND_WARNINGS`] einzeln und der
-/// Rest als Zahl.
+/// Order the messages: equal ones only once, of the Typst islands the first [`MAX_ISLAND_WARNINGS`] individually
+/// and the rest as a number.
 fn tidy(warnings: Vec<DocxWarning>) -> Vec<DocxWarning> {
     let mut out: Vec<DocxWarning> = Vec::new();
     let (mut islands, mut more_islands) = (0usize, 0usize);
@@ -118,7 +118,7 @@ fn tidy(warnings: Vec<DocxWarning>) -> Vec<DocxWarning> {
     out
 }
 
-/// Steckt in den Blöcken eine verfolgte Änderung?
+/// Is there a tracked change in the blocks?
 fn has_changes(blocks: &[Block]) -> bool {
     fn inlines(items: &[Inline]) -> bool {
         items.iter().any(|item| matches!(item, Inline::Tracked { .. }))
@@ -142,7 +142,7 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
     let tree = store.revision_tree(work).await?;
     let folds = if options.proposals { store.work_revision_folds(work).await? } else { HashMap::new() };
 
-    // Bilder: aktuelle Fassung je Pfad; eingebettet wird, was Word sicher zeigt (PNG, JPEG, GIF).
+    // Images: current revision per path; embedded is what Word shows reliably (PNG, JPEG, GIF).
     let asset_list = store.asset_list(work).await?;
     let mut alt_of: BTreeMap<String, String> = BTreeMap::new();
     for asset in &asset_list {
@@ -169,7 +169,7 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
         });
     }
 
-    // Zeitpunkte der Fassungen: für das Datum der Änderung und den Stand der Datei.
+    // Times of the revisions: for the date of the change and the state of the file.
     let mut created: HashMap<(usize, u32), String> = HashMap::new();
     let mut stamps: Vec<String> = vec![meta.created.clone()];
     stamps.extend(meta.updated.clone());
@@ -207,13 +207,13 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
         };
         let proposed_blocks = read(&latest.body, &mut warnings);
         let change = Change {
-            // Die Art je Stelle setzt `track_changes` selbst.
+            // `track_changes` sets the kind per position itself.
             kind: ChangeKind::Insert,
             author: author_handle(&latest.author).to_owned(),
             date: created.get(&(node.id, latest.number)).and_then(|s| normalize_stamp(s)).unwrap_or_default(),
         };
         let tracked = track_changes(&current_blocks, &proposed_blocks, &change);
-        // Ein Vorschlag, der der aktuellen Fassung gleicht, hinterlässt keine Änderung und zählt nicht.
+        // A proposal that equals the current revision leaves no change and does not count.
         if has_changes(&tracked) {
             proposals += 1;
         }
@@ -233,7 +233,7 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
         }
     }
 
-    // Sprache und Impressum wie im EPUB: Satz-Einstellungen vor Werkvorlage; Impressum nur mit Titelei.
+    // Language and imprint as in the EPUB: typeset settings before work template; imprint only with front matter.
     let typeset = crate::cover::typeset_settings(state, work).await?;
     let lang = typeset
         .lang

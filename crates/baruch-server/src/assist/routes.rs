@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Routen der Persona-Aufträge (Vertrag Runde 10, §5.6), beide hinter `guard::same_origin`
-//! (eingehängt über [`crate::personas::writes`]):
+//! Routes of the persona orders (contract Round 10, §5.6), both behind `guard::same_origin`
+//! (mounted through [`crate::personas::writes`]):
 //!
-//! - `POST /assistenten/act` (Formular, ohne JavaScript): `method` ∈ `persona.ask`, `persona.review`,
-//!   `persona.propose`, `persona.chat`, dazu `work`, `key`, `persona`, `question`/`message`/`instruction`,
-//!   `rev`, `view`, `lq`, seit Runde 15 `scope` (`section` | `chapter`, Feld aus
-//!   `fragments/assist_scope.html`, geht unverändert an die RPC). Nach Fertigstellung 303 auf die Key-Adresse
-//!   (`view::node_url`; beim Vorschlag
-//!   mit `&rev=` des neuen Vorschlags). Fehler (Runde 15): statt 422 die Hinweisseite [`notice_page`]
-//!   (`templates/assist_notice.html`, Status 200, Meldung und Link zurück zum Abschnitt); scheitert im Chat eine
-//!   Persona, nennt sie dieselbe Seite (der Beitrag des Menschen und fertige Antworten sind gespeichert).
-//! - `POST /assistenten/stream` (`Content-Type: application/json`, Rumpf `{method, …}` wie RPC) →
-//!   `text/event-stream` mit den Ereignissen `start` `{persona, style}`, `delta` `{text}`, seit Runde 15
-//!   `posted` `{post: {id, author, body}}` (Beitrag des Absenders gespeichert, vor dem ersten `delta`), `retry`
-//!   `{persona, reason}` (Antwort wird neu angefordert; das Gezeigte dieser Persona verwerfen, seit Runde 18b nur
-//!   das des laufenden Stücks), `compressed` `{message, summarized, chunks}`, seit Runde 18b `piece`
-//!   `{persona, index, count}` (das nächste Stück eines gestückelten Auftrags beginnt), dann `done` `{kind: "post"|"proposal", post?|rev?, posts?, url, truncated,
-//!   compressed: null|{…}}` und `error` `{message}`. Trennt der Client, fällt der Strom und mit ihm der
-//!   Modellaufruf; beim Einzelauftrag ist dann nichts gespeichert, im Chat bleiben der Beitrag des Absenders und
-//!   schon fertige Antworten.
+//! - `POST /assistenten/act` (form, without JavaScript): `method` ∈ `persona.ask`, `persona.review`,
+//!   `persona.propose`, `persona.chat`, plus `work`, `key`, `persona`, `question`/`message`/`instruction`,
+//!   `rev`, `view`, `lq`, since Round 15 `scope` (`section` | `chapter`, field from
+//!   `fragments/assist_scope.html`, goes unchanged to the RPC). After completion 303 to the key address
+//!   (`view::node_url`; for a proposal
+//!   with `&rev=` of the new proposal). Errors (Round 15): instead of 422 the notice page [`notice_page`]
+//!   (`templates/assist_notice.html`, status 200, message and link back to the section); if a persona fails in the
+//!   chat, the same page names it (the human's post and finished answers are stored).
+//! - `POST /assistenten/stream` (`Content-Type: application/json`, body `{method, …}` like RPC) →
+//!   `text/event-stream` with the events `start` `{persona, style}`, `delta` `{text}`, since Round 15
+//!   `posted` `{post: {id, author, body}}` (sender's post stored, before the first `delta`), `retry`
+//!   `{persona, reason}` (answer is requested anew; discard what was shown of this persona, since Round 18b only
+//!   that of the running piece), `compressed` `{message, summarized, chunks}`, since Round 18b `piece`
+//!   `{persona, index, count}` (the next piece of a chunked order starts), then `done` `{kind: "post"|"proposal",
+//!   post?|rev?, posts?, url, truncated, compressed: null|{…}}` and `error` `{message}`. If the client disconnects,
+//!   the stream drops and with it the model call; for a single order nothing is stored then, in the chat the
+//!   sender's post and answers already finished stay.
 //!
-//! Runde 30c (chat-bedienung): Das Formularfeld `basis` (Prüfgrundlage `shown` | `current` | `<n>`) geht für alle vier
-//! Methoden an die RPC. Scheitert ein Einzelauftrag, merkt [`crate::chat_live::record_failure`] den Fehler für die
-//! Live-Anzeige des Abschnitts (`post.since`).
+//! Round 30c (chat-bedienung): the form field `basis` (review basis `shown` | `current` | `<n>`) goes to the RPC for
+//! all four methods. If a single order fails, [`crate::chat_live::record_failure`] notes the error for the
+//! live view of the section (`post.since`).
 
 use std::convert::Infallible;
 use std::future::Future;
@@ -42,7 +42,7 @@ use tokio_stream::Stream;
 use super::Progress;
 use crate::AppState;
 
-/// Erlaubte Methoden beider Routen.
+/// Allowed methods of both routes.
 const ALLOWED: &[&str] = &["persona.ask", "persona.review", "persona.propose", "persona.chat"];
 
 #[derive(Deserialize, Default)]
@@ -58,12 +58,12 @@ pub struct ActForm {
     rev: Option<String>,
     view: Option<String>,
     lq: Option<String>,
-    /// Runde 15: Prüfen/Vorschlag für den Abschnitt oder das ganze Kapitel (`section` | `chapter`).
+    /// Round 15: review/proposal for the section or the whole chapter (`section` | `chapter`).
     scope: Option<String>,
-    /// Runde 28: Kästchen „als Auftrag“ im Chat (`1` bzw. `on`): ein Schreibauftrag wird ein Vorschlag.
+    /// Round 28: checkbox „als Auftrag“ in the chat (`1` or `on`): a write order becomes a proposal.
     as_order: Option<String>,
-    /// Runde 30c: Prüfgrundlage (`shown` | `current` | `<n>`, Auswahl `fragments/basis_select.html`), für alle vier
-    /// Methoden durchgereicht (gelesen in `assist/rpc.rs` bzw. `chat::run_chat`).
+    /// Round 30c: review basis (`shown` | `current` | `<n>`, selection `fragments/basis_select.html`), passed through
+    /// for all four methods (read in `assist/rpc.rs` or `chat::run_chat`).
     basis: Option<String>,
 }
 
@@ -71,7 +71,7 @@ fn filled(value: &Option<String>) -> Option<&str> {
     value.as_deref().map(str::trim).filter(|v| !v.is_empty())
 }
 
-/// RPC-Parameter aus dem Formular: Adressfelder und `scope` nur, wenn gefüllt; Texte wörtlich.
+/// RPC parameters from the form: address fields and `scope` only if filled; texts literally.
 fn act_params(form: &ActForm) -> Value {
     let mut params = json!({});
     for (name, value) in [
@@ -97,7 +97,7 @@ fn act_params(form: &ActForm) -> Value {
     params
 }
 
-/// Umgebung der Hinweisseite: die der Arbeitsseite (dort steht `fragments/toast.html` des Lektors) und
+/// Environment of the notice page: that of the work page (there stands `fragments/toast.html` of the lector) and
 /// `assist_notice.html`.
 fn notice_env() -> &'static minijinja::Environment<'static> {
     static ENV: std::sync::OnceLock<minijinja::Environment<'static>> = std::sync::OnceLock::new();
@@ -109,7 +109,7 @@ fn notice_env() -> &'static minijinja::Environment<'static> {
     })
 }
 
-/// Selbst gebaute Adresse für `href`: nur ohne unsichere Zeichen, `&` maskiert; sonst die Startseite.
+/// Self-built address for `href`: only without unsafe characters, `&` escaped; otherwise the start page.
 fn safe_back(url: &str) -> minijinja::Value {
     let ok = url.starts_with('/')
         && !url.starts_with("//")
@@ -117,13 +117,13 @@ fn safe_back(url: &str) -> minijinja::Value {
     minijinja::Value::from_safe_string(if ok { url.replace('&', "&amp;") } else { "/".to_owned() })
 }
 
-/// Hinweisseite ohne JavaScript (Status 200): Meldung, Link `back` (vom Server gebaut) und – mit `compressed`
-/// (`{message, summarized, chunks}`) – der Toast-Baustein. Für Persona-Aufträge und „an Persona geben“.
+/// Notice page without JavaScript (status 200): message, link `back` (built by the server) and – with `compressed`
+/// (`{message, summarized, chunks}`) – the toast fragment. For persona orders and „an Persona geben“.
 pub fn notice_page(message: &str, back: &str, compressed: Option<&Value>) -> Response {
     notice_page_with(message, &[], back, compressed)
 }
 
-/// Wie [`notice_page`], mit weiteren Zeilen (z. B. je gescheiterter Persona).
+/// Like [`notice_page`], with further lines (e.g. per failed persona).
 pub fn notice_page_with(message: &str, lines: &[String], back: &str, compressed: Option<&Value>) -> Response {
     let env = notice_env();
     let toast = compressed.filter(|c| c.is_object()).map(|c| {
@@ -148,9 +148,9 @@ pub fn notice_page_with(message: &str, lines: &[String], back: &str, compressed:
     }
 }
 
-/// Runde 30c: Gescheiterten Einzelauftrag (Fragen, Prüfen, Vorschlag) für die Live-Anzeige merken
-/// ([`crate::chat_live::record_failure`]); Fehler im Chat merkt `chat::chat` je Persona selbst. Ohne auflösbaren
-/// Abschnitt bleibt es bei der Meldung an den Aufrufer.
+/// Round 30c: note a failed single order (ask, review, proposal) for the live view
+/// ([`crate::chat_live::record_failure`]); errors in the chat are noted by `chat::chat` per persona itself. Without
+/// a resolvable section only the message to the caller remains.
 async fn remember_failure(state: &AppState, method: &str, params: &Value, message: &str) {
     if method == "persona.chat" {
         return;
@@ -178,7 +178,7 @@ pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) 
         Ok(answer) => answer,
         Err(e) => {
             remember_failure(&state, &method, &params, &e.message).await;
-            // Nichts gespeichert (Einzelauftrag) bzw. nur der Beitrag nicht (Chat: Fehler vor dem Speichern).
+            // Nothing stored (single order) or only the post not stored (chat: error before storing).
             let back = match (form_work, form_key) {
                 (Some(work), Some(key)) => crate::view::node_url(work, key, form_rev, preview, "", &lq),
                 (Some(work), None) => format!("/?work={work}"),
@@ -197,7 +197,7 @@ pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) 
         (Some(work), Some(key)) => crate::view::node_url(work, key, rev, preview, "", &lq),
         _ => answer["url"].as_str().unwrap_or("/").to_owned(),
     };
-    // Chat: Beitrag des Menschen steht, eine Persona scheiterte – ehrlich melden statt still weiterleiten.
+    // Chat: the human's post exists, a persona failed – report honestly instead of redirecting silently.
     if let Some(errors) = answer["errors"].as_array().filter(|e| !e.is_empty()) {
         let lines: Vec<String> = errors
             .iter()
@@ -211,7 +211,7 @@ pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) 
             compressed,
         );
     }
-    // Komprimiert (Runde 15): nicht still weiterleiten, sondern den Hinweis zeigen und den Link weiter.
+    // Compressed (Round 15): do not redirect silently, but show the notice and the link onward.
     if let Some(compressed) = answer.get("compressed").filter(|c| c.is_object()) {
         let message = match method.as_str() {
             "persona.propose" => "Der Vorschlag ist angelegt.",
@@ -219,15 +219,15 @@ pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) 
         };
         return notice_page(message, &url, Some(compressed));
     }
-    // Runde 28: Nach einer Chat-Nachricht ohne JavaScript an den neuesten Beitrag (Anker am Ende des Chats).
+    // Round 28: after a chat message without JavaScript to the newest post (anchor at the end of the chat).
     if method == "persona.chat" {
         return Redirect::to(&format!("{url}#chat-neueste")).into_response();
     }
     Redirect::to(&url).into_response()
 }
 
-/// Strom aus einem Auftrag: liefert erst die gesammelten Ereignisse, am Ende `done` bzw. `error`.
-/// Fällt der Strom, fällt der Auftrag (und mit ihm der Modellaufruf).
+/// Stream from an order: first delivers the collected events, at the end `done` or `error`.
+/// If the stream drops, the order drops (and with it the model call).
 struct RunStream {
     run: Option<Pin<Box<dyn Future<Output = Event> + Send>>>,
     events: UnboundedReceiver<Event>,
@@ -250,7 +250,7 @@ impl Stream for RunStream {
                 Poll::Pending => return Poll::Pending,
             }
         }
-        // Auftrag fertig (sein Sender ist weg): erst den Rest der Ereignisse, dann das letzte.
+        // Order finished (its sender is gone): first the rest of the events, then the last one.
         if let Ok(event) = self.events.try_recv() {
             return Poll::Ready(Some(Ok(event)));
         }

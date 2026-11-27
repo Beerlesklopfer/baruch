@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB-Vorschau je Reader (Runde 20b, Besitz „reader“).
+//! EPUB preview per reader (Round 20b, owner “reader”).
 //!
 //! - **RPC** ([`handles`], [`call`]): `epub.readers {}` → `{readers:[ReaderProfile…]}`;
 //!   `epub.preview {work, readers?, file?, footnotes?}` → `{readers:[{slug,name,url}], files, file, warnings}`;
-//!   unbekannter Slug oder unbekannte Datei → -32602.
-//! - **Seiten** ([`pages`]): `GET /werke/{id}/epub/vorschau[?leser=…&leser=…&datei=…&fussnoten=…&nacht=1]`
-//!   (Formular-GET und iframes, ohne JavaScript bedienbar; Vorgabe: die Pflicht-Profile und die erste Teil- bzw.
-//!   Kapiteldatei), `GET /werke/{id}/epub/leser/{slug}/{*file}` (eine Datei des Buchs; XHTML mit eingefügtem
-//!   Reader-CSS aus `static/readers/<slug>.css`, alles andere unverändert; CSP `sandbox allow-same-origin; frame-ancestors 'self'`,
-//!   `nosniff`; `guard::no_framing` setzt dafür `X-Frame-Options: SAMEORIGIN` statt `DENY`).
-//! - Unter der Vorschau steht der Prüfbericht von „epub-pruefung“ ([`crate::epub_check::preview_panel`], fertiges
-//!   HTML-Fragment, hier nur eingebettet).
+//!   unknown slug or unknown file → -32602.
+//! - **Pages** ([`pages`]): `GET /werke/{id}/epub/vorschau[?leser=…&leser=…&datei=…&fussnoten=…&nacht=1]`
+//!   (form GET and iframes, usable without JavaScript; default: the mandatory profiles and the first part or
+//!   chapter file), `GET /werke/{id}/epub/leser/{slug}/{*file}` (one file of the book; XHTML with inserted
+//!   reader CSS from `static/readers/<slug>.css`, everything else unchanged; CSP `sandbox allow-same-origin;
+//!   frame-ancestors 'self'`,
+//!   `nosniff`; `guard::no_framing` sets `X-Frame-Options: SAMEORIGIN` instead of `DENY` for it).
+//! - Below the preview stands the check report of “epub-pruefung” ([`crate::epub_check::preview_panel`], finished
+//!   HTML fragment, only embedded here).
 //!
-//! Die Dateien entstehen bei jeder Anfrage neu aus dem aktuellen Stand ([`crate::epub::book_for`]); es gibt keinen
-//! Zwischenspeicher, damit die Vorschau nie einen alten Stand zeigt.
+//! The files are created anew on every request from the current state ([`crate::epub::book_for`]); there is no
+//! cache, so that the preview never shows an old state.
 //!
-//! **Anfragen aus dem eigenen Rahmen:** Das eingerahmte Dokument läuft wegen `sandbox` mit einer undurchsichtigen
-//! Herkunft; seine Unteranfragen (Bilder, `style/book.css`, Links zwischen Kapiteln) kommen darum mit
-//! `Sec-Fetch-Site: cross-site`. Eine solche Anfrage wird nur angenommen, wenn `Referer` auf denselben `Host`
-//! zeigt (den setzt der Browser, eine fremde Seite kann ihn nicht fälschen); sonst 403 wie bei jedem GET einer
-//! fremden Seite. Browser kürzen den `Referer` solcher Anfragen auf die Herkunft (`http://host/`, Firefox in der
-//! Sichtprüfung des Integrators R20, auch mit `Referrer-Policy` im Rahmen); angenommen wird darum der gekürzte
-//! `Referer` oder – falls ein Browser ihn ungekürzt schickt – eine Datei desselben Werks unter
+//! **Requests from the own frame:** because of `sandbox` the framed document runs with an opaque
+//! origin; its sub-requests (images, `style/book.css`, links between chapters) therefore come with
+//! `Sec-Fetch-Site: cross-site`. Such a request is accepted only if `Referer` points to the same `Host`
+//! (the browser sets it, a foreign page cannot forge it); otherwise 403 as for every GET of a
+//! foreign page. Browsers shorten the `Referer` of such requests to the origin (`http://host/`, Firefox in the
+//! visual check of the integrator R20, also with `Referrer-Policy` in the frame); so the shortened
+//! `Referer` is accepted or – if a browser sends it unshortened – a file of the same work under
 //! `/werke/{id}/epub/leser/`.
 
 use std::sync::{Arc, OnceLock};
@@ -43,24 +44,24 @@ use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
-/// CSP der eingerahmten Dateien (Vertrag §0.9).
-/// `allow-same-origin` ohne `allow-scripts`: Skripte und Formulare bleiben gesperrt, aber Bilder und Stile der
-/// Lesedatei laden als Anfragen derselben Herkunft. Ohne diese Freigabe hat der Rahmen eine undurchsichtige Herkunft,
-/// der Browser schickt `Sec-Fetch-Site: cross-site`, und der Schutz gegen fremde Seiten antwortet 403 – das
-/// Umschlagbild fehlte (Fund des Nutzers 2026-11-09).
+/// CSP of the framed files (contract §0.9).
+/// `allow-same-origin` without `allow-scripts`: scripts and forms stay blocked, but images and styles of the
+/// reading file load as requests of the same origin. Without this permission the frame has an opaque origin,
+/// the browser sends `Sec-Fetch-Site: cross-site`, and the protection against foreign pages answers 403 – the
+/// cover image was missing (found by the user 2026-11-09).
 pub const FRAME_CSP: &str = "sandbox allow-same-origin; frame-ancestors 'self'";
 
-/// Marke in `static/readers/<slug>.css`: Was danach steht, gilt nur im Nachtmodus.
+/// Marker in `static/readers/<slug>.css`: what stands after it applies only in night mode.
 pub const NIGHT_MARK: &str = "/* @night */";
 
 const XHTML: &str = "application/xhtml+xml";
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "epub.readers" | "epub.preview")
 }
 
-/// CSS des Readers `slug` (ganze Datei `static/readers/<slug>.css`), unbekannt → `None`.
+/// CSS of the reader `slug` (whole file `static/readers/<slug>.css`), unknown → `None`.
 pub fn reader_css(slug: &str) -> Option<&'static str> {
     Some(match slug {
         "apple-books-iphone" => include_str!("../static/readers/apple-books-iphone.css"),
@@ -76,7 +77,7 @@ pub fn reader_css(slug: &str) -> Option<&'static str> {
     })
 }
 
-/// Eingefügtes Reader-CSS: der Teil vor [`NIGHT_MARK`], mit `night` (und Nachtmodus im Profil) die ganze Datei.
+/// Inserted reader CSS: the part before [`NIGHT_MARK`], with `night` (and night mode in the profile) the whole file.
 pub fn reader_style(reader: &ReaderProfile, night: bool) -> String {
     let css = reader_css(reader.slug).unwrap_or("");
     match css.split_once(NIGHT_MARK) {
@@ -85,7 +86,7 @@ pub fn reader_style(reader: &ReaderProfile, night: bool) -> String {
     }
 }
 
-/// `file` ist ein harmloser relativer Pfad (kein `..`, kein `/` am Anfang, keine leeren Teile, kein `\`).
+/// `file` is a harmless relative path (no `..`, no `/` at the start, no empty parts, no `\`).
 fn safe_href(file: &str) -> bool {
     !file.is_empty()
         && file.len() <= 1024
@@ -94,9 +95,9 @@ fn safe_href(file: &str) -> bool {
         && file.split('/').all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
-/// Datei `file` (relativ zu OEBPS/) des Buchs, wie der Reader `reader` sie bekommt: (Content-Type, Bytes). XHTML
-/// erhält das Reader-CSS als `<style id="baruch-reader">` vor `</head>` (also hinter `style/book.css`), alle anderen
-/// Dateien bleiben unverändert. Unbekannte oder unsichere Pfade → `None`.
+/// File `file` (relative to OEBPS/) of the book as the reader `reader` gets it: (Content-Type, bytes). XHTML
+/// gets the reader CSS as `<style id="baruch-reader">` before `</head>` (so after `style/book.css`), all other
+/// files stay unchanged. Unknown or unsafe paths → `None`.
 pub fn reader_file(book: &EpubBook, reader: &ReaderProfile, file: &str, night: bool) -> Option<(String, Vec<u8>)> {
     if !safe_href(file) {
         return None;
@@ -118,7 +119,7 @@ pub fn reader_file(book: &EpubBook, reader: &ReaderProfile, file: &str, night: b
     Some((format!("{XHTML}; charset=utf-8"), out.into_bytes()))
 }
 
-/// Dateien mit Text in Lesereihenfolge (Spine ohne Inhaltsverzeichnisse).
+/// Files with text in reading order (spine without tables of contents).
 pub fn text_files(book: &EpubBook) -> Vec<&EpubItem> {
     book.spine
         .iter()
@@ -127,7 +128,7 @@ pub fn text_files(book: &EpubBook) -> Vec<&EpubItem> {
         .collect()
 }
 
-/// Vorgabedatei: die erste Teil- oder Kapiteldatei, sonst die erste Datei mit Text.
+/// Default file: the first part or chapter file, otherwise the first file with text.
 fn default_file(book: &EpubBook) -> Option<String> {
     let files = text_files(book);
     files
@@ -137,7 +138,7 @@ fn default_file(book: &EpubBook) -> Option<String> {
         .map(|i| i.href.clone())
 }
 
-/// Deutsche Bezeichnung der Dateiart (Kapitelgrenzen-Liste).
+/// German label of the file kind (list of chapter boundaries).
 pub fn kind_label(kind: ItemKind) -> &'static str {
     match kind {
         ItemKind::Cover => "Umschlag",
@@ -155,8 +156,8 @@ pub fn kind_label(kind: ItemKind) -> &'static str {
     }
 }
 
-/// Adresse der Datei `file` im Reader `slug` (Ziffern, Slug und `href` aus dem Buch; nur `&` und Leerzeichen
-/// kommen nicht vor).
+/// Address of the file `file` in the reader `slug` (digits, slug and `href` from the book; only `&` and spaces
+/// do not occur).
 pub fn leser_url(work: WorkId, slug: &str, file: &str, footnotes: FootnoteMode, night: bool) -> String {
     let mut url = format!("/werke/{work}/epub/leser/{slug}/{file}");
     let mut sep = '?';
@@ -188,7 +189,7 @@ struct PreviewParams {
     footnotes: FootnoteMode,
 }
 
-/// Profile zu `slugs` (Reihenfolge der Anzeige, doppelte einmal); leer → Pflicht-Profile. Unbekannt → `Err(slug)`.
+/// Profiles for `slugs` (display order, duplicates once); empty → mandatory profiles. Unknown → `Err(slug)`.
 fn chosen_profiles(slugs: &[String]) -> Result<Vec<&'static ReaderProfile>, String> {
     for slug in slugs {
         if profile(slug).is_none() {
@@ -252,7 +253,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-/// Seiten der Vorschau.
+/// Pages of the preview.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/epub/vorschau", get(preview_page))
@@ -277,8 +278,8 @@ fn text_response(status: StatusCode, message: &str) -> Response {
     (status, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], message.to_owned()).into_response()
 }
 
-/// `Referer` zeigt auf denselben `Host`: auf die Herkunft gekürzt (`/`) oder auf eine Datei desselben Werks in der
-/// Vorschau (siehe Modulkopf).
+/// `Referer` points to the same `Host`: shortened to the origin (`/`) or to a file of the same work in the
+/// preview (see module head).
 pub fn from_own_frame(headers: &HeaderMap, work: WorkId) -> bool {
     let Some(host) = headers.get(header::HOST).and_then(|h| h.to_str().ok()) else { return false };
     let Some(referer) = headers.get(header::REFERER).and_then(|r| r.to_str().ok()) else { return false };
@@ -326,7 +327,7 @@ async fn reader_page(
     let Ok(footnotes) = footnotes_of(q.fussnoten.as_deref()) else {
         return text_response(StatusCode::BAD_REQUEST, "fussnoten: popup oder endnoten");
     };
-    // Links aus einer Kapiteldatei auf die Anmerkungen verlieren die Abfrage: notes.xhtml gibt es nur mit Endnoten.
+    // Links from a chapter file to the notes lose the query: notes.xhtml exists only with endnotes.
     let footnotes =
         footnotes.unwrap_or(if file == "text/notes.xhtml" { FootnoteMode::Endnotes } else { FootnoteMode::Popup });
     let night = q.nacht.as_deref() == Some("1");
@@ -357,7 +358,7 @@ async fn reader_page(
         .into_response()
 }
 
-/// Ein Profil auf der Vorschau-Seite.
+/// A profile on the preview page.
 #[derive(serde::Serialize)]
 struct FrameView {
     slug: &'static str,
@@ -373,7 +374,7 @@ struct FrameView {
     lacks: Vec<&'static str>,
 }
 
-/// Fehlende Fähigkeiten eines Profils in Worten (Hinweis unter dem Rahmen).
+/// Missing capabilities of a profile in words (note below the frame).
 fn lacks(reader: &ReaderProfile) -> Vec<&'static str> {
     let s = &reader.supports;
     let mut out = Vec::new();
@@ -401,7 +402,7 @@ fn lacks(reader: &ReaderProfile) -> Vec<&'static str> {
     out
 }
 
-/// Pfad aus dem Buch unmaskiert (minijinja maskierte sonst `/`), solange er nur harmlose Zeichen enthält.
+/// Path from the book unescaped (minijinja would otherwise escape `/`) as long as it has only harmless characters.
 fn plain(path: &str) -> JinjaValue {
     if path.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/')) {
         JinjaValue::from_safe_string(path.to_owned())
@@ -428,7 +429,7 @@ struct ChoiceView {
     checked: bool,
 }
 
-/// Abfrage der Vorschau als Paare (`leser` darf mehrfach kommen).
+/// Query of the preview as pairs (`leser` may come several times).
 struct PreviewQuery {
     readers: Vec<String>,
     file: Option<String>,
@@ -452,7 +453,7 @@ impl PreviewQuery {
     }
 }
 
-/// Abfrageteil der Vorschau für Links der Kapitelgrenzen-Liste (`datei` folgt dahinter).
+/// Query part of the preview for links of the chapter boundary list (`datei` follows after it).
 fn preview_query(readers: &[&'static ReaderProfile], footnotes: FootnoteMode, night: bool) -> String {
     let mut parts: Vec<String> = readers.iter().map(|r| format!("leser={}", r.slug)).collect();
     if footnotes == FootnoteMode::Endnotes {
@@ -487,7 +488,7 @@ async fn preview_page(
     let q = PreviewQuery::from_pairs(pairs);
     let mut status = StatusCode::OK;
     let mut notices: Vec<String> = Vec::new();
-    // Unbekannte Slugs: Hinweis und 404, die bekannten bleiben gewählt (sonst die Pflicht-Profile).
+    // Unknown slugs: note and 404, the known ones stay chosen (otherwise the mandatory profiles).
     let known: Vec<String> = q.readers.iter().filter(|s| profile(s).is_some()).cloned().collect();
     for slug in q.readers.iter().filter(|s| profile(s).is_none()) {
         status = StatusCode::NOT_FOUND;
@@ -625,7 +626,7 @@ mod tests {
 
     #[test]
     fn the_own_frame_is_recognised_only_on_the_same_host_and_work() {
-        // Gekürzter Referer (nur die Herkunft), wie Firefox ihn für Unteranfragen aus dem sandbox-Rahmen schickt.
+        // Shortened Referer (only the origin) as Firefox sends it for sub-requests from the sandbox frame.
         let headers = |host: &str, referer: &str| {
             let mut h = HeaderMap::new();
             h.insert(header::HOST, host.parse().unwrap());

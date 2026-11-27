@@ -1,47 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abschnitts-Chat mit den Personas (Vertrag Runde 10; seit Runde 15, Schnittstelle S2, eigene Datei):
-//! erwähnte Personas ([`mentions`]), eine Chat-Nachricht ausführen ([`chat`]) und dasselbe aus RPC-Parametern
-//! ([`run_chat`], [`chat_json`]). Der Beitrag des Absenders ist sofort gespeichert und geht als
-//! [`Progress::Posted`] an den Aufrufer.
+//! Section chat with the personas (contract Round 10; since Round 15, interface S2, its own file):
+//! mentioned personas ([`mentions`]), running a chat message ([`chat`]) and the same from RPC parameters
+//! ([`run_chat`], [`chat_json`]). The sender's post is stored immediately and goes to the caller as
+//! [`Progress::Posted`].
 //!
-//! Runde 28 (chat-auftrag), Aufträge im Chat:
-//! - **RFC** ([`is_rfc`]): „RFC“ am Anfang der Nachricht oder „@alle“ ruft jede aktive Persona genau einmal, der
-//!   Lektor (nach Einstellung) zuletzt mit den Antworten der anderen gerahmt als Daten
-//!   ([`super::OrderFrame::rfc_answers`]) und dem Auftrag zur Sammlung und Gewichtung; seine Befunde werden
-//!   Sammelbefunde (`rfc_summary`). [`MAX_CHAT_PERSONAS`] gilt dafür nicht, die Warteschlange der Modelle schon
-//!   (die Personas antworten nacheinander).
-//! - **Schreibauftrag** ([`is_write_order`] oder `as_order`): Die erwähnte Persona (mit `as_order` ohne Erwähnung der
-//!   Lektor) schreibt einen **Vorschlag** des Abschnitts ([`Mode::Propose`], nie übernommen) und dazu steht ein kurzer
-//!   Beitrag im Chat ([`order_note`]). Löschen und neue Abschnitte bleiben beim Menschen (Gliederung). Nennt die
-//!   Nachricht Befunde mit „[B<id>]“, schlägt Baruch für jeden „übernommen in Fassung n“ vor
-//!   ([`crate::findings::rpc::propose`], Herkunft die Persona); der Mensch bestätigt. Seit Runde 23 zählen nur
-//!   Verweise aus der Nachricht, nicht mehr aus dem Modelltext des Vorschlags.
-//! - Ohne beides bleibt es beim Beitrag je erwähnter Persona (höchstens [`MAX_CHAT_PERSONAS`]).
+//! Round 28 (chat-auftrag), orders in the chat:
+//! - **RFC** ([`is_rfc`]): „RFC“ at the start of the message or „@alle“ calls every active persona exactly once, the
+//!   lector (by setting) last with the answers of the others framed as data
+//!   ([`super::OrderFrame::rfc_answers`]) and the order to collect and weigh; its findings become
+//!   collective findings (`rfc_summary`). [`MAX_CHAT_PERSONAS`] does not apply here, the model queue does
+//!   (the personas answer one after another).
+//! - **Write order** ([`is_write_order`] or `as_order`): the mentioned persona (with `as_order` and no mention the
+//!   lector) writes a **proposal** for the section ([`Mode::Propose`], never adopted) and a short
+//!   post appears in the chat ([`order_note`]). Deleting and new sections stay with the human (outline). If the
+//!   message names findings with „[B<id>]“, Baruch proposes „übernommen in Fassung n“ for each
+//!   ([`crate::findings::rpc::propose`], origin the persona); the human confirms. Since Round 23 only
+//!   references from the message count, no longer those from the model text of the proposal.
+//! - Without either it stays a post per mentioned persona (at most [`MAX_CHAT_PERSONAS`]).
 //!
-//! Runde 30 (Haken der Schnittstelle R30-S1): Alle Personas eines Aufrufs prüfen dieselbe Fassung
-//! ([`super::basis::choose`], [`ChatOrder::basis`]) und antworten auf den Beitrag des Absenders (`links.reply_to`);
-//! ein Varianten-Auftrag ([`super::variants::is_variants_order`]) geht an [`super::variants::run`]; nach dem Lektor
-//! beim RFC legt [`super::solutions::rfc_proposal`] wahlweise einen Sammel-Vorschlag an.
+//! Round 30 (hooks of interface R30-S1): all personas of a call review the same revision
+//! ([`super::basis::choose`], [`ChatOrder::basis`]) and answer the sender's post (`links.reply_to`);
+//! a variants order ([`super::variants::is_variants_order`]) goes to [`super::variants::run`]; after the lector
+//! in an RFC [`super::solutions::rfc_proposal`] optionally creates a collective proposal.
 //!
-//! Runde 30c (chat-bedienung):
-//! - **Anrede** ([`addressed`]): außer `@handle` (überall, wie bisher) zählt der Name oder das Handle ohne „@“ **am
-//!   Satz- bzw. Beitragsanfang**, gefolgt von „,“ oder „:“ („Lektor, …“, „Exeget:“), Groß/klein egal; im Fließtext
-//!   nicht („der Lektor meint“ ruft niemanden).
-//! - **Relay** ([`line_addresses`]): Beginnt eine Zeile einer Persona-Antwort mit `@handle:` bzw. einer Anrede, antwortet
-//!   die angesprochene Persona einmal – eine Stufe (Relay-Antworten rufen niemanden), höchstens
-//!   [`MAX_RELAY_ANSWERS`] Relay-Antworten je Ausgangsnachricht, jede Persona höchstens einmal je Nachricht (wer schon
-//!   geantwortet hat oder scheiterte, wird nicht erneut gerufen), nicht beim RFC und nicht beim Schreibauftrag. Der
-//!   Relay-Beitrag trägt `relay_from` (die anredende Persona) und `reply_to` (deren Beitrag), der Auftrag die Antwort
-//!   gerahmt ([`OrderFrame::relay`]); sichtbar „antwortet auf Beitrag n von @…“.
-//! - **Fehler** jeder Persona merkt [`crate::chat_live::record_failure`] für die Live-Anzeige (`post.since`).
-//! - **Prüfgrundlage** aus RPC und Formular: `basis` = `shown` | `current` | `<n>` ([`run_chat`]).
+//! Round 30c (chat-bedienung):
+//! - **Address** ([`addressed`]): besides `@handle` (anywhere, as before) the name or the handle without „@“ counts
+//!   **at the start of a sentence or post**, followed by „,“ or „:“ („Lektor, …“, „Exeget:“), case-insensitive; not in
+//!   running text („der Lektor meint“ calls nobody).
+//! - **Relay** ([`line_addresses`]): if a line of a persona answer starts with `@handle:` or an address, the
+//!   addressed persona answers once – one level (relay answers call nobody), at most
+//!   [`MAX_RELAY_ANSWERS`] relay answers per original message, every persona at most once per message (whoever already
+//!   answered or failed is not called again), not in an RFC and not in a write order. The
+//!   relay post carries `relay_from` (the addressing persona) and `reply_to` (its post), the order carries the answer
+//!   framed ([`OrderFrame::relay`]); visible as „antwortet auf Beitrag n von @…“.
+//! - **Errors** of every persona are noted by [`crate::chat_live::record_failure`] for the live view (`post.since`).
+//! - **Review basis** from RPC and form: `basis` = `shown` | `current` | `<n>` ([`run_chat`]).
 //!
-//! Runde 23 (mcp-namen):
-//! - **Zitatzeilen** („> …“, [`unquoted`]) rufen niemanden und machen weder RFC noch Schreibauftrag.
-//! - **Ein Relay-Weg** ([`relay_targets`]): Anrede am Zeilenanfang für alle, mit [`ChatOrder::relay`] (MCP `chat`) dazu
-//!   jede Erwähnung; `relay_section` in `mcp/tools.rs` gibt es nicht mehr.
-//! - `persona.chat` gibt `done_proposals`, `done_notes`, `all_done` aus ([`chat_json`]), wenn eine Persona eigene
-//!   Befunde als erledigt meldete.
+//! Round 23 (mcp-namen):
+//! - **Quote lines** („> …“, [`unquoted`]) call nobody and make neither an RFC nor a write order.
+//! - **One relay path** ([`relay_targets`]): address at the start of a line for all, with [`ChatOrder::relay`] (MCP
+//!   `chat`) also every mention; `relay_section` in `mcp/tools.rs` no longer exists.
+//! - `persona.chat` returns `done_proposals`, `done_notes`, `all_done` ([`chat_json`]) if a persona reported own
+//!   findings as resolved.
 
 use baruch_store::{IdeaOrigin, PersonaRow, WorkId};
 use serde::Serialize;
@@ -55,18 +55,18 @@ use super::{
 use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
-/// Erwähnung, die beim RFC alle aktiven Personas ruft.
+/// Mention that calls all active personas in an RFC.
 pub const ALL_MENTION: &str = "@alle";
 
-/// Höchstens so viele Relay-Antworten je Ausgangsnachricht (Runde 30c).
+/// At most this many relay answers per original message (Round 30c).
 pub const MAX_RELAY_ANSWERS: usize = 3;
 
-/// Ist `c` ein Zeichen eines Handles?
+/// Is `c` a character of a handle?
 fn handle_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_' || c == '-'
 }
 
-/// Beginnt `text` (ohne Groß/klein) mit `word` als ganzem Wort? Dann die Bytes danach.
+/// Does `text` start (case-insensitively) with `word` as a whole word? Then the bytes after it.
 fn starts_with_word<'a>(text: &'a str, word: &str) -> Option<&'a str> {
     let n = word.chars().count();
     if n == 0 {
@@ -80,13 +80,13 @@ fn starts_with_word<'a>(text: &'a str, word: &str) -> Option<&'a str> {
     rest.chars().next().is_none_or(|c| !handle_char(c)).then_some(rest)
 }
 
-/// Folgt (nach Leerraum und `**`) ein „,“ oder „:“?
+/// Does a „,“ or „:“ follow (after whitespace and `**`)?
 fn followed_by_address_mark(rest: &str) -> bool {
     let rest = rest.trim_start().trim_start_matches("**").trim_start();
     rest.starts_with(',') || rest.starts_with(':')
 }
 
-/// Anrede am Anfang von `text`: Name oder Handle ohne „@“ einer aktiven Persona, gefolgt von „,“ oder „:“.
+/// Address at the start of `text`: name or handle without „@“ of an active persona, followed by „,“ or „:“.
 fn address_at(text: &str, personas: &[PersonaRow]) -> Option<String> {
     let text = text.trim_start_matches("**");
     personas.iter().filter(|p| p.active).find_map(|p| {
@@ -99,7 +99,7 @@ fn address_at(text: &str, personas: &[PersonaRow]) -> Option<String> {
     })
 }
 
-/// Anfänge der Sätze in `message` (Bytes): Beitragsanfang, nach Zeilenumbruch und nach „.“, „!“, „?“ mit Leerraum.
+/// Sentence starts in `message` (bytes): start of the post, after a line break and after „.“, „!“, „?“ with whitespace.
 fn sentence_starts(message: &str) -> Vec<usize> {
     let mut out = Vec::new();
     let mut expect = true;
@@ -126,10 +126,10 @@ fn sentence_starts(message: &str) -> Vec<usize> {
     out
 }
 
-/// Die Nachricht ohne Zitatzeilen (Runde 23): Zeilen, die – nach Leerraum – mit „>“ beginnen, sind fremder Text
-/// („Zitieren“ setzt den Beitrag eines anderen als „> …“ an den Anfang der eigenen Nachricht). Sie rufen niemanden,
-/// machen keinen RFC und keinen Schreibauftrag: [`addressed`], [`mentions`], [`is_rfc`] und [`is_write_order`] lesen
-/// nur den Rest. Ohne Zitatzeile bleibt der Text unverändert (geliehen).
+/// The message without quote lines (Round 23): lines that – after whitespace – start with „>“ are foreign text
+/// („Zitieren“ puts someone else's post as „> …“ at the start of one's own message). They call nobody,
+/// make no RFC and no write order: [`addressed`], [`mentions`], [`is_rfc`] and [`is_write_order`] read
+/// only the rest. Without a quote line the text stays unchanged (borrowed).
 pub fn unquoted(message: &str) -> std::borrow::Cow<'_, str> {
     if !message.lines().any(|line| line.trim_start().starts_with('>')) {
         return std::borrow::Cow::Borrowed(message);
@@ -138,10 +138,10 @@ pub fn unquoted(message: &str) -> std::borrow::Cow<'_, str> {
     std::borrow::Cow::Owned(kept.join("\n"))
 }
 
-/// Angesprochene Personas (Runde 30c): `@handle` überall (wie [`mentions`]) und dazu Name oder Handle ohne „@“ am
-/// Satz- bzw. Beitragsanfang mit „,“ oder „:“ („Lektor, …“, „Exeget:“). Nur aktive, ohne Doppelte, in der Reihenfolge
-/// der Nachricht, höchstens [`MAX_CHAT_PERSONAS`]. „der Lektor meint“ im Fließtext zählt nicht. Zitatzeilen („> …“)
-/// zählen nicht ([`unquoted`], Runde 23).
+/// Addressed personas (Round 30c): `@handle` anywhere (like [`mentions`]) plus name or handle without „@“ at the
+/// start of a sentence or post with „,“ or „:“ („Lektor, …“, „Exeget:“). Active ones only, no duplicates, in message
+/// order, at most [`MAX_CHAT_PERSONAS`]. „der Lektor meint“ in running text does not count. Quote lines („> …“)
+/// do not count ([`unquoted`], Round 23).
 pub fn addressed(message: &str, personas: &[PersonaRow]) -> Vec<String> {
     let message = unquoted(message);
     let message = message.as_ref();
@@ -177,9 +177,9 @@ pub fn addressed(message: &str, personas: &[PersonaRow]) -> Vec<String> {
     found
 }
 
-/// Personas, die eine Antwort am **Zeilenanfang** anspricht (Relay, Runde 30c): `@handle:` bzw. `@handle,` oder eine
-/// Anrede (Name bzw. Handle ohne „@“ mit „,“/„:“), auch hinter Aufzählungszeichen und `**`. Zitatzeilen („> …“)
-/// zählen nicht. Nur aktive, ohne Doppelte, in der Reihenfolge der Antwort.
+/// Personas that an answer addresses at the **start of a line** (relay, Round 30c): `@handle:` or `@handle,` or an
+/// address (name or handle without „@“ with „,“/„:“), also behind list markers and `**`. Quote lines („> …“)
+/// do not count. Active ones only, no duplicates, in the order of the answer.
 pub fn line_addresses(answer: &str, personas: &[PersonaRow]) -> Vec<String> {
     let mut found: Vec<String> = Vec::new();
     for line in answer.lines() {
@@ -216,8 +216,8 @@ pub fn line_addresses(answer: &str, personas: &[PersonaRow]) -> Vec<String> {
     found
 }
 
-/// Auftrag der angesprochenen Persona beim Relay (von Baruch gebaut, nicht vom Modell; die Antwort selbst steht
-/// gerahmt in [`OrderFrame::relay`]).
+/// Order for the addressed persona in a relay (built by Baruch, not by the model; the answer itself stands
+/// framed in [`OrderFrame::relay`]).
 pub fn relay_text(from: &str, post: i64, message: &str) -> String {
     let text = format!(
         "{from} hat dich in Beitrag {post} direkt angesprochen. Gehe auf diese Anrede ein (die Antwort von {from} steht \
@@ -226,9 +226,9 @@ pub fn relay_text(from: &str, post: i64, message: &str) -> String {
     text.chars().take(super::MAX_QUESTION_CHARS).collect()
 }
 
-/// Erwähnte Personas in einer Nachricht (`@handle`, Groß-/Kleinschreibung egal): nur aktive, ohne
-/// Doppelte, in der Reihenfolge der Nachricht, höchstens [`MAX_CHAT_PERSONAS`]. Zitatzeilen („> …“) zählen nicht
-/// ([`unquoted`], Runde 23).
+/// Personas mentioned in a message (`@handle`, case-insensitive): active ones only, no
+/// duplicates, in message order, at most [`MAX_CHAT_PERSONAS`]. Quote lines („> …“) do not count
+/// ([`unquoted`], Round 23).
 pub fn mentions(message: &str, personas: &[PersonaRow]) -> Vec<String> {
     let message = unquoted(message);
     let mut found: Vec<String> = Vec::new();
@@ -253,9 +253,9 @@ pub fn mentions(message: &str, personas: &[PersonaRow]) -> Vec<String> {
     found
 }
 
-/// Ruft die Nachricht alle aktiven Personas (RFC)? „RFC“ als erstes Wort (Groß-/Kleinschreibung egal, auch „RFC:“)
-/// oder „@alle“ als Erwähnung irgendwo (ganzes Wort: „@allerlei“ zählt nicht). Zitatzeilen („> …“) zählen nicht
-/// ([`unquoted`], Runde 23): „> @alle …“ aus einem zitierten Beitrag ruft niemanden.
+/// Does the message call all active personas (RFC)? „RFC“ as the first word (case-insensitive, also „RFC:“)
+/// or „@alle“ as a mention anywhere (whole word: „@allerlei“ does not count). Quote lines („> …“) do not count
+/// ([`unquoted`], Round 23): „> @alle …“ from a quoted post calls nobody.
 pub fn is_rfc(message: &str) -> bool {
     let message = unquoted(message);
     let message = message.as_ref();
@@ -269,7 +269,7 @@ pub fn is_rfc(message: &str) -> bool {
     })
 }
 
-/// Imperative eines Schreibauftrags (klein, ganzes erstes Wort nach Erwähnungen und „bitte“).
+/// Imperatives of a write order (lower case, whole first word after mentions and „bitte“).
 const WRITE_VERBS: &[&str] = &[
     "schreib",
     "schreibe",
@@ -293,10 +293,10 @@ const WRITE_VERBS: &[&str] = &[
     "übersetze",
 ];
 
-/// Ist die Nachricht ein Schreibauftrag („@lektor Schreibe …“, „Bitte formuliere …“)? Erkannt am ersten Wort nach
-/// Erwähnungen (`@…`), Satzzeichen und „bitte“ (Imperativ eines Schreibverbs, [`WRITE_VERBS`]). Fragen („Kannst du
-/// schreiben, …?“) oder Nachrichten, in denen das Verb erst später steht, sind keine Aufträge – dafür gibt es
-/// „als Auftrag“ (`as_order`). Zitatzeilen („> …“) zählen nicht ([`unquoted`], Runde 23).
+/// Is the message a write order („@lektor Schreibe …“, „Bitte formuliere …“)? Recognised by the first word after
+/// mentions (`@…`), punctuation and „bitte“ (imperative of a writing verb, [`WRITE_VERBS`]). Questions („Kannst du
+/// schreiben, …?“) or messages where the verb only comes later are not orders – for those there is
+/// „als Auftrag“ (`as_order`). Quote lines („> …“) do not count ([`unquoted`], Round 23).
 pub fn is_write_order(message: &str) -> bool {
     let message = unquoted(message);
     let words = message
@@ -312,15 +312,15 @@ pub fn is_write_order(message: &str) -> bool {
     false
 }
 
-/// Wortanfänge eines Prüfauftrags (klein): „prüf den Vorschlag“, „bitte überprüfen“, „check das“, „Review bitte“.
+/// Word stems of a check order (lower case): „prüf den Vorschlag“, „bitte überprüfen“, „check das“, „Review bitte“.
 const CHECK_STEMS: &[&str] =
     &["prüf", "überprüf", "nachprüf", "gegenprüf", "kontrollier", "check", "review", "verif", "examin", "proofread"];
 
-/// Ist die Nachricht an eine direkt angesprochene Persona ein Prüfauftrag (Runde 36)? Ein Wort beginnt mit einem der
-/// [`CHECK_STEMS`] (irgendwo in der Nachricht, auch als Frage „Kannst du das prüfen?“), oder die Nachricht nennt
-/// einen Befund („[B12]“). Nur dann sieht die Persona ihre eigenen offenen Befunde ([`context::is_recheck`]); bei
-/// einer schlichten Frage („@nathan wie alt war Mose?“) nicht – sonst zöge jede Frage die alten Befunde in die
-/// Antwort. Erwähnungen (`@…`) und Zitatzeilen („> …“, [`unquoted`]) zählen nicht.
+/// Is the message to a directly addressed persona a check order (Round 36)? A word starts with one of the
+/// [`CHECK_STEMS`] (anywhere in the message, also as a question „Kannst du das prüfen?“), or the message names
+/// a finding („[B12]“). Only then does the persona see its own open findings ([`context::is_recheck`]); with
+/// a plain question („@nathan wie alt war Mose?“) it does not – otherwise every question would pull the old findings
+/// into the answer. Mentions (`@…`) and quote lines („> …“, [`unquoted`]) do not count.
 pub fn is_check_order(message: &str) -> bool {
     let message = unquoted(message);
     if !finding_refs(&message).is_empty() {
@@ -335,7 +335,7 @@ pub fn is_check_order(message: &str) -> bool {
         })
 }
 
-/// „[B<id>]“ in einem Text (ohne Doppelte, in der Reihenfolge des Texts).
+/// „[B<id>]“ in a text (no duplicates, in text order).
 pub fn finding_refs(text: &str) -> Vec<i64> {
     let mut out: Vec<i64> = Vec::new();
     let mut rest = text;
@@ -354,8 +354,8 @@ pub fn finding_refs(text: &str) -> Vec<i64> {
     out
 }
 
-/// Kurzer Beitrag der Persona zu ihrem Vorschlag (Runde 28). Baruch schreibt ihn (kein zweiter Modellaufruf); er
-/// beginnt mit keiner Befund-Marke, damit er beim Zerlegen keinen Befund ergibt.
+/// Short post of the persona about its proposal (Round 28). Baruch writes it (no second model call); it
+/// starts with no finding marker so that parsing yields no finding from it.
 pub fn order_note(rev: u32) -> String {
     format!(
         "Fassung {rev} dieses Abschnitts liegt als Vorschlag bereit (noch nicht übernommen). Übernehmen oder verwerfen \
@@ -363,7 +363,7 @@ pub fn order_note(rev: u32) -> String {
     )
 }
 
-/// Ein Vorschlag, den ein Schreibauftrag im Chat angelegt hat.
+/// A proposal created by a write order in the chat.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatProposal {
     pub persona: String,
@@ -371,25 +371,25 @@ pub struct ChatProposal {
     pub url: String,
 }
 
-/// Ergebnis einer Chat-Nachricht.
+/// Result of a chat message.
 #[derive(Debug, Clone, Serialize)]
 pub struct ChatOutcome {
-    /// Beitrag des Absenders, dann je Persona ihre Antwort.
+    /// The sender's post, then per persona its answer.
     pub posts: Vec<SavedPost>,
     pub answers: Vec<Outcome>,
-    /// Personas, deren Antwort scheiterte, mit Meldung (die übrigen Beiträge bleiben).
+    /// Personas whose answer failed, with message (the other posts stay).
     pub errors: Vec<ChatError>,
     pub url: String,
-    /// Runde 28: RFC bzw. „@alle“ (alle aktiven Personas, der Lektor zuletzt).
+    /// Round 28: RFC or „@alle“ (all active personas, the lector last).
     pub rfc: bool,
-    /// Runde 28: Vorschläge aus Schreibaufträgen.
+    /// Round 28: proposals from write orders.
     pub proposals: Vec<ChatProposal>,
-    /// Runde 28: Befunde aus den Antworten (ids, `[B<id>]`).
+    /// Round 28: findings from the answers (ids, `[B<id>]`).
     pub findings: Vec<i64>,
-    /// Runde 28: Hinweise, die keine Persona betreffen (z. B. ein Statusvorschlag zu einem Befund scheiterte).
+    /// Round 28: notes that concern no persona (e.g. a status proposal for a finding failed).
     pub notes: Vec<String>,
-    /// Personas, die die Relay-Stufe gerufen hat (auch gescheiterte). Ihre Antworten rufen niemanden mehr – das
-    /// MCP-Werkzeug `chat` ergänzt Erwähnungen nur aus den übrigen Antworten (eine Stufe).
+    /// Personas called by the relay level (also failed ones). Their answers call nobody any more – the
+    /// MCP tool `chat` adds mentions only from the other answers (one level).
     #[serde(skip)]
     pub relayed: Vec<String>,
 }
@@ -400,8 +400,8 @@ pub struct ChatError {
     pub message: String,
 }
 
-/// Eine Chat-Nachricht: Werk, Abschnitt (`key`), Text, gezeigte Fassung, Absender und wahlweise eine
-/// Persona, die auch ohne Erwähnung antworten soll (MCP `chat {persona}`).
+/// A chat message: work, section (`key`), text, shown revision, sender and optionally a
+/// persona that should answer even without a mention (MCP `chat {persona}`).
 #[derive(Debug, Clone)]
 pub struct ChatOrder<'a> {
     pub work: WorkId,
@@ -410,20 +410,20 @@ pub struct ChatOrder<'a> {
     pub rev: Option<u32>,
     pub author: &'a str,
     pub extra: Option<&'a str>,
-    /// Wie [`Order::web`]: Websuche zulassen (Oberfläche ja, MCP nie).
+    /// Like [`Order::web`]: allow web search (UI yes, MCP never).
     pub web: bool,
-    /// Runde 28: Die Nachricht ist ein Auftrag (Schreibaufträge werden Vorschläge); MCP und Vorgabe false.
+    /// Round 28: the message is an order (write orders become proposals); MCP and default false.
     pub as_order: bool,
-    /// Runde 30b: Prüfgrundlage aller Personas dieses Aufrufs (Vorgabe: die gezeigte Fassung).
+    /// Round 30b: review basis of all personas of this call (default: the shown revision).
     pub basis: super::basis::BasisChoice,
-    /// Runde 23: Relay auch bei bloßer Erwähnung (`@handle` irgendwo in einer Antwort) – so ruft MCP `chat` seit
-    /// Runde 15. Ohne (Oberfläche) ruft nur die Anrede am Zeilenanfang ([`line_addresses`]). Beides läuft durch
-    /// dieselbe Relay-Stufe ([`relay_targets`]).
+    /// Round 23: relay also on a mere mention (`@handle` anywhere in an answer) – this is how MCP `chat` has called
+    /// since Round 15. Without it (UI) only the address at the start of a line calls ([`line_addresses`]). Both run
+    /// through the same relay level ([`relay_targets`]).
     pub relay: bool,
 }
 
-/// Wer beim RFC antwortet: alle aktiven Personas in ihrer Reihenfolge, der Lektor (nach Einstellung, falls aktiv)
-/// herausgenommen und als zweites Ergebnis.
+/// Who answers in an RFC: all active personas in their order, the lector (by setting, if active)
+/// taken out and returned as the second result.
 pub async fn rfc_personas(state: &AppState) -> Result<(Vec<String>, Option<String>), RpcError> {
     let (rows, _, lector) = crate::personas::rows_and_lector(state).await?;
     let lector = lector.filter(|l| rows.iter().any(|p| p.active && &p.handle == l));
@@ -432,10 +432,10 @@ pub async fn rfc_personas(state: &AppState) -> Result<(Vec<String>, Option<Strin
     Ok((others, lector))
 }
 
-/// Chat-Nachricht: erst der Beitrag von `author` (sofort gespeichert), dann nacheinander je erwähnter
-/// aktiver Persona (dazu `extra`, falls genannt) ihre Antwort als Beitrag – beim RFC alle aktiven, beim
-/// Schreibauftrag ein Vorschlag mit kurzem Beitrag (siehe Moduldoku). Antworten der Personas rufen keine weiteren
-/// Personas auf.
+/// Chat message: first the post of `author` (stored immediately), then one after another per mentioned
+/// active persona (plus `extra`, if given) its answer as a post – in an RFC all active ones, in a
+/// write order a proposal with a short post (see module doc). Answers of the personas call no further
+/// personas.
 pub async fn chat(
     state: &AppState,
     order: &ChatOrder<'_>,
@@ -460,18 +460,18 @@ pub async fn chat(
         if let Some(extra) = extra.filter(|e| !e.trim().is_empty()) {
             addressed.push(context::active_persona(state, extra).await?.handle);
         }
-        // Runde 30c: `@handle` überall und Anrede mit Namen am Satzanfang.
+        // Round 30c: `@handle` anywhere and address by name at the start of a sentence.
         for handle in self::addressed(message, &rows) {
             if !addressed.contains(&handle) && addressed.len() < MAX_CHAT_PERSONAS {
                 addressed.push(handle);
             }
         }
-        // „als Auftrag“ ohne Erwähnung: der Lektor schreibt.
+        // „als Auftrag“ without a mention: the lector writes.
         if write && as_order && addressed.is_empty() {
             addressed.extend(rfc_personas(state).await?.1);
         }
     }
-    // Runde 30b: eine Prüfgrundlage für alle Personas dieses Aufrufs.
+    // Round 30b: one review basis for all personas of this call.
     let basis = super::basis::choose(state, work, key, rev, basis).await?;
     let first = {
         let _held = state.write_lock.lock().await;
@@ -508,7 +508,7 @@ pub async fn chat(
         links: PostLinks { reply_to: Some(first_id), ..Default::default() },
         basis: Some(basis.clone()),
     };
-    // Runde 30b: Varianten-Auftrag („Varianten …“) statt des Personen-Durchlaufs.
+    // Round 30b: variants order („Varianten …“) instead of the pass through the personas.
     if super::variants::is_variants_order(message) {
         let variant_order = super::variants::VariantOrder {
             work,
@@ -538,7 +538,7 @@ pub async fn chat(
         return Ok(result);
     }
     let mut framed: Vec<FramedAnswer> = Vec::new();
-    // Runde 30c: Antworten auf die Nachricht (für das Relay) und wer schon dran war.
+    // Round 30c: answers to the message (for the relay) and who already had a turn.
     let mut answered: Vec<FramedAnswer> = Vec::new();
     let mut called: Vec<String> = addressed.clone();
     for handle in addressed {
@@ -550,11 +550,11 @@ pub async fn chat(
             }
             continue;
         }
-        // Runde 22: Beim RFC prüft jede Persona erneut und sieht ihre eigenen offenen Befunde des Abschnitts. Fehler
-        // 0.9.0 (Kritik-Zyklus): auch eine direkt angesprochene Persona („@nathan prüf den Vorschlag“) – sonst meldete
-        // der Kritiker am Vorschlag seine alten Befunde erneut, statt sie nachzuprüfen.
-        // Runde 36 (Hinweis 0.9.0): nur beim RFC und bei einem Prüfauftrag ([`is_check_order`]). Eine schlichte Frage
-        // an die Persona zieht ihre offenen Befunde nicht mehr in den Kontext.
+        // Round 22: in an RFC every persona reviews again and sees its own open findings of the section. Bug
+        // 0.9.0 (critique cycle): also a directly addressed persona („@nathan prüf den Vorschlag“) – otherwise the
+        // critic reported its old findings on the proposal again instead of rechecking them.
+        // Round 36 (note 0.9.0): only in an RFC and for a check order ([`is_check_order`]). A plain question
+        // to the persona no longer pulls its open findings into the context.
         let recheck = rfc || is_check_order(message);
         let order = base(&handle, Mode::Chat, OrderFrame { recheck, ..OrderFrame::default() });
         match run(state, &order, progress).await {
@@ -575,8 +575,8 @@ pub async fn chat(
             Err(e) => fail(&mut result, work, key, handle, e.message),
         }
     }
-    // Runde 30c: eine Relay-Stufe (nicht beim RFC, nicht beim Schreibauftrag). Runde 23: der einzige Relay-Weg des
-    // Abschnitts-Chats – Anrede am Zeilenanfang für alle, mit `relay` (MCP) dazu jede Erwähnung.
+    // Round 30c: one relay level (not in an RFC, not in a write order). Round 23: the only relay path of the
+    // section chat – address at the start of a line for all, with `relay` (MCP) also every mention.
     if !rfc && !write {
         for (target, from) in relay_targets(&answered, &rows, &mut called, relay) {
             result.relayed.push(target.clone());
@@ -598,7 +598,7 @@ pub async fn chat(
         let lector_order = base(&lector, Mode::Chat, frame);
         match run(state, &lector_order, progress).await {
             Ok(outcome) => {
-                // Runde 30b: „Mein Vorschlag:“ des Lektors als ein Sammel-Vorschlag.
+                // Round 30b: „Mein Vorschlag:“ of the lector as one collective proposal.
                 match super::solutions::rfc_proposal(state, &lector_order, &outcome, progress).await {
                     Ok(Some(p)) => result.proposals.push(p),
                     Ok(None) => {}
@@ -612,12 +612,12 @@ pub async fn chat(
     Ok(result)
 }
 
-/// Wen die Relay-Stufe ruft (Runde 23: ein Weg für die Oberfläche und MCP, vorher zusätzlich `relay_section` in
-/// `mcp/tools.rs`): je Antwort auf die Nachricht (`answered`, nur gespeicherte) erst die Anreden am Zeilenanfang
-/// ([`line_addresses`], zusammen höchstens [`MAX_RELAY_ANSWERS`]), mit `mentions_too` (MCP `chat`) danach jede weitere
-/// Erwähnung ([`mentions`]), solange insgesamt höchstens [`MAX_CHAT_PERSONAS`] Personas gerufen sind. Niemand wird
-/// zweimal gerufen (`called` = wer schon dran war; die Gewählten kommen dazu), keine Persona ruft sich selbst.
-/// Relay-Antworten rufen niemanden mehr – sie stehen nicht in `answered`.
+/// Whom the relay level calls (Round 23: one path for the UI and MCP, before that additionally `relay_section` in
+/// `mcp/tools.rs`): per answer to the message (`answered`, stored ones only) first the addresses at the start of a
+/// line ([`line_addresses`], together at most [`MAX_RELAY_ANSWERS`]), with `mentions_too` (MCP `chat`) then every
+/// further mention ([`mentions`]) as long as at most [`MAX_CHAT_PERSONAS`] personas are called in total. Nobody is
+/// called twice (`called` = who already had a turn; the chosen ones are added), no persona calls itself.
+/// Relay answers call nobody any more – they are not in `answered`.
 pub fn relay_targets(
     answered: &[FramedAnswer],
     personas: &[PersonaRow],
@@ -657,13 +657,13 @@ pub fn relay_targets(
     queue
 }
 
-/// Fehler einer Persona ins Ergebnis und in die Live-Anzeige ([`crate::chat_live::record_failure`]).
+/// Error of a persona into the result and the live view ([`crate::chat_live::record_failure`]).
 fn fail(result: &mut ChatOutcome, work: WorkId, key: i64, persona: String, message: String) {
     crate::chat_live::record_failure(work, key, &persona, &message);
     result.errors.push(ChatError { persona, message });
 }
 
-/// Antwort einer Persona ins Ergebnis übernehmen.
+/// Take a persona's answer into the result.
 fn keep(result: &mut ChatOutcome, outcome: Outcome) {
     if let Some(post) = &outcome.post {
         result.posts.push(post.clone());
@@ -672,9 +672,9 @@ fn keep(result: &mut ChatOutcome, outcome: Outcome) {
     result.answers.push(outcome);
 }
 
-/// Schreibauftrag ausführen: Vorschlag des Abschnitts (nie übernommen), kurzer Beitrag der Persona, Statusvorschläge
-/// „übernommen in Fassung n“ für die in der **Nachricht** genannten Befunde (`[B<id>]`; seit Runde 23 nicht mehr aus
-/// dem Text des Vorschlags).
+/// Carry out a write order: proposal for the section (never adopted), short post of the persona, status proposals
+/// „übernommen in Fassung n“ for the findings named in the **message** (`[B<id>]`; since Round 23 no longer from
+/// the text of the proposal).
 async fn write_order(
     state: &AppState,
     order: &Order,
@@ -697,14 +697,14 @@ async fn write_order(
             .await?;
         SavedPost { id, author: handle.clone(), body }
     };
-    // Runde 23: Verweise nur aus der Nachricht des Auftraggebers. `[B<id>]` im Modelltext des Vorschlags erzeugt
-    // keinen Statusvorschlag mehr – das Modell könnte sonst Befunde als „übernommen“ melden, die der Auftrag nie
-    // nannte (auch über eingeschleusten Text im Abschnitt).
+    // Round 23: references only from the message of the requester. `[B<id>]` in the model text of the proposal creates
+    // no status proposal any more – the model could otherwise report findings as „übernommen“ that the order never
+    // named (also through text smuggled into the section).
     let refs = finding_refs(message);
     let by = IdeaOrigin::Persona { handle: handle.clone() };
     for id in refs {
-        // Die Fassungsnummer gilt nur im Abschnitt des Auftrags: ein Befund aus einem anderen Abschnitt bekäme sonst
-        // eine fremde Fassung mit derselben Nummer als „übernommen“ vorgeschlagen.
+        // The revision number is valid only in the section of the order: a finding from another section would otherwise
+        // get a foreign revision with the same number proposed as „übernommen“.
         match state.store.finding_get(order.work, id).await {
             Ok(finding) if finding.key == Some(order.key) => {}
             Ok(_) => {
@@ -730,9 +730,9 @@ async fn write_order(
     Ok(())
 }
 
-/// Antwort einer Chat-Nachricht als JSON; `compressed` (Runde 15) ist die erste Komprimierung einer Antwort
-/// (`null`, wenn keine Persona gestückelt sah). Runde 28: `rfc`, `proposals` (`{persona, rev, url}`), `findings`
-/// (ids) und `notes`.
+/// Answer of a chat message as JSON; `compressed` (Round 15) is the first compression of an answer
+/// (`null` if no persona saw chunks). Round 28: `rfc`, `proposals` (`{persona, rev, url}`), `findings`
+/// (ids) and `notes`.
 pub fn chat_json(outcome: &ChatOutcome) -> Value {
     let compressed = outcome.answers.iter().find_map(|a| a.compressed.as_ref());
     let mut value = json!({ "posts": outcome.posts, "errors": outcome.errors, "url": outcome.url,
@@ -743,10 +743,10 @@ pub fn chat_json(outcome: &ChatOutcome) -> Value {
     value
 }
 
-/// Runde 23: Rückmeldungen „Erledigt: Befund n“ aus den Antworten in die Ausgabe (Namen wie bei `persona.ask`):
-/// `done_proposals` (Befundnummern mit Statusvorschlag „erledigt“, ohne Doppelte), `done_notes` (übergangene
-/// Rückmeldungen mit Grund) und `all_done` (mindestens eine Persona sagt, alle ihre Befunde scheinen erledigt). Jedes
-/// Feld nur, wenn es nicht leer bzw. `true` ist.
+/// Round 23: feedback „Erledigt: Befund n“ from the answers into the output (names as in `persona.ask`):
+/// `done_proposals` (finding numbers with status proposal „erledigt“, no duplicates), `done_notes` (skipped
+/// feedback with reason) and `all_done` (at least one persona says all its findings seem resolved). Each
+/// field only if it is not empty or `true`.
 pub fn add_done(value: &mut Value, answers: &[Outcome]) {
     let mut proposals: Vec<i64> = Vec::new();
     for id in answers.iter().flat_map(|a| a.done_proposals.iter().copied()) {
@@ -766,7 +766,7 @@ pub fn add_done(value: &mut Value, answers: &[Outcome]) {
     }
 }
 
-/// Chat-Nachricht des Menschen aus RPC-Parametern ausführen.
+/// Run a chat message of the human from RPC parameters.
 pub async fn run_chat(
     state: &AppState,
     params: &Value,
@@ -774,7 +774,7 @@ pub async fn run_chat(
 ) -> Result<ChatOutcome, RpcError> {
     let (work, key, rev) = super::rpc::address(state, params).await?;
     let message = super::rpc::text(params, "message")?.unwrap_or_default();
-    // Runde 28: `as_order` (Vorgabe false) – die Nachricht als Auftrag; aus Formularen auch „1“ bzw. „on“.
+    // Round 28: `as_order` (default false) – the message as an order; from forms also „1“ or „on“.
     let as_order = match params.get("as_order") {
         Some(Value::Bool(b)) => *b,
         Some(Value::String(s)) => matches!(s.trim(), "1" | "on" | "true"),
@@ -796,8 +796,8 @@ pub async fn run_chat(
     chat(state, &order, progress).await
 }
 
-/// Runde 30c: Prüfgrundlage aus RPC bzw. Formular (`basis` = `shown` | `current` | `<n>`, Zahl oder Text); fehlt oder
-/// leer → die gezeigte.
+/// Round 30c: review basis from RPC or form (`basis` = `shown` | `current` | `<n>`, number or text); missing or
+/// empty → the shown one.
 pub fn basis_param(params: &Value) -> Result<super::basis::BasisChoice, RpcError> {
     let text = match params.get("basis") {
         None | Some(Value::Null) => return Ok(super::basis::BasisChoice::Shown),

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einlesen fremder Mindmaps (Vertrag Runde 34 §8, Besitz mindmap_austausch): Grenzen, Reinigung und der Weg von
-//! der gelesenen Datei zum [`ImportTree`].
+//! Importing foreign mind maps (contract Round 34 §8, owner mindmap_austausch): limits, cleaning and the path from
+//! the file read to the [`ImportTree`].
 //!
-//! Eine fremde Datei ist fremde Eingabe. Die Leser ([`super::freemind::read`], [`super::xmind::read`]) liefern einen
-//! rohen Baum ([`Raw`]); [`finish`] macht daraus den [`ImportTree`] und [`check`] setzt die Grenzen durch:
-//! höchstens [`MAX_IMPORT_NODES`] Knoten, Tiefe höchstens [`MAX_TREE_DEPTH`], Titel höchstens [`MAX_TITLE_CHARS`]
-//! und Notizen höchstens [`MAX_NOTE_CHARS`] Zeichen (gekürzt, mit Hinweis in `warnings`), Steuerzeichen entfernt.
-//! [`check`] läuft ein zweites Mal, wenn die Vorschau bestätigt wird: Der Baum kommt dann aus einem verborgenen
-//! Formularfeld zurück und ist wieder fremde Eingabe.
+//! A foreign file is foreign input. The readers ([`super::freemind::read`], [`super::xmind::read`]) return a
+//! raw tree ([`Raw`]); [`finish`] turns it into the [`ImportTree`] and [`check`] enforces the limits:
+//! at most [`MAX_IMPORT_NODES`] nodes, depth at most [`MAX_TREE_DEPTH`], titles at most [`MAX_TITLE_CHARS`]
+//! and notes at most [`MAX_NOTE_CHARS`] characters (shortened, with a note in `warnings`), control characters removed.
+//! [`check`] runs a second time when the preview is confirmed: the tree then comes back from a hidden
+//! form field and is foreign input again.
 //!
-//! Die Wurzel der fremden Datei wird nie selbst Einfall: Ihr Titel steht in `ImportTree::title`, ihre Kinder sind
-//! `ImportTree::nodes`. Der Ast „Wolke“ aus einer eigenen Ausgabe ([`super::export::CLOUD_ID`]) wird aufgelöst;
-//! seine Kinder stehen wieder auf der obersten Ebene und tragen `ImportNode::cloud` (Runde 36: Sie kommen beim
-//! Anlegen zurück in die Wolke). Erkannt wird der Ast an seiner Kennung, nie am Titel „Wolke“.
+//! The root of the foreign file never becomes an idea itself: its title stands in `ImportTree::title`, its children
+//! are `ImportTree::nodes`. The branch „Wolke“ from an own export ([`super::export::CLOUD_ID`]) is dissolved;
+//! its children stand on the top level again and carry `ImportNode::cloud` (Round 36: they go
+//! back into the cloud when created). The branch is recognised by its id, never by the title „Wolke“.
 
 use std::collections::HashMap;
 
@@ -20,35 +20,35 @@ use baruch_store::{MAX_IDEA_WORDS, MAX_LINK_NOTE_CHARS, MAX_WORD_CHARS};
 
 use crate::idea_map::tree::{ImportLink, ImportNode, ImportTree, MAX_IMPORT_NODES, MAX_TITLE_CHARS, MAX_TREE_DEPTH};
 
-/// Größte hochgeladene Datei (auch `DefaultBodyLimit` der Route, dort mit etwas Luft für den Formularrahmen).
+/// Largest uploaded file (also `DefaultBodyLimit` of the route, there with some air for the form framing).
 pub const MAX_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
-/// Höchstens so viele Einträge darf ein `.xmind`-Archiv haben.
+/// At most this many entries a `.xmind` archive may have.
 pub const MAX_ZIP_ENTRIES: usize = 50;
-/// Höchstens so viele Bytes werden aus einem Archiv entpackt (gezählt beim Lesen, nicht der Kopfangabe vertraut).
+/// At most this many bytes are unpacked from an archive (counted while reading, the header value is not trusted).
 pub const MAX_UNPACKED_BYTES: u64 = 20 * 1024 * 1024;
-/// Längste Notiz eines eingelesenen Knotens.
+/// Longest note of an imported node.
 pub const MAX_NOTE_CHARS: usize = 4000;
-/// Höchstens so viel Text (Titel, Notizen, Schlagwörter zusammen) trägt ein eingelesener Baum.
+/// At most this much text (titles, notes, tags together) an imported tree carries.
 pub const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
-/// Höchstens so viele Beziehungen werden übernommen.
+/// At most this many relations are taken over.
 pub const MAX_IMPORT_LINKS: usize = 2000;
-/// Titel eines Knotens, der in der Datei keinen trägt.
+/// Title of a node that carries none in the file.
 pub const UNTITLED: &str = "(ohne Titel)";
 
-/// Ein Knoten, wie ihn ein Leser aus der Datei holt (noch ungeprüft).
+/// A node as a reader takes it from the file (still unchecked).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RawNode {
-    /// Kennung in der Datei (Ziel der Beziehungen); leer, wenn die Datei keine nennt.
+    /// Id in the file (target of the relations); empty if the file names none.
     pub id: String,
     pub title: String,
     pub note: String,
     pub words: Vec<String>,
-    /// Der Ast „Wolke“ einer eigenen Ausgabe.
+    /// The branch „Wolke“ of an own export.
     pub cloud: bool,
     pub children: Vec<RawNode>,
 }
 
-/// Eine Beziehung der Datei (Kennungen wie in [`RawNode::id`]).
+/// A relation of the file (ids as in [`RawNode::id`]).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RawLink {
     pub from: String,
@@ -56,7 +56,7 @@ pub struct RawLink {
     pub note: String,
 }
 
-/// Ergebnis eines Lesers.
+/// Result of a reader.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Raw {
     pub root: RawNode,
@@ -64,17 +64,17 @@ pub struct Raw {
     pub warnings: Vec<String>,
 }
 
-/// Meldung „zu viele Knoten“ (Leser und [`check`] gleich).
+/// Message “too many nodes” (same for reader and [`check`]).
 pub fn too_many_nodes() -> String {
     format!("Die Datei hat mehr als {MAX_IMPORT_NODES} Knoten; so große Mindmaps liest Baruch nicht ein.")
 }
 
-/// Meldung „zu tief“ (Leser und [`check`] gleich).
+/// Message “too deep” (same for reader and [`check`]).
 pub fn too_deep() -> String {
     format!("Die Mindmap ist tiefer als {MAX_TREE_DEPTH} Ebenen; so tiefe Mindmaps liest Baruch nicht ein.")
 }
 
-/// Datei nach ihrem Inhalt lesen: ZIP („PK“) als XMind, XML als FreeMind/Freeplane. Der Dateiname entscheidet nichts.
+/// Read a file by its content: ZIP („PK“) as XMind, XML as FreeMind/Freeplane. The file name decides nothing.
 pub fn read(bytes: &[u8]) -> Result<ImportTree, String> {
     if bytes.len() > MAX_UPLOAD_BYTES {
         return Err(too_large());
@@ -97,7 +97,7 @@ pub fn read(bytes: &[u8]) -> Result<ImportTree, String> {
     finish(raw)
 }
 
-/// Meldung „Datei zu groß“.
+/// Message “file too large”.
 pub fn too_large() -> String {
     format!(
         "Die Datei ist größer als {} MiB; so große Mindmaps liest Baruch nicht ein.",
@@ -118,11 +118,11 @@ fn convert(node: RawNode, path: &mut Vec<usize>, ids: &mut HashMap<String, Vec<u
     ImportNode { title: node.title, note: node.note, words: node.words, children, cloud: false }
 }
 
-/// Vom rohen Baum zum geprüften [`ImportTree`]: Wurzel wird Titel, der Ast „Wolke“ wird aufgelöst, Beziehungen
-/// werden Pfade; danach [`check`]. Die Leser begrenzen Knotenzahl und Tiefe schon beim Lesen.
+/// From the raw tree to the checked [`ImportTree`]: root becomes title, the branch „Wolke“ is dissolved, relations
+/// become paths; then [`check`]. The readers already limit node count and depth while reading.
 pub fn finish(raw: Raw) -> Result<ImportTree, String> {
-    // Runde 36: Die Kinder des eigenen Astes „Wolke“ stehen wieder auf der obersten Ebene und merken sich, dass
-    // sie aus der Wolke kommen (`ImportNode::cloud`) – beim Anlegen kommen sie dorthin zurück.
+    // Round 36: the children of the own branch „Wolke“ stand on the top level again and remember that
+    // they come from the cloud (`ImportNode::cloud`) – when created they go back there.
     let mut top = Vec::new();
     for child in raw.root.children {
         if child.cloud {
@@ -155,13 +155,13 @@ pub fn finish(raw: Raw) -> Result<ImportTree, String> {
     check(ImportTree { title: raw.root.title, nodes, links, warnings })
 }
 
-/// Eine Zeile: Leerraum zusammengefasst, Steuerzeichen entfernt.
+/// One line: whitespace collapsed, control characters removed.
 fn one_line(text: &str) -> String {
     let clean: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     clean.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Auf `max` Zeichen gekürzt (das letzte ist dann „…“); `true`, wenn gekürzt wurde.
+/// Shortened to `max` characters (the last is then „…“); `true` if it was shortened.
 fn cut(text: String, max: usize) -> (String, bool) {
     if text.chars().count() <= max {
         return (text, false);
@@ -172,7 +172,7 @@ fn cut(text: String, max: usize) -> (String, bool) {
     (short, true)
 }
 
-/// Mehrzeiliger Text: Zeilenenden vereinheitlicht, Steuerzeichen (außer Zeilenumbruch und Tabulator) entfernt.
+/// Multi-line text: line ends unified, control characters (except line break and tab) removed.
 fn many_lines(text: &str) -> String {
     let unified = text.replace("\r\n", "\n").replace('\r', "\n");
     let clean: String = unified.chars().filter(|c| !c.is_control() || matches!(c, '\n' | '\t')).collect();
@@ -220,7 +220,7 @@ fn clean(node: &mut ImportNode, depth: usize, stats: &mut Stats) -> Result<(), S
         words.truncate(MAX_IDEA_WORDS);
         changed = true;
     }
-    // Leere und doppelte Schlagwörter fallen still weg; ein Hinweis nur, wenn etwas gekürzt oder abgeschnitten wurde.
+    // Empty and duplicate tags are dropped silently; a note only if something was shortened or cut off.
     stats.cut_words += usize::from(changed);
     node.words = words;
     stats.bytes += node.title.len() + node.note.len() + node.words.iter().map(String::len).sum::<usize>();
@@ -236,7 +236,7 @@ fn clean(node: &mut ImportNode, depth: usize, stats: &mut Stats) -> Result<(), S
     Ok(())
 }
 
-/// Knoten am Pfad (Indizes von `nodes` abwärts).
+/// Node at the path (indices from `nodes` downwards).
 pub fn at<'a>(nodes: &'a [ImportNode], path: &[usize]) -> Option<&'a ImportNode> {
     let (first, rest) = path.split_first()?;
     let mut node = nodes.get(*first)?;
@@ -246,13 +246,13 @@ pub fn at<'a>(nodes: &'a [ImportNode], path: &[usize]) -> Option<&'a ImportNode>
     Some(node)
 }
 
-/// Zahl der Knoten eines Baums.
+/// Number of nodes of a tree.
 pub fn count(nodes: &[ImportNode]) -> usize {
     nodes.iter().map(|n| 1 + count(&n.children)).sum()
 }
 
-/// Grenzen durchsetzen und Texte reinigen (siehe Modulkopf). Gilt für den frisch gelesenen Baum und – ein zweites
-/// Mal – für den Baum aus dem verborgenen Formularfeld der Vorschau. Ein schon geprüfter Baum bleibt unverändert.
+/// Enforce limits and clean texts (see module head). Applies to the freshly read tree and – a second
+/// time – to the tree from the hidden form field of the preview. An already checked tree stays unchanged.
 pub fn check(mut tree: ImportTree) -> Result<ImportTree, String> {
     let mut stats = Stats::default();
     tree.title = cut(one_line(&tree.title), MAX_TITLE_CHARS).0;
@@ -300,8 +300,8 @@ pub fn check(mut tree: ImportTree) -> Result<ImportTree, String> {
     Ok(tree)
 }
 
-/// HTML zu reinem Text: Tags fallen weg (Absätze und Zeilenumbrüche werden Zeilen), die gängigen Entitäten werden
-/// Zeichen, alles Übrige bleibt als Text stehen. Skripte und Stile werden samt Inhalt entfernt.
+/// HTML to plain text: tags are dropped (paragraphs and line breaks become lines), the common entities become
+/// characters, everything else stays as text. Scripts and styles are removed with their content.
 pub fn html_to_text(html: &str) -> String {
     let mut out = String::new();
     let mut rest = html;
@@ -361,7 +361,7 @@ pub fn html_to_text(html: &str) -> String {
     joined.trim().to_owned()
 }
 
-/// Zeichen zu einer Entität (ohne `&` und `;`): die fünf von XML, `nbsp` und Zeichenreferenzen. Sonst `None`.
+/// Character for an entity (without `&` and `;`): the five of XML, `nbsp` and character references. Else `None`.
 pub fn entity(name: &str) -> Option<char> {
     Some(match name {
         "amp" => '&',

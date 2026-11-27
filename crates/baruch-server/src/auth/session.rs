@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sitzungen (Runde 35, Vertrag §1.2): Token aus 32 Zufallsbytes im Cookie [`super::SESSION_COOKIE`], gespeichert nur
-//! als SHA-256; gültig 30 Tage ohne Benutzung, höchstens 90 Tage.
+//! Sessions (Round 35, contract §1.2): token of 32 random bytes in the cookie [`super::SESSION_COOKIE`], stored only
+//! as SHA-256; valid 30 days without use, at most 90 days.
 //!
-//! Das Token verlässt den Server nur im `Set-Cookie` der Anmeldung (und beim Erneuern des Cookies); in der
-//! Datenbank steht sein SHA-256 (`baruch_store::Store::session_token_hash`). Welche Sitzung die laufende Anfrage
-//! trägt, steht – wie [`super::current`] – in einer task-lokalen Ablage ([`current_hash`]): So behält ein
-//! Passwortwechsel genau diese Sitzung und löscht alle anderen.
+//! The token leaves the server only in the `Set-Cookie` of the login (and when renewing the cookie); the
+//! database holds its SHA-256 (`baruch_store::Store::session_token_hash`). Which session the running request
+//! carries is kept – like [`super::current`] – in a task-local slot ([`current_hash`]): this way a
+//! password change keeps exactly this session and deletes all others.
 
 use axum::http::{HeaderMap, HeaderValue, header};
 use axum::response::Response;
@@ -16,37 +16,37 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use super::SESSION_COOKIE;
 use crate::AppState;
 
-/// Lebensdauer des Cookies im Browser: 30 Tage (die Frist „ohne Benutzung“; der Server prüft beide Fristen selbst).
+/// Lifetime of the cookie in the browser: 30 days (the period “without use”; the server checks both periods itself).
 pub const COOKIE_MAX_AGE: u64 = 2_592_000;
-/// Liegt die vorige Benutzung länger zurück, bekommt der Browser das Cookie neu (frische 30 Tage).
+/// If the previous use is longer ago, the browser gets the cookie anew (fresh 30 days).
 pub const RENEW_AFTER_IDLE_SECONDS: i64 = 3600;
-/// Länge eines Tokens: 32 Byte als Base64url ohne Füllung.
+/// Length of a token: 32 bytes as Base64url without padding.
 const TOKEN_CHARS: usize = 43;
 
 tokio::task_local! {
     static SESSION: Option<String>;
 }
 
-/// Token-Hash der Sitzung, unter der die laufende Anfrage angemeldet ist; `None` ohne Sitzung (und außerhalb einer
-/// Anfrage). Wie [`super::current`] nie in abgespaltenen Aufgaben auswerten.
+/// Token hash of the session under which the running request is logged in; `None` without a session (and outside
+/// of a request). Like [`super::current`] never evaluate in spawned tasks.
 pub fn current_hash() -> Option<String> {
     SESSION.try_with(Clone::clone).ok().flatten()
 }
 
-/// Führt `f` unter der Sitzung mit diesem Token-Hash aus.
+/// Runs `f` under the session with this token hash.
 pub async fn scope<F: std::future::Future>(hash: Option<String>, f: F) -> F::Output {
     SESSION.scope(hash, f).await
 }
 
-/// Neues Token: 32 Zufallsbytes des Systems als Base64url (43 Zeichen).
+/// New token: 32 random bytes of the system as Base64url (43 characters).
 pub fn new_token() -> Result<String, String> {
     let mut bytes = [0u8; 32];
     getrandom::getrandom(&mut bytes).map_err(|e| format!("Zufallszahlen des Systems: {e}"))?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
-/// Das Token aus den `Cookie`-Kopfzeilen, wenn es wie eines aussieht (43 Zeichen Base64url); alles andere wird gar
-/// nicht erst nachgeschlagen.
+/// The token from the `Cookie` headers if it looks like one (43 characters Base64url); everything else is not
+/// even looked up.
 pub fn token_from(headers: &HeaderMap) -> Option<&str> {
     headers
         .get_all(header::COOKIE)
@@ -61,27 +61,27 @@ pub fn token_from(headers: &HeaderMap) -> Option<&str> {
         })
 }
 
-/// `Set-Cookie` der Sitzung: `HttpOnly` (kein Skript liest es), `SameSite=Strict` (keine fremde Seite schickt es
-/// mit), `Path=/`; `Secure`, wenn die Anfrage über den Proxy kam (dort endet TLS).
+/// `Set-Cookie` of the session: `HttpOnly` (no script reads it), `SameSite=Strict` (no foreign page sends it
+/// along), `Path=/`; `Secure` if the request came through the proxy (TLS ends there).
 pub fn cookie(token: &str, secure: bool) -> String {
     let secure = if secure { "; Secure" } else { "" };
     format!("{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={COOKIE_MAX_AGE}{secure}")
 }
 
-/// `Set-Cookie`, das das Cookie der Sitzung im Browser löscht.
+/// `Set-Cookie` that deletes the session cookie in the browser.
 pub fn clear_cookie(secure: bool) -> String {
     let secure = if secure { "; Secure" } else { "" };
     format!("{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0{secure}")
 }
 
-/// Hängt ein `Set-Cookie` an die Antwort.
+/// Appends a `Set-Cookie` to the response.
 pub fn set_cookie(response: &mut Response, cookie: &str) {
     if let Ok(value) = HeaderValue::from_str(cookie) {
         response.headers_mut().append(header::SET_COOKIE, value);
     }
 }
 
-/// Neue Sitzung für das Konto: legt sie an (nur der Hash) und liefert das Token für das Cookie.
+/// New session for the account: creates it (only the hash) and returns the token for the cookie.
 pub async fn start(state: &AppState, account: i64) -> Result<String, String> {
     let token = new_token()?;
     state

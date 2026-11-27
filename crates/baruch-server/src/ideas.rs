@@ -1,61 +1,61 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einfälle (Vertrag Runde 7, Abschnitt 6): RPC `idea.*`, die Seiten `/einfaelle` und
-//! `/einfaelle/{id}` und ihr Formular an `POST /einfaelle/act`, alles ohne JavaScript bedienbar. Die
-//! Schnellerfassung der Kopfzeile (`fragments/idea_capture.html`, Widget `idea-capture` in
-//! `web/src/ideas.ts`) schickt dasselbe Formular, mit JavaScript über `idea.create`.
+//! Ideas (contract Round 7, section 6): RPC `idea.*`, the pages `/einfaelle` and
+//! `/einfaelle/{id}` and their form to `POST /einfaelle/act`, all usable without JavaScript. The
+//! quick capture of the header (`fragments/idea_capture.html`, widget `idea-capture` in
+//! `web/src/ideas.ts`) sends the same form, with JavaScript through `idea.create`.
 //!
-//! RPC ([`handles`], [`call`]; vor der Wahl des Vorgabewerks, weil Einfälle auch ohne Werk gehen).
-//! Herkunft ist hier immer der Mensch ([`mirror::HUMAN_NAME`]); `work` fehlt oder `null` = ohne Werk
-//! (bei Listen: alle):
+//! RPC ([`handles`], [`call`]; before the default work is chosen, because ideas also work without a work).
+//! Origin here is always the human ([`mirror::HUMAN_NAME`]); `work` missing or `null` = without a work
+//! (for lists: all):
 //! - `idea.create {work?, key?, words: [..] | "a, b; c", note?, quote?, source?, bible?}` → `{idea, commit?|mirror?}`
 //! - `idea.get {id}` → `{idea}`
 //! - `idea.list {work?: id|"none"|"all", word?, status?: "open"|"done"|"all", deleted?, limit?, offset?}`
-//!   → `{ideas, words}` (`words` = Schlagwort-Wolke über denselben Werk-/Statusfilter)
-//! - `idea.search {query, work?, status?, limit?, mode?}` → `{ideas, hits: [{id, snippet}]}` (FTS5 über
-//!   [`baruch_library::fts_query`]; leere Suche → -32602). `mode: "rag"` (Runde 12) sucht nach Bedeutung
-//!   über [`crate::search_hooks::rag_search`] (Weg LanceDB, Art `idea`) und braucht ein Werk (sonst -32602
-//!   „Bedeutungssuche nur innerhalb eines Werks“) → `{ideas, hits: [{id, snippet, score, weak}], ways}` in der
-//!   Reihenfolge des Rangs, schwache Treffer (`weak`, [`baruch_rag::is_weak`], Runde 19c) zuletzt; gelöschte und
-//!   (nach `status`) nicht passende Einfälle fallen heraus. Fällt die Bedeutungssuche aus (LanceDB nicht verbunden,
-//!   etwa ohne Einbettungsmodell), antwortet sie seit Runde 19c mit -32001 ([`crate::rpc::RAG_UNAVAILABLE`]) und dem
-//!   Grund. Die Seite `/einfaelle?work=W&q=…&mode=rag` zeigt dasselbe ohne JavaScript (schwache Treffer zugeklappt).
+//!   → `{ideas, words}` (`words` = tag cloud over the same work/status filter)
+//! - `idea.search {query, work?, status?, limit?, mode?}` → `{ideas, hits: [{id, snippet}]}` (FTS5 through
+//!   [`baruch_library::fts_query`]; empty search → -32602). `mode: "rag"` (Round 12) searches by meaning
+//!   through [`crate::search_hooks::rag_search`] (way LanceDB, kind `idea`) and needs a work (otherwise -32602
+//!   „Bedeutungssuche nur innerhalb eines Werks“) → `{ideas, hits: [{id, snippet, score, weak}], ways}` in
+//!   rank order, weak hits (`weak`, [`baruch_rag::is_weak`], Round 19c) last; deleted ideas and those not
+//!   matching (by `status`) are dropped. If the semantic search fails (LanceDB not connected,
+//!   e.g. without embedding model), it answers since Round 19c with -32001 ([`crate::rpc::RAG_UNAVAILABLE`]) and the
+//!   reason. The page `/einfaelle?work=W&q=…&mode=rag` shows the same without JavaScript (weak hits collapsed).
 //! - `idea.update {id, words?, note?, quote?, source?, bible?, work?, key?, status?}` → `{idea, changed, commit?}`
-//! - `idea.delete {id, confirm: true}` → `{id, deleted: true, commit?}`; ohne `confirm` → -32602
+//! - `idea.delete {id, confirm: true}` → `{id, deleted: true, commit?}`; without `confirm` → -32602
 //! - `idea.restore {id}` → `{idea, commit?}`
 //! - `idea.process {id, as: "outline"|"post"|"note"|"persona", key?, place?, title?, persona?}` →
-//!   `{idea, node?, key?, outline?, commit?}`: `outline` legt über [`Store::idea_to_outline`] (Runde 14,
-//!   eine Transaktion mit dem Erledigen des Einfalls) einen
-//!   Gliederungspunkt an (Ziel `key` bzw. der Bezug des Einfalls, Vorgabe `after`; Titel = `title`
-//!   oder die Schlagwörter, auf 200 Zeichen gekürzt) und spiegelt ihn wie `outline.add`; `post` und
-//!   `note` legen einen Beitrag im Abschnitts-Chat an (Autor der Mensch bzw. „Notiz“); danach ist der
-//!   Einfall verarbeitet (ein Commit `idea-process`). `persona` (Runde 10) ist ein Auftrag an die
-//!   Persona `persona` (Vorgabe: der Lektor des Werks) mit dem Einfall als Frage zum Bezugsabschnitt: Ihre
-//!   Antwort wird ein Beitrag im Abschnitts-Chat (Quelle „Einfall <id>“), der Einfall ist danach
-//!   verarbeitet (`done_as` persona, `done_ref` der Beitrag). Der Modellaufruf läuft **vor** der
-//!   Schreibsperre ([`crate::assist`]); scheitert er, bleibt der Einfall offen und nichts ist gespeichert.
-//!   Der Lektor kennt außerdem die Einfälle als Gedächtnis ([`crate::assist::context`]).
+//!   `{idea, node?, key?, outline?, commit?}`: `outline` creates through [`Store::idea_to_outline`] (Round 14,
+//!   one transaction with marking the idea as done) an
+//!   outline item (target `key` or the relation of the idea, default `after`; title = `title`
+//!   or the tags, shortened to 200 characters) and mirrors it like `outline.add`; `post` and
+//!   `note` create a post in the section chat (author the human or „Notiz“); afterwards the
+//!   idea is processed (one commit `idea-process`). `persona` (Round 10) is an order to the
+//!   persona `persona` (default: the lector of the work) with the idea as a question on the related section: its
+//!   answer becomes a post in the section chat (source „Einfall <id>“), the idea is then
+//!   processed (`done_as` persona, `done_ref` the post). The model call runs **before** the
+//!   write lock ([`crate::assist`]); if it fails, the idea stays open and nothing is stored.
+//!   The lector also knows the ideas as memory ([`crate::assist::context`]).
 //!
-//! Runde 34 (Mindmap, Vertrag §3; Nachtrag des Nutzers vom 2026-11-25 zur Wolke):
-//! - Jede Antwort mit `idea` trägt `title`, `parent`, `position`, `main_topic` und `cloud` (abgeleitet: Einfall eines
-//!   Werks ohne Elternknoten, ohne Bezug und nicht Hauptthema – er liegt in der Wolke neben der Mindmap).
-//! - `idea.create` zusätzlich `title?` (höchstens 200 Zeichen; mit Titel dürfen `words` fehlen), `parent?` (Einfall
-//!   desselben Werks; setzt `work` daraus, wenn es fehlt), `before?` (Geschwister, vor das der neue kommt; ohne = ans
-//!   Ende), `cloud?` (`false` = ohne `parent` und `key` freies Hauptthema am Werk; Vorgabe: in die Wolke).
-//! - `idea.update` zusätzlich `title?`.
+//! Round 34 (mind map, contract §3; addendum of the user of 2026-11-25 on the cloud):
+//! - Every answer with `idea` carries `title`, `parent`, `position`, `main_topic` and `cloud` (derived: idea of a
+//!   work without parent node, without relation and not a main topic – it lies in the cloud next to the mind map).
+//! - `idea.create` additionally `title?` (at most 200 characters; with a title `words` may be missing), `parent?`
+//!   (idea of the same work; sets `work` from it if missing), `before?` (sibling before which the new one goes;
+//!   without = to the end), `cloud?` (`false` = without `parent` and `key` a free main topic; default: the cloud).
+//! - `idea.update` additionally `title?`.
 //! - `idea.move {id, parent?: id|null, key?: key|null, before?: id|null, cloud?: bool}` → `{idea, changed, commit?}`:
-//!   hängt um und ordnet (fehlende Felder bleiben). `parent: null` löst vom Elternknoten – bleibt auch kein Bezug,
-//!   wird der Einfall freies Hauptthema am Werk; `cloud: true` legt ihn in die Wolke (löst Elternknoten und Bezug),
-//!   `cloud: false` macht einen Einfall ohne Elternknoten und Bezug zum Hauptthema. Die Unterknoten wandern immer
-//!   mit. Abgelehnt mit -32000 ([`REFUSED`]): anderes Werk, eigener Nachfahre (Kreis), Tiefe über 32, gelöschter
-//!   Einfall bzw. Elternknoten, `before` kein Geschwister. Ein Commit „Einfall <id>: umgehängt“ (`idea-move`).
-//! - `idea.delete` löscht den Einfall samt nicht gelöschten Unterknoten mit demselben Zeitstempel in einem Commit
-//!   (Antwort zusätzlich `deleted_ids`; `deleted` bleibt `true` wie bisher – siehe `docs/RPC.md`, „Runde 34 – Mindmap“),
-//!   `idea.restore` stellt genau diese wieder her (Antwort zusätzlich `restored`, und `detached: true`, wenn der
-//!   Elternknoten noch gelöscht ist und der Einfall darum gelöst wurde).
+//!   re-hangs and orders (missing fields stay). `parent: null` detaches from the parent node – if no relation
+//!   remains either, the idea becomes a free main topic on the work; `cloud: true` puts it into the cloud (removes
+//!   parent node and relation), `cloud: false` makes an idea without parent node and relation a main topic. The
+//!   sub-nodes always move along. Refused with -32000 ([`REFUSED`]): other work, own descendant (cycle), depth above
+//!   32, deleted idea or parent node, `before` not a sibling. One commit „Einfall <id>: umgehängt“ (`idea-move`).
+//! - `idea.delete` deletes the idea with its non-deleted sub-nodes with the same timestamp in one commit
+//!   (answer additionally `deleted_ids`; `deleted` stays `true` as before – see `docs/RPC.md`, „Runde 34 – Mindmap“),
+//!   `idea.restore` restores exactly these (answer additionally `restored`, and `detached: true` if the
+//!   parent node is still deleted and the idea was therefore detached).
 //!
-//! Jede Aktion läuft unter [`AppState::write_lock`] und ergibt genau einen Commit je betroffenem
-//! Spiegel ([`mirror::record_idea`]): Werk → Werkspiegel mit `einfaelle.md`, ohne Werk →
-//! `<data>/einfaelle/`; beim Umziehen zwischen Werken je einer im alten und im neuen.
+//! Every action runs under [`AppState::write_lock`] and yields exactly one commit per affected
+//! mirror ([`mirror::record_idea`]): work → work mirror with `einfaelle.md`, without a work →
+//! `<data>/einfaelle/`; when moving between works one each in the old and the new.
 
 use std::sync::{Arc, OnceLock};
 
@@ -91,10 +91,10 @@ const METHODS: &[&str] = &[
     "idea.move",
 ];
 
-/// Höchstlänge eines Titels aus den Schlagwörtern (Titelregel der Gliederung).
+/// Maximum length of a title from the tags (title rule of the outline).
 const MAX_TITLE: usize = 200;
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
@@ -103,9 +103,9 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-// ---- Parameter ---------------------------------------------------------------------------------
+// ---- Parameters --------------------------------------------------------------------------------
 
-/// Zahl aus einem JSON-Wert (Zahl oder Ziffern als Text, Formulare).
+/// Number from a JSON value (number or digits as text, forms).
 fn int(value: &Json, name: &str) -> Result<i64, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match value {
@@ -115,7 +115,7 @@ fn int(value: &Json, name: &str) -> Result<i64, RpcError> {
     }
 }
 
-/// `id` (Pflicht).
+/// `id` (mandatory).
 fn id_param(params: &Json) -> Result<IdeaId, RpcError> {
     match params.get("id") {
         None | Some(Json::Null) => Err(invalid("id fehlt (Einfall)")),
@@ -123,8 +123,8 @@ fn id_param(params: &Json) -> Result<IdeaId, RpcError> {
     }
 }
 
-/// Werk oder Abschnitt, der sich ändern lässt: fehlt → `None` (bleibt), `null`, `""` oder `"none"` →
-/// `Some(None)` (ohne), Zahl → `Some(Some(n))`.
+/// Work or section that can change: missing → `None` (stays), `null`, `""` or `"none"` →
+/// `Some(None)` (without), number → `Some(Some(n))`.
 fn optional_ref(params: &Json, name: &str) -> Result<Option<Option<i64>>, RpcError> {
     match params.get(name) {
         None => Ok(None),
@@ -134,7 +134,7 @@ fn optional_ref(params: &Json, name: &str) -> Result<Option<Option<i64>>, RpcErr
     }
 }
 
-/// Text oder fehlend; `null` zählt als fehlend.
+/// Text or missing; `null` counts as missing.
 fn text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
@@ -143,7 +143,7 @@ fn text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
     }
 }
 
-/// Schlagwörter: Liste von Texten oder ein Text, getrennt durch Komma oder Semikolon.
+/// Tags: list of texts or one text, separated by comma or semicolon.
 pub(crate) fn split_words(value: &Json, name: &str) -> Result<Vec<String>, RpcError> {
     match value {
         Json::String(s) => Ok(s.split([',', ';']).map(str::to_owned).collect()),
@@ -162,7 +162,7 @@ fn words_param(params: &Json) -> Result<Option<Vec<String>>, RpcError> {
     }
 }
 
-/// Status für Listen: fehlt, `null` oder `"all"` → alle.
+/// Status for lists: missing, `null` or `"all"` → all.
 fn list_status(params: &Json) -> Result<Option<IdeaStatus>, RpcError> {
     match params.get("status") {
         None | Some(Json::Null) => Ok(None),
@@ -174,8 +174,8 @@ fn list_status(params: &Json) -> Result<Option<IdeaStatus>, RpcError> {
     }
 }
 
-/// Werkfilter für Listen: fehlt, `null` oder `"all"` → alle, `"none"` → ohne Werk, sonst die id
-/// (unbekannt → `UnknownWork`).
+/// Work filter for lists: missing, `null` or `"all"` → all, `"none"` → without a work, otherwise the id
+/// (unknown → `UnknownWork`).
 async fn list_scope(state: &AppState, params: &Json) -> Result<IdeaScope, RpcError> {
     match params.get("work") {
         None | Some(Json::Null) => Ok(IdeaScope::All),
@@ -196,7 +196,7 @@ fn limit_param(params: &Json, name: &str) -> Result<u32, RpcError> {
     }
 }
 
-/// Wahrheitswert (Runde 34, `cloud`): `true`/`false`, `1`/`0` oder als Text aus Formularen; fehlt → `None`.
+/// Boolean (Round 34, `cloud`): `true`/`false`, `1`/`0` or as text from forms; missing → `None`.
 fn flag(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
     let wrong = || invalid(format!("{name}: true oder false erwartet"));
     match params.get(name) {
@@ -226,9 +226,9 @@ fn place_param(params: &Json) -> Result<Place, RpcError> {
     }
 }
 
-// ---- Abläufe (auch für MCP) ---------------------------------------------------------------------
+// ---- Flows (also for MCP) -----------------------------------------------------------------------
 
-/// Ergebnis des Spiegels in die Antwort: `commit` bei neuem Commit, `mirror` bei Fehler.
+/// Result of the mirror into the answer: `commit` for a new commit, `mirror` on error.
 fn add_mirror(answer: &mut Json, result: Result<Option<String>, String>) {
     match result {
         Ok(Some(commit)) => answer["commit"] = json!(commit),
@@ -237,14 +237,14 @@ fn add_mirror(answer: &mut Json, result: Result<Option<String>, String>) {
     }
 }
 
-/// Commit-Auftrag für eine Aktion von `actor` an `idea`: Autor und `Baruch-Origin` nennen den, der
-/// handelt (bei einer Änderung durch einen Assistenten also ihn), der Eintrag im Lösch-Commit die
-/// Herkunft des Einfalls.
+/// Commit job for an action of `actor` on `idea`: author and `Baruch-Origin` name the one who
+/// acts (so for a change by an assistant, it), the entry in the delete commit the
+/// origin of the idea.
 fn request_for(idea: &Idea, actor: &IdeaOrigin, action: &str, detail: &str) -> baruch_gitmirror::CommitRequest {
     let acting = Idea { origin: actor.clone(), ..idea.clone() };
     let mut request = mirror::describe_idea(&acting, action, detail);
     if action == "idea-move" {
-        // Runde 34: `describe_idea` kennt die Aktion nicht und schriebe ihren Namen in den Betreff.
+        // Round 34: `describe_idea` does not know the action and would write its name into the subject.
         request.summary = format!("Einfall {}: umgehängt", idea.id);
     }
     if action == "idea-delete" {
@@ -259,9 +259,9 @@ fn request_for(idea: &Idea, actor: &IdeaOrigin, action: &str, detail: &str) -> b
     request
 }
 
-/// Einfall anlegen, unter der Schreibsperre, mit Commit. Antwort `{idea, commit?|mirror?}`. Seit Runde 34 mit Titel
-/// und Platz in der Mindmap: Unterknoten, vor einem Geschwister, freies Hauptthema; ohne Elternknoten, Bezug und
-/// Hauptthema (`IdeaSpot::default()`) liegt der neue Einfall in der Wolke.
+/// Create an idea, under the write lock, with commit. Answer `{idea, commit?|mirror?}`. Since Round 34 with title
+/// and place in the mind map: sub-node, before a sibling, free main topic; without parent node, relation and
+/// main topic (`IdeaSpot::default()`) the new idea lies in the cloud.
 pub(crate) async fn create_at(state: &AppState, new: &NewIdea<'_>, spot: &IdeaSpot<'_>) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let idea = state.store.idea_create_at(new, spot).await?;
@@ -275,7 +275,7 @@ pub(crate) async fn create_at(state: &AppState, new: &NewIdea<'_>, spot: &IdeaSp
     Ok(answer)
 }
 
-/// Was sich geändert hat, für den Rumpf des Commits.
+/// What changed, for the body of the commit.
 fn changes(before: &Idea, after: &Idea) -> String {
     let mut lines = Vec::new();
     let mut field = |label: &str, old: &str, new: &str| {
@@ -302,8 +302,8 @@ fn one_line(s: &str) -> String {
     if joined.is_empty() { "–".to_owned() } else { joined }
 }
 
-/// Einfall ändern: unverändert → `{idea, changed: false}` ohne Commit; sonst ein Commit, beim
-/// Umziehen zwischen Werken (bzw. von/zu „ohne Werk“) je einer im alten und im neuen Spiegel.
+/// Change an idea: unchanged → `{idea, changed: false}` without commit; otherwise one commit, when
+/// moving between works (or from/to “without a work”) one each in the old and the new mirror.
 pub(crate) async fn update(
     state: &AppState,
     id: IdeaId,
@@ -312,7 +312,7 @@ pub(crate) async fn update(
 ) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let before = state.store.idea_get(id).await?;
-    // Verbindungen, die ein Umzug löst (der Store löst alle nicht gelöschten Verbindungen des Einfalls).
+    // Links that a move removes (the store removes all non-deleted links of the idea).
     let linked: Vec<IdeaLinkId> = state
         .store
         .idea_links_of_idea(id, true)
@@ -364,7 +364,7 @@ fn moved_text(from: Option<WorkId>, to: Option<WorkId>) -> String {
     format!("{} → {}", name(from), name(to))
 }
 
-/// Wo ein Einfall in der Mindmap hängt, für den Rumpf des Commits.
+/// Where an idea hangs in the mind map, for the body of the commit.
 fn place_text(idea: &Idea) -> String {
     match (idea.parent, idea.key, idea.main_topic) {
         (Some(parent), _, _) => format!("unter Einfall {parent}"),
@@ -375,9 +375,9 @@ fn place_text(idea: &Idea) -> String {
     }
 }
 
-/// Einfall umhängen und ordnen (Runde 34, auch für MCP): unverändert → `{idea, changed: false}` ohne Commit; sonst
-/// genau ein Commit „Einfall <id>: umgehängt“ mit Herkunft. Verletzte Regel (anderes Werk, Kreis, Tiefe, gelöscht) →
-/// -32000 ([`REFUSED`]), nichts geändert.
+/// Re-hang and order an idea (Round 34, also for MCP): unchanged → `{idea, changed: false}` without commit; else
+/// exactly one commit „Einfall <id>: umgehängt“ with origin. Violated rule (other work, cycle, depth, deleted) →
+/// -32000 ([`REFUSED`]), nothing changed.
 pub(crate) async fn move_idea(
     state: &AppState,
     id: IdeaId,
@@ -406,8 +406,8 @@ pub(crate) async fn move_idea(
     Ok(answer)
 }
 
-/// Einfall löschen (wiederherstellbar), Commit mit dem ganzen Eintrag. Seit Runde 34 samt nicht gelöschten
-/// Unterknoten (derselbe Zeitstempel, ein Commit). Antwort `{id, deleted: true, deleted_ids, idea, commit?}`.
+/// Delete an idea (restorable), commit with the whole entry. Since Round 34 with non-deleted
+/// sub-nodes (the same timestamp, one commit). Answer `{id, deleted: true, deleted_ids, idea, commit?}`.
 pub(crate) async fn delete(state: &AppState, id: IdeaId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.idea_delete_tree(id).await?;
@@ -424,7 +424,7 @@ pub(crate) async fn delete(state: &AppState, id: IdeaId, actor: &IdeaOrigin) -> 
     Ok(answer)
 }
 
-/// Gelöschten Einfall wiederherstellen, mit Commit; seit Runde 34 samt den mit ihm gelöschten Unterknoten. Antwort
+/// Restore a deleted idea, with commit; since Round 34 with the sub-nodes deleted along with it. Answer
 /// `{idea, restored, detached?, commit?}`.
 pub(crate) async fn restore(state: &AppState, id: IdeaId, actor: &IdeaOrigin) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
@@ -448,13 +448,13 @@ pub(crate) async fn restore(state: &AppState, id: IdeaId, actor: &IdeaOrigin) ->
     Ok(answer)
 }
 
-/// Titel eines neuen Gliederungspunkts aus den Schlagwörtern: mit „, “ verbunden, auf 200 Zeichen gekürzt.
+/// Title of a new outline item from the tags: joined with „, “, shortened to 200 characters.
 pub fn title_from_words(words: &[String]) -> String {
     let joined = words.join(", ");
     joined.chars().take(MAX_TITLE).collect::<String>().trim().to_owned()
 }
 
-/// Text des Beitrags aus einem Einfall: Gedanke (sonst die Schlagwörter), die Markierung als Zitat.
+/// Text of the post from an idea: thought (otherwise the tags), the selection as a quotation.
 fn post_body(idea: &Idea) -> String {
     let mut body = if idea.note.is_empty() { idea.words.join(", ") } else { idea.note.clone() };
     if !idea.quote.is_empty() {
@@ -465,7 +465,7 @@ fn post_body(idea: &Idea) -> String {
     body
 }
 
-/// Werk und Stelle für die Verarbeitung: Werk des Einfalls (Pflicht), Abschnitt aus `key` bzw. dem Bezug.
+/// Work and position for processing: work of the idea (mandatory), section from `key` or the relation.
 async fn target(state: &AppState, idea: &Idea, key: Option<i64>) -> Result<(WorkId, i64, usize), RpcError> {
     let Some(work) = idea.work else {
         return Err(invalid("Ein Einfall ohne Werk lässt sich so nicht verarbeiten; erst einem Werk zuordnen."));
@@ -477,7 +477,7 @@ async fn target(state: &AppState, idea: &Idea, key: Option<i64>) -> Result<(Work
     Ok((work, key, seq))
 }
 
-/// `idea.process` (nur der Mensch).
+/// `idea.process` (the human only).
 async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
     let id = id_param(params)?;
     let used = match params.get("as").and_then(Json::as_str).map(str::trim) {
@@ -503,8 +503,8 @@ async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
                 Some(title) => title,
                 None => title_from_words(&idea.words),
             };
-            // Runde 14: Punkt anlegen und Einfall erledigen in einer Transaktion (scheitert etwas,
-            // bleibt beides, wie es war, und es gibt keinen Commit).
+            // Round 14: create the item and mark the idea done in one transaction (if something fails,
+            // both stay as they were, and there is no commit).
             let place = place_param(params)?;
             let done = state.store.idea_to_outline(id, work, seq, place, &title, mirror::HUMAN_NAME).await?;
             let mut outline = crate::outline::outline_answer(&done.change);
@@ -518,8 +518,8 @@ async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
         IdeaUse::Post | IdeaUse::Note => {
             let (work, key, seq) = target(state, &idea, key).await?;
             let author = if used == IdeaUse::Note { "Notiz" } else { mirror::HUMAN_NAME };
-            // Runde 15: Herkunft sichtbar – stammt der Einfall von einer Persona oder einem MCP-Client, nennt die
-            // Quelle des Beitrags sie („Einfall 3 von @belege“); der Autor bleibt der Mensch, der verarbeitet.
+            // Round 15: origin visible – if the idea comes from a persona or an MCP client, the
+            // source of the post names it („Einfall 3 von @belege“); the author stays the human who processes.
             let post = Post {
                 id: 0,
                 created: String::new(),
@@ -542,7 +542,7 @@ async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
             )
         }
     };
-    // Gliederungspunkt: schon erledigt (`Ok`); Beitrag/Notiz: jetzt mit dem Verweis (`Err`) markieren.
+    // Outline item: already done (`Ok`); post/note: mark now with the reference (`Err`).
     let idea = match done {
         Ok(idea) => idea,
         Err(done_ref) => state.store.idea_mark_done(id, used, &done_ref).await?,
@@ -553,8 +553,8 @@ async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
     Ok(answer)
 }
 
-/// Quelle eines Beitrags aus einem Einfall: „Einfall n“, bei einer Persona bzw. einem MCP-Client als Urheber
-/// „Einfall n von @x“ bzw. „Einfall n von @mcp:…“ (Runde 15: Herkunft im Beitrag sichtbar).
+/// Source of a post from an idea: „Einfall n“, with a persona or an MCP client as originator
+/// „Einfall n von @x“ or „Einfall n von @mcp:…“ (Round 15: origin visible in the post).
 pub fn idea_source(idea: &Idea) -> String {
     match &idea.origin {
         IdeaOrigin::Human { .. } => format!("Einfall {}", idea.id),
@@ -562,8 +562,8 @@ pub fn idea_source(idea: &Idea) -> String {
     }
 }
 
-/// `idea.process {as: "persona"}`: Auftrag an die Persona (Vorgabe Lektor), Modellaufruf ohne Sperre;
-/// danach unter der Schreibsperre den Einfall als verarbeitet markieren und spiegeln.
+/// `idea.process {as: "persona"}`: order to the persona (default lector), model call without lock;
+/// then mark the idea as processed under the write lock and mirror it.
 async fn process_persona(state: &AppState, params: &Json, id: IdeaId, key: Option<i64>) -> Result<Json, RpcError> {
     let idea = state.store.idea_get(id).await?;
     if idea.deleted.is_some() {
@@ -624,7 +624,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     match method {
         "idea.create" => {
             let title = text(&params, "title")?.unwrap_or_default();
-            // Runde 34: mit Titel dürfen die Schlagwörter fehlen.
+            // Round 34: with a title the tags may be missing.
             let words = match words_param(&params)? {
                 Some(words) => words,
                 None if !title.trim().is_empty() => Vec::new(),
@@ -635,7 +635,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let cloud = flag(&params, "cloud")?;
             let mut work = optional_ref(&params, "work")?.flatten();
             if let (None, Some(parent)) = (work, parent) {
-                // Ein Unterknoten gehört zum Werk seines Elternknotens.
+                // A sub-node belongs to the work of its parent node.
                 work = state.store.idea_get(parent).await?.work;
             }
             let key = optional_ref(&params, "key")?.flatten();
@@ -689,8 +689,8 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                     RagError::Invalid(message) => invalid(message),
                     e => rag_unavailable(e.message()),
                 })?;
-            // Runde 19c: Ist LanceDB (der einzige Weg der Einfälle) nicht verbunden, ist die Suche ausgefallen –
-            // ein Fehler mit Grund statt einer leeren Liste, die wie „keine Treffer“ aussähe.
+            // Round 19c: if LanceDB (the only way of the ideas) is not connected, the search has failed –
+            // an error with reason instead of an empty list that would look like “no hits”.
             if !answer.ways.iter().any(|w| w.way == Way::Lancedb && w.state == WayState::Connected) {
                 let reason = answer
                     .ways
@@ -768,7 +768,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     }
 }
 
-/// Runde 19c: Ausfall der Bedeutungssuche als -32001 ([`crate::rpc::RAG_UNAVAILABLE`]) mit Grund.
+/// Round 19c: failure of the semantic search as -32001 ([`crate::rpc::RAG_UNAVAILABLE`]) with reason.
 fn rag_unavailable(reason: &str) -> RpcError {
     RpcError::new(
         crate::rpc::RAG_UNAVAILABLE,
@@ -776,7 +776,7 @@ fn rag_unavailable(reason: &str) -> RpcError {
     )
 }
 
-/// `mode` von `idea.search`: fehlt/leer/`fts` → `"fts"`, `rag` → `"rag"`, sonst -32602.
+/// `mode` of `idea.search`: missing/empty/`fts` → `"fts"`, `rag` → `"rag"`, otherwise -32602.
 fn search_mode(params: &Json) -> Result<&'static str, RpcError> {
     match params.get("mode") {
         None | Some(Json::Null) => Ok("fts"),
@@ -786,7 +786,7 @@ fn search_mode(params: &Json) -> Result<&'static str, RpcError> {
     }
 }
 
-/// Einfall eines Treffers: `meta.idea` (Zahl) bzw. Dokument `idea:<id>`.
+/// Idea of a hit: `meta.idea` (number) or document `idea:<id>`.
 fn idea_of_hit(hit: &baruch_rag::Hit) -> Option<IdeaId> {
     if let Some(id) = hit.meta.get("idea").and_then(Json::as_i64) {
         return Some(id);
@@ -794,9 +794,9 @@ fn idea_of_hit(hit: &baruch_rag::Hit) -> Option<IdeaId> {
     hit.document.trim().strip_prefix("idea:").and_then(|id| id.trim().parse().ok())
 }
 
-/// Bedeutungssuche über die Einfälle eines Werks (Weg LanceDB, Art `idea`): Einfälle in der Reihenfolge des
-/// Rangs mit Ausschnitt und Ähnlichkeit, schwache zuletzt (Runde 19c); gelöschte, unbekannte und nach `status`
-/// nicht passende fallen heraus.
+/// Semantic search over the ideas of a work (way LanceDB, kind `idea`): ideas in rank order
+/// with snippet and similarity, weak ones last (Round 19c); deleted, unknown and (by `status`)
+/// non-matching ones are dropped.
 pub(crate) async fn rag_ideas(
     state: &AppState,
     work: WorkId,
@@ -825,14 +825,14 @@ pub(crate) async fn rag_ideas(
         }
         found.push((idea, merged.hit.snippet.clone(), merged.hit.score));
     }
-    // Runde 19c: schwache Treffer hinter die übrigen (sonst Reihenfolge des Rangs).
+    // Round 19c: weak hits behind the others (otherwise rank order).
     found.sort_by_key(|(_, _, score)| baruch_rag::is_weak(*score));
     Ok((found, answer))
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages -------------------------------------------------------------------------------------
 
-/// Eigene Template-Umgebung der Seiten (die der Arbeitsseite bleibt unberührt).
+/// Own template environment of the pages (that of the work page stays untouched).
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
@@ -855,19 +855,19 @@ fn render(name: &str, status: StatusCode, ctx: Value) -> Response {
     }
 }
 
-/// Rückfall, wenn eine selbst gebaute Adresse doch ein unsicheres Zeichen enthielte.
+/// Fallback if a self-built address did contain an unsafe character after all.
 const FALLBACK_HREF: &str = "/einfaelle";
 
-/// Darf die Adresse ungeprüft (als sicherer Wert) in ein `href`? Nein bei `"` `<` `>` `'`, Leerzeichen
-/// und Steuerzeichen, die das Attribut beenden oder etwas einschleusen könnten.
+/// May the address go unchecked (as a safe value) into an `href`? No for `"` `<` `>` `'`, spaces
+/// and control characters, which could end the attribute or smuggle something in.
 fn is_safe_href(url: &str) -> bool {
     !url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control())
 }
 
-/// Selbst gebaute Adresse (nur Ziffern, feste Namen, prozentkodierte Werte) als sicherer Wert für
-/// `href`; `&` wird maskiert, `/` bleibt lesbar. Die Prüfung gilt auch im Release (Runde 8, früher nur
-/// `debug_assert!`): Enthielte die Adresse doch ein unsicheres Zeichen, steht statt ihrer die Liste der
-/// Einfälle da, und stderr nennt die Adresse.
+/// Self-built address (only digits, fixed names, percent-encoded values) as a safe value for
+/// `href`; `&` is escaped, `/` stays readable. The check also applies in release (Round 8, formerly only
+/// `debug_assert!`): should the address contain an unsafe character after all, the list of
+/// ideas stands in its place, and stderr names the address.
 fn href(url: String) -> Value {
     if !is_safe_href(&url) {
         eprintln!("Einfälle: unsichere Adresse {url:?} durch {FALLBACK_HREF} ersetzt");
@@ -888,7 +888,7 @@ fn settings_of(headers: &HeaderMap) -> Value {
     Value::from(Serde(Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()))))
 }
 
-/// Filter der Liste, wie er in der Adresse steht (`?work=<id>|none|all&word=&status=&q=&deleted=1`).
+/// Filter of the list as it stands in the address (`?work=<id>|none|all&word=&status=&q=&deleted=1`).
 #[derive(Debug, Clone, Default, Deserialize)]
 struct ListQuery {
     work: Option<String>,
@@ -897,7 +897,7 @@ struct ListQuery {
     q: Option<String>,
     deleted: Option<String>,
     ok: Option<String>,
-    /// `fts` (Vorgabe) oder `rag` (Runde 12).
+    /// `fts` (default) or `rag` (Round 12).
     mode: Option<String>,
 }
 
@@ -917,12 +917,12 @@ impl ListQuery {
         matches!(self.deleted.as_deref(), Some("1" | "on" | "true"))
     }
 
-    /// Bedeutungssuche gewählt (`mode=rag`)?
+    /// Semantic search chosen (`mode=rag`)?
     fn rag(&self) -> bool {
         self.mode.as_deref().map(str::trim) == Some("rag")
     }
 
-    /// Adresse der Liste mit diesem Filter, `word` ersetzt.
+    /// Address of the list with this filter, `word` replaced.
     fn url(&self, word: Option<&str>) -> String {
         let mut url = format!("/einfaelle?work={}", query_escape(&self.work()));
         if let Some(word) = word.filter(|w| !w.trim().is_empty()) {
@@ -940,7 +940,7 @@ impl ListQuery {
         url
     }
 
-    /// Dieselbe Suche im Wortlaut (FTS): Liste mit `q`, ohne `mode`.
+    /// The same search by wording (FTS): list with `q`, without `mode`.
     fn fts_url(&self) -> String {
         let mut url = ListQuery { mode: None, ..self.clone() }.url(self.word.as_deref());
         if let Some(q) = self.q.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
@@ -950,7 +950,7 @@ impl ListQuery {
     }
 }
 
-/// Werkwahl für Filter und Formulare: `[{id, title, selected}]`.
+/// Work choice for filter and forms: `[{id, title, selected}]`.
 async fn work_choices(store: &Store, selected: &str) -> Result<Vec<Value>, StoreError> {
     Ok(store
         .works()
@@ -964,10 +964,10 @@ fn short_time(time: &str) -> String {
     crate::localtime::minutes(time)
 }
 
-/// Ein Einfall für die Vorlagen.
+/// An idea for the templates.
 fn idea_view(idea: &Idea, titles: &[(WorkId, String, String)], snippet: Option<&str>) -> Value {
     let work_title = idea.work.and_then(|w| titles.iter().find(|(id, ..)| *id == w).map(|(_, _, t)| t.clone()));
-    // Zum Werk bzw. zum Abschnitt des Bezugs, in Key-Form (Vertrag Runde 8, §1).
+    // To the work or to the section of the relation, in key form (contract Round 8, §1).
     let link = idea.work.map(|work| match idea.key {
         Some(key) => href(format!("/?work={work}&key={key}")),
         None => href(format!("/?work={work}")),
@@ -997,14 +997,14 @@ fn idea_view(idea: &Idea, titles: &[(WorkId, String, String)], snippet: Option<&
         created => short_time(&idea.created),
         updated => short_time(&idea.updated),
         deleted => idea.deleted.as_deref().map(short_time),
-        // Runde 34: Titel und Platz in der Mindmap.
+        // Round 34: title and place in the mind map.
         title => idea.title.as_str(),
         display_title => idea.display_title(),
         parent => idea.parent,
         parent_href => idea.parent.map(|p| href(format!("/einfaelle/{p}"))),
         main_topic => idea.main_topic,
         cloud => idea.cloud,
-        // Ausschnitt der Suche: vom Store maskiert, nur <mark> bleibt.
+        // Snippet of the search: escaped by the store, only <mark> stays.
         snippet => snippet.map(|s| Value::from_safe_string(s.to_owned())),
     }
 }
@@ -1015,7 +1015,7 @@ fn cloud(words: &[WordCount], query: &ListQuery) -> Vec<Value> {
     words
         .iter()
         .map(|w| {
-            // Größe 1–4 nach Häufigkeit.
+            // Size 1–4 by frequency.
             let size = 1 + (w.count.saturating_sub(1) * 3) / max.max(1);
             context! {
                 word => w.word.as_str(), count => w.count, size => size.min(4),
@@ -1026,7 +1026,7 @@ fn cloud(words: &[WordCount], query: &ListQuery) -> Vec<Value> {
         .collect()
 }
 
-/// `GET /einfaelle`: Liste, Schlagwort-Wolke, Filter, Suche, Formular „Neuer Einfall“.
+/// `GET /einfaelle`: list, tag cloud, filter, search, form „Neuer Einfall“.
 async fn list_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -1057,7 +1057,7 @@ async fn list_page(
         Err(e) => return failed(e.into()),
     };
     let search = query.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
-    // Bedeutungssuche (Runde 12): nur mit gewähltem Werk; sonst Hinweis und Wortlaut-Suche.
+    // Semantic search (Round 12): only with a chosen work; otherwise a note and the wording search.
     let mut rag_note: Option<&str> = None;
     let mut rag: Option<Json> = None;
     let rag_work = match (search, query.rag(), &filter.scope) {
@@ -1068,7 +1068,7 @@ async fn list_page(
         }
         _ => None,
     };
-    // Eine fremde Seite darf die Bedeutungssuche nicht per GET auslösen (wie bei der Literatur).
+    // A foreign page must not trigger the semantic search through GET (as for the literature).
     let own_page = crate::guard::check(headers).is_ok();
     let rag_found = match (rag_work, search) {
         (Some(_), Some(_)) if !own_page => {
@@ -1091,7 +1091,7 @@ async fn list_page(
         },
         _ => None,
     };
-    // Runde 19c: Zahl der schwachen Treffer (zugeklappt in „n schwache Treffer“).
+    // Round 19c: number of weak hits (collapsed in „n schwache Treffer“).
     let weak_count =
         rag_found.as_ref().map_or(0, |found| found.iter().filter(|(_, _, score)| baruch_rag::is_weak(*score)).count());
     let (ideas, searched): (Vec<Value>, bool) = match (rag_found, search) {
@@ -1153,7 +1153,7 @@ async fn list_page(
         deleted_href => href(format!("/einfaelle?work={}&deleted=1", query_escape(&work))),
         present_href => href(format!("/einfaelle?work={}", query_escape(&work))),
         workspace => workspace,
-        // Runde 25: Link „Gedankenkarte“ (nur mit gewähltem Werk).
+        // Round 25: link „Gedankenkarte“ (only with a chosen work).
         map_href => work.parse::<WorkId>().ok().map(|w| href(format!("/werke/{w}/karte"))),
         back => query.url(query.word.as_deref()),
         notice => notice,
@@ -1175,7 +1175,7 @@ struct IdeaQuery {
     ok: Option<String>,
 }
 
-/// `GET /einfaelle/{id}`: Ansicht, Bearbeiten, Löschen, Wiederherstellen, Verarbeiten.
+/// `GET /einfaelle/{id}`: view, edit, delete, restore, process.
 async fn one_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -1200,7 +1200,7 @@ async fn one_page(
         Ok(works) => works,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
     };
-    // Runde 15: Persona-Auswahl für „Auftrag an eine Persona“ (aktive Personas, Vorgabe der Lektor des Werks).
+    // Round 15: persona selection for „Auftrag an eine Persona“ (active personas, default the lector of the work).
     let lector = match idea.work {
         Some(work) => state.store.load_work(work).await.ok().and_then(|w| w.lector().map(|p| p.handle.clone())),
         None => None,
@@ -1217,7 +1217,7 @@ async fn one_page(
             context! { handle => p.handle, name => p.name, selected => selected }
         })
         .collect();
-    // Abschnitte des Werks für Bezug und Verarbeitung (Titel mit Nummer).
+    // Sections of the work for relation and processing (title with number).
     let nodes: Vec<Value> = match idea.work {
         Some(work) => match state.store.load_work(work).await {
             Ok(loaded) => loaded
@@ -1233,8 +1233,8 @@ async fn one_page(
         None => Vec::new(),
     };
     let list = idea.work.map_or_else(|| "none".to_owned(), |w| w.to_string());
-    // Runde 25: Verbindungen des Einfalls (nur aktive, zu nicht gelöschten Einfällen), je mit Formular „Lösen“ an
-    // die Karte des Werks.
+    // Round 25: links of the idea (only active ones, to non-deleted ideas), each with a form „Lösen“ to
+    // the map of the work.
     let links = idea_links_view(state, &idea).await;
     let ctx = context! {
         settings => settings_of(headers),
@@ -1254,8 +1254,8 @@ async fn one_page(
     render("idea.html", status, ctx)
 }
 
-/// Verbindungen eines Einfalls für die Seite `/einfaelle/{id}` (Runde 25): Pfeil wie im Spiegel (`→` ausgehend,
-/// `←` eingehend, `↔` ungerichtet), anderer Einfall mit Schlagwörtern, Art, Notiz; nach Verbindungs-id.
+/// Links of an idea for the page `/einfaelle/{id}` (Round 25): arrow as in the mirror (`→` outgoing,
+/// `←` incoming, `↔` undirected), other idea with tags, kind, note; by link id.
 async fn idea_links_view(state: &AppState, idea: &Idea) -> Vec<Value> {
     let links = state.store.idea_links_of_idea(idea.id, false).await.unwrap_or_default();
     let mut out = Vec::with_capacity(links.len());
@@ -1293,7 +1293,7 @@ async fn idea_page(
     one_page(&state, &headers, id, StatusCode::OK, notice, None).await
 }
 
-/// Formular an `POST /einfaelle/act`: dieselben Felder wie die RPC-Methoden, alles als Text.
+/// Form to `POST /einfaelle/act`: the same fields as the RPC methods, everything as text.
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     method: String,
@@ -1311,16 +1311,16 @@ struct ActForm {
     used: Option<String>,
     place: Option<String>,
     title: Option<String>,
-    /// Runde 34 (`idea.move`, `idea.create`): Elternknoten bzw. „in die Wolke“.
+    /// Round 34 (`idea.move`, `idea.create`): parent node or “into the cloud”.
     parent: Option<String>,
     cloud: Option<String>,
-    /// Persona für `as=persona` (Runde 15; leer = der Lektor des Werks).
+    /// Persona for `as=persona` (Round 15; empty = the lector of the work).
     persona: Option<String>,
-    /// Wohin danach (nur Adressen dieses Servers, beginnend mit genau einem `/`).
+    /// Where to afterwards (only addresses of this server, starting with exactly one `/`).
     back: Option<String>,
 }
 
-/// Rücksprung nur auf eigene Adressen: beginnt mit `/`, nicht mit `//` oder `/\`, ohne Steuerzeichen.
+/// Way back only to own addresses: starts with `/`, not with `//` or `/\`, no control characters.
 fn safe_back(back: Option<&str>) -> Option<String> {
     let back = back?.trim();
     let ok = back.starts_with('/')
@@ -1330,7 +1330,7 @@ fn safe_back(back: Option<&str>) -> Option<String> {
     ok.then(|| back.to_owned())
 }
 
-/// Formularwert → JSON: fehlt → nicht gesetzt.
+/// Form value → JSON: missing → not set.
 fn put(params: &mut Json, name: &str, value: &Option<String>) {
     if let Some(value) = value {
         params[name] = json!(value);
@@ -1338,8 +1338,8 @@ fn put(params: &mut Json, name: &str, value: &Option<String>) {
 }
 
 /// `POST /einfaelle/act`: `method` = idea.create|idea.update|idea.delete|idea.restore|idea.process;
-/// danach 303 zurück (`back` bzw. die Seite des Einfalls), Fehler 422 (409 bei fachlicher
-/// Ablehnung) mit der Seite und der Meldung. Löschen braucht das Kästchen `confirm`.
+/// then 303 back (`back` or the page of the idea), errors 422 (409 on a refusal on content
+/// grounds) with the page and the message. Deleting needs the checkbox `confirm`.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let allowed = ["idea.create", "idea.update", "idea.delete", "idea.restore", "idea.process", "idea.move"];
     if !allowed.contains(&form.method.as_str()) {
@@ -1369,13 +1369,13 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         put(&mut params, name, value);
     }
     if form.method == "idea.move" && form.parent.as_deref().is_some_and(|p| p.trim().is_empty()) {
-        // Ein leeres Feld „unter Einfall“ heißt: nichts gewählt (nicht: vom Elternknoten lösen).
+        // An empty field „unter Einfall“ means: nothing chosen (not: detach from the parent node).
         if let Some(object) = params.as_object_mut() {
             object.remove("parent");
         }
     }
     if form.method == "idea.delete" {
-        // Der Server prüft das Kästchen selbst; `required` im HTML allein hält niemanden auf.
+        // The server checks the checkbox itself; `required` in the HTML alone stops nobody.
         if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
             return match id {
                 Some(id) => {
@@ -1398,7 +1398,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         && let Some(id) = id
         && let Ok(before) = state.store.idea_get(id).await
     {
-        // Wechselt das Werk im Formular, gehört der alte Bezug nicht mehr dazu.
+        // If the work changes in the form, the old relation no longer belongs to it.
         let work = form.work.as_deref().map(str::trim).and_then(|w| w.parse::<WorkId>().ok());
         let key = form.key.as_deref().map(str::trim).and_then(|k| k.parse::<i64>().ok());
         if form.work.is_some() && work != before.work && key == before.key {
@@ -1440,7 +1440,7 @@ pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/einfaelle", get(ideas_page)).route("/einfaelle/{id}", get(idea_page))
 }
 
-/// `POST /einfaelle/act` (im Router der schreibenden Routen, also hinter `guard::same_origin`).
+/// `POST /einfaelle/act` (in the router of the writing routes, so behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/einfaelle/act", post(act))
 }
@@ -1478,7 +1478,7 @@ mod tests {
 
     #[test]
     fn unsafe_addresses_fall_back_to_the_list_even_in_release() {
-        // Kein debug_assert mehr: Der Test prüft das Ergebnis, nicht eine Panik im Debug-Bau.
+        // No debug_assert any more: the test checks the result, not a panic in the debug build.
         for bad in ["/einfaelle?q=\"><script>", "/a b", "/x'y", "/x<y", "/zeile\nzwei", "/tab\tx", "/nul\0x"] {
             assert_eq!(href(bad.to_owned()).to_string(), FALLBACK_HREF, "{bad:?} wird nicht ausgegeben");
         }

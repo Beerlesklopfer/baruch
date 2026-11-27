@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gedankenkarte (Vertrag Runde 25): die Einfälle eines Werks als Karte um das Werk, seine Teile und Kapitel,
-//! mit Verbindungen zwischen Einfällen, gespeicherten Lagen und (nur angezeigt) Nähe.
+//! Idea map (contract Round 25): the ideas of a work as a map around the work, its parts and chapters,
+//! with links between ideas, stored positions and (display only) nearness.
 //!
-//! - Daten und RPC (karte-daten, dieses Modul): [`build`] setzt die Karte zusammen; RPC `idea.map`, `idea.links`,
+//! - Data and RPC (karte-daten, this module): [`build`] assembles the map; RPC `idea.map`, `idea.links`,
 //!   `idea.link`, `idea.unlink`, `idea.link_restore`, `idea.map_pos_set`, `idea.map_pos_reset` ([`call`],
-//!   `docs/RPC.md` „Gedankenkarte“). Herkunft über RPC immer der Mensch.
-//! - Seite (karte-bild, [`bild`]): `/werke/{id}/karte` (HTML, ohne JavaScript bedienbar); Ausgaben `.svg`, `.pdf`,
-//!   `.md`, `.mm` und Formular `POST /werke/{id}/karte/act` seit Runde 34 (R34-S1) in [`files`].
-//! - Runde 34: [`tree`] – die Mindmap als Baum ([`tree::MindMap`], [`tree::tree`]), die Wolke daneben
-//!   ([`tree::Cloud`], [`tree::cloud`]) und der Baum-Import ([`tree::import`]); RPC `idea.tree` → `{map, cloud}`.
-//!   `idea.map` (flache Sicht) bleibt und nennt je Einfall zusätzlich `title`, `parent`, `position`, `main_topic`,
-//!   `cloud`. [`bild::mindmap`] zeichnet die Mindmap.
+//!   `docs/RPC.md` „Gedankenkarte“). Origin through RPC is always the human.
+//! - Page (karte-bild, [`bild`]): `/werke/{id}/karte` (HTML, usable without JavaScript); exports `.svg`, `.pdf`,
+//!   `.md`, `.mm` and form `POST /werke/{id}/karte/act` since Round 34 (R34-S1) in [`files`].
+//! - Round 34: [`tree`] – the mind map as a tree ([`tree::MindMap`], [`tree::tree`]), the cloud next to it
+//!   ([`tree::Cloud`], [`tree::cloud`]) and the tree import ([`tree::import`]); RPC `idea.tree` → `{map, cloud}`.
+//!   `idea.map` (flat view) stays and additionally names `title`, `parent`, `position`, `main_topic`,
+//!   `cloud` per idea. [`bild::mindmap`] draws the mind map.
 //!
-//! Aufbau (Vertrag §2): Mitte das Werk (`w`), darum Teile und Kapitel (`n:<key>`); Abschnitte unter einem Kapitel
-//! fasst das Kapitel zusammen (Anker = nächster Vorfahre der Art Kapitel, sonst der Punkt selbst); Einfälle ohne
-//! Bezug hängen an der Wolke „Ohne Kapitel“ (`none`). Einfälle ohne Werk erscheinen nicht.
+//! Structure (contract §2): the work in the middle (`w`), around it parts and chapters (`n:<key>`); sections under a
+//! chapter are summarised by the chapter (anchor = nearest ancestor of kind chapter, otherwise the item itself);
+//! ideas without a relation hang on the cloud „Ohne Kapitel“ (`none`). Ideas without a work do not appear.
 //!
-//! Untermodule (karte-daten): [`links`] schreibt Verbindungen mit Spiegel-Commit (auch für MCP), [`near`]
-//! berechnet die Nähe aus gespeicherten Vektoren ([`crate::rag::neighbors`]) und gleichen Schlagwörtern. Lagen
-//! sind reine Anzeige (kein Commit).
+//! Sub-modules (karte-daten): [`links`] writes links with a mirror commit (also for MCP), [`near`]
+//! computes the nearness from stored vectors ([`crate::rag::neighbors`]) and equal tags. Positions
+//! are display only (no commit).
 //!
-//! Runde 19b: [`groups`] – Gruppen der Nähe (`idea.map_groups`), Namen durch einen Assistenten als Vorschlag nur im
-//! Speicher (`idea.map_groups_name`), Übernehmen als Schlagwort durch den Menschen (`idea.map_group_accept`, nur RPC
-//! und Formular, kein MCP-Werkzeug) und Verwerfen (`idea.map_group_dismiss`).
+//! Round 19b: [`groups`] – groups of the nearness (`idea.map_groups`), names by an assistant as a suggestion only in
+//! memory (`idea.map_groups_name`), adopting as a tag by the human (`idea.map_group_accept`, only RPC
+//! and form, no MCP tool) and dismissing (`idea.map_group_dismiss`).
 
 pub mod bild;
 pub mod files;
@@ -43,7 +43,7 @@ use serde_json::{Value as Json, json};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::{AppState, mirror};
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub const METHODS: &[&str] = &[
     "idea.map",
     "idea.links",
@@ -56,39 +56,39 @@ pub const METHODS: &[&str] = &[
     "idea.map_groups_name",
     "idea.map_group_accept",
     "idea.map_group_dismiss",
-    // Runde 34: die Mindmap als Baum samt Wolke (tree.rs).
+    // Round 34: the mind map as a tree with cloud (tree.rs).
     "idea.tree",
 ];
 
-/// Höchstlänge der Beschriftung eines Einfalls (Schlagwörter) in Zeichen.
+/// Maximum length of the label of an idea (tags) in characters.
 const LABEL_CHARS: usize = 60;
 
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Filter der Karte (GET und RPC gleich, Vertrag §2).
+/// Filter of the map (GET and RPC alike, contract §2).
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct MapFilter {
-    /// `None` = alle.
+    /// `None` = all.
     pub status: Option<IdeaStatus>,
     pub word: Option<String>,
     /// "human" | "persona" | "mcp"
     pub origin: Option<String>,
     pub q: Option<String>,
     pub near: bool,
-    /// 1..=5, Vorgabe 3
+    /// 1..=5, default 3
     pub near_limit: Option<u32>,
-    /// 0..=1, Vorgabe 0.75
+    /// 0..=1, default 0.75
     pub near_threshold: Option<f32>,
-    /// Aufgeklappte Kapitel (keys).
+    /// Expanded chapters (keys).
     pub open: Vec<i64>,
-    /// Runde 28: Ebene „Befunde“ – offene Befunde je Knoten zählen (Seite: `befunde=1`, RPC: `findings: true`).
+    /// Round 28: layer „Befunde“ – count open findings per node (page: `befunde=1`, RPC: `findings: true`).
     #[serde(default)]
     pub findings: bool,
 }
 
-/// Art eines Knotens der Karte.
+/// Kind of a node of the map.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MapNodeKind {
@@ -99,59 +99,59 @@ pub enum MapNodeKind {
     NoChapter,
 }
 
-/// Ein zum Kapitel zusammengefasster Abschnitt.
+/// A section summarised into its chapter.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MapSection {
     pub key: i64,
     pub number: String,
     pub title: String,
     pub ideas: u32,
-    /// Runde 28: offene Befunde genau dieses Abschnitts (nur mit der Ebene „Befunde“, sonst 0).
+    /// Round 28: open findings of exactly this section (only with the layer „Befunde“, otherwise 0).
     pub open_findings: u32,
 }
 
-/// Knoten der Gliederung auf der Karte.
+/// Node of the outline on the map.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MapNode {
     /// "w" | "n:<key>" | "none"
     pub id: String,
     pub kind: MapNodeKind,
     pub key: Option<i64>,
-    /// id des Elternknotens ("w" für oberste); `None` nur bei "w".
+    /// id of the parent node ("w" for top-level ones); `None` only for "w".
     pub parent: Option<String>,
-    /// Angezeigte Nummer, "" ohne.
+    /// Displayed number, "" without.
     pub number: String,
     pub title: String,
-    /// Zusammengefasste Abschnitte (zugeklappt).
+    /// Summarised sections (collapsed).
     pub sections: Vec<MapSection>,
     pub open_ideas: u32,
     pub total_ideas: u32,
-    /// Runde 28: offene Befunde (Zählregel Vertrag R28 §1.5) am Knoten und allem darunter (ein Kapitel samt seinen
-    /// Abschnitten, ein Teil samt Kapiteln, das Werk alles); nur mit der Ebene „Befunde“, sonst 0.
+    /// Round 28: open findings (counting rule contract R28 §1.5) on the node and everything below (a chapter with its
+    /// sections, a part with chapters, the work everything); only with the layer „Befunde“, otherwise 0.
     pub open_findings: u32,
 }
 
-/// Ein Einfall auf der Karte.
+/// An idea on the map.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MapIdea {
     pub id: IdeaId,
     /// "i:<id>"
     pub node: String,
-    /// [`MapNode::id`], an dem er hängt ("none" ohne Bezug).
+    /// [`MapNode::id`] it hangs on ("none" without a relation).
     pub anchor: String,
-    /// Genauer Bezug (auch ein Abschnitt).
+    /// Exact relation (also a section).
     pub key: Option<i64>,
-    /// Schlagwörter „a, b“, höchstens 60 Zeichen.
+    /// Tags „a, b“, at most 60 characters.
     pub label: String,
     pub words: Vec<String>,
     pub note: String,
     pub status: IdeaStatus,
     pub origin: IdeaOrigin,
-    /// Ohne `q` immer `true`.
+    /// Without `q` always `true`.
     pub hit: bool,
 }
 
-/// Zustand der Nähe.
+/// State of the nearness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NearState {
@@ -161,7 +161,7 @@ pub enum NearState {
     Unavailable,
 }
 
-/// Woraus eine Nähe folgt.
+/// What a nearness follows from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum NearVia {
@@ -170,7 +170,7 @@ pub enum NearVia {
     Both,
 }
 
-/// Zwei nahe Einfälle (`a < b`), nur Anzeige.
+/// Two near ideas (`a < b`), display only.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct NearPair {
     pub a: IdeaId,
@@ -180,7 +180,7 @@ pub struct NearPair {
     pub shared_words: Vec<String>,
 }
 
-/// Nähe der Einfälle (nie gespeichert).
+/// Nearness of the ideas (never stored).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Near {
     pub state: NearState,
@@ -188,29 +188,29 @@ pub struct Near {
     pub pairs: Vec<NearPair>,
 }
 
-/// Die ganze Karte eines Werks.
+/// The whole map of a work.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct IdeaMap {
     pub work: WorkId,
     pub title: String,
     pub nodes: Vec<MapNode>,
     pub ideas: Vec<MapIdea>,
-    /// Aktive Verbindungen zwischen gezeigten Einfällen.
+    /// Active links between ideas shown.
     pub links: Vec<IdeaLink>,
     pub near: Near,
-    /// Gespeicherte Lagen gezeigter Einfälle.
+    /// Stored positions of ideas shown.
     pub positions: Vec<MapPos>,
-    /// Angewandter Filter.
+    /// Applied filter.
     pub filter: MapFilter,
 }
 
-// ---- Parameter ---------------------------------------------------------------------------------
+// ---- Parameters --------------------------------------------------------------------------------
 
 fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Ganzzahl aus einem JSON-Wert: Zahl oder Ziffern als Text (Formulare); fehlt, `null` oder `""` → `None`.
+/// Integer from a JSON value: number or digits as text (forms); missing, `null` or `""` → `None`.
 fn opt_int(params: &Json, name: &str) -> Result<Option<i64>, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -222,12 +222,12 @@ fn opt_int(params: &Json, name: &str) -> Result<Option<i64>, RpcError> {
     }
 }
 
-/// Pflicht-Ganzzahl.
+/// Mandatory integer.
 fn int(params: &Json, name: &str, what: &str) -> Result<i64, RpcError> {
     opt_int(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt ({what})")))
 }
 
-/// Kommazahl (Zahl oder Text); fehlt → -32602.
+/// Decimal number (number or text); missing → -32602.
 fn number(params: &Json, name: &str) -> Result<f64, RpcError> {
     let wrong = || invalid(format!("{name}: Zahl erwartet"));
     match params.get(name) {
@@ -238,7 +238,7 @@ fn number(params: &Json, name: &str) -> Result<f64, RpcError> {
     }
 }
 
-/// Text; fehlt, `null` oder nur Leerraum → `None`.
+/// Text; missing, `null` or only whitespace → `None`.
 fn opt_text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
@@ -248,7 +248,7 @@ fn opt_text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
     }
 }
 
-/// Wahrheitswert: `true`/`false`, `1`/`0`, `"1"`/`"0"`/`"true"`/`"false"`/`"on"` (Formulare); fehlt → `None`.
+/// Boolean: `true`/`false`, `1`/`0`, `"1"`/`"0"`/`"true"`/`"false"`/`"on"` (forms); missing → `None`.
 fn opt_bool(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
     let wrong = || invalid(format!("{name}: true oder false erwartet"));
     match params.get(name) {
@@ -268,10 +268,10 @@ fn opt_bool(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
     }
 }
 
-/// Filter der Karte aus den Parametern von `idea.map` (dieselben Namen wie die Abfrage der Seite
-/// `/werke/{id}/karte`): `status` open|done|all, `word`, `origin` human|persona|mcp, `q`, `near` (Vorgabe
-/// `true`), `near_limit` 1..=5, `near_threshold` 0..=1, `open` (Liste von keys oder ein key), `findings` (Ebene
-/// „Befunde“, Vorgabe `false`; Runde 28). Falsche Werte → -32602; leere Texte zählen als fehlend.
+/// Filter of the map from the parameters of `idea.map` (the same names as the query of the page
+/// `/werke/{id}/karte`): `status` open|done|all, `word`, `origin` human|persona|mcp, `q`, `near` (default
+/// `true`), `near_limit` 1..=5, `near_threshold` 0..=1, `open` (list of keys or one key), `findings` (layer
+/// „Befunde“, default `false`; Round 28). Wrong values → -32602; empty texts count as missing.
 pub fn filter_from_params(params: &Json) -> Result<MapFilter, RpcError> {
     let status = match opt_text(params, "status")?.as_deref().map(str::trim) {
         None | Some("all") => None,
@@ -330,7 +330,7 @@ pub fn filter_from_params(params: &Json) -> Result<MapFilter, RpcError> {
     })
 }
 
-/// `kind` einer Verbindung (genau die Wörter aus [`LinkKind::as_str`]).
+/// `kind` of a link (exactly the words from [`LinkKind::as_str`]).
 fn kind_param(params: &Json) -> Result<LinkKind, RpcError> {
     let word = opt_text(params, "kind")?.ok_or_else(|| invalid("kind fehlt (Art der Verbindung)"))?;
     LinkKind::parse(word.trim()).ok_or_else(|| {
@@ -341,14 +341,14 @@ fn kind_param(params: &Json) -> Result<LinkKind, RpcError> {
     })
 }
 
-/// Werk prüfen (unbekannt → Fehler wie bei den übrigen Methoden).
+/// Check the work (unknown → error as for the other methods).
 async fn check_work(state: &AppState, work: WorkId) -> Result<(), RpcError> {
     state.store.work_slug(work).await?;
     Ok(())
 }
 
-/// RPC der Gedankenkarte (Vertrag §4.1). Herkunft der schreibenden Methoden ist immer der Mensch
-/// ([`mirror::HUMAN_NAME`]); sie laufen unter der Schreibsperre ([`links`]).
+/// RPC of the idea map (contract §4.1). Origin of the writing methods is always the human
+/// ([`mirror::HUMAN_NAME`]); they run under the write lock ([`links`]).
 pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
@@ -361,8 +361,8 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let filter = filter_from_params(&params)?;
             let map = build(state, work, &filter).await?;
             let mut answer = serde_json::to_value(map).map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
-            // Runde 34: je Einfall `title`, `parent`, `position` (und `main_topic`, `cloud`) – in der Antwort
-            // ergänzt, nicht am Typ `MapIdea`, den die eingefrorene Anordnung `bild/layout.rs` von Hand baut.
+            // Round 34: per idea `title`, `parent`, `position` (and `main_topic`, `cloud`) – added in the
+            // answer, not on the type `MapIdea`, which the frozen layout `bild/layout.rs` builds by hand.
             let rows = state.store.idea_tree_rows(work).await?;
             let by_id: HashMap<IdeaId, &Idea> = rows.iter().map(|i| (i.id, i)).collect();
             if let Some(Json::Array(ideas)) = answer.get_mut("ideas") {
@@ -420,7 +420,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let removed = state.store.idea_map_pos_reset(work, idea).await?;
             Ok(json!({ "removed": removed }))
         }
-        // Runde 19b: Gruppen und ihre Namen (groups.rs).
+        // Round 19b: groups and their names (groups.rs).
         "idea.map_groups" => {
             let work = int(&params, "work", "Werk")?;
             let filter = filter_from_params(&params)?;
@@ -452,7 +452,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     }
 }
 
-/// Schlagwörter „a, b“, höchstens [`LABEL_CHARS`] Zeichen (gekürzt mit „…“).
+/// Tags „a, b“, at most [`LABEL_CHARS`] characters (shortened with „…“).
 fn label_of(words: &[String]) -> String {
     let joined = words.join(", ");
     if joined.chars().count() <= LABEL_CHARS {
@@ -464,7 +464,7 @@ fn label_of(words: &[String]) -> String {
     }
 }
 
-/// Alle nicht gelöschten Einfälle des Werks, nach id (seitenweise, die Liste hat eine Obergrenze je Abruf).
+/// All non-deleted ideas of the work, by id (page by page, the list has an upper limit per call).
 async fn ideas_of(state: &AppState, work: WorkId) -> Result<Vec<Idea>, RpcError> {
     let mut all = Vec::new();
     let page = 500u32;
@@ -482,7 +482,7 @@ async fn ideas_of(state: &AppState, work: WorkId) -> Result<Vec<Idea>, RpcError>
     Ok(all)
 }
 
-/// Treffer der Volltextsuche `q` im Werk (FTS wie `idea.search`); `None`, wenn `q` kein Suchwort enthält.
+/// Hits of the full-text search `q` in the work (FTS like `idea.search`); `None` if `q` contains no search word.
 async fn hits_of(state: &AppState, work: WorkId, q: &str) -> Result<Option<HashSet<IdeaId>>, RpcError> {
     let Some(fts) = baruch_library::fts_query(q) else { return Ok(None) };
     let mut hits = HashSet::new();
@@ -501,33 +501,33 @@ async fn hits_of(state: &AppState, work: WorkId, q: &str) -> Result<Option<HashS
     Ok(Some(hits))
 }
 
-/// Setzt die Karte des Werks zusammen (Vertrag §2, §3.2).
+/// Assembles the map of the work (contract §2, §3.2).
 ///
-/// - Knoten: Werk (`w`), Teile und Kapitel aus der Gliederung (`n:<key>`, Elternknoten = nächster Vorfahre, der
-///   selbst Knoten ist, sonst `w`); Abschnitte unter einem Kapitel fasst das Kapitel in `sections` zusammen
-///   (Anker = nächster Vorfahre der Art Kapitel), es sei denn, das Kapitel steht in `open` – dann sind seine
-///   Abschnitte eigene Knoten (Art `section`); Abschnitte ohne Kapitel darüber sind immer eigene Knoten. Die
-///   Wolke „Ohne Kapitel“ (`none`) gibt es nur, wenn ein gezeigter Einfall keinen (gültigen) Bezug hat.
-/// - Einfälle: die nicht gelöschten des Werks, ohne die, die `status`, `word` (gleicher `word_key`) oder
-///   `origin` ausschließen; `q` (FTS wie `idea.search`) markiert Treffer (`hit`), der Rest bleibt mit `hit =
-///   false` (ohne `q` alle `true`).
-/// - Zähler: `open_ideas`/`total_ideas` je Knoten = gezeigte Einfälle, die an ihm oder an einem Knoten darunter
-///   hängen (ein Teil samt seinen Kapiteln, ein Kapitel samt seinen Abschnitten, zugeklappt wie aufgeklappt), beim
-///   Werk alle gezeigten; `MapSection::ideas` = gezeigte Einfälle mit genau diesem Bezug.
-/// - Verbindungen: aktive zwischen gezeigten Einfällen; Lagen: gespeicherte gezeigter Einfälle.
-/// - Nähe: [`near::compute`] aus gespeicherten Vektoren und gleichen Schlagwörtern (nie eine Einbettungsanfrage).
-/// - `filter` der Antwort ist der angewandte: Vorgaben für `near_limit`/`near_threshold` eingesetzt, `open` nur mit
-///   Kapiteln des Werks (sortiert, ohne Doppel), `q` ohne Suchwort entfällt.
+/// - Nodes: work (`w`), parts and chapters from the outline (`n:<key>`, parent node = nearest ancestor that
+///   is itself a node, otherwise `w`); sections under a chapter are summarised by the chapter in `sections`
+///   (anchor = nearest ancestor of kind chapter), unless the chapter is in `open` – then its
+///   sections are nodes of their own (kind `section`); sections without a chapter above are always nodes of their own.
+///   The cloud „Ohne Kapitel“ (`none`) exists only if an idea shown has no (valid) relation.
+/// - Ideas: the non-deleted ones of the work, without those excluded by `status`, `word` (same `word_key`) or
+///   `origin`; `q` (FTS like `idea.search`) marks hits (`hit`), the rest stays with `hit =
+///   false` (without `q` all `true`).
+/// - Counters: `open_ideas`/`total_ideas` per node = ideas shown that hang on it or on a node below
+///   (a part with its chapters, a chapter with its sections, collapsed as well as expanded), for the
+///   work all shown; `MapSection::ideas` = ideas shown with exactly this relation.
+/// - Links: active ones between ideas shown; positions: stored ones of ideas shown.
+/// - Nearness: [`near::compute`] from stored vectors and equal tags (never an embedding request).
+/// - `filter` of the answer is the applied one: defaults for `near_limit`/`near_threshold` filled in, `open` only
+///   with chapters of the work (sorted, no duplicates), `q` without a search word is dropped.
 pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<IdeaMap, RpcError> {
     let loaded = state.store.load_work(work).await?;
     let by_seq: HashMap<usize, &baruch_core::Node> = loaded.nodes.iter().map(|n| (n.id, n)).collect();
 
-    // Aufgeklappte Kapitel: nur keys von Kapiteln dieses Werks.
+    // Expanded chapters: only keys of chapters of this work.
     let chapter_keys: HashSet<i64> =
         loaded.nodes.iter().filter(|n| n.kind == NodeKind::Chapter).map(|n| n.key).collect();
     let open: BTreeSet<i64> = filter.open.iter().copied().filter(|k| chapter_keys.contains(k)).collect();
 
-    // Je Punkt (Stelle) der Knoten, an dem er auf der Karte erscheint.
+    // Per item (position) the node at which it appears on the map.
     let mut anchor_of: HashMap<usize, usize> = HashMap::new();
     let mut nodes = vec![MapNode {
         id: "w".into(),
@@ -541,10 +541,10 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
         total_ideas: 0,
         open_findings: 0,
     }];
-    // Stelle → Platz in `nodes`.
+    // Position → place in `nodes`.
     let mut slot_of: HashMap<usize, usize> = HashMap::new();
     for node in &loaded.nodes {
-        // Nächster Vorfahre der Art Kapitel (ohne den Punkt selbst).
+        // Nearest ancestor of kind chapter (without the item itself).
         let mut chapter = None;
         let mut up = node.parent;
         while let Some(seq) = up {
@@ -570,7 +570,7 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
             }
             continue;
         }
-        // Elternknoten: nächster Vorfahre, der selbst ein Knoten der Karte ist.
+        // Parent node: nearest ancestor that is itself a node of the map.
         let mut parent = "w".to_owned();
         let mut up = node.parent;
         while let Some(seq) = up {
@@ -601,14 +601,14 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
         });
     }
     let seq_of_key: HashMap<i64, usize> = loaded.nodes.iter().map(|n| (n.key, n.id)).collect();
-    // Je Platz in `nodes` der Platz des Elternknotens (ohne das Werk, das ohnehin alle zählt).
+    // Per place in `nodes` the place of the parent node (without the work, which counts all anyway).
     let slot_by_id: HashMap<String, usize> = nodes.iter().enumerate().map(|(i, n)| (n.id.clone(), i)).collect();
     let parent_slot: Vec<Option<usize>> = nodes
         .iter()
         .map(|n| n.parent.as_deref().and_then(|p| slot_by_id.get(p).copied()).filter(|&p| p != 0))
         .collect();
 
-    // Runde 28: Ebene „Befunde“ – offene Befunde je Punkt an seinem Knoten und allen Vorfahren (wie die Einfälle).
+    // Round 28: layer „Befunde“ – open findings per item on its node and all ancestors (like the ideas).
     if filter.findings {
         let counts = state.store.finding_open_counts(work).await?;
         for node in &loaded.nodes {
@@ -627,7 +627,7 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
         }
     }
 
-    // Einfälle nach Filter.
+    // Ideas by filter.
     let word = filter.word.as_deref().map(near::word_key).filter(|w| !w.is_empty());
     let origin = filter.origin.as_deref().filter(|o| !o.trim().is_empty());
     let q = filter.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
@@ -651,8 +651,8 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
         let seq = idea.key.and_then(|key| seq_of_key.get(&key).copied());
         let anchor = match seq.and_then(|seq| anchor_of.get(&seq).and_then(|a| slot_of.get(a))) {
             Some(&slot) => {
-                // Der Anker und alle seine Vorfahren bis unter das Werk: Ein Teil zählt die Einfälle seiner
-                // Kapitel, ein aufgeklapptes Kapitel die seiner Abschnitte (Bedienung: Zahl im Kreis).
+                // The anchor and all its ancestors up to below the work: a part counts the ideas of its
+                // chapters, an expanded chapter those of its sections (usage: number in the circle).
                 let mut up = Some(slot);
                 while let Some(at) = up {
                     nodes[at].open_ideas += open_count;
@@ -677,7 +677,7 @@ pub async fn build(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
             node: format!("i:{}", idea.id),
             anchor,
             key: idea.key,
-            // Runde 34: der Titel des Einfalls, sonst wie bisher die Schlagwörter.
+            // Round 34: the title of the idea, otherwise as before the tags.
             label: if idea.title.is_empty() { label_of(&idea.words) } else { idea.title.clone() },
             hit: hits.as_ref().is_none_or(|h| h.contains(&idea.id)),
             words: idea.words,
@@ -735,7 +735,7 @@ mod tests {
 
     #[test]
     fn labels_join_the_words_and_stay_within_sixty_characters() {
-        // Vertrag §3.2: Beschriftung „a, b“, höchstens 60 Zeichen – sonst sprengte sie den Knoten der Karte.
+        // Contract §3.2: label „a, b“, at most 60 characters – otherwise it would burst the node of the map.
         assert_eq!(label_of(&["Laube".into(), "Rose".into()]), "Laube, Rose", "Wörter mit Komma verbunden");
         let long: Vec<String> = (0..20).map(|i| format!("Wort{i}")).collect();
         let label = label_of(&long);

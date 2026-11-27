@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Adapter zwischen dem Port der Personas ([`super::ModelPort`]) und den Modell-Backends
-//! ([`crate::models`], Runde 10, Integrator; Runde 15b: Verbindung je Persona). Die Typen werden 1:1
-//! abgebildet; Verbindung, Adresse, Schlüssel, Warteschlange (eine Anfrage zur Zeit je Endpunkt) und
-//! Aliasse regelt [`crate::models`]. Abbruch: Fällt das Future, fällt die HTTP-Anfrage mit und gibt ihren
-//! Platz in der Warteschlange frei.
+//! Adapter between the port of the personas ([`super::ModelPort`]) and the model backends
+//! ([`crate::models`], Round 10, integrator; Round 15b: connection per persona). The types are mapped
+//! 1:1; connection, address, key, queue (one request at a time per endpoint) and
+//! aliases are handled by [`crate::models`]. Cancellation: if the future is dropped, the HTTP request drops with it
+//! and frees its place in the queue.
 //!
-//! **Freigabe „extern“** (R15b): [`EliezerPort::chat`] wählt die Verbindung der Persona aus
-//! [`ModelCall::persona`]. Ist sie extern und die Persona nicht freigegeben, endet der Aufruf mit
-//! [`ModelFailure::NotConfigured`] und einem deutschen Satz, **ohne** dass eine Anfrage hinausgeht – das gilt
-//! für jeden Aufruf über den Port, also auch für die Zusammenfassungen des Lektors.
+//! **Release „extern“** (R15b): [`EliezerPort::chat`] picks the connection of the persona from
+//! [`ModelCall::persona`]. If it is external and the persona is not released, the call ends with
+//! [`ModelFailure::NotConfigured`] and a German sentence, **without** any request going out – this holds
+//! for every call through the port, so also for the lector's summaries.
 
 use baruch_llm::{ChatMessage, ChatRequest, LlmError};
 
 use super::port::{BoxFuture, ContextBudget, ModelAnswer, ModelCall, ModelFailure, ModelList, ModelPort, Role};
 use crate::AppState;
 
-/// Modell-Backends des Dienstes (`baruch-server serve`): je Persona ihre Verbindung (Vorgabe Eliezer).
+/// Model backends of the service (`baruch-server serve`): per persona its connection (default Eliezer).
 pub struct EliezerPort;
 
 fn role(role: Role) -> baruch_llm::Role {
@@ -26,7 +26,7 @@ fn role(role: Role) -> baruch_llm::Role {
     }
 }
 
-/// [`LlmError`] → [`ModelFailure`] (gleiche Varianten, gleiche Nutzlast).
+/// [`LlmError`] → [`ModelFailure`] (same variants, same payload).
 pub fn failure(error: LlmError) -> ModelFailure {
     match error {
         LlmError::NotConfigured(m) => ModelFailure::NotConfigured(m),
@@ -48,7 +48,7 @@ impl ModelPort for EliezerPort {
         deltas: tokio::sync::mpsc::UnboundedSender<String>,
     ) -> BoxFuture<'a, Result<ModelAnswer, ModelFailure>> {
         Box::pin(async move {
-            // Erst die Freigabe: externe Verbindung ohne Freigabe → nichts geht hinaus.
+            // First the release: external connection without release → nothing goes out.
             let target = crate::models::route(state, &call.persona).await.map_err(failure)?;
             let request = ChatRequest {
                 model: call.model,

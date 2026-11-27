@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB prüfen (Runde 20c, Besitz „epub-pruefung“): eigene Struktur- und Barrierefreiheitsprüfung, Warnungen je
-//! Reader, EPUBCheck (nur auf Wunsch des Menschen, nie über MCP) und seine Einstellung.
+//! Checking the EPUB (Round 20c, owner “epub-pruefung”): own structure and accessibility check, warnings per
+//! reader, EPUBCheck (only at the human's request, never through MCP) and its setting.
 //!
 //! - **RPC** ([`handles`], [`call`]): `epub.check {work, readers?, epubcheck?, footnotes?}` → `{findings, xml_tool,
-//!   epubcheck, summary, readers}`; werklos ([`handles_global`], [`call_global`]): `epub.checker_get {}`,
+//!   epubcheck, summary, readers}`; without a work ([`handles_global`], [`call_global`]): `epub.checker_get {}`,
 //!   `epub.checker_set {jar}` → `{jar, found, java}`.
-//! - **Seiten** ([`pages`]): `GET /werke/{id}/epub/pruefung[?leser=…&fussnoten=…]` – Prüfbericht ohne EPUBCheck mit
-//!   Knopf „EPUBCheck ausführen“; **Formulare** ([`writes`], hinter `guard::same_origin`): `POST /werke/epub/pruefen`
-//!   (Felder `work`, `leser`*, `fussnoten`) → 200 mit dem Bericht samt EPUBCheck, `POST /einstellungen/daten/epubcheck`
-//!   (Feld `jar`, leer = entfernen) → 303 auf `/einstellungen/daten?ok=epubcheck` bzw. 422 mit der Meldung.
-//! - [`preview_panel`]: Prüfbericht als HTML-Fragment unter der EPUB-Vorschau (ohne EPUBCheck).
+//! - **Pages** ([`pages`]): `GET /werke/{id}/epub/pruefung[?leser=…&fussnoten=…]` – check report without EPUBCheck
+//!   with button „EPUBCheck ausführen“; **forms** ([`writes`], behind `guard::same_origin`): `POST /werke/epub/pruefen`
+//!   (fields `work`, `leser`*, `fussnoten`) → 200 with the report including EPUBCheck, `POST
+//!   /einstellungen/daten/epubcheck` (field `jar`, empty = remove) → 303 to `/einstellungen/daten?ok=epubcheck` or 422.
+//! - [`preview_panel`]: check report as an HTML fragment below the EPUB preview (without EPUBCheck).
 //!
-//! Ablauf ([`run_check`]): das EPUB wie beim Herunterladen bauen und packen (`crate::epub::book_for`), dann
-//! [`baruch_epub::check::check_structure`] (xmllint aus PATH, sonst quick-xml), die Warnungen des Baus
-//! (`EpubBook::warnings`, z. B. `ISLAND_OMITTED`, `TEMPLATE_PAGEBREAK_*`) als Befunde, je Reader
-//! [`baruch_epub::check::reader_warnings`] und – nur auf Wunsch – EPUBCheck: `epubcheck` aus PATH vor dem
-//! eingestellten epubcheck.jar (`java -jar`), höchstens ein Lauf zur Zeit, Zeitgrenze [`EPUBCHECK_TIMEOUT`], das EPUB
-//! in einem eigenen Temp-Ordner, der danach entfernt wird (Runde 23: Zufallsname aus 32 Hex-Zeichen, unter Unix
-//! Rechte 0700, nie ein schon vorhandener Ordner oder Symlink – siehe [`TempDir`]). Nichts wird heruntergeladen; ohne beides
-//! `EpubcheckStatus::NotFound`, und die Seite sagt „EPUBCheck nicht gefunden“.
+//! Flow ([`run_check`]): build and pack the EPUB as for the download (`crate::epub::book_for`), then
+//! [`baruch_epub::check::check_structure`] (xmllint from PATH, otherwise quick-xml), the warnings of the build
+//! (`EpubBook::warnings`, e.g. `ISLAND_OMITTED`, `TEMPLATE_PAGEBREAK_*`) as findings, per reader
+//! [`baruch_epub::check::reader_warnings`] and – only on request – EPUBCheck: `epubcheck` from PATH before the
+//! configured epubcheck.jar (`java -jar`), at most one run at a time, time limit [`EPUBCHECK_TIMEOUT`], the EPUB
+//! in its own temp folder that is removed afterwards (Round 23: random name of 32 hex characters, on Unix
+//! mode 0700, never an already existing folder or symlink – see [`TempDir`]). Nothing is downloaded; without both
+//! `EpubcheckStatus::NotFound`, and the page says „EPUBCheck nicht gefunden“.
 
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
@@ -47,17 +47,17 @@ use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
-/// Zeitgrenze für einen Lauf von EPUBCheck.
+/// Time limit for one run of EPUBCheck.
 pub const EPUBCHECK_TIMEOUT: Duration = Duration::from_secs(180);
-/// Höchstlänge des Pfads zum epubcheck.jar (Bytes).
+/// Maximum length of the path to the epubcheck.jar (bytes).
 pub const MAX_JAR_PATH: usize = 4096;
 
-/// Werkbezogene Methoden dieses Moduls.
+/// Work-related methods of this module.
 pub fn handles(method: &str) -> bool {
     method == "epub.check"
 }
 
-/// Werklose Methoden dieses Moduls (Einstellung für EPUBCheck).
+/// Work-less methods of this module (setting for EPUBCheck).
 pub fn handles_global(method: &str) -> bool {
     matches!(method, "epub.checker_get" | "epub.checker_set")
 }
@@ -66,14 +66,14 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// PATH des Prozesses (nur gelesen).
+/// PATH of the process (read only).
 fn process_path() -> Option<OsString> {
     std::env::var_os("PATH")
 }
 
-// ---- Prüfung -----------------------------------------------------------------------------------------
+// ---- Check -------------------------------------------------------------------------------------------
 
-/// Zahl der Befunde je Schwere.
+/// Number of findings per severity.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct Summary {
     pub errors: usize,
@@ -88,7 +88,7 @@ impl Summary {
     }
 }
 
-/// Ergebnis von [`run_check`].
+/// Result of [`run_check`].
 #[derive(Debug, Clone)]
 pub struct Checked {
     pub report: CheckReport,
@@ -97,7 +97,7 @@ pub struct Checked {
 }
 
 impl Checked {
-    /// Antwort von `epub.check` bzw. MCP `epub_check`.
+    /// Answer of `epub.check` or MCP `epub_check`.
     pub fn to_json(&self) -> Value {
         json!({
             "findings": self.report.findings, "xml_tool": self.report.xml_tool, "epubcheck": self.report.epubcheck,
@@ -106,12 +106,12 @@ impl Checked {
     }
 }
 
-/// Pflicht-Profile (Vorgabe, wenn keine Reader genannt sind).
+/// Mandatory profiles (default if no readers are named).
 pub fn default_readers() -> Vec<&'static ReaderProfile> {
     PROFILES.iter().filter(|p| p.required).collect()
 }
 
-/// Reader zu Slugs; unbekannt → `INVALID_PARAMS`; leer → Pflicht-Profile.
+/// Readers by slug; unknown → `INVALID_PARAMS`; empty → mandatory profiles.
 pub fn readers_of(slugs: &[String]) -> Result<Vec<&'static ReaderProfile>, RpcError> {
     if slugs.is_empty() {
         return Ok(default_readers());
@@ -129,8 +129,8 @@ pub fn readers_of(slugs: &[String]) -> Result<Vec<&'static ReaderProfile>, RpcEr
     Ok(out)
 }
 
-/// Warnung des Baus als Befund: `…_MAPPED` (z. B. `TEMPLATE_PAGEBREAK_MAPPED`) ist ein Hinweis, alles andere eine
-/// Warnung.
+/// Warning of the build as a finding: `…_MAPPED` (e.g. `TEMPLATE_PAGEBREAK_MAPPED`) is a note, everything else a
+/// warning.
 fn build_warning(w: &baruch_epub::EpubWarning) -> Finding {
     let severity = if w.code.ends_with("_MAPPED") { Severity::Info } else { Severity::Warning };
     Finding {
@@ -142,18 +142,18 @@ fn build_warning(w: &baruch_epub::EpubWarning) -> Finding {
     }
 }
 
-/// Vorsilbe des Temp-Ordners für EPUBCheck; dahinter stehen [`TEMP_NAME_HEX`] zufällige Hex-Zeichen.
+/// Prefix of the temp folder for EPUBCheck; behind it stand [`TEMP_NAME_HEX`] random hex characters.
 const TEMP_PREFIX: &str = "baruch-epubcheck-";
-/// Zufällige Hex-Zeichen im Namen des Temp-Ordners (16 Byte aus dem Zufallsgenerator des Systems).
+/// Random hex characters in the name of the temp folder (16 bytes from the system's random generator).
 const TEMP_NAME_HEX: usize = 32;
 
-/// Eigener Temp-Ordner für den Lauf von EPUBCheck; wird beim Fallenlassen entfernt.
+/// Own temp folder for the run of EPUBCheck; removed when dropped.
 ///
-/// Runde 23 (Gutachten R20): Der Name war `baruch-epubcheck-<pid>-<n>` – vorhersagbar und mit den Rechten der
-/// umask. Auf einem Rechner mit mehreren Benutzern konnte ein anderer das unveröffentlichte EPUB lesen oder den
-/// Ordner vorab anlegen. Jetzt: Zufallsname ([`TEMP_NAME_HEX`] Hex-Zeichen), unter Unix Rechte 0700 schon beim
-/// Anlegen, und angelegt wird ohne `recursive` – steht dort schon etwas (Ordner, Datei, Symlink), ist das ein
-/// Fehler und wird nicht benutzt (und beim Aufräumen nicht angefasst).
+/// Round 23 (review R20): the name was `baruch-epubcheck-<pid>-<n>` – predictable and with the permissions of the
+/// umask. On a machine with several users another one could read the unpublished EPUB or create the
+/// folder in advance. Now: random name ([`TEMP_NAME_HEX`] hex characters), on Unix mode 0700 right at
+/// creation, and it is created without `recursive` – if something is already there (folder, file, symlink), that
+/// is an error and it is not used (and not touched when cleaning up).
 struct TempDir(PathBuf);
 
 impl TempDir {
@@ -161,7 +161,7 @@ impl TempDir {
         TempDir::create(&std::env::temp_dir().join(TempDir::random_name()?))
     }
 
-    /// `baruch-epubcheck-` + 32 zufällige Hex-Zeichen.
+    /// `baruch-epubcheck-` + 32 random hex characters.
     fn random_name() -> std::io::Result<String> {
         let mut bytes = [0u8; TEMP_NAME_HEX / 2];
         getrandom::getrandom(&mut bytes).map_err(|e| std::io::Error::other(format!("Zufallszahlen: {e}")))?;
@@ -169,7 +169,7 @@ impl TempDir {
         Ok(format!("{TEMP_PREFIX}{hex}"))
     }
 
-    /// Genau diesen Ordner neu anlegen (0700 unter Unix); ein vorhandener Eintrag gleichen Namens ist ein Fehler.
+    /// Create exactly this folder anew (0700 on Unix); an existing entry of the same name is an error.
     fn create(dir: &Path) -> std::io::Result<TempDir> {
         let mut builder = std::fs::DirBuilder::new();
         builder.recursive(false);
@@ -189,7 +189,7 @@ impl Drop for TempDir {
     }
 }
 
-/// EPUBCheck mit `bytes` ausführen (höchstens ein Lauf zur Zeit).
+/// Run EPUBCheck with `bytes` (at most one run at a time).
 async fn epubcheck(tool: EpubcheckTool, bytes: Vec<u8>, timeout: Duration) -> (EpubcheckStatus, Vec<Finding>) {
     static ONE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
     let Ok(_turn) = ONE.acquire().await else {
@@ -210,9 +210,9 @@ async fn epubcheck(tool: EpubcheckTool, bytes: Vec<u8>, timeout: Duration) -> (E
     }
 }
 
-/// Prüft das EPUB des Werks (siehe Moduldoku). `epubcheck = false` startet EPUBCheck nie (`NotRequested`);
-/// `path_env` ist der PATH-Inhalt für die Suche nach xmllint und EPUBCheck (RPC und Seiten: der des Prozesses,
-/// Tests: eigene Ordner). Ohne Abschnitte → `REFUSED`.
+/// Checks the EPUB of the work (see module doc). `epubcheck = false` never starts EPUBCheck (`NotRequested`);
+/// `path_env` is the PATH content for finding xmllint and EPUBCheck (RPC and pages: that of the process,
+/// tests: own folders). Without sections → `REFUSED`.
 pub async fn run_check(
     state: &AppState,
     work: WorkId,
@@ -286,10 +286,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     Ok(run_check(state, work, &readers, footnotes, wanted, path.as_deref()).await?.to_json())
 }
 
-// ---- Einstellung -------------------------------------------------------------------------------------
+// ---- Setting -----------------------------------------------------------------------------------------
 
-/// Prüft einen Pfad zum epubcheck.jar: absolut, endet auf `.jar`, vorhandene reguläre Datei, keine Steuerzeichen,
-/// höchstens [`MAX_JAR_PATH`] Bytes. Leer (nach dem Kürzen) → `Ok(None)` = entfernen.
+/// Checks a path to the epubcheck.jar: absolute, ends in `.jar`, existing regular file, no control characters,
+/// at most [`MAX_JAR_PATH`] bytes. Empty (after trimming) → `Ok(None)` = remove.
 pub fn validate_jar(raw: &str) -> Result<Option<String>, String> {
     let path = raw.trim();
     if path.is_empty() {
@@ -315,7 +315,7 @@ pub fn validate_jar(raw: &str) -> Result<Option<String>, String> {
     }
 }
 
-/// Stand der Einstellung: eingestelltes Jar, gefundenes Werkzeug (PATH vor Jar), `java` im PATH.
+/// State of the setting: configured jar, tool found (PATH before jar), `java` in PATH.
 pub async fn checker_state(state: &AppState, path_env: Option<&OsStr>) -> Result<Value, RpcError> {
     let jar = state.store.epubcheck_jar().await?;
     let found = find_epubcheck(path_env, jar.as_deref().map(Path::new));
@@ -340,7 +340,7 @@ pub async fn call_global(state: &AppState, method: &str, params: Value) -> Resul
     checker_state(state, path.as_deref()).await
 }
 
-// ---- Oberfläche --------------------------------------------------------------------------------------
+// ---- UI ----------------------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -391,7 +391,7 @@ fn tool_label(tool: &EpubcheckTool) -> String {
     }
 }
 
-/// Zustand von EPUBCheck als Text für die Seite: (Kurzform, Erklärung, Klasse).
+/// State of EPUBCheck as text for the page: (short form, explanation, class).
 fn epubcheck_view(status: &EpubcheckStatus, available: Option<&EpubcheckTool>) -> Jinja {
     match status {
         EpubcheckStatus::NotRequested => match available {
@@ -425,7 +425,7 @@ fn epubcheck_view(status: &EpubcheckStatus, available: Option<&EpubcheckTool>) -
     }
 }
 
-/// Kontext von `fragments/epub_check_panel.html`.
+/// Context of `fragments/epub_check_panel.html`.
 fn panel_context(work: WorkId, checked: &Checked) -> Jinja {
     let names: BTreeMap<&str, &str> = PROFILES.iter().map(|p| (p.slug, p.name)).collect();
     let rows: Vec<Jinja> = checked
@@ -447,7 +447,7 @@ fn panel_context(work: WorkId, checked: &Checked) -> Jinja {
     }
 }
 
-/// Prüfbericht als fertiges, maskiertes HTML-Fragment für die EPUB-Vorschau.
+/// Check report as a finished, escaped HTML fragment for the EPUB preview.
 pub async fn preview_panel(state: &AppState, work: WorkId, readers: &[&'static ReaderProfile]) -> String {
     let path = process_path();
     let ctx = match run_check(state, work, readers, FootnoteMode::Popup, false, path.as_deref()).await {
@@ -460,17 +460,17 @@ pub async fn preview_panel(state: &AppState, work: WorkId, readers: &[&'static R
     })
 }
 
-/// Seite des Prüfberichts.
+/// Page of the check report.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/epub/pruefung", get(check_page))
 }
 
-/// Formulare (hinter `guard::same_origin`).
+/// Forms (behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/epub/pruefen", post(check_act)).route("/einstellungen/daten/epubcheck", post(jar_act))
 }
 
-/// Felder `leser` (wiederholt) und `fussnoten` aus Abfrage bzw. Formular.
+/// Fields `leser` (repeated) and `fussnoten` from query or form.
 fn form_choice(pairs: &[(String, String)]) -> Result<(Vec<&'static ReaderProfile>, FootnoteMode), String> {
     let slugs: Vec<String> =
         pairs.iter().filter(|(k, v)| k == "leser" && !v.trim().is_empty()).map(|(_, v)| v.clone()).collect();
@@ -538,14 +538,14 @@ async fn page(
     }
 }
 
-/// `GET /werke/{id}/epub/pruefung[?leser=…&fussnoten=…]`: Bericht ohne EPUBCheck.
+/// `GET /werke/{id}/epub/pruefung[?leser=…&fussnoten=…]`: report without EPUBCheck.
 async fn check_page(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     UrlPath(work): UrlPath<WorkId>,
     Query(pairs): Query<Vec<(String, String)>>,
 ) -> Response {
-    // Die Prüfung baut und packt das ganze EPUB und startet xmllint je Datei: nicht für fremde Seiten.
+    // The check builds and packs the whole EPUB and starts xmllint per file: not for foreign pages.
     if crate::guard::cross_site_get(&headers) {
         return (StatusCode::FORBIDDEN, "Abgelehnt: Die Prüfung entsteht nicht auf Anfrage einer fremden Seite.")
             .into_response();
@@ -553,7 +553,7 @@ async fn check_page(
     page(&state, &headers, work, &pairs, false).await
 }
 
-/// `POST /werke/epub/pruefen` (Felder `work`, `leser`*, `fussnoten`): Bericht mit EPUBCheck.
+/// `POST /werke/epub/pruefen` (fields `work`, `leser`*, `fussnoten`): report with EPUBCheck.
 async fn check_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -565,8 +565,8 @@ async fn check_act(
     page(&state, &headers, work, &pairs, true).await
 }
 
-/// `POST /einstellungen/daten/epubcheck` (Feld `jar`, leer = entfernen; `work` optional): 303 auf
-/// `/einstellungen/daten?ok=epubcheck`, ungültiger Pfad → 422 mit der Seite und der Meldung, nichts gespeichert.
+/// `POST /einstellungen/daten/epubcheck` (field `jar`, empty = remove; `work` optional): 303 to
+/// `/einstellungen/daten?ok=epubcheck`, invalid path → 422 with the page and the message, nothing stored.
 async fn jar_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -587,7 +587,7 @@ async fn jar_act(
     }
 }
 
-/// Kontext des Blocks „EPUBCheck“ auf Einstellungen → Daten: eingestellter Pfad, gefundenes Werkzeug, `java`.
+/// Context of the block „EPUBCheck“ on Einstellungen → Daten: configured path, tool found, `java`.
 pub(crate) async fn settings_context(state: &AppState, saved: bool) -> Jinja {
     let path = process_path();
     let jar = state.store.epubcheck_jar().await.ok().flatten();
@@ -647,7 +647,7 @@ mod tests {
 
     #[test]
     fn a_folder_or_symlink_that_already_exists_is_never_used() {
-        // Eigener Übungsordner (privat), darin stellt der Test den „Angreifer“ nach.
+        // Own practice folder (private), in it the test plays the “attacker”.
         let playground = TempDir::new().expect("Übungsordner");
         let planted = playground.0.join(TempDir::random_name().unwrap());
         std::fs::create_dir(&planted).unwrap();
@@ -679,13 +679,13 @@ mod tests {
                 0,
                 "im Ziel des Symlinks ist nichts entstanden (das EPUB wäre sonst dort gelandet)"
             );
-            // Auch ein Symlink ins Leere (Ziel fehlt) wird nicht „aufgefüllt“.
+            // A symlink into nothing (target missing) is not “filled in” either.
             let dangling = playground.0.join(TempDir::random_name().unwrap());
             std::os::unix::fs::symlink(playground.0.join("gibt-es-nicht"), &dangling).unwrap();
             assert!(TempDir::create(&dangling).is_err(), "Symlink ohne Ziel wird nicht benutzt");
             assert!(!playground.0.join("gibt-es-nicht").exists(), "und sein Ziel wird nicht angelegt");
         }
-        // Mehrstufige Pfade legt TempDir nicht an (kein `recursive`): der Elternordner muss schon da sein.
+        // TempDir does not create multi-level paths (no `recursive`): the parent folder must already exist.
         let deep = playground.0.join("a").join("b");
         assert!(TempDir::create(&deep).is_err(), "fehlender Elternordner wird nicht mit angelegt");
     }

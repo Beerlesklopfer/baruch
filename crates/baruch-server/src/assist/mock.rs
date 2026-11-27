@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachgebildetes Modell-Backend **nur für Tests** (Vertrag Runde 10, §3): [`ScriptedModel`] antwortet je
-//! Aufruf nach einem Skript ([`Step`]) – Text in Stücken, ein Fehler, „hängt bis Abbruch“ oder „wartet
-//! auf Freigabe“ –, zeichnet jeden [`ModelCall`] auf ([`ScriptedModel::calls`]) und zählt Abbrüche
-//! ([`ScriptedModel::cancelled`]). Kein Netz. Öffentlich (nicht `cfg(test)`), damit `tests/*.rs` es nutzen.
+//! Mock model backend **for tests only** (contract Round 10, §3): [`ScriptedModel`] answers each
+//! call by a script ([`Step`]) – text in pieces, an error, “hangs until cancelled” or “waits
+//! for release” –, records every [`ModelCall`] ([`ScriptedModel::calls`]) and counts cancellations
+//! ([`ScriptedModel::cancelled`]). No network. Public (not `cfg(test)`) so that `tests/*.rs` can use it.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -13,24 +13,24 @@ use tokio::sync::Notify;
 
 use super::port::{BoxFuture, ContextBudget, ModelAnswer, ModelCall, ModelFailure, ModelList, ModelPort};
 
-/// Antwort auf einen Aufruf.
+/// Answer to a call.
 #[derive(Debug, Clone)]
 pub enum Step {
-    /// Text in diesen Stücken (je ein Delta), danach fertig. `model` = gemeldetes Modell (leer = das
-    /// angefragte).
+    /// Text in these pieces (one delta each), then done. `model` = reported model (empty = the
+    /// requested one).
     Text { chunks: Vec<String>, model: String },
-    /// Wie `Text`, aber an der Längengrenze abgeschnitten (`finish_reason` „length“).
+    /// Like `Text`, but cut off at the length limit (`finish_reason` “length”).
     Cut { chunks: Vec<String> },
-    /// Fehler des Backends.
+    /// Error of the backend.
     Fail(ModelFailure),
-    /// Hängt, bis das Future fallen gelassen wird (Abbruch).
+    /// Hangs until the future is dropped (cancellation).
     Hang,
-    /// Schickt die Stücke `before`, wartet dann auf [`ScriptedModel::release`], danach wie `then`.
+    /// Sends the pieces `before`, then waits for [`ScriptedModel::release`], then like `then`.
     Wait { before: Vec<String>, then: Box<Step> },
 }
 
 impl Step {
-    /// Ganze Antwort Wort für Wort (an Leerzeichen getrennt, das Leerzeichen bleibt am Wort).
+    /// Whole answer word by word (split at spaces, the space stays with the word).
     pub fn words(text: &str) -> Step {
         let mut chunks = Vec::new();
         let mut current = String::new();
@@ -46,7 +46,7 @@ impl Step {
         Step::Text { chunks, model: String::new() }
     }
 
-    /// Wie [`Step::words`], aber das Modell meldet `finish_reason` „length“ (bei `max_tokens` abgebrochen).
+    /// Like [`Step::words`], but the model reports `finish_reason` “length” (cut off at `max_tokens`).
     pub fn cut(text: &str) -> Step {
         match Step::words(text) {
             Step::Text { chunks, .. } => Step::Cut { chunks },
@@ -55,7 +55,7 @@ impl Step {
     }
 }
 
-/// Zustand, den Test und Port teilen.
+/// State shared by test and port.
 #[derive(Default)]
 struct Shared {
     steps: Mutex<VecDeque<Step>>,
@@ -66,21 +66,21 @@ struct Shared {
     release: Notify,
 }
 
-/// Modell nach Skript. Klonen teilt den Zustand (Test behält einen Klon, der Server den anderen).
+/// Scripted model. Cloning shares the state (the test keeps one clone, the server the other).
 #[derive(Clone, Default)]
 pub struct ScriptedModel {
     shared: Arc<Shared>,
     models: Option<Vec<String>>,
     aliases: HashMap<String, String>,
     pause: Duration,
-    /// Von der „Gegenstelle“ gemeldete Kontextlänge ([`ScriptedModel::with_reported_context`]).
+    /// Context length reported by the “remote side” ([`ScriptedModel::with_reported_context`]).
     reported_context: Option<u32>,
-    /// Gemeldete Kontextlänge je Modell ([`ScriptedModel::with_reported_context_for`], Runde 16a); geht vor
-    /// `reported_context`.
+    /// Reported context length per model ([`ScriptedModel::with_reported_context_for`], Round 16a); takes precedence
+    /// over `reported_context`.
     reported_by_model: HashMap<String, u32>,
 }
 
-/// Merkt, ob ein Aufruf zu Ende lief; fällt er vorher, zählt er als Abbruch.
+/// Remembers whether a call ran to the end; if it is dropped before, it counts as a cancellation.
 struct CancelGuard {
     shared: Arc<Shared>,
     done: bool,
@@ -97,19 +97,19 @@ impl Drop for CancelGuard {
 }
 
 impl ScriptedModel {
-    /// Leeres Skript (jeder Aufruf scheitert mit „Skript zu Ende“), keine Modellliste.
+    /// Empty script (every call fails with „Skript zu Ende“), no model list.
     pub fn new() -> ScriptedModel {
         ScriptedModel::default()
     }
 
-    /// Mit diesen Antworten in dieser Reihenfolge.
+    /// With these answers in this order.
     pub fn with(steps: impl IntoIterator<Item = Step>) -> ScriptedModel {
         let model = ScriptedModel::new();
         model.push_all(steps);
         model
     }
 
-    /// Weitere Antwort ans Ende des Skripts.
+    /// Another answer at the end of the script.
     pub fn push(&self, step: Step) {
         self.shared.steps.lock().unwrap().push_back(step);
     }
@@ -118,59 +118,59 @@ impl ScriptedModel {
         self.shared.steps.lock().unwrap().extend(steps);
     }
 
-    /// Modellliste für [`ModelPort::models`] (ohne: `NotConfigured`).
+    /// Model list for [`ModelPort::models`] (without: `NotConfigured`).
     pub fn with_models(mut self, models: &[&str]) -> ScriptedModel {
         self.models = Some(models.iter().map(|m| (*m).to_owned()).collect());
         self
     }
 
-    /// Alias alt → neu für [`ModelPort::alias`].
+    /// Alias old → new for [`ModelPort::alias`].
     pub fn with_alias(mut self, old: &str, new: &str) -> ScriptedModel {
         self.aliases.insert(old.to_owned(), new.to_owned());
         self
     }
 
-    /// Pause zwischen zwei Stücken (Vorgabe keine).
+    /// Pause between two pieces (default none).
     pub fn with_pause(mut self, pause: Duration) -> ScriptedModel {
         self.pause = pause;
         self
     }
 
-    /// Die nachgebildete Gegenstelle meldet die Kontextlänge `tokens`: [`ModelPort::context`] liefert dann
-    /// `tokens = min(Einstellung, tokens)`, `reported = Some(tokens)` und bei Abweichung eine Warnung.
+    /// The mock remote side reports the context length `tokens`: [`ModelPort::context`] then returns
+    /// `tokens = min(setting, tokens)`, `reported = Some(tokens)` and a warning on deviation.
     pub fn with_reported_context(mut self, tokens: u32) -> ScriptedModel {
         self.reported_context = Some(tokens);
         self
     }
 
-    /// Wie [`ScriptedModel::with_reported_context`], aber nur für Personas mit dem Modell `model` (Runde 16a: so
-    /// lässt sich prüfen, dass „Lektor automatisch nach Kontext“ die wirksame Länge vergleicht).
+    /// Like [`ScriptedModel::with_reported_context`], but only for personas with the model `model` (Round 16a: this
+    /// allows checking that „Lektor automatisch nach Kontext“ compares the effective length).
     pub fn with_reported_context_for(mut self, model: &str, tokens: u32) -> ScriptedModel {
         self.reported_by_model.insert(model.to_owned(), tokens);
         self
     }
 
-    /// Alle bisherigen Aufrufe in ihrer Reihenfolge.
+    /// All calls so far in their order.
     pub fn calls(&self) -> Vec<ModelCall> {
         self.shared.calls.lock().unwrap().clone()
     }
 
-    /// Zahl der Aufrufe, die fallen gelassen wurden, bevor sie fertig waren.
+    /// Number of calls that were dropped before they finished.
     pub fn cancelled(&self) -> usize {
         self.shared.cancelled.load(Ordering::SeqCst)
     }
 
-    /// Zahl der Aufrufe, die zu Ende liefen (Text oder Fehler).
+    /// Number of calls that ran to the end (text or error).
     pub fn finished(&self) -> usize {
         self.shared.finished.load(Ordering::SeqCst)
     }
 
-    /// Wartet, bis ein Aufruf begonnen hat (nach dem Aufzeichnen, vor der ersten Antwort).
+    /// Waits until a call has started (after recording, before the first answer).
     pub async fn started(&self) {
         self.shared.started.notified().await;
     }
 
-    /// Gibt einen wartenden Aufruf ([`Step::Wait`]) frei.
+    /// Releases a waiting call ([`Step::Wait`]).
     pub fn release(&self) {
         self.shared.release.notify_one();
     }
@@ -182,7 +182,7 @@ impl ScriptedModel {
         deltas: &tokio::sync::mpsc::UnboundedSender<String>,
     ) -> Result<ModelAnswer, ModelFailure> {
         let mut step = step;
-        // Stücke vor einer Wartestelle gehören zur Antwort.
+        // Pieces before a waiting point belong to the answer.
         let mut sent = String::new();
         loop {
             match step {
@@ -260,7 +260,7 @@ impl ModelPort for ScriptedModel {
         self.aliases.get(name).cloned()
     }
 
-    /// Der Nachbau kennt seine Kontextlängen ohne Netz: wie [`ModelPort::context`].
+    /// The mock knows its context lengths without network: like [`ModelPort::context`].
     fn context_cached<'a>(
         &'a self,
         state: &'a crate::AppState,

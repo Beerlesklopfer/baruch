@@ -1,6 +1,6 @@
-//! Übersetzt die TypeScript-Widgets (`web/src/*.ts`) mit `tsc` nach `$OUT_DIR/js` und erzeugt
-//! `$OUT_DIR/scripts.rs`, eine Liste `(Dateiname, Inhalt)`, die das Programm einbettet.
-//! `tsc` kommt aus `web/node_modules` (einmalig `npm ci` im Ordner `web`).
+//! Compiles the TypeScript widgets (`web/src/*.ts`) with `tsc` to `$OUT_DIR/js` and generates
+//! `$OUT_DIR/scripts.rs`, a list `(file name, content)` that the program embeds.
+//! `tsc` comes from `web/node_modules` (run `npm ci` once in the folder `web`).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

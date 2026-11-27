@@ -1,35 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gegliederte Beiträge im Chat (Runde 30c, chat-bedienung).
+//! Structured posts in the chat (Round 30c, chat-bedienung).
 //!
-//! Serverseitiges, sicheres Markdown-Teilset ([`markdown_html`]): **kein rohes HTML** aus Modell oder Nutzer – jeder
-//! Text wird maskiert, Auszeichnung und Links baut nur Baruch.
-//! - Absätze (Leerzeile), einfache Umbrüche als `<br>`;
-//! - Listen „- “/„* “/„• “/„– “/„+ “ als `<ul class="post-list">`, „1. “/„1) “ als `<ol class="post-list">`
-//!   (Abstand zwischen den Punkten in `static/chat.css`), eingerückte Unterpunkte als Liste im Punkt, eingerückte
-//!   Folgezeilen gehören zum Punkt;
+//! Server-side, safe Markdown subset ([`markdown_html`]): **no raw HTML** from model or user – every
+//! text is escaped, markup and links are built by Baruch only.
+//! - paragraphs (empty line), simple line breaks as `<br>`;
+//! - lists „- “/„* “/„• “/„– “/„+ “ as `<ul class="post-list">`, „1. “/„1) “ as `<ol class="post-list">`
+//!   (spacing between the items in `static/chat.css`), indented sub-items as a list in the item, indented
+//!   continuation lines belong to the item;
 //! - `**fett**`, `*kursiv*`;
-//! - Zwischenüberschriften: „Was trägt:“, „Was fehlt:“, „Was stört:“ am Zeilenanfang (Text dahinter wird ein Absatz),
-//!   eine ganze Zeile `**…**` und „# …“ bis „###### …“ als `<h4 class="post-h">`;
-//! - `> Zitat` als `<blockquote>`;
-//! - Schlusshinweise von Baruch am Ende (z. B. „Hinweis: Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft.“,
-//!   abgeschnitten, gekürzt, komprimiert, fehlender Pflichtbefund) klein als `<footer class="post-foot">`.
+//! - sub-headings: „Was trägt:“, „Was fehlt:“, „Was stört:“ at the start of a line (text after it becomes a
+//!   paragraph), a whole line `**…**` and „# …“ to „###### …“ as `<h4 class="post-h">`;
+//! - `> Zitat` as `<blockquote>`;
+//! - closing notes of Baruch at the end (e.g. „Hinweis: Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft.“,
+//!   cut off, trimmed, compressed, missing mandatory finding) small as `<footer class="post-foot">`.
 //!
-//! Links im Beitrag ([`post_html`], [`render_post`]), alle geprüft und gebaut von Baruch:
-//! - Sprungmarken `[[key:N]]` bzw. `[[key:N|„Zitat“]]` über [`crate::xref::check_marker`]: geprüft →
-//!   `<a class="jump" href="…" data-jump data-jump-origin="chat">`, sonst `<span class="jump-unchecked"
-//!   title="Sprungmarke ungeprüft: …">` mit dem Text (bzw. „key:N“);
-//! - wörtliche Zitate „…“ (ab [`MIN_QUOTE_CHARS`] Zeichen), die die Belegprüfung im aktuellen Text findet: zuerst im
-//!   Abschnitt des Beitrags, sonst nur, wenn genau ein Abschnitt sie enthält (Sprung mit `find=`);
-//! - Gliederungsnennungen über [`crate::xref::outline_mentions`] (eindeutig oder gar nicht);
-//! - Bibelstellen (gültige Stellen aus `baruch_scripture::scan`) → `/literatur/bibel?work=W&ref=…` – die Bibelseite
-//!   schlägt ohne `module` die Bibel des Werks auf;
-//! - „Einfall n“ → `/einfaelle/n`, „Befund n“ und „[Bn]“ → Befundseite (nur Befunde des Werks, wenn die Liste bekannt
-//!   ist).
+//! Links in the post ([`post_html`], [`render_post`]), all checked and built by Baruch:
+//! - jump marks `[[key:N]]` or `[[key:N|„Zitat“]]` through [`crate::xref::check_marker`]: checked →
+//!   `<a class="jump" href="…" data-jump data-jump-origin="chat">`, otherwise `<span class="jump-unchecked"
+//!   title="Sprungmarke ungeprüft: …">` with the text (or „key:N“);
+//! - literal quotations „…“ (from [`MIN_QUOTE_CHARS`] characters) that the evidence check finds in the current text:
+//!   first in the section of the post, otherwise only if exactly one section contains them (jump with `find=`);
+//! - outline mentions through [`crate::xref::outline_mentions`] (unambiguous or not at all);
+//! - Bible references (valid ones from `baruch_scripture::scan`) → `/literatur/bibel?work=W&ref=…` – the Bible page
+//!   opens the Bible of the work without `module`;
+//! - „Einfall n“ → `/einfaelle/n`, „Befund n“ and „[Bn]“ → findings page (only findings of the work if the list is
+//!   known).
 //!
-//! Befunde als eigene Blöcke: [`render_post`] teilt den Text an den Spannen von
-//! [`crate::findings::parse::finding_spans`] ([`Segment::Finding`] mit der id des gespeicherten Befunds derselben
-//! Stelle, `finding_cards` mit dessen Karte [`crate::findings::view::card`] für das Makro `finding_block`).
-//! „Kopieren“ liefert [`PostExtra::plain`]: Klartext mit „- “-Zeilen, ohne Auszeichnung, Sprungmarken als Text.
+//! Findings as their own blocks: [`render_post`] splits the text at the spans of
+//! [`crate::findings::parse::finding_spans`] ([`Segment::Finding`] with the id of the stored finding of the same
+//! position, `finding_cards` with its card [`crate::findings::view::card`] for the macro `finding_block`).
+//! „Kopieren“ returns [`PostExtra::plain`]: plain text with „- “ lines, without markup, jump marks as text.
 
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
@@ -39,12 +39,12 @@ use regex::Regex;
 
 use crate::bibles::html_escape;
 
-/// Zitate kürzer als so viele Zeichen werden nicht verlinkt (zu viele Zufallstreffer).
+/// Quotations shorter than this many characters are not linked (too many chance hits).
 pub const MIN_QUOTE_CHARS: usize = 12;
-/// Zitate länger als so viele Zeichen werden nicht gesucht.
+/// Quotations longer than this many characters are not searched.
 const MAX_QUOTE_CHARS: usize = 400;
 
-/// Zusammenhang eines Beitrags auf der Arbeitsseite.
+/// Context of a post on the work page.
 pub struct PostCtx<'a> {
     pub work_id: WorkId,
     pub work: &'a baruch_core::Work,
@@ -53,7 +53,7 @@ pub struct PostCtx<'a> {
     pub extras: &'a crate::view::ViewExtras,
 }
 
-/// Ein Stück eines gegliederten Beitrags: Markdown-Text oder ein Befund.
+/// A piece of a structured post: Markdown text or a finding.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Segment {
@@ -61,49 +61,49 @@ pub enum Segment {
     Finding { finding: i64, html: String },
 }
 
-/// Was die Vorlage zu einem Beitrag über `post.body` hinaus bekommt (`post.extra`).
+/// What the template gets for a post beyond `post.body` (`post.extra`).
 #[derive(Debug, Clone, Default, serde::Serialize)]
 pub struct PostExtra {
-    /// Der ganze Beitrag als sicheres HTML (Befunde in `div.post-finding`).
+    /// The whole post as safe HTML (findings in `div.post-finding`).
     pub html: String,
     pub segments: Vec<Segment>,
-    /// Klartext für „Kopieren“ (mit „- “-Zeilen).
+    /// Plain text for „Kopieren“ (with „- “ lines).
     pub plain: String,
-    /// Kopfzeile „geprüft: …“ (aus `PostMeta::basis_label`); `None` = keine Angabe.
+    /// Header line „geprüft: …“ (from `PostMeta::basis_label`); `None` = not given.
     pub basis: Option<String>,
     pub reply_to: Option<i64>,
     pub repeat_of: Option<i64>,
     pub relay_from: Option<String>,
-    /// Lässt sich wiederholen (der Auftrag ist bekannt oder der Rückfall greift, siehe [`RenderInput::fallback`]).
+    /// Can be repeated (the order is known or the fallback applies, see [`RenderInput::fallback`]).
     pub can_repeat: bool,
-    /// Runde 30c: geprüfte Fassung (für „Wiederholung von Beitrag n nach Fassung m“).
+    /// Round 30c: reviewed revision (for „Wiederholung von Beitrag n nach Fassung m“).
     pub basis_rev: Option<u32>,
-    /// Runde 30c: Karten der Befunde dieses Beitrags (id als Text → [`crate::findings::view::card`]).
+    /// Round 30c: cards of the findings of this post (id as text → [`crate::findings::view::card`]).
     pub finding_cards: BTreeMap<String, serde_json::Value>,
 }
 
-/// Was [`render_post`] braucht (Abschnitts-Chat, Faden, `/beitraege`, `/beitrag`).
+/// What [`render_post`] needs (section chat, thread, `/beitraege`, `/beitrag`).
 pub struct RenderInput<'a> {
     pub work_id: WorkId,
     pub work: &'a baruch_core::Work,
-    /// Abschnitt des Beitrags (`None` im Faden).
+    /// Section of the post (`None` in a thread).
     pub key: Option<i64>,
-    /// Gezeigte bzw. geprüfte Fassung des Abschnitts (für Sprungmarken in denselben Abschnitt).
+    /// Shown or reviewed revision of the section (for jump marks into the same section).
     pub rev: Option<u32>,
     pub body: &'a str,
     pub meta: Option<&'a PostMeta>,
-    /// Gespeicherte Befunde **dieses** Beitrags (Stelle → Befund über `Finding::position`).
+    /// Stored findings of **this** post (position → finding through `Finding::position`).
     pub own_findings: Vec<&'a Finding>,
-    /// Alle Befunde des Werks (für Karten und „Befund n“); `None` = unbekannt (dann wird „Befund n“ immer verlinkt).
+    /// All findings of the work (for cards and „Befund n“); `None` = unknown (then „Befund n“ is always linked).
     pub all_findings: Option<&'a [Finding]>,
-    /// Rückfall für „wiederholen“ ohne gespeicherten Auftrag: Persona-Beitrag mit vorangehender Nachricht des
-    /// Menschen bzw. eines MCP-Clients.
+    /// Fallback for “repeat” without a stored order: persona post preceded by a message of the
+    /// human or an MCP client.
     pub fallback: bool,
 }
 
-// ---- Markdown-Teilset ------------------------------------------------------------------------------------------
+// ---- Markdown subset -------------------------------------------------------------------------------------------
 
-/// Anfänge der Schlusshinweise von Baruch (Fußzeile).
+/// Starts of the closing notes of Baruch (footer).
 fn footer_prefixes() -> [&'static str; 9] {
     [
         crate::scripture::MARK_OTHERS,
@@ -123,7 +123,7 @@ fn is_footer_line(line: &str) -> bool {
     !t.is_empty() && footer_prefixes().iter().any(|p| t.starts_with(p))
 }
 
-/// Ein Listenpunkt mit Unterpunkten.
+/// A list item with sub-items.
 #[derive(Debug, Default)]
 struct Item {
     lines: Vec<String>,
@@ -147,7 +147,7 @@ static OUTLINE_HEADING: LazyLock<Regex> = LazyLock::new(|| {
         .expect("Muster Gliederung")
 });
 
-/// Eine ganze Zeile `**…**` (ohne weiteres `**` darin)?
+/// A whole line `**…**` (without another `**` in it)?
 fn bold_line(line: &str) -> Option<&str> {
     let t = line.trim();
     let inner = t.strip_prefix("**")?.strip_suffix("**")?;
@@ -158,10 +158,10 @@ fn indent_of(line: &str) -> usize {
     line.chars().take_while(|c| *c == ' ' || *c == '\t').map(|c| if c == '\t' { 4 } else { 1 }).sum()
 }
 
-/// Text in Blöcke zerlegen (ohne Fußzeile).
+/// Split text into blocks (without footer).
 fn blocks(text: &str) -> Vec<Block> {
     let mut out: Vec<Block> = Vec::new();
-    let mut open = false; // Darf die nächste Zeile an den letzten Block anschließen?
+    let mut open = false; // May the next line continue the last block?
     for line in text.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -223,7 +223,7 @@ fn blocks(text: &str) -> Vec<Block> {
             open = true;
             continue;
         }
-        // Gewöhnliche Zeile: Folgezeile eines Punkts (eingerückt), eines Absatzes oder ein neuer Absatz.
+        // Ordinary line: continuation of an item (indented), of a paragraph, or a new paragraph.
         match out.last_mut() {
             Some(Block::List { items, indent, .. }) if open && indent_of(line) > *indent => {
                 let item = items.last_mut().expect("Liste hat Punkte");
@@ -243,7 +243,7 @@ fn blocks(text: &str) -> Vec<Block> {
     out
 }
 
-/// Text vorne und Fußzeile (Schlusshinweise am Ende) trennen.
+/// Separate the text in front and the footer (closing notes at the end).
 fn split_footer(text: &str) -> (String, Vec<String>) {
     let lines: Vec<&str> = text.lines().collect();
     let mut end = lines.len();
@@ -265,7 +265,7 @@ fn split_footer(text: &str) -> (String, Vec<String>) {
     (lines[..end].join("\n"), footer)
 }
 
-/// Sicheres Markdown-Teilset ohne Links (Befund-Akkordeon, Matrix; Signatur fest seit R30-S1).
+/// Safe Markdown subset without links (findings accordion, matrix; signature fixed since R30-S1).
 pub fn markdown_html(text: &str) -> String {
     render_markdown(text, None)
 }
@@ -324,10 +324,10 @@ fn render_markdown(text: &str, links: Option<&Links<'_>>) -> String {
     out
 }
 
-/// `**fett**` und `*kursiv*` in einem Stück ohne Links; alles andere maskiert.
+/// `**fett**` and `*kursiv*` in a piece without links; everything else escaped.
 fn emphasis(raw: &str) -> String {
     let parts: Vec<&str> = raw.split("**").collect();
-    // Gerade Zahl von Teilen = ein „**“ ohne Gegenstück: das letzte bleibt wörtlich.
+    // Even number of parts = one „**“ without counterpart: the last stays literal.
     let paired = if parts.len() % 2 == 1 { parts.len() } else { parts.len() - 1 };
     let mut out = String::new();
     for (i, part) in parts.iter().enumerate() {
@@ -350,7 +350,7 @@ fn emphasis(raw: &str) -> String {
     out
 }
 
-/// `*kursiv*` (Stern direkt am Wort, innen kein Stern); sonst maskiert.
+/// `*kursiv*` (asterisk directly at the word, no asterisk inside); otherwise escaped.
 fn italic(raw: &str) -> String {
     let mut out = String::new();
     let mut rest = raw;
@@ -380,7 +380,7 @@ fn italic(raw: &str) -> String {
 
 // ---- Links -----------------------------------------------------------------------------------------------------
 
-/// Zusammenhang für Links in einem Beitrag.
+/// Context for links in a post.
 struct Links<'a> {
     work_id: WorkId,
     work: &'a baruch_core::Work,
@@ -389,7 +389,7 @@ struct Links<'a> {
     findings: Option<&'a [Finding]>,
 }
 
-/// Ein Link-Bereich in einer Zeile (Bytes) mit fertigem HTML.
+/// A link range in a line (bytes) with finished HTML.
 struct Span {
     start: usize,
     end: usize,
@@ -411,7 +411,7 @@ fn attr(text: &str) -> String {
     html_escape(text)
 }
 
-/// Sprung-Link (geprüft), mit `data-jump` für das Öffnen ohne Seitenwechsel.
+/// Jump link (checked), with `data-jump` for opening without a page change.
 fn jump_link(target: &crate::xref::JumpTarget, text: &str, title: &str) -> String {
     format!(
         "<a class=\"jump\" href=\"{}\" data-jump data-jump-origin=\"chat\" title=\"{}\">{}</a>",
@@ -422,7 +422,7 @@ fn jump_link(target: &crate::xref::JumpTarget, text: &str, title: &str) -> Strin
 }
 
 fn marker_span(links: &Links<'_>, key: i64, quote: Option<&str>) -> String {
-    // Die Fassungsnummer gilt nur im eigenen Abschnitt; in fremden Abschnitten zählt die aktuelle.
+    // The revision number is valid only in the own section; in foreign sections the current one counts.
     let rev = if Some(key) == links.key { links.rev } else { None };
     let quote = quote.map(str::trim).filter(|q| !q.is_empty());
     match crate::xref::check_marker(links.work_id, links.work, key, quote, rev) {
@@ -448,7 +448,7 @@ fn marker_span(links: &Links<'_>, key: i64, quote: Option<&str>) -> String {
     }
 }
 
-/// Abschnitt, in dem das Zitat steht: zuerst der eigene, sonst genau einer.
+/// Section in which the quotation stands: first the own one, otherwise exactly one.
 fn quote_target(links: &Links<'_>, quote: &str) -> Option<(i64, Option<u32>)> {
     let wanted = squash(quote);
     if wanted.chars().count() < MIN_QUOTE_CHARS || wanted.chars().count() > MAX_QUOTE_CHARS {
@@ -468,8 +468,8 @@ fn quote_target(links: &Links<'_>, quote: &str) -> Option<(i64, Option<u32>)> {
     found.next().is_none().then_some((first.key, None))
 }
 
-/// Link-Bereiche einer Zeile (ohne Überschneidung; Marken vor Einfall/Befund vor Bibelstellen vor Zitaten vor
-/// Gliederungsnennungen).
+/// Link ranges of a line (no overlap; marks before idea/finding before Bible references before quotations before
+/// outline mentions).
 fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
     let mut found: Vec<Span> = Vec::new();
     let push = |found: &mut Vec<Span>, span: Span| {
@@ -550,7 +550,7 @@ fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
     found
 }
 
-/// Eine Zeile: Links an ihren Stellen, dazwischen Auszeichnung und Maskierung.
+/// One line: links in their places, between them markup and escaping.
 fn inline(line: &str, links: Option<&Links<'_>>) -> String {
     let Some(links) = links else { return emphasis(line) };
     let mut out = String::new();
@@ -564,15 +564,15 @@ fn inline(line: &str, links: Option<&Links<'_>>) -> String {
     out
 }
 
-/// Markdown plus geprüfte Links (Sprungmarken, Zitate, Gliederung, Bibelstellen, Einfälle/Befunde).
+/// Markdown plus checked links (jump marks, quotations, outline, Bible references, ideas/findings).
 pub fn post_html(work_id: WorkId, work: &baruch_core::Work, body: &str, rev: Option<u32>) -> String {
     let links = Links { work_id, work, key: None, rev, findings: None };
     render_markdown(body, Some(&links))
 }
 
-// ---- Klartext ----------------------------------------------------------------------------------------------------
+// ---- Plain text --------------------------------------------------------------------------------------------------
 
-/// Klartext für „Kopieren“: Listenpunkte als „- “ (Nummern bleiben), ohne `**`/`*`, Sprungmarken als Text.
+/// Plain text for „Kopieren“: list items as „- “ (numbers stay), without `**`/`*`, jump marks as text.
 pub fn plain_text(work: Option<&baruch_core::Work>, body: &str) -> String {
     let text = body.replace("\r\n", "\n");
     let text = MARKER.replace_all(&text, |c: &regex::Captures<'_>| {
@@ -617,9 +617,9 @@ fn strip_emphasis(line: &str) -> String {
     out
 }
 
-// ---- Beiträge ----------------------------------------------------------------------------------------------------
+// ---- Posts -------------------------------------------------------------------------------------------------------
 
-/// Text in Markdown- und Befund-Stücke teilen: `spans` (Bytes, aufsteigend) und je Stelle die id des Befunds.
+/// Split text into Markdown and finding pieces: `spans` (bytes, ascending) and per position the id of the finding.
 fn split_segments(
     body: &str,
     spans: &[crate::findings::parse::FindingSpan],
@@ -648,7 +648,7 @@ fn split_segments(
     out
 }
 
-/// Ganzes HTML aus den Stücken (Befunde in `div.post-finding`).
+/// Whole HTML from the pieces (findings in `div.post-finding`).
 fn joined(segments: &[Segment]) -> String {
     segments
         .iter()
@@ -661,7 +661,7 @@ fn joined(segments: &[Segment]) -> String {
         .collect()
 }
 
-/// Beitrag setzen (Abschnitts-Chat, Faden, Seiten): Stücke, Links, Klartext, Kopf und Karten der Befunde.
+/// Render a post (section chat, thread, pages): pieces, links, plain text, head and cards of the findings.
 pub fn render_post(input: &RenderInput<'_>) -> PostExtra {
     let links = Links {
         work_id: input.work_id,
@@ -698,18 +698,18 @@ pub fn render_post(input: &RenderInput<'_>) -> PostExtra {
     }
 }
 
-/// Ist `author` eine Persona (`@handle`, nicht `@mcp:<name>`)?
+/// Is `author` a persona (`@handle`, not `@mcp:<name>`)?
 pub fn is_persona(author: &str) -> bool {
     author.starts_with('@') && !author.starts_with("@mcp:")
 }
 
-/// Beitrag eines Schreibauftrags („Vorschlag Fassung n“, Runde 28)? Den wiederholt der Rückfall nicht.
+/// Post of a write order („Vorschlag Fassung n“, Round 28)? The fallback does not repeat that one.
 pub fn is_order_note(sources: &[String]) -> bool {
     sources.iter().any(|s| s.starts_with("Vorschlag Fassung"))
 }
 
-/// Rückfall für „wiederholen“ (Abschnitts-Chat): der Beitrag `index` stammt von einer Persona, ist kein Beitrag zu
-/// einem Schreibauftrag, und davor steht eine Nachricht des Menschen bzw. eines MCP-Clients.
+/// Fallback for “repeat” (section chat): the post `index` comes from a persona, is not a post for a
+/// write order, and before it stands a message of the human or an MCP client.
 pub fn repeat_fallback(posts: &[baruch_core::Post], index: usize) -> Option<&baruch_core::Post> {
     let post = posts.get(index)?;
     if !is_persona(&post.author) || is_order_note(&post.sources) {
@@ -718,7 +718,7 @@ pub fn repeat_fallback(posts: &[baruch_core::Post], index: usize) -> Option<&bar
     posts[..index].iter().rev().find(|p| !is_persona(&p.author))
 }
 
-/// Zusätze eines Beitrags für die Vorlage auf der Arbeitsseite (Haken aus `view::posts`).
+/// Extras of a post for the template on the work page (hook from `view::posts`).
 pub fn post_extra(ctx: &PostCtx<'_>, post: &baruch_core::Post) -> PostExtra {
     let meta = ctx.extras.post_meta.get(&post.id);
     let all = ctx.extras.findings.findings.as_slice();

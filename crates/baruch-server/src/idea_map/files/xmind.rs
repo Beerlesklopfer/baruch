@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! XMind (`.xmind`) schreiben und lesen (Vertrag Runde 34 §8, Besitz mindmap_austausch).
+//! Writing and reading XMind (`.xmind`) (contract Round 34 §8, owner mindmap_austausch).
 //!
-//! **Schreiben** ([`write`]): ein ZIP mit `content.json` (ein Blatt: `rootTopic` mit `children.attached` in
-//! Reihenfolge, `notes.plain.content`, `labels` = Schlagwörter, `relationships` mit `end1Id`/`end2Id`/`title`),
-//! `metadata.json` und `manifest.json`. Der Aufbau folgt der offenen Beschreibung des Formats aus dem Gedächtnis;
-//! was nicht mit echtem XMind geprüft ist, steht als Annahme in `docs/Bedienung.md` („Annahmen zu XMind und Freeplane“).
+//! **Writing** ([`write`]): a ZIP with `content.json` (one sheet: `rootTopic` with `children.attached` in
+//! order, `notes.plain.content`, `labels` = tags, `relationships` with `end1Id`/`end2Id`/`title`),
+//! `metadata.json` and `manifest.json`. The structure follows the open description of the format from memory;
+//! what is not checked with real XMind stands as an assumption in `docs/Bedienung.md` („Annahmen zu XMind und
+//! Freeplane“).
 //!
-//! **Lesen** ([`read`]): Das Archiv ist fremde Eingabe. Höchstens [`MAX_ZIP_ENTRIES`] Einträge; gelesen wird allein
-//! der Eintrag mit dem Namen `content.json` (Vergleich der Namen als Bytes – kein Name wird je als Pfad benutzt,
-//! nichts wird auf Platte entpackt); beim Entpacken wird mitgezählt und bei [`MAX_UNPACKED_BYTES`] abgebrochen (der
-//! Größenangabe im Kopf wird nicht vertraut). Archive mit Namen, die aus dem Archiv herausführten (`..`, absoluter
-//! Pfad, Laufwerk, `\`), werden ganz abgelehnt. Das alte XMind-8-Format (nur `content.xml`) wird mit klarer
-//! Meldung abgelehnt.
+//! **Reading** ([`read`]): the archive is foreign input. At most [`MAX_ZIP_ENTRIES`] entries; only the entry
+//! with the name `content.json` is read (names compared as bytes – no name is ever used as a path,
+//! nothing is unpacked to disk); unpacking counts along and aborts at [`MAX_UNPACKED_BYTES`] (the
+//! size in the header is not trusted). Archives with names that would lead out of the archive (`..`, absolute
+//! path, drive, `\`) are rejected entirely. The old XMind 8 format (only `content.xml`) is rejected with a clear
+//! message.
 
 use std::io::{Cursor, Read, Write as _};
 
@@ -25,7 +26,7 @@ use super::import::{
 };
 use crate::idea_map::tree::{MAX_IMPORT_NODES, MAX_TREE_DEPTH};
 
-/// Name des einzigen Eintrags, den der Leser öffnet.
+/// Name of the only entry the reader opens.
 pub const CONTENT: &str = "content.json";
 
 fn topic_of(node: &OutNode, root: bool) -> Json {
@@ -46,7 +47,7 @@ fn topic_of(node: &OutNode, root: bool) -> Json {
     topic
 }
 
-/// `content.json` des Blatts (ein Feld mit genau einem Blatt).
+/// `content.json` of the sheet (an array with exactly one sheet).
 pub fn content(sheet: &Sheet) -> Json {
     let relationships: Vec<Json> = sheet
         .links
@@ -62,7 +63,7 @@ pub fn content(sheet: &Sheet) -> Json {
     }])
 }
 
-/// Das Blatt als `.xmind`-Archiv (siehe Modulkopf).
+/// The sheet as a `.xmind` archive (see module head).
 pub fn write(sheet: &Sheet) -> Result<Vec<u8>, String> {
     let failed = |e: &dyn std::fmt::Display| format!("XMind-Datei ließ sich nicht schreiben: {e}");
     let content = serde_json::to_vec(&content(sheet)).map_err(|e| failed(&e))?;
@@ -81,14 +82,14 @@ pub fn write(sheet: &Sheet) -> Result<Vec<u8>, String> {
     Ok(writer.finish().map_err(|e| failed(&e))?.into_inner())
 }
 
-// ---- Lesen ---------------------------------------------------------------------------------------
+// ---- Reading -------------------------------------------------------------------------------------
 
 fn broken(what: impl std::fmt::Display) -> String {
     format!("Die Datei ist kein lesbares XMind-Archiv ({what}).")
 }
 
-/// Führte dieser Name als Pfad aus dem Archiv heraus? (Er wird nie als Pfad benutzt; solche Archive lehnt Baruch
-/// trotzdem ab.)
+/// Would this name lead out of the archive as a path? (It is never used as a path; Baruch rejects such archives
+/// anyway.)
 fn unsafe_name(name: &[u8]) -> bool {
     let text = String::from_utf8_lossy(name);
     text.starts_with('/')
@@ -98,7 +99,7 @@ fn unsafe_name(name: &[u8]) -> bool {
         || (text.len() >= 2 && text.as_bytes()[1] == b':' && text.as_bytes()[0].is_ascii_alphabetic())
 }
 
-/// `content.json` aus dem Archiv holen (Grenzen im Modulkopf).
+/// Fetch `content.json` from the archive (limits in the module head).
 pub fn unpack(bytes: &[u8]) -> Result<Vec<u8>, String> {
     let mut zip = ZipArchive::new(Cursor::new(bytes)).map_err(|e| broken(format!("Inhaltsverzeichnis: {e}")))?;
     if zip.len() > MAX_ZIP_ENTRIES {
@@ -132,7 +133,7 @@ pub fn unpack(bytes: &[u8]) -> Result<Vec<u8>, String> {
     };
     let entry = zip.by_index(index).map_err(|e| broken(format!("content.json: {e}")))?;
     let mut content = Vec::new();
-    // Eins mehr lesen als erlaubt: so fällt auf, wenn der Eintrag größer ist, als sein Kopf behauptet.
+    // Read one more than allowed: this reveals if the entry is larger than its header claims.
     entry
         .take(MAX_UNPACKED_BYTES + 1)
         .read_to_end(&mut content)
@@ -157,7 +158,7 @@ struct Walk {
 }
 
 fn raw_topic(topic: &Json, depth: usize, walk: &mut Walk) -> Result<RawNode, String> {
-    // Wurzel = Tiefe 0; sie zählt nicht mit (sie wird nie Einfall).
+    // Root = depth 0; it does not count (it never becomes an idea).
     if depth > MAX_TREE_DEPTH {
         return Err(too_deep());
     }
@@ -186,8 +187,8 @@ fn raw_topic(topic: &Json, depth: usize, walk: &mut Walk) -> Result<RawNode, Str
         .unwrap_or_default();
     let mut children = Vec::new();
     for (kind, list) in topic.get("children").and_then(Json::as_object).into_iter().flatten() {
-        // `attached` sind die gewöhnlichen Unterthemen, `detached` frei schwebende; anderes (Zusammenfassungen,
-        // Sprechblasen) wird nicht übernommen.
+        // `attached` are the ordinary sub-topics, `detached` free-floating ones; anything else (summaries,
+        // callouts) is not taken over.
         if !matches!(kind.as_str(), "attached" | "detached") {
             continue;
         }
@@ -198,8 +199,8 @@ fn raw_topic(topic: &Json, depth: usize, walk: &mut Walk) -> Result<RawNode, Str
             children.push((kind == "detached", raw_topic(child, depth + 1, walk)?));
         }
     }
-    // Erst die angehängten in ihrer Reihenfolge, dann die frei schwebenden (die Schlüssel eines JSON-Objekts haben
-    // keine verlässliche Reihenfolge).
+    // First the attached ones in their order, then the free-floating ones (the keys of a JSON object have
+    // no reliable order).
     children.sort_by_key(|(detached, _)| *detached);
     Ok(RawNode {
         cloud: id == CLOUD_ID,
@@ -211,7 +212,7 @@ fn raw_topic(topic: &Json, depth: usize, walk: &mut Walk) -> Result<RawNode, Str
     })
 }
 
-/// `content.json` deuten: das erste Blatt, sein `rootTopic` und seine `relationships`.
+/// Interpret `content.json`: the first sheet, its `rootTopic` and its `relationships`.
 pub fn parse(content: &[u8]) -> Result<Raw, String> {
     let value: Json = serde_json::from_slice(content).map_err(|e| {
         if e.to_string().contains("recursion limit") {
@@ -257,7 +258,7 @@ pub fn parse(content: &[u8]) -> Result<Raw, String> {
     Ok(Raw { root, links, warnings })
 }
 
-/// XMind-Datei lesen (siehe Modulkopf).
+/// Read an XMind file (see module head).
 pub fn read(bytes: &[u8]) -> Result<Raw, String> {
     parse(&unpack(bytes)?)
 }

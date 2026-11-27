@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! FreeMind/Freeplane (`.mm`) schreiben und lesen (Vertrag Runde 34 §8, Besitz mindmap_austausch).
+//! Writing and reading FreeMind/Freeplane (`.mm`) (contract Round 34 §8, owner mindmap_austausch).
 //!
-//! **Schreiben** ([`write`]): `<map version="1.0.1">`, je Knoten `<node TEXT ID>` (Hauptäste mit `POSITION`, erste
-//! Hälfte rechts, zweite links; nie eingeklappt), Schlagwörter als `<attribute NAME="Schlagwort" …>`, die Notiz als
-//! `<richcontent TYPE="NOTE">` (je Zeile ein Absatz), Beziehungen als `<arrowlink DESTINATION … MIDDLE_LABEL>`
-//! (`MIDDLE_LABEL` ist ein Freeplane-Attribut; FreeMind übergeht es).
+//! **Writing** ([`write`]): `<map version="1.0.1">`, per node `<node TEXT ID>` (main branches with `POSITION`, first
+//! half right, second left; never collapsed), tags as `<attribute NAME="Schlagwort" …>`, the note as
+//! `<richcontent TYPE="NOTE">` (one paragraph per line), relations as `<arrowlink DESTINATION … MIDDLE_LABEL>`
+//! (`MIDDLE_LABEL` is a Freeplane attribute; FreeMind skips it).
 //!
-//! **Lesen** ([`read`]): ein Durchgang über die XML-Ereignisse mit eigenem Stapel (keine Rekursion). Eine DOCTYPE
-//! wird abgelehnt, Entitäten werden nicht aufgelöst (nur die fünf von XML, `nbsp` und Zeichenreferenzen; alles
-//! andere bleibt als Text stehen). Knotenzahl und Tiefe werden beim Lesen begrenzt. HTML in Notizen wird reiner Text.
+//! **Reading** ([`read`]): one pass over the XML events with an own stack (no recursion). A DOCTYPE
+//! is rejected, entities are not resolved (only the five of XML, `nbsp` and character references; everything
+//! else stays as text). Node count and depth are limited while reading. HTML in notes becomes plain text.
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
@@ -21,11 +21,11 @@ use super::import::{Raw, RawLink, RawNode, entity, too_deep, too_many_nodes};
 use crate::idea_map::tree::{MAX_IMPORT_NODES, MAX_TREE_DEPTH};
 use baruch_store::LinkKind;
 
-/// Name des Attributs, das ein Schlagwort trägt (FreeMind kennt keine Etiketten).
+/// Name of the attribute that carries a tag (FreeMind knows no labels).
 pub const WORD_ATTRIBUTE: &str = "Schlagwort";
 
-/// Text für XML-Attribute und -Inhalt: `& < > "` maskiert, Zeilenumbruch als `&#10;`, andere Steuerzeichen und die
-/// in XML 1.0 verbotenen Nichtzeichen U+FFFE/U+FFFF entfernt.
+/// Text for XML attributes and content: `& < > "` escaped, line break as `&#10;`, other control characters and the
+/// non-characters U+FFFE/U+FFFF forbidden in XML 1.0 removed.
 pub fn xml_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for c in text.chars() {
@@ -42,13 +42,13 @@ pub fn xml_text(text: &str) -> String {
     out
 }
 
-/// FreeMind-Kennung zu einer Kennung des Blatts: `ID_` und nur Buchstaben und Ziffern (`i:12` → `ID_i12`).
+/// FreeMind id for an id of the sheet: `ID_` and only letters and digits (`i:12` → `ID_i12`).
 pub fn mm_id(node: &str) -> String {
     let id: String = node.chars().filter(char::is_ascii_alphanumeric).collect();
     format!("ID_{id}")
 }
 
-/// Farbe einer Beziehung je Art (dieselben hellen Farben wie in der Mindmap).
+/// Colour of a relation per kind (the same light colours as in the mind map).
 fn link_color(kind: LinkKind) -> &'static str {
     match kind {
         LinkKind::LeadsTo => "#3b5bdb",
@@ -99,7 +99,7 @@ fn write_node(
     let _ = writeln!(out, "{indent}</node>");
 }
 
-/// Das Blatt als FreeMind-Datei (siehe Modulkopf).
+/// The sheet as a FreeMind file (see module head).
 pub fn write(sheet: &Sheet) -> String {
     let mut links: HashMap<&str, Vec<&OutLink>> = HashMap::new();
     for link in &sheet.links {
@@ -111,13 +111,13 @@ pub fn write(sheet: &Sheet) -> String {
     out
 }
 
-// ---- Lesen ---------------------------------------------------------------------------------------
+// ---- Reading -------------------------------------------------------------------------------------
 
 fn broken(what: impl std::fmt::Display) -> String {
     format!("Die Datei ist kein lesbares FreeMind-/Freeplane-XML ({what}).")
 }
 
-/// Attribute eines Elements (Name klein → Wert, Entitäten nur die vordefinierten).
+/// Attributes of an element (name lower case → value, entities only the predefined ones).
 fn attributes(start: &BytesStart<'_>) -> Result<HashMap<String, String>, String> {
     let mut out = HashMap::new();
     for attr in start.attributes() {
@@ -130,9 +130,9 @@ fn attributes(start: &BytesStart<'_>) -> Result<HashMap<String, String>, String>
     Ok(out)
 }
 
-/// Was ein offenes `<richcontent>` sammelt.
+/// What an open `<richcontent>` collects.
 struct Rich {
-    /// `true` = Notiz (`TYPE="NOTE"`), `false` = Knotentext (`TYPE="NODE"`); `None` = übergehen (z. B. DETAILS).
+    /// `true` = note (`TYPE="NOTE"`), `false` = node text (`TYPE="NODE"`); `None` = skip (e.g. DETAILS).
     note: Option<bool>,
     done: Vec<String>,
     line: String,
@@ -159,7 +159,7 @@ fn is_block(name: &str) -> bool {
     matches!(name, "p" | "div" | "li" | "tr" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6")
 }
 
-/// FreeMind-/Freeplane-Datei lesen (siehe Modulkopf). `bytes` ohne BOM.
+/// Read a FreeMind/Freeplane file (see module head). `bytes` without BOM.
 pub fn read(bytes: &[u8]) -> Result<Raw, String> {
     let text = std::str::from_utf8(bytes)
         .map_err(|_| "Die Datei ist kein UTF-8-Text; Baruch liest .mm-Dateien nur in UTF-8 oder ASCII.".to_owned())?;
@@ -174,7 +174,7 @@ pub fn read(bytes: &[u8]) -> Result<Raw, String> {
     let mut extra_roots = 0usize;
     let mut saw_map = false;
 
-    // Einen fertigen Knoten an seinen Elternknoten hängen bzw. zur Wurzel machen.
+    // Hang a finished node on its parent node or make it the root.
     fn close(node: RawNode, stack: &mut [RawNode], root: &mut Option<RawNode>, extra_roots: &mut usize) {
         match stack.last_mut() {
             Some(parent) => parent.children.push(node),
@@ -207,7 +207,7 @@ pub fn read(bytes: &[u8]) -> Result<Raw, String> {
                             return Err(broken("das Element <map> fehlt"));
                         }
                         count += 1;
-                        // Die Wurzel zählt nicht mit (sie wird nie Einfall).
+                        // The root does not count (it never becomes an idea).
                         if count > MAX_IMPORT_NODES + 1 {
                             return Err(too_many_nodes());
                         }
@@ -300,7 +300,7 @@ pub fn read(bytes: &[u8]) -> Result<Raw, String> {
                     let name: &str = &reference;
                     match entity(name) {
                         Some(c) => open.line.push(c),
-                        // Unbekannte Entität: nicht aufgelöst, bleibt als Text stehen.
+                        // Unknown entity: not resolved, stays as text.
                         None => {
                             let _ = write!(open.line, "&{name};");
                         }

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bevorzugte Quellen (Lesezeichen für `@belege`): RPC `sources.*` und die Prüfung der Eingaben.
+//! Preferred sources (bookmarks for `@belege`): RPC `sources.*` and the validation of the inputs.
 //!
 //! - `sources.list {}` → `{sources: [{id, title, url, note, position, created, updated}]}`
-//! - `sources.create {title, url, note?}` → die neue Quelle (am Ende der Liste)
-//! - `sources.update {id, title?, url?, note?}` → die geänderte Quelle
-//! - `sources.move {id, position}` → `{sources}` (Stelle 1..n, außerhalb an den Rand)
+//! - `sources.create {title, url, note?}` → the new source (at the end of the list)
+//! - `sources.update {id, title?, url?, note?}` → the changed source
+//! - `sources.move {id, position}` → `{sources}` (position 1..n, outside moves to the edge)
 //! - `sources.delete {id, confirm: true}` → `{deleted}`
 //!
-//! Titel 1–200 Zeichen in einer Zeile, Adresse http/https mit Rechner, ohne Benutzerinfo und
-//! Leerraum, höchstens 2000 Zeichen; Notiz höchstens 4000 Zeichen. Ungültig → -32602, nichts geändert.
-//! Die Websuche von `@belege` (Runde 13, [`crate::websearch`]) fragt diese Quellen zuerst ab ([`USAGE`]).
+//! Title 1–200 characters in one line, address http/https with host, without user info and
+//! whitespace, at most 2000 characters; note at most 4000 characters. Invalid → -32602, nothing changed.
+//! The web search of `@belege` (Round 13, [`crate::websearch`]) queries these sources first ([`USAGE`]).
 
 use baruch_store::{NewSource, PreferredSource, SourceEdit, StoreError};
 use serde_json::{Value, json};
@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use super::Fault;
 use crate::AppState;
 
-/// Wie die Websuche die Liste nutzt (Seite „Quellen“, `data-usage`).
+/// How the web search uses the list (page „Quellen“, `data-usage`).
 pub const USAGE: &str = "Die Websuche für @belege (Einstellungen → Assistenten, Vorgabe aus) fragt zuerst die ersten \
 drei Quellen dieser Liste über „site:<Rechner>“ ab, danach das allgemeine Web. Treffer, deren Rechner zu einer Quelle \
 passt, sind als „bevorzugte Quelle“ gekennzeichnet.";
@@ -57,8 +57,8 @@ pub fn check_note(note: &str) -> Result<String, Fault> {
     Ok(note.trim().to_owned())
 }
 
-/// Fehler des Stores bei Quellen: `Refused` heißt hier „gibt es nicht (mehr)“ (Eingaben sind vorher
-/// geprüft).
+/// Error of the store for sources: `Refused` here means “does not exist (any more)” (inputs are checked
+/// beforehand).
 fn store_fault(e: StoreError) -> Fault {
     match e {
         StoreError::Refused(message) => Fault::Invalid("quelle", message.to_owned()),
@@ -106,7 +106,7 @@ fn text_param<'a>(params: &'a Value, name: &str, code: &'static str) -> Result<O
     }
 }
 
-/// RPC `sources.*`; `None`, wenn die Methode nicht dazugehört.
+/// RPC `sources.*`; `None` if the method does not belong here.
 pub(crate) async fn call(state: &AppState, method: &str, params: &Value) -> Option<Result<Value, Fault>> {
     let answer = match method {
         "sources.list" => {

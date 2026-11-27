@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Austausch: Einlesen (Runde 26; Vertrag F6/F7, Doku `docs/Austauschformat.md` §4/§5).
+//! Exchange: import (Round 26; contract F6/F7, doc `docs/Austauschformat.md` §4/§5).
 //!
-//! - `GET /austausch/einlesen[?work=W]`: Formular (multipart, Feld `datei`, dazu `title`), ohne JavaScript.
-//! - `POST /austausch/vorschau`: Datei lesen und prüfen ([`baruch_exchange::read::read`]), Vorschau rechnen
-//!   ([`baruch_store::Store::exchange_preview`], zurückgerollt); erst dann liegt die Datei unter
-//!   `<data>/austausch-eingang/<sha256>` (Einträge älter als 24 h werden dabei weggeräumt). Danach die Vorschau
-//!   mit dem Formular „Übernehmen“.
-//! - `POST /austausch/uebernehmen {sha256, mode, title?}`: Datei aus dem Eingang, Prüfsumme wie gezeigt, neu planen
-//!   und schreiben ([`baruch_store::Store::exchange_apply`], eine Transaktion unter `state.write_lock`), ein Commit
-//!   im Spiegel ([`crate::mirror::record_exchange`]); Ergebnisseite mit Links zu den Abweichungen
-//!   (`/?work=W&key=K&rev=R`) und zu den Anträgen (`/gliederung?work=W#antraege`). Die Eingangsdatei wird danach
-//!   gelöscht, auch bei einer Ablehnung.
-//! - RPC `work.exchange_preview {data: Base64, file_name?, title?}` und `work.exchange_import {data, sha256, mode,
-//!   title?}` (Größe begrenzt durch `works::RPC_BODY_LIMIT`; größere Dateien über Formular oder CLI).
+//! - `GET /austausch/einlesen[?work=W]`: form (multipart, field `datei`, plus `title`), without JavaScript.
+//! - `POST /austausch/vorschau`: read and check the file ([`baruch_exchange::read::read`]), compute the preview
+//!   ([`baruch_store::Store::exchange_preview`], rolled back); only then the file lies under
+//!   `<data>/austausch-eingang/<sha256>` (entries older than 24 h are cleared away in the process). Then the preview
+//!   with the form „Übernehmen“.
+//! - `POST /austausch/uebernehmen {sha256, mode, title?}`: file from the inbox, checksum as shown, plan anew
+//!   and write ([`baruch_store::Store::exchange_apply`], one transaction under `state.write_lock`), one commit
+//!   in the mirror ([`crate::mirror::record_exchange`]); result page with links to the deviations
+//!   (`/?work=W&key=K&rev=R`) and to the requests (`/gliederung?work=W#antraege`). The inbox file is deleted
+//!   afterwards, also on a refusal.
+//! - RPC `work.exchange_preview {data: Base64, file_name?, title?}` and `work.exchange_import {data, sha256, mode,
+//!   title?}` (size limited by `works::RPC_BODY_LIMIT`; larger files through form or CLI).
 //! - CLI `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]`.
 //!
-//! Einlesen ist eine Aktion des Menschen: nie umschalten, überschreiben oder löschen; Gliederungsänderungen nur
-//! als Antrag. Nicht über MCP. Bei jedem Fehler wird nichts geschrieben.
+//! Importing is an action of the human: never switch, overwrite or delete; outline changes only
+//! as a request. Not through MCP. On every error nothing is written.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -40,24 +40,24 @@ use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::Settings;
 use crate::{AppState, mirror};
 
-/// Größte Anfrage an die Formulare: größte Austauschdatei und 1 MiB für die übrigen Felder.
+/// Largest request to the forms: largest exchange file and 1 MiB for the other fields.
 pub const UPLOAD_LIMIT: usize = Limits::DEFAULT.max_file_bytes as usize + 1024 * 1024;
 
-/// Ordner der hochgeladenen Dateien zwischen Vorschau und Übernehmen: `<data>/austausch-eingang/<sha256>`.
+/// Folder of the uploaded files between preview and applying: `<data>/austausch-eingang/<sha256>`.
 pub const INBOX_DIR: &str = "austausch-eingang";
 
-/// Einträge im Eingang, die älter sind, räumt die nächste Vorschau weg.
+/// Entries in the inbox that are older are cleared away by the next preview.
 pub const INBOX_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// Hinweis der CLI und der Formulare, wenn der Titel schon vergeben ist.
+/// Note of the CLI and the forms if the title is already taken.
 pub const TITLE_HINT: &str = "Mit einem eigenen Titel einlesen (Formular: Feld „Titel“, CLI: --title \"…\").";
 
-/// Seite des Formulars (gemischt über `exchange::pages`).
+/// Page of the form (merged through `exchange::pages`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/austausch/einlesen", get(import_page))
 }
 
-/// Formulare (gemischt über `exchange::writes`, hinter `guard::same_origin`).
+/// Forms (merged through `exchange::writes`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/austausch/vorschau", post(preview_form).layer(DefaultBodyLimit::max(UPLOAD_LIMIT)))
@@ -99,13 +99,13 @@ fn status_of(e: &RpcError) -> StatusCode {
     }
 }
 
-/// Abfrage der Seite: `work` (Werk, aus dem das Menü kam; nur für die Kopfzeile).
+/// Query of the page: `work` (work the menu came from; only for the header).
 #[derive(Debug, Default, serde::Deserialize)]
 pub struct ImportQuery {
     pub work: Option<String>,
 }
 
-/// Formularseite (auch nach einem Fehler, dann mit Meldung).
+/// Form page (also after an error, then with message).
 fn form_page(
     headers: &HeaderMap,
     status: StatusCode,
@@ -129,9 +129,9 @@ async fn import_page(headers: HeaderMap, Query(query): Query<ImportQuery>) -> Re
     form_page(&headers, StatusCode::OK, work, None, "")
 }
 
-// ---- Gemeinsamer Weg -------------------------------------------------------------------------------
+// ---- Shared path -----------------------------------------------------------------------------------
 
-/// Datei lesen und prüfen (blockiert nicht den Tokio-Worker).
+/// Read and check the file (does not block the Tokio worker).
 async fn read_document(bytes: Arc<Vec<u8>>) -> Result<ExchangeDocument, RpcError> {
     tokio::task::spawn_blocking(move || baruch_exchange::read::read(&bytes, &Limits::DEFAULT))
         .await
@@ -146,8 +146,8 @@ fn store_error(e: StoreError) -> RpcError {
     }
 }
 
-/// Vorschau einer Datei (nichts bleibt geschrieben). Unter der Schreibsperre, damit die zurückgerollte Planung
-/// keinen anderen Schreibvorgang kreuzt.
+/// Preview of a file (nothing stays written). Under the write lock so that the rolled-back planning
+/// crosses no other write.
 pub async fn preview_bytes(state: &AppState, bytes: Vec<u8>, title: Option<&str>) -> Result<ExchangeReport, RpcError> {
     let sha = baruch_exchange::sha256_hex(&bytes);
     let doc = read_document(Arc::new(bytes)).await?;
@@ -155,7 +155,7 @@ pub async fn preview_bytes(state: &AppState, bytes: Vec<u8>, title: Option<&str>
     state.store.exchange_preview(&doc, &sha, title).await.map_err(store_error)
 }
 
-/// Ergebnis des Übernehmens samt Spiegel.
+/// Result of applying including the mirror.
 #[derive(Debug, Clone)]
 pub struct ImportOutcome {
     pub applied: ExchangeApplied,
@@ -163,9 +163,9 @@ pub struct ImportOutcome {
     pub mirror: Option<String>,
 }
 
-/// Übernehmen: Prüfsumme muss zur gezeigten Datei passen (sonst `INVALID_PARAMS`), dann neu planen und in einer
-/// Transaktion schreiben (Modus passt nicht → `REFUSED`), danach ein Commit im Spiegel (außer beim Abgleich ohne
-/// jede Änderung).
+/// Applying: the checksum must match the file shown (otherwise `INVALID_PARAMS`), then plan anew and write in one
+/// transaction (mode does not fit → `REFUSED`), then one commit in the mirror (except for a merge without
+/// any change).
 pub async fn import_bytes(
     state: &AppState,
     bytes: Vec<u8>,
@@ -228,7 +228,7 @@ fn title_of(title: &Option<String>) -> Option<&str> {
     title.as_deref().map(str::trim).filter(|t| !t.is_empty())
 }
 
-/// RPC `work.exchange_preview {data: Base64, file_name?, title?}` → Vorschau (Form des Vertrags R26 §5).
+/// RPC `work.exchange_preview {data: Base64, file_name?, title?}` → preview (form of the contract R26 §5).
 pub async fn rpc_preview(state: &AppState, params_value: Value) -> Result<Value, RpcError> {
     let p: PreviewParams = params(params_value)?;
     let _ = p.file_name;
@@ -245,7 +245,7 @@ pub async fn rpc_import(state: &AppState, params_value: Value) -> Result<Value, 
     Ok(import_answer(&outcome))
 }
 
-/// Antwort von `work.exchange_import`.
+/// Answer of `work.exchange_import`.
 pub fn import_answer(outcome: &ImportOutcome) -> Value {
     let applied = &outcome.applied;
     let mut answer = json!({
@@ -269,14 +269,14 @@ pub fn import_answer(outcome: &ImportOutcome) -> Value {
     answer
 }
 
-// ---- Eingang -------------------------------------------------------------------------------------
+// ---- Inbox ---------------------------------------------------------------------------------------
 
-/// SHA-256 als 64 Kleinbuchstaben-Hex? Nur solche Namen kommen in den Eingang (kein Pfad von außen).
+/// SHA-256 as 64 lower-case hex? Only such names get into the inbox (no path from outside).
 fn is_sha256(text: &str) -> bool {
     text.len() == 64 && text.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-/// `<data>/austausch-eingang`; keine symbolische Verknüpfung.
+/// `<data>/austausch-eingang`; no symbolic link.
 fn inbox(data: &Path) -> Result<PathBuf, String> {
     let dir = data.join(INBOX_DIR);
     if std::fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
@@ -285,7 +285,7 @@ fn inbox(data: &Path) -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-/// Einträge älter als [`INBOX_MAX_AGE`] wegräumen (nur Dateien mit SHA-256-Namen).
+/// Clear away entries older than [`INBOX_MAX_AGE`] (only files with SHA-256 names).
 fn sweep(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     let now = SystemTime::now();
@@ -307,7 +307,7 @@ fn sweep(dir: &Path) {
     }
 }
 
-/// Datei in den Eingang legen (zuerst alte wegräumen); schreibt über eine Hilfsdatei und benennt um.
+/// Put a file into the inbox (first clear away old ones); writes through a helper file and renames.
 fn put_inbox(data: &Path, sha: &str, bytes: &[u8]) -> Result<(), String> {
     let dir = inbox(data)?;
     std::fs::create_dir_all(&dir).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", dir.display()))?;
@@ -322,9 +322,9 @@ fn take_inbox_path(data: &Path, sha: &str) -> Result<PathBuf, String> {
     Ok(inbox(data)?.join(sha))
 }
 
-// ---- Formulare -----------------------------------------------------------------------------------
+// ---- Forms ---------------------------------------------------------------------------------------
 
-/// Felder der Vorschau aus dem multipart-Formular: Datei (`datei`), Titel, Werk der Kopfzeile.
+/// Fields of the preview from the multipart form: file (`datei`), title, work of the header.
 #[derive(Default)]
 struct Upload {
     file: Option<(String, Vec<u8>)>,
@@ -385,8 +385,8 @@ async fn read_upload(multipart: Result<Multipart, MultipartRejection>) -> Result
     Ok(upload)
 }
 
-/// Kurzbeschreibung einer Vorschau für Vorlagen: Zahlen als Liste (Art, Zahl) ohne Nullen, die Art in Einzahl
-/// bei genau 1 („1 Fassung“, „2 Fassungen“).
+/// Short description of a preview for templates: numbers as a list (kind, number) without zeros, the kind in the
+/// singular for exactly 1 („1 Fassung“, „2 Fassungen“).
 fn add_list(add: &baruch_store::exchange_apply::AddCounts) -> Vec<(String, usize)> {
     [
         ("Gliederungspunkt", "Gliederungspunkte", add.nodes),
@@ -407,7 +407,7 @@ fn add_list(add: &baruch_store::exchange_apply::AddCounts) -> Vec<(String, usize
         ("Satz-Einstellungen", "Satz-Einstellungen", add.typeset),
         ("eigenes Register", "eigene Register", add.registers),
         ("Glossarbegriff", "Glossarbegriffe", add.glossary_terms),
-        // Runde 22: Fortschreibungen (auch beim Vorspulen einer bekannten Fassung).
+        // Round 22: continuations (also when fast-forwarding a known revision).
         ("Fortschreibung", "Fortschreibungen", add.amends),
     ]
     .into_iter()
@@ -416,7 +416,7 @@ fn add_list(add: &baruch_store::exchange_apply::AddCounts) -> Vec<(String, usize
     .collect()
 }
 
-/// Abweichungen für Vorlagen, je mit Ziel-Adresse (`/?work=W&key=K[&rev=R]`) und Wort der Aktion.
+/// Deviations for templates, each with target address (`/?work=W&key=K[&rev=R]`) and word of the action.
 fn deviation_rows(work: Option<i64>, report: &ExchangeReport) -> Vec<Value> {
     report
         .deviations
@@ -514,7 +514,7 @@ async fn preview_form(
     render("exchange_preview.html", StatusCode::OK, ctx)
 }
 
-/// Felder von `POST /austausch/uebernehmen`.
+/// Fields of `POST /austausch/uebernehmen`.
 #[derive(Debug, Default, Deserialize)]
 struct ImportForm {
     #[serde(default)]
@@ -565,7 +565,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
     };
     let title = Some(form.title.trim()).filter(|t| !t.is_empty()).map(str::to_owned);
     let outcome = import_bytes(&state, bytes, &sha, mode, title.as_deref()).await;
-    // Danach (auch bei einer Ablehnung) bleibt keine Eingangsdatei liegen.
+    // Afterwards (also on a refusal) no inbox file is left behind.
     let _ = tokio::task::spawn_blocking(move || std::fs::remove_file(&path)).await;
     let outcome = match outcome {
         Ok(outcome) => outcome,
@@ -595,18 +595,18 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
 
 // ---- CLI -----------------------------------------------------------------------------------------
 
-/// Angaben der Kommandozeile für `import DATEI.baruch|DATEI.baruch.xml`.
+/// Details of the command line for `import DATEI.baruch|DATEI.baruch.xml`.
 #[derive(Debug, Clone, Default)]
 pub struct CliImport {
-    /// `--abgleichen`: das Werk ist hier bekannt und wird abgeglichen.
+    /// `--abgleichen`: the work is known here and is merged.
     pub merge: bool,
-    /// `--vorschau`: nichts schreiben, nur die Vorschau ausgeben.
+    /// `--vorschau`: write nothing, only output the preview.
     pub preview_only: bool,
-    /// `--title`: eigener Titel beim Einlesen als neues Werk.
+    /// `--title`: own title when importing as a new work.
     pub title: Option<String>,
 }
 
-/// Datei für die CLI lesen: nur eine reguläre Datei (keine FIFO, kein Ordner), höchstens die Grenze der Datei.
+/// Read a file for the CLI: only a regular file (no FIFO, no folder), at most the limit of the file.
 fn read_cli_file(path: &Path) -> Result<Vec<u8>, String> {
     use std::io::Read;
     let shown = path.display();
@@ -624,7 +624,7 @@ fn read_cli_file(path: &Path) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-/// Vorschau bzw. Ergebnis als Text für die Kommandozeile.
+/// Preview or result as text for the command line.
 pub fn report_text(report: &ExchangeReport) -> String {
     let mut out = format!(
         "Austausch aus {} (ausgegeben {}, Unterversion {}), Datei {}\nModus: {} – Werk „{}“\n",
@@ -680,9 +680,9 @@ pub fn report_text(report: &ExchangeReport) -> String {
     out
 }
 
-/// CLI `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]`: ohne Flag und unbekannt →
-/// neu; ohne Flag und bekannt → Fehler mit Hinweis auf `--abgleichen`; `--abgleichen` bei unbekanntem Werk →
-/// Fehler; `--vorschau` schreibt nichts.
+/// CLI `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]`: without flag and unknown →
+/// new; without flag and known → error with a pointer to `--abgleichen`; `--abgleichen` for an unknown work →
+/// error; `--vorschau` writes nothing.
 pub async fn cli_import(state: &AppState, path: &std::path::Path, options: &CliImport) -> Result<String, String> {
     let owned = path.to_owned();
     let bytes = tokio::task::spawn_blocking(move || read_cli_file(&owned))
@@ -735,7 +735,7 @@ mod tests {
 
     #[test]
     fn only_sha256_names_reach_the_inbox() {
-        // Der Name der Eingangsdatei kommt aus dem Formular: nur 64 Kleinbuchstaben-Hex, sonst ginge ein Pfad hinaus.
+        // The name of the inbox file comes from the form: only 64 lower-case hex, otherwise a path would get out.
         assert!(is_sha256(&"a".repeat(64)), "64 Hex");
         assert!(!is_sha256("../../etc/passwd"), "Pfad");
         assert!(!is_sha256(&"A".repeat(64)), "groß nicht");

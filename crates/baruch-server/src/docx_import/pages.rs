@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Seiten des Word-Imports ohne JavaScript (Runde 32, Vorlage `templates/docx_import.html`):
+//! Pages of the Word import without JavaScript (Round 32, template `templates/docx_import.html`):
 //!
-//! - `GET /werke/import/word`: Formular (Datei, Titel); mit `?draft=<id>` die Vorschau des Entwurfs – Gliederung,
-//!   Bearbeiter (Name → Handle, Einfügungen/Löschungen, Abschnitte), Zahl der Kommentare, alle Warnungen, dazu
-//!   „Übernehmen“ (Titel, Häkchen Änderungen/Kommentare) und „Verwerfen“. Unbekannter Entwurf → 422 mit Formular.
-//! - `POST /werke/import/word/vorschau` (multipart: `file`, `title`) → 303 `/werke/import/word?draft=<id>`; Fehler
-//!   → 422 (zu groß 413) mit dem Formular und der Meldung.
-//! - `POST /werke/import/word/uebernehmen` (Formular: `draft`, `title`, Häkchen `changes`, `comments`) → 303
-//!   `/?work=<id>`; entstanden beim Übernehmen neue Hinweise (abgelehnter Vorschlag, übersprungenes Bild), statt
-//!   dessen 200 mit dem Bericht und dem Link zum Werk. Fehler → 422 mit der Vorschau und den Eingaben.
+//! - `GET /werke/import/word`: form (file, title); with `?draft=<id>` the preview of the draft – outline,
+//!   editors (name → handle, insertions/deletions, sections), number of comments, all warnings, plus
+//!   „Übernehmen“ (title, checkboxes changes/comments) and „Verwerfen“. Unknown draft → 422 with form.
+//! - `POST /werke/import/word/vorschau` (multipart: `file`, `title`) → 303 `/werke/import/word?draft=<id>`; error
+//!   → 422 (too large 413) with the form and the message.
+//! - `POST /werke/import/word/uebernehmen` (form: `draft`, `title`, checkboxes `changes`, `comments`) → 303
+//!   `/?work=<id>`; if new notes arose when applying (rejected proposal, skipped image), instead
+//!   200 with the report and the link to the work. Error → 422 with the preview and the inputs.
 //! - `POST /werke/import/word/verwerfen` (`draft`) → 303 `/werke/import/word`.
 
 use std::sync::{Arc, OnceLock};
@@ -68,7 +68,7 @@ fn too_large() -> String {
     format!("Die Datei ist größer als {} MiB.", MAX_DOCX_BYTES / (1024 * 1024))
 }
 
-/// Formularseite (auch nach Fehlern der Vorschau).
+/// Form page (also after errors of the preview).
 async fn form_page(
     state: &AppState,
     headers: &HeaderMap,
@@ -87,7 +87,7 @@ async fn form_page(
     render(status, ctx)
 }
 
-/// Eingaben der Übernahme (zum erneuten Zeigen).
+/// Inputs of applying (to show again).
 #[derive(Debug, Clone, serde::Serialize)]
 struct ApplyValues {
     title: String,
@@ -95,7 +95,7 @@ struct ApplyValues {
     comments: bool,
 }
 
-/// Vorschauseite (auch nach Fehlern der Übernahme, dann mit den Eingaben).
+/// Preview page (also after errors of applying, then with the inputs).
 async fn preview_page(
     state: &AppState,
     headers: &HeaderMap,

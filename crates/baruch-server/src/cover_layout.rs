@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag-Anordnung über RPC (Vertrag Runde 27, Abschnitt 4; Aufgabe umschlag-daten).
+//! Cover layout through RPC (contract Round 27, section 4; task umschlag-daten).
 //!
-//! - `cover.layout {work}` → [`LayoutView`]: gespeicherte bzw. Vorgabeblöcke mit Höhe, Maße, Druckprüfung,
-//!   Vorgabeschrift. Satzfehler → `REFUSED` (wie `cover::build_wrap`).
-//! - `cover.layout_set {work, blocks}` → `{layout, commit?, mirror?}`: jeder genannte Block ersetzt seine Art ganz,
-//!   ungenannte bleiben; ein Commit „Umschlag: Anordnung geändert“ (`Baruch-Action: cover-layout`) mit vorher/nachher
-//!   je Block (nur der Mensch). Ungültig → -32602 mit deutscher Meldung, die Art und Feld nennt; nichts geändert.
-//!   Die Felder `stored` und `height_mm` aus `cover.layout` dürfen mitkommen (werden übergangen).
-//! - `cover.layout_reset {work, faces?, area?}` → wie `layout_set`: Zeilen der Flächen löschen (fehlt `faces`: alle;
-//!   Grabsteine), `area` setzt den Titelbereich in derselben Transaktion (Schnellwahl); ein Commit „Umschlag:
-//!   Anordnung zurückgesetzt“ bzw. „Umschlag: Schnellwahl oben|Mitte|unten“ (`cover-layout-reset`). Ändert sich nichts,
-//!   gibt es keinen Commit.
-//! - Lässt sich die Ansicht nach dem Speichern nicht bauen (Satzfehler im Buch), steht in der Antwort `layout: null`
-//!   und `layout_error`; gespeichert ist trotzdem.
+//! - `cover.layout {work}` → [`LayoutView`]: stored or default blocks with height, measures, print check,
+//!   default font. Typesetting error → `REFUSED` (like `cover::build_wrap`).
+//! - `cover.layout_set {work, blocks}` → `{layout, commit?, mirror?}`: every named block replaces its kind entirely,
+//!   unnamed ones stay; one commit „Umschlag: Anordnung geändert“ (`Baruch-Action: cover-layout`) with before/after
+//!   per block (the human only). Invalid → -32602 with a German message naming kind and field; nothing changed.
+//!   The fields `stored` and `height_mm` from `cover.layout` may come along (they are skipped).
+//! - `cover.layout_reset {work, faces?, area?}` → like `layout_set`: delete rows of the faces (`faces` missing: all;
+//!   tombstones), `area` sets the title area in the same transaction (quick choice); one commit „Umschlag:
+//!   Anordnung zurückgesetzt“ or „Umschlag: Schnellwahl oben|Mitte|unten“ (`cover-layout-reset`). If nothing changes,
+//!   there is no commit.
+//! - If the view cannot be built after storing (typesetting error in the book), the answer has `layout: null`
+//!   and `layout_error`; it is stored nevertheless.
 //! - `cover.fonts {work?}` → `{families, default}`.
-//! - [`decide_request`]: ein bestätigter Antrag `cover_layout` aus den Bildanträgen (MCP `cover_layout_set`): passt
-//!   der Fingerabdruck `expected_layout` nicht mehr zur gespeicherten Anordnung, wird er `stale` mit Grund; sonst
-//!   ausgeführt mit einem Commit „Umschlag: Anordnung geändert (Antrag N)“ samt Antragsteller und Bestätiger.
+//! - [`decide_request`]: a confirmed request `cover_layout` from the image requests (MCP `cover_layout_set`): if
+//!   the fingerprint `expected_layout` no longer matches the stored layout, it becomes `stale` with reason; otherwise
+//!   carried out with one commit „Umschlag: Anordnung geändert (Antrag N)“ with requester and confirmer.
 
 use baruch_gitmirror::{CommitRequest, MirrorFile, Signature};
 use baruch_store::{
@@ -32,19 +32,19 @@ use crate::cover_print::CoverWarning;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
-/// Vorgabeschrift, wenn die Werkvorlage keine nennt (eingebettet in Typst).
+/// Default font if the work template names none (embedded in Typst).
 pub const DEFAULT_FONT: &str = "Libertinus Serif";
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "cover.layout" | "cover.layout_set" | "cover.layout_reset" | "cover.fonts")
 }
 
-/// Antwort von `cover.layout` (JSON-Form eingefroren, Vertrag Abschnitt 4).
+/// Answer of `cover.layout` (JSON form frozen, contract section 4).
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct LayoutView {
     pub work: WorkId,
-    /// Hat das Werk eine eigene Anordnung (mindestens eine Zeile)?
+    /// Does the work have its own layout (at least one row)?
     pub stored: bool,
     pub title_area: TitleArea,
     pub blocks: Vec<ViewBlock>,
@@ -53,7 +53,7 @@ pub struct LayoutView {
     pub default_font: String,
 }
 
-/// Ein Block der Ansicht: der Block selbst, ob er in der Datenbank steht, und seine gesetzte Höhe.
+/// A block of the view: the block itself, whether it is in the database, and its typeset height.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ViewBlock {
     #[serde(flatten)]
@@ -62,15 +62,15 @@ pub struct ViewBlock {
     pub height_mm: f64,
 }
 
-/// Ansicht der Anordnung; `preview` ersetzt je Art die gespeicherten Blöcke (ohne zu speichern).
+/// View of the layout; `preview` replaces the stored blocks per kind (without storing).
 pub async fn layout_view(
     state: &AppState,
     work: WorkId,
     preview: Option<&CoverLayout>,
 ) -> Result<LayoutView, RpcError> {
-    // 1. gespeicherte Anordnung
+    // 1. stored layout
     let stored = state.store.cover_layout(work).await?;
-    // 2. Vorschau ersetzt je Art
+    // 2. preview replaces per kind
     let mut merged = stored.clone();
     if let Some(preview) = preview {
         for block in &preview.blocks {
@@ -79,18 +79,18 @@ pub async fn layout_view(
         }
     }
     let shown = preview.map(|_| &merged);
-    // 3. Maße aus dem gesetzten Umschlag
+    // 3. measures from the typeset cover
     let wrap = crate::cover::build_wrap_for(state, work, shown).await?;
     let geometry = wrap.geometry;
-    // 4. wirksame Blöcke
+    // 4. effective blocks
     let meta = state.store.book_meta(work).await?;
     let effective = effective_blocks(&merged, crate::cover::title_area(meta.title_area), &geometry);
-    // 5. Höhen
+    // 5. heights
     let plain: Vec<CoverBlock> = effective.iter().map(|(b, _)| b.clone()).collect();
     let heights = crate::cover::block_heights(state, work, &plain, &geometry).await?;
-    // 6. Druckprüfung
+    // 6. print check
     let warnings = crate::cover_print::cover_checks(state, work, shown).await?;
-    // 7. Vorgabeschrift
+    // 7. default font
     let default_font = default_font(state, work).await?;
     let blocks = effective
         .into_iter()
@@ -108,21 +108,21 @@ pub async fn layout_view(
     })
 }
 
-/// Grundschrift des Buchs (Satz-Einstellung, sonst Werkvorlage; Runde 29) bzw. [`DEFAULT_FONT`].
+/// Base font of the book (typeset setting, otherwise work template; Round 29) or [`DEFAULT_FONT`].
 pub(crate) async fn default_font(state: &AppState, work: WorkId) -> Result<String, RpcError> {
     let template = state.store.work_template(work).await?;
     let settings = crate::cover::typeset_settings(state, work).await?;
     Ok(crate::cover::book_font(&template, &settings).unwrap_or_else(|| DEFAULT_FONT.to_owned()))
 }
 
-// ---- Blöcke aus JSON -------------------------------------------------------------------------------
+// ---- Blocks from JSON ------------------------------------------------------------------------------
 
 /// „Titel (Vorderseite)“.
 pub fn kind_label(kind: CoverBlockKind) -> String {
     format!("{} ({})", kind.label(), kind.face().label())
 }
 
-/// Felder eines Blocks im JSON (Vertrag 1.3); `stored` und `height_mm` aus `cover.layout` werden übergangen.
+/// Fields of a block in the JSON (contract 1.3); `stored` and `height_mm` from `cover.layout` are skipped.
 const FIELDS: [&str; 14] = [
     "kind",
     "x_mm",
@@ -140,9 +140,9 @@ const FIELDS: [&str; 14] = [
     "text",
 ];
 
-/// Block aus einem JSON-Objekt lesen. Ohne `base` müssen alle Felder außer `font`, `direction` und `text` da sein
-/// (RPC); mit `base` (MCP) füllen dessen Werte fehlende Felder. Fehler nennen Art und Feld (deutsch). Geprüft auf
-/// Grenzen wird danach im Store ([`baruch_store::check_cover_block`]).
+/// Read a block from a JSON object. Without `base` all fields except `font`, `direction` and `text` must be there
+/// (RPC); with `base` (MCP) its values fill missing fields. Errors name kind and field (German). The limits are
+/// checked afterwards in the store ([`baruch_store::check_cover_block`]).
 pub fn parse_block(
     index: usize,
     value: &Value,
@@ -239,7 +239,7 @@ fn kind_list() -> String {
     CoverBlockKind::ALL.iter().map(|k| k.as_str()).collect::<Vec<_>>().join(", ")
 }
 
-/// `blocks` aus den Parametern (Liste von Objekten).
+/// `blocks` from the parameters (list of objects).
 pub fn parse_blocks(
     value: Option<&Value>,
     mut base: impl FnMut(CoverBlockKind) -> Option<CoverBlock>,
@@ -250,7 +250,7 @@ pub fn parse_blocks(
     items.iter().enumerate().map(|(i, v)| parse_block(i, v, &mut base)).collect()
 }
 
-// ---- Commit-Texte ----------------------------------------------------------------------------------
+// ---- Commit texts ----------------------------------------------------------------------------------
 
 fn mm(v: f64) -> String {
     format!("{v:.1}").replace('.', ",")
@@ -297,7 +297,7 @@ fn area_word(area: TitleArea) -> &'static str {
     }
 }
 
-/// Text in einer Zeile, höchstens 60 Zeichen.
+/// Text in one line, at most 60 characters.
 fn short(text: &str) -> String {
     let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if line.chars().count() > 60 {
@@ -307,7 +307,7 @@ fn short(text: &str) -> String {
     }
 }
 
-/// Felder eines Blocks als (Name, Wert) für den Commit-Rumpf.
+/// Fields of a block as (name, value) for the commit body.
 fn fields(block: &CoverBlock) -> Vec<(&'static str, String)> {
     let mut out = vec![
         ("x", format!("{} mm", mm(block.x_mm))),
@@ -331,7 +331,7 @@ fn fields(block: &CoverBlock) -> Vec<(&'static str, String)> {
     out
 }
 
-/// „x 12,0 mm → 15,0 mm“ je geändertes Feld; ein Feld mit Einheit nennt sie einmal am Ende („x 12,0 → 15,0 mm“).
+/// „x 12,0 mm → 15,0 mm“ per changed field; a field with a unit names it once at the end („x 12,0 → 15,0 mm“).
 fn diff(before: &CoverBlock, after: &CoverBlock) -> String {
     let (old, new) = (fields(before), fields(after));
     let mut parts = Vec::new();
@@ -357,14 +357,14 @@ fn all_fields(block: &CoverBlock) -> String {
     fields(block).into_iter().map(|(n, v)| format!("{n} {v}")).collect::<Vec<_>>().join(", ")
 }
 
-/// Eine Zeile je Block für die Liste der Anträge: „Titel (Vorderseite): x 5,0 mm, y 40,0 mm, …“.
+/// One line per block for the list of requests: „Titel (Vorderseite): x 5,0 mm, y 40,0 mm, …“.
 pub fn block_line(block: &CoverBlock) -> String {
     format!("{}: {}", kind_label(block.kind), all_fields(block))
 }
 
-/// Rumpf je geänderten Block: „Titel (Vorderseite): x 12,0 → 15,0 mm, …“. Stand ein Block vorher nicht in der
-/// Datenbank, wird gegen den Vorgabeblock aus `defaults` verglichen („… (vorher Vorgabe)“); ohne Vorgabe (Buch ohne
-/// Seitenmaß) „…: neu (x …)“. Zurückgesetzt: „…: Vorgabe statt eigener Anordnung (war x …)“.
+/// Body per changed block: „Titel (Vorderseite): x 12,0 → 15,0 mm, …“. If a block was not in the
+/// database before, it is compared against the default block from `defaults` („… (vorher Vorgabe)“); without a
+/// default (book without page size) „…: neu (x …)“. Reset: „…: Vorgabe statt eigener Anordnung (war x …)“.
 pub fn change_body(change: &CoverLayoutChange, defaults: &[CoverBlock]) -> String {
     let mut body = String::new();
     for kind in &change.changed {
@@ -385,14 +385,14 @@ pub fn change_body(change: &CoverLayoutChange, defaults: &[CoverBlock]) -> Strin
     body
 }
 
-// ---- Schreiben ---------------------------------------------------------------------------------------
+// ---- Writing -----------------------------------------------------------------------------------------
 
 fn human() -> Signature {
     Signature { name: HUMAN_NAME.to_owned(), email: HUMAN_EMAIL.to_owned() }
 }
 
-/// Commit im Spiegel (leer erlaubt: die Anordnung steht nicht im Schnappschuss). Mit `request` (bestätigter Antrag)
-/// stehen Antragsteller und Bestätiger im Rumpf und in den Trailern wie bei den Bildanträgen.
+/// Commit in the mirror (empty allowed: the layout is not in the snapshot). With `request` (confirmed request)
+/// requester and confirmer stand in the body and in the trailers as for the image requests.
 async fn commit(
     state: &AppState,
     _held: &WriteGuard<'_>,
@@ -448,7 +448,7 @@ fn add_mirror(answer: &mut Value, result: Option<Result<Option<String>, String>>
     }
 }
 
-/// Antwort `{layout, commit?, mirror?}`; gelingt die Ansicht nicht, `layout: null` und `layout_error`.
+/// Answer `{layout, commit?, mirror?}`; if the view fails, `layout: null` and `layout_error`.
 async fn answer(state: &AppState, work: WorkId, mirrored: Option<Result<Option<String>, String>>) -> Value {
     let mut answer = match layout_view(state, work, None).await {
         Ok(view) => json!({ "work": work, "layout": view }),
@@ -458,17 +458,17 @@ async fn answer(state: &AppState, work: WorkId, mirrored: Option<Result<Option<S
     answer
 }
 
-/// Vorgabeblöcke des Werks für den Commit-Rumpf (vorher → nachher); ohne Seitenmaß (Satzfehler) leer.
+/// Default blocks of the work for the commit body (before → after); without page size (typesetting error) empty.
 async fn defaults(state: &AppState, work: WorkId) -> Vec<CoverBlock> {
     let Ok(wrap) = crate::cover::build_wrap_for(state, work, None).await else { return Vec::new() };
     let Ok(meta) = state.store.book_meta(work).await else { return Vec::new() };
     baruch_typst::cover_layout::default_blocks(crate::cover::title_area(meta.title_area), &wrap.geometry)
 }
 
-/// `cover.layout_set` (nur der Mensch): Blöcke speichern, ein Commit.
+/// `cover.layout_set` (the human only): store blocks, one commit.
 pub async fn layout_set(state: &AppState, work: WorkId, blocks: Vec<CoverBlock>) -> Result<Value, RpcError> {
-    // Erst prüfen (ohne Satz), dann die Vorgaben für den Rumpf setzen lassen – außerhalb der Schreibsperre. Die
-    // maßgebliche Prüfung macht der Store beim Schreiben noch einmal.
+    // First check (without typesetting), then have the defaults for the body typeset – outside the write lock. The
+    // authoritative check is done once more by the store when writing.
     for block in &blocks {
         baruch_store::check_cover_block(block)?;
     }
@@ -486,7 +486,7 @@ pub async fn layout_set(state: &AppState, work: WorkId, blocks: Vec<CoverBlock>)
     Ok(answer(state, work, mirrored).await)
 }
 
-/// `cover.layout_reset`: Zeilen der Flächen `faces` löschen (leer = alle), `area` setzt den Titelbereich.
+/// `cover.layout_reset`: delete rows of the faces `faces` (empty = all), `area` sets the title area.
 pub async fn layout_reset(
     state: &AppState,
     work: WorkId,
@@ -515,7 +515,7 @@ pub async fn layout_reset(
     Ok(answer(state, work, mirrored).await)
 }
 
-/// `cover.fonts`: alle Schriftfamilien und die Vorgabeschrift des Werks.
+/// `cover.fonts`: all font families and the default font of the work.
 pub async fn fonts(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let families = tokio::task::spawn_blocking(baruch_render::font_families)
         .await
@@ -524,15 +524,15 @@ pub async fn fonts(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     Ok(json!({ "families": families, "default": default }))
 }
 
-/// Antrag als veraltet schließen (unter der Schreibsperre).
+/// Close a request as stale (under the write lock).
 async fn stale(state: &AppState, work: WorkId, id: i64, message: &str) -> Result<Decided, RpcError> {
     let _held = state.write_lock.lock().await;
     let request = state.store.asset_request_decide(work, id, Decision::Stale, HUMAN_NAME, Some(message)).await?;
     Ok(Decided { request, commit: None, mirror: None, cover: None })
 }
 
-/// Bestätigten Antrag `cover_layout` ausführen (bzw. als `stale` schließen, wenn `expected_layout` nicht mehr passt
-/// oder ein Block nicht mehr gültig ist). Aufgerufen von `asset_requests::decide` nach der Prüfung „noch offen“.
+/// Carry out a confirmed request `cover_layout` (or close it as `stale` if `expected_layout` no longer matches
+/// or a block is no longer valid). Called by `asset_requests::decide` after the check “still open”.
 pub async fn decide_request(state: &AppState, work: WorkId, request: &AssetRequest) -> Result<Decided, RpcError> {
     let AssetOp::CoverLayout { blocks, expected_layout } = &request.op else {
         return Err(RpcError::new(INVALID_PARAMS, "Dieser Antrag betrifft nicht die Umschlag-Anordnung."));
@@ -640,7 +640,7 @@ mod tests {
         assert!(body.starts_with("Titel (Vorderseite): x 12,0 → 15,0 mm"), "Vertrag 1.10, Muster des Rumpfs: {body}");
         assert!(body.contains("Schnitt normal → fett"), "jedes geänderte Feld: {body}");
         assert!(!body.contains("Breite"), "unveränderte Felder fehlen: {body}");
-        // Stand der Block vorher nicht in der Datenbank, zählt der Vorgabeblock als „vorher“.
+        // If the block was not in the database before, the default block counts as “before”.
         let fresh = CoverLayoutChange { changed: change.changed.clone(), before: CoverLayout::default(), ..change };
         let body = change_body(&fresh, &[block()]);
         assert!(body.contains("x 12,0 → 15,0 mm") && body.contains("(vorher Vorgabe)"), "gegen die Vorgabe: {body}");

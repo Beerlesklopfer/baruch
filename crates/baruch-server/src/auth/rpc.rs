@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! RPC `account.*` (Runde 35, Vertrag §1.6). Anmelden, Abmelden und Einrichten gibt es nur als Formular (Cookie);
-//! Passwörter stehen nie in einer Antwort.
+//! RPC `account.*` (Round 35, contract §1.6). Login, logout and setup exist only as a form (cookie);
+//! passwords never stand in an answer.
 //!
-//! Was eine Rolle aufrufen darf, entscheidet `roles::check_rpc` vor dem Dispatch. Die Methoden, die nur der Autor
-//! darf, prüfen hier zusätzlich [`Who::full_rights`] – zwei unabhängige Stellen müssten versagen, bevor ein Lektor
-//! Konten verwaltet. Antworten tragen nur, was [`baruch_store::Account`] hält (kein Hash) und das Handle.
+//! What a role may call is decided by `roles::check_rpc` before the dispatch. The methods only the author
+//! may use additionally check [`Who::full_rights`] here – two independent places would have to fail before a Lektor
+//! manages accounts. Answers carry only what [`baruch_store::Account`] holds (no hash) and the handle.
 
 use baruch_store::Account;
 use serde::Deserialize;
@@ -25,12 +25,12 @@ pub const METHODS: &[&str] = &[
     "account.logout_all",
 ];
 
-/// `crate::rpc` fragt vor jedem anderen Modul, ob die Methode hierher gehört.
+/// `crate::rpc` asks before every other module whether the method belongs here.
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// Deutscher Satz zu den Meldungscodes der Bausteine (die Oberfläche hat ihre eigene Tabelle).
+/// German sentence for the message codes of the building blocks (the UI has its own table).
 fn sentence(code: &str) -> &'static str {
     match code {
         "passwort_falsch" => "Das bisherige Passwort stimmt nicht.",
@@ -62,8 +62,8 @@ fn internal(e: impl std::fmt::Display) -> RpcError {
     RpcError::new(INTERNAL, e.to_string())
 }
 
-/// Parameter lesen. Die Fehlermeldung nennt bewusst nicht den Text von serde: Er könnte einen Wert zitieren, und
-/// unter den Werten sind Passwörter.
+/// Read parameters. The error message deliberately does not name serde's text: it could quote a value, and
+/// among the values are passwords.
 fn parse<T: for<'de> Deserialize<'de>>(method: &str, params: Value, expected: &str) -> Result<T, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     serde_json::from_value(params).map_err(|_| RpcError::new(INVALID_PARAMS, format!("{method}: erwartet {expected}")))
@@ -77,7 +77,7 @@ fn author_only(who: &Who, method: &str) -> Result<(), RpcError> {
     }
 }
 
-/// Ein Konto, wie es in Antworten steht: die Felder von [`Account`] und das Handle. Kein Hash, kein Passwort.
+/// An account as it stands in answers: the fields of [`Account`] and the handle. No hash, no password.
 fn account_json(account: &Account) -> Value {
     json!({
         "id": account.id,
@@ -144,7 +144,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
         "account.create" => {
             author_only(&who, method)?;
             let p: CreateParams = parse(method, params, "{name, display?, password}")?;
-            // Weitere Konten sind immer Lektoren (Vertrag 0.4); das erste entsteht nur über /einrichten.
+            // Further accounts are always Lektors (contract 0.4); the first is created only through /einrichten.
             let account =
                 routes::create_account(state, &p.name, &p.display, p.password, None, false).await.map_err(refused)?;
             Ok(account_json(&account))
@@ -166,7 +166,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let p: PasswordParams = parse(method, params, "{current?, password, id?}")?;
             let own = who.identity().filter(|identity| p.id.is_none_or(|id| id == identity.id));
             match (own, p.id) {
-                // Eigenes Passwort: nur mit dem bisherigen; die Sitzung dieser Anfrage bleibt, alle anderen enden.
+                // Own password: only with the current one; the session of this request stays, all others end.
                 (Some(identity), _) => {
                     let Some(current) = p.current else {
                         return Err(RpcError::new(INVALID_PARAMS, "account.set_password: current fehlt"));
@@ -178,7 +178,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                         .map_err(refused)?;
                     Ok(json!({ "id": identity.id, "changed": true }))
                 }
-                // Fremdes Passwort: nur der Autor; alle Sitzungen des Kontos enden.
+                // Someone else's password: the author only; all sessions of the account end.
                 (None, Some(id)) => {
                     author_only(&who, method)?;
                     routes::change_password(state, id, p.password, None, None).await.map_err(refused)?;

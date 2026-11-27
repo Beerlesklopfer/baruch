@@ -1,45 +1,45 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag, Titelei und Buchangaben je Werk (Vertrag Runde 11, Aufgabe cover).
+//! Cover, front matter and book details per work (contract Round 11, task cover).
 //!
-//! - **Daten:** [`baruch_store::BookMeta`] (Migration 0017, Tabelle `work_book`) mit Umschlagbild,
-//!   Titelbereich, Titelei an/aus, Umschlagseiten im Satz, Impressumsangaben, Klappentext, Kurzbiografie,
-//!   Autorenfoto, Papierdicke und Beschnitt. Untertitel, Autor und Bibelübersetzung bleiben in `work`.
-//! - **Rahmen im Buchsatz** ([`frame`]): fügt vor dem ersten Abschnitt Umschlag-Vorderseite und Titelei,
-//!   nach dem letzten die Rückseite ein ([`baruch_typst::cover::frame_parts`]), verschiebt die
-//!   [`ExportMap`] und legt Umschlag, Foto und Strichcode als virtuelle Dateien unter `.baruch/` bei.
-//!   Ohne Umschlag (mit Umschlagseiten) und ohne Titelei bleiben Quelle und Karte byte-gleich.
-//! - **Umschlag für die Druckerei** ([`cover_source`]): eine Seite Rückseite | Rücken | Vorderseite mit
-//!   Beschnitt; Seitengröße aus der ersten Buchseite, Rücken = (Seiten − Umschlagseiten) × Papierdicke je Seite
-//!   (gespeichert `paper_mm`; Oberfläche und RPC nennen seit Runde 20c die Dicke je Blatt `paper_sheet_mm` = 2 ×
-//!   `paper_mm`). Runde 20c: Der Umschlag und das Messen der Blöcke übernehmen die Text-/Absatzregeln der Werkvorlage
-//!   ([`cover_text_rules`]), wie die Umschlagseiten im Buch.
-//! - **Satz-Einstellungen (Runde 29):** Der Buchsatz trägt die Regeln „// Baruch: Satz“ schon in der Quelle; die erste
-//!   Buchseite hat also das Satz-Format, und die Seitenzahl für den Rücken zählt Leerseiten (Kapitel auf rechter Seite,
-//!   leere Rückseite der Teil-Seite) mit. Das Seitenmaß der Umschlagseiten im Buch ([`frame`], `book_page_mm`) misst die
-//!   Werkvorlage samt Regelblock ([`page_template`]); Umschlag-Blöcke ohne Schrift nehmen die Grundschrift des Buchs
-//!   ([`book_font`]: Einstellung, sonst Werkvorlage).
+//! - **Data:** [`baruch_store::BookMeta`] (migration 0017, table `work_book`) with cover image,
+//!   title area, front matter on/off, cover pages in the typeset book, imprint details, blurb, short biography,
+//!   author photo, paper thickness and bleed. Subtitle, author and Bible translation stay in `work`.
+//! - **Frame in the typeset book** ([`frame`]): inserts cover front and front matter before the first section,
+//!   the back after the last ([`baruch_typst::cover::frame_parts`]), shifts the
+//!   [`ExportMap`] and adds cover, photo and barcode as virtual files under `.baruch/`.
+//!   Without cover (with cover pages) and without front matter, source and map stay byte-identical.
+//! - **Cover for the print shop** ([`cover_source`]): one page back | spine | front with
+//!   bleed; page size from the first book page, spine = (pages − cover pages) × paper thickness per page
+//!   (stored `paper_mm`; since Round 20c UI and RPC name the thickness per sheet `paper_sheet_mm` = 2 ×
+//!   `paper_mm`). Round 20c: the cover and the measuring of the blocks take over the text/paragraph rules of the work
+//!   template ([`cover_text_rules`]), like the cover pages in the book.
+//! - **Typeset settings (Round 29):** the typeset book already carries the rules „// Baruch: Satz“ in the source; so
+//!   the first book page has the typeset format, and the page count for the spine includes empty pages (chapter on a
+//!   right-hand page, empty back of the part page). The page size of the cover pages in the book ([`frame`],
+//!   `book_page_mm`) measures the work template with the rule block ([`page_template`]); cover blocks without a font
+//!   take the base font of the book ([`book_font`]: setting, otherwise work template).
 //! - **RPC** ([`handles`], [`call`]): `work.set_cover`, `work.meta.get`, `work.meta.set`, `work.cover_pdf`
-//!   (Runde 22: `draft?` dreiwertig, auch `GET /werke/{id}/umschlag.pdf?entwurf=1|0`; Wasserzeichen nach Einstellung
-//!   nur mit `draft.cover`, die Druckprüfung meldet dann `draft`).
-//! - **Seiten** ([`pages`]): `GET /werke/{id}/umschlag` (Vorschau, Formulare, Druckprüfung),
-//!   `GET /werke/{id}/umschlag.svg` (Vorschau als SVG), `GET /werke/{id}/umschlag.pdf`.
-//!   **Formulare** ([`writes`], hinter `guard::same_origin`): `POST /werke/umschlag/act`
-//!   (`action=set|remove|area`) und `POST /werke/buchangaben/act`; Erfolg → 303 auf `back` (nur eine
-//!   relative, sichere Adresse, Vorgabe `/einstellungen/werk?work=W`), ungültig → 422 mit der Eingabe.
-//! - **Spiegel:** je Änderung ein eigener Commit (leer erlaubt, die Buchangaben stehen nicht im Spiegel):
+//!   (Round 22: `draft?` three-valued, also `GET /werke/{id}/umschlag.pdf?entwurf=1|0`; watermark by setting
+//!   only with `draft.cover`, the print check then reports `draft`).
+//! - **Pages** ([`pages`]): `GET /werke/{id}/umschlag` (preview, forms, print check),
+//!   `GET /werke/{id}/umschlag.svg` (preview as SVG), `GET /werke/{id}/umschlag.pdf`.
+//!   **Forms** ([`writes`], behind `guard::same_origin`): `POST /werke/umschlag/act`
+//!   (`action=set|remove|area`) and `POST /werke/buchangaben/act`; success → 303 to `back` (only a
+//!   relative, safe address, default `/einstellungen/werk?work=W`), invalid → 422 with the input.
+//! - **Mirror:** per change its own commit (empty allowed, the book details are not in the mirror):
 //!   „Buchangaben geändert: <Felder>“ (`Baruch-Action: book-meta`), „Umschlag: <name> gesetzt“
-//!   (`cover-set`), „Umschlag entfernt“ (`cover-removed`); Rumpf mit vorher/nachher.
+//!   (`cover-set`), „Umschlag entfernt“ (`cover-removed`); body with before/after.
 //!
-//! - **Umschlag-Editor (Runde 27c):** Die Umschlagseite zeigt über der Typst-Vorschau (dieselbe Quelle wie das PDF,
-//!   [`build_wrap_for`]) die Rahmen der Blöcke aus `cover.layout` ([`crate::cover_layout::layout_view`]), Hilfslinien
-//!   (Beschnitt, Schnittkante, Sicherheitsabstand, Rückenkanten, Mitte) und je Block alle Werte als Formular
-//!   (`b.<kind>.<feld>`, [`BLOCK_FIELDS`]). Ohne JavaScript: Vorschau per `GET /werke/{id}/umschlag?b.…` (speichert
-//!   nichts), Übernehmen per `POST /werke/umschlag/anordnung` (`action=save|reset|quick`, [`layout_act`]); das Widget
-//!   `cover-editor` (`web/src/cover_editor.ts`) speichert über `cover.layout_set` bzw. `cover.layout_reset`.
-//!   Buchangaben dazu mit den Anschriften von Verlag und Druckerei; Knopf „Impressum-Vorlage in die Werkvorlage
-//!   übernehmen“ (`POST /werke/umschlag/impressum`, RPC `cover.imprint_adopt` über `work.update`).
-//! - **EPUB (Runde 20):** [`book_info`] ist `pub(crate)` für `crate::epub`; den Umschlag als `cover-image` legt
-//!   `crate::epub::epub_input` ins EPUB (R20a).
+//! - **Cover editor (Round 27c):** above the Typst preview (the same source as the PDF, [`build_wrap_for`]) the
+//!   cover page shows the frames of the blocks from `cover.layout` ([`crate::cover_layout::layout_view`]), guides
+//!   (bleed, trim edge, safety margin, spine edges, centre) and per block all values as a form
+//!   (`b.<kind>.<feld>`, [`BLOCK_FIELDS`]). Without JavaScript: preview through `GET /werke/{id}/umschlag?b.…` (stores
+//!   nothing), applying through `POST /werke/umschlag/anordnung` (`action=save|reset|quick`, [`layout_act`]); the
+//!   widget `cover-editor` (`web/src/cover_editor.ts`) stores through `cover.layout_set` or `cover.layout_reset`.
+//!   Book details also with the addresses of publisher and print shop; button „Impressum-Vorlage in die Werkvorlage
+//!   übernehmen“ (`POST /werke/umschlag/impressum`, RPC `cover.imprint_adopt` through `work.update`).
+//! - **EPUB (Round 20):** [`book_info`] is `pub(crate)` for `crate::epub`; the cover as `cover-image` is put
+//!   into the EPUB by `crate::epub::epub_input` (R20a).
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
@@ -67,7 +67,7 @@ use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "work.set_cover" | "work.meta.get" | "work.meta.set" | "work.cover_pdf" | "cover.imprint_adopt")
 }
@@ -76,7 +76,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Fehler des Stores; ein abgelehnter Wert der Buchangaben ist eine ungültige Eingabe (-32602).
+/// Error of the store; a rejected value of the book details is an invalid input (-32602).
 fn input_error(e: StoreError) -> RpcError {
     match e {
         StoreError::Refused(message) => invalid(message),
@@ -84,14 +84,14 @@ fn input_error(e: StoreError) -> RpcError {
     }
 }
 
-// ---- Lesen ---------------------------------------------------------------------------------------
+// ---- Reading -------------------------------------------------------------------------------------
 
-/// Bildname des Umschlags.
+/// Image name of the cover.
 pub async fn cover_name(state: &AppState, work: WorkId) -> Result<Option<String>, StoreError> {
     state.store.work_cover(work).await
 }
 
-/// Umschlag für Oberfläche und RPC: `{name, caption, alt, url, thumb}` oder `None`.
+/// Cover for UI and RPC: `{name, caption, alt, url, thumb}` or `None`.
 pub async fn cover_info(state: &AppState, work: WorkId) -> Result<Option<Value>, StoreError> {
     let Some(name) = cover_name(state, work).await? else { return Ok(None) };
     Ok(Some(info_of(state, work, &name).await?))
@@ -109,8 +109,8 @@ async fn info_of(state: &AppState, work: WorkId, name: &str) -> Result<Value, St
     }))
 }
 
-/// Angaben für Umschlag und Titelei aus Werk und Buchangaben; ohne Bildnachweis die Bildunterschrift
-/// des Umschlags.
+/// Details for cover and front matter from work and book details; without an image credit the caption
+/// of the cover.
 pub(crate) async fn book_info(state: &AppState, work: WorkId, meta: &BookMeta) -> Result<BookInfo, StoreError> {
     let w = state.store.work_meta(work).await?;
     let mut image_credit = meta.image_credit.clone();
@@ -153,7 +153,7 @@ pub(crate) fn title_area(area: TitleArea) -> tc::TitleArea {
     }
 }
 
-/// Virtuelle Dateien und Verweise für Umschlag, Foto und Strichcode.
+/// Virtual files and references for cover, photo and barcode.
 struct Extras {
     files: Vec<(String, Vec<u8>)>,
     cover: Option<CoverRef>,
@@ -193,15 +193,15 @@ async fn extras(state: &AppState, work: WorkId, meta: &BookMeta, with_back: bool
     Ok(out)
 }
 
-// ---- Rahmen im Buchsatz --------------------------------------------------------------------------
+// ---- Frame in the typeset book -------------------------------------------------------------------
 
-/// Umschlag und Titelei in den Buchsatz einfügen (siehe Moduldoku). Ohne Umschlag mit
-/// Umschlagseiten und ohne Titelei: `source` und `map` unverändert zurück.
+/// Insert cover and front matter into the typeset book (see module doc). Without cover with
+/// cover pages and without front matter: `source` and `map` back unchanged.
 ///
-/// Runde 27: Hat das Werk eine eigene Anordnung (Zeilen in `cover_block`), setzen Vorder- und Rückseite die Blöcke
-/// (fehlende Arten als Vorgabeblöcke, Maße aus der Seitengröße der Werkvorlage); eine fehlende Schrift fällt auf die
-/// Schrift der Werkvorlage zurück. Definiert die Werkvorlage `schmutztitel`, `haupttitel`, `impressum` bzw.
-/// `widmung`, setzt die Titelei diese Funktionen (siehe [`baruch_typst::cover::frame_parts`]).
+/// Round 27: if the work has its own layout (rows in `cover_block`), front and back set the blocks
+/// (missing kinds as default blocks, measures from the page size of the work template); a missing font falls back
+/// to the font of the work template. If the work template defines `schmutztitel`, `haupttitel`, `impressum` or
+/// `widmung`, the front matter uses these functions (see [`baruch_typst::cover::frame_parts`]).
 pub async fn frame(
     state: &AppState,
     work: WorkId,
@@ -221,7 +221,7 @@ pub async fn frame(
     let layout = if with_cover && !stored.is_empty() {
         match book_page_mm(&page_template(&template, &settings), &source.files).await {
             Some((width, height)) => {
-                // Für Vorder- und Rückseite zählt der Rücken nicht; die Vorgabeblöcke des Rückens fallen weg.
+                // For front and back the spine does not count; the default blocks of the spine are dropped.
                 let geometry = CoverGeometry::new(width, height, 0.0, meta.bleed_mm);
                 let blocks =
                     baruch_typst::cover_layout::effective_blocks(&stored, title_area(meta.title_area), &geometry)
@@ -249,40 +249,40 @@ pub async fn frame(
     Ok(insert_parts(source, map, &parts.front, &parts.back, extras.files))
 }
 
-/// Satz-Einstellungen des Werks (Runde 29); ohne Zeile die Vorgabe (alles aus der Werkvorlage).
+/// Typeset settings of the work (Round 29); without a row the default (everything from the work template).
 pub(crate) async fn typeset_settings(state: &AppState, work: WorkId) -> Result<TypesetSettings, StoreError> {
     Ok(state.store.work_typeset(work).await?.map(|t| t.settings).unwrap_or_default())
 }
 
-/// Vorlage, die das Seitenmaß des Buchs bestimmt (Runde 29): Werkvorlage und dahinter der Regelblock der
-/// Satz-Einstellungen (Seitenformat, Ränder) – wie im Buchsatz (`snapshot::head`). Ohne Einstellungen unverändert die
-/// Werkvorlage (byte-gleich wie vor Runde 29, gleicher Stand im Zwischenspeicher von [`book_page_mm`]).
+/// Template that determines the page size of the book (Round 29): work template and behind it the rule block of
+/// the typeset settings (page format, margins) – as in the typeset book (`snapshot::head`). Without settings the
+/// work template unchanged (byte-identical to before Round 29, same state in the cache of [`book_page_mm`]).
 pub fn page_template(template: &str, settings: &TypesetSettings) -> String {
     let rules = baruch_typst::typeset::rules(settings);
     if rules.is_empty() { template.to_owned() } else { format!("{template}\n{rules}") }
 }
 
-/// Grundschrift des Buchs (Runde 29): die Satz-Einstellung `font`, sonst die Schrift der Werkvorlage. Rückfall für
-/// Umschlag-Blöcke ohne eigene Schrift (die Schrift, die im Buch ohnehin gilt).
+/// Base font of the book (Round 29): the typeset setting `font`, otherwise the font of the work template. Fallback
+/// for cover blocks without a font of their own (the font that applies in the book anyway).
 pub fn book_font(template: &str, settings: &TypesetSettings) -> Option<String> {
     settings.font.clone().or_else(|| baruch_wysiwyg::template_font(template))
 }
 
-/// Text- und Absatzregeln für den Umschlag für die Druckerei und das Messen der Blöcke (Runde 20c): die Regeln der
-/// Werkvorlage samt Regelblock der Satz-Einstellungen ([`page_template`]), gefiltert von
-/// [`baruch_typst::cover::template_text_rules`] (Sprache, Silbentrennung, Laufweite, Absatzregeln). Ohne solche
-/// Regeln leer – dann bleiben Quelle und PDF byte-gleich zu den Goldständen R26/R27.
+/// Text and paragraph rules for the print-shop cover and the measuring of the blocks (Round 20c): the rules of the
+/// work template with the rule block of the typeset settings ([`page_template`]), filtered by
+/// [`baruch_typst::cover::template_text_rules`] (language, hyphenation, tracking, paragraph rules). Without such
+/// rules empty – then source and PDF stay byte-identical to the golden states R26/R27.
 pub fn cover_text_rules(template: &str, settings: &TypesetSettings) -> String {
     tc::template_text_rules(&page_template(template, settings))
 }
 
-/// Zeitgrenze für die Mess-Sätze des Umschlags ([`book_page_mm`], [`block_heights`]): wie der Satz des Buchs
+/// Time limit for the measuring runs of the cover ([`book_page_mm`], [`block_heights`]): like typesetting the book
 /// ([`crate::typeset::COMPILE_TIMEOUT`], 60 s).
 pub const MEASURE_TIMEOUT: std::time::Duration = crate::typeset::COMPILE_TIMEOUT;
 
-/// Runde 23a: Typst-Lauf mit Zeitgrenze. `Ok(Some)` = gesetzt, `Ok(None)` = Zeitgrenze überschritten (der Lauf ist
-/// als abgebrochen markiert und endet an Typsts nächster Prüfstelle; sein Ergebnis wird verworfen), `Err` = der
-/// Arbeitsfaden ist gescheitert.
+/// Round 23a: Typst run with time limit. `Ok(Some)` = typeset, `Ok(None)` = time limit exceeded (the run is
+/// marked as cancelled and ends at Typst's next checkpoint; its result is discarded), `Err` = the
+/// worker thread failed.
 pub async fn compile_limited(
     source: Source,
     limit: std::time::Duration,
@@ -300,10 +300,10 @@ pub async fn compile_limited(
     }
 }
 
-/// Seitengröße (mm) der Werkvorlage: die Vorlage mit einer unsichtbaren Zeile gesetzt, die erste Seite gemessen.
-/// Runde 29: Der Aufrufer gibt [`page_template`] herein, damit das Seitenformat der Satz-Einstellungen gilt.
-/// So kennt der Rahmen die Maße der Umschlagseite im Buch (sie erbt Breite und Höhe der Vorlage), ohne das Buch zu
-/// setzen. Satzfehler → `None` (dann ohne Anordnung, wie bisher). Zwischengespeichert je Stand.
+/// Page size (mm) of the work template: the template typeset with an invisible line, the first page measured.
+/// Round 29: the caller passes in [`page_template`] so that the page format of the typeset settings applies.
+/// So the frame knows the measures of the cover page in the book (it inherits width and height of the template)
+/// without typesetting the book. Typesetting error → `None` (then without layout, as before). Cached per state.
 async fn book_page_mm(template: &str, files: &[(String, Vec<u8>)]) -> Option<(f64, f64)> {
     static SIZES: OnceLock<std::sync::Mutex<BTreeMap<String, (f64, f64)>>> = OnceLock::new();
     let source = Source { main: format!("{template}\n#hide[x]\n"), files: files.to_vec() };
@@ -312,7 +312,7 @@ async fn book_page_mm(template: &str, files: &[(String, Vec<u8>)]) -> Option<(f6
     if let Some(size) = cache.lock().ok().and_then(|c| c.get(&stand).copied()) {
         return Some(size);
     }
-    // Runde 23a: mit der Zeitgrenze des Satzes; eine Vorlage, die nicht fertig wird, gilt wie ein Satzfehler.
+    // Round 23a: with the time limit of typesetting; a template that does not finish counts like a typesetting error.
     let rendered = compile_limited(source, MEASURE_TIMEOUT).await.ok()??;
     if rendered.has_errors() {
         return None;
@@ -328,9 +328,9 @@ async fn book_page_mm(template: &str, files: &[(String, Vec<u8>)]) -> Option<(f6
     Some(size)
 }
 
-/// Schriften der Blöcke auflösen: Eine Schrift, die es nicht gibt, fällt weg (Satz mit der Vorgabe; die
-/// Druckprüfung meldet `font`). Mit `fallback` bekommt ein Block ohne Schrift diese (Umschlag für die Druckerei und
-/// Messen: die Schrift der Werkvorlage, die im Buch ohnehin gilt), sofern es sie gibt.
+/// Resolve the fonts of the blocks: a font that does not exist is dropped (typeset with the default; the
+/// print check reports `font`). With `fallback` a block without a font gets this one (print-shop cover and
+/// measuring: the font of the work template, which applies in the book anyway), provided it exists.
 pub(crate) async fn resolve_fonts(mut layout: CoverLayout, fallback: Option<String>) -> CoverLayout {
     tokio::task::spawn_blocking(move || {
         let fallback = fallback.filter(|f| baruch_render::has_font_family(f));
@@ -347,9 +347,9 @@ pub(crate) async fn resolve_fonts(mut layout: CoverLayout, fallback: Option<Stri
     .unwrap_or_default()
 }
 
-/// `front` vor den ersten Abschnitt (ohne Abschnitte: ans Ende), `back` ans Ende; Bytebereiche und
-/// erste Zeilen aller Abschnitte rücken nach. Die eigenen Dateien gehen den Bildern des Werks vor.
-/// Auch für die Regel der Teil-Seiten (Runde 14, `typeset::prepare`).
+/// `front` before the first section (without sections: at the end), `back` at the end; byte ranges and
+/// first lines of all sections move along. The own files take precedence over the images of the work.
+/// Also for the rule of the part pages (Round 14, `typeset::prepare`).
 pub(crate) fn insert_parts(
     source: Source,
     mut map: ExportMap,
@@ -384,16 +384,16 @@ pub(crate) fn insert_parts(
     (Source { main: typst, files }, map)
 }
 
-// ---- Umschlag für die Druckerei ------------------------------------------------------------------
+// ---- Cover for the print shop --------------------------------------------------------------------
 
-/// Breite und Höhe (pt) aus dem Kopf einer Typst-SVG-Seite.
+/// Width and height (pt) from the head of a Typst SVG page.
 fn svg_size_pt(svg: &str) -> Option<(f64, f64)> {
     baruch_render::svg_size_pt(svg)
 }
 
 const MM_PER_PT: f64 = 25.4 / 72.0;
 
-/// Gebauter Umschlag und seine Maße.
+/// Built cover and its measures.
 pub struct Wrap {
     pub source: Source,
     pub spine_mm: f64,
@@ -404,20 +404,20 @@ pub struct Wrap {
     pub pages: usize,
     pub cover_pages: usize,
     pub bleed_mm: f64,
-    /// Maße für die Umschlag-Anordnung (Runde 27).
+    /// Measures for the cover layout (Round 27).
     pub geometry: CoverGeometry,
 }
 
-/// Umschlag bauen mit der gespeicherten Anordnung (wie [`build_wrap_for`] mit `None`): Buch setzen
-/// (Zwischenspeicher der Satz-Ansicht), Seitengröße der ersten Seite, Rücken aus der Seitenzahl ohne die
-/// Umschlagseiten. Satzfehler → `REFUSED`. Ohne Anordnung byte-gleich zu Runde 26.
+/// Build the cover with the stored layout (like [`build_wrap_for`] with `None`): typeset the book
+/// (cache of the typeset view), page size of the first page, spine from the page count without the
+/// cover pages. Typesetting error → `REFUSED`. Without a layout byte-identical to Round 26.
 pub async fn build_wrap(state: &AppState, work: WorkId) -> Result<Wrap, RpcError> {
     build_wrap_for(state, work, None).await
 }
 
-/// Umschlag mit Anordnung bauen: `layout` = Vorschau (ersetzt die gespeicherte Anordnung), `None` = gespeicherte
-/// Anordnung. Eine leere Anordnung setzt das bisherige Bild. Schriften, die es nicht gibt, fallen auf die Schrift
-/// der Werkvorlage bzw. die eingebettete Vorgabe zurück. Satzfehler → `REFUSED` wie [`build_wrap`].
+/// Build the cover with a layout: `layout` = preview (replaces the stored layout), `None` = stored
+/// layout. An empty layout typesets the previous picture. Fonts that do not exist fall back to the font
+/// of the work template or the embedded default. Typesetting error → `REFUSED` like [`build_wrap`].
 pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&CoverLayout>) -> Result<Wrap, RpcError> {
     let meta = state.store.book_meta(work).await?;
     let typeset = crate::typeset::typeset(state, work).await?;
@@ -435,8 +435,8 @@ pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&Cove
     let (width_pt, height_pt) = svg_size_pt(&rendered.pages[0])
         .ok_or_else(|| RpcError::new(INTERNAL, "Seitengröße der ersten Buchseite nicht lesbar"))?;
     let pages = rendered.pages.len();
-    // Steht der Rahmen schon im Satz (nach der Integration über typeset::prepare), zählen Vorderseite,
-    // Innenseite und Rückseite nicht zum Buchblock.
+    // If the frame is already in the typeset book (after the integration through typeset::prepare), front,
+    // inside and back do not count towards the book block.
     let framed = typeset.prepared.source.main.contains(tc::FRAME_MARK);
     let cover_pages = if framed && meta.cover.is_some() && meta.cover_pages { tc::COVER_PAGES } else { 0 };
     let spine = tc::spine_mm(pages.saturating_sub(cover_pages), meta.paper_mm);
@@ -478,17 +478,17 @@ pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&Cove
     })
 }
 
-/// Höhe jedes Blocks in mm (gleiche Reihenfolge wie `blocks`), gesetzt mit Text, Schrift und Breite des Blocks:
-/// je Block eine Seite mit `height: auto` ([`baruch_typst::cover::block_measure_source`]), deren Höhe Typst
-/// bestimmt. Ein Block ohne Inhalt (kein Text, kein Foto) hat die Höhe 0. Beim Rücken ist die Höhe die waagrechte
-/// Ausdehnung auf der Seite. Satzfehler der Messquelle → `REFUSED` mit der Meldung.
+/// Height of every block in mm (same order as `blocks`), typeset with text, font and width of the block:
+/// per block one page with `height: auto` ([`baruch_typst::cover::block_measure_source`]) whose height Typst
+/// determines. A block without content (no text, no photo) has height 0. For the spine the height is the
+/// horizontal extent on the page. Typesetting error of the measuring source → `REFUSED` with the message.
 pub async fn block_heights(
     state: &AppState,
     work: WorkId,
     blocks: &[CoverBlock],
     geometry: &CoverGeometry,
 ) -> Result<Vec<f64>, RpcError> {
-    let _ = geometry; // Die Höhe hängt nur von Text, Schrift und Breite ab, nicht von der Lage.
+    let _ = geometry; // The height depends only on text, font and width, not on the position.
     if blocks.is_empty() {
         return Ok(Vec::new());
     }
@@ -503,7 +503,7 @@ pub async fn block_heights(
     let main =
         tc::block_measure_source_with_rules(&info, &resolved.blocks, &refs, &cover_text_rules(&template, &settings));
     let source = Source { main, files: extras.files };
-    // Runde 23a: mit der Zeitgrenze des Satzes (60 s); danach ist der Lauf abgebrochen und die Antwort ehrlich.
+    // Round 23a: with the typesetting time limit (60 s); after it the run is cancelled and the answer honest.
     let rendered = compile_limited(source, MEASURE_TIMEOUT)
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Blockhöhen: {e}")))?
@@ -533,12 +533,12 @@ pub async fn block_heights(
         .collect())
 }
 
-/// Die Umschlag-Vorderseite als Typst-Quelle (eine Seite im Endformat des Buchs, ohne Beschnitt) für das EPUB-Cover
-/// (Runde 21c, [`baruch_typst::cover::front_source_with_rules`]): Umschlagbild (falls gesetzt, sonst die dunkle
-/// Fläche) und darauf Titel, Untertitel und Autor – aus der gespeicherten Anordnung (fehlende Arten als
-/// Vorgabeblöcke), ohne eigene Anordnung im Titelbereich wie bisher. Das Format kommt aus der Werkvorlage samt
-/// Satz-Einstellungen (wie die Umschlagseite im Buchsatz), ohne das Buch zu setzen. Lässt sich das Format nicht
-/// messen (Satzfehler der Vorlage) → `Err` mit Grund.
+/// The cover front as Typst source (one page in the final format of the book, without bleed) for the EPUB cover
+/// (Round 21c, [`baruch_typst::cover::front_source_with_rules`]): cover image (if set, otherwise the dark
+/// area) and on it title, subtitle and author – from the stored layout (missing kinds as
+/// default blocks), without an own layout in the title area as before. The format comes from the work template
+/// with typeset settings (like the cover page in the typeset book), without typesetting the book. If the format
+/// cannot be measured (typesetting error of the template) → `Err` with reason.
 pub async fn front_cover_source(state: &AppState, work: WorkId) -> Result<Source, String> {
     let meta = state.store.book_meta(work).await.map_err(|e| e.to_string())?;
     let info = book_info(state, work, &meta).await.map_err(|e| e.to_string())?;
@@ -575,29 +575,29 @@ pub async fn front_cover_source(state: &AppState, work: WorkId) -> Result<Source
     Ok(Source { main, files: extras.files })
 }
 
-/// Der ganze Umschlag als Typst-Quelle (eine Seite), mit der gespeicherten Anordnung.
+/// The whole cover as Typst source (one page), with the stored layout.
 pub async fn cover_source(state: &AppState, work: WorkId) -> Result<Source, RpcError> {
     Ok(build_wrap_for(state, work, None).await?.source)
 }
 
-/// Ergebnis der PDF-Erzeugung für den Umschlag.
+/// Result of the PDF generation for the cover.
 struct CoverPdf {
     bytes: Vec<u8>,
     pages: usize,
-    /// SHA-256 der Bytes (Kleinbuchstaben-Hex).
+    /// SHA-256 of the bytes (lower-case hex).
     sha256: String,
 }
 
-/// PDF aus der Umschlag-Quelle.
+/// PDF from the cover source.
 async fn to_pdf(work: WorkId, source: Source) -> Result<CoverPdf, RpcError> {
     let pdf = crate::pdf::source_to_pdf(work, crate::pdf::PdfKind::Cover, source, crate::pdf::PDF_TIMEOUT).await?;
     let sha256 = baruch_render::sha256_hex(&pdf.bytes);
     Ok(CoverPdf { pages: pdf.pages, sha256, bytes: pdf.bytes })
 }
 
-/// Umschlag-PDF mit der gespeicherten Anordnung. Runde 22: `draft` dreiwertig ([`crate::typeset::cover_draft`]) –
-/// nach Einstellung nur mit `draft.cover`, sonst nur ausdrücklich; das Wasserzeichen steht vor der ersten Zeile der
-/// Umschlag-Quelle (die Druckprüfung warnt dann, [`crate::cover_print::cover_checks_with`]).
+/// Cover PDF with the stored layout. Round 22: `draft` three-valued ([`crate::typeset::cover_draft`]) –
+/// by setting only with `draft.cover`, otherwise only explicitly; the watermark stands before the first line of
+/// the cover source (the print check then warns, [`crate::cover_print::cover_checks_with`]).
 async fn cover_pdf(state: &AppState, work: WorkId, draft: Option<bool>) -> Result<(String, Wrap, CoverPdf), RpcError> {
     let slug = state.store.work_slug(work).await?;
     let mut wrap = build_wrap_for(state, work, None).await?;
@@ -609,13 +609,13 @@ async fn cover_pdf(state: &AppState, work: WorkId, draft: Option<bool>) -> Resul
     Ok((format!("{slug}-umschlag.pdf"), wrap, pdf))
 }
 
-// ---- Schreiben -----------------------------------------------------------------------------------
+// ---- Writing -------------------------------------------------------------------------------------
 
 pub(crate) fn human() -> Signature {
     Signature { name: HUMAN_NAME.to_owned(), email: HUMAN_EMAIL.to_owned() }
 }
 
-/// Eigener Protokoll-Commit (Schnappschuss des Werks, leer erlaubt). Fehler nur als Text.
+/// Own log commit (snapshot of the work, empty allowed). Errors only as text.
 pub(crate) async fn commit(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -636,8 +636,8 @@ pub(crate) async fn commit(
     commit_request(state, held, work, request).await
 }
 
-/// Einen fertigen Commit-Auftrag mit dem Schnappschuss des Werks committen (Runde 20c: auch für den einen Commit
-/// eines bestätigten Umschlag-Antrags). Der Aufrufer hält die Schreibsperre seit vor dem DB-Schreibvorgang.
+/// Commit a finished commit job with the snapshot of the work (Round 20c: also for the one commit
+/// of a confirmed cover request). The caller holds the write lock since before the DB write.
 pub(crate) async fn commit_request(
     state: &AppState,
     _held: &WriteGuard<'_>,
@@ -666,7 +666,7 @@ fn add_mirror(answer: &mut Value, result: Result<Option<String>, String>) {
     }
 }
 
-/// Deutsche Namen der Felder (Commit-Betreff, Oberfläche).
+/// German names of the fields (commit subject, UI).
 pub fn field_label(field: &str) -> &'static str {
     match field {
         "subtitle" => "Untertitel",
@@ -697,7 +697,7 @@ pub fn field_label(field: &str) -> &'static str {
     }
 }
 
-/// Wert eines Felds für den Commit-Rumpf, in einer Zeile (leer → „–“).
+/// Value of a field for the commit body, in one line (empty → „–“).
 fn shown(value: &Value) -> String {
     let text = match value {
         Value::Null => String::new(),
@@ -709,7 +709,7 @@ fn shown(value: &Value) -> String {
     if text.is_empty() { "–".to_owned() } else { text }
 }
 
-/// Rumpf „Verlag: – → Gartenverlag“, je geändertes Feld eine Zeile; die Papierdicke zusätzlich je Blatt.
+/// Body „Verlag: – → Gartenverlag“, one line per changed field; the paper thickness additionally per sheet.
 fn change_body(changed: &[&str], before: &Value, after: &Value) -> String {
     changed
         .iter()
@@ -729,7 +729,7 @@ fn change_body(changed: &[&str], before: &Value, after: &Value) -> String {
         .collect()
 }
 
-/// Wert als Text (Zahl oder Text); `None` = nicht angegeben.
+/// Value as text (number or text); `None` = not given.
 fn text_param(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None => Ok(None),
@@ -753,7 +753,7 @@ fn bool_param(params: &Value, name: &str) -> Result<Option<bool>, RpcError> {
     }
 }
 
-/// Zahl in mm, auch als Text mit Komma („0,1“).
+/// Number in mm, also as text with comma („0,1“).
 fn mm_param(params: &Value, name: &str, label: &str) -> Result<Option<f64>, RpcError> {
     let wrong = || invalid(format!("{label}: Zahl in mm erwartet (z. B. 0,1)."));
     match params.get(name) {
@@ -765,8 +765,8 @@ fn mm_param(params: &Value, name: &str, label: &str) -> Result<Option<f64>, RpcE
     }
 }
 
-/// Papierdicke aus `paper_mm` (je Seite, gespeichert) oder `paper_sheet_mm` (je Blatt = 2 Seiten, Runde 20c; wird
-/// halbiert gespeichert, keine Migration). Beide zusammen → `INVALID_PARAMS`.
+/// Paper thickness from `paper_mm` (per page, stored) or `paper_sheet_mm` (per sheet = 2 pages, Round 20c; stored
+/// halved, no migration). Both together → `INVALID_PARAMS`.
 fn paper_param(params: &Value) -> Result<Option<f64>, RpcError> {
     let page = mm_param(params, "paper_mm", "Papierdicke")?;
     let sheet = mm_param(params, "paper_sheet_mm", "Papierdicke je Blatt")?;
@@ -782,8 +782,8 @@ fn paper_param(params: &Value) -> Result<Option<f64>, RpcError> {
     }
 }
 
-/// `work.meta.set`: Buchangaben und (über `Store::update_work`) Untertitel, Autor, Bibelübersetzung;
-/// ein Commit „Buchangaben geändert: …“, wenn sich etwas ändert.
+/// `work.meta.set`: book details and (through `Store::update_work`) subtitle, author, Bible translation;
+/// one commit „Buchangaben geändert: …“ if something changes.
 async fn meta_set(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     let mut edit = BookEdit::default();
     for (name, slot) in [
@@ -806,7 +806,7 @@ async fn meta_set(state: &AppState, work: WorkId, params: &Value) -> Result<Valu
         *slot = text_param(params, name)?;
     }
     if let Some(isbn) = edit.isbn.as_deref().filter(|i| !i.trim().is_empty()) {
-        // Ausführliche Meldung (der Store kennt nur feste Texte).
+        // Detailed message (the store knows only fixed texts).
         tc::isbn13(isbn).map_err(invalid)?;
     }
     edit.author_photo = match params.get("author_photo") {
@@ -832,7 +832,7 @@ async fn meta_set(state: &AppState, work: WorkId, params: &Value) -> Result<Valu
 
     let held = state.write_lock.lock().await;
     let work_before = state.store.work_meta(work).await?;
-    // Erst die Buchangaben (sie prüfen alles), dann die Werkfelder: So ändert eine abgelehnte Eingabe nichts.
+    // First the book details (they check everything), then the work fields: so a rejected input changes nothing.
     let book = state.store.set_book_meta(work, &edit).await.map_err(input_error)?;
     let mut changed: Vec<&'static str> = Vec::new();
     if subtitle.is_some() || author.is_some() || bible.is_some() {
@@ -867,7 +867,7 @@ async fn meta_set(state: &AppState, work: WorkId, params: &Value) -> Result<Valu
     Ok(answer)
 }
 
-/// `work.set_cover`: Umschlag setzen oder entfernen, Commit nur bei einer Änderung.
+/// `work.set_cover`: set or remove the cover, commit only on a change.
 async fn set_cover(state: &AppState, work: WorkId, name: Option<&str>) -> Result<Value, RpcError> {
     let held = state.write_lock.lock().await;
     let change = state.store.set_work_cover(work, name).await?;
@@ -878,7 +878,7 @@ async fn set_cover(state: &AppState, work: WorkId, name: Option<&str>) -> Result
     Ok(answer)
 }
 
-/// Rumpf eines Umschlag-Commits: „Umschlag vorher: … / Umschlag nachher: …“.
+/// Body of a cover commit: „Umschlag vorher: … / Umschlag nachher: …“.
 pub(crate) fn cover_change_body(change: &baruch_store::CoverChange) -> String {
     format!(
         "Umschlag vorher: {}\nUmschlag nachher: {}\n",
@@ -887,7 +887,7 @@ pub(crate) fn cover_change_body(change: &baruch_store::CoverChange) -> String {
     )
 }
 
-/// Commit zu einer Umschlag-Änderung (Betreff „Umschlag: <name> gesetzt“ bzw. „Umschlag entfernt“).
+/// Commit for a cover change (subject „Umschlag: <name> gesetzt“ or „Umschlag entfernt“).
 async fn commit_cover_change(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -901,10 +901,10 @@ async fn commit_cover_change(
     commit(state, held, work, summary, cover_change_body(change), action).await
 }
 
-/// Vor dem Löschen des ganzen Bilds `name` (Runde 20c): Ist es der Umschlag, wird er zuerst über
-/// `Store::set_work_cover` entfernt und als „Umschlag entfernt“ gespiegelt – sonst nähme `ON DELETE SET NULL` den
-/// Umschlag ohne Commit weg. `None` = das Bild war nicht der Umschlag; sonst das Ergebnis des Commits. Der Aufrufer
-/// hält die Schreibsperre (wie beim Löschen selbst).
+/// Before deleting the whole image `name` (Round 20c): if it is the cover, it is first removed through
+/// `Store::set_work_cover` and mirrored as „Umschlag entfernt“ – otherwise `ON DELETE SET NULL` would take the
+/// cover away without a commit. `None` = the image was not the cover; otherwise the result of the commit. The
+/// caller holds the write lock (as for the deletion itself).
 pub(crate) async fn release_cover_before_delete(
     state: &AppState,
     held: &WriteGuard<'_>,
@@ -918,12 +918,12 @@ pub(crate) async fn release_cover_before_delete(
     Ok(Some(commit_cover_change(state, held, work, &change).await))
 }
 
-/// `work.meta.get`: Buchangaben mit Titel, Untertitel, Autor, Bibelübersetzung und dem Umschlag.
+/// `work.meta.get`: book details with title, subtitle, author, Bible translation and the cover.
 async fn meta_get(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let book = state.store.book_meta(work).await?;
     let w = state.store.work_meta(work).await?;
     let mut meta = json!(book);
-    // Runde 20c: Dicke je Blatt (= 2 Seiten), wie Druckereien sie angeben; gespeichert bleibt `paper_mm` je Seite.
+    // Round 20c: thickness per sheet (= 2 pages), as print shops state it; stored stays `paper_mm` per page.
     meta["paper_sheet_mm"] = json!(book.paper_mm * 2.0);
     meta["title"] = json!(w.title);
     meta["subtitle"] = json!(w.subtitle);
@@ -932,9 +932,9 @@ async fn meta_get(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     Ok(json!({ "work": work, "meta": meta, "cover": cover_info(state, work).await? }))
 }
 
-/// `cover.imprint_adopt` (Runde 27c): die fehlenden Titelei-Funktionen der Impressum-Vorlage
-/// ([`tc::imprint_template_missing`]) an die Werkvorlage hängen – als neue Vorlagenfassung durch den Menschen über
-/// `work.update` (dort Sperre und Commit). Hat die Vorlage schon alle vier Funktionen: `REFUSED`, nichts geändert.
+/// `cover.imprint_adopt` (Round 27c): append the missing front-matter functions of the imprint template
+/// ([`tc::imprint_template_missing`]) to the work template – as a new template revision by the human through
+/// `work.update` (lock and commit there). If the template already has all four functions: `REFUSED`, no change.
 async fn imprint_adopt(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let template = state.store.work_template(work).await?;
     let adopted = tc::imprint_template_missing(&template)
@@ -952,7 +952,7 @@ async fn imprint_adopt(state: &AppState, work: WorkId) -> Result<Value, RpcError
     Ok(answer)
 }
 
-/// RPC dieses Moduls (`docs/runde11/cover.md`).
+/// RPC of this module (`docs/runde11/cover.md`).
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     match method {
@@ -985,7 +985,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             if inline {
                 answer["pdf_base64"] = json!(baruch_store::encode_base64(&pdf.bytes));
             }
-            // Runde 27c: Druckprüfung des Umschlags (gespeicherte Anordnung) und der Pflichtangaben.
+            // Round 27c: print check of the cover (stored layout) and of the mandatory details.
             answer["checks"] = json!(crate::cover_print::cover_checks_with(state, work, None, draft).await?);
             Ok(answer)
         }
@@ -994,7 +994,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     }
 }
 
-// ---- Vorlagen ------------------------------------------------------------------------------------
+// ---- Templates -----------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -1015,14 +1015,14 @@ fn render_template(name: &str, ctx: Jinja) -> Result<String, String> {
     templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
 }
 
-/// Ein abgelehntes Formular: Meldung und die eingegebenen Werte (Feldname → Text).
+/// A rejected form: message and the entered values (field name → text).
 #[derive(Debug, Clone, Default)]
 pub struct Retry {
     pub error: String,
     pub values: BTreeMap<String, String>,
 }
 
-/// Formularwerte der Buchangaben: gespeichert, nach einem Fehler die eingegebenen.
+/// Form values of the book details: stored, after an error the entered ones.
 fn book_values(meta: &BookMeta, retry: Option<&Retry>) -> BTreeMap<String, String> {
     let mut values = BTreeMap::new();
     let saved = json!(meta);
@@ -1038,11 +1038,11 @@ fn book_values(meta: &BookMeta, retry: Option<&Retry>) -> BTreeMap<String, Strin
             values.insert(key, text);
         }
     }
-    // Runde 20c: Das Formular fragt die Dicke je Blatt (= 2 Seiten).
+    // Round 20c: the form asks for the thickness per sheet (= 2 pages).
     values.insert("paper_sheet_mm".into(), paper_text(meta.paper_mm * 2.0));
     if let Some(retry) = retry {
         if retry.values.contains_key("flags") {
-            // Häkchen fehlen im Formular, wenn sie aus sind.
+            // Checkboxes are missing in the form when they are off.
             values.insert("front_matter".into(), String::new());
             values.insert("cover_pages".into(), String::new());
         }
@@ -1053,7 +1053,7 @@ fn book_values(meta: &BookMeta, retry: Option<&Retry>) -> BTreeMap<String, Strin
     values
 }
 
-/// Kontext von `fragments/cover_panel.html`.
+/// Context of `fragments/cover_panel.html`.
 async fn panel_context(state: &AppState, work: WorkId, back: &str, retry: Option<&Retry>) -> Result<Jinja, StoreError> {
     let meta = state.store.book_meta(work).await?;
     let assets = state.store.asset_list(work).await?;
@@ -1065,7 +1065,7 @@ async fn panel_context(state: &AppState, work: WorkId, back: &str, retry: Option
         Some(name) => Some(Jinja::from(Serde(info_of(state, work, name).await?))),
         None => None,
     };
-    // Runde 27c: Titelei-Funktionen, die die Werkvorlage schon hat (Knopf „Impressum-Vorlage übernehmen“).
+    // Round 27c: front-matter functions the work template already has (button „Impressum-Vorlage übernehmen“).
     let template = state.store.work_template(work).await?;
     let functions = tc::template_functions(&template);
     let present: Vec<&str> = [
@@ -1085,22 +1085,22 @@ async fn panel_context(state: &AppState, work: WorkId, back: &str, retry: Option
     })
 }
 
-/// HTML-Block `id="umschlag"` für die Seite „Bilder“: Vorschau, Auswahl, Entfernen, Titelbereich,
-/// Link zur Umschlagseite.
+/// HTML block `id="umschlag"` for the page „Bilder“: preview, selection, removal, title area,
+/// link to the cover page.
 pub async fn assets_panel(state: &AppState, work: WorkId) -> Result<String, RpcError> {
     let ctx = panel_context(state, work, &format!("/werke/{work}/bilder"), None).await?;
     render_template("fragments/cover_panel.html", context! { show_cover => true, ..ctx })
         .map_err(|e| RpcError::new(INTERNAL, e))
 }
 
-/// Gruppen „Buchangaben“ und „Umschlag“ der Einstellungsseite „Werk“ (fertiges HTML).
+/// Groups „Buchangaben“ and „Umschlag“ of the settings page „Werk“ (finished HTML).
 pub(crate) async fn settings_blocks(
     state: &AppState,
     work: WorkId,
     retry: Option<&Retry>,
 ) -> Result<(String, String), String> {
     let back = format!("/einstellungen/werk?work={work}");
-    // Die Meldung steht bei der Gruppe, deren Formular abgelehnt wurde (Buchangaben tragen Eingaben).
+    // The message stands at the group whose form was rejected (book details carry inputs).
     let (book_retry, cover_retry) = match retry {
         Some(r) if r.values.is_empty() => (None, Some(r)),
         other => (other, None),
@@ -1112,9 +1112,9 @@ pub(crate) async fn settings_blocks(
     Ok((book, cover))
 }
 
-// ---- Seiten --------------------------------------------------------------------------------------
+// ---- Pages ---------------------------------------------------------------------------------------
 
-/// Lesende Seiten: Umschlagseite (Editor), Vorschau als SVG, Umschlag-PDF.
+/// Reading pages: cover page (editor), preview as SVG, cover PDF.
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/umschlag", get(cover_page))
@@ -1122,7 +1122,7 @@ pub fn pages() -> Router<Arc<AppState>> {
         .route("/werke/{id}/umschlag.pdf", get(cover_pdf_download))
 }
 
-/// Formulare (im Router hinter `guard::same_origin`).
+/// Forms (in the router behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/umschlag/act", post(cover_act))
@@ -1136,7 +1136,7 @@ fn page_settings(headers: &HeaderMap) -> Jinja {
     Jinja::from(Serde(settings))
 }
 
-/// Hinweise nach einer Weiterleitung (`hinweis=…` bzw. `ok=…`).
+/// Notices after a redirect (`hinweis=…` or `ok=…`).
 fn notice(code: Option<&str>) -> Option<&'static str> {
     match code? {
         "umschlag_gesetzt" => Some("Der Umschlag ist gesetzt."),
@@ -1148,16 +1148,16 @@ fn notice(code: Option<&str>) -> Option<&'static str> {
     }
 }
 
-/// Was eine Umschlagseite außer dem Werk zeigen soll.
+/// What a cover page should show besides the work.
 #[derive(Default)]
 struct PageInput<'a> {
-    /// Hinweis nach einer Weiterleitung.
+    /// Notice after a redirect.
     hint: Option<&'a str>,
-    /// Abgelehntes Formular der Gruppen „Umschlag“/„Buchangaben“.
+    /// Rejected form of the groups „Umschlag“/„Buchangaben“.
     retry: Option<&'a Retry>,
-    /// Felder `b.<kind>.<feld>` (Vorschau bzw. abgelehnte Eingabe des Editors).
+    /// Fields `b.<kind>.<feld>` (preview or rejected input of the editor).
     fields: &'a [(String, String)],
-    /// Meldung zum Editor (abgelehntes Formular „Anordnung“).
+    /// Message for the editor (rejected form „Anordnung“).
     editor_error: Option<String>,
 }
 
@@ -1184,18 +1184,18 @@ async fn page_response(
         Ok(html) => html,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
     };
-    // Editor: Anordnung mit der Vorschau aus den Feldern (ohne zu speichern).
+    // Editor: layout with the preview from the fields (without storing).
     let fields: Vec<(String, String)> = input.fields.iter().filter(|(k, _)| k.starts_with("b.")).cloned().collect();
     let editor = editor_state(state, work, &fields, input.editor_error).await;
     let status =
         if editor.invalid_preview && status == StatusCode::OK { StatusCode::UNPROCESSABLE_ENTITY } else { status };
-    // Vorschau: den Umschlag setzen (Zwischenspeicher der Satz-Ansicht nach Stand), mit der Vorschau-Anordnung.
+    // Preview: typeset the cover (cache of the typeset view by state), with the preview layout.
     let (preview, facts, diagnostics, print, preview_error) = match build_wrap_for(state, work, editor.shown.as_ref())
         .await
     {
         Ok(wrap) => {
             let stand = baruch_render::stand(&wrap.source);
-            // Runde 20c: Rücken = Buchseiten / 2 Blatt × Dicke je Blatt (die Umschlagseiten im Satz zählen nicht).
+            // Round 20c: spine = book pages / 2 sheets × thickness per sheet (cover pages in the book do not count).
             let paper_mm = state.store.book_meta(work).await.map_or(0.1, |m| m.paper_mm);
             let book_pages = wrap.pages.saturating_sub(wrap.cover_pages);
             let facts = context! {
@@ -1242,7 +1242,7 @@ async fn page_response(
     }
 }
 
-/// Druckprüfung der Bilder (Auflösung) für die Umschlagseite.
+/// Print check of the images (resolution) for the cover page.
 fn print_warnings(print: &[baruch_render::PrintWarning]) -> Vec<String> {
     print.iter().map(|w| w.message.clone()).collect()
 }
@@ -1252,7 +1252,7 @@ fn format_mm(value: f64) -> String {
     format!("{value:.1}").replace('.', ",")
 }
 
-/// Felder einer Abfrage bzw. eines Formulars mit Hinweis (`hinweis` oder `ok`).
+/// Fields of a query or a form with notice (`hinweis` or `ok`).
 fn hint_of(query: &[(String, String)]) -> Option<&str> {
     query.iter().rev().find(|(k, _)| k == "hinweis" || k == "ok").map(|(_, v)| v.as_str())
 }
@@ -1270,7 +1270,7 @@ async fn cover_page(
     page_response(&state, &headers, id, StatusCode::OK, input).await
 }
 
-/// HTTP-Status zu einem Fehler der PDF-Erzeugung (wie `/werke/{id}/pdf`).
+/// HTTP status for an error of the PDF generation (like `/werke/{id}/pdf`).
 fn pdf_status(e: &RpcError) -> StatusCode {
     match e.code {
         INVALID_PARAMS => StatusCode::NOT_FOUND,
@@ -1281,8 +1281,8 @@ fn pdf_status(e: &RpcError) -> StatusCode {
     }
 }
 
-/// `GET /werke/{id}/umschlag.svg`: der Umschlag als eine SVG-Seite (Vorschau); mit Feldern `b.<kind>.<feld>` die
-/// Vorschau dieser Anordnung (über [`build_wrap_for`], ohne zu speichern).
+/// `GET /werke/{id}/umschlag.svg`: the cover as one SVG page (preview); with fields `b.<kind>.<feld>` the
+/// preview of this layout (through [`build_wrap_for`], without storing).
 async fn cover_svg(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1326,9 +1326,9 @@ async fn cover_svg(
         .into_response()
 }
 
-// ---- Umschlag-Editor (Runde 27c) -----------------------------------------------------------------
+// ---- Cover editor (Round 27c) --------------------------------------------------------------------
 
-/// Felder eines Blocks im Formular und in der Vorschau-Adresse (`b.<kind>.<feld>`), Vertrag Abschnitt 4.
+/// Fields of a block in the form and in the preview address (`b.<kind>.<feld>`), contract section 4.
 pub const BLOCK_FIELDS: [&str; 13] = [
     "x_mm",
     "y_mm",
@@ -1345,12 +1345,12 @@ pub const BLOCK_FIELDS: [&str; 13] = [
     "text",
 ];
 
-/// Deutscher Name eines Blocks mit Fläche: „Titel (Vorderseite)“.
+/// German name of a block with face: „Titel (Vorderseite)“.
 pub fn block_label(kind: CoverBlockKind) -> String {
     format!("{} ({})", kind.label(), kind.face().label())
 }
 
-/// Deutscher Name eines Blockfelds (Meldungen, Formular).
+/// German name of a block field (messages, form).
 pub fn block_field_label(field: &str) -> &'static str {
     match field {
         "x_mm" => "x",
@@ -1370,13 +1370,13 @@ pub fn block_field_label(field: &str) -> &'static str {
     }
 }
 
-/// Zahl aus einem Feld (Punkt oder Komma); nur endliche Werte.
+/// Number from a field (dot or comma); finite values only.
 fn number_field(raw: &str) -> Option<f64> {
     raw.trim().replace(',', ".").parse::<f64>().ok().filter(|v| v.is_finite())
 }
 
-/// Zahl für ein Zahlenfeld (`type=number` verlangt den Punkt): höchstens zwei Nachkommastellen, ohne Nullen am Ende.
-/// Papierdicke für Formular und Anzeige: bis zu drei Nachkommastellen, Komma, ohne Nullen am Ende („0,2“, „0,125“).
+/// Number for a number field (`type=number` demands the dot): at most two decimals, without trailing zeros.
+/// Paper thickness for form and display: up to three decimals, comma, without trailing zeros („0,2“, „0,125“).
 fn paper_text(value: f64) -> String {
     let text = format!("{value:.3}");
     text.trim_end_matches('0').trim_end_matches('.').replace('.', ",")
@@ -1388,12 +1388,12 @@ fn number_value(value: f64) -> String {
     if text == "-0" { "0".to_owned() } else { text.to_owned() }
 }
 
-/// Grenze für Meldungen: „-50 und 1000“.
+/// Limit for messages: „-50 und 1000“.
 fn bounds(range: (f64, f64)) -> String {
     format!("{} und {}", number_value(range.0).replace('.', ","), number_value(range.1).replace('.', ","))
 }
 
-/// Ein Feld auf einen Block anwenden; Fehler als deutsche Meldung mit Art und Feld.
+/// Apply a field to a block; errors as a German message with kind and field.
 fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(), String> {
     let wrong = |why: String| format!("{}, {}: {why}", block_label(block.kind), block_field_label(field));
     let ranged = |range: (f64, f64), unit: &str| -> Result<f64, String> {
@@ -1476,8 +1476,8 @@ fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(
     Ok(())
 }
 
-/// Blöcke aus Feldern `b.<kind>.<feld>`: jede Art mit mindestens einem Feld, ausgehend von ihrem Block in `base`
-/// (gespeichert bzw. Vorgabe); ein mehrfach genanntes Feld zählt zuletzt. Geprüft wie im Store
+/// Blocks from fields `b.<kind>.<feld>`: every kind with at least one field, starting from its block in `base`
+/// (stored or default); a field named several times counts last. Checked as in the store
 /// ([`baruch_store::check_cover_block`]).
 pub fn blocks_from_fields(fields: &[(String, String)], base: &[CoverBlock]) -> Result<Vec<CoverBlock>, String> {
     for (name, _) in fields {
@@ -1510,7 +1510,7 @@ pub fn blocks_from_fields(fields: &[(String, String)], base: &[CoverBlock]) -> R
     Ok(out)
 }
 
-/// Werte eines Blocks für das Formular (Feld → Text).
+/// Values of a block for the form (field → text).
 fn block_values(block: &CoverBlock) -> BTreeMap<&'static str, String> {
     BTreeMap::from([
         ("x_mm", number_value(block.x_mm)),
@@ -1529,7 +1529,7 @@ fn block_values(block: &CoverBlock) -> BTreeMap<&'static str, String> {
     ])
 }
 
-/// Gespeicherte Anordnung, je Art durch die Vorschau ersetzt (wie in `cover_layout::layout_view`).
+/// Stored layout, replaced per kind by the preview (as in `cover_layout::layout_view`).
 fn merged_layout(stored: &CoverLayout, preview: &CoverLayout) -> CoverLayout {
     let mut merged = stored.clone();
     for block in &preview.blocks {
@@ -1544,8 +1544,8 @@ enum PreviewError {
     Rpc(RpcError),
 }
 
-/// Anordnung für eine Vorschau aus Feldern: gespeicherte Anordnung, die genannten Arten aus den Feldern (ausgehend
-/// vom wirksamen Block). Für die SVG-Vorschau.
+/// Layout for a preview from fields: stored layout, the named kinds from the fields (starting
+/// from the effective block). For the SVG preview.
 async fn preview_layout(
     state: &AppState,
     work: WorkId,
@@ -1562,7 +1562,7 @@ async fn preview_layout(
     Ok(merged_layout(&stored, &CoverLayout { blocks }))
 }
 
-/// Schriftfamilien für die Auswahlliste (blockierend in `spawn_blocking`); bei einem Fehler leer.
+/// Font families for the selection list (blocking in `spawn_blocking`); empty on an error.
 async fn font_names() -> Vec<String> {
     tokio::task::spawn_blocking(baruch_render::font_families)
         .await
@@ -1570,22 +1570,22 @@ async fn font_names() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Zustand des Editors für eine Seite.
+/// State of the editor for a page.
 struct EditorState {
-    /// Ansicht aus `cover.layout` (mit Vorschau), oder die Meldung, warum es keine gibt.
+    /// View from `cover.layout` (with preview), or the message why there is none.
     view: Result<crate::cover_layout::LayoutView, String>,
-    /// Anordnung für den Satz der Vorschau (gespeichert + Vorschau), `None` = gespeicherte.
+    /// Layout for typesetting the preview (stored + preview), `None` = stored.
     shown: Option<CoverLayout>,
-    /// Eingegebene Werte je Feldname (nach einem Fehler bzw. in der Vorschau).
+    /// Entered values per field name (after an error or in the preview).
     raw: BTreeMap<String, String>,
-    /// Abfrage für die SVG-Vorschau (`b.…=…&…`), leer ohne Vorschau.
+    /// Query for the SVG preview (`b.…=…&…`), empty without preview.
     query: String,
     error: Option<String>,
     invalid_preview: bool,
     preview: bool,
 }
 
-/// Ansicht laden; mit Feldern die Vorschau darüber (ohne zu speichern). Ungültige Felder: Meldung, Eingabe bleibt.
+/// Load the view; with fields the preview on top (without storing). Invalid fields: message, input stays.
 async fn editor_state(
     state: &AppState,
     work: WorkId,
@@ -1644,7 +1644,7 @@ async fn editor_state(
     out
 }
 
-/// Prozentkodierung für eine Abfrage (alles außer `A-Za-z0-9-_.~`).
+/// Percent-encoding for a query (everything except `A-Za-z0-9-_.~`).
 fn query_escape(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     for b in text.bytes() {
@@ -1657,13 +1657,13 @@ fn query_escape(text: &str) -> String {
     out
 }
 
-/// Prozent einer Länge (für `left`/`top`/`width`/`height`), mit Punkt.
+/// Percent of a length (for `left`/`top`/`width`/`height`), with dot.
 fn percent(part: f64, whole: f64) -> String {
     if whole <= 0.0 { "0%".to_owned() } else { format!("{:.4}%", part / whole * 100.0) }
 }
 
-/// Lage im Gesamtumschlag (mm): links, oben, Breite, Höhe des Rahmens eines Blocks. Auf dem Rücken läuft der Text
-/// gedreht: `width_mm` ist die senkrechte, die Höhe die waagrechte Ausdehnung (Vertrag 1.2).
+/// Position in the whole cover (mm): left, top, width, height of the frame of a block. On the spine the text
+/// runs rotated: `width_mm` is the vertical, the height the horizontal extent (contract 1.2).
 pub fn block_box(block: &CoverBlock, height_mm: f64, geometry: &CoverGeometry) -> (f64, f64, f64, f64) {
     let face = block.kind.face();
     let (ox, oy) = geometry.face_origin(face);
@@ -1674,9 +1674,9 @@ pub fn block_box(block: &CoverBlock, height_mm: f64, geometry: &CoverGeometry) -
     }
 }
 
-/// Hilfslinien als Rechtecke im Gesamtumschlag (mm): (Art, Beschriftung, links, oben, Breite, Höhe); eine Linie hat
-/// Breite bzw. Höhe 0. Arten: `bleed` (Außenkante des Beschnitts), `trim` (Schnittkante), `safety`
-/// (Sicherheitsabstand je Fläche), `spine` (Rückenkanten), `center` (Mitte der Seiten und der Höhe).
+/// Guides as rectangles in the whole cover (mm): (kind, label, left, top, width, height); a line has
+/// width or height 0. Kinds: `bleed` (outer edge of the bleed), `trim` (trim edge), `safety`
+/// (safety margin per face), `spine` (spine edges), `center` (centre of the pages and of the height).
 pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, f64, f64)> {
     let (wrap_w, wrap_h) = geometry.wrap_size();
     let (b, w, h, s) = (geometry.bleed_mm, geometry.page_width_mm, geometry.page_height_mm, geometry.spine_mm);
@@ -1708,7 +1708,7 @@ pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, 
 }
 
 impl EditorState {
-    /// Kontext `editor` von `cover.html`.
+    /// Context `editor` of `cover.html`.
     fn context(&self, work: WorkId, back: &str, fonts: &[String]) -> Jinja {
         let view = match &self.view {
             Ok(view) => view,
@@ -1729,7 +1729,7 @@ impl EditorState {
                     block_values(block).into_iter().map(|(k, v)| (k.to_owned(), v)).collect();
                 for field in BLOCK_FIELDS {
                     if let Some(raw) = self.raw.get(&format!("b.{}.{field}", kind.as_str())) {
-                        // Zahlenfelder (`type=number`) brauchen den Punkt; Unlesbares bleibt, wie es eingegeben war.
+                        // Number fields (`type=number`) need the dot; unreadable input stays as it was entered.
                         let numeric = matches!(field, "x_mm" | "y_mm" | "width_mm" | "size_pt" | "leading_em");
                         let shown = match number_field(raw) {
                             Some(value) if numeric => number_value(value),
@@ -1788,7 +1788,7 @@ impl EditorState {
     }
 }
 
-/// `GET /werke/{id}/umschlag.pdf`: Umschlag als PDF zum Herunterladen; Fehler als HTML ohne PDF.
+/// `GET /werke/{id}/umschlag.pdf`: cover as PDF for download; errors as HTML without PDF.
 async fn cover_pdf_download(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1798,7 +1798,7 @@ async fn cover_pdf_download(
     if crate::guard::cross_site_get(&headers) {
         return crate::typeset::foreign_get();
     }
-    // Runde 22: `?entwurf=1|0` (dreiwertig, ändert die Einstellung nicht).
+    // Round 22: `?entwurf=1|0` (three-valued, does not change the setting).
     let entwurf = query.iter().rev().find(|(k, _)| k == "entwurf").map(|(_, v)| v.as_str());
     let draft = match crate::typeset::draft_query(entwurf) {
         Ok(draft) => draft,
@@ -1830,9 +1830,9 @@ async fn cover_pdf_download(
     }
 }
 
-// ---- Formulare -----------------------------------------------------------------------------------
+// ---- Forms ---------------------------------------------------------------------------------------
 
-/// `back` nur als relative, sichere Adresse (`/…`, nicht `//`, nur `[A-Za-z0-9/_.=&%?#-]`).
+/// `back` only as a relative, safe address (`/…`, not `//`, only `[A-Za-z0-9/_.=&%?#-]`).
 pub(crate) fn safe_back(back: Option<&str>) -> Option<String> {
     let back = back?.trim();
     let ok = back.starts_with('/')
@@ -1841,7 +1841,7 @@ pub(crate) fn safe_back(back: Option<&str>) -> Option<String> {
     ok.then(|| back.to_owned())
 }
 
-/// Ziel nach Erfolg: Einstellungen → `ok=<settings_code>`, sonst `hinweis=<hint>` (vor einem `#…`).
+/// Target after success: settings → `ok=<settings_code>`, otherwise `hinweis=<hint>` (before a `#…`).
 fn success_target(back: &str, settings_code: &str, hint: &str) -> String {
     if back.starts_with("/einstellungen/") {
         return crate::works::with_ok(back, settings_code);
@@ -1865,8 +1865,8 @@ fn form_status(e: &RpcError) -> StatusCode {
     }
 }
 
-/// Abgelehntes Formular: zurück auf die Einstellungsseite „Werk“ bzw. die Umschlagseite, mit Meldung
-/// und Eingabe.
+/// Rejected form: back to the settings page „Werk“ or the cover page, with message
+/// and input.
 async fn failed(
     state: &AppState,
     headers: &HeaderMap,
@@ -1882,12 +1882,12 @@ async fn failed(
     page_response(state, headers, work, status, PageInput { retry: Some(&retry), ..PageInput::default() }).await
 }
 
-/// Werk und `back` aus einem Formular.
+/// Work and `back` from a form.
 fn form_work(fields: &BTreeMap<String, String>) -> Option<WorkId> {
     fields.get("work").and_then(|w| w.trim().parse().ok())
 }
 
-/// `POST /werke/umschlag/act`: `action=set` (Feld `name`), `remove`, `area` (Feld `title_area`).
+/// `POST /werke/umschlag/act`: `action=set` (field `name`), `remove`, `area` (field `title_area`).
 async fn cover_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -1928,7 +1928,7 @@ async fn cover_act(
     }
 }
 
-/// Feldnamen des Formulars „Buchangaben“ (Häkchen und `flags` gesondert).
+/// Field names of the form „Buchangaben“ (checkboxes and `flags` separately).
 const BOOK_FIELDS: [&str; 22] = [
     "publisher",
     "place",
@@ -1954,8 +1954,8 @@ const BOOK_FIELDS: [&str; 22] = [
     "author",
 ];
 
-/// `POST /werke/buchangaben/act`: alle Buchangaben; Häkchen `front_matter`, `cover_pages` (mit
-/// `flags=1`: fehlend = aus), `paper_mm`/`bleed_mm` mit Komma oder Punkt.
+/// `POST /werke/buchangaben/act`: all book details; checkboxes `front_matter`, `cover_pages` (with
+/// `flags=1`: missing = off), `paper_mm`/`bleed_mm` with comma or dot.
 async fn book_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2006,7 +2006,7 @@ async fn book_act(
     }
 }
 
-/// `back` mit `ok=<code>` (vor einem `#…`), für die Formulare des Editors und der Impressum-Vorlage.
+/// `back` with `ok=<code>` (before a `#…`), for the forms of the editor and of the imprint template.
 fn with_code(back: &str, code: &str) -> String {
     let (path, fragment) = match back.split_once('#') {
         Some((path, fragment)) => (path, Some(fragment)),
@@ -2019,12 +2019,12 @@ fn with_code(back: &str, code: &str) -> String {
     }
 }
 
-/// `POST /werke/umschlag/anordnung` (Runde 27c, hinter `guard::same_origin`): Felder `work`, `back`,
-/// `action=save|reset|quick`; `save` übergibt alle Blöcke aus den Feldern `b.<kind>.<feld>` an
-/// [`crate::cover_layout::layout_set`], `quick` setzt mit `area` (oben/Mitte/unten) den Titelbereich und löscht die
-/// Zeilen der Vorderseite, `reset` löscht die Zeilen der Flächen `faces` (wiederholt; keins = alle) – beide über
-/// [`crate::cover_layout::layout_reset`]. Erfolg → 303 auf `back` mit `ok=anordnung`; ungültig → 422 mit Eingabe und
-/// Meldung auf der Umschlagseite.
+/// `POST /werke/umschlag/anordnung` (Round 27c, behind `guard::same_origin`): fields `work`, `back`,
+/// `action=save|reset|quick`; `save` passes all blocks from the fields `b.<kind>.<feld>` to
+/// [`crate::cover_layout::layout_set`], `quick` sets the title area with `area` (top/centre/bottom) and deletes the
+/// rows of the front, `reset` deletes the rows of the faces `faces` (repeated; none = all) – both through
+/// [`crate::cover_layout::layout_reset`]. Success → 303 to `back` with `ok=anordnung`; invalid → 422 with input and
+/// message on the cover page.
 async fn layout_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -2081,7 +2081,7 @@ async fn layout_act(
         }
         Err(e) => {
             let status = form_status(&e);
-            // Die Eingabe bleibt stehen (nur beim Speichern; Schnellwahl und Zurücksetzen haben keine Werte).
+            // The input stays (only when saving; quick choice and reset have no values).
             let kept: &[(String, String)] = if action == "save" { &pairs } else { &[] };
             let input = PageInput { fields: kept, editor_error: Some(e.message), ..PageInput::default() };
             page_response(&state, &headers, work, status, input).await
@@ -2089,9 +2089,9 @@ async fn layout_act(
     }
 }
 
-/// `POST /werke/umschlag/impressum` (Runde 27c, hinter `guard::same_origin`): Felder `work`, `back`; hängt die
-/// fehlenden Titelei-Funktionen der Impressum-Vorlage an die Werkvorlage (`cover.imprint_adopt`). Erfolg → 303 auf
-/// `back` mit `ok=impressum`; Ablehnung (alles schon da) → 422 mit Meldung, nichts geändert.
+/// `POST /werke/umschlag/impressum` (Round 27c, behind `guard::same_origin`): fields `work`, `back`; appends the
+/// missing front-matter functions of the imprint template to the work template (`cover.imprint_adopt`). Success →
+/// 303 to `back` with `ok=impressum`; refusal (everything already there) → 422 with message, nothing changed.
 async fn imprint_act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

@@ -1,52 +1,52 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Menüband (Runde 33; Besitz: Aufgabe „menueband“).
+//! Ribbon (Round 33; owner: task “menueband”).
 //!
-//! Das Band steht vollständig in `templates/base.html` (die Vorlage ist in vielen eigenen Umgebungen eingebettet,
-//! ein Fragment müsste in allen registriert werden). Seiten kennen ihre Adresse und `?tab=` nicht; darum setzt die
-//! Schicht `consent::inject` über [`apply`] den aktiven Reiter, die Adressen der Reiter und den Laptop-Zustand im
-//! fertigen HTML ein – wie die Abzeichen seit Runde 23a (`menu::fill_badges`).
+//! The ribbon stands completely in `templates/base.html` (the template is embedded in many own environments,
+//! a fragment would have to be registered in all of them). Pages do not know their address and `?tab=`; so the
+//! layer `consent::inject` uses [`apply`] to set the active tab, the addresses of the tabs and the laptop state in
+//! the finished HTML – like the badges since Round 23a (`menu::fill_badges`).
 //!
-//! Zustand ([`BandState::from_request`]): `?tab=start|einfuegen|pruefen|buch|ansicht` (nicht gemerkt) und
-//! `?band=open|closed` (vor dem Cookie `baruch_band`, gemerkt über [`set_cookies`]). Ungültige Werte werden
-//! übergangen. Alles Übrige der Abfrage bleibt als `rest` an den Adressen der Reiter und Schalter hängen, damit ein
-//! Klick ohne JavaScript Werk, Abschnitt, Fassung oder Seite nicht verliert.
+//! State ([`BandState::from_request`]): `?tab=start|einfuegen|pruefen|buch|ansicht` (not remembered) and
+//! `?band=open|closed` (before the cookie `baruch_band`, remembered through [`set_cookies`]). Invalid values are
+//! skipped. Everything else of the query stays attached as `rest` to the addresses of tabs and switches so that a
+//! click without JavaScript does not lose work, section, revision or page.
 //!
-//! [`apply`] ersetzt nur wörtliche Formen der Vorlage (Reihenfolge der Attribute wie in `base.html`); Werte aus der
-//! Adresse (`rest`) gehen ausschließlich maskiert in Attribute ([`escape_attr`]). Die Schritte 2 bis 6 wirken nur im
-//! Kopf (`<header class="band"` bis `</header>`), damit Text im Seiteninhalt, der zufällig wie ein Reiter aussieht,
-//! nichts verstellt; die Schalter (Schritte 7 und 8) gelten auf der ganzen Seite (auch für die schmalen Leisten der
-//! Arbeitsseite).
+//! [`apply`] replaces only literal forms of the template (order of attributes as in `base.html`); values from the
+//! address (`rest`) go into attributes only escaped ([`escape_attr`]). Steps 2 to 6 act only in the
+//! head (`<header class="band"` to `</header>`) so that text in the page content that happens to look like a tab
+//! changes nothing; the switches (steps 7 and 8) apply on the whole page (also for the narrow rails of the
+//! work page).
 
 use crate::laptop::LaptopState;
 
-/// Marke an `<html>` in `base.html`; [`apply`] ersetzt sie durch die Attribute des Zustands.
+/// Marker on `<html>` in `base.html`; [`apply`] replaces it with the attributes of the state.
 pub const FILL: &str = " data-band-fill";
-/// Reiter des Bands: (Kennung in `?tab=`, Beschriftung).
+/// Tabs of the ribbon: (id in `?tab=`, label).
 pub const TABS: [(&str, &str); 5] =
     [("start", "Start"), ("einfuegen", "Einfügen"), ("pruefen", "Prüfen"), ("buch", "Buch"), ("ansicht", "Ansicht")];
-/// Schlüssel der Adresse, die diesem Modul gehören.
+/// Keys of the address that belong to this module.
 pub const QUERY_KEYS: [&str; 2] = ["tab", "band"];
 
-/// Cookie, das ein zugeklapptes Band merkt (`closed`; fehlt = offen).
+/// Cookie that remembers a collapsed ribbon (`closed`; missing = open).
 const COOKIE: &str = "baruch_band";
-/// Anfang und Ende des Kopfs in der fertigen Seite.
+/// Start and end of the head in the finished page.
 const HEAD_OPEN: &str = "<header class=\"band\"";
 const HEAD_CLOSE: &str = "</header>";
-/// Schlüssel, deren Schalter (`href="?K=V"`) den Rest der Abfrage und den aktiven Reiter mitnehmen (Schritt 7).
+/// Keys whose switches (`href="?K=V"`) take along the rest of the query and the active tab (step 7).
 const SWITCH_KEYS: [&str; 4] = ["band", "laptop", "lrail", "rrail"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BandState {
-    /// Reiter aus `?tab=`, nur wenn er in TABS steht.
+    /// Tab from `?tab=`, only if it is in TABS.
     pub tab: Option<&'static str>,
-    /// Band zugeklappt (`?band=` vor Cookie `baruch_band`).
+    /// Ribbon collapsed (`?band=` before cookie `baruch_band`).
     pub closed: bool,
-    /// Rohe Abfrage der Anfrage ohne die Schlüssel aus band::QUERY_KEYS und laptop::QUERY_KEYS (Paare mit `&`, unverändert, nicht dekodiert).
+    /// Raw query without the keys from band::QUERY_KEYS and laptop::QUERY_KEYS (pairs with `&`, as is, not decoded).
     pub rest: String,
 }
 
-/// Paare der rohen Abfrage als (Schlüssel, Wert, ganzes Paar); leere Paare (`&&`) fallen weg. Nichts wird dekodiert:
-/// Ein Schlüssel gilt nur in seiner wörtlichen Schreibweise.
+/// Pairs of the raw query as (key, value, whole pair); empty pairs (`&&`) are dropped. Nothing is decoded:
+/// a key counts only in its literal spelling.
 fn pairs(query: Option<&str>) -> impl Iterator<Item = (&str, &str, &str)> {
     query.unwrap_or("").split('&').filter(|pair| !pair.is_empty()).map(|pair| {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
@@ -54,7 +54,7 @@ fn pairs(query: Option<&str>) -> impl Iterator<Item = (&str, &str, &str)> {
     })
 }
 
-/// Letzter gültiger Wert von `?band=` (`Some(true)` = zugeklappt); `None`, wenn keiner gültig ist.
+/// Last valid value of `?band=` (`Some(true)` = collapsed); `None` if none is valid.
 fn band_in_query(query: Option<&str>) -> Option<bool> {
     pairs(query)
         .filter_map(|(key, value, _)| match (key, value) {
@@ -65,14 +65,14 @@ fn band_in_query(query: Option<&str>) -> Option<bool> {
         .last()
 }
 
-/// Wert eines Cookies aus dem Kopf `Cookie:` (`name=wert; name2=wert2`).
+/// Value of a cookie from the header `Cookie:` (`name=wert; name2=wert2`).
 fn cookie<'a>(header: Option<&'a str>, name: &str) -> Option<&'a str> {
     header?.split(';').find_map(|part| part.trim().strip_prefix(name)?.strip_prefix('='))
 }
 
 impl BandState {
-    /// Zustand aus Cookie-Kopf und roher Abfrage der Anfrage: `?tab=` nur für Kennungen aus [`TABS`] (der letzte
-    /// gültige Wert gilt), `?band=open|closed` vor dem Cookie `baruch_band`, `rest` ohne die Schlüssel beider Module.
+    /// State from cookie header and raw query of the request: `?tab=` only for ids from [`TABS`] (the last
+    /// valid value counts), `?band=open|closed` before the cookie `baruch_band`, `rest` without both modules' keys.
     pub fn from_request(cookie_header: Option<&str>, query: Option<&str>) -> BandState {
         let tab = pairs(query)
             .filter(|(key, _, _)| *key == "tab")
@@ -88,8 +88,8 @@ impl BandState {
     }
 }
 
-/// Fertige Set-Cookie-Werte für einen gültigen Schlüssel `band` in der Adresse: `closed` merkt das Cookie ein Jahr,
-/// `open` löscht es (fehlt = offen). Ohne gültigen Wert bleibt die Liste leer.
+/// Finished Set-Cookie values for a valid key `band` in the address: `closed` is remembered by the cookie for a
+/// year, `open` deletes it (missing = open). Without a valid value the list stays empty.
 pub fn set_cookies(query: Option<&str>) -> Vec<String> {
     match band_in_query(query) {
         Some(true) => vec![format!("{COOKIE}=closed; Path=/; Max-Age=31536000; SameSite=Lax")],
@@ -98,7 +98,7 @@ pub fn set_cookies(query: Option<&str>) -> Vec<String> {
     }
 }
 
-/// Maskiert einen Wert für ein HTML-Attribut in doppelten oder einfachen Anführungszeichen (`&`, `<`, `>`, `"`, `'`).
+/// Escapes a value for an HTML attribute in double or single quotes (`&`, `<`, `>`, `"`, `'`).
 pub fn escape_attr(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 8);
     for c in value.chars() {
@@ -114,7 +114,7 @@ pub fn escape_attr(value: &str) -> String {
     out
 }
 
-/// Kennungen der Reiter, die im Kopf stehen (`data-band-tab="ID"`), in der Reihenfolge der Seite; nur bekannte.
+/// Ids of the tabs that stand in the head (`data-band-tab="ID"`), in page order; known ones only.
 fn tabs_in(head: &str) -> Vec<&'static str> {
     let mut found = Vec::new();
     let mut rest = head;
@@ -130,14 +130,14 @@ fn tabs_in(head: &str) -> Vec<&'static str> {
     found
 }
 
-/// Wert von `data-band-default="…"` im Kopf.
+/// Value of `data-band-default="…"` in the head.
 fn default_tab(head: &str) -> Option<&str> {
     let rest = &head[head.find("data-band-default=\"")? + "data-band-default=\"".len()..];
     Some(rest[..rest.find('"')?].trim())
 }
 
-/// Schritt 2: aktiver Reiter = `?tab=`, falls die Seite ihn hat; sonst die Vorgabe der Seite, falls vorhanden; sonst
-/// der erste Reiter der Seite (ohne Reiter „start“).
+/// Step 2: active tab = `?tab=` if the page has it; else the default of the page if present; else
+/// the first tab of the page (without tab “start”).
 fn active_tab(head: &str, wanted: Option<&'static str>) -> &'static str {
     let tabs = tabs_in(head);
     wanted
@@ -147,8 +147,8 @@ fn active_tab(head: &str, wanted: Option<&'static str>) -> &'static str {
         .unwrap_or(TABS[0].0)
 }
 
-/// Schritte 3 bis 6 im Kopf: `data-tab`, Adressen und `aria-selected` der Reiter, `hidden` am aktiven Feld, Gruppen
-/// im kompakten Band als Popups. `prefix` ist der maskierte Rest der Abfrage samt `&amp;` (oder leer).
+/// Steps 3 to 6 in the head: `data-tab`, addresses and `aria-selected` of the tabs, `hidden` on the active panel,
+/// groups in the compact ribbon as popups. `prefix` is the escaped rest of the query including `&amp;` (or empty).
 fn fill_head(head: &str, active: &str, band: &BandState, prefix: &str, compact: bool) -> String {
     let mut out = head.replacen("data-tab=\"\"", &format!("data-tab=\"{active}\""), 1);
     for (id, _) in TABS {
@@ -157,7 +157,7 @@ fn fill_head(head: &str, active: &str, band: &BandState, prefix: &str, compact: 
             continue;
         }
         let is_active = id == active;
-        // Offen: der aktive Reiter klappt zu, die anderen wechseln nur. Zu: jeder Reiter öffnet das Band.
+        // Open: the active tab collapses, the others only switch. Closed: every tab opens the ribbon.
         let band_part = match (band.closed, is_active) {
             (true, _) => "&amp;band=open",
             (false, true) => "&amp;band=closed",
@@ -174,8 +174,8 @@ fn fill_head(head: &str, active: &str, band: &BandState, prefix: &str, compact: 
     out
 }
 
-/// Schritt 8: gedrückter Laptop-Schalter, Seitenleisten (gedrückt = sichtbar; eingeklappt zeigt die Adresse auf
-/// „ausklappen“) und der Band-Schalter (zugeklappt: Adresse auf `band=open`).
+/// Step 8: pressed laptop switch, side rails (pressed = visible; collapsed, the address points to
+/// “expand”) and the ribbon switch (collapsed: address to `band=open`).
 fn fill_switches(page: &str, band: &BandState, laptop: &LaptopState) -> String {
     let mode = laptop.mode.name();
     let mut out = page.replace(
@@ -200,8 +200,8 @@ fn fill_switches(page: &str, band: &BandState, laptop: &LaptopState) -> String {
     out
 }
 
-/// Schritt 7: jedes `href="?K=V"` mit genau einem Paar und K ∈ [`SWITCH_KEYS`] bekommt den Rest der Abfrage und den
-/// aktiven Reiter davor (`href="?<rest>&tab=<aktiv>&K=V"`). V nur aus `[A-Za-z0-9_-]`, sonst bleibt der Link, wie er ist.
+/// Step 7: every `href="?K=V"` with exactly one pair and K ∈ [`SWITCH_KEYS`] gets the rest of the query and the
+/// active tab before it (`href="?<rest>&tab=<active>&K=V"`). V only from `[A-Za-z0-9_-]`, else the link stays as is.
 fn fill_switch_links(page: &str, active: &str, prefix: &str) -> String {
     const OPEN: &str = "href=\"?";
     let mut out = String::with_capacity(page.len() + 256);
@@ -224,22 +224,22 @@ fn fill_switch_links(page: &str, active: &str, prefix: &str) -> String {
     out
 }
 
-/// Setzt den Zustand in eine fertige Seite ein; eine Seite ohne [`FILL`] bleibt unverändert. Schritte (Vertrag R33 §4):
-/// 1. Marke an `<html>` → Attribute des Laptop-Zustands und `data-band="open|closed"`;
-/// 2. aktiver Reiter ([`active_tab`]); 3. `data-tab` am Kopf; 4. Adressen der Reiter mit dem Rest der Abfrage,
-///    `aria-selected`, `band=closed` am aktiven bzw. `band=open` an allen bei zugeklapptem Band;
-/// 5. `hidden` fällt am aktiven Feld weg; 6. kompakt: Gruppen ohne `open`, mit `name="band-group"` (nur eine offen);
-/// 7. Schalter-Adressen (`?band=`, `?laptop=`, `?lrail=`, `?rrail=`) mit Rest und aktivem Reiter;
-/// 8. `aria-pressed` der Laptop- und Leisten-Schalter.
+/// Puts the state into a finished page; a page without [`FILL`] stays unchanged. Steps (contract R33 §4):
+/// 1. marker on `<html>` → attributes of the laptop state and `data-band="open|closed"`;
+/// 2. active tab ([`active_tab`]); 3. `data-tab` on the head; 4. addresses of the tabs with the rest of the query,
+///    `aria-selected`, `band=closed` on the active one or `band=open` on all with a collapsed ribbon;
+/// 5. `hidden` is dropped on the active panel; 6. compact: groups without `open`, with `name="band-group"` (one open);
+/// 7. switch addresses (`?band=`, `?laptop=`, `?lrail=`, `?rrail=`) with rest and active tab;
+/// 8. `aria-pressed` of the laptop and rail switches.
 pub fn apply(page: &str, band: &BandState, laptop: &LaptopState) -> String {
     if !page.contains(FILL) {
         return page.to_owned();
     }
     let state = if band.closed { "closed" } else { "open" };
     let page = page.replacen(FILL, &format!(" {} data-band=\"{state}\"", laptop.html_attrs()), 1);
-    // Rest der Abfrage: kommt aus der Adresse, also nur maskiert in ein Attribut. `node=` (Stelle im Baum, alte
-    // Adressform) geht nicht mit: Erzeugte Links tragen nie `node=` (Vertrag Runde 8 §1), sondern `key=`; eine
-    // Seite, die noch mit `?node=` aufgerufen wurde, verliert beim Reiterwechsel ohne JavaScript nur diese Stelle.
+    // Rest of the query: comes from the address, so only escaped into an attribute. `node=` (position in the tree, old
+    // address form) is not taken along: generated links never carry `node=` (contract Round 8 §1) but `key=`; a
+    // page that was still called with `?node=` loses only this position on a tab switch without JavaScript.
     let carried = pairs(Some(&band.rest))
         .filter(|(key, _, _)| *key != "node")
         .map(|(_, _, pair)| pair)
@@ -256,7 +256,7 @@ pub fn apply(page: &str, band: &BandState, laptop: &LaptopState) -> String {
             let filled = fill_head(&page[start..end], active, band, &prefix, laptop.compact());
             (format!("{}{}{}", &page[..start], filled, &page[end..]), active)
         }
-        // Seite ohne Kopf (eigener Block topbar): nur die Schalter, mit dem gewünschten Reiter.
+        // Page without head (own block topbar): only the switches, with the wanted tab.
         None => (page, band.tab.unwrap_or(TABS[0].0)),
     };
     let page = fill_switches(&page, band, laptop);
@@ -268,7 +268,7 @@ mod tests {
     use super::*;
     use crate::laptop::{LaptopState, Mode, Width};
 
-    /// Kopf in den wörtlichen Formen von `base.html`, mit den Reitern `tabs` und der Vorgabe `default`.
+    /// Head in the literal forms of `base.html`, with the tabs `tabs` and the default `default`.
     fn page(tabs: &[&str], default: &str) -> String {
         let mut out = String::from(
             "<html lang=\"de\" data-band-fill><body><header class=\"band\" data-widget=\"band\" data-tab=\"\">",
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn page_without_marker_stays_untouched() {
-        // Fragmente und Seiten, die base.html nicht erweitern, tragen die Marke nicht.
+        // Fragments and pages that do not extend base.html do not carry the marker.
         let plain = "<html lang=\"de\"><body><header class=\"band\" data-tab=\"\"></header>ohne Marke</body></html>";
         assert_eq!(apply(plain, &state("tab=buch"), &LaptopState::default()), plain, "ohne Marke keine Änderung");
     }
@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn tab_from_the_address_counts_only_if_the_page_has_it() {
-        // Seite mit Werk, aber nicht die Arbeitsseite: kein Reiter „Einfügen“.
+        // Page with a work, but not the work page: no tab „Einfügen“.
         let four = page(&["start", "pruefen", "buch", "ansicht"], "pruefen");
         let out = apply(&four, &state("tab=einfuegen"), &LaptopState::default());
         assert!(
@@ -364,7 +364,7 @@ mod tests {
             out.contains("data-tab=\"ansicht\""),
             "ein vorhandener Reiter aus der Adresse geht vor der Vorgabe: {out}"
         );
-        // Vorgabe, die es auf der Seite nicht gibt (Seite ohne Werk mit Vorgabe „buch“): der erste Reiter.
+        // Default that does not exist on the page (page without a work with default “buch”): the first tab.
         let two = page(&["start", "ansicht"], "buch");
         let out = apply(&two, &BandState::default(), &LaptopState::default());
         assert!(
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn a_hostile_rest_is_escaped_in_every_address() {
-        // Die Abfrage kommt roh aus der Adresse: Ein Anführungszeichen dürfte das Attribut nicht beenden.
+        // The query comes raw from the address: a quotation mark must not be able to end the attribute.
         let band = state("x=\"><script>alert(1)</script>&y='");
         let out = apply(&page(&ALL, "start"), &band, &LaptopState::default());
         assert!(!out.contains("<script>"), "kein Skript aus der Adresse im HTML: {out}");
@@ -549,7 +549,7 @@ mod tests {
             ),
             "die Schalter behalten Werk und Reiter in der Adresse: {out}"
         );
-        // „An“ klappt beide Leisten ein: nicht gedrückt, die Adresse klappt aus.
+        // “On” collapses both rails: not pressed, the address expands.
         assert!(
             out.contains("data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?work=1&amp;tab=start&amp;lrail=0\""),
             "eingeklappte Gliederung: nicht gedrückt, der Link klappt aus: {out}"
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn the_template_carries_the_literal_forms_apply_relies_on() {
-        // apply ersetzt Zeichenketten: Ändert jemand die Reihenfolge der Attribute in base.html, bliebe das Band stumm.
+        // apply replaces strings: if someone changes the attribute order in base.html, the ribbon would stay mute.
         let base = include_str!("../templates/base.html");
         for (id, _) in TABS {
             assert!(

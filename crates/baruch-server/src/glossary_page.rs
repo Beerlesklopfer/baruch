@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Glossarseite und Formular „an der Markierung“ ohne JavaScript (Runde 31c, Vertrag §3.4; Besitz kontextmenue).
+//! Glossary page and form “at the selection” without JavaScript (Round 31c, contract §3.4; owner kontextmenue).
 //!
-//! - `GET /werke/{id}/glossar` (Query `begriff` = vorbelegter neuer Begriff, `nachschlagen` = Wort, `id` = Begriff,
-//!   dessen Bearbeiten-Formular offen steht, `ok` = Hinweis nach Erfolg): angenommene Begriffe und – gesondert,
-//!   gekennzeichnet – die Vorschläge der Assistenten, Formulare anlegen/bearbeiten/löschen/übernehmen/verwerfen, Anker
+//! - `GET /werke/{id}/glossar` (query `begriff` = pre-filled new term, `nachschlagen` = word, `id` = term
+//!   whose edit form is open, `ok` = notice after success): accepted terms and – separately,
+//!   marked – the proposals of the assistants, forms create/edit/delete/accept/reject, anchor
 //!   `#begriff-{id}`.
-//! - `POST /werke/{id}/glossar/act` (Feld `action` = add|update|delete|accept|reject|suggest; `id`, `term`, `short`,
-//!   `long`, `variants` und `bible_refs` je Zeile, `source`, `confirm`, `back`, bei suggest wahlweise `key`) → 303 auf
-//!   `back` (sonst die Glossarseite) mit `ok=<action>`, Fehler 422 mit der Glossarseite samt Meldung und den Eingaben.
-//!   `suggest` („Begriffe vorschlagen lassen“, Nachbesserung R31) ruft RPC `glossary.suggest` (Lektor nach Einstellung,
-//!   ganzes Werk bzw. Abschnitt `key`) und leitet auf die Vorschläge der Glossarseite weiter
-//!   (`?ok=suggest&neu=N&uebersprungen=M#vorschlaege`); angelegt wird nur als Vorschlag.
-//! - `GET /werke/{id}/markierung` (Query `key`, `rev` (fehlt = aktuelle Fassung), `wort`): die drei Aktionen des
-//!   Kontextmenüs als Formulare („In Glossar aufnehmen“ → `glossar/act`, „In Register aufnehmen“ → `register/act`,
-//!   „Im Glossar nachschlagen“ → `glossar?nachschlagen=`) und die Registereinträge des Abschnitts mit „Entfernen“.
+//! - `POST /werke/{id}/glossar/act` (field `action` = add|update|delete|accept|reject|suggest; `id`, `term`, `short`,
+//!   `long`, `variants` and `bible_refs` one per line, `source`, `confirm`, `back`, for suggest optionally `key`) → 303
+//!   to `back` (otherwise the glossary page) with `ok=<action>`, errors 422 with the glossary page, message and inputs.
+//!   `suggest` („Begriffe vorschlagen lassen“, rework R31) calls RPC `glossary.suggest` (lector by setting,
+//!   whole work or section `key`) and redirects to the proposals of the glossary page
+//!   (`?ok=suggest&neu=N&uebersprungen=M#vorschlaege`); created only as a proposal.
+//! - `GET /werke/{id}/markierung` (query `key`, `rev` (missing = current revision), `wort`): the three actions of the
+//!   context menu as forms („In Glossar aufnehmen“ → `glossar/act`, „In Register aufnehmen“ → `register/act`,
+//!   „Im Glossar nachschlagen“ → `glossar?nachschlagen=`) and the index entries of the section with „Entfernen“.
 //!
-//! Keine eigene Datenhaltung: gelesen und geschrieben wird nur über [`crate::glossary`] und [`crate::index_marks`];
-//! deren Meldungen erscheinen ehrlich auf der Seite.
+//! No data storage of its own: reading and writing only through [`crate::glossary`] and [`crate::index_marks`];
+//! their messages appear honestly on the page.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
@@ -57,14 +57,14 @@ pub(crate) fn plain(status: StatusCode, message: &str) -> Response {
         .into_response()
 }
 
-// ---- Gemeinsame Bausteine (auch für index_page.rs) ----------------------------------------------------------------
+// ---- Shared building blocks (also for index_page.rs) --------------------------------------------------------------
 
-/// Erster Wert eines Formularfelds (ungetrimmt); fehlt → "".
+/// First value of a form field (untrimmed); missing → "".
 pub(crate) fn field<'a>(fields: &'a [(String, String)], name: &str) -> &'a str {
     fields.iter().find(|(k, _)| k == name).map_or("", |(_, v)| v.as_str())
 }
 
-/// Alle Zeilen aller Felder `name` (je Zeile ein Wert; leere Zeilen fallen weg, getrimmt).
+/// All lines of all fields `name` (one value per line; empty lines dropped, trimmed).
 pub(crate) fn lines(fields: &[(String, String)], name: &str) -> Vec<String> {
     fields
         .iter()
@@ -73,7 +73,7 @@ pub(crate) fn lines(fields: &[(String, String)], name: &str) -> Vec<String> {
         .collect()
 }
 
-/// Ist `back` eine Adresse dieses Servers (Pfad mit `/`, kein `//`, kein Backslash, keine Steuerzeichen)?
+/// Is `back` an address of this server (path with `/`, no `//`, no backslash, no control characters)?
 pub(crate) fn safe_back(back: &str) -> bool {
     back.starts_with('/')
         && !back.starts_with("//")
@@ -82,8 +82,8 @@ pub(crate) fn safe_back(back: &str) -> bool {
         && !back.chars().any(char::is_control)
 }
 
-/// Ziel nach Erfolg: `back` (falls sicher, sonst `default`) mit `ok=<ok>` vor dem Anker; `anchor` ersetzt einen
-/// fehlenden Anker.
+/// Target after success: `back` (if safe, otherwise `default`) with `ok=<ok>` before the anchor; `anchor` replaces a
+/// missing anchor.
 pub(crate) fn back_to(back: &str, default: &str, ok: &str, anchor: Option<&str>) -> String {
     let target = if safe_back(back) { back } else { default };
     let (base, frag) = match target.split_once('#') {
@@ -99,13 +99,14 @@ pub(crate) fn back_to(back: &str, default: &str, ok: &str, anchor: Option<&str>)
     out
 }
 
-/// Status einer abgelehnten Aktion: interne Fehler 500, sonst 422 (ungültig, abgelehnt, kein Modell).
+/// Status of a refused action: internal errors 500, otherwise 422 (invalid, refused, no model).
 pub(crate) fn failure_status(e: &RpcError) -> StatusCode {
     if e.code == INTERNAL { StatusCode::INTERNAL_SERVER_ERROR } else { StatusCode::UNPROCESSABLE_ENTITY }
 }
 
-/// Grundkontext jeder Seite: Einstellungen aus dem Cookie und das Werk (id, Titel); unbekanntes Werk → 404.
-// `Response` als Fehler ist hier gewollt (fertige Antwort für `?` im Handler); ein `Box` änderte alle Aufrufer.
+/// Base context of every page: settings from the cookie and the work (id, title); unknown work → 404.
+// `Response` as the error is intended here (finished response for `?` in the handler); a `Box` would change all
+// callers.
 #[allow(clippy::result_large_err)]
 pub(crate) async fn page_base(
     state: &AppState,
@@ -119,7 +120,7 @@ pub(crate) async fn page_base(
     Ok((JinjaValue::from(Serde(&settings)), JinjaValue::from(Serde(json!({ "id": work, "title": meta.title })))))
 }
 
-/// Hinweis zu `ok` nach einer Aktion der Glossarseite.
+/// Notice for `ok` after an action of the glossary page.
 pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
     Some(match ok {
         "add" => "Begriff ins Glossar aufgenommen.",
@@ -131,7 +132,7 @@ pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
     })
 }
 
-/// Hinweis der Glossarseite zu `ok` (bei `suggest` mit den Zahlen aus `neu` und `uebersprungen`).
+/// Notice of the glossary page for `ok` (for `suggest` with the numbers from `neu` and `uebersprungen`).
 fn ok_text(query: &BTreeMap<String, String>) -> Option<String> {
     let ok = query.get("ok")?;
     if ok == "suggest" {
@@ -150,9 +151,9 @@ fn ok_text(query: &BTreeMap<String, String>) -> Option<String> {
     ok_message(ok).map(str::to_owned)
 }
 
-// ---- Glossarseite -------------------------------------------------------------------------------------------------
+// ---- Glossary page ------------------------------------------------------------------------------------------------
 
-/// Ein abgelehntes Formular: Aktion, Begriff (bei update/delete/accept/reject), Eingaben und Meldung.
+/// A rejected form: action, term (for update/delete/accept/reject), inputs and message.
 #[derive(Debug, Clone, Default)]
 struct Retry {
     action: String,
@@ -161,14 +162,14 @@ struct Retry {
     message: String,
 }
 
-/// Begriffe des Werks über RPC `glossary.list` (Status „all“), getrennt nach angenommen und vorgeschlagen.
+/// Terms of the work through RPC `glossary.list` (status “all”), separated into accepted and proposed.
 async fn load_terms(state: &AppState, work: WorkId) -> Result<(Vec<Value>, Vec<Value>), RpcError> {
     let answer = crate::glossary::call(state, work, "glossary.list", json!({ "work": work, "status": "all" })).await?;
     let terms = answer.get("terms").and_then(Value::as_array).cloned().unwrap_or_default();
     Ok(terms.into_iter().partition(|t| t.get("status").and_then(Value::as_str) != Some("proposed")))
 }
 
-/// Zeilen eines Begriffs für die Textfelder „je Zeile“.
+/// Lines of a term for the text fields “one per line”.
 fn joined_lines(term: &Value, key: &str) -> String {
     term.get(key)
         .and_then(Value::as_array)
@@ -176,7 +177,7 @@ fn joined_lines(term: &Value, key: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Begriff für die Vorlage: alle Felder, dazu `variants_text`/`bible_refs_text` (je Zeile) und `filter` (Suchtext).
+/// Term for the template: all fields, plus `variants_text`/`bible_refs_text` (one per line) and `filter` (search text).
 fn term_view(term: &Value) -> Value {
     let mut view = term.clone();
     let text = |k: &str| term.get(k).and_then(Value::as_str).unwrap_or_default().to_owned();
@@ -254,7 +255,7 @@ async fn glossary(
     glossary_page(&state, &headers, work, &query, None, StatusCode::OK).await
 }
 
-/// Eingaben eines Begriffs aus dem Formular.
+/// Inputs of a term from the form.
 fn edit_from(fields: &[(String, String)]) -> GlossaryEdit {
     GlossaryEdit {
         term: field(fields, "term").trim().to_owned(),
@@ -266,7 +267,7 @@ fn edit_from(fields: &[(String, String)]) -> GlossaryEdit {
     }
 }
 
-/// `POST /werke/{id}/glossar/act`: `action` = add|update|delete|accept|reject|suggest → 303 bzw. 422.
+/// `POST /werke/{id}/glossar/act`: `action` = add|update|delete|accept|reject|suggest → 303 or 422.
 async fn act(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -308,7 +309,7 @@ async fn act(
             Err(m) => Err(Err(m)),
         },
         "suggest" => {
-            // Nur Vorschläge (Herkunft die Persona); übernehmen bleibt beim Menschen.
+            // Proposals only (origin the persona); adopting stays with the human.
             let key = match field(&fields, "key").trim() {
                 "" => Ok(None),
                 k => k.parse::<i64>().map(Some).map_err(|_| format!("Abschnitt „{k}“: Zahl erwartet.")),
@@ -345,7 +346,7 @@ async fn act(
     }
 }
 
-// ---- Formular „an der Markierung“ ---------------------------------------------------------------------------------
+// ---- Form “at the selection” --------------------------------------------------------------------------------------
 
 /// `GET /werke/{id}/markierung?key=K[&rev=R][&wort=W]`.
 async fn marking(
@@ -400,7 +401,7 @@ async fn marking(
             }
         },
     }
-    // Registereinträge des Abschnitts (aktuelle Fassung) mit „Entfernen“; Fehler ehrlich.
+    // Index entries of the section (current revision) with „Entfernen“; errors honestly.
     let (entries, entries_error) = match (&section, key) {
         (Some(_), Some(key)) => match crate::index_marks::entries(&state, work, Some(key)).await {
             Ok(v) => (v.get("entries").cloned().unwrap_or_else(|| json!([])), None),
@@ -425,19 +426,19 @@ async fn marking(
         entries => JinjaValue::from(Serde(&entries)),
         entries_error => entries_error,
         registers => JinjaValue::from(Serde(&registers)),
-        // Nur Ziffern, feste Wörter und query_escape: sicher als Attribut (| safe), & maskiert.
+        // Only digits, fixed words and query_escape: safe as an attribute (| safe), & escaped.
         back => back.replace('&', "&amp;"),
         ok => ok,
     };
     render(status, "marking.html", ctx)
 }
 
-/// Seiten (`GET /werke/{id}/glossar`, `GET /werke/{id}/markierung`).
+/// Pages (`GET /werke/{id}/glossar`, `GET /werke/{id}/markierung`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/glossar", get(glossary)).route("/werke/{id}/markierung", get(marking))
 }
 
-/// Schreibende Routen (`POST /werke/{id}/glossar/act`, hinter `guard::same_origin`).
+/// Writing routes (`POST /werke/{id}/glossar/act`, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/glossar/act", post(act))
 }

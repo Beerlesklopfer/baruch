@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Übersicht der Befunde (Runde 28, befund-uebersicht): RPC `finding.matrix`, Seite `GET /werke/{id}/befunde` und
-//! Formulare `POST /werke/befunde/act`.
+//! Overview of the findings (Round 28, befund-uebersicht): RPC `finding.matrix`, page `GET /werke/{id}/befunde` and
+//! forms `POST /werke/befunde/act`.
 //!
-//! - **Matrix** ([`matrix`]): Zeilen sind Kapitel (ein Kapitel samt seinen Abschnitten; Abschnitte ohne Kapitel
-//!   stehen für sich, ein Teil mit eigenen Befunden bekommt eine Zeile „Teil selbst“), gruppiert nach Teilen
-//!   (Summen je Teil), Spalten die Personas mit Befunden (Reihenfolge der Personas des Werks, dann alphabetisch).
-//!   Je Zelle die Zahl je Status; Lob zählt nur in `praise` (und nur mit `include_praise`), angehängte Befunde
-//!   (`similar_to`) nie. Ohne Filter ist `open` je Zeile genau die Summe der Abzeichen (Zählregel Vertrag §1.5,
-//!   `open_badge`). Befunde ohne Abschnitt (Fäden, gelöschte Abschnitte) stehen in der Gruppe „Ohne Abschnitt“.
-//! - **Seite**: Matrix mit Filtern (GET-Parameter wie bei `finding.matrix`), Zelle per `?key=&persona=` (Befunde
-//!   des Kapitels samt Unterpunkten, angehängte unter dem Original), einzelner Befund per `?befund=` (Verlauf,
-//!   angehängte, Ursprünge eines Sammelvorschlags), sonst die Liste „offen, älter als n Tagen“ (Vorgabe 14), die
-//!   Sammelvorschläge und der Verlauf je Kapitel (eingeflossen in welche Fassungen, verworfen, verschoben,
-//!   erledigt). Alles ohne JavaScript; das Widget `findings` (web/src/findings.ts) filtert ohne Neuladen.
-//! - **Formulare**: `finding.set_status` und `finding.decide` gehen an [`super::rpc`] (dort Sperre und Commit);
-//!   danach 303 auf `back` (nur eigene Adressen) bzw. den Befund; Fehler 200 mit Hinweis und dem Entwurf im
-//!   Formular (nichts geht verloren).
+//! - **Matrix** ([`matrix`]): rows are chapters (a chapter with its sections; sections without a chapter
+//!   stand on their own, a part with own findings gets a row „Teil selbst“), grouped by parts
+//!   (sums per part), columns the personas with findings (order of the personas of the work, then alphabetical).
+//!   Per cell the number per status; praise counts only in `praise` (and only with `include_praise`), attached findings
+//!   (`similar_to`) never. Without a filter `open` per row is exactly the sum of the badges (counting rule contract
+//!   §1.5, `open_badge`). Findings without a section (threads, deleted sections) are in the group „Ohne Abschnitt“.
+//! - **Page**: matrix with filters (GET parameters as for `finding.matrix`), cell through `?key=&persona=` (findings
+//!   of the chapter with sub-items, attached ones below the original), single finding through `?befund=` (history,
+//!   attached ones, origins of a collective proposal), otherwise the list „offen, älter als n Tagen“ (default 14), the
+//!   collective proposals and the history per chapter (flowed into which revisions, rejected, postponed,
+//!   resolved). All without JavaScript; the widget `findings` (web/src/findings.ts) filters without reloading.
+//! - **Forms**: `finding.set_status` and `finding.decide` go to [`super::rpc`] (lock and commit there);
+//!   then 303 to `back` (own addresses only) or the finding; errors 200 with a notice and the draft in the
+//!   form (nothing is lost).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::{Arc, OnceLock};
@@ -40,34 +40,34 @@ use crate::view::{Settings, levels, query_escape};
 
 pub const METHODS: &[&str] = &["finding.matrix"];
 
-/// Vorgabe der Liste „offen, älter als n Tagen“ auf der Seite.
+/// Default of the list „offen, älter als n Tagen“ on the page.
 pub const DEFAULT_OLDER_DAYS: u32 = 14;
-/// Größte Zahl der Tage für `older_than_days` (zehn Jahre).
+/// Largest number of days for `older_than_days` (ten years).
 pub const MAX_OLDER_DAYS: u32 = 3650;
-/// Ab so vielen offenen Befunden gilt ein Kapitel als „viele offen“ (Hervorhebung in Matrix und Gedankenkarte).
+/// From this many open findings on a chapter counts as “many open” (highlight in matrix and mind map).
 pub const MANY_OPEN: usize = 3;
 
-/// Bedient dieses Modul die RPC-Methode?
+/// Does this module serve the RPC method?
 pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
 // ---- Filter --------------------------------------------------------------------------------------
 
-/// Filter der Matrix und der Seite (GET-Parameter und RPC gleich benannt).
+/// Filters of the matrix and the page (GET parameters and RPC named alike).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct MatrixFilter {
-    /// Leer = alle.
+    /// Empty = all.
     pub status: Vec<FindingStatus>,
-    /// Leer = alle (Lob nur mit `include_praise` oder ausdrücklich).
+    /// Empty = all (praise only with `include_praise` or explicitly).
     pub kind: Vec<FindingKind>,
     pub persona: Option<String>,
-    /// `created >= since` (ISO, z. B. `2026-11-01`).
+    /// `created >= since` (ISO, e.g. `2026-11-01`).
     pub since: Option<String>,
     /// `created < until` (ISO).
     pub until: Option<String>,
     pub include_praise: bool,
-    /// Nur Befunde, die älter als so viele Tage sind.
+    /// Only findings older than this many days.
     pub older_than_days: Option<u32>,
 }
 
@@ -75,7 +75,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
     RpcError::new(INVALID_PARAMS, message)
 }
 
-/// Statuswörter „open,adopted“ bzw. Liste; unbekannte → Fehlertext.
+/// Status words „open,adopted“ or a list; unknown → error text.
 fn parse_statuses(words: &[String]) -> Result<Vec<FindingStatus>, String> {
     let mut out = Vec::new();
     for word in words.iter().flat_map(|w| w.split(',')).map(str::trim).filter(|w| !w.is_empty()) {
@@ -101,7 +101,7 @@ fn parse_kinds(words: &[String]) -> Result<Vec<FindingKind>, String> {
     Ok(out)
 }
 
-/// Zeitangabe für `since`/`until`: nur Ziffern, `-`, `:`, `.`, `T`, `Z`, höchstens 30 Zeichen.
+/// Time value for `since`/`until`: only digits, `-`, `:`, `.`, `T`, `Z`, at most 30 characters.
 fn clean_time(value: &str) -> Option<String> {
     let value = value.trim();
     let ok = !value.is_empty()
@@ -111,7 +111,7 @@ fn clean_time(value: &str) -> Option<String> {
     ok.then(|| value.to_owned())
 }
 
-/// Persona-Handle: höchstens 200 Zeichen, ohne Steuerzeichen.
+/// Persona handle: at most 200 characters, no control characters.
 fn clean_persona(value: &str) -> Option<String> {
     let value = value.trim();
     (!value.is_empty() && value.chars().count() <= 200 && !value.chars().any(char::is_control))
@@ -119,7 +119,7 @@ fn clean_persona(value: &str) -> Option<String> {
 }
 
 impl MatrixFilter {
-    /// Aus den RPC-Parametern; falsche Werte → `-32602`.
+    /// From the RPC parameters; wrong values → `-32602`.
     pub fn from_params(params: &Json) -> Result<MatrixFilter, RpcError> {
         let words = |name: &str| -> Result<Vec<String>, RpcError> {
             match params.get(name) {
@@ -171,7 +171,7 @@ impl MatrixFilter {
         })
     }
 
-    /// Aus den Paaren der Adresse; Ungültiges fällt weg (wie bei den übrigen Seiten).
+    /// From the pairs of the address; invalid values are dropped (as on the other pages).
     pub fn from_pairs(pairs: &[(String, String)]) -> MatrixFilter {
         let mut filter = MatrixFilter::default();
         let mut statuses = Vec::new();
@@ -190,7 +190,7 @@ impl MatrixFilter {
                 _ => {}
             }
         }
-        // Einzeln gültige Wörter übernehmen, ungültige übergehen.
+        // Take individually valid words, skip invalid ones.
         filter.status =
             statuses.iter().filter_map(|s| parse_statuses(std::slice::from_ref(s)).ok()).flatten().collect();
         filter.status.dedup();
@@ -199,7 +199,7 @@ impl MatrixFilter {
         filter
     }
 
-    /// Kanonischer Abfrageteil (ohne `?`, prozentkodiert, leer ohne Filter).
+    /// Canonical query part (without `?`, percent-encoded, empty without a filter).
     pub fn query(&self) -> String {
         let mut parts: Vec<String> = Vec::new();
         for status in &self.status {
@@ -226,12 +226,12 @@ impl MatrixFilter {
         parts.join("&")
     }
 
-    /// Gibt es überhaupt einen Filter?
+    /// Is there any filter at all?
     pub fn is_empty(&self) -> bool {
         self.query().is_empty()
     }
 
-    /// Auswahl für den Store: `keys` (leer = alle), angehängte nie.
+    /// Selection for the store: `keys` (empty = all), attached ones never.
     fn store_filter(&self, keys: Vec<i64>, persona: Option<&str>) -> FindingFilter {
         let cutoff = self.older_than_days.map(cutoff_days);
         let until = match (&self.until, cutoff) {
@@ -253,7 +253,7 @@ impl MatrixFilter {
     }
 }
 
-/// Zeitpunkt vor `days` Tagen (UTC, Form wie `created`: `2026-11-09T10:11:12.123Z`).
+/// Time `days` days ago (UTC, form like `created`: `2026-11-09T10:11:12.123Z`).
 pub fn cutoff_days(days: u32) -> String {
     let at = chrono::Utc::now() - chrono::Duration::days(i64::from(days));
     at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
@@ -261,7 +261,7 @@ pub fn cutoff_days(days: u32) -> String {
 
 // ---- Matrix --------------------------------------------------------------------------------------
 
-/// Zahlen einer Zelle bzw. Summe: je Status (ohne Lob), Lob und alle.
+/// Numbers of a cell or sum: per status (without praise), praise and all.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct Counts {
     pub open: usize,
@@ -269,10 +269,10 @@ pub struct Counts {
     pub rejected: usize,
     pub deferred: usize,
     pub done: usize,
-    /// Lob (jeder Status; nur mit `include_praise` gezählt).
+    /// Praise (every status; counted only with `include_praise`).
     pub praise: usize,
     pub total: usize,
-    /// Runde 30b: Befunde ohne Lob mit mindestens einer Lösung bzw. ohne Lösung.
+    /// Round 30b: findings without praise with at least one solution, or without a solution.
     pub solved: usize,
     pub unsolved: usize,
 }
@@ -290,9 +290,9 @@ impl Counts {
             self.solved += 1;
         }
         match finding.status {
-            // Runde 23a (PM-Entscheidung): Ein offener Sammelbefund zählt nicht als „offen“ – seine Ursprünge zählen
-            // schon. So bleibt „offen“ je Zeile die Summe der Abzeichen (`finding_open_counts`); in `total` und in der
-            // Liste „Sammelvorschläge“ steht er weiter.
+            // Round 23a (PM decision): an open collective finding does not count as “open” – its origins count
+            // already. So “open” per row stays the sum of the badges (`finding_open_counts`); it still is in `total`
+            // and in the list „Sammelvorschläge“.
             FindingStatus::Open if !finding.summary_of.is_empty() => {}
             FindingStatus::Open => self.open += 1,
             FindingStatus::Adopted => self.adopted += 1,
@@ -314,8 +314,8 @@ impl Counts {
         self.unsolved += other.unsolved;
     }
 
-    /// Runde 30b: „mit Lösung / ohne Lösung“ in Worten, z. B. „2 mit Lösung, 1 ohne Lösung“; ohne Befunde (ohne Lob)
-    /// leer.
+    /// Round 30b: „mit Lösung / ohne Lösung“ in words, e.g. „2 mit Lösung, 1 ohne Lösung“; without findings (without
+    /// praise) empty.
     pub fn solution_words(&self) -> String {
         if self.solved + self.unsolved == 0 {
             return String::new();
@@ -323,7 +323,7 @@ impl Counts {
         format!("{} mit Lösung, {} ohne Lösung", self.solved, self.unsolved)
     }
 
-    /// Zahl zu einem Status.
+    /// Number for a status.
     pub fn of(&self, status: FindingStatus) -> usize {
         match status {
             FindingStatus::Open => self.open,
@@ -334,7 +334,7 @@ impl Counts {
         }
     }
 
-    /// Zeichen und Zahl je vorhandenem Status, z. B. „○2 ✓1“ (Lob „+1“); ohne Befunde „–“.
+    /// Sign and number per existing status, e.g. „○2 ✓1“ (praise „+1“); without findings „–“.
     pub fn label(&self) -> String {
         let mut parts: Vec<String> = FindingStatus::ALL
             .into_iter()
@@ -347,7 +347,7 @@ impl Counts {
         if parts.is_empty() { "–".to_owned() } else { parts.join(" ") }
     }
 
-    /// In Worten, z. B. „2 offen, 1 übernommen“; ohne Befunde „keine Befunde“.
+    /// In words, e.g. „2 offen, 1 übernommen“; without findings „keine Befunde“.
     pub fn words(&self) -> String {
         let mut parts: Vec<String> = FindingStatus::ALL
             .into_iter()
@@ -361,31 +361,31 @@ impl Counts {
     }
 }
 
-/// Eine Zeile der Matrix: ein Kapitel samt Unterpunkten (bzw. ein Teil selbst, ein Abschnitt ohne Kapitel, „ohne
+/// A row of the matrix: a chapter with sub-items (or a part itself, a section without a chapter, „ohne
 /// Abschnitt“).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MatrixRow {
-    /// Fester Schlüssel des Kapitels; `None` = ohne Abschnitt.
+    /// Fixed key of the chapter; `None` = without a section.
     pub key: Option<i64>,
     pub number: String,
     pub title: String,
-    /// Ebene (Teil 0, Kapitel 1, …).
+    /// Level (part 0, chapter 1, …).
     pub level: u8,
-    /// Zeile für den Teil selbst (Befunde am Teil oder an Abschnitten direkt darunter).
+    /// Row for the part itself (findings on the part or on sections directly below it).
     pub part: bool,
-    /// Schlüssel des Kapitels und aller Unterpunkte.
+    /// Keys of the chapter and all sub-items.
     pub keys: Vec<i64>,
-    /// Je Persona (Reihenfolge von [`Matrix::personas`]).
+    /// Per persona (order of [`Matrix::personas`]).
     pub cells: Vec<Counts>,
     pub total: Counts,
-    /// Offene Befunde nach den Abzeichen (Zählregel §1.5, ohne Filter), Summe über `keys`.
+    /// Open findings by the badges (counting rule §1.5, without filter), sum over `keys`.
     pub open_badge: usize,
 }
 
-/// Eine Gruppe (ein Teil, „ohne Teil“ bzw. „ohne Abschnitt“) mit Summen.
+/// A group (a part, “without part” or “without section”) with sums.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct MatrixGroup {
-    /// „part“, „none“ (Kapitel vor bzw. ohne Teil) oder „unplaced“ (ohne Abschnitt).
+    /// “part”, “none” (chapters before or without a part) or “unplaced” (without a section).
     pub kind: &'static str,
     pub key: Option<i64>,
     pub number: String,
@@ -396,13 +396,13 @@ pub struct MatrixGroup {
     pub open_badge: usize,
 }
 
-/// Verlauf eines Kapitels: entschiedene Befunde und die Fassungen, in die sie eingeflossen sind.
+/// History of a chapter: decided findings and the revisions they flowed into.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct HistoryRow {
     pub key: i64,
     pub label: String,
     pub total: Counts,
-    /// Je Abschnitt und Fassung die übernommenen Befunde (ids aufsteigend).
+    /// Per section and revision the adopted findings (ids ascending).
     pub revisions: Vec<AdoptedIn>,
 }
 
@@ -412,11 +412,11 @@ pub struct AdoptedIn {
     pub label: String,
     pub rev: u32,
     pub findings: Vec<i64>,
-    /// Runde 22: je Befund (gleiche Reihenfolge wie `findings`) der Stand der Fortschreibung beim Übernehmen; 0 = keiner.
+    /// Round 22: per finding (same order as `findings`) the continuation state when adopting; 0 = none.
     pub stands: Vec<u32>,
 }
 
-/// Die ganze Matrix eines Werks.
+/// The whole matrix of a work.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Matrix {
     pub work: WorkId,
@@ -425,20 +425,20 @@ pub struct Matrix {
     pub groups: Vec<MatrixGroup>,
     pub totals: Vec<Counts>,
     pub total: Counts,
-    /// Abzeichen: `node.id` → offene Befunde (nur der Abschnitt selbst, ohne Filter).
+    /// Badges: `node.id` → open findings (only the section itself, without filter).
     pub open_by_key: BTreeMap<i64, usize>,
-    /// Summe aller Abzeichen (wie `menu.badges` → `open_findings`).
+    /// Sum of all badges (like `menu.badges` → `open_findings`).
     pub open_findings: usize,
     pub history: Vec<HistoryRow>,
-    /// Angewandter Filter.
+    /// Applied filter.
     pub filter: MatrixFilter,
-    /// Gekappt: Zahl aller Befunde im Filter, wenn die Zellen nur die neuesten [`super::view::VIEW_LIMIT`] zählen
-    /// (`None` = vollständig). Die Abzeichen zählen immer alle.
+    /// Capped: number of all findings in the filter if the cells count only the newest [`super::view::VIEW_LIMIT`]
+    /// (`None` = complete). The badges always count all.
     pub truncated: Option<usize>,
 }
 
-/// Kapitel-Einheit einer Stelle: der Punkt selbst, wenn er Kapitel oder Teil ist, sonst der nächste Vorfahre der
-/// Ebene ≤ 1; ohne solchen der oberste Vorfahre.
+/// Chapter unit of a position: the item itself if it is a chapter or part, otherwise the nearest ancestor of
+/// level ≤ 1; without such the topmost ancestor.
 fn unit_of(work: &Work, levels: &[u8], seq: usize) -> usize {
     let mut at = seq;
     let mut steps = 0;
@@ -452,7 +452,7 @@ fn unit_of(work: &Work, levels: &[u8], seq: usize) -> usize {
     at
 }
 
-/// Teil einer Stelle (nächster Vorfahre bzw. sie selbst auf Ebene 0).
+/// Part of a position (nearest ancestor or itself on level 0).
 fn part_of(work: &Work, levels: &[u8], seq: usize) -> Option<usize> {
     let mut at = Some(seq);
     let mut steps = 0;
@@ -469,7 +469,7 @@ fn part_of(work: &Work, levels: &[u8], seq: usize) -> Option<usize> {
     None
 }
 
-/// Schlüssel einer Stelle und aller Unterpunkte.
+/// Keys of a position and all sub-items.
 pub fn subtree_keys(work: &Work, seq: usize) -> Vec<i64> {
     let mut keys = vec![work.nodes[seq].key];
     let mut inside: HashSet<usize> = HashSet::from([seq]);
@@ -485,7 +485,7 @@ pub fn subtree_keys(work: &Work, seq: usize) -> Vec<i64> {
     keys
 }
 
-/// Spalten: Personas mit Befunden, in der Reihenfolge der Personas des Werks, dann alphabetisch.
+/// Columns: personas with findings, in the order of the personas of the work, then alphabetical.
 fn persona_columns(work: &Work, findings: &[Finding]) -> Vec<String> {
     let present: HashSet<&str> = findings.iter().map(|f| f.persona.as_str()).collect();
     let mut out: Vec<String> =
@@ -497,7 +497,7 @@ fn persona_columns(work: &Work, findings: &[Finding]) -> Vec<String> {
     out
 }
 
-/// Setzt die Matrix zusammen (siehe Moduldoku).
+/// Assembles the matrix (see module doc).
 pub async fn matrix(state: &AppState, work_id: WorkId, filter: &MatrixFilter) -> Result<Matrix, RpcError> {
     let work = state.store.load_work(work_id).await?;
     let open_by_key = state.store.finding_open_counts(work_id).await?;
@@ -510,7 +510,7 @@ pub async fn matrix(state: &AppState, work_id: WorkId, filter: &MatrixFilter) ->
     Ok(matrix)
 }
 
-/// Je Abschnitt mit übernommenen Befunden die Fassungen ([`baruch_store::Store::findings_adopted_in`]).
+/// Per section with adopted findings the revisions ([`baruch_store::Store::findings_adopted_in`]).
 async fn adopted_map(
     state: &AppState,
     work: WorkId,
@@ -527,11 +527,11 @@ async fn adopted_map(
     Ok(out)
 }
 
-/// Höchstzahl der Befunde in der Liste „Offen, älter als n Tage“; gibt es mehr, zeigt die Seite die neuesten davon und
-/// einen Hinweis auf die Kappung (Runde 23a).
+/// Maximum number of findings in the list „Offen, älter als n Tage“; if there are more, the page shows the newest
+/// of them and a note about the cap (Round 23a).
 pub const OLD_LIMIT: u32 = 200;
 
-/// Reiner Aufbau der Matrix aus geladenen Daten (testbar ohne Server).
+/// Pure construction of the matrix from loaded data (testable without server).
 pub fn build_matrix(
     work_id: WorkId,
     work: &Work,
@@ -546,7 +546,7 @@ pub fn build_matrix(
     let seq_of_key: HashMap<i64, usize> = work.nodes.iter().map(|n| (n.key, n.id)).collect();
     let empty = || vec![Counts::default(); personas.len()];
 
-    // Zeilen je Einheit in Baumreihenfolge, Gruppen nach Teil.
+    // Rows per unit in tree order, groups by part.
     let mut groups: Vec<MatrixGroup> = Vec::new();
     let mut group_of_part: HashMap<Option<usize>, usize> = HashMap::new();
     let mut row_of_unit: HashMap<usize, (usize, usize)> = HashMap::new();
@@ -573,7 +573,7 @@ pub fn build_matrix(
             groups.len() - 1
         });
         let keys = if levels[node.id] == 0 {
-            // Teil selbst: der Teil und die Punkte darunter, die keinem Kapitel gehören.
+            // Part itself: the part and the items below it that belong to no chapter.
             subtree_keys(work, node.id)
                 .into_iter()
                 .filter(|k| seq_of_key.get(k).is_some_and(|&s| unit_of(work, &levels, s) == node.id))
@@ -619,7 +619,7 @@ pub fn build_matrix(
         row.cells[col].add(finding);
         row.total.add(finding);
     }
-    // Teil-Zeilen ohne Befunde fallen weg; Summen je Gruppe.
+    // Part rows without findings are dropped; sums per group.
     for group in &mut groups {
         group.rows.retain(|r| !r.part || r.total.total > 0 || r.open_badge > 0);
         for row in &group.rows {
@@ -657,7 +657,7 @@ pub fn build_matrix(
         total.plus(&group.total);
     }
 
-    // Verlauf je Kapitel: Zeilen mit entschiedenen Befunden, dazu die Fassungen (nur gezeigte Befunde).
+    // History per chapter: rows with decided findings, plus the revisions (only findings shown).
     let shown: HashSet<i64> = findings.iter().map(|f| f.id).collect();
     let stand_of: HashMap<i64, u32> = findings.iter().map(|f| (f.id, f.adopted_amend.unwrap_or(0))).collect();
     let mut history = Vec::new();
@@ -702,7 +702,7 @@ pub fn build_matrix(
 }
 
 /// RPC `finding.matrix {work, status?, kind?, persona?, since?, until?, include_praise?, older_than_days?}` →
-/// [`Matrix`] als JSON; fehlt `work`, das Vorgabewerk.
+/// [`Matrix`] as JSON; if `work` is missing, the default work.
 pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
@@ -719,7 +719,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
     }
 }
 
-// ---- Seite ---------------------------------------------------------------------------------------
+// ---- Page ----------------------------------------------------------------------------------------
 
 fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
@@ -729,7 +729,7 @@ fn templates() -> &'static Environment<'static> {
             ("base.html", include_str!("../../templates/base.html")),
             ("befunde.html", include_str!("../../templates/befunde.html")),
             ("fragments/findings_panel.html", include_str!("../../templates/fragments/findings_panel.html")),
-            // Runde 30 (Schnittstelle R30-S1): Befund-Block und Lösungen eines Beitrags.
+            // Round 30 (interface R30-S1): finding block and solutions of a post.
             ("fragments/finding_block.html", include_str!("../../templates/fragments/finding_block.html")),
             ("fragments/post_solutions.html", include_str!("../../templates/fragments/post_solutions.html")),
         ] {
@@ -739,7 +739,7 @@ fn templates() -> &'static Environment<'static> {
     })
 }
 
-/// Selbst gebaute Adresse als sicherer Wert für `href` (`&` maskiert); mit unsicherem Zeichen `#`.
+/// Self-built address as a safe value for `href` (`&` escaped); with an unsafe character `#`.
 fn href(url: String) -> Value {
     if url.chars().any(|c| matches!(c, '"' | '<' | '>' | '\'' | ' ') || c.is_control()) {
         return Value::from_safe_string("#".to_owned());
@@ -751,7 +751,7 @@ fn with_query(path: &str, query: &str) -> String {
     if query.is_empty() { path.to_owned() } else { format!("{path}?{query}") }
 }
 
-/// Rücksprung nur auf eigene Adressen: beginnt mit genau einem `/`, ohne Steuerzeichen, Leerraum und Anführung.
+/// Way back only to own addresses: starts with exactly one `/`, no control characters, whitespace or quotes.
 pub fn safe_back(back: Option<&str>) -> Option<String> {
     let back = back?.trim();
     let ok = back.starts_with('/')
@@ -762,7 +762,7 @@ pub fn safe_back(back: Option<&str>) -> Option<String> {
     ok.then(|| back.to_owned())
 }
 
-/// Ziele für „verschoben nach Abschnitt“: alle Punkte des Werks, eingerückt nach Ebene.
+/// Targets for “postponed to section”: all items of the work, indented by level.
 pub fn defer_targets(work: &Work) -> Vec<Json> {
     let levels = levels(work);
     work.nodes
@@ -774,7 +774,7 @@ pub fn defer_targets(work: &Work) -> Vec<Json> {
         .collect()
 }
 
-/// Entwurf eines gescheiterten Formulars (bleibt im Formular stehen).
+/// Draft of a failed form (stays in the form).
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Draft {
     pub id: Option<i64>,
@@ -785,7 +785,7 @@ pub struct Draft {
     pub target_idea: String,
 }
 
-/// Was die Seite außer dem Filter trägt.
+/// What the page carries besides the filter.
 #[derive(Debug, Clone, Default)]
 struct PageView {
     key: Option<i64>,
@@ -827,7 +827,7 @@ fn store_error(e: StoreError) -> Response {
     }
 }
 
-/// Karten zu Befunden, angehängte nur unter ihrem Original (stehen sie ohne Original in der Liste, für sich).
+/// Cards for findings, attached ones only below their original (if they are in the list without it, on their own).
 fn cards(work_id: WorkId, work: &Work, list: &[Finding], all: &[Finding]) -> Vec<Json> {
     let ids: HashSet<i64> = list.iter().map(|f| f.id).collect();
     list.iter()
@@ -836,7 +836,7 @@ fn cards(work_id: WorkId, work: &Work, list: &[Finding], all: &[Finding]) -> Vec
         .collect()
 }
 
-/// Matrix für die Vorlage: je Zelle Zeichen, Worte, Adresse und Stufe der Hervorhebung.
+/// Matrix for the template: per cell signs, words, address and level of highlighting.
 fn matrix_view(work_id: WorkId, matrix: &Matrix, filter: &MatrixFilter, view: &PageView) -> Json {
     let base = format!("/werke/{work_id}/befunde");
     let cell_url = |key: Option<i64>, persona: Option<&str>| -> String {
@@ -890,7 +890,7 @@ fn matrix_view(work_id: WorkId, matrix: &Matrix, filter: &MatrixFilter, view: &P
             "truncated": matrix.truncated })
 }
 
-/// Die Seite (auch nach einem gescheiterten Formular mit `error` und `draft`).
+/// The page (also after a failed form with `error` and `draft`).
 async fn page_response(
     state: &AppState,
     headers: &HeaderMap,
@@ -912,7 +912,7 @@ async fn page_response(
         Ok(m) => m,
         Err(e) => return plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
     };
-    // Alle Befunde (samt Lob und angehängten) für Ursprünge, angehängte und Sammelvorschläge.
+    // All findings (with praise and attached ones) for origins, attached ones and collective proposals.
     let all_filter = FindingFilter {
         include_praise: true,
         include_attached: true,
@@ -926,7 +926,7 @@ async fn page_response(
     let base = format!("/werke/{work_id}/befunde");
     let query = filter.query();
 
-    // Einzelner Befund.
+    // Single finding.
     let mut detail = Json::Null;
     if let Some(id) = view.befund {
         match state.store.finding_get(work_id, id).await {
@@ -953,7 +953,7 @@ async fn page_response(
         }
     }
 
-    // Zelle: Befunde des Kapitels samt Unterpunkten (und der Persona), angehängte unter dem Original.
+    // Cell: findings of the chapter with sub-items (and of the persona), attached ones below the original.
     let mut cell = Json::Null;
     if let Some(key) = view.key {
         if let Some(node) = work.nodes.iter().find(|n| n.key == key) {
@@ -975,7 +975,7 @@ async fn page_response(
         }
     }
 
-    // Übersicht: „offen, älter als n Tagen“ und Sammelvorschläge.
+    // Overview: „offen, älter als n Tagen“ and collective proposals.
     let older_days = filter.older_than_days.unwrap_or(DEFAULT_OLDER_DAYS);
     let old_filter = FindingFilter {
         statuses: vec![FindingStatus::Open],
@@ -984,7 +984,7 @@ async fn page_response(
         limit: Some(OLD_LIMIT),
         ..FindingFilter::default()
     };
-    // Runde 23a: Zahl ohne Grenze, damit die Seite eine Kappung der Liste nennt.
+    // Round 23a: number without limit so that the page names a cap of the list.
     let old_total = match state.store.finding_count(work_id, &old_filter).await {
         Ok(count) => count,
         Err(e) => return store_error(e),
@@ -996,7 +996,7 @@ async fn page_response(
     let summaries: Vec<Json> =
         all.iter().filter(|f| !f.summary_of.is_empty()).map(|f| card(work_id, &work, f, &all)).collect();
 
-    // Personas zur Auswahl: die des Werks und die mit Befunden.
+    // Personas to choose from: those of the work and those with findings.
     let mut personas: Vec<String> = work.personas.iter().map(|p| p.handle.clone()).collect();
     for f in &all {
         if !personas.contains(&f.persona) {
@@ -1080,7 +1080,7 @@ async fn findings_page(
     page_response(&state, &headers, work, &pairs, None, None).await
 }
 
-/// Formular an `POST /werke/befunde/act`: dieselben Felder wie die RPC-Methoden, alles als Text.
+/// Form to `POST /werke/befunde/act`: the same fields as the RPC methods, everything as text.
 #[derive(Debug, Default, Deserialize)]
 struct ActForm {
     method: String,
@@ -1100,7 +1100,7 @@ fn number(value: &Option<String>) -> Option<i64> {
     value.as_deref().map(str::trim).filter(|v| !v.is_empty()).and_then(|v| v.parse().ok())
 }
 
-/// Parameter für [`super::rpc::parse_change`]: leere Felder fallen weg, Zahlen als Zahlen.
+/// Parameters for [`super::rpc::parse_change`]: empty fields are dropped, numbers as numbers.
 pub fn change_params(
     work: WorkId,
     id: i64,
@@ -1126,8 +1126,8 @@ pub fn change_params(
     params
 }
 
-/// `POST /werke/befunde/act`: `method` = finding.set_status | finding.decide → [`super::rpc`]; danach 303 auf
-/// `back` bzw. den Befund, Fehler 200 mit Hinweis und Entwurf.
+/// `POST /werke/befunde/act`: `method` = finding.set_status | finding.decide → [`super::rpc`]; then 303 to
+/// `back` or the finding, errors 200 with notice and draft.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     if !matches!(form.method.as_str(), "finding.set_status" | "finding.decide") {
         return plain(StatusCode::BAD_REQUEST, "unbekannte Aktion");
@@ -1187,19 +1187,19 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         }
         Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
         Err(e) => {
-            // Fehler: dieselbe Seite mit Hinweis, der Entwurf bleibt im Formular (nichts geht verloren).
+            // Error: the same page with a notice, the draft stays in the form (nothing is lost).
             let pairs: Vec<(String, String)> = Vec::new();
             page_response(&state, &headers, work, &pairs, Some(e.message), Some(draft)).await
         }
     }
 }
 
-/// Seiten (lesend).
+/// Pages (reading).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new().route("/werke/{id}/befunde", get(findings_page))
 }
 
-/// Formulare (im Router der schreibenden Routen, hinter `guard::same_origin`).
+/// Forms (in the router of the writing routes, behind `guard::same_origin`).
 pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/werke/befunde/act", post(act))
 }

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Austausch: Ausgeben (Runde 26; Doku `docs/Austauschformat.md`).
+//! Exchange: export (Round 26; doc `docs/Austauschformat.md`).
 //!
-//! - `GET /werke/{id}/austausch`: Seite mit Erklärung, Umfang, zwei Download-Links und Link zu „Einlesen“
-//!   (`templates/exchange.html`, ohne JavaScript).
-//! - `GET /werke/{id}/austausch.baruch`: ZIP (`application/vnd.baruch.werk+zip`), Anhang `<slug>.baruch`.
-//! - `GET /werke/{id}/austausch.xml`: nur XML (`application/vnd.baruch.werk+xml`), Anhang `<slug>.baruch.xml`.
-//! - RPC `work.exchange_export {work?, format?}` und CLI `export ID|SLUG --baruch DATEI`; MCP
-//!   `exchange_export` in [`crate::mcp::exchange`] nutzt [`export_file`].
+//! - `GET /werke/{id}/austausch`: page with explanation, extent, two download links and link to „Einlesen“
+//!   (`templates/exchange.html`, without JavaScript).
+//! - `GET /werke/{id}/austausch.baruch`: ZIP (`application/vnd.baruch.werk+zip`), attachment `<slug>.baruch`.
+//! - `GET /werke/{id}/austausch.xml`: XML only (`application/vnd.baruch.werk+xml`), attachment `<slug>.baruch.xml`.
+//! - RPC `work.exchange_export {work?, format?}` and CLI `export ID|SLUG --baruch DATEI`; MCP
+//!   `exchange_export` in [`crate::mcp::exchange`] uses [`export_file`].
 //!
-//! Alles nur lesend: Grundlage ist [`baruch_store::Store::exchange_dump`] (eine lesende Transaktion), dazu
-//! Instanz, Zeitpunkt und Programm. Kein Geheimnis, keine Verbindung, keine Persona-Modelle (nur Handles als
-//! Herkunft) und keine Anträge stehen in der Datei.
+//! All read-only: the basis is [`baruch_store::Store::exchange_dump`] (one reading transaction), plus
+//! instance, time and program. No secret, no connection, no persona models (only handles as
+//! origin) and no requests are in the file.
 
 use std::sync::{Arc, OnceLock};
 
@@ -30,7 +30,7 @@ use crate::AppState;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 use crate::view::Settings;
 
-/// Routen der Seite und der Downloads (gemischt über `exchange::pages`).
+/// Routes of the page and the downloads (merged through `exchange::pages`).
 pub fn pages() -> Router<Arc<AppState>> {
     Router::new()
         .route("/werke/{id}/austausch", get(exchange_page))
@@ -63,17 +63,17 @@ fn error_page(status: StatusCode, message: &str) -> Response {
         .into_response()
 }
 
-/// Form der Austauschdatei.
+/// Form of the exchange file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Format {
-    /// Container `.baruch` (ZIP) mit Bildern als eigene Dateien.
+    /// Container `.baruch` (ZIP) with images as separate files.
     Baruch,
-    /// Nur XML `.baruch.xml`, Bilder als Base64.
+    /// XML only `.baruch.xml`, images as Base64.
     Xml,
 }
 
 impl Format {
-    /// Wort in RPC und MCP (`"baruch"` bzw. `"xml"`); unbekannt → `None`.
+    /// Word in RPC and MCP (`"baruch"` or `"xml"`); unknown → `None`.
     pub fn parse(word: &str) -> Option<Format> {
         match word {
             "baruch" => Some(Format::Baruch),
@@ -104,27 +104,27 @@ impl Format {
     }
 }
 
-/// Eine fertige Austauschdatei.
+/// A finished exchange file.
 #[derive(Debug, Clone)]
 pub struct ExportFile {
     pub work: WorkId,
-    /// UUID des Werks.
+    /// UUID of the work.
     pub uuid: String,
     pub title: String,
-    /// `<slug>.baruch` bzw. `<slug>.baruch.xml`.
+    /// `<slug>.baruch` or `<slug>.baruch.xml`.
     pub file_name: String,
     pub format: Format,
     pub bytes: Vec<u8>,
-    /// SHA-256 der Datei (Kleinbuchstaben-Hex).
+    /// SHA-256 of the file (lower-case hex).
     pub sha256: String,
 }
 
-/// Zeitpunkt der Ausgabe im Format der Datenbank (`JJJJ-MM-TTTHH:MM:SS.sssZ`, UTC).
+/// Time of the export in the format of the database (`JJJJ-MM-TTTHH:MM:SS.sssZ`, UTC).
 fn now() -> String {
     chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
 }
 
-/// Das Werk als Austauschdokument (mit Instanz, Zeitpunkt und Programm).
+/// The work as an exchange document (with instance, time and program).
 pub async fn document(state: &AppState, work: WorkId) -> Result<ExchangeDocument, RpcError> {
     let dumped = state.store.exchange_dump(work).await?;
     let instance = state.store.instance().await?;
@@ -138,7 +138,7 @@ pub async fn document(state: &AppState, work: WorkId) -> Result<ExchangeDocument
     })
 }
 
-/// Werk als Datei in der gewünschten Form. Unbekanntes Werk → `INVALID_PARAMS` (aus `UnknownWork`).
+/// Work as a file in the wanted form. Unknown work → `INVALID_PARAMS` (from `UnknownWork`).
 pub async fn export_file(state: &AppState, work: WorkId, format: Format) -> Result<ExportFile, RpcError> {
     let slug = state.store.work_slug(work).await?;
     let doc = document(state, work).await?;
@@ -157,11 +157,11 @@ pub async fn export_file(state: &AppState, work: WorkId, format: Format) -> Resu
     })
 }
 
-/// Umfang des Werks für die Seite: Punkte, Fassungen, Beiträge, Einfälle, Fäden, Bilder, Bildfassungen, die
-/// Gedankenkarte (Verbindungen, davon gelöscht, Lagen; Runde 25), seit Runde 28 Befunde (davon offen) und alte
-/// Fassungen bearbeiteter Beiträge, seit Runde 29 `typeset` (Satz-Einstellungen vorhanden) und `typeset_fields`
-/// (Bezeichnungen der gesetzten Felder), seit Runde 31 `glossary_terms` (davon `proposed_terms` vorgeschlagen) und
-/// `registers` (eigene Register).
+/// Extent of the work for the page: items, revisions, posts, ideas, threads, images, image revisions, the
+/// mind map (links, of which deleted, positions; Round 25), since Round 28 findings (of which open) and old
+/// revisions of edited posts, since Round 29 `typeset` (typeset settings present) and `typeset_fields`
+/// (labels of the set fields), since Round 31 `glossary_terms` (of which `proposed_terms` proposed) and
+/// `registers` (own indexes).
 fn counts(doc: &ExchangeDocument) -> Value {
     fn walk(nodes: &[ExchangeNode], n: &mut [usize; 4]) {
         for node in nodes {
@@ -195,7 +195,7 @@ fn counts(doc: &ExchangeDocument) -> Value {
             .findings
             .iter()
             .filter(|f| {
-                // Zählregel 1.5 (Runde 28): offen, nicht angehängt, kein Lob, mit Abschnitt.
+                // Counting rule 1.5 (Round 28): open, not attached, no praise, with section.
                 f.status == baruch_exchange::ExchangeFindingStatus::Open
                     && f.similar_to.is_none()
                     && f.kind != baruch_exchange::ExchangeFindingKind::Praise
@@ -223,7 +223,7 @@ fn counts(doc: &ExchangeDocument) -> Value {
     })
 }
 
-/// Anzeigename einer Instanz: Name oder „ohne Namen (<erste 8 Zeichen>)“ (Vertrag F3).
+/// Display name of an instance: name or „ohne Namen (<erste 8 Zeichen>)“ (contract F3).
 pub fn instance_label(uuid: &str, name: &str) -> String {
     if name.trim().is_empty() { format!("ohne Namen ({})", uuid.get(..8).unwrap_or(uuid)) } else { name.to_owned() }
 }
@@ -263,7 +263,7 @@ async fn exchange_page(State(state): State<Arc<AppState>>, headers: HeaderMap, P
     }
 }
 
-/// Download als Anhang; unbekanntes Werk → 404.
+/// Download as attachment; unknown work → 404.
 async fn download(state: &AppState, id: WorkId, format: Format) -> Response {
     match state.store.works().await {
         Ok(list) if list.iter().any(|(w, _, _)| *w == id) => {}
@@ -311,7 +311,7 @@ pub async fn rpc_export(state: &AppState, params: serde_json::Value) -> Result<s
     Ok(answer(file))
 }
 
-/// Antwort von RPC und MCP für eine Datei.
+/// Answer of RPC and MCP for a file.
 pub fn answer(file: ExportFile) -> Value {
     let mut answer = json!({
         "work": file.work,
@@ -329,7 +329,7 @@ pub fn answer(file: ExportFile) -> Value {
     answer
 }
 
-/// CLI `export ID|SLUG --baruch DATEI`: endet DATEI auf `.xml`, nur XML, sonst ZIP; vorhandene Datei → Fehler.
+/// CLI `export ID|SLUG --baruch DATEI`: if DATEI ends in `.xml`, XML only, otherwise ZIP; existing file → error.
 pub async fn cli_export(state: &AppState, work: WorkId, path: &std::path::Path) -> Result<String, String> {
     use std::io::Write as _;
     let xml = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("xml"));
@@ -338,7 +338,7 @@ pub async fn cli_export(state: &AppState, work: WorkId, path: &std::path::Path) 
         return Err(format!("{} gibt es schon; nichts überschrieben.", path.display()));
     }
     let file = export_file(state, work, format).await.map_err(|e| e.message)?;
-    // create_new: Entsteht die Datei zwischen Prüfen und Schreiben doch, wird sie nicht überschrieben.
+    // create_new: if the file appears between check and write after all, it is not overwritten.
     let mut out = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn formats_have_words_types_and_suffixes() {
-        // RPC und MCP nehmen genau die Wörter des Vertrags; unbekannte lehnt rpc_export ab.
+        // RPC and MCP take exactly the words of the contract; rpc_export rejects unknown ones.
         assert_eq!(Format::parse("baruch"), Some(Format::Baruch), "baruch");
         assert_eq!(Format::parse("xml"), Some(Format::Xml), "xml");
         assert_eq!(Format::parse("zip"), None, "zip ist kein Wort des Vertrags");
@@ -379,7 +379,7 @@ mod tests {
 
     #[test]
     fn instance_without_name_shows_the_uuid_prefix() {
-        // Vertrag F3: „ohne Namen (<erste 8 Zeichen>)“.
+        // Contract F3: „ohne Namen (<erste 8 Zeichen>)“.
         assert_eq!(instance_label("0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6", ""), "ohne Namen (0f8c2a4e)", "ohne Namen");
         assert_eq!(instance_label("0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6", "Laptop"), "Laptop", "mit Namen");
     }

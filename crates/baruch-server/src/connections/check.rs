@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! „Verbindung prüfen“: ein Versuch je Aufruf (keine Wiederholung), Zeitlimit [`TIMEOUT`] je Anfrage
-//! und – seit Runde 10 – noch einmal um die ganze Prüfung (`connections::run_check`), Antwort
-//! höchstens [`MAX_BODY`]. Ein Fehlschlag ist ein Ergebnis (`ok: false` mit Meldung), kein Fehler.
+//! „Verbindung prüfen“: one attempt per call (no retry), time limit [`TIMEOUT`] per request
+//! and – since Round 10 – once more around the whole check (`connections::run_check`), response
+//! at most [`MAX_BODY`]. A failure is a result (`ok: false` with message), not an error.
 //!
-//! - Eliezer: `GET <url>/v1/models` (Bearer, wenn ein Schlüssel hinterlegt ist) → `{models: [id…]}`;
-//!   `run_check` gleicht danach die Modelle der Personas ab (`details.personas`, wie `model.list`).
-//! - MultiGPT: MCP über HTTP – `initialize` (Protokoll 2025-06-18, `clientInfo.name = "baruch"`),
-//!   `notifications/initialized`, `tools/list` mit `Mcp-Session-Id` über `nextCursor` (Runde 12: höchstens
-//!   10 Seiten), `list_collections`, falls angeboten; Antworten als `application/json` oder
-//!   `text/event-stream` (`data:`-Zeilen) → `{server: {name, version}, tools, pages, collections: [{name,
-//!   count}]}`. Der MCP-Client liegt seit Runde 12 in [`super::multigpt`]. Seit Runde 13 hat die Prüfung
-//!   ein gemeinsames Zeitlimit [`TIMEOUT`] um alle Anfragen und nutzt keinen Sitzungsvorrat (die Sitzung der
-//!   Prüfung bleibt, wie bisher, der Gegenstelle zum Aufräumen).
-//! - pgvector: Verbindung über sqlx (Laufzeit-API), `SELECT version()` und die Version der
-//!   Erweiterung `vector` → `{server_version, vector}`; fehlt die Erweiterung, ist das `ok: false`.
+//! - Eliezer: `GET <url>/v1/models` (Bearer if a key is stored) → `{models: [id…]}`;
+//!   `run_check` then reconciles the models of the personas (`details.personas`, like `model.list`).
+//! - MultiGPT: MCP over HTTP – `initialize` (protocol 2025-06-18, `clientInfo.name = "baruch"`),
+//!   `notifications/initialized`, `tools/list` with `Mcp-Session-Id` through `nextCursor` (Round 12: at most
+//!   10 pages), `list_collections` if offered; responses as `application/json` or
+//!   `text/event-stream` (`data:` lines) → `{server: {name, version}, tools, pages, collections: [{name,
+//!   count}]}`. Since Round 12 the MCP client lives in [`super::multigpt`]. Since Round 13 the check has
+//!   a shared time limit [`TIMEOUT`] around all requests and uses no session pool (the session of the
+//!   check is, as before, left to the remote side to clean up).
+//! - pgvector: connection through sqlx (runtime API), `SELECT version()` and the version of the
+//!   extension `vector` → `{server_version, vector}`; if the extension is missing, that is `ok: false`.
 //!
-//! Das Geheimnis geht nur in die Kopfzeile bzw. die Anmeldung. Meldungen und Angaben laufen vor dem
-//! Speichern durch [`scrub`]: Sollte eine Gegenstelle das Geheimnis zurückspiegeln, steht dort `***`.
-//! Weiterleitungen folgt die Prüfung nicht (der Schlüssel ginge sonst an eine andere Adresse).
+//! The secret goes only into the header or the login. Messages and details pass through [`scrub`] before
+//! storing: should a remote side echo the secret, `***` stands there.
+//! The check does not follow redirects (the key would otherwise go to another address).
 
 use std::time::Duration;
 
@@ -25,14 +25,14 @@ use serde_json::{Value, json};
 
 use super::multigpt::{COLLECTIONS_TOOL, Limits, MAX_TOOL_PAGES, McpClient, parse_collections, tool_payload};
 
-/// Zeitlimit je Prüfung.
+/// Time limit per check.
 pub const TIMEOUT: Duration = Duration::from_secs(10);
-/// Größte Antwort, die gelesen wird.
+/// Largest response that is read.
 pub const MAX_BODY: usize = 1024 * 1024;
-/// MCP-Protokollversion für `initialize`.
+/// MCP protocol version for `initialize`.
 pub const MCP_PROTOCOL: &str = "2025-06-18";
 
-/// Ergebnis einer Prüfung.
+/// Result of a check.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Outcome {
     pub ok: bool,
@@ -50,8 +50,8 @@ impl Outcome {
     }
 }
 
-/// Jedes Vorkommen von `secret` in Meldung und Angaben durch `***` ersetzen – über [`baruch_llm::scrub`]
-/// (Runde 23: auch Base64- und Prozent-kodiert).
+/// Replace every occurrence of `secret` in message and details with `***` – through [`baruch_llm::scrub`]
+/// (Round 23: also Base64- and percent-encoded).
 pub fn scrub(outcome: Outcome, secret: Option<&str>) -> Outcome {
     let Some(secret) = secret.filter(|s| !s.is_empty()) else { return outcome };
     Outcome {
@@ -61,8 +61,8 @@ pub fn scrub(outcome: Outcome, secret: Option<&str>) -> Outcome {
     }
 }
 
-/// Jedes Vorkommen von `secret` in Texten und Schlüsseln eines JSON-Werts durch `***` ersetzen
-/// ([`baruch_llm::scrub`] je Text).
+/// Replace every occurrence of `secret` in texts and keys of a JSON value with `***`
+/// ([`baruch_llm::scrub`] per text).
 pub fn scrub_value(value: Value, secret: Option<&str>) -> Value {
     let Some(secret) = secret.filter(|s| !s.is_empty()) else { return value };
     let clean = |s: &str| baruch_llm::scrub(s, Some(secret));
@@ -86,7 +86,7 @@ fn client() -> Result<reqwest::Client, String> {
         .map_err(|e| format!("HTTP-Client: {e}"))
 }
 
-/// Fehler von reqwest als deutscher Satz mit Ursachenkette (ohne Kopfzeilen, also ohne Schlüssel).
+/// Error of reqwest as a German sentence with cause chain (without headers, so without key).
 fn http_error(e: &reqwest::Error, url: &str) -> String {
     if e.is_timeout() {
         return format!("Keine Antwort von {url} innerhalb von {} s.", TIMEOUT.as_secs());
@@ -105,7 +105,7 @@ fn http_error(e: &reqwest::Error, url: &str) -> String {
     }
 }
 
-/// Antwort lesen, höchstens [`MAX_BODY`] Bytes.
+/// Read the response, at most [`MAX_BODY`] bytes.
 async fn body(mut response: reqwest::Response, url: &str) -> Result<Vec<u8>, String> {
     let too_big = || format!("Antwort von {url} ist größer als 1 MiB; abgebrochen.");
     if response.content_length().is_some_and(|n| n > MAX_BODY as u64) {
@@ -121,8 +121,8 @@ async fn body(mut response: reqwest::Response, url: &str) -> Result<Vec<u8>, Str
     Ok(out)
 }
 
-/// Meldung zu einer Weiterleitung (Runde 23): Die Prüfung folgt ihr nie – der Schlüssel ginge sonst an eine
-/// andere Adresse. Das Ziel (`Location`) wird nicht genannt (es käme ungeprüft von der Gegenstelle).
+/// Message for a redirect (Round 23): the check never follows it – the key would otherwise go to another
+/// address. The target (`Location`) is not named (it would come unchecked from the remote side).
 pub(super) fn redirected(target: &str, status: reqwest::StatusCode) -> String {
     format!(
         "{target} leitet weiter (HTTP {}); Baruch folgt Weiterleitungen nicht – bitte die endgültige Adresse eintragen.",
@@ -139,13 +139,13 @@ pub(super) fn denied(status: reqwest::StatusCode, account: &str, has_secret: boo
     format!("Zugang verweigert (HTTP {}): {hint}.", status.as_u16())
 }
 
-/// `<url>/v1/models`; endet die Adresse schon auf `/v1`, nur `/models` anhängen.
+/// `<url>/v1/models`; if the address already ends in `/v1`, append only `/models`.
 pub fn models_url(url: &str) -> String {
     let base = url.trim_end_matches('/');
     if base.ends_with("/v1") { format!("{base}/models") } else { format!("{base}/v1/models") }
 }
 
-/// Eliezer: Modellliste.
+/// Eliezer: model list.
 pub async fn eliezer(url: &str, secret: Option<&str>) -> Outcome {
     let target = models_url(url);
     let client = match client() {
@@ -187,17 +187,17 @@ pub async fn eliezer(url: &str, secret: Option<&str>) -> Outcome {
     Outcome::ok(format!("Verbindung steht: {} {word}.", models.len()), json!({ "models": models }))
 }
 
-/// JSON-RPC-Antwort mit `id` aus einer MCP-Antwort (JSON oder Server-Sent Events).
+/// JSON-RPC response with `id` from an MCP response (JSON or Server-Sent Events).
 pub fn rpc_answer(content_type: &str, body: &[u8], id: i64) -> Result<Value, String> {
     super::multigpt::rpc_answer(content_type, body, id).map_err(|e| e.message().to_owned())
 }
 
-/// MultiGPT: `initialize`, `notifications/initialized`, `tools/list` über `nextCursor` (höchstens
-/// [`MAX_TOOL_PAGES`] Seiten, sonst ein Hinweis) und – falls angeboten – `list_collections` →
-/// `{server: {name, version}, tools, pages, collections: [{name, count}]}`. Der Client ist derselbe wie
-/// bei der Suche ([`super::multigpt::McpClient`]), mit den Grenzen der Prüfung ([`TIMEOUT`], [`MAX_BODY`]);
-/// alle Anfragen zusammen haben ein gemeinsames Zeitlimit [`TIMEOUT`] (Runde 13), ohne Sitzungsvorrat. Am Ende
-/// beendet `DELETE` die Sitzung (Runde 19a; nicht, wenn das gemeinsame Zeitlimit die Prüfung abbricht).
+/// MultiGPT: `initialize`, `notifications/initialized`, `tools/list` through `nextCursor` (at most
+/// [`MAX_TOOL_PAGES`] pages, otherwise a note) and – if offered – `list_collections` →
+/// `{server: {name, version}, tools, pages, collections: [{name, count}]}`. The client is the same as
+/// for the search ([`super::multigpt::McpClient`]), with the limits of the check ([`TIMEOUT`], [`MAX_BODY`]);
+/// all requests together have a shared time limit [`TIMEOUT`] (Round 13), without session pool. At the end
+/// `DELETE` ends the session (Round 19a; not if the shared time limit aborts the check).
 pub async fn multigpt(url: &str, secret: Option<&str>) -> Outcome {
     match tokio::time::timeout(TIMEOUT, multigpt_steps(url, secret)).await {
         Ok(outcome) => outcome,
@@ -209,21 +209,21 @@ pub async fn multigpt(url: &str, secret: Option<&str>) -> Outcome {
 }
 
 async fn multigpt_steps(url: &str, secret: Option<&str>) -> Outcome {
-    // Die Grenze je Anfrage liegt knapp über der gemeinsamen (Integrator Runde 15): Bei gleicher Länge konnte unter
-    // Last die Grenze von list_collections vor der gemeinsamen ablaufen, und die Prüfung meldete „steht“.
+    // The limit per request lies just above the shared one (integrator Round 15): with equal length the limit of
+    // list_collections could run out before the shared one under load, and the check reported „steht“.
     let limits = Limits { timeout: TIMEOUT + Duration::from_secs(1), max_body: MAX_BODY };
     let (mut mcp, server) = match McpClient::connect(url, secret, limits).await {
         Ok(connected) => connected,
         Err(e) => return Outcome::failed(e.message()),
     };
     let outcome = multigpt_session(&mut mcp, server, secret).await;
-    // Runde 19a: Die Prüfung beendet ihre MCP-Sitzung bei der Gegenstelle (HTTP DELETE mit Mcp-Session-Id),
-    // auch nach einem Fehler; sonst blieben dort Sitzungen liegen (sie nutzt keinen Sitzungsvorrat).
+    // Round 19a: the check ends its MCP session at the remote side (HTTP DELETE with Mcp-Session-Id),
+    // also after an error; otherwise sessions would pile up there (it uses no session pool).
     mcp.delete().await;
     outcome
 }
 
-/// Die Schritte nach `initialize` (Werkzeuge, Sammlungen) in einer offenen Sitzung.
+/// The steps after `initialize` (tools, collections) in an open session.
 async fn multigpt_session(mcp: &mut McpClient, server: Value, secret: Option<&str>) -> Outcome {
     let listed = match mcp.list_tools(MAX_TOOL_PAGES).await {
         Ok(listed) => listed,
@@ -268,7 +268,7 @@ async fn multigpt_session(mcp: &mut McpClient, server: Value, secret: Option<&st
     scrub(Outcome::ok(message, details), secret)
 }
 
-/// pgvector: anmelden, Serverversion und Version der Erweiterung `vector` lesen.
+/// pgvector: log in, read server version and version of the extension `vector`.
 pub async fn pgvector(config: &Value, secret: Option<&str>) -> Outcome {
     use sqlx::Connection;
     use sqlx::postgres::{PgConnectOptions, PgConnection, PgSslMode};
@@ -285,8 +285,8 @@ pub async fn pgvector(config: &Value, secret: Option<&str>) -> Outcome {
         "verify-full" => PgSslMode::VerifyFull,
         _ => PgSslMode::Prefer,
     };
-    // Ohne pgpass und mit ausdrücklichem (ggf. leerem) Passwort: nichts aus der Umgebung des Servers
-    // (PGPASSWORD, ~/.pgpass) gelangt in die Prüfung.
+    // Without pgpass and with an explicit (possibly empty) password: nothing from the server's environment
+    // (PGPASSWORD, ~/.pgpass) gets into the check.
     let mut options = PgConnectOptions::new_without_pgpass()
         .host(&host)
         .port(port)
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn scrub_uses_the_shared_function_for_encoded_secrets() {
-        // Erfundenes Geheimnis; „Wmlubm9iZXItNDcxMQ==“ ist sein Base64, „Zinnober%2D4711“ seine Prozentform.
+        // Invented secret; „Wmlubm9iZXItNDcxMQ==“ is its Base64, „Zinnober%2D4711“ its percent form.
         let outcome = Outcome::ok(
             "abgelehnt: Basic Wmlubm9iZXItNDcxMQ==",
             json!({ "echo": ["key=Zinnober%2d4711"], "Wmlubm9iZXItNDcxMQ": "Zinnober-4711" }),

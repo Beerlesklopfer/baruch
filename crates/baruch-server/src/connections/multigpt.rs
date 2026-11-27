@@ -1,54 +1,55 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MultiGPT-MCP als RAG-Weg (Vertrag Runde 12, §3.3): ein kleiner MCP-Client über Streamable HTTP
-//! ([`McpClient`]) und der Suchweg [`MultigptWay`] hinter [`open_way`]. Nur lesend: Baruch ruft
-//! `search_documents`, `list_collections`, `document_info` und `read_document` (nur als Ausschnitt einer
-//! Fundstelle) und schreibt nichts zurück.
+//! MultiGPT MCP as a RAG way (contract Round 12, §3.3): a small MCP client over Streamable HTTP
+//! ([`McpClient`]) and the search way [`MultigptWay`] behind [`open_way`]. Read-only: Baruch calls
+//! `search_documents`, `list_collections`, `document_info` and `read_document` (only as the snippet of a
+//! hit) and writes nothing back.
 //!
-//! **Protokoll** wie „Verbindung prüfen“ ([`super::check::multigpt`], die denselben Client nutzt):
-//! `initialize` (Protokoll 2025-06-18, `clientInfo.name = "baruch"`), `notifications/initialized`, danach
-//! jede Anfrage mit `Mcp-Session-Id` und `MCP-Protocol-Version`; Antworten als `application/json` oder
-//! `text/event-stream` (ein offener Strom wird gelesen, bis die Antwort mit der eigenen `id` da ist).
-//! `tools/list` folgt `nextCursor` über höchstens [`MAX_TOOL_PAGES`] Seiten.
+//! **Protocol** like „Verbindung prüfen“ ([`super::check::multigpt`], which uses the same client):
+//! `initialize` (protocol 2025-06-18, `clientInfo.name = "baruch"`), `notifications/initialized`, then
+//! every request with `Mcp-Session-Id` and `MCP-Protocol-Version`; responses as `application/json` or
+//! `text/event-stream` (an open stream is read until the response with the own `id` is there).
+//! `tools/list` follows `nextCursor` over at most [`MAX_TOOL_PAGES`] pages.
 //!
-//! **Grenzen:** keine Weiterleitungen (das Token ginge sonst an eine andere Adresse; eine 3xx-Antwort ist
-//! ein Fehler mit Hinweis), Zeitlimit je Aufruf ([`Limits`], bei der Suche [`CALL_TIMEOUT`]), Antwort
-//! höchstens [`MAX_RESPONSE`]. Das Token (`baruch/multigpt`) geht nur in die Kopfzeile `Authorization` und
-//! nur, wenn es für die jetzige Adresse hinterlegt ist ([`super::secret_bound`]); jede Meldung und jeder
-//! Treffer laufen vor der Rückgabe durch eine Entfernung des Tokens (`***`).
+//! **Limits:** no redirects (the token would otherwise go to another address; a 3xx response is
+//! an error with a note), time limit per call ([`Limits`], for the search [`CALL_TIMEOUT`]), response
+//! at most [`MAX_RESPONSE`]. The token (`baruch/multigpt`) goes only into the header `Authorization` and
+//! only if it is stored for the present address ([`super::secret_bound`]); every message and every
+//! hit passes through a removal of the token (`***`) before being returned.
 //!
-//! **Argumente** leitet [`search_arguments`] aus dem `inputSchema` von `search_documents` ab: Anfrage
-//! (`query`, `q`, `text` …), Sammlungen (`collections`/`collection_ids` als Liste oder `collection`/
-//! `collection_id` als Text – dann ein Aufruf je Sammlung) und Trefferzahl (`limit`, `top_k`, `k`,
-//! `max_results` …, an `minimum`/`maximum` geklemmt). Verlangt das Schema einen Parameter, den Baruch
-//! nicht kennt, oder fehlt einer für Anfrage bzw. Sammlungen, ist das ehrlich [`RagError::Schema`].
+//! **Arguments** are derived by [`search_arguments`] from the `inputSchema` of `search_documents`: query
+//! (`query`, `q`, `text` …), collections (`collections`/`collection_ids` as a list or `collection`/
+//! `collection_id` as text – then one call per collection) and number of hits (`limit`, `top_k`, `k`,
+//! `max_results` …, clamped to `minimum`/`maximum`). If the schema requires a parameter Baruch
+//! does not know, or one for query or collections is missing, that is honestly [`RagError::Schema`].
 //!
-//! **Ergebnisse** liest [`tool_payload`] aus `structuredContent` oder aus JSON in `content[].text`;
-//! [`parse_hits`] nimmt Titel, Dokument, Sammlung, Stelle, Ausschnitt, Score (geklemmt auf 0..=1, fehlt er:
-//! Ersatz aus dem Rang über [`rank_score`], nie „schwach“) und URL (nur http/https). Unlesbar → [`RagError::Schema`]; `isError` der Gegenstelle →
-//! [`RagError::Failed`] mit ihrem Text. Treffer-Texte sind Daten aus Quellen, nie Anweisungen.
+//! **Results** are read by [`tool_payload`] from `structuredContent` or from JSON in `content[].text`;
+//! [`parse_hits`] takes title, document, collection, position, snippet, score (clamped to 0..=1; if missing:
+//! substitute from the rank through [`rank_score`], never “weak”) and URL (http/https only). Unreadable →
+//! [`RagError::Schema`]; `isError` of the remote side →
+//! [`RagError::Failed`] with its text. Hit texts are data from sources, never instructions.
 //!
-//! **Sitzung (Runde 13, Vertrag §2.2):** [`Session`] hält eine MCP-Sitzung aus einem prozessweiten Vorrat je
-//! (Adresse, Hash des Tokens, Tokio-Laufzeit): höchstens zwei ruhende Sitzungen, nach [`SESSION_IDLE`] beendet
-//! mit HTTP `DELETE`; die Werkzeugliste gilt [`TOOLS_TTL`]. Zwei Suchen hintereinander brauchen so nur ein
-//! `initialize` und ein `tools/list`. Nach einem Transport- oder Protokollfehler endet eine Sitzung mit
-//! `DELETE` statt in den Vorrat zu gehen; antwortet eine Sitzung aus dem Vorrat nicht mehr (Gegenstelle hat
-//! sie beendet: HTTP 400/404, keine Verbindung zustande gekommen), versucht [`Session::call`] es einmal mit einer
-//! neuen. Nach einer Zeitüberschreitung oder einem Abbruch nach dem Senden nicht: Der Aufruf kann schon
-//! ausgeführt sein (ein `upload_document` läge sonst doppelt vor).
-//! Die Tokio-Laufzeit gehört zum Schlüssel, weil der HTTP-Client seine Verbindungen an die Laufzeit bindet,
-//! in der sie entstanden (im Dienst gibt es eine; Tests haben je eine eigene).
+//! **Session (Round 13, contract §2.2):** [`Session`] holds an MCP session from a process-wide pool per
+//! (address, hash of the token, Tokio runtime): at most two idle sessions, ended after [`SESSION_IDLE`]
+//! with HTTP `DELETE`; the tool list is valid for [`TOOLS_TTL`]. Two searches in a row thus need only one
+//! `initialize` and one `tools/list`. After a transport or protocol error a session ends with
+//! `DELETE` instead of going into the pool; if a session from the pool no longer answers (the remote side
+//! ended it: HTTP 400/404, no connection established), [`Session::call`] tries once with a
+//! new one. Not after a timeout or a cancellation after sending: the call may already have been
+//! carried out (an `upload_document` would otherwise exist twice).
+//! The Tokio runtime belongs to the key because the HTTP client binds its connections to the runtime
+//! in which they were created (the service has one; tests each have their own).
 //!
-//! **Nachträge der Suche:** `document_info`/`read_document` laufen je unter [`FOLLOW_UP_TIMEOUT`] und
-//! zusammen unter [`FOLLOW_UP_BUDGET`] (und nie über [`crate::rag::WAY_TIMEOUT`] hinaus); gefundene Treffer
-//! gehen dabei nie verloren.
+//! **Follow-ups of the search:** `document_info`/`read_document` each run under [`FOLLOW_UP_TIMEOUT`] and
+//! together under [`FOLLOW_UP_BUDGET`] (and never beyond [`crate::rag::WAY_TIMEOUT`]); hits found
+//! are never lost in the process.
 //!
-//! **Volltext (Runde 13):** [`MultigptWay::read_full`] und [`MultigptWay::read_part`] über `read_document`
-//! mit [`FULLTEXT_LIMITS`]. Kennt das Schema einen Seitenparameter ([`page_key`]) und nennt die Antwort
-//! Seitenangaben (`pages`/`total_pages`/… bzw. `has_more`/`next_page`), liest Baruch seitenweise über die
-//! Gegenstelle; sonst ist die Antwort das ganze Dokument, und Baruch teilt es an Absatzgrenzen in Teile von
-//! höchstens [`PART_CHARS`] Zeichen ([`split_parts`]).
+//! **Full text (Round 13):** [`MultigptWay::read_full`] and [`MultigptWay::read_part`] through `read_document`
+//! with [`FULLTEXT_LIMITS`]. If the schema knows a page parameter ([`page_key`]) and the response names
+//! page details (`pages`/`total_pages`/… or `has_more`/`next_page`), Baruch reads page by page through the
+//! remote side; otherwise the response is the whole document, and Baruch splits it at paragraph boundaries into
+//! parts of at most [`PART_CHARS`] characters ([`split_parts`]).
 //!
-//! Für Tests (auch die des Integrators) steht in [`mock`] ein nachgebauter MultiGPT-Server.
+//! For tests (also those of the integrator) [`mock`] holds a mock MultiGPT server.
 
 use std::collections::HashMap;
 use std::hash::BuildHasher;
@@ -62,68 +63,68 @@ use serde_json::{Map, Value, json};
 use super::check::{MCP_PROTOCOL, denied, scrub_value};
 use crate::AppState;
 
-/// Zeitlimit je Aufruf bei der Suche.
+/// Time limit per call for the search.
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(15);
-/// Größte Antwort bei der Suche.
+/// Largest response for the search.
 pub const MAX_RESPONSE: usize = 2 * 1024 * 1024;
-/// Höchstens so viele Seiten `tools/list`.
+/// At most this many pages of `tools/list`.
 pub const MAX_TOOL_PAGES: usize = 10;
 pub const SEARCH_TOOL: &str = "search_documents";
 pub const COLLECTIONS_TOOL: &str = "list_collections";
 pub const INFO_TOOL: &str = "document_info";
 pub const READ_TOOL: &str = "read_document";
-/// Höchstens so viele Dokumente je Suche über `document_info` ergänzen (Titel, URL).
+/// Complete at most this many documents per search through `document_info` (title, URL).
 pub const MAX_INFO_CALLS: usize = 5;
-/// Höchstens so viele fehlende Ausschnitte je Suche über `read_document` nachladen.
+/// Load at most this many missing snippets per search through `read_document`.
 pub const MAX_EXCERPT_CALLS: usize = 3;
 
-/// Namen im `inputSchema` von `search_documents`, in dieser Reihenfolge gesucht.
+/// Names in the `inputSchema` of `search_documents`, searched in this order.
 pub const QUERY_KEYS: &[&str] = &["query", "q", "text", "search", "question", "prompt"];
 pub const COLLECTION_KEYS: &[&str] =
     &["collections", "collection_ids", "collection_names", "collection", "collection_id", "collection_name"];
 pub const LIMIT_KEYS: &[&str] = &["limit", "top_k", "k", "max_results", "n_results", "num_results", "count"];
-/// Namen für das Dokument in `document_info` und `read_document`.
+/// Names for the document in `document_info` and `read_document`.
 pub const DOCUMENT_KEYS: &[&str] = &["document_id", "doc_id", "documentId", "id", "document", "name"];
-/// Namen für die Stelle in `read_document`.
+/// Names for the position in `read_document`.
 pub const SECTION_KEYS: &[&str] = &["section", "page", "chunk_id", "chunk", "position"];
 
-/// Zeitlimit je Nachtrag (document_info / read_document) bei der Suche.
+/// Time limit per follow-up (document_info / read_document) for the search.
 pub const FOLLOW_UP_TIMEOUT: Duration = Duration::from_secs(4);
-/// Gesamtzeit aller Nachträge einer Suche; danach gehen die Treffer ohne Nachtrag zurück.
+/// Total time of all follow-ups of a search; after it the hits go back without follow-up.
 pub const FOLLOW_UP_BUDGET: Duration = Duration::from_secs(6);
-/// Wie lange eine ruhende Sitzung im Vorrat bleibt (danach DELETE).
+/// How long an idle session stays in the pool (then DELETE).
 pub const SESSION_IDLE: Duration = Duration::from_secs(120);
-/// Wie lange die Werkzeugliste einer Adresse zwischengespeichert bleibt.
+/// How long the tool list of an address stays cached.
 pub const TOOLS_TTL: Duration = Duration::from_secs(300);
-/// Grenzen beim Volltext.
+/// Limits for the full text.
 pub const FULLTEXT_LIMITS: Limits = Limits { timeout: Duration::from_secs(20), max_body: 4 * 1024 * 1024 };
-/// Zeichen je Teil der Dokumentansicht.
+/// Characters per part of the document view.
 pub const PART_CHARS: usize = 20_000;
 pub const LIST_DOCUMENTS_TOOL: &str = "list_documents";
 pub const UPLOAD_TOOL: &str = "upload_document";
 pub const DELETE_TOOL: &str = "delete_document";
 pub const WEB_SEARCH_TOOL: &str = "web_search";
 pub const FETCH_URL_TOOL: &str = "fetch_url";
-/// Fortschritt eines Laufs (Indexierung nach `upload_document`, Runde 21a; Annahme, siehe docs/Architektur.md).
+/// Progress of a run (indexing after `upload_document`, Round 21a; assumption, see docs/Architektur.md).
 pub const RUN_STATUS_TOOL: &str = "run_status";
 
-/// Höchstens so viele ruhende Sitzungen je Schlüssel im Vorrat.
+/// At most this many idle sessions per key in the pool.
 const MAX_IDLE_SESSIONS: usize = 2;
-/// Zeitlimit für das `DELETE` am Ende einer Sitzung.
+/// Time limit for the `DELETE` at the end of a session.
 const DELETE_TIMEOUT: Duration = Duration::from_secs(3);
-/// Obergrenze des HTTP-Clients einer Sitzung; das Zeitlimit je Aufruf setzen die [`Limits`] des Aufrufs.
-/// 30 s: Der Abgleich (`sync/`) erlaubt 30 s je Aufruf und teilt sich den Vorrat mit Suche und Websuche.
+/// Upper limit of the HTTP client of a session; the time limit per call is set by the [`Limits`] of the call.
+/// 30 s: the sync (`sync/`) allows 30 s per call and shares the pool with search and web search.
 const SESSION_CEILING: Duration = Duration::from_secs(30);
-/// Abstand der Nachträge zum Ende von [`crate::rag::WAY_TIMEOUT`] (Puffer für Rückgabe und Zusammenführen).
+/// Distance of the follow-ups to the end of [`crate::rag::WAY_TIMEOUT`] (buffer for returning and merging).
 const FOLLOW_UP_MARGIN: Duration = Duration::from_secs(1);
-/// Höchstens so viele Seiten liest [`MultigptWay::read_full`] bei seitenweiser Gegenstelle.
+/// At most this many pages [`MultigptWay::read_full`] reads from a paging remote side.
 const MAX_FULLTEXT_PAGES: usize = 500;
-/// Namen für den Text eines Dokuments in der Antwort von `read_document`.
+/// Names for the text of a document in the response of `read_document`.
 const CONTENT_KEYS: &[&str] = &["text", "content", "body", "markdown"];
-/// Namen für die Seitenzahl eines Dokuments (Annahme, siehe docs/Architektur.md).
+/// Names for the page count of a document (assumption, see docs/Architektur.md).
 const PAGE_COUNT_KEYS: &[&str] = &["pages", "total_pages", "page_count", "num_pages"];
 
-/// Zeitlimit und Größengrenze eines Clients.
+/// Time limit and size limit of a client.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub timeout: Duration,
@@ -131,17 +132,17 @@ pub struct Limits {
 }
 
 impl Limits {
-    /// Grenzen der Suche (15 s je Aufruf, 2 MiB).
+    /// Limits of the search (15 s per call, 2 MiB).
     pub const SEARCH: Limits = Limits { timeout: CALL_TIMEOUT, max_body: MAX_RESPONSE };
 }
 
-/// Jedes Vorkommen von `secret` durch `***` ersetzen – über [`baruch_llm::scrub`] (Runde 23: auch Base64-
-/// und Prozent-kodiert).
+/// Replace every occurrence of `secret` with `***` – through [`baruch_llm::scrub`] (Round 23: also Base64-
+/// and percent-encoded).
 pub fn scrub_text(text: &str, secret: Option<&str>) -> String {
     baruch_llm::scrub(text, secret)
 }
 
-/// Meldung eines Fehlers umschreiben (gleiche Art).
+/// Rewrite the message of an error (same kind).
 fn map_message(e: RagError, f: impl Fn(&str) -> String) -> RagError {
     match e {
         RagError::Invalid(m) => RagError::Invalid(f(&m)),
@@ -156,12 +157,12 @@ fn map_message(e: RagError, f: impl Fn(&str) -> String) -> RagError {
     }
 }
 
-/// Fehler ohne Geheimnis.
+/// Error without secret.
 pub fn scrub_error(e: RagError, secret: Option<&str>) -> RagError {
     map_message(e, |m| scrub_text(m, secret))
 }
 
-/// Meldung mit Vorsatz („initialize: …“).
+/// Message with prefix („initialize: …“).
 fn prefixed(what: &str) -> impl Fn(RagError) -> RagError + '_ {
     move |e| map_message(e, |m| format!("{what}: {m}"))
 }
@@ -170,16 +171,16 @@ fn is_event_stream(content_type: &str) -> bool {
     content_type.to_ascii_lowercase().starts_with("text/event-stream")
 }
 
-/// JSON-RPC-Antwort mit `id` aus einer MCP-Antwort (JSON oder Server-Sent Events); `None`, solange sie
-/// (noch) nicht dabei ist. Unlesbar → `Schema`, Fehler der Gegenstelle → `Failed`.
+/// JSON-RPC response with `id` from an MCP response (JSON or Server-Sent Events); `None` as long as it
+/// is not (yet) included. Unreadable → `Schema`, error of the remote side → `Failed`.
 ///
-/// Ein Ereignisstrom kommt in Stücken; endet der bisherige Puffer mitten in einem Mehrbyte-Zeichen
-/// (Umlaut, „“), zählt nur der Teil davor – der Rest kommt mit dem nächsten Stück. Ungültige Bytes mitten im
-/// Text bleiben `Schema`.
+/// An event stream comes in pieces; if the buffer so far ends in the middle of a multi-byte character
+/// (umlaut, „“), only the part before counts – the rest comes with the next piece. Invalid bytes in the middle of
+/// the text stay `Schema`.
 pub(crate) fn find_answer(content_type: &str, body: &[u8], id: i64) -> Option<Result<Value, RagError>> {
     let text = match std::str::from_utf8(body) {
         Ok(text) => text,
-        // `error_len() == None`: nur ein unvollständiges Zeichen am Ende, der Anfang ist gültig.
+        // `error_len() == None`: only an incomplete character at the end, the beginning is valid.
         Err(e) if e.error_len().is_none() && is_event_stream(content_type) => {
             std::str::from_utf8(&body[..e.valid_up_to()]).expect("bis valid_up_to gültig")
         }
@@ -215,7 +216,7 @@ pub(crate) fn find_answer(content_type: &str, body: &[u8], id: i64) -> Option<Re
     Some(answer.get("result").cloned().ok_or_else(|| RagError::Schema("Antwort ohne result".to_owned())))
 }
 
-/// Wie [`find_answer`], aber „nicht gefunden“ ist ein Fehler.
+/// Like [`find_answer`], but “not found” is an error.
 pub(crate) fn rpc_answer(content_type: &str, body: &[u8], id: i64) -> Result<Value, RagError> {
     find_answer(content_type, body, id)
         .unwrap_or_else(|| Err(RagError::Schema(format!("keine JSON-RPC-Antwort mit id {id} gefunden"))))
@@ -225,12 +226,12 @@ fn mib(bytes: usize) -> usize {
     (bytes / (1024 * 1024)).max(1)
 }
 
-/// Ergebnis von `tools/list` über alle gelesenen Seiten.
+/// Result of `tools/list` over all pages read.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolList {
     pub tools: Vec<Value>,
     pub pages: usize,
-    /// Nach [`MAX_TOOL_PAGES`] Seiten nannte die Gegenstelle noch einen `nextCursor`.
+    /// After [`MAX_TOOL_PAGES`] pages the remote side still named a `nextCursor`.
     pub more: bool,
 }
 
@@ -244,7 +245,7 @@ impl ToolList {
     }
 }
 
-/// MCP-Client über Streamable HTTP (eine Sitzung).
+/// MCP client over Streamable HTTP (one session).
 pub struct McpClient {
     http: reqwest::Client,
     url: String,
@@ -252,20 +253,20 @@ pub struct McpClient {
     session: Option<String>,
     next_id: i64,
     limits: Limits,
-    /// HTTP-Status der letzten Antwort (für die Wiederholung mit neuer Sitzung).
+    /// HTTP status of the last response (for the retry with a new session).
     last_status: Option<u16>,
-    /// Die letzte Anfrage ist nachweislich nie bei der Gegenstelle angekommen (Verbindungsaufbau gescheitert).
+    /// The last request provably never arrived at the remote side (connection setup failed).
     unsent: bool,
 }
 
 impl McpClient {
-    /// Verbinden: `initialize` und `notifications/initialized`. Gibt den Client und `serverInfo` zurück.
+    /// Connect: `initialize` and `notifications/initialized`. Returns the client and `serverInfo`.
     pub async fn connect(url: &str, secret: Option<&str>, limits: Limits) -> Result<(McpClient, Value), RagError> {
         McpClient::connect_with(url, secret, limits, limits.timeout).await
     }
 
-    /// Wie [`McpClient::connect`]; der HTTP-Client erlaubt Anfragen bis `ceiling` (für spätere Aufrufe mit
-    /// eigenen Grenzen, [`McpClient::set_limits`]), das Verbinden selbst hat `limits.timeout`.
+    /// Like [`McpClient::connect`]; the HTTP client allows requests up to `ceiling` (for later calls with
+    /// own limits, [`McpClient::set_limits`]), connecting itself has `limits.timeout`.
     async fn connect_with(
         url: &str,
         secret: Option<&str>,
@@ -303,13 +304,13 @@ impl McpClient {
         scrub_error(e, self.secret.as_deref())
     }
 
-    /// Grenzen der folgenden Anfragen (Zeitlimit höchstens bis zur Obergrenze des HTTP-Clients).
+    /// Limits of the following requests (time limit at most up to the upper limit of the HTTP client).
     fn set_limits(&mut self, limits: Limits) {
         self.limits = limits;
     }
 
-    /// Sitzung bei der Gegenstelle beenden: HTTP `DELETE` mit `Mcp-Session-Id` (höchstens
-    /// [`DELETE_TIMEOUT`]); Fehler werden ignoriert. Ohne Sitzung geschieht nichts.
+    /// End the session at the remote side: HTTP `DELETE` with `Mcp-Session-Id` (at most
+    /// [`DELETE_TIMEOUT`]); errors are ignored. Without a session nothing happens.
     pub(crate) async fn delete(&self) {
         let Some(session) = &self.session else { return };
         let mut request =
@@ -320,7 +321,7 @@ impl McpClient {
         let _ = tokio::time::timeout(DELETE_TIMEOUT, request.send()).await;
     }
 
-    /// Eine Anfrage mit neuer `id`; Antwort `result`.
+    /// A request with a new `id`; response `result`.
     pub async fn request(&mut self, method: &str, params: Value) -> Result<Value, RagError> {
         let id = self.next_id;
         self.next_id += 1;
@@ -331,7 +332,7 @@ impl McpClient {
         self.send(message, Some(id)).await
     }
 
-    /// Eine Nachricht schicken (mit eigenem Zeitlimit um alles); mit `id` die Antwort lesen.
+    /// Send a message (with its own time limit around everything); with `id` read the response.
     async fn send(&mut self, message: Value, id: Option<i64>) -> Result<Value, RagError> {
         let limit = self.limits.timeout;
         let outcome = match tokio::time::timeout(limit, self.exchange(message, id)).await {
@@ -391,8 +392,8 @@ impl McpClient {
         self.last_status = None;
         self.unsent = false;
         let response = request.send().await.map_err(|e| {
-            // Nur ein gescheiterter Verbindungsaufbau beweist, dass nichts gesendet wurde; eine Zeitüberschreitung
-            // oder ein Abbruch danach kann die Anfrage schon ausgeführt haben.
+            // Only a failed connection setup proves that nothing was sent; a timeout
+            // or a cancellation after it may already have carried out the request.
             self.unsent = e.is_connect();
             self.http_error(&e)
         })?;
@@ -433,7 +434,7 @@ impl McpClient {
                 return Err(self.too_big());
             }
             bytes.extend_from_slice(&chunk);
-            // Ein Ereignisstrom darf offen bleiben: lesen, bis die Antwort mit `id` da ist.
+            // An event stream may stay open: read until the response with `id` is there.
             if stream && let Some(answer) = find_answer(&content_type, &bytes, id) {
                 return answer;
             }
@@ -441,7 +442,7 @@ impl McpClient {
         rpc_answer(&content_type, &bytes, id)
     }
 
-    /// `tools/list` über `nextCursor`, höchstens `max_pages` Seiten.
+    /// `tools/list` through `nextCursor`, at most `max_pages` pages.
     pub async fn list_tools(&mut self, max_pages: usize) -> Result<ToolList, RagError> {
         let mut cursor: Option<String> = None;
         let mut tools = Vec::new();
@@ -462,7 +463,7 @@ impl McpClient {
         }
     }
 
-    /// `tools/call`; `isError` der Gegenstelle → [`RagError::Failed`] mit ihrem Text.
+    /// `tools/call`; `isError` of the remote side → [`RagError::Failed`] with its text.
     pub async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value, RagError> {
         let result = self
             .request("tools/call", json!({ "name": name, "arguments": arguments }))
@@ -476,13 +477,13 @@ impl McpClient {
         Ok(result)
     }
 
-    /// Daten ohne das Token (für Angaben der Gegenstelle).
+    /// Data without the token (for details from the remote side).
     pub fn clean(&self, value: Value) -> Value {
         scrub_value(value, self.secret.as_deref())
     }
 }
 
-/// Alle `content[].text` eines Werkzeug-Ergebnisses, mit Zeilenumbruch verbunden.
+/// All `content[].text` of a tool result, joined with line breaks.
 pub fn content_text(result: &Value) -> String {
     result
         .get("content")
@@ -498,7 +499,7 @@ pub fn content_text(result: &Value) -> String {
         .unwrap_or_default()
 }
 
-/// Eine Zeile: Steuerzeichen und Leerraum → ein Leerzeichen, höchstens `max` Zeichen (sonst „…“).
+/// One line: control characters and whitespace → one space, at most `max` characters (otherwise „…“).
 pub fn clean_line(text: &str, max: usize) -> String {
     let flat: String = text
         .split(|c: char| c.is_whitespace() || c.is_control())
@@ -514,8 +515,8 @@ pub fn clean_line(text: &str, max: usize) -> String {
     }
 }
 
-/// Daten eines Werkzeug-Ergebnisses: `structuredContent` (Objekt oder Liste), sonst das erste JSON-Objekt
-/// bzw. die erste Liste in `content[].text`; sonst `None`.
+/// Data of a tool result: `structuredContent` (object or list), otherwise the first JSON object
+/// or the first list in `content[].text`; otherwise `None`.
 pub fn tool_payload(result: &Value) -> Option<Value> {
     if let Some(structured) = result.get("structuredContent").filter(|v| v.is_object() || v.is_array()) {
         return Some(structured.clone());
@@ -528,8 +529,8 @@ pub fn tool_payload(result: &Value) -> Option<Value> {
         .find(|v| v.is_object() || v.is_array())
 }
 
-/// Eine Liste in den Daten: die Daten selbst, oder unter einem der Schlüssel `keys` (auch eine Ebene tiefer,
-/// etwa `{"result": {"results": [..]}}`).
+/// A list in the data: the data itself, or under one of the keys `keys` (also one level deeper,
+/// e.g. `{"result": {"results": [..]}}`).
 fn list_in<'a>(payload: &'a Value, keys: &[&str], depth: usize) -> Option<&'a Vec<Value>> {
     match payload {
         Value::Array(list) => Some(list),
@@ -543,11 +544,11 @@ fn list_in<'a>(payload: &'a Value, keys: &[&str], depth: usize) -> Option<&'a Ve
     }
 }
 
-/// Schlüssel einer Trefferliste.
+/// Keys of a hit list.
 const HIT_LIST_KEYS: &[&str] = &["results", "hits", "documents", "matches", "items", "data", "chunks", "result"];
 const COLLECTION_LIST_KEYS: &[&str] = &["collections", "items", "data", "results", "result"];
 
-/// Erster Text (oder Zahl als Text) unter einem der Schlüssel, im Treffer selbst oder in `metadata`,
+/// First text (or number as text) under one of the keys, in the hit itself or in `metadata`,
 /// `meta`, `document`, `source`.
 fn text_of(item: &Map<String, Value>, keys: &[&str]) -> Option<String> {
     let mut places = vec![item];
@@ -576,7 +577,7 @@ fn number_of(item: &Map<String, Value>, keys: &[&str]) -> Option<f64> {
         .filter(|n| n.is_finite())
 }
 
-/// Nur http(s)-Adressen gelten.
+/// Only http(s) addresses count.
 pub fn web_url(url: Option<String>) -> Option<String> {
     url.filter(|u| {
         let lower = u.to_ascii_lowercase();
@@ -584,19 +585,19 @@ pub fn web_url(url: Option<String>) -> Option<String> {
     })
 }
 
-/// Ersatz-Score eines Treffers ohne `score` und `distance` (Runde 21a, Gutachten R19): Die Ähnlichkeit ist dann
-/// unbekannt, nur die Reihenfolge zählt. `WEAK_SCORE + (1 − WEAK_SCORE) / Rang` fällt mit dem Rang (Rang 1 = 1,0) und
-/// bleibt immer bei oder über [`baruch_rag::WEAK_SCORE`]: Ein Treffer „aus Rang“ gilt nie als „schwach“ (früher 1/Rang:
-/// jeder Treffer ab Rang 3 war schwach, ohne dass MultiGPT etwas über seine Ähnlichkeit gesagt hätte). `meta.score`
-/// bleibt `"aus Rang"`, damit Anzeigen die Zahl als Rang-Ersatz erkennen können.
+/// Substitute score of a hit without `score` and `distance` (Round 21a, review R19): the similarity is then
+/// unknown, only the order counts. `WEAK_SCORE + (1 − WEAK_SCORE) / rank` falls with the rank (rank 1 = 1.0) and
+/// always stays at or above [`baruch_rag::WEAK_SCORE`]: a hit “from rank” never counts as “weak” (formerly 1/rank:
+/// every hit from rank 3 on was weak without MultiGPT having said anything about its similarity). `meta.score`
+/// stays `"aus Rang"` so that displays can recognise the number as a rank substitute.
 pub fn rank_score(rank: usize) -> f64 {
     let weak = f64::from(baruch_rag::WEAK_SCORE);
     weak + (1.0 - weak) / rank.max(1) as f64
 }
 
-/// Treffer aus den Daten von `search_documents` (Rang = Stelle in der Liste, ab 1). `collection` gilt für
-/// Treffer ohne eigene Sammlung (ein Aufruf je Sammlung). Keine Liste oder kein lesbarer Treffer in einer
-/// nicht leeren Liste → [`RagError::Schema`].
+/// Hits from the data of `search_documents` (rank = position in the list, from 1). `collection` applies to
+/// hits without a collection of their own (one call per collection). No list or no readable hit in a
+/// non-empty list → [`RagError::Schema`].
 pub fn parse_hits(payload: &Value, collection: Option<&str>) -> Result<Vec<Hit>, RagError> {
     let list = list_in(payload, HIT_LIST_KEYS, 1).ok_or_else(|| {
         RagError::Schema(format!("{SEARCH_TOOL}: keine Trefferliste in der Antwort (results, hits, documents …)."))
@@ -663,7 +664,7 @@ pub fn parse_hits(payload: &Value, collection: Option<&str>) -> Result<Vec<Hit>,
     Ok(hits)
 }
 
-/// Eine Sammlung, wie die Einstellungsseite sie zeigt (`count` = Dokumente, falls gemeldet).
+/// A collection as the settings page shows it (`count` = documents, if reported).
 pub fn parse_collections(payload: &Value) -> Vec<Value> {
     let Some(list) = list_in(payload, COLLECTION_LIST_KEYS, 1) else { return Vec::new() };
     let mut seen: Vec<String> = Vec::new();
@@ -690,7 +691,7 @@ pub fn parse_collections(payload: &Value) -> Vec<Value> {
     out
 }
 
-/// Darf ein Parameter eine Liste sein?
+/// May a parameter be a list?
 fn allows_array(schema: &Value) -> bool {
     let typed = |s: &Value| match s.get("type") {
         Some(Value::String(t)) => t == "array",
@@ -704,7 +705,7 @@ fn allows_array(schema: &Value) -> bool {
             .any(|alts| alts.iter().any(typed))
 }
 
-/// Wert passend zum Schema: Zahl, wenn das Schema `integer` verlangt und der Text eine ist.
+/// Value matching the schema: a number if the schema requires `integer` and the text is one.
 fn typed_value(schema: &Value, text: &str) -> Value {
     let integer = match schema.get("type") {
         Some(Value::String(t)) => t == "integer",
@@ -717,9 +718,9 @@ fn typed_value(schema: &Value, text: &str) -> Value {
     }
 }
 
-/// Argumente für `search_documents` aus dessen `inputSchema`: je Aufruf die Argumente und die Sammlung,
-/// falls das Schema nur eine Sammlung je Aufruf nimmt. Ohne `properties` gelten `query`, `collections`
-/// (Liste) und `limit`.
+/// Arguments for `search_documents` from its `inputSchema`: per call the arguments and the collection
+/// if the schema takes only one collection per call. Without `properties`, `query`, `collections`
+/// (list) and `limit` apply.
 pub fn search_arguments(
     schema: &Value,
     text: &str,
@@ -791,8 +792,8 @@ pub fn search_arguments(
         .collect())
 }
 
-/// Argumente für `document_info` bzw. `read_document`: das Dokument (und die Stelle, falls das Schema eine
-/// kennt); `None`, wenn das Schema keinen Parameter für das Dokument nennt.
+/// Arguments for `document_info` or `read_document`: the document (and the position if the schema knows
+/// one); `None` if the schema names no parameter for the document.
 pub fn document_arguments(schema: &Value, document: &str, section: Option<&str>) -> Option<Value> {
     let props = schema.get("properties").and_then(Value::as_object)?;
     let key = DOCUMENT_KEYS.iter().find(|k| props.contains_key(**k))?;
@@ -804,8 +805,8 @@ pub fn document_arguments(schema: &Value, document: &str, section: Option<&str>)
     Some(Value::Object(args))
 }
 
-/// Ausschnitt aus einer Antwort von `read_document`: Text aus den Daten (`text`, `content`, `excerpt` …)
-/// oder der Text in `content[]`, gesäubert und auf [`baruch_rag::MAX_SNIPPET_CHARS`] gekürzt (nie der Volltext).
+/// Snippet from a response of `read_document`: text from the data (`text`, `content`, `excerpt` …)
+/// or the text in `content[]`, cleaned and cut to [`baruch_rag::MAX_SNIPPET_CHARS`] (never the full text).
 pub fn excerpt_of(result: &Value) -> Option<String> {
     let from_payload = tool_payload(result)
         .and_then(|p| p.as_object().and_then(|m| text_of(m, &["excerpt", "snippet", "text", "content", "body"])));
@@ -814,9 +815,9 @@ pub fn excerpt_of(result: &Value) -> Option<String> {
     (!excerpt.is_empty()).then_some(excerpt)
 }
 
-// ---- Sitzung und Vorrat (Runde 13, Vertrag §2.2) ---------------------------------------------------------
+// ---- Session and pool (Round 13, contract §2.2) ----------------------------------------------------------
 
-/// Schlüssel des Vorrats: Adresse, Hash des Tokens (nie das Token selbst), Tokio-Laufzeit.
+/// Key of the pool: address, hash of the token (never the token itself), Tokio runtime.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct PoolKey {
     url: String,
@@ -826,7 +827,7 @@ struct PoolKey {
 
 impl PoolKey {
     fn new(url: &str, secret: Option<&str>) -> PoolKey {
-        // Zufälliger Schlüssel je Prozess: Der Hash taugt nur zum Unterscheiden, nicht zum Zurückrechnen.
+        // Random key per process: the hash is good only for telling apart, not for computing back.
         static HASHER: OnceLock<std::collections::hash_map::RandomState> = OnceLock::new();
         let token = match secret.filter(|s| !s.is_empty()) {
             None => 0,
@@ -837,7 +838,7 @@ impl PoolKey {
     }
 }
 
-/// Eine ruhende Sitzung im Vorrat.
+/// An idle session in the pool.
 struct Idle {
     client: McpClient,
     since: Instant,
@@ -851,15 +852,15 @@ fn locked<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Sitzung im Hintergrund beenden (`DELETE`), falls eine Tokio-Laufzeit läuft.
+/// End a session in the background (`DELETE`) if a Tokio runtime is running.
 fn spawn_delete(client: McpClient) {
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         handle.spawn(async move { client.delete().await });
     }
 }
 
-/// Ruhende Sitzungen, die länger als `older_than` warten, aus dem Vorrat nehmen (nur die der Adresse `url`,
-/// falls angegeben).
+/// Take idle sessions that have waited longer than `older_than` out of the pool (only those of the address
+/// `url`, if given).
 fn take_expired(older_than: Duration, url: Option<&str>) -> Vec<McpClient> {
     let mut pool = locked(&POOL);
     let mut out = Vec::new();
@@ -876,7 +877,7 @@ fn take_expired(older_than: Duration, url: Option<&str>) -> Vec<McpClient> {
     out
 }
 
-/// Eine ruhende Sitzung für `key` (die zuletzt zurückgegebene); abgelaufene werden dabei beendet.
+/// An idle session for `key` (the one returned last); expired ones are ended in the process.
 fn take_idle(key: &PoolKey) -> Option<McpClient> {
     for client in take_expired(SESSION_IDLE, None) {
         spawn_delete(client);
@@ -887,8 +888,8 @@ fn take_idle(key: &PoolKey) -> Option<McpClient> {
     client
 }
 
-/// Sitzung in den Vorrat legen (höchstens [`MAX_IDLE_SESSIONS`] je Schlüssel, sonst beenden) und nach
-/// [`SESSION_IDLE`] nachsehen, ob sie noch ruht.
+/// Put a session into the pool (at most [`MAX_IDLE_SESSIONS`] per key, otherwise end it) and check after
+/// [`SESSION_IDLE`] whether it is still idle.
 fn put_idle(key: PoolKey, client: McpClient) {
     let surplus = {
         let mut pool = locked(&POOL);
@@ -913,8 +914,8 @@ fn put_idle(key: PoolKey, client: McpClient) {
     }
 }
 
-/// Ruhende Sitzungen der Adresse `url`, die mindestens `older_than` warten, mit `DELETE` beenden; gibt ihre
-/// Zahl zurück. Der Dienst tut das selbst nach [`SESSION_IDLE`]; Tests rufen es mit kurzer Frist auf.
+/// End idle sessions of the address `url` that have waited at least `older_than` with `DELETE`; returns their
+/// number. The service does this itself after [`SESSION_IDLE`]; tests call it with a short period.
 pub async fn expire_idle(url: &str, older_than: Duration) -> usize {
     let expired = take_expired(older_than, Some(url));
     let count = expired.len();
@@ -935,7 +936,7 @@ fn store_tools(key: &PoolKey, tools: &ToolList) {
     cache.insert(key.clone(), (Instant::now(), tools.clone()));
 }
 
-/// Adresse und Token aus Einstellungen → Verbindungen (Regeln wie [`open_way`]).
+/// Address and token from Einstellungen → Verbindungen (rules like [`open_way`]).
 async fn settings(state: &AppState) -> Result<(String, Option<String>), RagError> {
     let row = state
         .store
@@ -961,11 +962,11 @@ async fn settings(state: &AppState) -> Result<(String, Option<String>), RagError
     Ok((url, secret))
 }
 
-/// Eine MCP-Sitzung zu MultiGPT. Prozessweiter Vorrat je (Adresse, Token-Hash): höchstens zwei ruhende
-/// Sitzungen, die Werkzeugliste gilt TOOLS_TTL. Nach Gebrauch immer `release` oder `close`.
+/// An MCP session to MultiGPT. Process-wide pool per (address, token hash): at most two idle
+/// sessions, the tool list is valid for TOOLS_TTL. After use always `release` or `close`.
 ///
-/// Fällt eine Sitzung ohne `release`/`close` weg (etwa weil ein Zeitlimit die Suche abbricht), beendet sie
-/// sich im Hintergrund mit `DELETE`.
+/// If a session goes away without `release`/`close` (e.g. because a time limit aborts the search), it ends
+/// itself in the background with `DELETE`.
 pub struct Session {
     client: Option<McpClient>,
     key: PoolKey,
@@ -973,21 +974,21 @@ pub struct Session {
     secret: Option<String>,
     tools: ToolList,
     limits: Limits,
-    /// Aus dem Vorrat und noch ohne Antwort: ein Fehler kann heißen, dass die Gegenstelle sie beendet hat.
+    /// From the pool and still without a response: an error may mean that the remote side ended it.
     reused: bool,
-    /// Transport- oder Protokollfehler: nicht zurück in den Vorrat.
+    /// Transport or protocol error: not back into the pool.
     broken: bool,
 }
 
 impl Session {
-    /// Adresse und Token aus Einstellungen → Verbindungen, Regeln wie `open_way`: ohne Adresse NotConfigured,
-    /// das Token nur bei passender Bindung (`secret_bound`), sonst NotConfigured mit Hinweis.
+    /// Address and token from Einstellungen → Verbindungen, rules like `open_way`: without address NotConfigured,
+    /// the token only with a matching binding (`secret_bound`), otherwise NotConfigured with a note.
     pub async fn open(state: &AppState, limits: Limits) -> Result<Session, RagError> {
         let (url, secret) = settings(state).await?;
         Session::connect(&url, secret.as_deref(), limits).await
     }
 
-    /// Direkt aus Adresse und Token (für Tests und `MultigptWay`).
+    /// Directly from address and token (for tests and `MultigptWay`).
     pub async fn connect(url: &str, secret: Option<&str>, limits: Limits) -> Result<Session, RagError> {
         let secret = secret.filter(|s| !s.is_empty());
         let key = PoolKey::new(url, secret);
@@ -1016,7 +1017,7 @@ impl Session {
                         broken: false,
                     });
                 }
-                // Die ruhende Sitzung antwortet nicht mehr: beenden und neu verbinden.
+                // The idle session no longer answers: end it and connect anew.
                 None => spawn_delete(client),
             }
         }
@@ -1046,9 +1047,9 @@ impl Session {
         })
     }
 
-    /// Werkzeugliste (zwischengespeichert).
-    /// Ist die Sitzung gestört (Transport- oder Protokollfehler beim letzten Aufruf)? Ein `isError` der Gegenstelle
-    /// stört sie nicht: Die Antwort kam vollständig an (Abgleich, Runde 19a: blockiert nur dieses Dokument).
+    /// Tool list (cached).
+    /// Is the session disturbed (transport or protocol error in the last call)? An `isError` of the remote side
+    /// does not disturb it: the response arrived completely (sync, Round 19a: blocks only this document).
     pub fn broken(&self) -> bool {
         self.broken
     }
@@ -1057,13 +1058,13 @@ impl Session {
         &self.tools
     }
 
-    /// `inputSchema` eines Werkzeugs; `None`, wenn MultiGPT es nicht anbietet.
+    /// `inputSchema` of a tool; `None` if MultiGPT does not offer it.
     pub fn schema(&self, tool: &str) -> Option<Value> {
         self.tools.find(tool).map(|t| t.get("inputSchema").cloned().unwrap_or_else(|| json!({})))
     }
 
-    /// `tools/call` mit eigenen Grenzen für diesen Aufruf (`None` = die der Sitzung). Bei `isError` gibt es
-    /// RagError::Failed mit dem Text der Gegenstelle, ohne Token.
+    /// `tools/call` with own limits for this call (`None` = those of the session). On `isError` there is
+    /// RagError::Failed with the text of the remote side, without token.
     pub async fn call(&mut self, tool: &str, arguments: Value, limits: Option<Limits>) -> Result<Value, RagError> {
         let limits = limits.unwrap_or(self.limits);
         let first = self.call_once(tool, arguments.clone(), limits).await;
@@ -1072,7 +1073,7 @@ impl Session {
         if !retry {
             return first;
         }
-        // Die Sitzung aus dem Vorrat hat die Gegenstelle schon beendet: einmal mit einer neuen.
+        // The remote side already ended the session from the pool: once with a new one.
         if let Some(old) = self.client.take() {
             spawn_delete(old);
         }
@@ -1084,9 +1085,9 @@ impl Session {
         self.call_once(tool, arguments, limits).await
     }
 
-    /// Hat die Gegenstelle die Sitzung offenbar beendet, ohne den Aufruf auszuführen (HTTP 400/404 oder keine
-    /// Verbindung zustande gekommen)? Eine Zeitüberschreitung oder ein Abbruch nach dem Senden zählt nicht: Der
-    /// Aufruf kann dann schon ausgeführt sein, und eine Wiederholung legte etwa ein `upload_document` doppelt an.
+    /// Did the remote side apparently end the session without carrying out the call (HTTP 400/404 or no
+    /// connection established)? A timeout or a cancellation after sending does not count: the
+    /// call may then already be carried out, and a retry would e.g. create an `upload_document` twice.
     fn gone(&self) -> bool {
         self.broken && self.client.as_ref().is_some_and(|c| c.unsent || matches!(c.last_status, Some(400 | 404)))
     }
@@ -1116,25 +1117,25 @@ impl Session {
                 self.secret.as_deref(),
             ));
         }
-        // Auch Daten gehen nur ohne Token zurück (Websuche und Abgleich zeigen sie an).
+        // Data too goes back only without the token (web search and sync display it).
         Ok(self.clean(result))
     }
 
-    /// Text ohne Token.
+    /// Text without token.
     pub fn scrub(&self, text: &str) -> String {
         scrub_text(text, self.secret.as_deref())
     }
 
-    /// Daten ohne Token.
+    /// Data without token.
     fn clean(&self, value: Value) -> Value {
         scrub_value(value, self.secret.as_deref())
     }
 
-    /// Zurück in den Vorrat. Nach einem Transport- oder Protokollfehler beendet sie sich stattdessen mit DELETE.
+    /// Back into the pool. After a transport or protocol error it ends itself with DELETE instead.
     pub async fn release(mut self) {
         let Some(mut client) = self.client.take() else { return };
         if self.broken {
-            // Im Hintergrund: Die Suche wartet nicht auf eine Gegenstelle, die gerade nicht antwortet.
+            // In the background: the search does not wait for a remote side that is not answering right now.
             spawn_delete(client);
         } else {
             client.set_limits(self.limits);
@@ -1142,7 +1143,7 @@ impl Session {
         }
     }
 
-    /// Beenden mit HTTP DELETE (Mcp-Session-Id); Fehler beim DELETE werden ignoriert.
+    /// End with HTTP DELETE (Mcp-Session-Id); errors of the DELETE are ignored.
     pub async fn close(mut self) {
         if let Some(client) = self.client.take() {
             client.delete().await;
@@ -1158,31 +1159,31 @@ impl Drop for Session {
     }
 }
 
-// ---- Volltext (Runde 13) ------------------------------------------------------------------------------
+// ---- Full text (Round 13) -----------------------------------------------------------------------------
 
-/// Ein Teil der Dokumentansicht (Vertrag §2.2).
+/// A part of the document view (contract §2.2).
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct FullTextPart {
     pub document: String,
     pub part: usize,
-    /// `None`, wenn die Gegenstelle seitenweise liefert und das Ende noch unbekannt ist.
+    /// `None` if the remote side delivers page by page and the end is still unknown.
     pub parts: Option<usize>,
     pub more: bool,
     pub text: String,
-    /// Kennt das Schema einen Seitenparameter (SECTION_KEYS), liest quellen seitenweise über die Gegenstelle;
-    /// sonst teilt Baruch den Volltext an Absatzgrenzen in Teile von höchstens PART_CHARS Zeichen.
+    /// If the schema knows a page parameter (SECTION_KEYS), quellen reads page by page through the remote side;
+    /// otherwise Baruch splits the full text at paragraph boundaries into parts of at most PART_CHARS characters.
     pub paged_by_remote: bool,
 }
 
-/// Angaben eines Dokuments aus `document_info` (falls angeboten); fehlt etwas, bleibt es `None`.
+/// Details of a document from `document_info` (if offered); if something is missing, it stays `None`.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
 pub struct DocumentInfo {
     pub title: Option<String>,
     pub url: Option<String>,
 }
 
-/// Seitenparameter im Schema von `read_document`: ein Name aus [`SECTION_KEYS`], der eine Zahl nimmt
-/// (`page` immer); Namen wie `chunk_id` mit Text sind keine Seiten.
+/// Page parameter in the schema of `read_document`: a name from [`SECTION_KEYS`] that takes a number
+/// (`page` always); names like `chunk_id` with text are not pages.
 pub fn page_key(schema: &Value) -> Option<&'static str> {
     let props = schema.get("properties").and_then(Value::as_object)?;
     let numeric = |spec: &Value| match spec.get("type") {
@@ -1193,9 +1194,9 @@ pub fn page_key(schema: &Value) -> Option<&'static str> {
     SECTION_KEYS.iter().copied().find(|k| props.get(*k).is_some_and(|spec| *k == "page" || numeric(spec)))
 }
 
-/// Teilt `text` an Absatzgrenzen (Leerzeilen bleiben am Absatz davor) in Teile von höchstens `max` Zeichen;
-/// ein längerer Absatz wird am letzten Leerraum vor der Grenze geteilt, sonst hart. Die Teile hintereinander
-/// ergeben genau `text` (so bleiben Zeichenbereiche im Volltext gültig). Leerer Text → ein leerer Teil.
+/// Splits `text` at paragraph boundaries (empty lines stay with the paragraph before) into parts of at most `max`
+/// characters; a longer paragraph is split at the last whitespace before the limit, otherwise hard. The parts in
+/// sequence yield exactly `text` (so character ranges in the full text stay valid). Empty text → one empty part.
 pub fn split_parts(text: &str, max: usize) -> Vec<String> {
     let max = max.max(1);
     let mut paragraphs: Vec<&str> = Vec::new();
@@ -1246,7 +1247,7 @@ pub fn split_parts(text: &str, max: usize) -> Vec<String> {
     parts
 }
 
-/// Antwort von `read_document` (ein Dokument oder eine Seite).
+/// Response of `read_document` (a document or a page).
 struct PageAnswer {
     text: String,
     total: Option<usize>,
@@ -1259,9 +1260,9 @@ impl PageAnswer {
     }
 }
 
-/// Text (ohne Beschneiden, `\r\n` → `\n`) und Seitenangaben aus einer Antwort von `read_document`: aus den
-/// Daten (`text`, `content`, `body`, `markdown`, auch unter `document`/`result`/`data`), sonst der Text in
-/// `content[]`. Daten ohne Text → [`RagError::Schema`].
+/// Text (untrimmed, `\r\n` → `\n`) and page details from a response of `read_document`: from the
+/// data (`text`, `content`, `body`, `markdown`, also under `document`/`result`/`data`), otherwise the text in
+/// `content[]`. Data without text → [`RagError::Schema`].
 fn page_answer(result: &Value) -> Result<PageAnswer, RagError> {
     let Some(payload) = tool_payload(result) else {
         return Ok(PageAnswer { text: content_text(result).replace("\r\n", "\n"), total: None, more: None });
@@ -1297,8 +1298,8 @@ fn page_answer(result: &Value) -> Result<PageAnswer, RagError> {
     Ok(PageAnswer { text: text.replace("\r\n", "\n"), total, more })
 }
 
-/// Teil `part` (ab 1) eines ganzen Dokuments, von Baruch geteilt ([`split_parts`]), und die Stelle seines
-/// ersten Zeichens im Volltext (Unicode-Zeichen ab 0). Gibt es den Teil nicht → [`RagError::Invalid`].
+/// Part `part` (from 1) of a whole document, split by Baruch ([`split_parts`]), and the position of its
+/// first character in the full text (Unicode characters from 0). If the part does not exist → [`RagError::Invalid`].
 pub fn local_part(document: &str, text: &str, part: usize) -> Result<(FullTextPart, usize), RagError> {
     let parts = split_parts(text, PART_CHARS);
     let count = parts.len();
@@ -1318,8 +1319,8 @@ pub fn local_part(document: &str, text: &str, part: usize) -> Result<(FullTextPa
     Ok((found, offset))
 }
 
-/// Ein gelesener Teil mit den Angaben des Dokuments und – wenn Baruch selbst geteilt hat – der Stelle seines
-/// ersten Zeichens im Volltext.
+/// A part read with the details of the document and – if Baruch split it itself – the position of its
+/// first character in the full text.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct PartReading {
     pub part: FullTextPart,
@@ -1327,7 +1328,7 @@ pub struct PartReading {
     pub offset: Option<usize>,
 }
 
-/// Eine Antwort von `read_document` (mit Seitennummer, falls `page` gesetzt) unter `limits`.
+/// A response of `read_document` (with page number if `page` is set) under `limits`.
 async fn read_page_with(
     session: &mut Session,
     args: &Value,
@@ -1342,11 +1343,11 @@ async fn read_page_with(
     page_answer(&result)
 }
 
-/// Ganzer Text eines Dokuments über `read_document` mit den fertigen Argumenten `args`: Kennt das Schema einen
-/// Seitenparameter (`page`, siehe [`page_key`]) und nennt die Antwort Seitenangaben, werden alle Seiten gelesen
-/// und mit Leerzeile verbunden (höchstens [`MAX_FULLTEXT_PAGES`] Seiten und `max_bytes` Bytes, sonst Fehler);
-/// sonst ist die eine Antwort das ganze Dokument. Gemeinsam für Volltext (quellen) und Abgleich, damit die
-/// lokale Kopie genau dem Volltext entspricht.
+/// Whole text of a document through `read_document` with the finished arguments `args`: if the schema knows a
+/// page parameter (`page`, see [`page_key`]) and the response names page details, all pages are read
+/// and joined with an empty line (at most [`MAX_FULLTEXT_PAGES`] pages and `max_bytes` bytes, otherwise error);
+/// otherwise the one response is the whole document. Shared by full text (quellen) and sync so that the
+/// local copy matches the full text exactly.
 pub(crate) async fn read_all_pages(
     session: &mut Session,
     args: &Value,
@@ -1385,21 +1386,21 @@ pub(crate) async fn read_all_pages(
     Ok(pages.join("\n\n"))
 }
 
-/// Höchstens so viele Dokumente aus Treffern merkt sich der Prozess für [`MultigptWay::found_in_chosen`].
+/// At most this many documents from hits the process remembers for [`MultigptWay::found_in_chosen`].
 const MAX_FOUND: usize = 4096;
 
-/// Ein Dokument, das eine Suche in gewählten Sammlungen gefunden hat.
+/// A document that a search in chosen collections found.
 struct Found {
     url: String,
     collection: String,
     document: String,
 }
 
-/// Dokumente aus Treffern von Suchen in gewählten Sammlungen (älteste fallen zuerst heraus).
+/// Documents from hits of searches in chosen collections (the oldest are dropped first).
 static FOUND: LazyLock<Mutex<std::collections::VecDeque<Found>>> = LazyLock::new(Default::default);
 
-/// Treffer einer Suche merken, deren Sammlung zu den gesuchten (vom Menschen gewählten) gehört. Ein Treffer
-/// aus einer anderen Sammlung (die Gegenstelle hielte sich nicht an den Filter) zählt nicht.
+/// Remember hits of a search whose collection belongs to the searched ones (chosen by the human). A hit
+/// from another collection (the remote side would not keep to the filter) does not count.
 fn remember_hits(url: &str, collections: &[String], hits: &[Hit]) {
     let mut found = locked(&FOUND);
     for hit in hits.iter().filter(|h| !h.document.is_empty() && collections.contains(&h.collection)) {
@@ -1418,7 +1419,7 @@ fn remember_hits(url: &str, collections: &[String], hits: &[Hit]) {
     }
 }
 
-/// Suchweg MultiGPT.
+/// Search way MultiGPT.
 pub struct MultigptWay {
     url: String,
     secret: Option<String>,
@@ -1426,12 +1427,12 @@ pub struct MultigptWay {
 }
 
 impl MultigptWay {
-    /// Für Tests und den Integrator: Weg direkt aus Adresse und Token (ohne Einstellungen).
+    /// For tests and the integrator: way directly from address and token (without settings).
     pub fn new(url: &str, secret: Option<&str>, limits: Limits) -> MultigptWay {
         MultigptWay { url: url.to_owned(), secret: secret.map(str::to_owned), limits }
     }
 
-    /// Weg aus den Einstellungen (Regeln wie [`open_way`]), als konkreter Typ für Volltext und Ausschnitt.
+    /// Way from the settings (rules like [`open_way`]), as a concrete type for full text and snippet.
     pub async fn from_settings(state: &AppState, limits: Limits) -> Result<MultigptWay, RagError> {
         let (url, secret) = settings(state).await?;
         Ok(MultigptWay::new(&url, secret.as_deref(), limits))
@@ -1473,7 +1474,7 @@ impl MultigptWay {
             }
             hits.extend(found);
         }
-        // Gleicher Score: die frühere Stelle der Gegenstelle bleibt vorn (stabil sortiert).
+        // Equal score: the earlier position of the remote side stays in front (stable sort).
         hits.sort_by(|a, b| b.score.total_cmp(&a.score));
         hits.truncate(query.limit);
         let deadline = started + crate::rag::WAY_TIMEOUT.saturating_sub(FOLLOW_UP_MARGIN);
@@ -1491,8 +1492,8 @@ impl MultigptWay {
         Ok(hits)
     }
 
-    /// Kam `document` (in `collection`, leer = gleich welcher) unter dieser Adresse in einem Treffer einer Suche
-    /// in vom Menschen gewählten Sammlungen vor ([`remember_hits`])? Grundlage für MCP `source_read`.
+    /// Did `document` (in `collection`, empty = any) occur under this address in a hit of a search
+    /// in collections chosen by the human ([`remember_hits`])? Basis for MCP `source_read`.
     pub fn found_in_chosen(&self, collection: &str, document: &str) -> bool {
         let (collection, document) = (collection.trim(), document.trim());
         locked(&FOUND).iter().any(|f| {
@@ -1500,10 +1501,10 @@ impl MultigptWay {
         })
     }
 
-    /// Fehlende Titel/URLs über `document_info`, fehlende Ausschnitte über `read_document` ergänzen (jeweils
-    /// nur, wenn die Gegenstelle das Werkzeug anbietet; Fehler lassen den Treffer, wie er ist). Jeder Nachtrag
-    /// hat höchstens [`FOLLOW_UP_TIMEOUT`], alle zusammen [`FOLLOW_UP_BUDGET`] und nie mehr als bis `deadline`;
-    /// nach einem Transportfehler (auch Zeitlimit) gibt es keine weiteren Nachträge.
+    /// Complete missing titles/URLs through `document_info`, missing snippets through `read_document` (each
+    /// only if the remote side offers the tool; errors leave the hit as it is). Every follow-up
+    /// has at most [`FOLLOW_UP_TIMEOUT`], all together [`FOLLOW_UP_BUDGET`] and never more than until `deadline`;
+    /// after a transport error (also a time limit) there are no further follow-ups.
     async fn complete(&self, session: &mut Session, hits: &mut [Hit], deadline: Instant) {
         let budget_end = (Instant::now() + FOLLOW_UP_BUDGET).min(deadline);
         let max_body = self.limits.max_body;
@@ -1551,7 +1552,7 @@ impl MultigptWay {
         }
     }
 
-    /// Ausschnitt einer Fundstelle über `read_document` (höchstens [`baruch_rag::MAX_SNIPPET_CHARS`] Zeichen).
+    /// Snippet of a hit through `read_document` (at most [`baruch_rag::MAX_SNIPPET_CHARS`] characters).
     pub async fn excerpt(&self, document: &str, section: Option<&str>) -> Result<String, RagError> {
         let mut session = self.session().await?;
         let outcome = async {
@@ -1569,8 +1570,8 @@ impl MultigptWay {
         outcome.map(|excerpt| scrub_text(&excerpt, self.secret.as_deref()))
     }
 
-    /// Schema, Argumente für das Dokument und ggf. der Seitenparameter von `read_document`. Verlangt das Schema
-    /// etwas, das Baruch nicht kennt, ist das ehrlich [`RagError::Schema`].
+    /// Schema, arguments for the document and, if any, the page parameter of `read_document`. If the schema requires
+    /// something Baruch does not know, that is honestly [`RagError::Schema`].
     fn read_setup(session: &Session, document: &str) -> Result<(Value, Option<&'static str>), RagError> {
         let schema = session
             .schema(READ_TOOL)
@@ -1615,7 +1616,7 @@ impl MultigptWay {
         };
         let answer = MultigptWay::read_page(session, &args, Some((key, part))).await?;
         if !answer.paged() {
-            // Keine Seitenangaben: Die Gegenstelle lieferte das ganze Dokument – Baruch teilt es selbst.
+            // No page details: the remote side delivered the whole document – Baruch splits it itself.
             return local_part(document, &answer.text, part).map(|(found, offset)| (found, Some(offset)));
         }
         if let Some(total) = answer.total
@@ -1640,7 +1641,7 @@ impl MultigptWay {
         read_all_pages(session, &args, page, Some(FULLTEXT_LIMITS), FULLTEXT_LIMITS.max_body).await
     }
 
-    /// Angaben über `document_info`, falls angeboten; Fehler ergeben leere Angaben.
+    /// Details through `document_info` if offered; errors yield empty details.
     async fn info_in(&self, session: &mut Session, document: &str) -> DocumentInfo {
         let Some(schema) = session.schema(INFO_TOOL) else { return DocumentInfo::default() };
         let Some(args) = document_arguments(&schema, document, None) else { return DocumentInfo::default() };
@@ -1655,7 +1656,7 @@ impl MultigptWay {
         }
     }
 
-    /// Volltext eines Dokuments (höchstens FULLTEXT_LIMITS.max_body, `\r\n` → `\n`).
+    /// Full text of a document (at most FULLTEXT_LIMITS.max_body, `\r\n` → `\n`).
     pub async fn read_full(&self, document: &str) -> Result<String, RagError> {
         let mut session = self.session().await?;
         let outcome = self.read_full_in(&mut session, document).await;
@@ -1665,13 +1666,13 @@ impl MultigptWay {
             .map_err(|e| scrub_error(e, self.secret.as_deref()))
     }
 
-    /// Teil `part` (ab 1) eines Dokuments.
+    /// Part `part` (from 1) of a document.
     pub async fn read_part(&self, document: &str, part: usize) -> Result<FullTextPart, RagError> {
         Ok(self.read_part_with_info(document, part).await?.part)
     }
 
-    /// Wie [`MultigptWay::read_part`], dazu Titel und Adresse aus `document_info` (in derselben Sitzung) und
-    /// die Stelle des Teils im Volltext.
+    /// Like [`MultigptWay::read_part`], plus title and address from `document_info` (in the same session) and
+    /// the position of the part in the full text.
     pub async fn read_part_with_info(&self, document: &str, part: usize) -> Result<PartReading, RagError> {
         if part == 0 {
             return Err(RagError::Invalid("part: Teile zählen ab 1.".into()));
@@ -1693,7 +1694,7 @@ impl MultigptWay {
             .map_err(|e| scrub_error(e, secret))
     }
 
-    /// Angaben eines Dokuments (Titel, Adresse) über `document_info`; bietet MultiGPT es nicht an, leer.
+    /// Details of a document (title, address) through `document_info`; if MultiGPT does not offer it, empty.
     pub async fn info(&self, document: &str) -> Result<DocumentInfo, RagError> {
         let mut session = self.session().await?;
         let info = self.info_in(&mut session, document).await;
@@ -1712,22 +1713,22 @@ impl SearchWay for MultigptWay {
     }
 }
 
-/// Suchweg aus den Einstellungen (Vertrag §3.3): keine Adresse → `NotConfigured`; das Token
-/// `baruch/multigpt` nur, wenn es für die jetzige Adresse hinterlegt ist, sonst `NotConfigured` mit
-/// Hinweis (es geht dann nirgendwohin).
+/// Search way from the settings (contract §3.3): no address → `NotConfigured`; the token
+/// `baruch/multigpt` only if it is stored for the present address, otherwise `NotConfigured` with a
+/// note (it then goes nowhere).
 pub async fn open_way(state: &AppState) -> Result<Box<dyn SearchWay>, RagError> {
     Ok(Box::new(MultigptWay::from_settings(state, Limits::SEARCH).await?))
 }
 
-/// Nachgebauter MultiGPT-MCP-Server **für Tests** (auch die des Integrators): Streamable HTTP auf
-/// `127.0.0.1:<zufällig>/mcp` mit `initialize`, `notifications/initialized`, `tools/list` (Seiten über
-/// `nextCursor`), `tools/call` für `search_documents`, `list_collections`, `document_info`,
-/// `read_document`. Prüft Token (wenn verlangt) und `Mcp-Session-Id`; jede Anfrage landet in
-/// [`MockMultigpt::requests`]. Kein Netz außer Loopback. Frei erfundene Testdaten.
+/// Mock MultiGPT MCP server **for tests** (also those of the integrator): Streamable HTTP on
+/// `127.0.0.1:<random>/mcp` with `initialize`, `notifications/initialized`, `tools/list` (pages through
+/// `nextCursor`), `tools/call` for `search_documents`, `list_collections`, `document_info`,
+/// `read_document`. Checks the token (if required) and `Mcp-Session-Id`; every request lands in
+/// [`MockMultigpt::requests`]. No network except loopback. Freely invented test data.
 ///
-/// Runde 13: `DELETE /mcp` beendet die Sitzung (200, in `requests()` mit `method: "DELETE"`),
-/// `read_document` liefert seitenweise aus `Behavior::pages` (`{text, page, pages}`), und
-/// `Behavior::tool_delays` verzögert einzelne Werkzeuge.
+/// Round 13: `DELETE /mcp` ends the session (200, in `requests()` with `method: "DELETE"`),
+/// `read_document` delivers page by page from `Behavior::pages` (`{text, page, pages}`), and
+/// `Behavior::tool_delays` delays individual tools.
 pub mod mock {
     use std::collections::HashMap;
     use std::net::SocketAddr;
@@ -1741,90 +1742,90 @@ pub mod mock {
     use axum::routing::post;
     use serde_json::{Value, json};
 
-    /// Sitzung, die der Nachbau vergibt.
+    /// Session the mock hands out.
     pub const SESSION: &str = "nachbau-sitzung-1";
 
-    /// Form der Antwort von `search_documents`.
+    /// Form of the response of `search_documents`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum ResultForm {
-        /// `structuredContent: {results: [..]}` und dasselbe als JSON-Text.
+        /// `structuredContent: {results: [..]}` and the same as JSON text.
         Structured,
-        /// Nur JSON-Text in `content` (`{"hits": [..]}`).
+        /// Only JSON text in `content` (`{"hits": [..]}`).
         TextJson,
-        /// Ein Satz ohne JSON (unlesbar).
+        /// A sentence without JSON (unreadable).
         Unreadable,
     }
 
-    /// Verhalten des Nachbaus (über [`MockMultigpt::configure`] änderbar).
+    /// Behaviour of the mock (changeable through [`MockMultigpt::configure`]).
     #[derive(Debug, Clone)]
     pub struct Behavior {
         pub server_name: String,
-        /// Werkzeuge für `tools/list` (mit `inputSchema`).
+        /// Tools for `tools/list` (with `inputSchema`).
         pub tools: Vec<Value>,
-        /// Werkzeuge je Seite (0 = alle auf einer).
+        /// Tools per page (0 = all on one).
         pub page_size: usize,
-        /// Einträge für `list_collections`.
+        /// Entries for `list_collections`.
         pub collections: Vec<Value>,
-        /// Treffer für `search_documents` (gefiltert nach den Sammlungen der Anfrage, falls ein Treffer
-        /// `collection` nennt, und gekürzt auf die Trefferzahl).
+        /// Hits for `search_documents` (filtered by the collections of the request if a hit names
+        /// `collection`, and cut to the number of hits).
         pub hits: Vec<Value>,
-        /// Verlangtes Token (`Authorization: Bearer …`); `None` = keins.
+        /// Required token (`Authorization: Bearer …`); `None` = none.
         pub bearer: Option<String>,
         pub result: ResultForm,
-        /// `search_documents` antwortet mit `isError` und diesem Text.
+        /// `search_documents` answers with `isError` and this text.
         pub tool_error: Option<String>,
-        /// Wartezeit vor jeder Antwort auf `tools/call`.
+        /// Waiting time before every response to `tools/call`.
         pub delay: Duration,
-        /// Jede Anfrage → 307 mit dieser Adresse.
+        /// Every request → 307 with this address.
         pub redirect: Option<String>,
-        /// Antworten als `text/event-stream`.
+        /// Responses as `text/event-stream`.
         pub event_stream: bool,
-        /// Ereignisstrom in zwei Stücken mit kurzer Pause, getrennt mitten im ersten Mehrbyte-Zeichen.
+        /// Event stream in two pieces with a short pause, split in the middle of the first multi-byte character.
         pub split_utf8: bool,
-        /// `document_info` je Dokument.
+        /// `document_info` per document.
         pub documents: HashMap<String, Value>,
-        /// `read_document` je Dokument (Volltext).
+        /// `read_document` per document (full text).
         pub texts: HashMap<String, String>,
-        /// `read_document` mit `page` (ab 1) je Dokument: Seiten, Antwort `{document_id, text, page, pages}`;
-        /// eine Seite hinter dem Ende → `isError`. Geht vor `texts`.
+        /// `read_document` with `page` (from 1) per document: pages, response `{document_id, text, page, pages}`;
+        /// a page behind the end → `isError`. Takes precedence over `texts`.
         pub pages: HashMap<String, Vec<String>>,
-        /// Zusätzliche Wartezeit je Werkzeug (nach `delay`).
+        /// Additional waiting time per tool (after `delay`).
         pub tool_delays: HashMap<String, Duration>,
-        /// Sitzung, die `initialize` vergibt und die jede weitere Anfrage tragen muss (Vorgabe [`SESSION`]);
-        /// ändern = die Gegenstelle „vergisst“ ältere Sitzungen (400).
+        /// Session that `initialize` hands out and that every further request must carry (default [`SESSION`]);
+        /// changing it = the remote side “forgets” older sessions (400).
         pub session_id: String,
-        /// Runde 21a: Dokumente mit Seiten für `read_document {page_from, page_to}` (höchstens [`MAX_RANGE_PAGES`]
-        /// Seiten und [`MAX_READ_CHARS`] Zeichen je Aufruf, Antwort `{document_id, text, page_from, page_to, pages,
-        /// truncated}`); ohne Bereich der ganze Text. `upload_document` legt hier an.
+        /// Round 21a: documents with pages for `read_document {page_from, page_to}` (at most [`MAX_RANGE_PAGES`]
+        /// pages and [`MAX_READ_CHARS`] characters per call, response `{document_id, text, page_from, page_to, pages,
+        /// truncated}`); without a range the whole text. `upload_document` creates entries here.
         pub ranged: HashMap<String, Vec<String>>,
-        /// Seiten, die ein hochgeladenes Dokument nach dem Indexieren hat (der Nachbau liest keine PDF; der Test
-        /// sagt, was MultiGPT „erkannt“ hätte).
+        /// Pages an uploaded document has after indexing (the mock reads no PDF; the test
+        /// says what MultiGPT would have “recognised”).
         pub upload_pages: Vec<String>,
-        /// Inhaltsverzeichnis, das `document_info` für ein hochgeladenes Dokument nennt (`toc`), z. B.
+        /// Table of contents that `document_info` names for an uploaded document (`toc`), e.g.
         /// `{"section": "1", "title": "…", "page": 1}`.
         pub upload_toc: Vec<Value>,
-        /// Titel und Autor, die `document_info` für ein hochgeladenes Dokument nennt.
+        /// Title and author that `document_info` names for an uploaded document.
         pub upload_title: Option<String>,
         pub upload_author: Option<String>,
-        /// `upload_document` antwortet mit `isError` und diesem Text.
+        /// `upload_document` answers with `isError` and this text.
         pub upload_error: Option<String>,
-        /// So oft meldet `run_status` (bzw. `read_document` ohne `run_status`) „läuft noch“, bevor das Dokument
-        /// bereit ist.
+        /// This often `run_status` (or `read_document` without `run_status`) reports “still running” before the
+        /// document is ready.
         pub index_polls: usize,
-        /// Antworten von `web_search` (`{"results": …}`).
+        /// Responses of `web_search` (`{"results": …}`).
         pub web_results: Vec<Value>,
-        /// Gezählte Abfragen je Lauf bzw. Dokument (für `index_polls`).
+        /// Counted polls per run or document (for `index_polls`).
         polls: HashMap<String, usize>,
-        /// Laufende Nummer der hochgeladenen Dokumente.
+        /// Running number of the uploaded documents.
         uploaded: usize,
-        /// Hochgeladene Dokumente: (Sammlung, Dokument-ID, Dateiname) – für `list_documents`, `delete_document`.
+        /// Uploaded documents: (collection, document id, file name) – for `list_documents`, `delete_document`.
         listed: Vec<(String, String, String)>,
     }
 
-    /// Höchstens so viele Seiten liest `read_document` je Aufruf mit `page_from`/`page_to` (Annahme laut
-    /// Werkzeugbeschreibung, Stand 2026-11-09).
+    /// At most this many pages `read_document` reads per call with `page_from`/`page_to` (assumption per
+    /// tool description, as of 2026-11-09).
     pub const MAX_RANGE_PAGES: usize = 10;
-    /// Höchstens so viele Zeichen liefert `read_document` je Aufruf (Annahme laut Werkzeugbeschreibung).
+    /// At most this many characters `read_document` delivers per call (assumption per tool description).
     pub const MAX_READ_CHARS: usize = 12_000;
 
     impl Default for Behavior {
@@ -1865,11 +1866,11 @@ pub mod mock {
         }
     }
 
-    /// Alle Werkzeuge der MultiGPT-Werkzeugbeschreibung (Stand 2026-11-09, Runde 21a): die neun Werkzeuge
-    /// `search_documents`, `read_document` (mit `page_from`/`page_to`), `list_collections`, `document_info`,
+    /// All tools of the MultiGPT tool description (as of 2026-11-09, Round 21a): the nine tools
+    /// `search_documents`, `read_document` (with `page_from`/`page_to`), `list_collections`, `document_info`,
     /// `list_documents`, `upload_document` (`collection`, `content_base64`, `filename`, `url?`), `delete_document`,
-    /// `web_search`, `fetch_url` und dazu `run_status` (Fortschritt der Indexierung). `document_id` nimmt Text oder
-    /// Zahl. [`default_tools`] bleibt unverändert (ältere Tests hängen an ihr).
+    /// `web_search`, `fetch_url` and in addition `run_status` (progress of the indexing). `document_id` takes text or
+    /// number. [`default_tools`] stays unchanged (older tests depend on it).
     pub fn full_tools() -> Vec<Value> {
         let document = json!({ "type": ["string", "integer"] });
         vec![
@@ -1907,7 +1908,7 @@ pub mod mock {
         ]
     }
 
-    /// Die vier Werkzeuge wie bei MultiGPT (Schema-Variante „query/collections/limit“).
+    /// The four tools as in MultiGPT (schema variant “query/collections/limit”).
     pub fn default_tools() -> Vec<Value> {
         vec![
             json!({ "name": "search_documents", "description": "Bedeutungssuche in Sammlungen",
@@ -1929,7 +1930,7 @@ pub mod mock {
         requests: Mutex<Vec<Value>>,
     }
 
-    /// Laufender Nachbau; endet mit dem Fallenlassen.
+    /// Running mock; ends when dropped.
     pub struct MockMultigpt {
         addr: SocketAddr,
         shared: Arc<Shared>,
@@ -1943,7 +1944,7 @@ pub mod mock {
     }
 
     impl MockMultigpt {
-        /// Auf `127.0.0.1:0` starten.
+        /// Start on `127.0.0.1:0`.
         pub async fn start() -> MockMultigpt {
             let shared = Arc::new(Shared::default());
             let app = Router::new().route("/mcp", post(handle).delete(end_session)).with_state(shared.clone());
@@ -1980,13 +1981,13 @@ pub mod mock {
             self.configure(|b| b.bearer = token.map(str::to_owned));
         }
 
-        /// Alle Anfragen: `{method, params, session, protocol, authorization}` (`authorization` = ob eine
-        /// Kopfzeile kam und ob sie passte: `"keine"`, `"passt"`, `"falsch"`).
+        /// All requests: `{method, params, session, protocol, authorization}` (`authorization` = whether a
+        /// header came and whether it matched: `"keine"`, `"passt"`, `"falsch"`).
         pub fn requests(&self) -> Vec<Value> {
             self.shared.requests.lock().expect("Nachbau").clone()
         }
 
-        /// Argumente aller Aufrufe eines Werkzeugs.
+        /// Arguments of all calls of a tool.
         pub fn tool_calls(&self, name: &str) -> Vec<Value> {
             self.requests()
                 .into_iter()
@@ -2023,7 +2024,7 @@ pub mod mock {
         }
     }
 
-    /// Text eines Arguments (Zahl als Text), sonst `None`.
+    /// Text of an argument (number as text), otherwise `None`.
     fn arg_text(args: &Value, key: &str) -> Option<String> {
         match args.get(key)? {
             Value::String(s) => Some(s.clone()),
@@ -2032,8 +2033,8 @@ pub mod mock {
         }
     }
 
-    /// Werkzeuge mit Zustand (Runde 21a): Hochladen, Lauf, seitenweises Lesen, Liste, Löschen, Websuche, Abruf.
-    /// `None` = kein solches Werkzeug bzw. kein solches Dokument (dann antwortet [`call`]).
+    /// Tools with state (Round 21a): upload, run, reading by pages, list, delete, web search, fetch.
+    /// `None` = no such tool or no such document (then [`call`] answers).
     fn call_stateful(behavior: &mut Behavior, name: &str, args: &Value) -> Option<Value> {
         match name {
             "upload_document" => {
@@ -2082,7 +2083,7 @@ pub mod mock {
             "read_document" => {
                 let document = arg_text(args, "document_id")?;
                 let pages = behavior.ranged.get(&document)?.clone();
-                // Ohne run_status zählt das Lesen als Abfrage, ob die Indexierung fertig ist.
+                // Without run_status reading counts as a poll whether the indexing is finished.
                 let has_run_status = behavior.tools.iter().any(|t| t["name"] == "run_status");
                 if !has_run_status {
                     let seen = behavior.polls.entry(document.clone()).or_insert(0);
@@ -2139,7 +2140,7 @@ pub mod mock {
                 })
             }
             "web_search" => Some(tool_text(&json!({ "results": behavior.web_results }), true)),
-            // Der Nachbau ruft nie eine Adresse ab (kein Internet in Tests).
+            // The mock never fetches an address (no internet in tests).
             "fetch_url" => Some(tool_error("Der Nachbau ruft keine Adressen ab.")),
             _ => None,
         }
@@ -2223,8 +2224,8 @@ pub mod mock {
         response
     }
 
-    /// Rumpf in zwei Stücken: das erste endet nach dem ersten Byte des ersten Mehrbyte-Zeichens (sonst in
-    /// der Mitte), das zweite folgt nach 50 ms – so kommt es beim Client sicher getrennt an.
+    /// Body in two pieces: the first ends after the first byte of the first multi-byte character (otherwise in
+    /// the middle), the second follows after 50 ms – so it surely arrives separately at the client.
     fn split_stream(bytes: Vec<u8>) -> Response {
         let cut = bytes.iter().position(|b| *b >= 0x80).map_or(bytes.len() / 2, |i| i + 1);
         let (tx, rx) = tokio::sync::mpsc::channel::<Result<axum::body::Bytes, std::convert::Infallible>>(2);
@@ -2239,7 +2240,7 @@ pub mod mock {
         ([(header::CONTENT_TYPE, "text/event-stream")], body).into_response()
     }
 
-    /// `DELETE /mcp`: Sitzung beenden (immer 200), aufgezeichnet wie jede Anfrage.
+    /// `DELETE /mcp`: end the session (always 200), recorded like every request.
     async fn end_session(State(shared): State<Arc<Shared>>, headers: HeaderMap) -> Response {
         let text = |name: &str| headers.get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
         let behavior = shared.behavior.lock().expect("Nachbau").clone();
@@ -2316,7 +2317,7 @@ pub mod mock {
                 if let Some(extra) = behavior.tool_delays.get(name) {
                     tokio::time::sleep(*extra).await;
                 }
-                // Werkzeuge mit Zustand (Hochladen, Lauf …) ändern das gemeinsame Verhalten.
+                // Tools with state (upload, run …) change the shared behaviour.
                 let mut shared_behavior = shared.behavior.lock().expect("Nachbau");
                 call(&mut shared_behavior, name, &message["params"]["arguments"])
             }
@@ -2396,8 +2397,8 @@ mod tests {
 
     #[test]
     fn hits_without_score_or_distance_are_never_weak_by_rank() {
-        // Gutachten R19: Ohne Score galt jeder Treffer ab Rang 3 als „schwach“ (1/Rang < 0,45) – eine Aussage über
-        // die Ähnlichkeit, die MultiGPT nie gemacht hat.
+        // Review R19: without a score every hit from rank 3 on counted as “weak” (1/rank < 0.45) – a statement about
+        // the similarity that MultiGPT never made.
         let payload = json!({ "results": [
             { "document_id": "a", "title": "Erster" },
             { "document_id": "b", "title": "Zweiter" },
@@ -2443,7 +2444,7 @@ mod tests {
         let full = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"titel\":\"Möwen\"}}\n\n";
         let bytes = full.as_bytes();
         let cut = full.find('ö').unwrap() + 1;
-        // Begründung: Bis hierher fehlt das zweite Byte von „ö“ – das heißt „noch nicht da“, nicht „kaputt“.
+        // Reason: up to here the second byte of „ö“ is missing – that means “not there yet”, not “broken”.
         assert!(find_answer("text/event-stream", &bytes[..cut], 3).is_none(), "halbes Zeichen am Ende: weiterlesen");
         assert_eq!(
             find_answer("text/event-stream", bytes, 3).unwrap().unwrap(),

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! MCP-Werkzeug `sources_list` (Runde 9): die bevorzugten Quellen lesen, damit ein Assistent weiß,
-//! wo er für `@belege` zuerst nachsehen soll. Nur lesend; Verbindungen, Geheimnisse und Einstellungen
-//! bleiben MCP verschlossen (kein `settings_read`, die Personas liefert `list_personas`).
+//! MCP tool `sources_list` (Round 9): read the preferred sources so that an assistant knows
+//! where to look first for `@belege`. Read-only; connections, secrets and settings
+//! stay closed to MCP (no `settings_read`, the personas come from `list_personas`).
 
 use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::mcp::tools::Failure;
 
-/// Beschreibung in `tools/list`.
+/// Description in `tools/list`.
 pub const DESCRIPTION: &str = "Read the preferred sources for @belege (read-only): title, address, note and \
     order as the human maintains them under Einstellungen → Quellen.";
 
-/// Eingabeschema: keine Argumente.
+/// Input schema: no arguments.
 pub fn schema() -> Value {
     json!({ "type": "object", "properties": {} })
 }

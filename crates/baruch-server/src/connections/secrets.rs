@@ -1,41 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Geheimnisse der Verbindungen (Schlüssel, Token, Passwort) – nur im Schlüsselbund, nie in SQLite,
-//! HTML, RPC-Antworten, Fehlermeldungen, Prüfergebnissen oder Protokollen.
+//! Secrets of the connections (key, token, password) – only in the keyring, never in SQLite,
+//! HTML, RPC responses, error messages, check results or logs.
 //!
-//! [`SecretStore`] ist die einzige Tür: im Betrieb [`KeyringSecrets`] (Schlüsselbund des Systems,
-//! unter Linux der Secret Service über D-Bus, unter macOS der Schlüsselbund (Keychain), unter Windows die
-//! Anmeldeinformationsverwaltung – je Zielsystem ein Feature der Crate `keyring`, siehe `Cargo.toml`; Dienst
-//! [`SERVICE`], Konten `eliezer`, `multigpt`, `pgvector`), in Tests [`MemorySecrets`] (`AppState::open` nimmt es, damit kein Test den echten
-//! Schlüsselbund berührt). Die Methoden sind blockierend; der Server ruft sie nur über [`get`],
-//! [`set`] und [`delete`] auf, die jeden Aufruf in `spawn_blocking` legen.
+//! [`SecretStore`] is the only door: in operation [`KeyringSecrets`] (keyring of the system,
+//! on Linux the Secret Service over D-Bus, on macOS the Keychain, on Windows the
+//! Credential Manager – per target system a feature of the crate `keyring`, see `Cargo.toml`; service
+//! [`SERVICE`], accounts `eliezer`, `multigpt`, `pgvector`), in tests [`MemorySecrets`] (`AppState::open` takes it
+//! so that no test touches the real
+//! keyring). The methods are blocking; the server calls them only through [`get`],
+//! [`set`] and [`delete`], which put every call into `spawn_blocking`.
 //!
-//! Fehlertexte nennen nie das Geheimnis: `keyring::Error` beschreibt nur die Art des Fehlers (die
-//! Bytes bei `BadEncoding` werden nicht ausgegeben).
+//! Error texts never name the secret: `keyring::Error` describes only the kind of the error (the
+//! bytes of `BadEncoding` are not output).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-/// Dienstname im Schlüsselbund.
+/// Service name in the keyring.
 pub const SERVICE: &str = "baruch";
 
-/// Ablage für Geheimnisse je Konto (`eliezer`, `multigpt`, `pgvector`) unter dem Dienst „baruch“.
+/// Storage for secrets per account (`eliezer`, `multigpt`, `pgvector`) under the service “baruch”.
 pub trait SecretStore: Send + Sync {
-    /// Geheimnis lesen; `Ok(None)`, wenn keins hinterlegt ist.
+    /// Read a secret; `Ok(None)` if none is stored.
     fn get(&self, account: &str) -> Result<Option<String>, String>;
-    /// Geheimnis hinterlegen (ersetzt ein vorhandenes).
+    /// Store a secret (replaces an existing one).
     fn set(&self, account: &str, secret: &str) -> Result<(), String>;
-    /// Geheimnis entfernen; fehlt es schon, ist das kein Fehler.
+    /// Remove a secret; if it is already missing, that is no error.
     fn delete(&self, account: &str) -> Result<(), String>;
 }
 
-/// Der Schlüsselbund des Systems über die Crate `keyring` (Linux: Secret Service, macOS: Schlüsselbund,
-/// Windows: Anmeldeinformationsverwaltung). Die Zugänge für macOS und Windows sind seit Runde 24 gebaut,
-/// aber auf keinem echten Gerät erprobt. Auf einem System ohne eigenen Zugang (z. B. FreeBSD) kennt `keyring`
-/// nur einen Speicher im Prozess: Geheimnisse überleben dort den Neustart nicht.
+/// The keyring of the system through the crate `keyring` (Linux: Secret Service, macOS: Keychain,
+/// Windows: Credential Manager). The backends for macOS and Windows have been built since Round 24,
+/// but tried on no real device. On a system without a backend of its own (e.g. FreeBSD) `keyring` knows
+/// only an in-process store: secrets do not survive the restart there.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct KeyringSecrets;
 
-/// Fehlertext ohne Inhalt: nur die Art des Fehlers.
+/// Error text without content: only the kind of the error.
 fn keyring_error(e: &keyring::Error) -> String {
     match e {
         keyring::Error::NoStorageAccess(_) => {
@@ -77,14 +78,14 @@ impl SecretStore for KeyringSecrets {
     }
 }
 
-/// Geheimnisse im Speicher (Tests, Wegwerf-Server): nichts verlässt den Prozess.
+/// Secrets in memory (tests, throwaway servers): nothing leaves the process.
 #[derive(Debug, Default)]
 pub struct MemorySecrets {
     secrets: Mutex<HashMap<String, String>>,
 }
 
 impl MemorySecrets {
-    /// Mit Paaren `(Konto, Geheimnis)` vorbelegt.
+    /// Pre-filled with pairs `(account, secret)`.
     pub fn with<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> MemorySecrets {
         let secrets = pairs.into_iter().map(|(a, s)| (a.to_owned(), s.to_owned())).collect();
         MemorySecrets { secrets: Mutex::new(secrets) }
@@ -111,17 +112,17 @@ impl SecretStore for MemorySecrets {
     }
 }
 
-/// Wo `serve` die Geheimnisse hält.
+/// Where `serve` keeps the secrets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecretsMode {
-    /// Schlüsselbund des Systems ([`KeyringSecrets`]).
+    /// Keyring of the system ([`KeyringSecrets`]).
     Keyring,
-    /// Nur im Speicher des Prozesses ([`MemorySecrets`]); weg beim Beenden.
+    /// Only in the memory of the process ([`MemorySecrets`]); gone on exit.
     Memory,
 }
 
 impl SecretsMode {
-    /// Zeile für die Startausgabe.
+    /// Line for the start-up output.
     pub fn describe(self) -> &'static str {
         match self {
             SecretsMode::Keyring => "Schlüsselbund des Systems (Dienst „baruch“)",
@@ -132,7 +133,7 @@ impl SecretsMode {
     }
 }
 
-/// Derselbe Ordner? Beide vorhanden: kanonisch verglichen, sonst wörtlich.
+/// The same folder? Both exist: compared canonically, otherwise literally.
 fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
     match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
         (Ok(a), Ok(b)) => a == b,
@@ -140,10 +141,10 @@ fn same_dir(a: &std::path::Path, b: &std::path::Path) -> bool {
     }
 }
 
-/// Ablage der Geheimnisse für `serve`: ausdrücklich `keyring` oder `memory` (`--secrets`,
-/// `BARUCH_SECRETS`), sonst der Schlüsselbund nur, wenn `data` der Vorgabe-Datenordner `default` ist.
-/// Die Einträge im Schlüsselbund hängen nur an Dienst „baruch“ und Konto, nicht am Datenordner; ein
-/// Wegwerf-Server mit eigenem `--data` teilte sie sonst mit dem eigentlichen Dienst.
+/// Storage of the secrets for `serve`: explicitly `keyring` or `memory` (`--secrets`,
+/// `BARUCH_SECRETS`), otherwise the keyring only if `data` is the default data folder `default`.
+/// The entries in the keyring hang only on service “baruch” and account, not on the data folder; a
+/// throwaway server with its own `--data` would otherwise share them with the actual service.
 pub fn secrets_mode(
     given: Option<&str>,
     data: &std::path::Path,
@@ -158,12 +159,12 @@ pub fn secrets_mode(
     }
 }
 
-/// Der Schlüsselbund des Systems für `serve`.
+/// The keyring of the system for `serve`.
 pub fn system_secrets() -> Arc<dyn SecretStore> {
     Arc::new(KeyringSecrets)
 }
 
-/// [`SecretStore::get`] außerhalb des asynchronen Laufzeit-Threads (D-Bus blockiert).
+/// [`SecretStore::get`] outside the async runtime thread (D-Bus blocks).
 pub async fn get(store: &Arc<dyn SecretStore>, account: &str) -> Result<Option<String>, String> {
     let (store, account) = (store.clone(), account.to_owned());
     tokio::task::spawn_blocking(move || store.get(&account)).await.map_err(|e| format!("Aufgabe abgebrochen: {e}"))?
@@ -196,7 +197,7 @@ mod tests {
         std::fs::create_dir(&default).unwrap();
         let other = root.path().join("wegwerf");
         std::fs::create_dir(&other).unwrap();
-        // Ein Wegwerf- oder Prüfserver mit eigenem --data darf die Einträge des Dienstes nicht berühren.
+        // A throwaway or test server with its own --data must not touch the entries of the service.
         assert_eq!(secrets_mode(None, &other, &default), Ok(SecretsMode::Memory), "anderer Ordner → Speicher");
         assert_eq!(secrets_mode(None, &default, &default), Ok(SecretsMode::Keyring), "Vorgabe → Schlüsselbund");
         let same = root.path().join(".").join("baruch");

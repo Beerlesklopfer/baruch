@@ -1,28 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! EPUB eines Werks (Runde 20a, Besitz „epub“): Eingabe sammeln ([`epub_input`]), bauen ([`book_for`]), packen
-//! ([`epub_bytes`]), als Datei schreiben ([`write_epub_file`], CLI `export --epub`).
+//! EPUB of a work (Round 20a, owner “epub”): collect the input ([`epub_input`]), build ([`book_for`]), pack
+//! ([`epub_bytes`]), write as a file ([`write_epub_file`], CLI `export --epub`).
 //!
 //! - **RPC** ([`handles`], [`call`]): `work.epub {work, inline?, footnotes?}` → `{file_name, bytes, sha256, url,
-//!   footnotes, files, warnings, epub_base64?}`; kein Commit; ohne Abschnitte -32000.
-//! - **Seite** ([`pages`]): `GET /werke/{id}/epub[?fussnoten=popup|endnoten]` → `application/epub+zip` als Anhang
-//!   `<slug>.epub`; Anfrage einer fremden Seite → 403, ohne Abschnitte → 422.
-//! - **Entwurf (Runde 22):** `work.epub {draft?}` und `?entwurf=1|0` (dreiwertig, ändert die Einstellung nie); mit
-//!   Entwurf trägt die Titelseite den Hinweis und `dc:title` „<Titel> (Entwurf)“ ([`book_for_draft`]).
+//!   footnotes, files, warnings, epub_base64?}`; no commit; without sections -32000.
+//! - **Page** ([`pages`]): `GET /werke/{id}/epub[?fussnoten=popup|endnoten]` → `application/epub+zip` as attachment
+//!   `<slug>.epub`; request of a foreign page → 403, without sections → 422.
+//! - **Draft (Round 22):** `work.epub {draft?}` and `?entwurf=1|0` (three-valued, never changes the setting); with
+//!   draft the title page carries the note and `dc:title` „<Titel> (Entwurf)“ ([`book_for_draft`]).
 //!
-//! Die Eingabe kommt aus denselben Quellen wie Export und Satz: aktuelle Fassungen und Werkvorlage
-//! (`Store::export_map`), Nummern aus dem Gliederungsschema (`Store::numbering_preview`), Bilder
-//! (`Store::export_assets`, Alternativtexte aus den Bildangaben), Umschlag und Buchangaben (`Store::book_meta`,
-//! [`crate::cover::book_info`] → ISBN geprüft mit `isbn13_check`, Impressum aus `imprint_lines`, Rechte aus
-//! `copyright_line`), Satz-Einstellungen ([`crate::cover::typeset_settings`]). Sprache: Satz-Einstellung, sonst
-//! `#set text(lang: …)` der Werkvorlage, sonst „de“. `dcterms:modified` ist der jüngste Zeitpunkt aus Werk,
-//! Buchangaben, Satz-Einstellungen, Bildern und Fassungen – gleicher Stand, gleiche Bytes.
+//! The input comes from the same sources as export and typesetting: current revisions and work template
+//! (`Store::export_map`), numbers from the outline scheme (`Store::numbering_preview`), images
+//! (`Store::export_assets`, alternative texts from the image details), cover and book details (`Store::book_meta`,
+//! [`crate::cover::book_info`] → ISBN checked with `isbn13_check`, imprint from `imprint_lines`, rights from
+//! `copyright_line`), typeset settings ([`crate::cover::typeset_settings`]). Language: typeset setting, otherwise
+//! `#set text(lang: …)` of the work template, otherwise „de“. `dcterms:modified` is the latest time from work,
+//! book details, typeset settings, images and revisions – same state, same bytes.
 //!
-//! **EPUB-Cover (Runde 21c, [`epub_cover`]):** Das Cover ist ein Rasterbild (PNG, höchstens [`COVER_MAX_WIDTH`] ×
-//! [`COVER_MAX_HEIGHT`] Pixel, Seitenverhältnis der Vorderseite) der Umschlag-Vorderseite samt Titel, Untertitel und
-//! Autor aus der Umschlag-Anordnung ([`crate::cover::front_cover_source`], gerastert mit
-//! [`baruch_render::render_png`]) – auch ohne Umschlagbild (dann auf der dunklen Fläche). Scheitert das Rastern, nimmt
-//! das EPUB die rohe Bilddatei des Umschlags (falls es eine gibt) und meldet `COVER_RASTER_FAILED` in `warnings`;
-//! nie ein stiller Wegfall. Gleicher Stand → gleiche Bytes (Zwischenspeicher je Stand der Quelle).
+//! **EPUB cover (Round 21c, [`epub_cover`]):** the cover is a raster image (PNG, at most [`COVER_MAX_WIDTH`] ×
+//! [`COVER_MAX_HEIGHT`] pixels, aspect ratio of the front) of the cover front with title, subtitle and
+//! author from the cover layout ([`crate::cover::front_cover_source`], rasterised with
+//! [`baruch_render::render_png`]) – also without a cover image (then on the dark area). If rasterising fails, the
+//! EPUB takes the raw image file of the cover (if there is one) and reports `COVER_RASTER_FAILED` in `warnings`;
+//! never a silent omission. Same state → same bytes (cache per state of the source).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -40,14 +40,14 @@ use serde_json::{Value, json};
 use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
-/// Größte Breite des EPUB-Covers in Pixeln (übliche Cover-Größe 1600 × 2560).
+/// Maximum width of the EPUB cover in pixels (usual cover size 1600 × 2560).
 pub const COVER_MAX_WIDTH: u32 = 1600;
-/// Größte Höhe des EPUB-Covers in Pixeln.
+/// Maximum height of the EPUB cover in pixels.
 pub const COVER_MAX_HEIGHT: u32 = 2560;
-/// Code der Warnung, wenn die Vorderseite nicht gerastert werden konnte.
+/// Code of the warning if the front could not be rasterised.
 pub const COVER_RASTER_FAILED: &str = "COVER_RASTER_FAILED";
 
-/// Methoden dieses Moduls.
+/// Methods of this module.
 pub fn handles(method: &str) -> bool {
     method == "work.epub"
 }
@@ -58,7 +58,7 @@ struct EpubParams {
     inline: bool,
     #[serde(default)]
     footnotes: FootnoteMode,
-    /// Runde 22: Entwurf dreiwertig (fehlt = nach Satz-Einstellung).
+    /// Round 22: draft three-valued (missing = by typeset setting).
     #[serde(default)]
     draft: Option<bool>,
 }
@@ -70,7 +70,7 @@ fn epub_error(e: EpubError) -> RpcError {
     }
 }
 
-/// Wort der Fußnotenart in Antworten (`popup` | `endnotes`).
+/// Word for the footnote kind in answers (`popup` | `endnotes`).
 pub fn footnote_word(mode: FootnoteMode) -> &'static str {
     match mode {
         FootnoteMode::Popup => "popup",
@@ -78,7 +78,7 @@ pub fn footnote_word(mode: FootnoteMode) -> &'static str {
     }
 }
 
-/// Dateien in Lesereihenfolge für Antworten: `{href, media_type, kind, title, key}`.
+/// Files in reading order for answers: `{href, media_type, kind, title, key}`.
 pub fn spine_files(book: &EpubBook) -> Vec<Value> {
     book.spine
         .iter()
@@ -115,8 +115,8 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     Ok(answer)
 }
 
-/// Zeitpunkt der Datenbank (`JJJJ-MM-TTThh:mm:ss[.fff][Z]` oder mit Leerzeichen statt `T`) in der Form von
-/// `dcterms:modified`; unlesbar → `None`.
+/// Time of the database (`JJJJ-MM-TTThh:mm:ss[.fff][Z]` or with a space instead of `T`) in the form of
+/// `dcterms:modified`; unreadable → `None`.
 fn normalize_stamp(stamp: &str) -> Option<String> {
     let head: String = stamp.trim().chars().take(19).collect();
     let well_formed = head.len() == 19
@@ -129,7 +129,7 @@ fn normalize_stamp(stamp: &str) -> Option<String> {
     well_formed.then(|| format!("{}T{}Z", &head[..10], &head[11..]))
 }
 
-/// Jüngster Zeitpunkt des Stands: Werk, Buchangaben, Satz-Einstellungen, Bilder, Fassungen.
+/// Latest time of the state: work, book details, typeset settings, images, revisions.
 async fn modified(state: &AppState, work: WorkId, w: &baruch_store::WorkMeta) -> Result<String, StoreError> {
     let mut stamps: Vec<String> = vec![w.created.clone()];
     stamps.extend(w.updated.clone());
@@ -145,9 +145,9 @@ async fn modified(state: &AppState, work: WorkId, w: &baruch_store::WorkMeta) ->
     Ok(stamps.iter().filter_map(|s| normalize_stamp(s)).max().unwrap_or_else(|| "2000-01-01T00:00:00Z".into()))
 }
 
-/// Bildtyp nach dem Inhalt (PNG, JPEG, GIF, SVG, WebP), erst ohne erkennbaren Inhalt nach der Dateiendung: Nach einem
-/// Typwechsel (PNG ersetzt `haus.svg`, Pfade behalten die alte Endung) stimmt die Endung nicht mehr (Runde 21,
-/// Nachbesserung).
+/// Image type by content (PNG, JPEG, GIF, SVG, WebP), only without recognisable content by the file extension:
+/// after a type change (PNG replaces `haus.svg`, paths keep the old extension) the extension is no longer right
+/// (Round 21, rework).
 fn media_type(path: &str, bytes: &[u8]) -> &'static str {
     if let Some(mime) = baruch_store::detect_mime(bytes) {
         return mime;
@@ -162,14 +162,14 @@ fn media_type(path: &str, bytes: &[u8]) -> &'static str {
     }
 }
 
-/// Eingabe für [`baruch_epub::build`] aus den aktuellen Fassungen (wie Export und Satz).
+/// Input for [`baruch_epub::build`] from the current revisions (like export and typesetting).
 pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode) -> Result<EpubInput, RpcError> {
     let w = state.store.work_meta(work).await?;
     let map = state.store.export_map(work).await?;
     let first = map.sections.iter().map(|s| s.start).next().unwrap_or(map.typst.len());
     let template = map.typst[..first].to_owned();
 
-    // Angezeigte Nummern aus dem eingestellten Gliederungsschema (wie in der Gliederung).
+    // Displayed numbers from the configured outline scheme (as in the outline).
     let numbering = state.store.outline_numbering(work).await?;
     let numbers: BTreeMap<i64, String> = state
         .store
@@ -181,7 +181,7 @@ pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode)
     let mut sections = Vec::new();
     for s in map.sections.iter().filter(|s| s.start < s.end) {
         let body = &map.typst[s.start..s.end];
-        // Ohne lesbare Überschrift bleibt der Text erhalten (Ebene 2, in der Datei des Kapitels davor).
+        // Without a readable heading the text is kept (level 2, in the file of the chapter before).
         let (level, title) = match baruch_typst::parse(body).ok().and_then(|d| d.headings.into_iter().next()) {
             Some(h) => (h.level, h.title),
             None => (2, String::new()),
@@ -207,7 +207,7 @@ pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode)
     let info = crate::cover::book_info(state, work, &book).await?;
     let isbn = baruch_typst::cover::isbn13_check(&info.isbn).ok();
 
-    // Bilder: aktuelle Fassung je Pfad, Alternativtext aus den Bildangaben.
+    // Images: current revision per path, alternative text from the image details.
     let mut alts: BTreeMap<String, String> = BTreeMap::new();
     for asset in state.store.asset_list(work).await? {
         for path in &asset.paths {
@@ -256,12 +256,12 @@ pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode)
         imprint: baruch_typst::cover::imprint_lines(&info),
         dedication: info.dedication.clone(),
         footnotes,
-        // R31: Register und Glossar (glossary.xhtml, index-{slug}.xhtml); inaktiv ohne Wirkung.
+        // R31: index and glossary (glossary.xhtml, index-{slug}.xhtml); inactive without effect.
         back_matter: state.store.back_matter(work).await?,
     })
 }
 
-/// Rohe Bilddatei des Umschlags (aktuelle Fassung, Alternativtext), falls das Werk einen Umschlag hat.
+/// Raw image file of the cover (current revision, alternative text) if the work has a cover.
 async fn raw_cover(state: &AppState, work: WorkId) -> Result<Option<EpubImage>, RpcError> {
     let Some(name) = crate::cover::cover_name(state, work).await? else { return Ok(None) };
     let data = state.store.asset_data(work, &name, None).await?;
@@ -270,16 +270,16 @@ async fn raw_cover(state: &AppState, work: WorkId) -> Result<Option<EpubImage>, 
     Ok(Some(EpubImage { path: name.clone(), media_type: data.mime.clone(), bytes: data.bytes()?, alt }))
 }
 
-/// Zwischenspeicher der gerasterten Vorderseiten: (Stand der Quelle, PNG).
+/// Cache of the rasterised fronts: (state of the source, PNG).
 type RasterCache = std::sync::Mutex<Vec<(String, Vec<u8>)>>;
 
-/// Gerasterte Vorderseiten je Stand der Quelle (höchstens acht, älteste zuerst weg).
+/// Rasterised fronts per state of the source (at most eight, oldest dropped first).
 fn raster_cache() -> &'static RasterCache {
     static CACHE: std::sync::OnceLock<RasterCache> = std::sync::OnceLock::new();
     CACHE.get_or_init(Default::default)
 }
 
-/// Die Umschlag-Vorderseite als PNG (höchstens [`COVER_MAX_WIDTH`] × [`COVER_MAX_HEIGHT`]); Fehler mit Grund.
+/// The cover front as PNG (at most [`COVER_MAX_WIDTH`] × [`COVER_MAX_HEIGHT`]); errors with reason.
 pub async fn front_cover_png(state: &AppState, work: WorkId) -> Result<Vec<u8>, String> {
     let source = crate::cover::front_cover_source(state, work).await?;
     let stand = baruch_render::stand(&source);
@@ -301,8 +301,8 @@ pub async fn front_cover_png(state: &AppState, work: WorkId) -> Result<Vec<u8>, 
     Ok(raster.png)
 }
 
-/// EPUB-Cover (Runde 21c, siehe Moduldoku): das Rasterbild der Vorderseite mit Titel, sonst die rohe Bilddatei des
-/// Umschlags mit Warnung [`COVER_RASTER_FAILED`] (ohne Umschlagbild dann kein Cover, ebenfalls mit Warnung).
+/// EPUB cover (Round 21c, see module doc): the raster image of the front with title, otherwise the raw image file of
+/// the cover with warning [`COVER_RASTER_FAILED`] (without a cover image then no cover, also with a warning).
 pub async fn epub_cover(state: &AppState, work: WorkId) -> Result<(Option<EpubImage>, Vec<EpubWarning>), RpcError> {
     let raw = raw_cover(state, work).await?;
     match front_cover_png(state, work).await {
@@ -330,14 +330,14 @@ pub async fn epub_cover(state: &AppState, work: WorkId) -> Result<(Option<EpubIm
     }
 }
 
-/// Gebautes Buch zum aktuellen Stand; Warnungen des Covers ([`epub_cover`]) stehen vorn in `warnings`.
+/// Built book for the current state; warnings of the cover ([`epub_cover`]) stand in front in `warnings`.
 pub async fn book_for(state: &AppState, work: WorkId, footnotes: FootnoteMode) -> Result<Arc<EpubBook>, RpcError> {
     book_for_draft(state, work, footnotes, None).await
 }
 
-/// Runde 22: Entwurf für das EPUB – wirksam nach dem dreiwertigen Schalter ([`crate::typeset::effective_draft`]);
-/// das Datum (nur mit `draft.date`, Ortszeit) schreibt der Server vorn in den Zusatz, damit baruch-epub ohne Uhr
-/// bleibt.
+/// Round 22: draft for the EPUB – effective by the three-valued switch ([`crate::typeset::effective_draft`]);
+/// the date (only with `draft.date`, local time) is written by the server at the front of the addition so that
+/// baruch-epub stays without a clock.
 pub fn epub_draft(
     stored: Option<&baruch_typst::typeset::Draft>,
     choice: Option<bool>,
@@ -349,8 +349,8 @@ pub fn epub_draft(
     })
 }
 
-/// Wie [`book_for`] mit dem Entwurf-Schalter (Runde 22): mit Entwurf Hinweis auf der Titelseite und „(Entwurf)“ im
-/// Titel-Metadatum; ohne Entwurf unverändert.
+/// Like [`book_for`] with the draft switch (Round 22): with draft a note on the title page and „(Entwurf)“ in the
+/// title metadata; without draft unchanged.
 pub async fn book_for_draft(
     state: &AppState,
     work: WorkId,
@@ -360,14 +360,14 @@ pub async fn book_for_draft(
     let mut input = epub_input(state, work, footnotes).await?;
     input.typeset.draft = epub_draft(input.typeset.draft.as_ref(), draft);
     let mut book = baruch_epub::build(&input).map_err(epub_error)?;
-    // Das Rasterbild liegt im Zwischenspeicher; ein zweiter Aufruf kostet nur die Abfrage der Warnung.
+    // The raster image lies in the cache; a second call costs only the query of the warning.
     let (_, mut warnings) = epub_cover(state, work).await?;
     warnings.append(&mut book.warnings);
     book.warnings = warnings;
     Ok(Arc::new(book))
 }
 
-/// (Dateiname `<slug>.epub`, ZIP-Bytes).
+/// (File name `<slug>.epub`, ZIP bytes).
 pub async fn epub_bytes(
     state: &AppState,
     work: WorkId,
@@ -376,7 +376,7 @@ pub async fn epub_bytes(
     epub_bytes_draft(state, work, footnotes, None).await
 }
 
-/// Wie [`epub_bytes`] mit dem Entwurf-Schalter (Runde 22).
+/// Like [`epub_bytes`] with the draft switch (Round 22).
 pub async fn epub_bytes_draft(
     state: &AppState,
     work: WorkId,
@@ -388,7 +388,7 @@ pub async fn epub_bytes_draft(
     Ok((format!("{slug}.epub"), baruch_epub::package(&book).map_err(epub_error)?))
 }
 
-/// EPUB nach `target` schreiben: (Bytes, Warnungen). Eine vorhandene Datei bleibt unangetastet (Fehler).
+/// Write the EPUB to `target`: (bytes, warnings). An existing file stays untouched (error).
 pub async fn write_epub_file(
     state: &AppState,
     work: WorkId,
@@ -415,7 +415,7 @@ pub fn pages() -> Router<Arc<AppState>> {
 #[derive(Deserialize)]
 struct DownloadQuery {
     fussnoten: Option<String>,
-    /// Runde 22: `1` mit Entwurf, `0` ohne, fehlt = nach Einstellung.
+    /// Round 22: `1` with draft, `0` without, missing = by setting.
     entwurf: Option<String>,
 }
 
