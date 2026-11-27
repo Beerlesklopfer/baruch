@@ -1556,6 +1556,55 @@ aufgegangen, die Satz-Seite trägt ihre Bedienung im Reiter Buch statt in `edit_
 - Stand: Umschlag von Werk 3 liegt als `umschlag.png` (retuschiert) und `umschlag-original.png` im Werk
   (RPC `asset.add`, 2026-11-06); Dateien auch unter `~/Bilder/baruch/herr-pruefe-mich/`.
 
+## Open after Round 38 (integration 2026-11-27)
+
+Round 38 ("English for agents and developers") was integrated only in part. Merged: `team/regeln_doku`,
+`team/mcp_rpc`, `team/kommentare_server`. The branches `team/kommentare_store` and `team/kommentare_rest` were
+never started (the round's output schema allowed three tasks, see contract §0) – a follow-up round is needed.
+
+- **Developer docs still German (regeln_doku):** `SKILLS.md`, `docs/Plan.md`, `docs/Bedienung.md`,
+  `docs/Verteilung.md`, `docs/WYSIWYG.md`, `docs/Austauschformat.md`, `docs/Architektur.md` (about 1.1 MB;
+  `Architektur.md` alone 588 KB). They carry English sections added in Round 38 and are therefore mixed. Whoever
+  translates a file moves it from `PENDING` to `TRANSLATED` in `tests/round38_doku.rs` and updates the test-pinned
+  German strings in the same commit: `round37_hilfe` (headings and one sentence of `docs/Bedienung.md`),
+  `round36_typst` (`docs/Verteilung.md`), `round32_beenden`. `README.md` cites two German headings of
+  `docs/Verteilung.md` („Typst-Kommandozeile“, „Stand der Prüfung“).
+- **`docs/MCP.md` and `docs/RPC.md` still German (mcp_rpc)** apart from the Round 38 sections ("Work language",
+  "Round 38 – English and work language"); about 3,870 lines. Both files are mixed-language, against the contract
+  rule "whole or untouched"; accepted for this round, to be translated as a whole.
+- **Task texts to models still German:** `assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`,
+  `threads.rs`. The language rule below the prompt still fixes the answer language. The words Baruch reads back
+  from @schrift/@belege (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are recognised in German only, so
+  an English work still gets these German words. Prompts of the personas other than the lector are about 140
+  characters longer than before (language rule); only the lector prompt was trimmed to its old length.
+- **Comments still German:** server `src/import.rs` to `src/xref.rs` (97 files) and all of
+  `crates/baruch-server/tests/` (205 files), about 10,600 comment lines; everything of `kommentare_store`
+  (`baruch-store`, `baruch-typst`) and `kommentare_rest` (the other crates, `web/src/**/*.ts`, `templates/**`,
+  `scripts/`, `site/tools/`). `python3 scripts/check-comments-only.py --umlaute crates scripts site/tools` listed
+  about 12,100 lines at integration. Suggested split: server src i–p, server src q–x, server tests, store+typst,
+  rest. Before translating `src/typeset.rs` look at `tests/round33_seiten.rs` (reads that file).
+- **Allow list is broad:** `scripts/comment-umlaut-allow.txt` allows every comment line in `crates/baruch-server`
+  that contains „ (quoted German UI text). That also hides untranslated lines with a quotation; narrow the entry
+  when the server comments are finished.
+- **Vocabulary of the comment translation** (chosen freely by kommentare_server, to be kept by the follow-up):
+  Fassung = revision, Vorschlag = proposal, Beitrag = post, Befund = finding, Abschnitt = section, Spiegel = mirror,
+  Antrag = request, Gliederung = outline, Einfall = idea, Persona Lektor = lector, account role Lektor = Lektor,
+  Satzbild = typeset view, Menüband = ribbon, Schlüsselbund = keyring. Comments that name a heading of a developer
+  doc give it freely in English; aligning them with the final headings is not done.
+- **Out of scope of Round 38, still German:** CSS comments (`static/*.css`), comments in `.typ`, `.sql`, `.toml`,
+  `.yml`, `packaging/`, `site/content`, the German output (`echo`) of the scripts, every German string of the user
+  interface (Round 39), messages that the user interface shows as well and that also travel through RPC or MCP
+  (list in `docs/RPC.md`, "Language of the interfaces").
+- **Load-dependent test:** `round25_abnahme::forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp` failed
+  once in the full run of the integration (the cloud card lacked `data-fits` after `idea.move`) and passed in the
+  second full run and in five single runs. Not caused by Round 38 as far as seen (only comments and one error
+  string changed in `idea_map`); to be examined.
+- **Old test containers:** `podman ps -a` shows four exited `baruch-r12-*` containers from 2026-11-24/25 (earlier
+  rounds); the integrator of Round 38 did not touch them.
+- **Decisions for the user:** (1) the boundary of contract §4.4 – which messages stay German until Round 39 – was
+  an assumption of the PM; (2) `effective_prompt` for display carries no language rule (otherwise saving the shown
+  prompt would store the rule of one work); (3) commits are English from this round on.
+
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
 Vor dem erneuten Tag v0.9.0 meldete `cargo deny check advisories` in der CI elf Einträge. Gehoben: quick-xml 0.38 →

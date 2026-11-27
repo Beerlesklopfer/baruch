@@ -30,6 +30,31 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
   task is either translated or listed as still German, head paragraph of the four history files, every rule of
   `AGENTS.md` by keyword, README note and anchors, English release notes, work language in the developer docs).
 
+- **Work language and English interfaces:** Every work now has a work language, German or English (Einstellungen
+  → Werk → Werksprache; RPC `work.language`, `work.language_set`; field `language` in `work.get`, `work.meta`,
+  `work.list` and in MCP `list_works` and `outline`). Assistants answer in the work language and write their markers
+  in it (`Kritisch:` or `Critical:` …); Baruch recognises the markers of both languages and writes its own notes in
+  the work language. The language of the user interface does not change. The exchange format counts up to
+  sub-version 10 and carries the work language (`sprache` at `<angaben>`, schema
+  `docs/schema/baruch-werk-1-u10.xsd`); older files read as German works. The MCP server now speaks English:
+  instructions, tool and parameter descriptions and its own error texts; RPC protocol errors are English as well.
+  Error codes are unchanged; messages that the user interface also shows stay German for now. The default prompts
+  of the personas are English; prompts stored by the user are untouched, and a language rule below every prompt
+  fixes the answer language. Migration `0055_work_language.sql` (existing works become German).
+- **Comments:** Comments in `crates/baruch-server` are being moved to English. Done in this round: `build.rs` and
+  the modules `about` to `ideas` under `src/` (all of `assist`, `auth`, `connections`, `docx_export`,
+  `docx_import`, `exchange`, `findings`, `idea_map`, plus `archive`, `asset_requests`, `assets`, `band`,
+  `bible_research`, `bibles`, `chat_live`, `chat_render`, `consent`, `cover*`, `epub*`, `glossary*`, `guard`). Only
+  comments changed – no string, identifier or behaviour (`scripts/check-comments-only.py` proves it); quoted German
+  UI texts and markers stay verbatim.
+- **Not finished, still German** (see `docs/Backlog.md`, "Open after Round 38"): `docs/MCP.md` and `docs/RPC.md`
+  apart from their new Round 38 sections; the task texts Baruch puts around a section when it calls a model; the
+  comments of the server modules `import` to `xref`, of the server tests and of all other crates, TypeScript
+  sources, templates and scripts.
+- **Acceptance:** `round38_abnahme` (4 tests: the work language from the form through the exchange file to a second
+  instance and from an older file, English interfaces with a German user interface, language rule in the prompt
+  with unchanged German behaviour, tools and records of the round).
+
 ### Hilfe auf der Webseite (Runde 37)
 
 - **Hilfe für Anwender:** Die Webseite hat unter `/hilfe/` 14 Seiten in Alltagssprache mit Schritten zum Nachmachen

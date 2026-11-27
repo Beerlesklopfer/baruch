@@ -49,7 +49,7 @@ def source_offer(version: str) -> str:
         f"    {REPOSITORY}/releases/tag/v{version}",
         f"    git clone --branch v{version} {REPOSITORY}.git",
         "",
-        "Wie man ihn baut, steht in README.md (Abschnitt „Aus dem Quelltext bauen“). Wer Baruch verändert und",
+        "Wie man ihn baut, steht in README.md (Abschnitt „Building from source“). Wer Baruch verändert und",
         "anderen über ein Netz anbietet, muss ihnen den Quelltext seiner Fassung ebenso zugänglich machen",
         "(AGPL §13).",
         "",

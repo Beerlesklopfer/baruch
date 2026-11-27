@@ -211,7 +211,8 @@ LINK_TARGETS = (
     re.compile(r"\[`([^`\]\n]+)`\]"),  # [`Type::method`]
     re.compile(r"\]\(([^)\s]+)\)"),  # [text](target)
     re.compile(r"\]\[([^\]\n]+)\]"),  # [text][target]
-    re.compile(r"^\s*\[[^\]\n]+\]:\s*(\S+)"),  # [label]: target
+    # [label]: target – a label in backticks is an intra-doc link followed by a colon, not a link definition
+    re.compile(r"^\s*\[(?!`)[^\]\n]+\]:\s*(\S+)"),
 )
 
 

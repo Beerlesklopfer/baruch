@@ -6,6 +6,35 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Round 38 "English for agents and developers" integrated in part** (2026-11-27, integrator, on `development`;
+  interface R38-S1 `4315b01`; branches `team/regeln_doku` `4a35760`, `team/mcp_rpc` `0457172`,
+  `team/kommentare_server` `5ba9752` merged with `--no-ff`; one trivial conflict in `tests/main.rs`, six files in
+  conflict between mcp_rpc and the comment branch, resolved as code and strings from mcp_rpc, comments English; then
+  the integration commit; not pushed). Version unchanged 0.9.0, CHANGELOG under „Unveröffentlicht“. **Migration
+  0055** (`work.language`), 0056 unused; no new MCP tool; new RPC `work.language`, `work.language_set`; new route
+  `POST /einstellungen/werk/sprache`; exchange format sub-version 10; no open stub.
+  **Delivered:** work language end to end (form without JavaScript, RPC, MCP fields, exchange format, prompts with
+  language rule, bilingual marker recognition); MCP and RPC protocol texts English; `AGENTS.md`, `README.md`,
+  `docs/Betrieb.md` English; comments English in 86 files of `crates/baruch-server` (`build.rs`, `src/about.rs` to
+  `src/ideas.rs`). **Not delivered** (details and split in `docs/Backlog.md`, "Open after Round 38"): seven
+  developer docs, `docs/MCP.md` and `docs/RPC.md` as a whole, the task texts to models, the comments of the other
+  302 server files and of every other crate, TypeScript, templates and scripts (`team/kommentare_store` and
+  `team/kommentare_rest` were never started). `--umlaute crates scripts site/tools` still lists about 12,100
+  comment lines; for the 86 translated files it is empty with the allow list.
+  Checks: `check-comments-only.py` between the state before the comment merge (`a9f9cfc`) and HEAD = exit 0;
+  `cargo fmt --check`, clippy `-D warnings`, `ci-check-workflows.sh`, `ci-selftest.sh` (87 assertions) green. Full
+  run in the main folder after `cargo clean -p` of all workspace crates: first run 3585 passed, **1 failed**
+  (`round25_abnahme::forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp`, the hint „passt zu Ast“ was
+  missing on the card; five single runs of that test were green, so it depends on load – entered in the backlog);
+  second full run exit 0, 218 results "ok", **3586 passed**, 0 failed, 2 ignored (server bundle 1609; pgvector
+  tests ran). 3586 = 3555 (base S1) + 8 (`round38_doku`) + 19 (mcp_rpc) + 4 (`round38_abnahme`).
+  Fixed by the integrator: the check tool took a doc line that starts with an intra-doc link and a colon for a link
+  definition (two comments carried a German word because of it); `scripts/third-party-licenses.py` named the old
+  README heading; the work-language sections of `docs/Architektur.md` and `docs/Austauschformat.md` were aligned
+  with the code. Visual check with an own throwaway server (no request to Eliezer): `.claude/sicht/r38/` (settings
+  page with the block „Werksprache“ light and dark, work page light and dark; not in the repository). Worktrees
+  `.claude/worktrees/wf_8703464a-e4f-{3,4,5}` and the team branches are still there (the PM removes the worktrees).
+  The PM still has to update `docs/Fahrplan.md`.
 - **Runde 37 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserungsrunde.
   Zwei hat der PM behoben (Fotowerkzeug nimmt ohne `--server` die zuletzt gebaute Datei statt immer des
   Release-Baus; alt-Text von `einfaelle-festhalten` nach dem Bild berichtigt), der dritte steht in

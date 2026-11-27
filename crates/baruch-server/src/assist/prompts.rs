@@ -42,7 +42,7 @@
 //!
 //! Round 22 (befund-rueckfrage): on a recheck (review, ↻ repeat, RFC, MCP `ask_persona` review) the
 //! persona's own open findings on the section stand in the context ([`OWN_FINDINGS_TITLE`]), plus in the system
-//! [`RECHECK_RULE`]: Umgesetzte (implemented) findings the persona reports as a line „Erledigt: Befund n (Stelle „…“)“
+//! [`RECHECK_RULE`]: implemented findings the persona reports as a line „Erledigt: Befund n (Stelle „…“)“
 //! ([`DONE_MARK`]) instead of looking for new criticism; if all are implemented it says [`ALL_DONE_SENTENCE`]
 //! ([`all_done`]) – then the mandatory finding is waived too ([`critical_waived`]). From the lines Baruch makes
 //! status proposals „erledigt“ ([`crate::findings::parse::done_claims`], `assist::save`).

@@ -26,7 +26,7 @@
 //!   with „[Bn]“) and the sentence „Alle meine Befunde zu diesem Abschnitt scheinen erledigt.“ are not findings; the
 //!   feedback is read by [`done_claims`] (`assist` makes status proposals „erledigt“ from it).
 //!
-//! [`similar`]: nur Text (text only, no embedding in Round 28): content words (lower case, no punctuation, from three
+//! [`similar`]: text only (no embedding in Round 28): content words (lower case, no punctuation, from three
 //! letters on without filler words, plus every number) as sets, Dice measure 2·|A∩B| / (|A|+|B|) from
 //! [`SIMILARITY_THRESHOLD`] on. The threshold is set so that even one other content word in a short finding (up to
 //! four content words) makes it a different one.

@@ -6,3 +6,16 @@
 # Typical reasons: a quoted German text of the user interface, a marker such as „Kritisch:“, a proper name, a
 # comment whose wording a test asserts. Maintained by the integrator only; developers report wanted entries as
 # finished lines in their report.
+crates/baruch-server/*	„	quoted German UI text, marker, commit subject or user quotation (opening quote on the line)
+crates/baruch-server/src/assist/context.rs	können.“	continuation of a quoted user sentence
+crates/baruch-server/src/assist/context.rs	nicht erneut melden“	continuation of a quoted prompt line
+crates/baruch-server/src/assist/mod.rs	Lösungsvorschlag)“	continuation of a quoted note of Baruch
+crates/baruch-server/src/assist/prompts.rs	entmutigend für den Autor.“	continuation of a quoted user sentence
+crates/baruch-server/src/assist/solutions.rs	sind Lösungsvorschläge.	continuation of a quoted user sentence
+crates/baruch-server/src/assist/variants.rs	Lösungen als Vorschläge	continuation of a quoted user sentence
+crates/baruch-server/src/cover.rs	übernehmen“ (	continuation of a quoted button label
+crates/baruch-server/src/idea_map/links.rs	(angelegt|gelöscht|wiederhergestellt)“	continuation of a quoted commit subject
+crates/baruch-server/src/assist/glossary.rs	`Begriff | kurze Erklärung`	answer form the model is asked for (code span)
+crates/baruch-server/src/docx_import/mod.rs	ä→ae	transliteration rule of the handle
+crates/baruch-server/src/docx_import/mod.rs	ö→oe, ü→ue, ß→ss	transliteration rule of the handle
+crates/baruch-server/src/idea_map/files/export.rs	führt weiter	mirror notation of a link kind (code span)

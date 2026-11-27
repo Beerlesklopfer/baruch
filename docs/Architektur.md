@@ -6173,9 +6173,9 @@ Modules:
 |---|---|
 | `crates/baruch-core/src/language.rs` | `WorkLanguage { De, En }` (default `De`, serde lowercase), `ALL`, `as_str()` (`"de"`/`"en"`), `parse()` (exactly `"de"` or `"en"`, no trimming, case-sensitive), `english_name()` (`"German"`/`"English"`) |
 | `crates/baruch-store/src/language.rs` | `Store::work_language(work)` (`UnknownWork` for a missing work), `Store::set_work_language(work, language) -> bool` (`true` = changed; one `BEGIN IMMEDIATE` transaction; a change sets `work.updated` like `update_work`); `WorkSummary` and `WorkMeta` carry `language` |
-| `crates/baruch-server/src/work_language.rs` | RPC `work.language`, `work.language_set` (`handles`, `call`, same shape as `crate::timing`) |
-| `crates/baruch-server/src/assist/lang.rs` | marker sets `DE` and `EN` (`Markers`), `markers(language)`, `language_rule(language)` |
-| `crates/baruch-server/src/assist/prompts.rs` | `default_prompt_in(handle, role, kind, language)`, `effective_prompt_in(handle, role, stored, kind, language)`; the older functions without language are wrappers with `WorkLanguage::De` |
+| `crates/baruch-server/src/work_language.rs` | RPC `work.language`, `work.language_set` (`handles`, `call`, same shape as `crate::timing`); `of(state, work)` reads the work language for a model call |
+| `crates/baruch-server/src/assist/lang.rs` | marker sets `DE` and `EN` (`Markers`), `markers(language)`, `language_rule(language)`; further markers `MORE_DE`/`MORE_EN` (`MoreMarkers`: `besser:`/`better:`, `Schritt:`/`Step:`, `befund`/`finding`, `Stelle`/`place`, `was fehlt`/`what is missing`, `was stört`/`what disturbs`); `localized(text, language)` swaps the German markers named in a prompt text for those of the work language; `of_prompt(system)` reads the work language of a call back from its language rule (used for the retry notes) |
+| `crates/baruch-server/src/assist/prompts.rs` | `default_prompt_in(handle, role, kind, language)`, `effective_prompt_in(handle, role, stored, kind, language)`; `default_prompt_for` and `effective_prompt_for` are wrappers with `WorkLanguage::De`. `effective_prompt(handle, role, stored)` (settings page, `persona.prompt_get`) deliberately carries **no** language rule: a prompt saved from the settings page must not take the rule of one work into another |
 
 **RPC, MCP, form.**
 
@@ -6183,8 +6183,9 @@ Modules:
   `{"work": id, "language": "en", "changed": true}`: only the human with full rights, not through `/act`, not
   through MCP (pattern `work.timing_set`); an invalid value is error -32602 with
   `language: allowed values are "de" and "en"`. Neither method is in `LEKTOR_RPC`.
-- `work.get`, `work.meta` and `work.list` additionally carry `language`. MCP has no new tool; `list_works` (per
-  work) and `outline` (top level) carry `"language"`.
+- `work.get` (top level, beside `work`), `work.meta` (`work.language`) and `work.list` (per work) additionally
+  carry `language`. MCP has no new tool; `list_works` (per work) and `outline` (top level, not inside `work`)
+  carry `"language"`.
 - Form `POST /einstellungen/werk/sprache` (fields `work`, `language`; in `settings::writes()` behind
   `guard::same_origin`, handler `settings::work::language_act`); it answers 303 back to the page with
   `ok=sprache#sprache` or `sprachfehler=1#sprache` (pattern `timing_act`) and is not in `LEKTOR_ROUTES`. The
@@ -6197,15 +6198,21 @@ request, unknown method, parameter check, login/role on `/rpc`). Error codes are
 every message that a page, a form or a notice bar shows as well (e.g. the texts of `StoreError::Refused`, progress
 reasons like `CRITICAL_RETRY_REASON`). `docs/MCP.md` and `docs/RPC.md` name this boundary.
 
-**Persona prompts and bilingual markers.** The default prompts and the task texts sent to models are English;
-prompts stored by the user stay untouched. Under every effective prompt (stored ones as well) Baruch appends
+**Persona prompts and bilingual markers.** The default prompts (`assist/prompts.rs`) are English; the task texts
+that Baruch puts around the text of a section (`assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`,
+`threads.rs`) are **still German** (open, see `docs/Backlog.md`) – the language rule still fixes the answer
+language. Prompts stored by the user stay untouched. The prompt constants name the German markers; for an English
+work `lang::localized` swaps them. Under every effective prompt of a model call (stored ones as well) Baruch appends
 `lang::language_rule(language)`: a fixed English sentence telling the model to always answer in the work language,
-whatever language the prompt or the question uses, and to use the markers of that language literally. The prompt
+whatever language the prompt or the question uses, and to use the markers of that language literally (the list
+includes the solution markers `besser:`/`better:` and `Schritt:`/`Step:`). The prompt
 prescribes the markers of the work language; **every detection accepts both languages**, independent of the work
 language (`critical_line`, `has_critical`, the duty to propose a solution, `companion_line`, `all_done`,
 `findings/parse.rs`, `chat.rs`, forbidden introductions, the word list for review requests). For `de` the
-behaviour is literally the same as before Round 38. Notes that Baruch itself writes into posts follow the work
-language.
+behaviour is literally the same as before Round 38. Notes that Baruch itself writes into posts (not backed, no
+solution, mandatory finding missing) follow the work language. The words Baruch reads back from @schrift and
+@belege (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are recognised in German only; the full table of
+markers and where they are read is in `docs/RPC.md`, "Work language".
 
 | Field of `Markers` | `DE` | `EN` |
 |---|---|---|
@@ -6225,12 +6232,15 @@ language.
 
 **Exchange format.** Minor version 10: attribute `sprache` (`de`|`en`) on `<angaben>`, always written; a file
 without it (every file up to minor version 9) means `de`. Model: `ExchangeLanguage { De, En }`, field
-`ExchangeWork::language`. A new work takes over the language; when merging into an existing work the language is
-treated like the field `bible` (line „Sprache“ in the report). Details: `docs/Austauschformat.md`, "Work language
+`ExchangeWork::language`. An unknown value is an error of the reader (`…/@sprache: unbekannter Wert „…“`, like
+every enumeration attribute). A new work takes over the language; when merging into an existing work the language
+is treated like the field `bible`: the local value stays and the report has the line „Werkangabe „Sprache“ weicht
+ab (bleibt)“. Details: `docs/Austauschformat.md`, "Work language
 (minor version 10, Round 38)".
 
 **Tests.** `crates/baruch-store/tests/migration_0055.rs` (migration on a rebuilt database in the state of 0054,
 lossless, all works `de`, the CHECK rejects `fr`), `work_language.rs`, `exchange_u10.rs`;
+`crates/baruch-exchange/tests/xsd.rs` (u10 schema, frozen older schemas);
 `crates/baruch-server/tests/round38_sprache.rs` (RPC, MCP, form also without JavaScript, editors locked, prompts
 and bilingual detection, MCP `initialize` and `tools/list` without umlauts), `round38_doku.rs` (the translated
 developer docs, the head paragraph of the history files, the rules in `AGENTS.md`), `round38_abnahme.rs`

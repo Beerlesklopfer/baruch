@@ -655,6 +655,16 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
   (Abschnitts-Chat, Befunde) werden später ebenfalls im (Graph-)RAG abgelegt, damit Personas frühere
   Befunde finden; heute liegen sie in SQLite (`post` mit Verweisen) und im FTS5-Index.
 
+### Round 38 – English as the primary language, work language (2026-11-27)
+
+Decision of the user (2026-11-27, before 0.9.1): the primary language is English for code, comments, commits,
+developer docs, MCP and RPC; the user interface stays German until Round 39 (then German and English through
+catalogs). Each work has a **work language** (`de`|`en`, migration 0055): personas answer in it and write their
+markers in it, recognition accepts both languages, book output follows it from Round 39 on. It is independent of
+the language of the user interface and of the hyphenation language of the typesetting settings. Exchange format
+sub-version 10 carries it (`sprache` at `<angaben>`). Round 38 delivered this only in part; the open parts are in
+`docs/Backlog.md`, "Open after Round 38".
+
 ## Erste Schritte nach Freigabe
 
 1. Nutzer legt `Beerlesklopfer/baruch` privat an (oder gibt das Anlegen frei); Lesezugriff auf den

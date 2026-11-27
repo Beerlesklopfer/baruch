@@ -1515,3 +1515,26 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   schon.
 - **Testziel:** `cargo test -p baruch-server --test server …` (nicht `--test main`; `Cargo.toml`: `name = "server"`,
   `path = "tests/main.rs"`).
+
+
+## Round 38 – English, comment translations, work language
+
+New sections of this file are written in English; the sections above are still German.
+
+- **Comment-only changes:** `python3 scripts/check-comments-only.py BASE HEAD [PATH…]` compares every changed file
+  without its comments (Rust, TypeScript, templates, Python, shell) and exits 0 only if nothing but comments
+  changed; doc-test code blocks and intra-doc link targets must stay equal. `--umlaute PATH…` lists German letters
+  left in comments; exceptions go into `scripts/comment-umlaut-allow.txt` (glob, substring, reason, separated by
+  TAB; the integrator maintains it). `--selftest` runs in `scripts/ci-selftest.sh`.
+- **Merging a comment branch:** first merge `development` into the branch. In a conflict take code and strings from
+  `development` and the English comment from the branch, then run the check between `development` and the branch
+  (exit 0) before merging with `--no-ff`. A doc line that starts with an intra-doc link and a colon
+  (`` [`NAME`]: text ``) is not a link definition; the check knows that since the integration of Round 38.
+- **List continuation in doc comments:** keep the list structure (`- `, `1. `) of a doc comment when translating;
+  clippy `doc_lazy_continuation` fails otherwise.
+- **Work language in tests:** set it with `store.set_work_language(work, WorkLanguage::En)`; the model is
+  `assist::mock::ScriptedModel`. Assert the prompt through `lang::language_rule(language)` and the markers through
+  `lang::markers(language)`, never through copied wording. Tests with German model answers must keep their answer
+  texts: for `de` every behaviour is as before Round 38.
+- **Exchange schema:** tests that validate current output use `docs/schema/baruch-werk-1-u10.xsd`; the older
+  schemas are frozen (`crates/baruch-exchange/tests/xsd.rs`).

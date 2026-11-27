@@ -1177,18 +1177,19 @@ of minor versions 1 to 9 stay byte-identical (`-u9.xsd` is frozen from now on).
 | `sprache` | work language, `de` or `en` (`work.language`) | `de` |
 
 The writer **always** writes `sprache`. A file without it – every file up to minor version 9 – is read as `de`.
-An invalid value is treated like an invalid value of the other enumeration attributes of the format (e.g. the kind
-of work). Model: `ExchangeLanguage { De, En }` (default `De`), field `ExchangeWork::language`.
+An invalid value is an error of the reader, like an invalid value of the other enumeration attributes of the
+format (e.g. the kind of work): `…/@sprache: unbekannter Wert „fr“`; nothing is read in. Model: `ExchangeLanguage { De, En }` (default `De`), field `ExchangeWork::language`.
 
 The work language is independent of `<satz sprache>` (`TypesetSettings.lang`, the language of hyphenation); the
 two are coupled in Round 39 at the earliest.
 
 **Reading in.** A **new** work takes over the language of the file. When **merging** into an existing work the
-language is treated like the field `bible` (Bible translation) of the work details; the report names it in the
-line „Sprache“.
+language is treated like the field `bible` (Bible translation) of the work details: the local value stays, and
+if the file differs the report has the line „Werkangabe „Sprache“ weicht ab (bleibt)“.
 
 **Older readers.** A reader of minor version 9 or older reads a file of minor version 10 like any higher minor
-version: it reports the attribute as unknown and creates the work in German.
+version (see the rule on higher minor versions above); it does not know the attribute, so the work it creates is
+German.
 
 Tests: `crates/baruch-store/tests/exchange_u10.rs` (file of minor version 9 → `de`, minor version 10 there and
 back), `crates/baruch-exchange/tests/xsd.rs` (frozen schemas).
