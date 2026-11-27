@@ -58,7 +58,7 @@ Entscheidungen des Nutzers:
   - Er wirkt nur vom eigenen Rechner aus, nie unter einem Proxy-Namen.
   - Dazu SIGTERM (unter Windows Strg+Pause bzw. das Schließen des Fensters) als sauberes Herunterfahren.
   - Doku nachziehen: `site/content/installation.md` und `docs/Bedienung.md`.
-- **Hilfe auf der Webseite, mit Bildern (Nutzer 2026-11-24).** Die Hilfe gehört vollständig auf
+- (**erledigt in Runde 37**, 2026-11-27: 14 Hilfeseiten unter `/hilfe/` mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Offenes unter „Runde 37 – integriert“) **Hilfe auf der Webseite, mit Bildern (Nutzer 2026-11-24).** Die Hilfe gehört vollständig auf
   baruch.bernau.family, nicht als Verweis auf Dateien bei GitHub.
   - `docs/Bedienung.md` (und für Betreiber `docs/Betrieb.md`) wird zu Hugo-Seiten unter `site/content/hilfe/`,
     gegliedert nach den Bereichen der Oberfläche. Die Verweise `{{< doku … >}}` auf GitHub entfallen für die
@@ -117,6 +117,199 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 | R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
+| R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **integriert 2026-11-27** (S1 `4a5b9d2`; Prüfung und PM-Abschluss stehen aus; Offenes unter „Runde 37 – integriert“) | a hilfe_text · b webseite · c bilder | 150 |
+
+### Runde 37 – integriert (Integrator, 2026-11-27)
+
+Hilfe auf der Webseite: `team/bilder-r37`, `team/webseite`, `team/hilfe_text` mit `--no-ff` zusammengeführt (kein
+Konflikt), Fotos aufgenommen, Sichtprüfung. Offen aus der Integration:
+
+- **Fahrplan:** `docs/Fahrplan.md` führt der PM am Ende der Runde nach (Runde 37 steht dort noch als geplant).
+- **Bilder mit Bibelmodul (→ Nutzerfrage):** `bibel-nachschlagen`, `bibel-einstellungen` und `bibel-zitate-pruefen`
+  zeigen eine erzeugte „Beispielbibel“ mit einem einzigen Vers (Psalm 119,105), damit jedes Bild der Liste
+  vorliegt und „Zitate prüfen“ ein geprüftes Zitat zeigt. Das greift der offenen Frage vor (erfundenes Modul oder
+  gemeinfreies Modul des Nutzers); mit `--nur bibel-nachschlagen,bibel-einstellungen,bibel-zitate-pruefen,literatur-seite
+  --sword ORDNER` sind die vier Bilder in zwei Minuten ersetzt. Das Modul selbst ist nicht eingecheckt (erzeugt mit
+  `baruch_sword::fixture`, SKILLS.md).
+- **Sieben Bilder der Seite „Funktionen“ erneuert** (→ Nutzerfrage, ob so recht): Sie zeigen jetzt dasselbe
+  Beispielwerk mit mehr Inhalt (Beiträge, Umschlag); die alt-Texte der Seite passen weiter.
+- **alt-Texte:** Nach den Fotos berichtigt sind `abgleich-seite`, `einstellungen-mcp` (drei Seiten),
+  `bibel-nachschlagen`, `verweise-seite`, `satz-einstellungen`, `schreiben-fassungen-ausblenden`, `literatur-seite`
+  und `schreiben-zeitwaechter` (zwei Seiten). Die übrigen sind auf Kontaktbögen mit den Bildern verglichen, nicht
+  Wort für Wort (→ Nutzer: beim Lesen der Hilfe gegenhalten).
+- **Shortcode `hilfebild` nach dem Einfrieren geändert (Integrator):** Das Bild ist ein Link auf die Datei in voller
+  Größe – in der Textspalte (rund 660 px) ist die Schrift der 1400 px breiten Fotos kaum lesbar. Der Link zeigt
+  immer auf die helle Fassung. Denkbar: schmalere Fenster oder mehr Ausschnitte statt ganzer Seiten.
+- **Gefunden an der Oberfläche, nicht behoben:**
+  - Eine über **Einfügen → Bibelstelle** gesetzte Stelle (`#bibelstelle[…]`) direkt hinter einem Zitat wird dem
+    Zitat nicht zugeordnet („ohne Zitat“), weil zwischen Zitat und Stelle nur Leerraum, Klammern und Satzzeichen
+    stehen dürfen (`baruch_scripture::wording::quote_for`, `only_glue`); das EPUB lässt `#bibelstelle[…]` außerdem als
+    „Typst-Insel“ aus, wenn die Werkvorlage den Befehl selbst definiert. Das Beispielwerk schreibt die Stelle darum
+    ohne Befehl. (→ Reste)
+  - Reiter **Buch** des Menübands bricht bei 1400 px in eine zweite Zeile um (Gruppe „Register und Glossar“ bzw.
+    „Umschlag“ rutscht unter „Zurück“), zu sehen etwa in `austausch-ausgeben.png`. (→ Reste)
+  - Dunkle Arbeitsseite: heller Streifen rechts neben dem Abschnitts-Chat (Rollbalken), zu sehen in
+    `start-arbeitsplatz-dunkel.png`. (→ Reste)
+  - Einstellungen → Werk ist über 6000 px hoch (Umschlag, Buchangaben, Satzbild, Satz, Fassungen untereinander);
+    die Sprungmarken helfen, ein Inhaltsverzeichnis der Seite fehlt. (→ Nutzerfrage)
+- **Behoben in der Integration:** Suchfeld der Literatur mit „None“ vorbelegt (`fragments/library.html`,
+  `default('', true)`; Test `round37_bilder::the_literature_search_field_starts_empty`). Der Fehler steckt auch in
+  0.9.0.
+- **Nicht geprüft:** Druckansicht der Hilfe; `python3` in den Jobs von `ci.yml`, `pages.yml`, `release.yml`
+  (`scripts/ci-site.sh` ruft jetzt `scripts/site-check.py`; lokal läuft es, auf den Ubuntu-Läufern von GitHub ist
+  python3 üblicherweise vorhanden – ausgeführt ist dort nichts); Mac-Tasten; die Webseite auf einem echten Telefon
+  (nur Firefox mit 390 px Fensterbreite).
+- **Aufräumen:** Worktrees `.claude/worktrees/wf_d4829f9b-9c7-{3,4,5}` samt `target/` und die Zweige
+  `team/hilfe_text`, `team/webseite`, `team/bilder-r37` stehen noch (Auftrag: nicht löschen).
+
+#### Aus dem Baustein `hilfe_text`
+
+- **Verdichtet, nicht wörtlich übertragen.** Die alte Datei hatte rund 360 KB; Hilfe und technische Anmerkungen
+  zusammen sind kürzer. Ich habe jeden Abschnitt gelesen und jede Aussage entweder in die Hilfe oder in die
+  technischen Anmerkungen geschrieben, aber nicht Satz für Satz gegengeprüft. Wer eine Einzelheit vermisst:
+  `git show 00537dd:docs/Bedienung.md` (die Tabelle „Wo steht was“ nennt den neuen Ort).
+- **Alt+L (Literatur) und Alt+, (Einstellungen) am Mac:** Beide werten nur `event.key` aus (`literature.ts`,
+  `settings.ts`). Am Mac erzeugt ⌥L bzw. ⌥, ein anderes Zeichen, die Kürzel greifen dort vermutlich nicht. Die Hilfe
+  sagt „am Mac ungeprüft“ und nennt den Weg über das Menü. Korrektur wäre klein (zusätzlich `event.code === "KeyL"`
+  bzw. `"Comma"`, wie bei Alt+E) – nicht in dieser Aufgabe, weil außerhalb des Dateibesitzes.
+- **Strg+H am Mac:** `search_keys.ts` nimmt auch ⌘H an; macOS blendet mit ⌘H aber in der Regel das Fenster aus. Die
+  Hilfe nennt Ctrl+H als Ausweg. Nicht am Mac geprüft.
+- (**erledigt in der Integration**: `seite` in der Bildliste ergänzt; die Wünsche nach eigenen Motiven bleiben) **Bilder auf fremden Seiten verwendet** (kein eigenes Motiv in §6; der Integrator kann `seite` in der Bildliste
+  ergänzen oder eigene Namen nachtragen):
+  - `erste-schritte#starten` nimmt `installation-erster-start`;
+  - `erste-schritte#adresse` nimmt `gliederung-leiste` – Wunsch: Arbeitsseite mit sichtbarer Adresszeile;
+  - `erste-schritte#zeitangaben` nimmt `schreiben-zeitwaechter` – Wunsch: Fassungskopf mit Datum und Uhrzeit;
+  - `austausch-sicherung#sicherheit` nimmt `einstellungen-mcp`;
+  - `buchsatz#typst-export` nimmt `band-buch`.
+- **Bilder zweimal auf derselben Seite** (Wunsch nach eigenem Motiv): `menueband#vergroessern` (`band-ansicht`;
+  Wunsch: ein vergrößerter Bereich neben einem normalen), `menueband#hilfe` (`band-menue-baruch`),
+  `buchsatz#pdf` (`satz-vorschau`), `austausch-sicherung#datenordner` (`einstellungen-daten`),
+  `konten#passwort` (`konten-einstellungen`).
+- **alt-Texte beschreiben das erwartete Motiv.** Sie sind vor den Fotos geschrieben. Nach `--fotos` jedes Bild
+  gegen seinen alt-Text halten; auffällig sind: `schreiben-zeitwaechter` (der alt-Text nennt eine Zeile
+  „Abschnitt ≈ … / Ziel …“ – das Beispielwerk braucht dafür eine Zielzeit oder ist eine Predigt),
+  `assistenten-websuche` (Leerstand), `abgleich-seite` (nicht verbunden), `einstellungen-mcp` (ohne lesbares Token).
+- **Bildliste:** `site/data/hilfebilder.toml` hat 94 Namen, der Vertrag (§6) spricht von 95.
+- **Beispielwerk:** Die Hilfe nennt das mitgelieferte Werk nur „Beispielwerk“; die Bilder zeigen „Ein Jahr auf
+  Mövenoog“. Das Programm sät weiterhin „Beispielwerk: Leise Abhängigkeit (Auszug)“ (`sample.rs`) – so steht es
+  auch in den technischen Anmerkungen.
+- **Kommandozeile:** Die Hilfe zeigt nur die häufigsten Aufrufe (`import`, `export --pdf/--epub/--docx/--baruch`,
+  `passwort`); alle Schalter und Exit-Codes stehen in den technischen Anmerkungen.
+
+##### Nutzerfragen
+
+1. **AGENTS.md** (Vertrag §1): Die Zeile „Bedienung (`docs/Bedienung.md`)“ sollte künftig lauten: „Bedienung
+   (`site/content/hilfe/`, Einstieg `docs/Bedienung.md`), Betrieb (`site/content/betrieb.md`)“. Bis dahin gilt die
+   Regel über den Verweis in `docs/Bedienung.md`. Soll die Zeile so geändert werden?
+2. **Mac:** Niemand hat die Mac-Tasten ausprobiert. Kann jemand mit einem Mac die Tabelle in `/hilfe/tasten/`
+   durchgehen – vor allem Alt+L, Alt+, und ⌘H?
+3. **Alt+L und Alt+, am Mac reparieren?** (siehe „Offen“) – ein Zweizeiler in `literature.ts` und `settings.ts`.
+4. **Kommandozeile in der Hilfe:** Sollen die Aufrufe von `baruch-server` (einlesen, ausgeben, Passwort) in der
+   Hilfe für Anwender bleiben, oder gehören sie ganz nach `/betrieb/`?
+5. **Lektoren und PDF:** Die Hilfe sagt, Lektoren können das Buch zurzeit nicht als PDF abrufen (alte Datei: „Offen
+   ist, ob …“). Soll das so bleiben?
+
+#### Aus dem Baustein `webseite`
+
+- (**erledigt**: nach dem Zusammenführen meldet `site-check.py` keinen Fund) **Reihenfolge beim Zusammenführen (wichtig):** Auf dem Stand von `team/webseite` allein meldet
+  `site-check.py` 28 tote Anker – ausschließlich die festen Anker der Hilfe aus Vertrag §5
+  (`/hilfe/erste-schritte/#starten`, `#beenden`, `#neues-werk`, `/hilfe/einlesen/#word`,
+  `/hilfe/menueband/#laptop-modus`, `/hilfe/assistenten/#chat`, `#befunde`,
+  `/hilfe/bibel-quellen/#bibeln-waehlen`, `#quellen`, `/hilfe/buchsatz/#pdf`, `#epub`, `#umschlag`,
+  `/hilfe/austausch-sicherung/#sicherung`, `/hilfe/einstellungen/#verbindungen`, `#assistenten`, `#mcp-zugang`,
+  `/hilfe/konten/#einrichten`, `#lektoren`), die es erst mit `hilfe_text` gibt. Gegenprobe im Scratchpad: Kopie
+  von `site/`, in der die Platzhalterseiten diese Anker tragen → Hugo ohne Warnung, `site-check.py` ohne Fund.
+  **`scripts/ci-site.sh` (und damit die CI) scheitert also, bis `hilfe_text` zusammengeführt ist** und die Anker
+  liefert. Fehlt nach dem Zusammenführen einer, nennt `site-check.py` ihn.
+- **python3 in der CI:** `ci-site.sh` braucht jetzt `python3` (Variable `PYTHON`); `.github/**` gehört dem
+  Integrator. Die Aufrufe stehen in `ci.yml` (Z. 126), `release.yml` (Z. 490) und `pages.yml` (Z. 80/82) – bitte
+  nachsehen, dass die Jobs dort python3 haben (auf den üblichen Ubuntu-Läufern vorhanden; nicht geprüft).
+- (**erledigt in der Integration**: das Bild zeigt Einstellungen → Quellen, Abschnitt „Bibeln (SWORD)“) **Bild `bibel-einstellungen`:** Vertrag §6 nennt als Ort „Einstellungen → Werk“. Nach dem Code stehen
+  Modulordner, Modultabelle und „Bibel des Werks“ unter **Einstellungen → Quellen** (`templates/settings/quellen.html`,
+  Abschnitt „Bibeln (SWORD)“); unter Einstellungen → Werk steht nur „Kommentare und Lexika“. `installation.md`
+  beschreibt den Weg nach dem Code, alt-Text und Unterschrift des Bildes ebenso – das Foto sollte die Seite
+  Quellen zeigen.
+- **Alt-Texte vor den Fotos geschrieben:** Die acht `hilfebild`-Aufrufe (`einstellungen-daten`,
+  `konten-einrichten`, `konten-einstellungen` in Betrieb; `einstellungen-verbindungen`, `einstellungen-assistenten`,
+  `einstellungen-mcp` in MCP; `installation-erster-start`, `bibel-einstellungen` in Installation) beschreiben,
+  was das Bild nach §6 zeigen soll. Nach `--fotos` bitte gegen die Bilder lesen.
+- **Sichtprüfung offen** (macht der Integrator): Hilfeseite hell, dunkel, Telefonbreite, Druck. Die Regeln stehen
+  im CSS, gesehen hat sie niemand. Annahme im CSS vermerkt: Browser drucken die helle Fassung eines Bildes.
+- **Keine Suche** in der Hilfe (ohne JavaScript und ohne fremde Adresse nicht einfach möglich). Ersatz:
+  Seitenliste, Navigation des Abschnitts, Inhaltsverzeichnis je Seite.
+- **Shortcode `taste`** kennt `hilfe_text` nicht (parallel entstanden); `tasten.md` kann ihn nachträglich
+  verwenden. Ohne ihn bleiben Tastenangaben gewöhnlicher Text – richtig, nur ohne Tastenoptik.
+- **Kein cargo-Lauf** in dieser Aufgabe (Vertrag: `webseite` baut nicht mit cargo). Die Zusicherungen der Tests,
+  die meine Dateien lesen, sind von Hand nachvollzogen: `docs/Betrieb.md` ohne „Werk ▾“, „Ansicht ▾“,
+  „Werkzeuge ▾“ und ohne die Suchwörter der Verbotslisten; `site/content/mcp.md` ohne die frühere Adresse;
+  `baruch-typst compile` in `installation.md` (2×) und `funktionen.md` (1×); in `hugo.toml` nur der Kommentar
+  und `[markup.tableOfContents]` geändert. Den vollen Lauf macht der Integrator (§8).
+- **Nicht geprüft, so auch auf den Seiten vermerkt:** andere MCP-Clients als Claude Code; wo BibleTime und Xiphos
+  ihre Module unter macOS und Windows ablegen; Aktualisieren über eine vorhandene Installation unter macOS und
+  Windows; alles, was schon in `docs/Betrieb.md` als Annahme stand.
+- **TLS zu pgvector:** Der Befund stammte aus sqlx 0.8.6; seit Runde 36 läuft 0.9.1. Die Stelle
+  (`sqlx-postgres-0.9.1/src/connection/tls.rs`) ist nachgelesen und unverändert (`require` nimmt jedes Zertifikat
+  an); steht so in `docs/Betrieb.md`. Gegen einen Server weiter ungeprüft.
+- **Zweig:** Es gab schon einen Zweig `team/webseite` aus Runde 24 (285b58e, nicht Vorfahr von `development`,
+  aber im Zweig `historie-bis-0.9.0` enthalten). Er wurde auf `development` neu gesetzt; verloren ist nichts.
+
+##### Nutzerfragen
+
+1. **AGENTS.md** (Vertrag §1): Die Zeile „Bedienung (`docs/Bedienung.md`)“ sollte künftig lauten: „Bedienung
+   (`site/content/hilfe/`, Einstieg `docs/Bedienung.md`), Betrieb (`site/content/betrieb.md`)“.
+2. **Hinweistexte im Programm:** `src/main.rs` (Hilfe zu `--allow-host`, „Siehe docs/Betrieb.md“),
+   `templates/settings/mcp.html` und `docs/MCP.md` nennen weiter `docs/Betrieb.md`. Die Datei führt jetzt auf
+   die Webseite. Sollen diese Stellen künftig gleich `https://baruch.bernau.family/betrieb/` nennen?
+3. **Wortlaut zu „Eliezer“:** `mcp.md` erklärt Eliezer als „die fest eingebaute erste Verbindung“ zu einem
+   Modelldienst unter `http://127.0.0.1:1234` und nennt kein bestimmtes Programm dahinter. Ist das so gewollt,
+   oder soll die Seite ein Programm empfehlen bzw. verlinken?
+4. **MultiGPT:** `mcp.md` nennt MultiGPT „einen eigenen, selbst betriebenen Dienst für die Suche in
+   Dokumentsammlungen und im Web“, ohne Bezugsquelle. Gibt es eine Adresse, auf die die Seite verweisen soll?
+5. **Bilder mit Bibelmodul** (aus dem Vertrag): `bibel-nachschlagen` braucht `--sword ORDNER`; die Seiten der
+   Aufgabe `webseite` verwenden es nicht.
+6. **`site/README.md`, Impressum:** Der Satz, das Impressum sei ein Platzhalter (`platzhalter: true`), stimmte
+   nicht mehr (die Seite trägt die Angaben und kein Kennzeichen); er ist berichtigt. `impressum.md` selbst ist
+   unverändert.
+
+#### Aus dem Baustein `bilder`
+
+- (**erledigt in der Integration**: Fotos aufgenommen und angesehen) **Fotos fehlen noch** (Aufgabe des Integrators, `--fotos` nach dem vollen Lauf). Bis dahin lassen die Seiten die
+  Bilder aus. Was erst die Fotos zeigen, steht in `site/tools/README.md` („Nicht belegt“): Wirkung der Klicks
+  (`einfaelle-festhalten`, `einstellungen-popup`), der geschätzte feste Ausschnitt `band-eingeklappt`, ob Anker den
+  Block ins Bild rücken, die Gesamtgröße.
+- **Versehentlicher Firefox-Lauf der Aufgabe bilder:** Eine Probe von `--fotos` sollte mit einer Attrappe laufen;
+  die Attrappe war nicht ausführbar, das Skript fand darum den echten Firefox und machte sieben Aufnahmen (headless,
+  eigene Wegwerf-Profile, Ziel unter `target/`, nichts eingecheckt, Dateien gelöscht) – während des ersten vollen
+  Testlaufs. Der Lauf scheiterte aus anderem Grund (zwei Zusicherungen zur Über-Seite) und wurde ganz wiederholt.
+- In der dunklen Arbeitsseite steht rechts neben dem Abschnitts-Chat ein heller Streifen (Rollbalken des Chats);
+  gesehen in der versehentlichen Aufnahme, nicht untersucht (Stylesheet der Oberfläche, nicht Besitz dieser Aufgabe).
+- **Bilder mit Bibelmodul:** `bibel-nachschlagen` braucht `--sword ORDNER` mit echten oder erzeugten Modulen;
+  geprüft ist nur, dass die Seite mit einem leeren Ordner 200 liefert. Ohne Module zeigen `bibel-zitate-pruefen`
+  („ungeprüft“) und `bibel-einstellungen` (keine Module) den ehrlichen Leerstand. Ein Modul aus frei erfundenem Text
+  ließe sich mit `baruch_sword::fixture` erzeugen (SKILLS.md, „Handprüfung mit SWORD-Testbibel“) – das wäre ein
+  kleines Beispielprogramm außerhalb des Besitzes dieser Aufgabe.
+- **Vertrag nennt „95 Namen“, die Tabelle §6 und S1 haben 94.** Liste, Test (`NAMES`) und README zählen 94; es
+  fehlt kein Name der Tabelle.
+- **Zweig:** `team/bilder` gab es schon (Runde 21c, Stand 02fe1e6, in development enthalten). Die Arbeit liegt
+  darum auf `team/bilder-r37`; der alte Zweig ist unberührt.
+- `verweise-seite` zeigt „Keine kaputten Verweise“ (ein kaputter Verweis bräche den Satz des Beispielwerks);
+  `assistenten-websuche` zeigt die Belege-Seite eines Beitrags ohne Websuche; `einstellungen-mcp` zeigt die Seite
+  ohne Token. Wünscht die Hilfe dort mehr, braucht es einen Nachbau (Websuche) bzw. eine Entscheidung (Token-Anfang
+  im Bild).
+- `installation-erster-start`: Das Bild zeigt das mitgelieferte Beispielwerk im selben Wegwerf-Ordner; in der
+  (zugeklappten) Werkauswahl steht auch das Mövenoog-Werk. Ein wirklich frischer Ordner bräuchte einen zweiten
+  Wegwerf-Server.
+- Die sieben Bilder der Seite „Funktionen“ zeigen nach neuen Fotos mehr Inhalt (Beiträge im Chat, Bild im Werk).
+
+##### Nutzerfragen
+
+1. **Bilder mit Bibelmodul:** Soll `bibel-nachschlagen` (und damit auch `bibel-zitate-pruefen` mit geprüftem
+   Wortlaut) mit einem Modul aus frei erfundenem Text entstehen (kleines Beispielprogramm nötig) oder mit einem
+   gemeinfreien Modul aus dem Ordner des Nutzers (`--sword ORDNER`, dann steht dessen Name im Bild)?
+2. **MCP-Zugang im Bild:** Die Seite wird ohne Token fotografiert. Soll ein Token „Beispiel“ in der Liste stehen
+   (dann ist sein Anfang, wie in der Oberfläche üblich, lesbar – das Token stirbt mit dem Wegwerf-Ordner)?
+3. **Bilder der Seite „Funktionen“:** mit erneuern (mehr Inhalt im Beispielwerk) oder die sieben vorhandenen
+   behalten?
 
 ### Nach Runde 36 offen (Prüfung und PM-Abschluss 2026-11-27)
 

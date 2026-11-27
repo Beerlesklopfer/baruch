@@ -217,7 +217,8 @@ Regeln stehen in `AGENTS.md`, der Plan in `docs/Plan.md`, der Übergabestand in 
   (fehlt → Vorgabewerk). MCP in `src/mcp.rs`, Werkzeuge in `src/mcp/tools.rs`, Sitzungen in
   `src/mcp/session.rs`, Einfälle in `src/mcp/ideas.rs` (`docs/MCP.md`); Fehler immer über `rpc::RpcError::from`. Schreibende Routen hinter `guard::same_origin`; Testanfragen mit fremdem `Origin`
   bekommen 403, `/rpc` braucht `Content-Type: application/json`.
-- Doku: `docs/Bedienung.md`, `docs/Architektur.md`, `docs/RPC.md`, `docs/MCP.md` – im selben Commit nachziehen.
+- Doku: Bedienung = Hilfeseite unter `site/content/hilfe/` (seit Runde 37; `docs/Bedienung.md` ist Einstieg und
+  trägt nur Technisches), `docs/Architektur.md`, `docs/RPC.md`, `docs/MCP.md` – im selben Commit nachziehen.
   Formulare (`form[data-rpc]`, Feld `method`) gehen ohne JavaScript an `POST /act`, mit JavaScript über RPC.
 - Widgets: `web/src/widgets.ts` (`register`/`mount`), `workspace.ts` (Navigation, Formulare, Alt+←/→ ohne
   Umschalt, `confirm: true` beim Löschen, Ereignis `baruch:navigate` mit `detail.url` → Neuzeichnen),
@@ -1417,3 +1418,100 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   freigegebenem Werk gelten.
 - **Einmaliger Vermerk im Prozess** (`settings/data.rs`, „Sicherung angelegt“): gilt je Prozess und Datenordner,
   nicht je Sitzung; Tests mit eigenem Datenordner stören sich nicht.
+
+## Runde 37 – Hilfe auf der Webseite
+
+### hilfe_text (`site/content/hilfe/`, `docs/Bedienung.md`)
+
+- **Bedienung = Hilfeseite.** Wer Oberfläche ändert, ändert im selben Commit die Seite unter
+  `site/content/hilfe/` und – für Routen, Cookies, Parameter, Commits – die „Technischen Anmerkungen“ in
+  `docs/Bedienung.md`. Regeln stehen dort unter „Regel für Entwickler“; `round37_hilfe` setzt sie durch.
+- **Hilfeseite schreiben:** jede Überschrift mit `{#anker}`; jede `##` mit `{{< hilfebild … >}}` oder Eintrag in
+  `ohne_bild`; kein rohes HTML und kein HTML-Kommentar (Hugo bricht mit `--panicOnWarning` ab); spitze Klammern nur
+  in Code (`` `<name>` ``); Verweise nur ab `/` und nur auf vorhandene Anker; Tasten als „Strg+S (Mac: ⌘S)“ in
+  derselben oder der folgenden Zeile. Verboten sind u. a. „Runde “, „Revision“, „Akkordeon“, „Cookie“, „Commit“,
+  „RPC“, „RAG“, „docs/“, `` `/ `` (Code, der mit einem Schrägstrich beginnt) und die Routen der Oberfläche.
+- **Tests, die Doku lesen:** sichtbare Texte der Oberfläche in der Hilfeseite suchen, Technisches in
+  `docs/Bedienung.md`. Überschriften der Hilfe enden mit dem Anker – `"\n## Menüband {#menueband}\n"`, nicht
+  `"\n## Menüband\n"`.
+- **Mac-Tasten belegen:** `grep -rn 'metaKey\|ctrlKey\|altKey' crates/baruch-server/web/src`. `ctrlKey || metaKey`
+  → ⌘; Alt-Kürzel gehen am Mac nur, wenn der Code `event.code` auswertet (⌥ erzeugt sonst ein anderes Zeichen).
+- **Worktree-Schutz:** Befehle mit `git` in Pipes oder mit Hier-Dokument lehnt der Schutz ab („too complex“);
+  längere Prüfungen als Skript ins Scratchpad legen und einzeln aufrufen.
+
+### webseite (`site/content`, Theme, `scripts/site-check.py`)
+
+- **Feste Anker statt erzeugter:** Hugo bildet Anker aus der Überschrift (`#macos-nicht-signiert` gab es nie,
+  weil die Überschrift „macOS“ hieß). Jede Überschrift bekommt `{#anker}`; `scripts/site-check.py` findet tote
+  Anker nach dem Bau.
+- **Parallel zugesagte Anker prüfen:** Verweist ein Zweig auf Anker, die ein anderer erst liefert, eine Kopie
+  von `site/` im Scratchpad mit erfundenen Abschnitten samt diesen Ankern bauen und dort prüfen – so ist belegt,
+  dass auf dem eigenen Stand nur das Zugesagte fehlt.
+- **Hugo, Abschnittsvorlagen:** `layouts/hilfe/page.html` gilt nur für Seiten unter `content/hilfe/`;
+  `layouts/section.html` für die Startseite des Abschnitts. Das Inhaltsverzeichnis nur zeigen, wenn es Einträge
+  hat: Bedingung `in .TableOfContents "<li"` (auf den Platzhalterseiten ohne Überschrift erscheint so kein Kasten).
+- **Menüeintrag auf Unterseiten markieren:** `IsMenuCurrent` trifft nur die Seite selbst; für die Unterseiten
+  eines Abschnitts `$seite.IsDescendant .Page` am Menüeintrag (nur wenn `.Page.IsSection`).
+- **Die Sandbox lehnt Heredocs mit bestimmtem Inhalt ab** („too complex to verify“): Dateien mit dem
+  Schreibwerkzeug anlegen, längere Ersetzungen als Python-Skript im Scratchpad ablegen und ausführen.
+- **`ci-selftest.sh` baut Probe-Seiten ohne Abschnitt Hilfe:** Prüfungen, die die echte Seite voraussetzen,
+  brauchen einen Schalter (`site-check.py --ohne-hilfe`, von `ci-site.sh` gesetzt, wenn `content/hilfe` fehlt) –
+  und eine Gegenprobe, dass die Prüfung mit dem Abschnitt wirklich greift.
+
+### bilder (`site/tools/bildschirmfotos.py`, `site/data/hilfebilder.toml`)
+
+- **Befunde ohne Modell gibt es nur über ein Lektor-Konto:** `finding.add` und `revision.propose` sind den Lektoren
+  vorbehalten (-32000 für alle anderen). Für Fotos also: Konten zuletzt anlegen, als Lektor anmelden, Befunde
+  schreiben; die Bilder mit Befunden zeigen dann die angemeldete Autorin (Sitzung über den Vermittler).
+- **Beiträge und Vorschläge einer Assistenten-Rolle ohne Modell:** MCP am eigenen Server von 127.0.0.1 ohne Token,
+  `add_post` bzw. `propose_revision` mit `persona: "lektor"` → Autor `@lektor`. `thread.post` und MCP `chat` rufen
+  kein Modell, solange die Nachricht keinen Assistenten erwähnt (`answers` und `errors` bleiben leer).
+- **Wegwerf-Server und Bibelmodule:** Ohne gespeicherte Liste liest Baruch `$SWORD_PATH`, `~/.sword` und
+  `/usr/share/sword` – also die Module des Nutzers. Für Fotos gleich nach dem Start `bible.set_dirs` auf einen
+  leeren Ordner (mit `mods.d`) setzen.
+- **Vorschauen des Einlesens sind teils Seiten, teils Antworten:** `POST /werke/import/word/vorschau` antwortet mit
+  303 auf die Seite des Entwurfs, `POST /austausch/vorschau` (Dateifeld `datei`, nicht `file`) und
+  `POST /werke/import/quelle/vorschau` mit 200. Der Bericht nach `POST /werke/import` erscheint nur, wenn es etwas
+  zu berichten gibt (etwa ein fehlendes Bild in einer Markdown-Datei), sonst 303 auf das Werk.
+- **Vermittler für Fotos als Teil des Werkzeugs** (`site/tools/bildschirmfotos.py`, Klasse `Relay`): Rezept je
+  Aufnahme über `_bild=<Aufnahme>` in der Adresse; Sitzung nur zum Server hin; `Set-Cookie` für die übrigen Cookies
+  auch an den Browser; Host/Origin/Referer umschreiben (Gegenprobe: dieselbe Anfrage direkt → 403). Ohne Firefox
+  prüfbar ist alles außer der Wirkung von Klick und Messung.
+- **Dunkel im HTML prüfbar:** Mit Cookie `baruch_theme=dark` trägt `<html>` `data-theme="dark"`.
+- **Worktree-Schutz und Shell:** Zusammengesetzte Befehle mit Hier-Dokument lehnt der Schutz als „zu komplex“ ab;
+  Hilfsskripte mit dem Schreib-Werkzeug ins Scratchpad legen (Name mit Aufgaben-ID) und einzeln aufrufen.
+- **Attrappe statt Firefox:** Wer `--fotos` ohne Firefox proben will, prüft vorher mit `command -v firefox`, dass
+  die Attrappe im Pfad vorn steht **und ausführbar ist** – `shutil.which` überspringt nicht ausführbare Dateien und
+  findet dann den echten Browser.
+- **Vorlagen maskieren Schrägstriche:** minijinja schreibt eingesetzte Adressen als `https:&#x2f;&#x2f;…`; Tests,
+  die einen Link mit eingesetzter Adresse suchen, ersetzen vorher `&#x2f;` durch `/`.
+- **`| head` an einem Python-Werkzeug:** `BrokenPipeError` abfangen, sonst endet `--liste | head` mit einer
+  Fehlermeldung.
+
+### Integration
+
+- **Zusammenführen:** Nach der Schnittstelle S1 gab es keine gemeinsame Datei; drei `--no-ff` ohne Konflikt. Gab es
+  einen Zweignamen schon (`team/bilder` aus Runde 21c, `team/webseite` aus Runde 24), vorher nachsehen, welcher
+  Zweig der Runde gehört (`git worktree list`, `git merge-base`).
+- **Fotos zeigen Pfade:** Einstellungen → Daten, → Quellen und „Über Baruch“ nennen Datenordner, Modulordner und
+  die Vorgabe unter `$HOME`. Für Bilder, die veröffentlicht werden: `--temp /var/tmp/baruch-hilfe` (Platte, neutral),
+  Bibelmodule dorthin kopieren; das Werkzeug bricht `--fotos` sonst ab und gibt dem Wegwerf-Server ein eigenes
+  `HOME`. Nach den Fotos jedes Bild ansehen (Kontaktbögen mit `montage`) und die PNG-Dateien mit `grep -a` nach dem
+  eigenen Namen durchsuchen.
+- **`target/release/baruch-server` kann alt sein:** Das Werkzeug nimmt ihn zuerst. Nach dem Testlauf
+  `--server target/debug/baruch-server` angeben, sonst fotografiert man eine alte Oberfläche (hier: 404 beim
+  Word-Export).
+- **`firefox --headless --screenshot`:** nimmt den Seitenanfang auf, ein Anker in der Adresse ändert nichts (hohes
+  Fenster plus gemessener Ausschnitt nehmen); Bilder mit `loading="lazy"` fehlen im Foto, obwohl sie im Browser
+  kommen – für die Sichtprüfung der Webseite eine Kopie von `site/public` ohne `loading=lazy` fotografieren.
+  Dunkel: `ui.systemUsesDarkTheme = 1` in `user.js` des Wegwerf-Profils.
+- **alt-Texte nach den Fotos gegenlesen:** Sie entstehen vor den Bildern. Abgewichen waren Leerstände (Abgleich,
+  Querverweise, MCP-Zugang ohne Token), der Zeitwächter (Buch statt Predigt) und alles, was ein Ausschnitt nicht
+  zeigt.
+- **minijinja:** `{{ wert | default('') }}` ersetzt nur fehlende Werte; ein `Option::None` wird als „None“
+  ausgegeben. Für Formularfelder `default('', true)`.
+- **Zitat und Stelle:** Die Wortlautprüfung ordnet ein Zitat nur zu, wenn zwischen Zitat und Stelle bloß Leerraum,
+  Klammern und Satzzeichen stehen – `„…“ (#bibelstelle[Psalm 119,105])` wird nicht zugeordnet, `„…“ (Psalm 119,105)`
+  schon.
+- **Testziel:** `cargo test -p baruch-server --test server …` (nicht `--test main`; `Cargo.toml`: `name = "server"`,
+  `path = "tests/main.rs"`).

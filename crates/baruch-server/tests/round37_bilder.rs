@@ -334,3 +334,20 @@ fn the_picture_list_keeps_every_name_of_the_contract() {
         );
     }
 }
+
+/// Integration Runde 37: Das Foto der Seite „Literatur“ zeigte im Suchfeld das Wort „None“ – `default('')` ersetzt
+/// in minijinja nur fehlende Werte, nicht `none` (kein Suchwort).
+#[tokio::test]
+async fn the_literature_search_field_starts_empty() {
+    let server = common::open().await;
+    for path in ["/literatur?work=1", "/?work=1"] {
+        let (status, html) = server.get(path).await;
+        assert_eq!(status, StatusCode::OK, "{path} kommt");
+        let field = html.find("<input type=\"search\" name=\"lq\"").expect("das Suchfeld der Literatur");
+        let tag = &html[field..field + html[field..].find('>').expect("Ende des Felds")];
+        assert!(
+            tag.contains("value=\"\""),
+            "{path}: ohne Suchwort ist das Feld leer – sonst sucht ein Klick auf „Suchen“ nach „None“: {tag}"
+        );
+    }
+}

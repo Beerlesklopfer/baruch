@@ -165,7 +165,7 @@ Buchs in Baruch“ – das Programm listet beim Verbinden alle Werkzeuge mit ihr
 Beiträge und Einfälle, stellen Anträge und schlagen Glossarbegriffe vor. Welche Programme sich seit dem Start
 von Baruch verbunden haben, zeigt [Einstellungen → MCP-Zugang](/hilfe/einstellungen/#mcp-zugang).
 
-{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse der Schnittstelle, der Befehl für Claude Code, das Formular „Token erzeugen“ und die Liste der Tokens mit Name, Anfang und Stand." titel="Einstellungen → MCP-Zugang: Adresse, Befehl und Tokens." >}}
+{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse für Programme, der fertige Befehl für ein Assistenten-Programm, der Vermerk, dass noch kein Zugangsschlüssel (Token) erzeugt ist, das Formular „Token erzeugen“ und die Liste der seit dem Start verbundenen Programme." titel="Einstellungen → MCP-Zugang: Adresse, Befehl und Tokens." >}}
 
 **Geprüft** ist die Verbindung mit Claude Code. Andere MCP-Clients (etwa Claude Desktop) sollten mit derselben
 Adresse arbeiten, sofern sie die Übertragungsart „Streamable HTTP“ beherrschen – das ist **nicht geprüft**.

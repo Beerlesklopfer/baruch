@@ -48,7 +48,7 @@
   {%- if view is defined and view == "preview" %}
   <input type="hidden" name="view" value="preview">
   {%- endif %}
-  <input type="search" name="lq" value="{{ library_query | default('') }}" placeholder="Werk und Literatur durchsuchen …" aria-label="Werk und Literatur durchsuchen">
+  <input type="search" name="lq" value="{{ library_query | default('', true) }}" placeholder="Werk und Literatur durchsuchen …" aria-label="Werk und Literatur durchsuchen">
   <fieldset class="library-mode">
     <legend class="tiny">Suche nach</legend>
     <label class="tiny"><input type="radio" name="lmode" value="fts"{% if not rag_mode %} checked{% endif %}> Wortlaut (FTS)</label>

@@ -63,7 +63,7 @@ Ein Licht zeigt, wo man nicht hinfahren soll. Wohin man fahren soll, muss jeder 
 Ole nicht gesagt; ich habe es ins Logbuch geschrieben.
 
 Über der Tür zur Laterne hat jemand vor langer Zeit einen Vers ins Holz geschnitten:
-„Dein Wort ist meines Fußes Leuchte und ein Licht auf meinem Wege“ (#bibelstelle[Psalm 119,105]). Ich habe ihn
+„Dein Wort ist meines Fußes Leuchte und ein Licht auf meinem Wege“ (Psalm 119,105). Ich habe ihn
 ein halbes Jahr lang für eine Dienstanweisung gehalten.
 
 = Herbst

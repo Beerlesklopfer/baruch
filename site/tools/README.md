@@ -21,7 +21,7 @@ site/tools/bildschirmfotos.py --liste                    # ohne Server: jedes Bi
 site/tools/bildschirmfotos.py --abgleich                 # ohne Server: Namen der Seiten gegen die Liste, Dateien, Größe
 site/tools/bildschirmfotos.py --pruefen --temp ~/tmp     # Server, Beispielwerk, jede Adresse über den Vermittler
 site/tools/bildschirmfotos.py --halten  --temp ~/tmp     # wie --pruefen, hält je Stufe an (Eingabetaste geht weiter)
-site/tools/bildschirmfotos.py --fotos   --temp ~/tmp     # mit Firefox fotografieren – nur der Integrator
+site/tools/bildschirmfotos.py --fotos   --temp /var/tmp/baruch-hilfe  # mit Firefox – nur der Integrator; neutraler Pfad
 ```
 
 | Angabe | Bedeutung |
@@ -162,21 +162,24 @@ ein `<details>` getroffen, die dunklen Fassungen tragen `data-theme="dark"`, jed
 kommt im HTML vor; dazu die Probe des Vermittlers (Stylesheet, RPC mit umgeschriebener Herkunft samt Gegenprobe 403,
 Warte-Bild, Messung, Cookies, unbekannte Antwort). Danach sind Server und Wegwerf-Ordner weg.
 
-**Nicht belegt – das zeigen erst die Fotos:**
+**Stand nach den ersten Fotos (Integration Runde 37):** Alle 94 Bilder der Hilfe, die drei dunklen Fassungen und
+die sieben Bilder der Seite „Funktionen“ sind aufgenommen und angesehen. Was sich dabei gezeigt hat:
 
-- Ob ein **Klick wirkt** (`einfaelle-festhalten`, `einstellungen-popup`). Findet das Skript sein Ziel nicht, sagt
-  `--fotos` es; ob danach das Richtige offen ist, zeigt nur das Bild.
-- Die **Messung** für `css:`-Ausschnitte bei `#pane-assistants` und im kompakten Band. Kommt keine, bleibt das Bild
-  ganz und `--fotos` sagt es.
-- Der **feste Ausschnitt** `band-eingeklappt` (1400×320) ist geschätzt; nach dem ersten Foto ansehen und in der
-  Liste anpassen.
-- Ob **Anker** (`#satz`, `#buchangaben`, `#fassungen-ausblenden`, `#kommentare`, `#antraege`, `#bild-einfuegen`) den
-  Block ins Bild rücken.
-- Ob das Bild das Motiv **gut** zeigt (Fenstergröße, was aufgeklappt ist), ob Palette und Verkleinern sauber wirken,
-  die Gesamtgröße.
-- `band-ohne-javascript` und `mindmap-ohne-javascript` (Profil ohne JavaScript).
-- `bibel-nachschlagen` mit **echten Modulen**: geprüft ist nur, dass die Seite mit einem leeren Ordner 200 liefert.
-  `bibel-zitate-pruefen` zeigt ohne Module ehrlich „ungeprüft“; `bibel-einstellungen` zeigt dann keine Module.
+- **Pfade im Bild:** Einstellungen → Daten, → Quellen und „Über Baruch“ zeigen den Datenordner, den Ordner der
+  Bibelmodule und die Vorgabe unter dem Heimatordner. `--fotos` bricht darum ab, wenn `--temp` oder `--sword` den
+  Heimatordner oder den Anmeldenamen enthalten; der Wegwerf-Server läuft mit einem eigenen, leeren `HOME` neben dem
+  Datenordner. Aufgenommen mit `--temp /var/tmp/baruch-hilfe` (Platte, neutraler Pfad; danach löschen).
+- **Der richtige Server:** Ohne `--server` nimmt das Skript `target/release/baruch-server`, auch wenn er älter ist
+  als der Quelltext. Nach einem Testlauf `--server target/debug/baruch-server` angeben.
+- **Anker rücken nichts ins Bild:** `firefox --screenshot` nimmt immer den Anfang der Seite auf. Blöcke weiter unten
+  bekommen ein hohes Fenster und einen gemessenen Ausschnitt (`fenster = "1400x9000"`, `ausschnitt = "css:#satz"`);
+  reicht der Ausschnitt unter das Fenster, sagt `--fotos` es („das Fenster höher wählen“).
+- **Bibelmodul:** `--sword ORDNER` macht die erste lesbare Bibel zur Bibel des Werks. Die Bilder zeigen eine
+  „Beispielbibel“ mit einem einzigen Vers (Psalm 119,105, den das Beispielwerk zitiert), erzeugt mit
+  `baruch_sword::fixture` über ein vorübergehendes Beispielprogramm (SKILLS.md, „Handprüfung mit SWORD-Testbibel“);
+  das Modul ist nicht eingecheckt.
+- Klicks (`einfaelle-festhalten`, `einstellungen-popup`), die Messungen und der feste Ausschnitt `band-eingeklappt`
+  haben gewirkt; die Bilder ohne JavaScript ebenso.
 
 **Am Rande gesehen, nicht geplant:** Bei einer Probe von `--fotos`, die mit einer Attrappe statt Firefox laufen
 sollte, lief versehentlich der echte Firefox für sieben Aufnahmen (nichts davon ist eingecheckt; siehe Bericht der

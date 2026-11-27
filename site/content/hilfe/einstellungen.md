@@ -146,7 +146,7 @@ Bedeutungssuche liest nur.
 
 ## MCP-Zugang {#mcp-zugang}
 
-{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse zum Kopieren, der fertige Befehl für ein Assistenten-Programm, die Liste der seit dem Start verbundenen Programme und die Tabelle der Zugangsschlüssel mit Name, Anfang, Autor, erzeugt, zuletzt benutzt und Stand." titel="Der Zugang für Programme – mit Zugangsschlüsseln für andere Rechner." >}}
+{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse für Programme, der fertige Befehl für ein Assistenten-Programm, der Vermerk, dass noch kein Zugangsschlüssel (Token) erzeugt ist, das Formular „Token erzeugen“ und die Liste der seit dem Start verbundenen Programme." titel="Der Zugang für Programme – mit Zugangsschlüsseln für andere Rechner." >}}
 
 **MCP** ist die Schnittstelle, über die andere Programme – etwa ein Assistent im Terminal – mit Baruch arbeiten:
 lesen, Vorschläge und Beiträge schreiben, Einfälle anlegen. Wie man ein solches Programm anschließt, steht unter

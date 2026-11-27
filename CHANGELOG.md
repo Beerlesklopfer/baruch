@@ -6,6 +6,77 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Hilfe auf der Webseite (Runde 37)
+
+- **Hilfe für Anwender:** Die Webseite hat unter `/hilfe/` 14 Seiten in Alltagssprache mit Schritten zum Nachmachen
+  („So geht es“): Erste Schritte · Vorhandene Texte einlesen · Menüband und Laptop-Modus · Gliederung · Schreiben,
+  Bilder und Fassungen · Assistenten, Chat und Befunde · Einfälle und Mindmap · Bibel, Literatur und Quellen ·
+  Suchen, Verweise, Register und Glossar · Buchsatz · Austausch, Sicherung und Sicherheit · Einstellungen · Konten
+  und Lektoren · Tasten und Maus. Jede Überschrift hat einen festen Anker, jeder Abschnitt ein Bild mit alt-Text
+  (alle 94 Namen der Bildliste sind verwendet). Der Einstieg nennt den
+  schnellsten Weg: Text hinein, Vorschläge annehmen, PDF heraus.
+- **Tasten für Windows/Linux und Mac:** `tasten.md` sammelt alle Tastenkürzel und Mausgesten in Tabellen mit beiden
+  Spalten; die Mac-Tasten sind aus dem Code belegt (`ctrlKey || metaKey`, `event.code`) und als „am Mac nicht
+  ausprobiert“ gekennzeichnet.
+- **`docs/Bedienung.md` ist nur noch Einstieg:** Verweis auf die Hilfe, die Tabelle „Wo steht was“ (alle 44 früheren
+  `##`-Überschriften → Hilfeseite mit Anker), die Regel für Entwickler („Bedienung nachziehen heißt: die Hilfeseite
+  im selben Commit ändern“) und „Technische Anmerkungen“ je Hilfeseite (Routen, Cookies, Parameter, Commits,
+  RPC-/MCP-Namen, Grenzen, Annahmen). Von rund 4200 auf rund 1000 Zeilen.
+- **Tests:** `round37_hilfe` (11 Tests: Seiten vorhanden und ausgeschrieben, Kopf nach Vertrag, Bildnamen und
+  alt-Texte, jeder gelistete Name verwendet, Anker und Bild je Abschnitt, feste Anker, Verweise, verbotene Wörter
+  und Routen, Tasten mit Mac-Entsprechung, `docs/Bedienung.md` mit lückenloser Tabelle). `round24_abnahme`,
+  `round32_abnahme`, `round33_abnahme` und `round33_seiten` lesen die sichtbaren Texte in der Hilfe, das Technische
+  weiter in `docs/Bedienung.md`; die Verbotslisten gelten für alle Dateien unter `site/content/hilfe/`.
+- **Betrieb auf der Webseite:** `/betrieb/` ist jetzt die vollständige Beschreibung für Betreiber – Datenordner,
+  Sicherung und Wiederherstellen, Dauerbetrieb und Aktualisieren, Erreichbarkeit in drei Stufen, Reverse-Proxy
+  mit nginx und Caddy samt Pflichtprobe, Anmeldung und Konten, `/mcp` mit Token, Verbindungen nach außen, TLS zu
+  pgvector. Fachwörter sind beim ersten Vorkommen erklärt, Geprüftes und Angenommenes bleibt getrennt
+  (Abschnitt „Was nicht erprobt ist“). `docs/Betrieb.md` ist nur noch Verweis, „Wo steht was“, Stand der
+  Prüfung, Offenes und technische Anmerkungen.
+- **Ersteinrichtung Schritt für Schritt:** Installation → „Nach der Installation“ (erster Start, Bibeln
+  einrichten: woher Module kommen, wohin der Ordner gehört, wo man ihn einträgt, wie man die Bibel des Werks
+  wählt; Aktualisieren). MCP und Assistenten → „Assistenten einrichten“ (Adresse, Schlüssel im Schlüsselbund,
+  Verbindung prüfen, Modell je Assistent, ausprobieren), „MultiGPT einrichten“, „KI-Programme mit Baruch
+  verbinden“ (eigener Rechner, eigenes Netz, Internet).
+- **Startseite, Funktionen, Installation, MCP in Alltagssprache;** alle Verweise auf die alte Seite Bedienung und
+  auf `docs/Bedienung.md` bzw. `docs/Betrieb.md` bei GitHub führen jetzt in die Hilfe bzw. auf `/betrieb/`. Jede
+  Überschrift dieser Seiten hat einen festen Anker; die Zeile „Direkt zu“ der Installation zeigte vorher für
+  macOS auf einen Anker, den es nicht gab.
+- **Hilfe im Theme:** Startseite der Hilfe als Liste der Seiten mit Vorspann; jede Hilfeseite mit der Navigation
+  des Abschnitts (aktuelle Seite markiert), einem Inhaltsverzeichnis aus den Überschriften und „vorige/nächste
+  Seite“ – ohne JavaScript. „Hilfe“ im Hauptmenü ist auch auf den Unterseiten markiert. Stylesheet für die
+  Bilder der Hilfe (nie breiter als die Spalte, Rahmen, Unterschrift), Tastenangaben, Tabellen und Navigation auf
+  Telefonbreite (waagerecht rollbar), Druck. Eine Suche gibt es nicht: Sie ginge nur mit JavaScript oder über eine
+  fremde Adresse.
+- **Neuer Shortcode `taste`:** `{{< taste "Strg+S" "⌘S" >}}` ergibt „Strg+S (Mac: ⌘S)“.
+- **Linkprüfung `scripts/site-check.py`** (nur Python-Standardbibliothek): tote interne Links und Anker, Bilder
+  ohne alt-Text, JavaScript, fremde Adressen für Stil, Schrift oder Bild, Links auf `docs/Bedienung.md` und
+  `docs/Betrieb.md` bei GitHub, GitHub-Links im Text der Hilfe, Weiterleitung `/bedienung/` → `/hilfe/`;
+  `--selbsttest` prüft das Skript an einem erfundenen Mini-Baum (18 Zusicherungen). `scripts/ci-site.sh` ruft es
+  nach dem Hugo-Bau auf; `scripts/ci-selftest.sh` hat dazu vier neue Zusicherungen.
+- Menü **Baruch ▾ → Hilfe** öffnet die Hilfe auf der Webseite in einem neuen Fenster (gewöhnlicher Link, auch ohne
+  JavaScript und für Lektoren; der Rechner braucht dafür das Internet – Baruch selbst ruft nichts ab). Die Seite
+  „Über Baruch“ nennt die Adresse der Hilfe unter der Webseite.
+- Werkzeug `site/tools/bildschirmfotos.py` neu gefasst: Die Bilder der Hilfe kommen aus der Liste
+  `site/data/hilfebilder.toml` (94 Namen, je Bild Adresse, Fenster, Ausschnitt, Schritte, erwartete Texte, Stufe);
+  die sieben Bilder der Seite „Funktionen“ entstehen weiter mit. Neu: `--abgleich` (verwendete Namen gegen die
+  Liste, fehlende Dateien, Größe gegen 20 MB), `--nur`, `--sword`, `--breite`, `--ohne-palette`; `--pruefen` baut
+  das Beispielwerk ganz auf und belegt jede Aufnahme (200, Inhalt, erwartete Texte, Wirkung der Schritte).
+- Ein Vermittler im Skript (vor dem Wegwerf-Server) ergänzt Cookies und Sitzung, öffnet `<details>`, fügt Klick- und
+  Mess-Skript ein und liefert Antworten von Formularen aus; je Aufnahme ein eigenes Firefox-Profil, dunkle Fassungen
+  für Einträge mit `dunkel = true`, Nachbearbeitung mit ImageMagick (Ausschnitt, Breite, 256 Farben).
+- Beispielwerk „Ein Jahr auf Mövenoog“ erweitert (Fußnote, Blockzitat, Liste, Bibelstelle); alles Weitere legt das
+  Skript über RPC, MCP und Formulare des eigenen Servers an (zweite Fassung, gezeichnete Bilder, Register, Glossar,
+  Buchangaben, Einfälle, Beiträge, Vorschlag, Gliederungsantrag, Faden, Quelle, Archiv, Konten, Befunde).
+- **Bilder aufgenommen:** 94 Bilder der Hilfe, drei davon zusätzlich dunkel, und die sieben Bilder der Seite
+  „Funktionen“ neu – alle vom erfundenen Beispielwerk „Ein Jahr auf Mövenoog“ auf einem Wegwerf-Server, zusammen
+  4,2 MB. Jedes Bild der Hilfe ist ein Link auf die Datei in voller Größe. Die Bilder zur Bibel zeigen eine
+  erzeugte „Beispielbibel“ mit einem einzigen Vers.
+- **Behoben:** Das Suchfeld der Literatur (rechte Spalte und Seite „Literatur“) war ohne Suchwort mit „None“
+  vorbelegt; es ist jetzt leer.
+- `docs/Bedienung.md` und `docs/Betrieb.md` bleiben als Einstieg für Entwickler bestehen; die alte Seite
+  `/bedienung/` der Webseite leitet auf `/hilfe/` weiter.
+
 ### Reste vor 0.9.1 (Runde 36)
 
 - **Typst-Kommandozeile eingebaut:** `baruch-typst` (Symlink, unter Windows `baruch-typst.cmd`) bzw.

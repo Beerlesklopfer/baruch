@@ -1,6 +1,8 @@
 {{- /*
   Bild der Hilfe aus static/bilder/hilfe/NAME.png (Runde 37, Vertrag §2). Die Namen stehen in data/hilfebilder.toml.
   Aufruf: {{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}
+  Das Bild ist ein Link auf die Datei in voller Größe (Integration Runde 37: in der Spalte ist die Schrift der
+  Fotos kaum lesbar; ohne JavaScript bleibt nur der Link).
   Fehlt die Datei, gibt der Shortcode nichts aus; ein unbekannter Name oder ein fehlender alt-Text bricht den Bau ab.
 */ -}}
 {{- $name := .Get "name" -}}
@@ -14,12 +16,12 @@
 {{- if fileExists (printf "static/%s" $hell) -}}
 {{- $mass := imageConfig (printf "static/%s" $hell) -}}
 <figure class="bild hilfebild"{{ with .Get "breite" }} style="max-width: {{ int . }}px"{{ end }}>
-  <picture>
+  <a class="hilfebild-gross" href="{{ $hell | relURL }}" title="Bild in voller Größe öffnen"><picture>
     {{- if and (ne (.Get "dunkel") "nein") (fileExists (printf "static/%s" $nacht)) }}
     <source media="(prefers-color-scheme: dark)" srcset="{{ $nacht | relURL }}">
     {{- end }}
     <img src="{{ $hell | relURL }}" alt="{{ $alt }}" width="{{ $mass.Width }}" height="{{ $mass.Height }}" loading="lazy" decoding="async">
-  </picture>
+  </picture></a>
   {{- with .Get "titel" }}
   <figcaption>{{ . }}</figcaption>
   {{- end }}

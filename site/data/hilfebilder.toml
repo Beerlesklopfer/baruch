@@ -166,7 +166,7 @@ stufe = "konten"
 
 [[bild]]
 name = "band-buch"
-seite = ["menueband"]
+seite = ["menueband", "buchsatz"]
 zeigt = "Reiter Buch, Ausschnitt"
 adresse = "/?work={work}&key={key}&tab=buch"
 ausschnitt = "css:header.band"
@@ -228,7 +228,7 @@ erwartet = ["Die Nacht ohne Lampe"]
 
 [[bild]]
 name = "gliederung-leiste"
-seite = ["gliederung"]
+seite = ["gliederung", "erste-schritte"]
 zeigt = "Gliederung links auf der Arbeitsseite, Ausschnitt"
 adresse = "/?work={work}&key={key}"
 ausschnitt = "css:#pane-tree"
@@ -245,6 +245,8 @@ name = "gliederung-antraege"
 seite = ["gliederung"]
 zeigt = "offener Antrag eines Assistenten (gestellt über MCP am eigenen Server)"
 adresse = "/gliederung?work={work}#antraege"
+fenster = "1400x6000"
+ausschnitt = "css:#antraege"
 erwartet = ["Abschied von der Hallig"]
 
 [[bild]]
@@ -309,6 +311,8 @@ name = "schreiben-fassungen-ausblenden"
 seite = ["schreiben"]
 zeigt = "Einstellungen → Werk, „Ältere Fassungen ausblenden“"
 adresse = "/einstellungen/werk?work={work}#fassungen-ausblenden"
+fenster = "1400x8000"
+ausschnitt = "css:.settings-revisions"
 erwartet = ["Ältere Fassungen ausblenden"]
 
 [[bild]]
@@ -335,7 +339,7 @@ erwartet = ["leuchtturm.png"]
 
 [[bild]]
 name = "schreiben-zeitwaechter"
-seite = ["schreiben"]
+seite = ["schreiben", "erste-schritte"]
 zeigt = "Zeitwächter und Zeitangabe"
 adresse = "/?work={work}&key={key}"
 erwartet = ["Ziel 5:00"]
@@ -469,9 +473,12 @@ erwartet = ["Docht und Petroleum"]
 
 [[bild]]
 name = "bibel-einstellungen"
-seite = ["bibel-quellen"]
-zeigt = "Einstellungen → Werk, Bibeln des Werks und Ordner der Module"
-adresse = "/einstellungen/werk?work={work}#kommentare"
+seite = ["bibel-quellen", "installation"]
+zeigt = "Einstellungen → Quellen, Abschnitt „Bibeln (SWORD)“: Ordner der Module, gefundene Module, Bibel des Werks"
+adresse = "/einstellungen/quellen?work={work}#bibeln"
+fenster = "1400x6000"
+ausschnitt = "css:#bibeln"
+erwartet = ["Bibeln (SWORD)"]
 
 [[bild]]
 name = "bibel-zitate-pruefen"
@@ -485,7 +492,7 @@ name = "bibel-nachschlagen"
 seite = ["bibel-quellen"]
 zeigt = "Bibel aufschlagen (`/literatur/bibel`)"
 braucht = ["sword"]
-adresse = "/literatur/bibel?work={work}"
+adresse = "/literatur/bibel?work={work}&ref=Ps%20119%2C105"
 
 [[bild]]
 name = "literatur-seite"
@@ -560,12 +567,16 @@ name = "satz-einstellungen"
 seite = ["buchsatz"]
 zeigt = "Einstellungen → Werk, Block Satz"
 adresse = "/einstellungen/werk?work={work}#satz"
+fenster = "1400x9000"
+ausschnitt = "css:#satz"
 
 [[bild]]
 name = "satz-buchangaben"
 seite = ["buchsatz"]
 zeigt = "Buchangaben (Verlag, ISBN, Titelei) mit erfundenen Angaben"
 adresse = "/einstellungen/werk?work={work}#buchangaben"
+fenster = "1400x6000"
+ausschnitt = "css:#buchangaben"
 erwartet = ["Verlag Priel & Tonne"]
 
 [[bild]]
@@ -660,7 +671,7 @@ adresse = "/einstellungen/quellen?work={work}"
 
 [[bild]]
 name = "einstellungen-mcp"
-seite = ["einstellungen", "mcp"]
+seite = ["einstellungen", "mcp", "austausch-sicherung"]
 zeigt = "Einstellungen → MCP-Zugang, ohne lesbares Token"
 adresse = "/einstellungen/mcp?work={work}"
 
@@ -729,7 +740,7 @@ stufe = "konten"
 
 [[bild]]
 name = "installation-erster-start"
-seite = ["installation"]
+seite = ["installation", "erste-schritte"]
 zeigt = "Arbeitsseite direkt nach dem ersten Start mit dem mitgelieferten Beispielwerk (`/?work=1`)"
 adresse = "/?work={sample}"
 schritt = ["cookie:baruch_work={sample}"]

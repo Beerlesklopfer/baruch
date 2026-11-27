@@ -37,7 +37,7 @@ Tastenkürzel gibt es auf ihr nicht.
 
 ## Satz-Einstellungen {#satz-einstellungen}
 
-{{< hilfebild name="satz-einstellungen" alt="Einstellungen, Seite Werk, Block Satz: die Gruppen Kapitel und Teile, Seite und Ränder, Schrift und Absatz, Seitenzahlen, Kolumnentitel und Fußnoten; rechts die Vorschau mit kleinen Seitenbildern eines Mustertexts, unten die Knöpfe Vorschau, Speichern und Zurücksetzen." titel="Die Satz-Einstellungen eines Werks – mit Vorschau an einem Mustertext." >}}
+{{< hilfebild name="satz-einstellungen" alt="Einstellungen, Seite Werk, Block Satz: die Gruppen Kapitel und Teile, Seite und Ränder, Schrift und Absatz, Seitenzahlen, Kolumnentitel und Fußnoten, Querverweise, Register und Glossar, Entwurf; unten die Knöpfe Vorschau, Speichern und Zurücksetzen." titel="Die Satz-Einstellungen eines Werks – mit Vorschau an einem Mustertext." >}}
 
 Wie das Buch aussieht, bestimmt zuerst die Werkvorlage. Was man häufig ändern will, lässt sich ohne Kenntnis des
 Satzformats einstellen: **Einstellungen → Werk → Satz**. Jedes Feld beginnt mit **„aus der Werkvorlage“** bzw.

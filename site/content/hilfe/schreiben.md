@@ -140,7 +140,7 @@ vollständig. Das geht nur auf der aktuellen Fassung des Menschen.
 
 ### Ältere Fassungen ausblenden {#ausblenden}
 
-{{< hilfebild name="schreiben-fassungen-ausblenden" alt="Einstellungen, Seite Werk, Block Fassungen: die Schalter zum Fortschreiben, darunter das Datumsfeld „Ältere Fassungen ausblenden bis“ und der Knopf „Alle Marken aufheben“." titel="Ältere Fassungen im ganzen Werk ausblenden." >}}
+{{< hilfebild name="schreiben-fassungen-ausblenden" alt="Einstellungen, Seite Werk, Block Fassungen: die Schalter zum Fortschreiben, darunter das Datumsfeld „Ältere Fassungen ausblenden bis“ mit dem Knopf „Ausblenden“." titel="Ältere Fassungen im ganzen Werk ausblenden." >}}
 
 Ein Buch sammelt schnell Dutzende Fassungen je Abschnitt. Ältere lassen sich **ausblenden** – gelöscht wird
 nichts.
@@ -248,7 +248,7 @@ JavaScript vorher speichern.
 
 ## Zeitwächter {#zeitwaechter}
 
-{{< hilfebild name="schreiben-zeitwaechter" alt="Der Kopf eines Abschnitts einer Predigt mit der Zeile „Abschnitt ≈ 0:45 · gesamt 12:30 / Ziel 15:00“; in der Gliederung links steht hinter jedem Punkt seine Sprechdauer." titel="Der Zeitwächter schätzt, wie lange das Vorlesen dauert." >}}
+{{< hilfebild name="schreiben-zeitwaechter" alt="Die Arbeitsseite des Beispielwerks: unter dem Kopf des Abschnitts die Zeile „Abschnitt ≈ 0:30 · gesamt 3:35 / Ziel 5:00“; in der Gliederung links steht hinter jedem Punkt seine Sprechdauer." titel="Der Zeitwächter schätzt, wie lange das Vorlesen dauert." >}}
 
 Wie lang dauert die Predigt? Baruch schätzt die **Sprechdauer** je Gliederungspunkt und für das ganze Werk aus
 den gesprochenen Wörtern der aktuellen Fassung und einer Sprechgeschwindigkeit (Vorgabe **110 Wörter je

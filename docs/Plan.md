@@ -575,6 +575,19 @@ Zeitliche Gesamtsicht (erledigte Runden aus Git, geplante geschätzt): `docs/Fah
     nur mit Token; Zugangsschutz im Proxy ist Pflicht (`docs/Betrieb.md`). MultiGPT hat keine Vorgabe-Adresse mehr.
   - Keine Migration, keine neuen RPC-Methoden oder MCP-Werkzeuge. Offenes und die Schritte des Nutzers:
     `docs/Backlog.md`, „Nach Runde 24 offen“.
+- **Runde 37 „Hilfe auf der Webseite“ integriert** (2026-11-27, auf `development`; Version unverändert 0.9.0, im
+  CHANGELOG unter „Unveröffentlicht“):
+  - **Die Webseite ist die Quelle der Bedienung:** `site/content/hilfe/` (14 Seiten, Alltagssprache, Schritte, Tasten
+    für Windows/Linux und Mac) für Anwender, `site/content/betrieb.md` für Betreiber; die Ersteinrichtung (Bibeln,
+    Assistenten, MultiGPT, KI-Programme) steht in `installation.md` und `mcp.md`. `docs/Bedienung.md` und
+    `docs/Betrieb.md` sind nur noch Einstieg: „Wo steht was“, Regel für Entwickler, technische Anmerkungen.
+  - **Bilder:** Liste `site/data/hilfebilder.toml` (94 Namen), Shortcode `hilfebild` (fehlendes Bild = keine Ausgabe,
+    unbekannter Name oder fehlender alt-Text = Abbruch, dunkle Fassung über `<picture>`, Link auf die volle Größe),
+    Werkzeug `site/tools/bildschirmfotos.py` (Wegwerf-Server, erfundenes Beispielwerk, Vermittler; `--pruefen`,
+    `--fotos`, `--abgleich`). Linkprüfung `scripts/site-check.py` in `scripts/ci-site.sh`.
+  - **Oberfläche:** Menü Baruch ▾ → Hilfe und „Über Baruch“ verweisen auf `https://baruch.bernau.family/hilfe/`
+    (gewöhnlicher Link, auch für Lektoren). Keine Migration, keine neue Route, RPC-Methode oder MCP-Werkzeug.
+    Offenes: `docs/Backlog.md`, „Runde 37 – integriert“.
 - **Runde 36 „Reste“ integriert** (2026-11-27, auf `development`; Version unverändert 0.9.0, im CHANGELOG unter
   „Unveröffentlicht“):
   - Typst-Kommandozeile in der eigenen Binärdatei: `baruch-server typst …` bzw. Alias `baruch-typst` (`compile` zu

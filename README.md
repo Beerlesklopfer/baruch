@@ -369,8 +369,9 @@ Export überschreibt nie eine vorhandene Datei. Beim Import von PDF, EPUB und Wo
 - **Sicherheit:** Der Server antwortet nur unter `127.0.0.1`, `[::1]` oder `localhost` (und unter Namen, die
   beim Start mit `--allow-host` erlaubt wurden, siehe [docs/Betrieb.md](docs/Betrieb.md)). Schreibende Aufrufe
   nimmt er nur von der eigenen Seite an. Eingelesene Dateien werden mit Grenzen für Größe, Tiefe und
-  entpackte Bytes geprüft. Einzelheiten stehen in [docs/Bedienung.md](docs/Bedienung.md) im Abschnitt
-  „Sicherheit“.
+  entpackte Bytes geprüft. Einzelheiten stehen in der Hilfe unter
+  [Austausch, Sicherung und Sicherheit](https://baruch.bernau.family/hilfe/austausch-sicherung/) und für Betreiber
+  unter [Betrieb](https://baruch.bernau.family/betrieb/).
 
 ## Aufbau
 
@@ -397,7 +398,11 @@ TypeScript geschrieben (`crates/baruch-server/web/src`) und werden beim Bauen vo
 
 ## Dokumentation
 
-- [docs/Bedienung.md](docs/Bedienung.md): Bedienung, Seite für Seite
+- [Hilfe auf der Webseite](https://baruch.bernau.family/hilfe/): Bedienung Schritt für Schritt, mit Bildern
+  (Quelle: `site/content/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) für Betreiber
+  (`site/content/betrieb.md`)
+- [docs/Bedienung.md](docs/Bedienung.md): Einstieg für Entwickler – „Wo steht was“ und technische Anmerkungen zur
+  Hilfe
 - [docs/Verteilung.md](docs/Verteilung.md): Pakete, Installation, APT-Repository, Release, Auslieferung über
   GitHub Pages
 - [docs/Betrieb.md](docs/Betrieb.md): Datenordner, Sicherung, Dauerbetrieb, Betrieb hinter einem Reverse-Proxy

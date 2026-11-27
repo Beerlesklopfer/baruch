@@ -203,7 +203,7 @@ aktuelle. Ein unbekanntes Werk ergibt die Meldung „unbekanntes Werk“.
 
 ## Zeitangaben {#zeitangaben}
 
-{{< hilfebild name="schreiben-zeitwaechter" alt="Ausschnitt der Arbeitsseite mit Zeitangaben: Datum und Uhrzeit einer Fassung und die Anzeige des Zeitwächters." titel="Alle Zeiten stehen in der Ortszeit des Rechners." >}}
+{{< hilfebild name="schreiben-zeitwaechter" alt="Die Arbeitsseite des Beispielwerks: unter dem Kopf des Abschnitts die Zeile „Abschnitt ≈ 0:30 · gesamt 3:35 / Ziel 5:00“; im Chat rechts trägt jeder Beitrag Datum und Uhrzeit." titel="Alle Zeiten stehen in der Ortszeit des Rechners." >}}
 
 Alle Zeitpunkte auf den Seiten – bei Fassungen, Einfällen, Bildern, Werken, Verbindungsprüfungen, beim Abgleich,
 bei Zugängen für Programme und beim Abrufdatum der Websuche – stehen in der **Ortszeit** des Rechners, auf dem

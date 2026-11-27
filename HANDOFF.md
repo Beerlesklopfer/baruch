@@ -1,9 +1,37 @@
-# Übergabe (Stand 2026-11-27, Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Runde 37 „Hilfe auf der Webseite“ **integriert** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Prüfung und PM-Abschluss stehen aus); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 37 „Hilfe auf der Webseite“ integriert** (2026-11-27, Integrator, auf `development`; Schnittstelle R37-S1
+  `4a5b9d2`; Zweige `team/bilder-r37` `c694a70`, `team/webseite` `b0f5266`, `team/hilfe_text` `999d243` mit `--no-ff`,
+  **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht; Worktrees und team-Zweige stehen noch). Version
+  unverändert 0.9.0, CHANGELOG unter „Unveröffentlicht“. **Keine Migration**, keine neue Route, RPC-Methode oder
+  MCP-Werkzeug, kein neuer Stub. Voller Lauf im Hauptordner nach `cargo clean -p` aller Workspace-Crates
+  (`RUST_TEST_THREADS=4 … taskset -c 0-7 cargo test --workspace -j 4`): Exit 0, 215 Ergebnisse „ok“, 3546 bestanden,
+  0 gescheitert, 2 ignoriert (Server-Bündel 1587; pgvector-Tests liefen mit). Danach geändert und gezielt
+  nachgeprüft: Suchfeld der Literatur („None“), Bildliste, alt-Texte, Shortcode (siehe unten).
+  - **Die Webseite ist die Quelle der Bedienung:** `site/content/hilfe/` (14 Seiten), `site/content/betrieb.md`,
+    Ersteinrichtung in `installation.md` und `mcp.md`. `docs/Bedienung.md` und `docs/Betrieb.md` sind Einstieg für
+    Entwickler („Wo steht was“, technische Anmerkungen). Wer Oberfläche ändert, ändert die Hilfeseite im selben
+    Commit; `tests/round37_hilfe.rs` setzt die Regeln durch.
+  - **Bilder:** 94 Bilder der Hilfe (drei auch dunkel) und die sieben der Seite „Funktionen“ sind neu aufgenommen
+    (`site/tools/bildschirmfotos.py --fotos --server target/debug/baruch-server --sword <Beispielbibel> --temp
+    /var/tmp/baruch-hilfe`), zusammen 4,2 MB. Beim ersten Durchgang standen der Heimatordner und der Name des
+    Nutzers in drei Bildern (Datenordner, Modulordner, „Über Baruch“); die Bilder sind verworfen, das Werkzeug
+    bricht bei solchen Pfaden jetzt ab und gibt dem Wegwerf-Server ein eigenes `HOME`. Kein Bild und keine
+    PNG-Datei enthält den Namen (`grep -a`). Die Bilder zur Bibel zeigen eine erzeugte „Beispielbibel“ mit einem
+    Vers – Nutzerfrage.
+  - **Prüfungen:** `hugo --minify --panicOnWarning -s site` ohne Warnung (24 Seiten, 1 Alias), `scripts/site-check.py`
+    ohne Fund, `scripts/ci-site.sh` und `scripts/ci-selftest.sh` (84 Zusicherungen) grün,
+    `bildschirmfotos.py --abgleich`: 94 Namen, alle verwendet, keine Datei fehlt; `--pruefen`: alle 104 Aufnahmen
+    antworten mit 200 und Inhalt.
+  - **Sichtprüfung:** `.claude/sicht/r37/` (nicht im Repo): Kontaktbögen aller Bilder unter `bogen/`, dazu die
+    Webseite (`seite-*.png`: Start, Hilfe, zwei Hilfeseiten, Installation, Betrieb, MCP – hell, dunkel, 1280 und
+    390 px). Die Fotos der Webseite stammen von einer Kopie ohne `loading=lazy` (headless lädt solche Bilder nicht).
+  - **Offen:** `docs/Backlog.md`, „Runde 37 – integriert“ (dort auch die Bausteine der drei Aufgaben). Fahrplan
+    führt der PM nach.
 - **Runde 36 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserung; sie stehen
   in `docs/Backlog.md`, „Nach Runde 36 offen“ (`pages.yml` bei `release: published` braucht Tags `v*` in der
   Umgebung `github-pages`; `baruch-typst compile --format pdf a.typ a.typ` überschreibt wie Typst die Quelle;
@@ -2262,6 +2290,12 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. Nach Runde 37 (integriert, **keine Migration**): Der Dienst des Nutzers wird nicht angefasst. Es fehlen Prüfung
+   und PM-Abschluss (Fahrplan). Die Hilfe erscheint erst mit dem Fast-Forward nach `main` auf der Webseite; bis
+   dahin führt der neue Eintrag Baruch ▾ → Hilfe auf eine Adresse, die es noch nicht gibt (`/hilfe/`; die alte
+   Seite `/bedienung/` bleibt bis dahin online). Vor der Veröffentlichung im eigenen Browser ansehen: die Hilfe
+   (`hugo server -s site`), besonders die Bilder zur Bibel, die Tasten am Mac und die Druckansicht. Danach die
+   Veröffentlichung 0.9.1 durch den Nutzer.
 0. Nach Runde 36 (abgeschlossen, **keine Migration**, aber **sqlx 0.9.1**): Der Dienst des Nutzers wird nicht
    angefasst. Vor dem Einspielen den Datenordner sichern – eine echte, von sqlx 0.8.6 geschriebene Datenbank hat
    in der Runde niemand mit 0.9 geöffnet (nur nachgebaute; die Prüfsummen der Migrationen sind nachgerechnet).
@@ -2387,6 +2421,19 @@ Frühere Runden:
 5. B2: Modell-Backends, `ask_persona`/`chat`, Token für `/mcp`, Literatur-Stubs (Volltext, an Persona geben).
 
 ## Offene Fragen an den Nutzer
+- **Nach Runde 37 (Hilfe auf der Webseite):** (1) AGENTS.md: Die Zeile „Bedienung (`docs/Bedienung.md`)“ sollte
+  künftig „Bedienung (`site/content/hilfe/`, Einstieg `docs/Bedienung.md`), Betrieb (`site/content/betrieb.md`)“
+  lauten – ändern? (2) Bilder zur Bibel: die erzeugte „Beispielbibel“ mit einem Vers behalten oder mit einem
+  gemeinfreien Modul neu aufnehmen (`--sword ORDNER`)? (3) Hinweistexte in `src/main.rs` (`--allow-host`),
+  `templates/settings/mcp.html` und `docs/MCP.md` nennen `docs/Betrieb.md` – künftig gleich
+  `https://baruch.bernau.family/betrieb/`? (4) Die sieben Bilder der Seite „Funktionen“ sind mit erneuert – recht so?
+  (5) MCP-Zugang im Bild ohne Token – soll ein Beispiel-Token in der Liste stehen (sein Anfang wäre lesbar)?
+  (6) Kommandozeile (`baruch-server import/export/passwort`) in der Hilfe für Anwender lassen oder ganz nach
+  `/betrieb/`? (7) Lektoren und PDF: Die Hilfe sagt, Lektoren können das Buch zurzeit nicht als PDF abrufen – soll
+  das so bleiben? (8) `mcp.md` nennt für Eliezer und MultiGPT keine Bezugsquelle – gewollt? (9) Alt+L und Alt+,
+  greifen am Mac vermutlich nicht (nur `event.key`); reparieren (Zweizeiler) und kann jemand die Tasten am Mac
+  durchgehen? (10) Einstellungen → Werk ist sehr lang (über 6000 px) – aufteilen oder Inhaltsverzeichnis?
+
 - **Nach Runde 35 (Konten und Rollen):** (1) Soll ein Lektor das Buch als PDF lesen dürfen (heute gesperrt, wie
   jeder Export)? (2) Bleibt es dabei, dass mit Konten auch am eigenen Rechner eine Anmeldung nötig ist (Schalter
   unter Einstellungen → Konten, Vorgabe aus)? (3) Reicht „Lektor kommt über den Reverse-Proxy auf demselben Rechner“,

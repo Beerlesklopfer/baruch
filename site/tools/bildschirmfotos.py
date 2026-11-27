@@ -30,7 +30,8 @@ Nur Python 3.11+ (Standardbibliothek, tomllib). Aufruf aus dem Hauptordner des R
     site/tools/bildschirmfotos.py --liste
     site/tools/bildschirmfotos.py --abgleich
     site/tools/bildschirmfotos.py --pruefen --temp ~/tmp
-    site/tools/bildschirmfotos.py --fotos --temp ~/tmp     # nur der Integrator; nie parallel zu Testläufen
+    site/tools/bildschirmfotos.py --fotos --temp /var/tmp/baruch-hilfe   # nur der Integrator; nie parallel zu
+                                                                         # Testläufen; Pfad ohne Benutzernamen
 """
 
 import argparse
@@ -334,10 +335,30 @@ def clean_env():
     return {name: value for name, value in os.environ.items() if not name.startswith("BARUCH_")}
 
 
+def server_env(data):
+    """Umgebung des Wegwerf-Servers: ohne BARUCH_* und mit einem eigenen, leeren Heimatordner neben dem
+    Datenordner. „Über Baruch“ nennt als Vorgabe den Datenordner unter dem Heimatordner – mit dem echten stünde
+    der Name des Benutzers im Bild."""
+    env = {name: value for name, value in clean_env().items() if not name.startswith("XDG_")}
+    home = Path(data).parent / "heim"
+    home.mkdir(parents=True, exist_ok=True)
+    env["HOME"] = str(home)
+    return env
+
+
+def private_parts(*paths):
+    """Pfade, die den Heimatordner oder den Anmeldenamen des Benutzers enthalten – sie stünden in den Bildern
+    (Einstellungen → Daten, → Quellen, „Über Baruch“)."""
+    home = str(Path.home())
+    user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+    return [str(path) for path in paths
+            if path and (home in str(path) or (len(user) > 2 and user.lower() in str(path).lower()))]
+
+
 def import_work(server, data):
     done = subprocess.run(
         [str(server), "import", str(WORK_FILE), "--data", str(data)],
-        capture_output=True, text=True, env=clean_env(), check=False,
+        capture_output=True, text=True, env=server_env(data), check=False,
     )
     sys.stdout.write(done.stdout)
     sys.stderr.write(done.stderr)
@@ -366,7 +387,7 @@ def start_server(server, data):
     """Startet den Server und liefert (Prozess, Basisadresse)."""
     process = subprocess.Popen(
         [str(server), "serve", "--listen", "127.0.0.1:0", "--data", str(data), "--secrets", "memory"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=clean_env(),
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=server_env(data),
     )
     base = None
     for line in process.stdout:
@@ -685,6 +706,12 @@ def build_open(base, work, data, sword):
     if sword:
         bibles = me.rpc("bible.set_dirs", {"dirs": [str(Path(sword).expanduser().resolve())]})
         print(f"Bibelmodule aus {sword}: {len(bibles.get('modules', []))} gefunden.")
+        # Die erste lesbare Bibel wird die Bibel des Werks – sonst zeigten „Zitate prüfen“ und die Einstellungen
+        # trotz Modul den Leerstand.
+        readable = [m for m in bibles.get("modules", []) if m.get("kind", "bible") == "bible" and not m.get("problem")]
+        if readable:
+            me.rpc("bible.set_work", {"work": work, "module": readable[0]["module"]})
+            print(f"Bibel des Werks: {readable[0]['module']}")
     else:
         empty = data / "keine-bibelmodule"
         (empty / "mods.d").mkdir(parents=True, exist_ok=True)
@@ -1366,6 +1393,10 @@ def shoot(relay, pictures, values, target, temp, options):
                 box = relay.measures.get(shot)
                 if box and box[2] > 0 and box[3] > 0:
                     cut = f"{box[2]}x{box[3]}+{max(0, box[0])}+{max(0, box[1])}"
+                    height = int(picture["fenster"].split("x")[1])
+                    if box[1] + box[3] > height:
+                        notes.append(f"Ausschnitt {cut} reicht unter das Fenster ({picture['fenster']}) – "
+                                     "das Fenster höher wählen")
                 else:
                     notes.append(f"Ausschnitt {cut}: keine Messung aus dem Browser – Bild bleibt ganz")
                     cut = None
@@ -1440,6 +1471,13 @@ def main():
     if args.temp:
         Path(args.temp).expanduser().mkdir(parents=True, exist_ok=True)
     temp = str(Path(args.temp).expanduser().resolve()) if args.temp else None
+    if args.fotos:
+        sword_path = Path(args.sword).expanduser().resolve() if args.sword else None
+        private = private_parts(temp or tempfile.gettempdir(), sword_path)
+        if private:
+            fail("Diese Pfade stünden in den Bildern und nennen den Benutzer: " + ", ".join(private)
+                 + ". Für --fotos einen neutralen Ordner auf einer Platte nehmen, etwa --temp /var/tmp/baruch-hilfe "
+                 "(und die Bibelmodule dorthin kopieren).")
     data = Path(tempfile.mkdtemp(prefix="baruch-fotos-", dir=temp))
     if FORBIDDEN_DATA in data.resolve().parents or data.resolve() == FORBIDDEN_DATA:
         fail("Der Wegwerf-Ordner läge im Datenordner des Dienstes; abgebrochen.")

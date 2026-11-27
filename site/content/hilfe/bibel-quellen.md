@@ -93,7 +93,7 @@ hängt Baruch „(Stelle steht im Text: …)“ an; nennt er eine Stelle, die es
 
 ## In der Bibel nachschlagen {#nachschlagen}
 
-{{< hilfebild name="bibel-nachschlagen" alt="Die Bibelseite der Literatur: oben das Feld „Stelle“ und die Wahl von Buch und Kapitel, darunter die Verse mit Nummern, daneben ein aufklappbarer Kommentar, unten das Formular zum Zitieren und zum Weitergeben an einen Assistenten." titel="Eine Stelle aufschlagen, blättern, suchen – und Verse verwenden." >}}
+{{< hilfebild name="bibel-nachschlagen" alt="Die Bibelseite der Literatur: oben die Wahl der Bibel und das Feld „Stelle“ mit Psalm 119,105, darunter der Vers mit seiner Nummer, das Formular zum Zitieren und zum Weitergeben an einen Assistenten und unten die Wahl von Buch und Kapitel. Das Bild zeigt eine Beispielbibel mit einem einzigen Vers." titel="Eine Stelle aufschlagen, blättern, suchen – und Verse verwenden." >}}
 
 So geht es:
 
@@ -119,7 +119,7 @@ Auch das Suchfeld der Literatur findet Verse (Gruppe „Bibel · Modul“) und K
 
 ## Literatur {#literatur}
 
-{{< hilfebild name="literatur-seite" alt="Die Literatur des Beispielwerks: oben das Suchfeld mit der Wahl Wortlaut oder Bedeutung, darunter die Titel der Bibliothek mit Kurznamen; ein Titel ist aufgeklappt und zeigt Angaben, Zitate und Hervorhebungen." titel="Die Literatur: Titel, Zitate, Hervorhebungen – und eine Suche über alles." >}}
+{{< hilfebild name="literatur-seite" alt="Die Literatur des Beispielwerks: oben das Suchfeld mit der Wahl Wortlaut oder Bedeutung, darunter die Bibel des Werks und die Titel der Bibliothek mit Kurznamen; ein Klick auf einen Titel klappt Angaben, Zitate und Hervorhebungen auf." titel="Die Literatur: Titel, Zitate, Hervorhebungen – und eine Suche über alles." >}}
 
 Die **Literatur** ist die Bibliothek des Autors: Titel mit Angaben, Zitaten und Hervorhebungen.
 
@@ -190,7 +190,7 @@ Assistent @belege zuerst sucht – siehe [Einstellungen](/hilfe/einstellungen/#q
 
 ## Abgleich mit MultiGPT {#abgleich}
 
-{{< hilfebild name="abgleich-seite" alt="Die Seite „Abgleich mit MultiGPT“ im Zustand „nicht verbunden“: ein Hinweis, dass keine Adresse eingetragen ist, mit dem Verweis auf Einstellungen, Verbindungen." titel="Ohne eingerichtetes MultiGPT sagt die Seite das ehrlich." >}}
+{{< hilfebild name="abgleich-seite" alt="Die Seite „Abgleich mit MultiGPT“, solange nichts verbunden ist: der Knopf „Abgleichen“ mit dem Vermerk „Noch nie abgeglichen“, darunter je Werk der Schalter zum Hochladen (ausgeschaltet) und die Liste der Sammlungen." titel="Ohne eingerichtetes MultiGPT sagt die Seite das ehrlich." >}}
 
 **MultiGPT** ist ein eigener Dokumentendienst, den man selbst betreibt; Baruch kann sich mit ihm abgleichen.
 Wer keinen hat, braucht diesen Abschnitt nicht. Die Einrichtung steht unter

@@ -74,7 +74,7 @@ gespeichert wird wie immer mit **Speichern**.
 
 ## Querverweise {#verweise}
 
-{{< hilfebild name="verweise-seite" alt="Die Seite „Querverweise prüfen“: oben die Liste kaputter Verweise, darunter die möglichen Querverweise – Nennungen wie „im dritten Kapitel“ mit dem erkannten Ziel und einem Häkchen – und der Knopf „In Querverweise umwandeln“." titel="Kaputte Verweise finden und Nennungen in Verweise umwandeln." >}}
+{{< hilfebild name="verweise-seite" alt="Die Seite „Querverweise prüfen“: oben der Kasten „Kaputte Verweise“, hier ohne Fund, darunter „Mögliche Querverweise“; im Beispielwerk ist keine Nennung gefunden. Gibt es welche, stehen sie dort mit dem erkannten Ziel, einem Häkchen und dem Knopf „In Querverweise umwandeln“." titel="Kaputte Verweise finden und Nennungen in Verweise umwandeln." >}}
 
 Ein **Querverweis** zeigt von einer Stelle auf einen anderen Gliederungspunkt („siehe die Einleitung, S. 12“). Im
 PDF und im E-Book ist er anklickbar. Er bleibt richtig, auch wenn die Gliederung umgestellt wird.

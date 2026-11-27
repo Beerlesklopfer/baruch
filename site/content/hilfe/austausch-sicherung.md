@@ -105,7 +105,7 @@ holt das [Archiv](/hilfe/erste-schritte/#loeschen-archiv) zurück.
 
 ## Sicherheit {#sicherheit}
 
-{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse für Programme, der Hinweis, dass vom eigenen Rechner kein Zugangsschlüssel nötig ist, die Liste der verbundenen Programme und die Tabelle der Zugangsschlüssel für andere Rechner – ohne lesbaren Schlüssel." titel="Wer von außen zugreifen darf, steht unter Einstellungen → MCP-Zugang." >}}
+{{< hilfebild name="einstellungen-mcp" alt="Einstellungen, Seite MCP-Zugang: die Adresse für Programme, der fertige Befehl für ein Assistenten-Programm, der Vermerk, dass noch kein Zugangsschlüssel (Token) erzeugt ist, das Formular „Token erzeugen“ und die Liste der seit dem Start verbundenen Programme." titel="Wer von außen zugreifen darf, steht unter Einstellungen → MCP-Zugang." >}}
 
 Das Wichtigste in Kürze:
 

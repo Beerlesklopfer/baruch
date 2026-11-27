@@ -6115,3 +6115,26 @@ Aus der Sichtprüfung der Integration: Die Kopfzeile eines Vorschlags im Leseflu
 Stelle der Arbeitsseite nur den Handle; `konten_ui::names::ORIGIN_CLASSES` nimmt die Klasse jetzt mit
 (`round36_lektor`). Im Editor-Kopf wird der Chip mit Anzeigename und Handle bei schmaler Mittelspalte mit „…“
 gekürzt (`.editor-head > .rev-meta`, wie bisher jede lange Herkunft) – im Backlog.
+
+## Hilfe auf der Webseite (Runde 37)
+
+Die Bedienung steht nicht mehr in `docs/`, sondern auf der Webseite (Hugo, `site/`):
+
+- **Quelle:** `site/content/hilfe/*.md` (Anwender, 14 Seiten, Einstieg `_index.md` mit `aliases: ["/bedienung/"]`),
+  `site/content/betrieb.md` (Betreiber), `installation.md` und `mcp.md` (Ersteinrichtung). `docs/Bedienung.md` und
+  `docs/Betrieb.md` tragen nur noch „Wo steht was“ und technische Anmerkungen.
+- **Theme:** `site/themes/baruch/layouts/section.html` (Startseite der Hilfe), `layouts/hilfe/page.html` (Navigation
+  des Abschnitts, Inhaltsverzeichnis, vor/zurück), Shortcodes `hilfebild` (Bild aus `static/bilder/hilfe/`, Name muss
+  in `site/data/hilfebilder.toml` stehen, dunkle Fassung über `<picture>`, Link auf die volle Größe), `taste` und der
+  ältere `bild`. Kein JavaScript, keine fremden Adressen.
+- **Bilder:** `site/tools/bildschirmfotos.py` baut auf einem Wegwerf-Server (`--listen 127.0.0.1:0`, eigener
+  Datenordner, `--secrets memory`, eigenes `HOME`) das erfundene Beispielwerk `site/tools/beispielwerk.typ` aus und
+  fotografiert jede Zeile der Bildliste mit Firefox über einen Vermittler im Skript (Cookies, Sitzung, `<details>`
+  öffnen, Klick, Messung eines Ausschnitts). `--pruefen` belegt jede Adresse ohne Firefox, `--abgleich` hält Liste,
+  Seiten und Dateien gegeneinander. Einzelheiten: `site/tools/README.md`.
+- **Prüfung:** `scripts/site-check.py` (von `scripts/ci-site.sh` nach dem Hugo-Bau aufgerufen): tote interne Links
+  und Anker, Bilder ohne alt-Text, JavaScript, fremde Adressen, Weiterleitung `/bedienung/` → `/hilfe/`. Tests
+  `tests/round37_hilfe.rs` (Seiten, Anker, Bildnamen, verbotene Wörter, Tasten) und `tests/round37_bilder.rs`
+  (Bildliste, Hilfe-Link).
+- **Oberfläche:** `about::HELP_URL`; Eintrag „Hilfe“ im Menü Baruch ▾ (`templates/base.html`) und auf „Über Baruch“ –
+  ein gewöhnlicher Link nach außen, Baruch selbst ruft nichts ab.
