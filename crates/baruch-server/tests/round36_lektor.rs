@@ -68,7 +68,11 @@ async fn the_tables_carry_the_loosened_entries_without_a_work() {
     );
     for method in LOOSENED {
         let entry = LEKTOR_RPC.iter().find(|(name, _)| *name == method);
-        assert_eq!(entry.map(|(_, from)| *from), Some(WorkFrom::None), "{method} steht ohne Werk-Bindung in LEKTOR_RPC");
+        assert_eq!(
+            entry.map(|(_, from)| *from),
+            Some(WorkFrom::None),
+            "{method} steht ohne Werk-Bindung in LEKTOR_RPC"
+        );
     }
     let unbound: Vec<&str> =
         LEKTOR_RPC.iter().filter(|(_, from)| *from == WorkFrom::None).map(|(name, _)| *name).collect();
@@ -153,11 +157,12 @@ async fn the_loosened_methods_without_a_work_use_the_granted_work_only() {
         &s.author,
         "asset.add",
         json!({ "work": s.granted, "file_name": "hafen.svg", "content": picture, "encoding": "svg",
-                "caption": "Hafen", "alt": "Ein Hafen" }),
+                "path": "/bilder/hafen.svg", "caption": "Hafen", "alt": "Ein Hafen" }),
     )
     .await;
-    let name = added["result"]["name"].as_str().unwrap_or_else(|| panic!("Bild angelegt: {added}")).to_owned();
-    let image = format!("#image(\"{name}\")");
+    assert!(added.get("error").is_none(), "Bild angelegt: {added}");
+    // Das Satzbild findet ein Bild über seinen Pfad im Werk (nicht über den Namen).
+    let image = "#image(\"/bilder/hafen.svg\")";
     let body = format!("Ein Absatz.\n\n{image}\n");
     let body = body.as_str();
     let params = |method: &str, work: Option<i64>, key: i64| -> Value {
@@ -297,7 +302,10 @@ async fn the_workspace_shows_the_display_name_next_to_the_lektor_handle() {
 #[tokio::test]
 async fn without_accounts_a_lektor_handle_is_shown_unchanged() {
     let server = common::open().await;
-    let work = server.import("#set document(title: \"Sund\")\n\n= Nebelhorn\n\nDas Horn rief dreimal.\n", "sund.typ").await.work;
+    let work = server
+        .import("#set document(title: \"Sund\")\n\n= Nebelhorn\n\nDas Horn rief dreimal.\n", "sund.typ")
+        .await
+        .work;
     let store = &server.state.store;
     let rev = store
         .add_proposal(work, 0, "= Nebelhorn\n\nDas Horn rief viermal.\n", "@lektorat:erika", "extern", "von anderswo")
@@ -395,7 +403,7 @@ async fn the_cover_in_the_work_list_is_no_link_to_a_locked_page_for_a_lektor() {
     let shown = cell(&lektor);
     assert!(shown.contains("<img "), "die Lektorin sieht das kleine Umschlagbild weiter (die Vorschau ist erlaubt)");
     assert!(
-        !shown.contains("<a ") && !shown.contains("/umschlag"),
+        !shown.contains("<a ") && !shown.contains(&format!("/werke/{}/umschlag", s.granted)),
         "aber ohne Link auf die Seite des Umschlags, die für sie gesperrt ist: {shown}"
     );
     // Die Sperre selbst bleibt in roles – das Ausblenden ist nur Bequemlichkeit.

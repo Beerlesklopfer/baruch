@@ -69,7 +69,10 @@ async fn the_losses_name_every_other_revision_and_every_post_of_the_point_and_ch
     let first = store.add_post(work, 1, &post("@nathan", "Wozu die Sense?")).await.unwrap();
     let second = store.add_post(work, 1, &post(HUMAN, "Für das hohe Gras unter den Bäumen.")).await.unwrap();
     store.add_post(work, 0, &post("@lektor", "Beitrag zu einem anderen Abschnitt.")).await.unwrap();
-    store.add_proposal(work, 0, "= Die Obstwiese\n\nVier Reihen Apfelbäume.\n", "@lektor", "probe", "vier").await.unwrap();
+    store
+        .add_proposal(work, 0, "= Die Obstwiese\n\nVier Reihen Apfelbäume.\n", "@lektor", "probe", "vier")
+        .await
+        .unwrap();
 
     let before = row_counts(&store).await;
     let losses = store.outline_delete_losses(work, 1).await.unwrap();
@@ -81,7 +84,8 @@ async fn the_losses_name_every_other_revision_and_every_post_of_the_point_and_ch
                 number: 1,
                 author: HUMAN.to_owned(),
                 proposal: false,
-                body: "= Der Schuppen\n\nLeitern und Körbe.\n".to_owned(),
+                // Wortlaut wie eingelesen: Der Import lässt die Leerzeile vor der nächsten Überschrift beim Abschnitt.
+                body: "= Der Schuppen\n\nLeitern und Körbe.\n\n".to_owned(),
             },
             LostRevision {
                 number: rejected,

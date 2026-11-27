@@ -1246,7 +1246,11 @@ async fn the_command_line_lifts_the_block_of_the_account_after_failed_logins() {
         "die Anmeldung mit dem neuen Passwort gelingt sofort, ohne die Sperre abzuwarten: {text}"
     );
     assert!(!session_cookies(&headers).is_empty(), "mit Sitzung");
-    assert_eq!(login(&server, "Nemo", NEW_PW).await.0, StatusCode::TOO_MANY_REQUESTS, "der fremde Bereich wartet weiter");
+    assert_eq!(
+        login(&server, "Nemo", NEW_PW).await.0,
+        StatusCode::TOO_MANY_REQUESTS,
+        "der fremde Bereich wartet weiter"
+    );
 }
 
 #[tokio::test]

@@ -89,9 +89,8 @@ struct Place {
 async fn places(server: &common::Server, work: i64) -> BTreeMap<String, Place> {
     let answer = server.rpc("idea.list", json!({ "work": work })).await;
     let ideas = result(&answer)["ideas"].as_array().unwrap().clone();
-    let title_of = |id: i64| {
-        ideas.iter().find(|i| i["id"].as_i64() == Some(id)).map(|i| i["title"].as_str().unwrap().to_owned())
-    };
+    let title_of =
+        |id: i64| ideas.iter().find(|i| i["id"].as_i64() == Some(id)).map(|i| i["title"].as_str().unwrap().to_owned());
     ideas
         .iter()
         .map(|idea| {
@@ -134,7 +133,10 @@ async fn the_round_trip_of_the_own_files_keeps_the_cloud() {
 
     let before = places(&server, work).await;
     assert!(
-        before["Sturmflut 1962"].cloud && before["Reetdach"].cloud && !before["Schafe"].cloud && !before["Grassoden"].cloud,
+        before["Sturmflut 1962"].cloud
+            && before["Reetdach"].cloud
+            && !before["Schafe"].cloud
+            && !before["Grassoden"].cloud,
         "Vorbedingung: zwei Einfälle liegen in der Wolke, zwei im Baum: {before:?}"
     );
 

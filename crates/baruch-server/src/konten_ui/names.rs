@@ -17,7 +17,8 @@ use crate::AppState;
 /// Klassen der Elemente, deren Text eine Herkunft nennt: Kopf des Editors (`rev-meta`), Beitrag (`post-author`),
 /// Revisionsbaum (`revtree-author`), Befund (`fd-persona`), Zeile „Weitere Fassungen“ (`rev-alt`) und die Zeile
 /// einer Fassung in der Lektor-Spalte (`rev-origin`).
-pub const ORIGIN_CLASSES: &[&str] = &["rev-meta", "post-author", "revtree-author", "fd-persona", "rev-alt", "rev-origin"];
+pub const ORIGIN_CLASSES: &[&str] =
+    &["rev-meta", "post-author", "revtree-author", "fd-persona", "rev-alt", "rev-origin"];
 
 const PREFIX: &str = "@lektorat:";
 
@@ -112,11 +113,19 @@ pub fn show(html: &str, names: &HashMap<String, String>) -> String {
     let mut rest = html;
     while !rest.is_empty() {
         let Some(lt) = rest.find('<') else {
-            if open.is_empty() { out.push_str(rest) } else { in_text(rest, names, &mut out) }
+            if open.is_empty() {
+                out.push_str(rest)
+            } else {
+                in_text(rest, names, &mut out)
+            }
             break;
         };
         let (text, from_tag) = rest.split_at(lt);
-        if open.is_empty() { out.push_str(text) } else { in_text(text, names, &mut out) }
+        if open.is_empty() {
+            out.push_str(text)
+        } else {
+            in_text(text, names, &mut out)
+        }
         // Kommentare und Rohtext (Skript, Stil, Textfeld) wörtlich übernehmen.
         let raw_end = if from_tag.starts_with("<!--") {
             Some(from_tag.find("-->").map_or(from_tag.len(), |i| i + 3))

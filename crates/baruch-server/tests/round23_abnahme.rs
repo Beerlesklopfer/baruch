@@ -72,7 +72,8 @@ async fn the_round_23_walk_through_holds_from_the_quote_to_the_tokens() {
         "Testvoraussetzung: der Knopf fügt den leeren Block ein, ohne Zeile mit Gedankenstrich"
     );
     // Was der Mensch nach dem Knopf tippt: das Zitat in den Rumpf, die Stelle in die Zeile darunter.
-    let quote = format!("{}– Mühlenordnung 7\n", snippet.replacen("[]", "[Wer mahlt, hört den Bach auch im Schlaf.]", 1));
+    let quote =
+        format!("{}– Mühlenordnung 7\n", snippet.replacen("[]", "[Wer mahlt, hört den Bach auch im Schlaf.]", 1));
     let with_quote = format!("{}\n\n{quote}\nDann schloss der Müller das Wehr.\n", body.trim_end());
     let save = format!(
         "method=outline.save&work={work}&key={key}&based_on={rev}&based_on_amend=0&mode=auto&body={}",

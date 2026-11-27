@@ -286,7 +286,8 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
     assert!(page.contains("beruht auf Fassung 2"), "der Kopf des Vorschlags nennt Fassung 2 als Grundlage");
 
     // Ausdrücklich gewählte Grundlage „current“ bei gezeigtem Vorschlag: Der eigene Teil beruht auf der aktuellen.
-    h.eliezer.push(Reply::text(&["= Oberwasser\n\nDas Tor steht sperrangelweit offen. Ein Kahn wartet vor der Kammer.\n"]));
+    h.eliezer
+        .push(Reply::text(&["= Oberwasser\n\nDas Tor steht sperrangelweit offen. Ein Kahn wartet vor der Kammer.\n"]));
     h.eliezer.push(Reply::text(&["== Die Kammer\n\nDas Wasser steigt träge. Der Schleusenwärter zählt die Stufen.\n"]));
     let params =
         json!({ "work": work, "key": chamber, "rev": 3, "basis": "current", "persona": "@lektor", "scope": "chapter" });

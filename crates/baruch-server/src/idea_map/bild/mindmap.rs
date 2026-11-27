@@ -576,8 +576,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     let mut labels = String::new();
     // Runde 36: Rechtecke aller gezeichneten Knoten und der schon gesetzten Beschriftungen – eine Beschriftung
     // liegt nie auf einem Knoten und nie auf einer anderen Beschriftung.
-    let node_boxes: Vec<LabelBox> =
-        layout.items.iter().map(|p| LabelBox { x: p.x, y: p.y, w: p.w, h: p.h }).collect();
+    let node_boxes: Vec<LabelBox> = layout.items.iter().map(|p| LabelBox { x: p.x, y: p.y, w: p.w, h: p.h }).collect();
     let mut label_boxes: Vec<LabelBox> = Vec::new();
     // Beziehungen: gebogene Linien mit Beschriftung (Art, dazu die Notiz); verborgene Enden am sichtbaren Vorfahren.
     for (index, link) in map.links.iter().filter(|l| l.deleted.is_none()).enumerate() {

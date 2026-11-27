@@ -120,7 +120,9 @@ fn node(probe: &str) -> Option<Value> {
         }
     };
     assert!(out.status.success(), "node: {}", String::from_utf8_lossy(&out.stderr));
-    Some(serde_json::from_slice(&out.stdout).unwrap_or_else(|e| panic!("{e}: {}", String::from_utf8_lossy(&out.stdout))))
+    Some(
+        serde_json::from_slice(&out.stdout).unwrap_or_else(|e| panic!("{e}: {}", String::from_utf8_lossy(&out.stdout))),
+    )
 }
 
 #[tokio::test]
@@ -244,20 +246,36 @@ fn the_early_script_corrects_cookie_and_attributes_on_the_first_call_after_a_res
         ("w", attrs(Mode::Auto, Width::Wide, false, false), 1, "vergrößert: sofort breit, Cookie neu"),
         ("m", attrs(Mode::Auto, Width::Medium, false, false), 1, "erster Besuch mit JavaScript: Cookie entsteht"),
         ("m", attrs(Mode::Auto, Width::Medium, false, true), 1, "die gemerkte rechte Leiste bleibt eingeklappt"),
-        ("s", attrs(Mode::Off, Width::Small, false, false), 1, "„aus“ bleibt breit gezeichnet, nur das Cookie ändert sich"),
+        (
+            "s",
+            attrs(Mode::Off, Width::Small, false, false),
+            1,
+            "„aus“ bleibt breit gezeichnet, nur das Cookie ändert sich",
+        ),
         ("s", attrs(Mode::Auto, Width::Small, false, false), 0, "stimmt das Cookie, schreibt das Skript nichts"),
-        ("m", attrs(Mode::Auto, Width::Medium, false, false), 1, "1280 px ist schon die mittlere Klasse (wie im Server)"),
+        (
+            "m",
+            attrs(Mode::Auto, Width::Medium, false, false),
+            1,
+            "1280 px ist schon die mittlere Klasse (wie im Server)",
+        ),
     ];
     let seen = seen.as_array().expect("ein Ergebnis je Fall");
     assert_eq!(seen.len(), expected.len(), "jeder Fall lief");
     for (got, (vw, attrs, writes, why)) in seen.iter().zip(expected) {
         let name = got["name"].as_str().unwrap();
         assert_eq!(got["vw"], vw, "{name}: Cookie baruch_vw – {why}");
-        assert_eq!(got["attrs"], attrs, "{name}: Attribute an <html> wie der Server sie für diese Breite schriebe – {why}");
+        assert_eq!(
+            got["attrs"], attrs,
+            "{name}: Attribute an <html> wie der Server sie für diese Breite schriebe – {why}"
+        );
         assert_eq!(got["writes"], writes, "{name}: Zahl der Schreibzugriffe auf das Cookie – {why}");
     }
     let source = script("vw.js");
-    assert!(source.contains("Max-Age=31536000") && source.contains("SameSite=Lax"), "Cookie wie die übrigen der Oberfläche");
+    assert!(
+        source.contains("Max-Age=31536000") && source.contains("SameSite=Lax"),
+        "Cookie wie die übrigen der Oberfläche"
+    );
 }
 
 // ---- „Sicherung angelegt“ nur einmal ------------------------------------------------------------------------
@@ -363,7 +381,8 @@ fn the_former_name_in_the_token_list_does_not_break_inside_the_name() {
     );
     let css = include_str!("../static/settings.css");
     assert!(css.contains(".token-former { white-space: nowrap; }"), "die Klammer bricht nicht um");
-    let general = css.find(".settings-table td code { word-break: break-all; }").expect("die allgemeine Regel der Tabelle");
+    let general =
+        css.find(".settings-table td code { word-break: break-all; }").expect("die allgemeine Regel der Tabelle");
     let special = css
         .find(".settings-table td .token-former code { white-space: nowrap; overflow-wrap: normal; word-break: keep-all; }")
         .expect("die Regel für den früheren Namen");
@@ -472,7 +491,9 @@ async fn fill(server: &common::Server, work: i64, node: usize, title: &str) {
     let rejected = format!("= {title}\n\nVerworfen: Hier lagert gar nichts.\n");
     let number = store.add_proposal(work, node, &rejected, "@nathan", "probe", "leer").await.unwrap();
     store.reject(work, node, number).await.unwrap();
-    for (author, body) in [("@nathan", "Wie viele Säcke passen auf den Boden?"), ("Autor", "Etwa vierzig, bis unters Dach.")] {
+    for (author, body) in
+        [("@nathan", "Wie viele Säcke passen auf den Boden?"), ("Autor", "Etwa vierzig, bis unters Dach.")]
+    {
         let post = baruch_core::Post {
             id: 0,
             created: String::new(),
@@ -513,7 +534,8 @@ async fn deleting_an_outline_point_records_the_lost_proposals_and_posts_in_the_m
         "der offene Vorschlag steht mit Herkunft und Wortlaut im Commit: {commit}"
     );
     assert!(
-        commit.contains("Fassung 3 (ältere Fassung von @nathan):") && commit.contains("Verworfen: Hier lagert gar nichts."),
+        commit.contains("Fassung 3 (ältere Fassung von @nathan):")
+            && commit.contains("Verworfen: Hier lagert gar nichts."),
         "auch die verworfene Fassung geht nicht stillschweigend verloren: {commit}"
     );
     assert!(commit.contains("Mitgelöschte Beiträge: 2"), "der Commit zählt die mitgelöschten Beiträge: {commit}");

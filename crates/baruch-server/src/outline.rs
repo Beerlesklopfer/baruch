@@ -219,7 +219,8 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                 answer["outline"] = outline;
                 let by = mirror::OutlineBy::Confirmed(&decided.request);
                 // Nur ein wirklich ausgeführtes Löschen nennt Verluste (ein veralteter Antrag ändert nichts).
-                let lost = if change.action == baruch_store::OutlineAction::Deleted { losses } else { Default::default() };
+                let lost =
+                    if change.action == baruch_store::OutlineAction::Deleted { losses } else { Default::default() };
                 add_mirror(&mut answer, mirror::record_outline_losses(state, &held, change, by, &lost).await);
             } else {
                 // Nutzerentscheidung 2026-11-08 (Runde 16c): Jede Entscheidung ohne Gliederungsänderung –
