@@ -68,6 +68,9 @@
           {%- else %}
           <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="Einstellungen (Alt+,)" data-shortcut="Alt+,">⚙ Einstellungen</a>
           {%- endif %}
+          {#- Runde 37: Hilfe auf der Webseite (about::HELP_URL). Ein gewöhnlicher Link in ein neues Fenster, ohne
+              JavaScript bedienbar, ohne nur-autor (auch Lektoren sehen ihn); keine Route, kein Eintrag in roles. #}
+          <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="Hilfe mit Bildern auf der Webseite von Baruch (öffnet ein neues Fenster, braucht das Internet)">Hilfe</a>
           {#- Runde 24: Über Baruch (Seite /ueber, src/about.rs) – Version, Lizenz, Quellcode. Ein gewöhnlicher Link,
               auf jeder Seite und ohne JavaScript erreichbar; das Werk bleibt im Cookie, die Seite braucht es nicht. #}
           <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>

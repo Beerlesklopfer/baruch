@@ -285,15 +285,16 @@ async fn the_about_page_triggers_no_network_access() {
         !html.contains("http-equiv=\"refresh\"") && !html.contains("@import") && !html.contains("url(http"),
         "keine Weiterleitung und kein fremdes Stylesheet im HTML"
     );
-    // Fremde Adressen stehen nur in gewöhnlichen Links des Inhalts – und zwar genau die drei bekannten.
+    // Fremde Adressen stehen nur in gewöhnlichen Links – und zwar genau die vier bekannten. Runde 37: dazu die Hilfe
+    // auf der Webseite (Eintrag „Hilfe“ im Menü „Baruch ▾“ und die Zeile unter „Webseite“).
     let mut external: Vec<&str> = attributes(&html, "href").into_iter().filter(|h| h.contains("://")).collect();
     external.sort_unstable();
     external.dedup();
     let release = about::release_url();
     assert_eq!(
         external,
-        vec![about::HOMEPAGE, about::REPOSITORY, release.as_str()],
-        "fremde Adressen nur als Links, die erst ein Klick des Menschen öffnet: Webseite, Repo, Release-Seite"
+        vec![about::HOMEPAGE, about::HELP_URL, about::REPOSITORY, release.as_str()],
+        "fremde Adressen nur als Links, die erst ein Klick des Menschen öffnet: Webseite, Hilfe, Repo, Release-Seite"
     );
     for part in html.split("<a ").skip(1) {
         let tag = part.split('>').next().unwrap_or_default();

@@ -2,7 +2,7 @@
     Drittlizenzen je Paket, Datenordner und der Hinweis, dass Baruch nie von sich aus im Netz nach neuen
     Versionen fragt. Ohne JavaScript lesbar; die Seite lädt nichts von fremden Rechnern (nur gewöhnliche Links,
     die erst ein Klick öffnet).
-    Kontext: settings, version, license_id, repository, homepage, release_url, data_dir, default_data_dir,
+    Kontext: settings, version, license_id, repository, homepage, help (Hilfe auf der Webseite, Runde 37), release_url, data_dir, default_data_dir,
     third_party (Pfad auf diesem Rechner oder none), appimage (Pfad der AppImage-Datei oder none), third_party_file, third_party_places [{package, place}]. -#}
 {% extends "base.html" %}
 {% block title %}Über Baruch – Baruch{% endblock %}
@@ -30,7 +30,9 @@
     <dd><a href="{{ repository }}" rel="noopener noreferrer">{{ repository }}</a> – der Quelltext genau dieser
       Version steht dort beim Tag <code>v{{ version }}</code>.</dd>
     <dt>Webseite</dt>
-    <dd><a href="{{ homepage }}" rel="noopener noreferrer">{{ homepage }}</a></dd>
+    <dd><a href="{{ homepage }}" rel="noopener noreferrer">{{ homepage }}</a>
+      <br>Hilfe mit Bildern: <a href="{{ help }}" rel="noopener noreferrer" data-about-help>{{ help }}</a>
+      <span class="small">(auf der Webseite, braucht das Internet)</span></dd>
     <dt>Datenordner</dt>
     <dd><code data-about-data-dir>{{ data_dir }}</code>
       {%- if data_dir != default_data_dir %} <span class="muted small">(Vorgabe: <code>{{ default_data_dir }}</code>)</span>{% endif %}
