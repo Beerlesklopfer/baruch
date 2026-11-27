@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Live im Chat (Runde 30c): post.since, „schreibt …“, Fehler gescheiterter Modellaufrufe, thread.since und die reinen
-//! Funktionen der Widgets (chat.ts, mention.ts) unter Node.
+//! Live in the chat (Round 30c): post.since, „schreibt …“, errors of failed model calls, thread.since and the pure
+//! functions of the widgets (chat.ts, mention.ts) under Node.
 //!
-//! Besitz: chat-bedienung. Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel`. Die Anzeige „schreibt …“ und die
-//! Fehler sind prozessweit (je Werk und Abschnitt); Zusicherungen darum mit `find`/`any` auf eigene Einträge, nie auf
-//! die ganze Liste (SKILLS.md).
+//! Owner: chat-bedienung. No network, no Eliezer: models only through `ScriptedModel`. The display „schreibt …“ and the
+//! errors are process-wide (per work and section); assertions therefore use `find`/`any` on own entries, never on the
+//! whole list (SKILLS.md).
 
 use crate::common;
 
@@ -63,7 +63,7 @@ async fn post_since_shows_who_is_typing_and_then_delivers_the_new_post_as_html()
             .await
     });
     l.model.started().await;
-    // Der Beitrag des Menschen steht sofort; der Lektor schreibt noch.
+    // The post of the human is there immediately; the lector is still writing.
     let mut seen = None;
     for _ in 0..200 {
         let since = l.server.rpc("post.since", json!({ "work": work, "key": key, "after": 0 })).await;
@@ -91,8 +91,8 @@ async fn post_since_shows_who_is_typing_and_then_delivers_the_new_post_as_html()
     let html = posts[0]["html"].as_str().unwrap();
     for part in [
         &format!("id=\"post-{}\"", posts[0]["id"]),
-        // Integrator Runde 30: Mit dem echten `finding_spans` (chat-loesungen) ist jeder Listenpunkt der Antwort ein
-        // eigener Befund-Block (Segment `finding`), darin weiter als Liste gesetzt.
+        // Integrator Round 30: with the real `finding_spans` (chat-loesungen) every list item of the answer is a
+        // finding block of its own (segment `finding`), still rendered as a list inside it.
         "<ul class=\"post-list\"><li>Der Wächter wirkt <strong>müde</strong>.</li></ul>",
         "class=\"post-finding\" data-finding=",
         "<div class=\"fb fb-kind-hint",
@@ -152,8 +152,8 @@ async fn thread_since_delivers_new_thread_posts_as_html() {
     assert!(since["typing"].is_array() && since["failures"].is_array(), "Felder typing und failures: {since}");
 }
 
-/// Ruft einen Ausdruck mit den ausgelieferten Modulen unter Node auf (alle Skripte im selben Ordner, damit die
-/// Importe aufgehen) und liefert das Ergebnis als JSON.
+/// Calls an expression with the delivered modules under Node (all scripts in the same directory so that the imports
+/// resolve) and returns the result as JSON.
 fn node(module: &str, expr: &str) -> Value {
     let dir = tempfile::tempdir().unwrap();
     for (name, source) in baruch_server::SCRIPTS {

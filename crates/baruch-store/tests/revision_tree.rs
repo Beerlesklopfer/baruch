@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Revisionsbaum (Vertrag Runde 3, Abschnitte 2 und 3) auf echten SQLite-Dateien im Temp-Ordner:
-//! Migration 0004 (frisch und auf dem Stand 0001–0003), Regeln in der Datenbank selbst, Umschalten,
-//! Speichern auf einer Basis, Ändern und Löschen durch den Menschen, Baum aller Fassungen.
+//! Revision tree (contract Round 3, sections 2 and 3) on real SQLite files in the temp directory: migration 0004 (fresh
+//! and on the state 0001–0003), rules in the database itself, switching, saving on a base, changing and deleting by the
+//! human, tree of all revisions.
 
 use std::borrow::Cow;
 use std::path::Path;
@@ -19,7 +19,7 @@ async fn fresh() -> (tempfile::TempDir, Store, i64) {
     (dir, store, work)
 }
 
-/// `(number, based_on, status)` aller Revisionen des Abschnitts `seq`, nach Nummer.
+/// `(number, based_on, status)` of all revisions of the section `seq`, by number.
 async fn rows(pool: &SqlitePool, seq: i64) -> Vec<(i64, Option<i64>, String)> {
     sqlx::query_as(
         "SELECT r.number, r.based_on, r.status FROM revision r JOIN node n ON n.id = r.node_id \
@@ -80,7 +80,7 @@ async fn migration_0004_on_a_fresh_database_sets_parents_and_last_rev() {
     assert_eq!(edited, 0, "frisch ist keine Fassung vom Menschen geändert");
 }
 
-/// Datenbank nur mit den Migrationen 0001–0003 (Stand vor dem Revisionsbaum).
+/// Database with only the migrations 0001–0003 (state before the revision tree).
 async fn database_at_0003(dir: &Path) -> SqlitePool {
     let options = SqliteConnectOptions::from_str("sqlite:")
         .unwrap()
@@ -95,7 +95,7 @@ async fn database_at_0003(dir: &Path) -> SqlitePool {
     pool
 }
 
-/// Das Beispielwerk so, wie der alte Store es schrieb: ohne `based_on`.
+/// The sample work the way the old store wrote it: without `based_on`.
 async fn insert_sample_without_parents(pool: &SqlitePool) {
     let work = sample::work();
     let work_id: i64 = sqlx::query_scalar(
@@ -154,8 +154,8 @@ async fn migration_0004_on_a_0003_database_fills_parents_by_rule_r() {
     let dir = tempfile::tempdir().unwrap();
     let pool = database_at_0003(dir.path()).await;
     insert_sample_without_parents(&pool).await;
-    // Ein Abschnitt mit verworfenem Vorschlag zwischen zwei eigenen Fassungen und einem Vorschlag,
-    // dessen Basis der alte Store schon gesetzt hatte.
+    // A section with a discarded proposal between two own revisions and a proposal whose base the old store had already
+    // set.
     let node_id: i64 = sqlx::query_scalar(
         "INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind) \
          VALUES (1, 11, NULL, 11, '5', 'Nachtrag', 'chapter') RETURNING id",
@@ -175,8 +175,8 @@ async fn migration_0004_on_a_0003_database_fills_parents_by_rule_r() {
     .unwrap();
     pool.close().await;
 
-    // Store::open führt nur noch 0004 aus (0001–0003 stehen mit gleicher Prüfsumme in der Tabelle,
-    // sonst schlüge open mit VersionMismatch fehl) und befüllt nichts neu.
+    // Store::open only runs 0004 (0001–0003 are in the table with the same checksum, otherwise open would fail with
+    // VersionMismatch) and fills nothing anew.
     let store = Store::open(dir.path()).await.expect("0004 läuft auf dem Stand 0001–0003");
     let pool = store.pool();
     assert_eq!(store.works().await.unwrap().len(), 1, "keine neue Saat in eine Datenbank mit Werk");
@@ -203,11 +203,11 @@ async fn migration_0004_on_a_0003_database_fills_parents_by_rule_r() {
         applied.starts_with(&[1, 2, 3, 4]),
         "0001–0004 sind eingetragen (spätere Migrationen dürfen folgen): {applied:?}"
     );
-    // Und der Store arbeitet danach mit den neuen Regeln.
+    // And the store works with the new rules afterwards.
     assert_eq!(store.load_work(1).await.unwrap().nodes[11].revisions.len(), 4, "alle Fassungen bleiben");
 }
 
-// ---- Regeln in der Datenbank ----------------------------------------------------------------------
+// ---- Rules in the database ------------------------------------------------------------------------
 
 async fn refused(pool: &SqlitePool, sql: &str, reason: &str) {
     let err = sqlx::query(sqlx::AssertSqlSafe(sql))
@@ -267,7 +267,7 @@ async fn the_database_refuses_to_move_a_revision_to_another_section() {
 #[tokio::test]
 async fn the_database_refuses_an_illegal_status_change() {
     let (_dir, store, _work) = fresh().await;
-    // current → rejected: Verwerfen gibt es nur für Vorschläge.
+    // current → rejected: discarding exists only for proposals.
     refused(
         store.pool(),
         "UPDATE revision SET status = 'rejected' WHERE status = 'current'",
@@ -301,7 +301,7 @@ async fn the_database_refuses_a_parent_that_does_not_exist() {
 async fn the_database_refuses_a_parent_that_is_not_smaller() {
     let (_dir, store, _work) = fresh().await;
     let node = node_db_id(store.pool(), 2).await;
-    // Fassung 2 auf Fassung 3 (größer) oder auf sich selbst stützen: kein Baum mehr.
+    // Base revision 2 on revision 3 (larger) or on itself: no tree any more.
     refused(
         store.pool(),
         &format!("UPDATE revision SET based_on = 3 WHERE node_id = {node} AND number = 2"),
@@ -334,7 +334,7 @@ async fn the_database_refuses_to_reuse_a_number_after_deleting_the_highest() {
     assert_eq!(next, 4, "der Store nimmt last_rev + 1, nicht max + 1");
 }
 
-// ---- Umschalten -----------------------------------------------------------------------------------
+// ---- Switching ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn set_current_switches_to_a_superseded_version_without_changing_text() {
@@ -394,7 +394,7 @@ async fn set_current_on_the_current_version_is_refused() {
 #[tokio::test]
 async fn an_unknown_number_after_a_deletion_names_the_existing_numbers() {
     let (_dir, store, work) = fresh().await;
-    // Einleitung: 1, 2 (current), 3 (Vorschlag); Fassung 4 speichern, dann 3 löschen → 1, 2, 4.
+    // Introduction: 1, 2 (current), 3 (proposal); save revision 4, then delete 3 → 1, 2, 4.
     store.save_human(work, 2, "= Einleitung\n\nVierte Fassung.\n", "Autor").await.unwrap().unwrap();
     store.delete_revision(work, 2, 3, "Autor").await.unwrap();
     let err = store.set_current(work, 2, 3).await.unwrap_err();
@@ -410,7 +410,7 @@ async fn an_unknown_number_after_a_deletion_names_the_existing_numbers() {
     );
 }
 
-// ---- Speichern auf einer Basis ---------------------------------------------------------------------
+// ---- Saving on a base ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn save_human_on_takes_the_shown_version_as_parent() {
@@ -427,7 +427,7 @@ async fn save_human_on_takes_the_shown_version_as_parent() {
         ],
         "Elternteil ist die gezeigte Fassung 1, nicht die bisher aktuelle"
     );
-    // Gleicher Text wie die Basis → nichts.
+    // Same text as the base → nothing.
     let base = store.load_work(work).await.unwrap().nodes[2].revision(1).unwrap().body.clone();
     assert_eq!(store.save_human_on(work, 2, &base, "Autor", 1).await.unwrap(), None, "unverändert gegenüber der Basis");
     assert!(
@@ -456,7 +456,7 @@ async fn save_human_takes_the_current_version_and_add_proposal_stays_proposed() 
 #[tokio::test]
 async fn accepting_a_stale_proposal_keeps_every_version() {
     let (_dir, store, work) = fresh().await;
-    // Der Vorschlag 3 beruht auf 2; danach speichert der Mensch eine eigene Fassung 4.
+    // Proposal 3 is based on 2; after that the human saves an own revision 4.
     store.save_human(work, 2, "= Einleitung\n\nEigene neue Fassung.\n", "Autor").await.unwrap().unwrap();
     store.accept(work, 2, 3).await.unwrap();
     let after = store.load_work(work).await.unwrap();
@@ -473,7 +473,7 @@ async fn accepting_a_stale_proposal_keeps_every_version() {
     assert!(after.nodes[2].revision(4).unwrap().body.contains("Eigene neue Fassung"), "Text der Fassung 4 bleibt");
 }
 
-// ---- Ändern ---------------------------------------------------------------------------------------
+// ---- Changing -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn update_revision_changes_body_and_note_and_sets_edited() {
@@ -513,12 +513,12 @@ async fn update_revision_without_change_does_nothing_and_empty_text_is_refused()
     assert!(tree[0].revisions[0].edited.is_none(), "ohne Änderung bleibt edited leer");
 }
 
-// ---- Löschen --------------------------------------------------------------------------------------
+// ---- Deleting -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn deleting_a_middle_version_reparents_its_children() {
     let (_dir, store, work) = fresh().await;
-    // Einleitung: 1 ← 2 (current) ← 3 (Vorschlag); erst auf 3 umschalten, dann 2 löschen.
+    // Introduction: 1 ← 2 (current) ← 3 (proposal); first switch to 3, then delete 2.
     store.set_current(work, 2, 3).await.unwrap();
     let change = store.delete_revision(work, 2, 2, "Autor").await.unwrap();
     assert_eq!((change.rev, change.kind), (2, ChangeKind::Deleted), "Change nennt die gelöschte Fassung");
@@ -571,7 +571,7 @@ async fn deleting_a_root_makes_its_children_roots() {
     );
 }
 
-// ---- Baum -----------------------------------------------------------------------------------------
+// ---- Tree -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_revision_tree_lists_every_section_and_version_in_order() {

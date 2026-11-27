@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werke verwalten (Vertrag Runde 4, Abschnitte 4–6): Anlegen, Ändern, Löschen und Export über RPC
-//! und Formulare ohne JavaScript, Werkwahl und Cookie, Spiegel-Commits und Archiv gelöschter Werke;
-//! nichts davon über MCP. Echter Datenordner (SQLite, Bibliothek, Git-Spiegel) im Temp-Ordner.
+//! Managing works (contract Round 4, sections 4–6): create, change, delete and export over RPC and forms without
+//! JavaScript, work choice and cookie, mirror commits and archive of deleted works; none of it over MCP. Real data
+//! directory (SQLite, library, Git mirror) in the temp directory.
 
 use crate::common;
 
@@ -13,7 +13,7 @@ use axum::http::{Request, StatusCode, header};
 use baruch_server::rpc;
 use serde_json::{Value, json};
 
-/// Formular an `uri`; Antwort als Status, Kopfzeilen und HTML.
+/// Form to `uri`; answer as status, headers and HTML.
 async fn form(server: &common::Server, uri: &str, body: &str) -> (StatusCode, axum::http::HeaderMap, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -275,8 +275,8 @@ async fn deleting_needs_the_typed_title_and_archives_the_mirror_with_a_last_comm
     let files = common::git(&archive, &["show", "--stat", "--format=", "HEAD"]).unwrap();
     assert_eq!(files.trim(), "", "der Protokoll-Commit ändert keine Datei (leerer Commit): {files}");
 
-    // Noch einmal dasselbe Buch: neue id, und der slug des gelöschten Werks bleibt reserviert
-    // (Vertrag Runde 5), damit sein Archiv und ein neuer Spiegel nicht verwechselt werden.
+    // The same book once more: new id, and the slug of the deleted work stays reserved (contract Round 5), so that its
+    // archive and a new mirror are not confused.
     let again = server.import_garden().await;
     assert!(again.work > garden.work, "die id des gelöschten Werks wird nicht wiederverwendet: {again:?}");
     assert_eq!(again.slug, "das-gartenbuch-2", "der alte slug bleibt reserviert, der neue bekommt -2: {again:?}");
@@ -376,8 +376,8 @@ async fn the_page_opens_the_work_from_the_cookie_and_falls_back_when_it_is_gone(
 async fn the_header_offers_works_and_an_import_dialog() {
     let server = common::open().await;
     let (_, html) = server.get("/").await;
-    // Runde 9: „Alle Werke“ und „Neues Werk / Importieren…“ stehen im Menü „Werk ▾“ der Kopfzeile.
-    // Runde 33 (Menüband): Beide stehen jetzt im Menü „Baruch ▾“ (Programm) – dieselben Links und Haken.
+    // Round 9: „Alle Werke“ and „Neues Werk / Importieren…“ are in the menu „Werk ▾“ of the header.
+    // Round 33 (ribbon): both are now in the menu „Baruch ▾“ (program) – the same links and hooks.
     assert!(
         html.contains("<a class=\"menu-item\" role=\"menuitem\" href=\"/werke\">Alle Werke</a>"),
         "Link „Alle Werke“ im Menü der Kopfzeile"
@@ -485,10 +485,10 @@ async fn mcp_offers_no_tool_to_create_change_delete_or_import_works() {
     let names: Vec<&str> =
         answer["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert!(names.contains(&"list_works"), "Lesen bleibt: {names:?}");
-    // Einfälle (idea_*, Runde 7) und eigene Beiträge (post_*, Runde 8) sind keine Werke; ihr Verwalten
-    // über MCP ist gewollt (IDEA_CRUD bzw. nur eigene Beiträge).
-    // Die Gliederungswerkzeuge outline_* (Wunsch 2026-11-06) betreffen Punkte, nicht Werke; die
-    // Bildwerkzeuge asset_* (Runde 11) betreffen Bilder und ändern nur über Anträge.
+    // Ideas (idea_*, Round 7) and own posts (post_*, Round 8) are not works; managing them
+    // over MCP is intended (IDEA_CRUD or only own posts).
+    // The outline tools outline_* (wish 2026-11-06) concern items, not works; the
+    // image tools asset_* (Round 11) concern images and change only through requests.
     for name in names.iter().filter(|n| {
         !n.starts_with("idea_") && !n.starts_with("post_") && !n.starts_with("outline_") && !n.starts_with("asset_")
     }) {

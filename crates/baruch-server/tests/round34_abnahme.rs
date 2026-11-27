@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 34 „Mindmap wie XMind“ – Abnahme des Integrators, Ende zu Ende über die zusammengeführten Zweige
-//! (mindmap_daten, mindmap_widget, mindmap_austausch) samt dem Nachtrag des Nutzers vom 2026-11-25: Die **Wolke**
-//! (Einfälle ohne Platz) liegt neben der Mindmap und ist mit ihr verbunden – Einfälle wandern in beide Richtungen,
-//! freie Hauptthemen sind eigene Hauptäste.
+//! Round 34 „Mindmap wie XMind“ – acceptance by the integrator, end to end across the merged branches (mindmap_daten,
+//! mindmap_widget, mindmap_austausch) including the user's addendum of 2026-11-25: the **cloud** (ideas without a
+//! place) lies next to the mind map and is connected with it – ideas move in both directions, free main topics are main
+//! branches of their own.
 //!
-//! Das „Halligbuch“ mit zwei Teilen und vier Kapiteln und alle Einfälle sind frei erfunden; kein Modell, kein Netz.
-//! Tasten und Ziehen des Widgets (`web/src/mindmap.ts`) laufen in keinem Browser: Geprüft werden die RPC-Aufrufe, die
-//! das Widget dafür absetzt (dieselben Parameter), und das Bild, das der Server danach liefert. Die Migration 0052
-//! auf einer nachgebauten Datenbank im Stand 0051 prüft `crates/baruch-store/tests/migration_0052.rs`; hier steht,
-//! dass Einfälle, Verbindungen und Lagen der alten Gedankenkarte in der Mindmap unverändert ankommen.
+//! The „Halligbuch“ with two parts and four chapters and all ideas are freely invented; no model, no network. Keys and
+//! dragging of the widget (`web/src/mindmap.ts`) run in no browser: checked are the RPC calls that the widget issues
+//! for them (the same parameters) and the image that the server returns afterwards. The migration 0052 on a
+//! reconstructed database in the state 0051 is checked by `crates/baruch-store/tests/migration_0052.rs`; here is that
+//! ideas, links and positions of the old idea map arrive unchanged in the mind map.
 
 use crate::common;
 
@@ -34,7 +34,7 @@ struct Book {
     keys: Vec<(String, i64)>,
 }
 
-/// Erfundenes Halligbuch: Teil „Land“ (Warft, Priel) und Teil „See“ (Tide, Sturmflut).
+/// Invented Hallig book: part „Land“ (Warft, Priel) and part „See“ (Tide, Sturmflut).
 async fn open_book(file: &str, title: &str) -> Book {
     let server = common::open().await;
     open_book_in(server, file, title).await
@@ -71,7 +71,7 @@ impl Book {
         result(&self.server.rpc(method, params).await).clone()
     }
 
-    /// `idea.create` wie das Widget (Tab, Enter, Alt+E): Antwort ist die id.
+    /// `idea.create` like the widget (Tab, Enter, Alt+E): the answer is the id.
     async fn create(&self, mut params: Value) -> i64 {
         if params.get("parent").is_none() {
             params["work"] = json!(self.work);
@@ -79,7 +79,7 @@ impl Book {
         self.call("idea.create", params).await["idea"]["id"].as_i64().unwrap()
     }
 
-    /// Das Bild, wie das Widget es nach jeder Aktion holt (`data-bild`), ohne Nähe.
+    /// The image as the widget fetches it after every action (`data-bild`), without proximity.
     async fn image(&self, query: &str) -> String {
         let (status, svg) = self.server.get(&format!("/werke/{}/karte/bild?near=0{query}", self.work)).await;
         assert_eq!(status, StatusCode::OK, "das Bild antwortet: {svg}");
@@ -101,7 +101,7 @@ impl Book {
         html
     }
 
-    /// Baum und Wolke als flache Liste: (Kennung, Titel, Kennung des Elternknotens bzw. „wolke“).
+    /// Tree and cloud as a flat list: (identifier, title, identifier of the parent node or „wolke“).
     async fn places(&self) -> Vec<(String, String, String)> {
         fn fill(node: &Value, parent: &str, out: &mut Vec<(String, String, String)>) {
             let id = node["id"].as_str().unwrap().to_owned();
@@ -119,7 +119,7 @@ impl Book {
         out
     }
 
-    /// Kennung des Einfalls mit diesem Titel und die seines Elternknotens.
+    /// Identifier of the idea with this title and that of its parent node.
     async fn place_of(&self, title: &str) -> (String, String) {
         let places = self.places().await;
         let found = places.iter().find(|(_, t, _)| t == title).unwrap_or_else(|| panic!("kein Knoten „{title}“"));
@@ -140,7 +140,7 @@ impl Book {
     }
 }
 
-/// Öffnendes Tag des Knotens `id` im Bild (`<g class="mm-node …" data-node="id" …>`).
+/// Opening tag of the node `id` in the image (`<g class="mm-node …" data-node="id" …>`).
 fn tag<'a>(svg: &'a str, id: &str) -> &'a str {
     let at = svg.find(&format!(" data-node=\"{id}\"")).unwrap_or_else(|| panic!("Knoten {id} fehlt im Bild"));
     let start = svg[..at].rfind("<g ").unwrap();
@@ -165,14 +165,14 @@ fn i(id: i64) -> String {
     format!("i:{id}")
 }
 
-// ---- Bild und Aktionen des Widgets ---------------------------------------------------------------------------
+// ---- Image and actions of the widget -------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follows_every_widget_action() {
     let b = open_book("halligbuch.typ", "Halligbuch").await;
     let w = b.work;
-    // Tab am Kapitel, Tab am Einfall, Enter (Geschwister vor dem nächsten), Tab am Werk, Alt+E – mit genau den
-    // Parametern, die mindmap.ts dafür schickt.
+    // Tab at the chapter, Tab at the idea, Enter (sibling before the next one), Tab at the work, Alt+E – with exactly
+    // the parameters that mindmap.ts sends for them.
     let fenne = b.create(json!({ "title": "Fenne", "key": b.key("Warft") })).await;
     let zaun = b.create(json!({ "title": "Zaun", "parent": fenne })).await;
     let tor = b.create(json!({ "title": "Tor", "parent": fenne })).await;
@@ -182,11 +182,11 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
     let treibholz = b.create(json!({ "title": "Treibholz" })).await;
 
     let svg = b.image("").await;
-    // Zentrales Thema.
+    // Central topic.
     let root = tag(&svg, "w");
     assert!(root.contains("mm-work"), "das Werk ist der Knoten in der Mitte: {root}");
     assert_eq!((attr(root, "data-side"), attr(root, "data-title")), ("", "Halligbuch"), "ohne Seite, mit Titel");
-    // Hauptäste rechts und links: Teile in Gliederungsreihenfolge, danach das freie Hauptthema.
+    // Main branches right and left: parts in outline order, after them the free main topic.
     let land = tag(&svg, &b.n("Land"));
     assert!(land.contains("mm-part") && land.contains("mm-main"), "der Teil ist ein Hauptast: {land}");
     assert_eq!((attr(land, "data-parent"), attr(land, "data-side")), ("w", "right"), "der erste Hauptast steht rechts");
@@ -198,7 +198,8 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
         "der letzte Hauptast steht links"
     );
     assert_ne!(attr(land, "data-branch"), attr(topic, "data-branch"), "jeder Hauptast hat seine eigene Farbe");
-    // Unteräste: Kapitel unter dem Teil, Einfälle darunter, beliebig tief; Seite und Farbe erbt der ganze Ast.
+    // Sub-branches: chapters below the part, ideas below them, arbitrarily deep; side and colour are inherited by the
+    // whole branch.
     let warft = tag(&svg, &b.n("Warft"));
     assert_eq!(
         (attr(warft, "data-parent"), attr(warft, "data-depth"), attr(warft, "data-editable")),
@@ -222,18 +223,18 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
         "Enter legt das Geschwister vor das nächste: Zaun, Graben, Tor"
     );
     assert!(svg.contains("mm-note"), "der Einfall mit Notiz trägt das Notiz-Symbol");
-    // Wolke: Alt+E legt ohne Platz ab.
+    // Cloud: Alt+E drops without a place.
     let loose = tag(&svg, &i(treibholz));
     assert!(loose.contains("mm-cloud-item") && attr(loose, "data-cloud") == "1", "Alt+E: Kärtchen der Wolke: {loose}");
     assert!(svg.contains("data-cloud-count=\"1\"") && svg.contains("1 in der Wolke"), "Zähler der Wolke im Bild");
 
-    // F2: Umbenennen, ein Commit; Strg+Z schickt den alten Titel zurück.
+    // F2: rename, one commit; Ctrl+Z sends the old title back.
     let commits = b.commits();
     b.call("idea.update", json!({ "id": tor, "title": "Stöpe" })).await;
     assert_eq!(attr(tag(&b.image("").await, &i(tor)), "data-own"), "Stöpe", "der gespeicherte Titel steht am Knoten");
     assert_eq!(b.commits(), commits + 1, "Umbenennen ist ein Commit im Spiegel");
 
-    // Ziehen: aus der Wolke auf einen Einfall, zurück (Strg+Z), auf ein Kapitel, aufs Werk, zwischen Geschwister.
+    // Dragging: from the cloud onto an idea, back (Ctrl+Z), onto a chapter, onto the work, between siblings.
     let moved = b.call("idea.move", json!({ "id": treibholz, "parent": tor })).await;
     assert_eq!(moved["changed"], true, "Umhängen ändert etwas: {moved}");
     let log = b.last_commit();
@@ -269,7 +270,7 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
     let svg = b.image("").await;
     let at = |id: i64| svg.find(&format!(" data-node=\"{}\"", i(id))).unwrap();
     assert!(at(tor) < at(zaun), "zwischen Geschwister gezogen ordnet neu");
-    // Ein Teilbaum wandert als Ganzes in die Wolke und wieder zurück (ein Schritt „Rückgängig“).
+    // A subtree moves as a whole into the cloud and back again (one step „Rückgängig“).
     b.call("idea.move", json!({ "id": zaun, "cloud": true })).await;
     let svg = b.image("").await;
     let card = tag(&svg, &i(zaun));
@@ -282,14 +283,14 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
     assert!(svg.contains("data-cloud-count=\"2\""), "der Zähler zählt die Kärtchen, nicht ihre Unterknoten");
     b.call("idea.move", json!({ "id": zaun, "parent": fenne, "key": null, "before": graben })).await;
     assert_eq!(attr(tag(&b.image("").await, &i(pfosten)), "data-parent"), i(zaun), "zurück im Baum, samt Unterknoten");
-    // Ein Kreis wird abgelehnt, nichts ändert sich.
+    // A cycle is rejected, nothing changes.
     let refused = b.server.rpc("idea.move", json!({ "id": fenne, "parent": pfosten })).await;
     assert_eq!(refused["error"]["code"], -32000, "eigener Nachfahre als Elternknoten: abgelehnt: {refused}");
-    // Kapitel und Teile sind keine Einfälle: `idea.*` erreicht sie nicht.
+    // Chapters and parts are not ideas: `idea.*` does not reach them.
     let refused = b.server.rpc("idea.update", json!({ "id": b.key("Warft") + 100_000, "title": "Umbenannt" })).await;
     assert!(refused["error"].is_object(), "eine Kennung der Gliederung ist kein Einfall");
 
-    // Einklappen ist reine Anzeige (`zu=`), nichts wird gespeichert.
+    // Folding is pure display (`zu=`), nothing is stored.
     let closed = b.image(&format!("&zu={}", i(fenne))).await;
     assert!(tag(&closed, &i(fenne)).contains("mm-closed"), "der Ast ist eingeklappt");
     for hidden in [zaun, pfosten, graben, tor] {
@@ -303,7 +304,7 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
         "ohne JavaScript klappt der Link am Knoten wieder auf (Adresse ohne zu=)"
     );
 
-    // Verbindung mit Beschriftung; ein verborgenes Ende endet am sichtbaren Vorfahren; Widerspruch in die Wolke.
+    // Link with a label; a hidden end ends at the visible ancestor; contradiction into the cloud.
     let link = b
         .call(
             "idea.link",
@@ -339,7 +340,7 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
         "Widerspruch steht in der Liste"
     );
 
-    // Löschen nimmt die Unterknoten mit (ein Commit), Wiederherstellen bringt genau sie zurück.
+    // Deleting takes the child nodes along (one commit), restoring brings back exactly them.
     let commits = b.commits();
     let gone = b.call("idea.delete", json!({ "id": fenne, "confirm": true })).await;
     assert_eq!(gone["deleted_ids"].as_array().map(Vec::len), Some(5), "Fenne, Zaun, Pfosten, Graben, Stöpe: {gone}");
@@ -355,7 +356,7 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
     assert_eq!(attr(tag(&svg, &i(pfosten)), "data-parent"), i(zaun), "an derselben Stelle");
     assert!(svg.contains(&format!("data-link=\"{link}\"")), "und die Verbindung ist wieder da");
 
-    // Das Widget: ausgeliefert, und es bestätigt das Löschen (der Server verlangt `confirm`).
+    // The widget: delivered, and it confirms the deletion (the server demands `confirm`).
     let (status, js) = b.server.get("/static/js/mindmap.js").await;
     assert_eq!(status, StatusCode::OK, "das Widget wird ausgeliefert");
     let deletes: Vec<&str> = js.split("\"idea.delete\"").skip(1).map(|rest| &rest[..rest.find('}').unwrap()]).collect();
@@ -369,7 +370,7 @@ async fn the_mindmap_has_the_work_in_the_middle_branches_on_both_sides_and_follo
     );
 }
 
-// ---- Ohne JavaScript: Gliederungsansicht ---------------------------------------------------------------------
+// ---- Without JavaScript: outline view ------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_javascript_the_outline_view_does_every_action_and_connects_cloud_and_mindmap() {
@@ -381,7 +382,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
         "die Seite der Mindmap verweist auf die Gliederungsansicht"
     );
 
-    // Anlegen: am Kapitel, als Hauptthema am Werk, in die Wolke, als Unterknoten und als Geschwister.
+    // Create: at the chapter, as a main topic at the work, into the cloud, as a child node and as a sibling.
     let location = b.act(&format!("method=idea.create&title=Fenne&key={}", b.key("Warft"))).await;
     assert_eq!(location, format!("/werke/{w}/karte/gliederung?near=0&ok=angelegt"), "zurück in die Gliederungsansicht");
     b.act("method=idea.create&title=Vogelzug&ort=werk").await;
@@ -398,7 +399,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
         b.places().await.into_iter().filter(|(_, _, parent)| *parent == i(fenne)).map(|(_, title, _)| title).collect();
     assert_eq!(order, vec!["Zaun", "Graben", "Tor"], "Geschwister steht vor dem genannten");
 
-    // Die Seite: Baum als verschachtelte Liste, Wolke daneben, Formulare des gewählten Knotens – ohne Skript.
+    // The page: tree as a nested list, cloud next to it, forms of the selected node – without script.
     let html = b.outline(&format!("&wahl={}", i(zaun))).await;
     let main = &html[html.find("<main").unwrap()..];
     assert!(!main.contains("<script"), "die Gliederungsansicht braucht kein Skript");
@@ -422,7 +423,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
         "Kapitel: nur „Unterknoten“, kein Umbenennen/Löschen (Gliederung = Antragsregel)"
     );
 
-    // Umbenennen, Umhängen, Wolke ↔ Mindmap, Hauptthema, Reihenfolge.
+    // Rename, move, cloud ↔ mind map, main topic, order.
     assert!(b.act(&format!("method=idea.update&id={tor}&title=St%C3%B6pe")).await.contains("ok=umbenannt"));
     assert_eq!(b.id_of("Stöpe").await, tor, "umbenannt");
     let treibholz = b.id_of("Treibholz").await;
@@ -442,7 +443,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
         b.places().await.into_iter().filter(|(_, _, parent)| *parent == i(fenne)).map(|(_, title, _)| title).collect();
     assert_eq!(order, vec!["Stöpe", "Graben"], "„nach oben“ ordnet die Geschwister");
 
-    // Verbinden mit Beschriftung, Lösen, Wiederherstellen.
+    // Link with a label, unlink, restore.
     let location =
         b.act(&format!("method=idea.link&from={graben}&to={tor}&kind=belongs_to&note=Entw%C3%A4sserung")).await;
     assert!(location.contains("ok=verbunden"), "verbunden: {location}");
@@ -460,7 +461,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
     );
     assert!(b.act(&format!("method=idea.link_restore&id={link}")).await.contains("ok=wiederhergestellt"));
 
-    // Löschen (samt Unterknoten) und Wiederherstellen.
+    // Delete (including child nodes) and restore.
     let location = b.act(&format!("method=idea.delete&id={fenne}")).await;
     assert!(location.contains("ok=geloescht") && location.contains(&format!("wieder={fenne}")), "{location}");
     let html = b.outline(&format!("&ok=geloescht&wieder={fenne}")).await;
@@ -471,7 +472,7 @@ async fn without_javascript_the_outline_view_does_every_action_and_connects_clou
     assert!(b.act(&format!("method=idea.restore&id={fenne}")).await.contains("ok=einfall-wieder"));
     assert_eq!(b.place_of("Graben").await.1, i(fenne), "wiederhergestellt samt Unterknoten");
 
-    // Fremdes wird abgelehnt: Einfall eines anderen Werks, unbekannte Aktion.
+    // Foreign things are rejected: idea of another work, unknown action.
     let other = result(&b.server.rpc("idea.create", json!({ "words": "Fremd" })).await)["idea"]["id"].as_i64().unwrap();
     let (status, _) =
         b.server.post_form(&format!("/werke/{w}/karte/act"), &format!("method=idea.delete&id={other}")).await;
@@ -539,7 +540,7 @@ async fn mcp_adds_nodes_with_their_origin_and_page_outline_and_mirror_show_them(
     let tree = call("idea_tree", json!({ "work": b.work })).await;
     assert_eq!(tree["map"]["root"]["id"], "w", "idea_tree liest die Mindmap");
     assert_eq!(tree["cloud"]["count"], 0, "nach dem Umhängen ist die Wolke leer: {}", tree["cloud"]);
-    // Der Mensch sieht dieselben Knoten im Bild und in der Gliederungsansicht.
+    // The human sees the same nodes in the image and in the outline view.
     let svg = b.image("").await;
     assert_eq!(attr(tag(&svg, &i(topic)), "data-parent"), b.n("Priel"), "der Knoten des Clients hängt am Kapitel");
     assert_eq!(
@@ -549,7 +550,7 @@ async fn mcp_adds_nodes_with_their_origin_and_page_outline_and_mirror_show_them(
     );
     let html = b.outline("").await;
     assert!(html.contains("Sielzug") && html.contains("Schöpfwerk") && html.contains("Lahnung"), "Gliederungsansicht");
-    // Die Gliederung bleibt Sache der Anträge: Über idea_* lässt sich kein Kapitel ändern.
+    // The outline stays a matter of the requests: no chapter can be changed through idea_*.
     let message = json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call",
                           "params": { "name": "idea_update", "arguments": { "id": 9_999_999, "title": "Umbenannt" } } });
     let refused = mcp(&b.server, Some(&session), message).await.1;
@@ -566,7 +567,7 @@ async fn mcp_adds_nodes_with_their_origin_and_page_outline_and_mirror_show_them(
     assert_eq!(titles, vec!["Land", "Warft", "Priel", "See", "Tide", "Sturmflut"], "die Gliederung ist unverändert");
 }
 
-// ---- Rundreise .mm und .xmind --------------------------------------------------------------------------------
+// ---- Round trip .mm and .xmind -------------------------------------------------------------------------------
 
 async fn bytes_of(server: &common::Server, request: Request<Body>) -> (StatusCode, Vec<u8>) {
     let response = server.app.clone().oneshot(request).await.unwrap();
@@ -601,7 +602,7 @@ fn form_encode(value: &str) -> String {
     out
 }
 
-/// Der Baum als verschachtelte Titel: `[titel, [kinder…]]`.
+/// The tree as nested titles: `[titel, [kinder…]]`.
 fn shape(node: &Value) -> Value {
     json!([node["title"], node["children"].as_array().unwrap().iter().map(shape).collect::<Vec<_>>()])
 }
@@ -619,7 +620,7 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
     a.create(json!({ "title": "Strandgut", "parent": treibholz })).await;
     a.call("idea.link", json!({ "from": graben, "to": vogelzug, "kind": "leads_to", "note": "Tränke" })).await;
 
-    // Was die Ausgabe trägt: die Hauptäste (Teile mit Nummer und Kapiteln, Hauptthema), dahinter die Wolke.
+    // What the output carries: the main branches (parts with number and chapters, main topic), after them the cloud.
     let source = a.call("idea.tree", json!({ "work": a.work, "near": false })).await;
     let numbered = |node: &Value| -> Value {
         fn walk(node: &Value) -> Value {
@@ -631,7 +632,7 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
         walk(node)
     };
     let expected: Vec<Value> = source["map"]["root"]["children"].as_array().unwrap().iter().map(numbered).collect();
-    // Runde 36: Die Wolke der eigenen Datei kommt wieder in die Wolke (vorher als Hauptthemen in den Baum).
+    // Round 36: the cloud of the own file comes back into the cloud (before: as main topics into the tree).
     let expected_cloud: Vec<Value> = source["cloud"]["ideas"].as_array().unwrap().iter().map(numbered).collect();
     assert_eq!(
         (expected.len(), expected_cloud.len()),
@@ -649,7 +650,7 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
         assert_eq!(read.links.len(), 1, ".{ending}: die Beziehung reist mit");
         assert_eq!(read.links[0].note, "führt weiter: Tränke", ".{ending}: mit Art und Notiz als Beschriftung");
 
-        // Einlesen in ein zweites, leeres Werk: Vorschau legt nichts an, die Bestätigung alles.
+        // Import into a second, empty work: the preview creates nothing, the confirmation everything.
         let b = open_book(&format!("zweitbuch-{ending}.typ"), "Zweitbuch").await;
         let (status, preview) = bytes_of(&b.server, upload(b.work, &file)).await;
         let preview = String::from_utf8(preview).unwrap();
@@ -666,7 +667,7 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
         assert_eq!(location.as_deref(), Some(format!("/werke/{}/karte?ok=eingelesen", b.work).as_str()));
         assert_eq!(b.commits(), commits + 1, ".{ending}: das Einlesen ist ein Commit im Spiegel");
 
-        // Gleiche Struktur: Die eingelesenen Knoten sind freie Hauptthemen (Einfälle) in derselben Schachtelung.
+        // Same structure: the imported nodes are free main topics (ideas) in the same nesting.
         let imported = b.call("idea.tree", json!({ "work": b.work, "near": false })).await;
         let got: Vec<Value> = imported["map"]["root"]["children"]
             .as_array()
@@ -676,7 +677,7 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
             .map(shape)
             .collect();
         assert_eq!(got, expected, ".{ending}: Ausgabe → Einlesen ergibt dieselbe Struktur in derselben Reihenfolge");
-        // Runde 36: Was in der Wolke lag, liegt wieder in der Wolke (die Rundreise der eigenen Datei erhält sie).
+        // Round 36: what lay in the cloud lies in the cloud again (the round trip of the own file preserves it).
         let got_cloud: Vec<Value> = imported["cloud"]["ideas"].as_array().unwrap().iter().map(shape).collect();
         assert_eq!(got_cloud, expected_cloud, ".{ending}: die Einfälle der Wolke liegen wieder in der Wolke");
         assert_eq!(imported["cloud"]["count"], 1, ".{ending}: sonst liegt nichts in der Wolke");
@@ -702,11 +703,11 @@ async fn mm_and_xmind_travel_out_and_back_in_with_the_same_structure() {
     }
 }
 
-// ---- Vorhandene Daten der Gedankenkarte ----------------------------------------------------------------------
+// ---- Existing data of the idea map ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn ideas_links_and_positions_of_the_old_map_arrive_unchanged_and_loose_ideas_lie_in_the_cloud() {
-    // Einfälle, wie es sie vor Runde 34 gab: nur Schlagwörter, mit oder ohne Bezug, dazu Verbindung und Lage.
+    // Ideas as they existed before Round 34: only keywords, with or without reference, plus link and position.
     let b = open_book("halligbuch.typ", "Halligbuch").await;
     let w = b.work;
     let placed = b.create(json!({ "words": "Flutmarke, Pegel", "key": b.key("Tide"), "note": "am Sielhaus" })).await;
@@ -718,7 +719,7 @@ async fn ideas_links_and_positions_of_the_old_map_arrive_unchanged_and_loose_ide
             .unwrap();
     b.call("idea.map_pos_set", json!({ "work": w, "idea": loose, "x": 120.5, "y": -40.0 })).await;
 
-    // Die flache Sicht bleibt (Abwärtsverträglichkeit): Einfälle, Verbindung, Lage.
+    // The flat view stays (backward compatibility): ideas, link, position.
     let flat = b.call("idea.map", json!({ "work": w, "near": false })).await;
     assert_eq!(flat["ideas"].as_array().map(Vec::len), Some(3), "idea.map nennt weiter alle Einfälle");
     assert_eq!(flat["links"][0]["id"], link, "die Verbindung bleibt");
@@ -738,7 +739,8 @@ async fn ideas_links_and_positions_of_the_old_map_arrive_unchanged_and_loose_ide
         (Some(""), true, Some(0), Some(false)),
         "ein alter Einfall hat keinen Titel, keinen Elternknoten, keine Reihenfolge und ist kein Hauptthema"
     );
-    // In der Mindmap: mit Bezug am Kapitel, ohne Bezug in der Wolke – nichts wird ungefragt Hauptast.
+    // In the mind map: with reference at the chapter, without reference in the cloud – nothing becomes a main branch
+    // unasked.
     assert_eq!(b.place_of("Flutmarke, Pegel").await, (i(placed), b.n("Tide")), "angezeigter Titel = Schlagwörter");
     assert_eq!(b.place_of("Seenebel").await.1, "wolke", "lose Einfälle liegen in der Wolke");
     assert_eq!(b.place_of("Möwen").await.1, "wolke", "alle");

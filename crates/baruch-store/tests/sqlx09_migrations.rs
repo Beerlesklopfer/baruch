@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 (sqlx09): Der Sprung von sqlx 0.8 auf 0.9 ändert nichts an den Migrationen des Stores.
+//! Round 36 (sqlx09): the jump from sqlx 0.8 to 0.9 changes nothing in the migrations of the store.
 //!
-//! Grundlage ist `tests/data/sqlx08_migrations.tsv`: die Zeilen von `_sqlx_migrations` (Version, Beschreibung,
-//! `success`, Prüfsumme als Hex), wie **sqlx 0.8.6** sie auf dem Stand von `development` (0001–0054) geschrieben hat –
-//! erzeugt vor dem Umbau mit dem alten Stand (`baruch_store::migrate` auf einer leeren Datenbank).
+//! The basis is `tests/data/sqlx08_migrations.tsv`: the rows of `_sqlx_migrations` (version, description, `success`,
+//! checksum as hex) as **sqlx 0.8.6** wrote them on the state of `development` (0001–0054) – generated before the
+//! change with the old state (`baruch_store::migrate` on an empty database).
 //!
-//! Belegt: Jede Migrationsdatei ist unverändert (SHA-384 der Datei = alte Prüfsumme); der eingebettete Migrator von
-//! 0.9 trägt dieselben Versionen, Beschreibungen und Prüfsummen; eine nachgebaute Datenbank im Stand von
-//! `development` mit der Buchführung von 0.8 und frei erfundenen Daten öffnet mit [`Store::open`] ohne
-//! `VersionMismatch`, ohne dass eine Migration noch einmal läuft, und verlustfrei; eine wirklich geänderte Prüfsumme
-//! lehnt der Store weiter ab; fremde Versionen in der gemeinsamen Tabelle (Bibliothek) stören nicht (`ignore_missing`).
+//! Proven: every migration file is unchanged (SHA-384 of the file = old checksum); the embedded migrator of 0.9 carries
+//! the same versions, descriptions and checksums; a reconstructed database in the state of `development` with the
+//! bookkeeping of 0.8 and freely invented data opens with [`Store::open`] without `VersionMismatch`, without any
+//! migration running once more, and without loss; a really changed checksum is still rejected by the store; foreign
+//! versions in the shared table (library) do not interfere (`ignore_missing`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -22,7 +22,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
 const SQLX08: &str = include_str!("data/sqlx08_migrations.tsv");
 
-/// Die Tabelle, wie sqlx-sqlite 0.8.6 sie angelegt hat (aus einer Datenbank des alten Stands gelesen).
+/// The table as sqlx-sqlite 0.8.6 created it (read from a database of the old state).
 const SQLX08_TABLE: &str = "CREATE TABLE _sqlx_migrations (
     version BIGINT PRIMARY KEY,
     description TEXT NOT NULL,
@@ -41,7 +41,7 @@ struct Old {
     checksum: String,
 }
 
-/// Die Zeilen der Buchführung von sqlx 0.8.
+/// The rows of the bookkeeping of sqlx 0.8.
 fn old_rows() -> Vec<Old> {
     SQLX08
         .lines()
@@ -79,9 +79,9 @@ async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Baut die Datenbank im Stand von `development` nach, **ohne** den Migrator von sqlx 0.9: Tabelle der Buchführung
-/// wie von 0.8 angelegt, jede Migration 0001–0054 als rohes SQL in einer Transaktion (0040 wie in
-/// `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln), dazu je Migration die Zeile aus der Vorlage.
+/// Rebuilds the database in the state of `development` **without** the migrator of sqlx 0.9: table of the bookkeeping
+/// as created by 0.8, every migration 0001–0054 as raw SQL in one transaction (0040 with foreign keys switched off as
+/// in `baruch_store::migrate`), plus per migration the row from the template.
 async fn build_development(pool: &SqlitePool) {
     assert_eq!(baruch_store::FOREIGN_KEYS_OFF, &[40], "Vorbedingung des Nachbaus: nur 0040 baut Tabellen um");
     exec(pool, SQLX08_TABLE).await;
@@ -117,8 +117,8 @@ async fn build_development(pool: &SqlitePool) {
     }
 }
 
-/// Frei erfundene Daten direkt in SQLite: ein Werk mit zwei Kapiteln, zwei Beiträge, drei Einfälle (einer gelöscht,
-/// einer ohne Werk), zwei Konten mit Sitzung, Fehlversuch und Freigabe, eigene Einträge in `store_meta`.
+/// Freely invented data directly in SQLite: a work with two chapters, two posts, three ideas (one deleted, one without
+/// a work), two accounts with session, failed attempt and grant, own entries in `store_meta`.
 async fn insert_rows(pool: &SqlitePool) {
     let doc = baruch_typst::parse(BOOK).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -188,13 +188,13 @@ async fn insert_rows(pool: &SqlitePool) {
     exec(pool, &format!("INSERT INTO account_session (token_hash, account_id) VALUES ('{token}', 2)")).await;
     exec(pool, "INSERT INTO login_attempt (scope, failures) VALUES ('konto:malte', 3)").await;
     exec(pool, &format!("INSERT INTO work_member (work_id, account_id, role) VALUES ({work}, 2, 'lektor')")).await;
-    // Eine Datenbank im Betrieb hat der Store schon einmal geöffnet: Die Markierung „gesät“ steht.
+    // A database in operation has been opened by the store before: the marker „gesät“ is set.
     exec(pool, "INSERT OR IGNORE INTO store_meta (key, value) VALUES ('seeded', '1')").await;
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('probe.r36', 'bleibt')").await;
 }
 
-/// Jede Zeile jeder gewöhnlichen Tabelle als Text (jede Spalte über `quote()`), sortiert – auch die Buchführung
-/// `_sqlx_migrations` und die Schattentabellen der Volltextindizes.
+/// Every row of every ordinary table as text (every column through `quote()`), sorted – also the bookkeeping
+/// `_sqlx_migrations` and the shadow tables of the full-text indexes.
 async fn dump_all(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     let names: Vec<String> = sqlx::query_scalar(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND sql NOT LIKE 'CREATE VIRTUAL%' ORDER BY name",
@@ -221,7 +221,7 @@ async fn dump_all(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte als „typ name: sql“.
+/// All schema objects as „typ name: sql“.
 async fn schema(pool: &SqlitePool) -> Vec<String> {
     sqlx::query_scalar(
         "SELECT type || ' ' || name || ': ' || coalesce(sql, '') FROM sqlite_master \
@@ -294,8 +294,8 @@ async fn a_database_of_development_opens_without_version_mismatch_and_losslessly
     let pool = raw_pool(dir.path()).await;
     build_development(&pool).await;
     insert_rows(&pool).await;
-    // Die Bibliothek teilt sich die Tabelle: fremde Versionen (hier erfunden, 0101 und 0102) stehen in jeder
-    // wirklichen Datenbank und dürfen den Store nicht stören.
+    // The library shares the table: foreign versions (invented here, 0101 and 0102) are in every real database and must
+    // not interfere with the store.
     for version in [101, 102] {
         exec(
             &pool,
@@ -390,7 +390,7 @@ async fn a_database_of_development_opens_without_version_mismatch_and_losslessly
     );
     assert_eq!(store.account_count().await.unwrap(), 2, "die Konten sind über den Store lesbar");
 
-    // Ein zweites Öffnen ändert ebenfalls nichts (wiederholbar wie bisher).
+    // A second open changes nothing either (repeatable as before).
     drop(store);
     let again = Store::open(dir.path()).await.expect("zweites Öffnen");
     assert_eq!(dump_all(again.pool()).await, rows_after_full, "auch das zweite Öffnen lässt jede Zeile stehen");

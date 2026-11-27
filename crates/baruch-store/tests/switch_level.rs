@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschalten bringt die Ebene der Fassung mit (Vertrag Runde 5, Abschnitte 4 und 6; Nutzerentscheidung
-//! „Nein“: eine Fassung wird beim Umschalten nie umgeschrieben, stattdessen folgt die Gliederung).
-//! Echte SQLite-Datei im Temp-Ordner, eigenes kleines Buch (frei erfunden, unten).
+//! Switching brings the level of the revision along (contract Round 5, sections 4 and 6; user decision „Nein“: a
+//! revision is never rewritten when switching, instead the outline follows). Real SQLite file in the temp directory,
+//! own small book (freely invented, below).
 
 use baruch_core::{RevisionStatus, Work};
 use baruch_store::{ChangeKind, OutlineAction, Place, RevisionEdit, Store, StoreError, WorkId};
 
-/// Eigenes kleines Buch ohne Nummerierungsregel: Kapitel, Abschnitt mit Label, Unterabschnitt.
+/// Own small book without a numbering rule: chapter, section with label, subsection.
 const GARDEN: &str = "\
 #set document(title: \"Umschaltprobe\", author: \"Test\")
 
@@ -44,7 +44,7 @@ fn titles(work: &Work) -> Vec<&str> {
     work.nodes.iter().map(|n| n.title.as_str()).collect()
 }
 
-/// Ebene je Knoten aus Art und Elternteil (wie der Store sie sieht).
+/// Level per node from kind and parent (as the store sees it).
 fn levels(work: &Work) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for node in &work.nodes {
@@ -72,8 +72,8 @@ async fn revisions(store: &Store) -> i64 {
     sqlx::query_scalar("SELECT count(*) FROM revision").fetch_one(store.pool()).await.unwrap()
 }
 
-/// Nach jeder Änderung: genau eine aktuelle Fassung je Abschnitt, und der Export ergibt beim Zerlegen
-/// dieselbe Gliederung (Ebene, Titel) wie die Datenbank.
+/// After every change: exactly one current revision per section, and the export, when split, yields the same outline
+/// (level, title) as the database.
 async fn assert_consistent(store: &Store, work: WorkId) -> Work {
     let loaded = store.load_work(work).await.expect("Werk lädt (seq lückenlos, genau eine current)");
     for node in &loaded.nodes {
@@ -89,7 +89,7 @@ async fn assert_consistent(store: &Store, work: WorkId) -> Work {
     loaded
 }
 
-/// Nur die erste Zeile unterscheidet sich (die Überschriftszeile).
+/// Only the first line differs (the heading line).
 fn only_heading_line_differs(before: &str, after: &str) -> bool {
     let (b_head, b_rest) = before.split_once('\n').unwrap_or((before, ""));
     let (a_head, a_rest) = after.split_once('\n').unwrap_or((after, ""));
@@ -99,7 +99,7 @@ fn only_heading_line_differs(before: &str, after: &str) -> bool {
 #[tokio::test]
 async fn switching_to_a_version_with_another_level_moves_the_point_and_its_subpoints() {
     let (_dir, store, work) = garden().await;
-    // Aussaat wird Kapitel (neue Fassung 2 „= Aussaat <aussaat>“), Tiefe dabei Abschnitt (Fassung 2).
+    // Aussaat becomes a chapter (new revision 2 „= Aussaat <aussaat>“), Tiefe thereby a section (revision 2).
     store.outline_set_level(work, 1, 1, HUMAN).await.unwrap();
     let before = assert_consistent(&store, work).await;
     assert_eq!(levels(&before), [1, 1, 2, 1, 1], "Ausgangslage: Aussaat Kapitel, Tiefe Abschnitt");
@@ -107,7 +107,7 @@ async fn switching_to_a_version_with_another_level_moves_the_point_and_its_subpo
     let tiefe_before = body(&before, 2, current(&before, 2)).to_owned();
     let count = revisions(&store).await;
 
-    // Zurück auf Fassung 1 („== Aussaat <aussaat>“): Die Gliederung folgt ihr.
+    // Back to revision 1 („== Aussaat <aussaat>“): the outline follows it.
     let switch = store.switch_to(work, 1, 1, false, HUMAN).await.expect("Umschalten auf andere Ebene ist erlaubt");
     assert_eq!(switch.change.kind, ChangeKind::Switched, "eine ersetzte Fassung wird umgeschaltet, nicht übernommen");
     assert_eq!((switch.change.node, switch.change.rev), (1, 1), "die Änderung nennt Punkt und Fassung");
@@ -140,7 +140,7 @@ async fn switching_to_a_version_with_another_level_moves_the_point_and_its_subpo
 #[tokio::test]
 async fn the_title_follows_the_version_together_with_the_level() {
     let (_dir, store, work) = garden().await;
-    // Im Editor: Aussaat wird Kapitel „Saat“ (Fassung 2), Tiefe dabei Abschnitt.
+    // In the editor: Aussaat becomes the chapter „Saat“ (revision 2), Tiefe thereby a section.
     let saved = store
         .outline_save(work, 1, "= Saat <aussaat>\n\nRadieschen.\n\n", None, Default::default(), HUMAN)
         .await
@@ -158,11 +158,11 @@ async fn the_title_follows_the_version_together_with_the_level() {
 #[tokio::test]
 async fn a_switch_that_would_push_subpoints_below_level_three_is_refused() {
     let (_dir, store, work) = garden().await;
-    // Sommer bekommt Wasser (2) und darunter Kanne (3).
+    // Sommer gets Wasser (2) and below it Kanne (3).
     let wasser = store.outline_add(work, 3, Place::Into, "Wasser", HUMAN).await.unwrap().node;
     store.outline_add(work, wasser, Place::Into, "Kanne", HUMAN).await.unwrap();
-    // Eine neue aktuelle Fassung von Sommer; die alte Fassung 1 wird (nicht aktuell, ohne Prüfung) zu
-    // einer Abschnittsüberschrift geändert.
+    // A new current revision of Sommer; the old revision 1 is changed (not current, without a check) into a section
+    // heading.
     store.save_human(work, 3, "= Sommer\n\nGießen, neu.\n", HUMAN).await.unwrap().expect("neue Fassung");
     let edit = RevisionEdit { body: Some("== Sommer\n\nGießen.\n\n"), note: None };
     store.update_revision(work, 3, 1, &edit, HUMAN).await.unwrap().expect("geändert");
@@ -170,8 +170,8 @@ async fn a_switch_that_would_push_subpoints_below_level_three_is_refused() {
     assert_eq!(levels(&before), [1, 2, 3, 1, 2, 3, 1], "Ausgangslage: Sommer › Wasser › Kanne");
     let sommer_current = current(&before, 3);
 
-    // Kanne käme auf Ebene 4. Kappen auf 3 machte Kanne zum Geschwister von Wasser, und Zurückschalten
-    // stellte das nicht wieder her (Befund nach Runde 5) – darum wird abgelehnt wie bei „Ebene ändern“.
+    // Kanne would land on level 4. Capping at 3 made Kanne a sibling of Wasser, and switching back did not restore that
+    // (finding after Round 5) – therefore it is rejected as with „Ebene ändern“.
     let refused = store.switch_to(work, 3, 1, false, HUMAN).await;
     let Err(StoreError::Heading(message)) = &refused else {
         panic!("Umschalten muss mit einer Überschriftsmeldung abgelehnt werden: {refused:?}");
@@ -193,7 +193,7 @@ async fn a_switch_that_would_push_subpoints_below_level_three_is_refused() {
 #[tokio::test]
 async fn switching_there_and_back_restores_the_outline() {
     let (_dir, store, work) = garden().await;
-    // Sommer bekommt nur Wasser (2); als Abschnitt rutscht Wasser auf 3, das geht.
+    // Sommer gets only Wasser (2); as a section Wasser slips to 3, that works.
     store.outline_add(work, 3, Place::Into, "Wasser", HUMAN).await.unwrap();
     store.save_human(work, 3, "= Sommer\n\nGießen, neu.\n", HUMAN).await.unwrap().expect("neue Fassung");
     let edit = RevisionEdit { body: Some("== Sommer\n\nGießen.\n\n"), note: None };
@@ -222,7 +222,7 @@ async fn switching_there_and_back_restores_the_outline() {
 async fn accepting_a_proposal_with_another_level_moves_the_outline_too() {
     let (_dir, store, work) = garden().await;
     let proposal = store.add_proposal(work, 3, "= Sommer\n\nVorschlag.\n", "@lektor", "probe", "").await.unwrap();
-    // Der Mensch ändert den Vorschlag (nicht aktuell, keine Prüfung) auf eine Abschnittsüberschrift.
+    // The human changes the proposal (not current, no check) to a section heading.
     let edit = RevisionEdit { body: Some("== Sommer\n\nVorschlag.\n"), note: None };
     store.update_revision(work, 3, proposal, &edit, HUMAN).await.unwrap();
     let switch = store.switch_to(work, 3, proposal, true, HUMAN).await.expect("Übernehmen folgt der Ebene");
@@ -231,7 +231,7 @@ async fn accepting_a_proposal_with_another_level_moves_the_outline_too() {
     let after = assert_consistent(&store, work).await;
     assert_eq!(levels(&after), [1, 2, 3, 2, 1], "Sommer ist jetzt Abschnitt unter Frühling");
     assert_eq!(body(&after, 3, proposal), "== Sommer\n\nVorschlag.\n", "der Vorschlag bleibt wörtlich");
-    // Die Hülle accept schaltet nur Vorschläge um.
+    // The wrapper accept switches only proposals.
     let refused = store.accept(work, 3, 1).await;
     assert!(matches!(refused, Err(StoreError::Refused(_))), "Fassung 1 ist kein Vorschlag: {refused:?}");
 }
@@ -244,7 +244,7 @@ async fn the_same_level_only_renames_and_reports_no_outline_change() {
     assert!(switch.outline.is_none(), "gleiche Ebene: keine Gliederungsänderung im Sinn von Level");
     let after = assert_consistent(&store, work).await;
     assert_eq!(titles(&after)[3], "Sommer", "der Titel folgt der Fassung wie bisher");
-    // Die Hülle set_current liefert dieselbe Änderung wie switch_to.
+    // The wrapper set_current returns the same change as switch_to.
     let change = store.set_current(work, 3, 2).await.unwrap();
     assert_eq!((change.kind, change.rev), (ChangeKind::Switched, 2), "set_current ist eine Hülle um switch_to");
     assert_eq!(titles(&store.load_work(work).await.unwrap())[3], "Hochsommer", "zurück heißt er wieder so");
@@ -253,7 +253,7 @@ async fn the_same_level_only_renames_and_reports_no_outline_change() {
 #[tokio::test]
 async fn versions_that_do_not_fit_are_refused_and_nothing_changes() {
     let (_dir, store, work) = garden().await;
-    // Je Fall eine neue aktuelle Fassung von Sommer bzw. Frühling, dann die alte (nicht aktuell) ändern.
+    // Per case a new current revision of Sommer or Frühling, then change the old one (not current).
     store.save_human(work, 3, "= Sommer\n\nNeu.\n", HUMAN).await.unwrap();
     store.save_human(work, 0, "= Frühling\n\nNeu.\n", HUMAN).await.unwrap();
     let cases: [(usize, &str, &str); 4] = [
@@ -282,7 +282,7 @@ async fn versions_that_do_not_fit_are_refused_and_nothing_changes() {
         );
         assert_eq!(revisions(&store).await, count, "{text:?}: keine Fassung angelegt");
     }
-    // Text vor der Überschrift verweist auf den Editor.
+    // Text before the heading points to the editor.
     let edit = RevisionEdit { body: Some("Vorab.\n\n= Sommer\n\nA.\n"), note: None };
     store.update_revision(work, 3, 1, &edit, HUMAN).await.unwrap();
     let lead = store.switch_to(work, 3, 1, false, HUMAN).await.unwrap_err().to_string();

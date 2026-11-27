@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen im Store (Runde 29a, Vertrag §4, Migration 0048; Aufgabe satz-daten): Lesen, Setzen mit
-//! Normalisieren und Prüfen (alle Meldungen, nichts geändert), gleiche Werte ohne Schreiben, stabile uuid,
-//! Zurücksetzen und Löschen des Werks mit Grabstein samt Werk-uuid, Übernahme der Vorlagenregel in einer Transaktion,
-//! Export ohne Einstellungen byte-gleich zum Golden aus dem Stand R29-S1 und mit Einstellungen = alter Export plus
-//! `baruch_typst::typeset::rules(&s)` genau am Haken in `snapshot::head`. Echte SQLite-Datei im Temp-Ordner; alle Texte
-//! frei erfunden; jede Zusicherung mit Begründung.
+//! Typesetting settings in the store (Round 29a, contract §4, migration 0048; task satz-daten): reading, setting with
+//! normalising and checking (all messages, nothing changed), same values without writing, stable uuid, resetting and
+//! deleting the work with a tombstone including the work uuid, adopting the template rule in one transaction, export
+//! without settings byte-identical to the golden file from the state R29-S1 and with settings = old export plus
+//! `baruch_typst::typeset::rules(&s)` exactly at the hook in `snapshot::head`. Real SQLite file in the temp directory;
+//! all texts freely invented; every assertion with its reason.
 
 use std::path::Path;
 
@@ -14,10 +14,10 @@ use baruch_typst::typeset::{
     Paragraph, RunningHead, rules,
 };
 
-/// Quelle des Golden-Tests (frei erfunden).
+/// Source of the golden test (freely invented).
 const SOURCE: &str = include_str!("data/satz_quelle.typ");
-/// Export und `main.typ` dieser Quelle mit Schema „decimal“, erzeugt im Stand R29-S1 (vor Migration 0048 und ohne
-/// Satz-Einstellungen; Schreiber `write_goldens_from_the_current_state`, ignoriert).
+/// Export and `main.typ` of this source with the scheme „decimal“, generated in the state R29-S1 (before migration 0048
+/// and without typesetting settings; writer `write_goldens_from_the_current_state`, ignored).
 const GOLDEN_EXPORT: &str = include_str!("data/satz_golden_export.typ");
 const GOLDEN_MAIN: &str = include_str!("data/satz_golden_main.typ");
 
@@ -25,7 +25,7 @@ async fn fresh() -> (tempfile::TempDir, Store, WorkId) {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
     let work = store.import_typst(SOURCE, "faehre.typ", "Lene").await.unwrap().work;
-    // Ein Gliederungsschema setzt eine eigene Regel hinter die Werkvorlage; der Satz-Block muss dahinter stehen.
+    // An outline scheme puts a rule of its own after the work template; the typesetting block has to come after it.
     store.set_numbering_scheme(work, "decimal", None).await.unwrap();
     (dir, store, work)
 }
@@ -115,14 +115,14 @@ async fn setting_stores_normalized_json_keeps_the_uuid_and_skips_equal_values() 
     let read = store.work_typeset(work).await.unwrap().expect("gelesen");
     assert_eq!((read.settings, read.uuid.clone(), read.updated.clone()), (normalized.clone(), uuid.clone(), updated));
 
-    // Gleiche Werte (auch in anderer, gleich normalisierter Schreibweise): nichts geändert, nichts geschrieben.
+    // Same values (also in another spelling that normalises to the same): nothing changed, nothing written.
     tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     let same = store.set_work_typeset(work, &wanted, "Jemand anders").await.unwrap();
     assert!(same.changed.is_empty(), "gleiche Werte → changed leer");
     assert_eq!(row(&store, work).await.unwrap().3, "Lene", "nicht geschrieben: updated_by unverändert");
     assert_eq!(row(&store, work).await.unwrap().2, read.updated, "nicht geschrieben: updated unverändert");
 
-    // Ändern: dieselbe Zeile, dieselbe uuid; changed nennt nur das geänderte Feld.
+    // Change: the same row, the same uuid; changed names only the changed field.
     let mut other = normalized.clone();
     other.running_head = Some(RunningHead::WorkTitle);
     let change = store.set_work_typeset(work, &other, "Lene").await.unwrap();
@@ -175,7 +175,7 @@ async fn resetting_and_empty_settings_leave_a_tombstone_with_the_work_uuid() {
         "Grabstein der Art work_typeset mit der Werk-uuid (Vertrag §3)"
     );
 
-    // Leere Einstellungen über set = Zurücksetzen; eine neue Zeile bekommt eine neue uuid.
+    // Empty settings through set = reset; a new row gets a new uuid.
     store.set_work_typeset(work, &sample(), "Lene").await.unwrap();
     let (second, ..) = row(&store, work).await.unwrap();
     let change = store.set_work_typeset(work, &TypesetSettings::default(), "Lene").await.unwrap();
@@ -192,7 +192,7 @@ async fn deleting_the_work_leaves_a_tombstone_with_the_work_uuid() {
     let (uuid, ..) = row(&store, work).await.unwrap();
     let owner = work_uuid(&store, work).await;
     store.delete_work(work, "Die Fähre im Nebel").await.unwrap();
-    // Der Kaskaden-Trigger löscht die Zeile, solange das Werk noch steht; sonst wüsste der Grabstein sein Werk nicht.
+    // The cascade trigger deletes the row while the work still exists; otherwise the tombstone would not know its work.
     assert_eq!(tombstones(&store).await, vec![(uuid, Some(owner))], "Grabstein mit Werk-uuid nach dem Löschen");
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM work_typeset").fetch_one(store.pool()).await.unwrap();
     assert_eq!(left, 0, "keine Zeile bleibt übrig");
@@ -211,7 +211,7 @@ async fn adopting_sets_settings_and_a_new_template_revision_in_one_transaction()
     let partial = TypesetSettings { font_size_pt: Some(11.0), ..Default::default() };
     store.set_work_typeset(work, &partial, "Lene").await.unwrap();
 
-    // Fehler in einem Teil → nichts geändert: ungültige Einstellungen, Vorlage mit Überschrift, unveränderte Vorlage.
+    // Error in one part → nothing changed: invalid settings, template with a heading, unchanged template.
     let invalid = TypesetSettings { font_size_pt: Some(99.0), ..Default::default() };
     let err = store.adopt_typeset_rule(work, &invalid, &template, "Notiz", "Lene").await;
     assert!(matches!(err, Err(StoreError::Typeset(_))), "ungültige Einstellungen: {err:?}");
@@ -224,7 +224,7 @@ async fn adopting_sets_settings_and_a_new_template_revision_in_one_transaction()
     assert_eq!(store.work_template(work).await.unwrap(), with_rule, "Vorlage unverändert");
     assert_eq!(store.work_typeset(work).await.unwrap().unwrap().settings, partial, "Einstellungen unverändert");
 
-    // Erfolg: beides zusammen.
+    // Success: both together.
     let wanted = TypesetSettings { chapter_start: Some(ChapterStart::RightPage), ..partial.clone() };
     let adopted = store
         .adopt_typeset_rule(work, &wanted, &template, "Kapitelanfang in die Satz-Einstellungen übernommen", "Lene")
@@ -244,21 +244,21 @@ async fn adopting_sets_settings_and_a_new_template_revision_in_one_transaction()
     assert_eq!(store.work_typeset(work).await.unwrap().unwrap().settings, wanted, "Einstellungen gesetzt");
 }
 
-/// Bytebereich-Anfang des ersten Abschnitts im Export: Davor steht der Kopf aus `snapshot::head` (Werkvorlage,
-/// Schema-Regel, Rückfall-Regeln und – mit Einstellungen – der Satz-Block).
+/// Byte range start of the first section in the export: before it is the head from `snapshot::head` (work template,
+/// scheme rule, fallback rules and – with settings – the typesetting block).
 async fn head_end(store: &Store, work: WorkId) -> usize {
     store.export_map(work).await.unwrap().sections.first().expect("mindestens ein Abschnitt").start
 }
 
 #[tokio::test]
 async fn export_and_mirror_without_settings_equal_the_goldens_from_s1() {
-    // Vertrag §4/§8.1: Ein Werk ohne Satz-Einstellungen exportiert byte-gleich wie vor Runde 29.
+    // Contract §4/§8.1: a work without typesetting settings exports byte-identically as before Round 29.
     let (_dir, store, work) = fresh().await;
     assert_eq!(store.export_typst(work).await.unwrap(), GOLDEN_EXPORT, "Export byte-gleich zum Golden aus R29-S1");
     let files = store.mirror_snapshot(work).await.unwrap();
     let main = files.iter().find(|f| f.path == "main.typ").expect("main.typ");
     assert_eq!(main.contents, GOLDEN_MAIN, "main.typ byte-gleich zum Golden aus R29-S1");
-    // Nach Zurücksetzen wieder genau so: keine Spur der Einstellungen bleibt im Export.
+    // After a reset exactly the same again: no trace of the settings stays in the export.
     store.set_work_typeset(work, &sample(), "Lene").await.unwrap();
     store.reset_work_typeset(work, "Lene").await.unwrap();
     assert_eq!(store.export_typst(work).await.unwrap(), GOLDEN_EXPORT, "nach dem Zurücksetzen wieder byte-gleich");
@@ -266,7 +266,8 @@ async fn export_and_mirror_without_settings_equal_the_goldens_from_s1() {
 
 #[tokio::test]
 async fn export_with_settings_is_the_old_export_plus_the_rules_at_the_hook() {
-    // Vertrag §8.1: alter Export + rules(&s) an der Stelle von S1.2 – unabhängig vom Inhalt der Regeln (satz-typst).
+    // Contract §8.1: old export + rules(&s) at the place of S1.2 – independent of the content of the rules
+    // (satz-typst).
     let (_dir, store, work) = fresh().await;
     let old = store.export_typst(work).await.unwrap();
     let at = head_end(&store, work).await;
@@ -297,7 +298,7 @@ async fn write_goldens_from_the_current_state() {
     std::fs::write(data.join("satz_golden_main.typ"), main.contents).unwrap();
 }
 
-// ---- Austausch (Unterversion 6): Ausgabe, neu einlesen, abgleichen ------------------------------------------
+// ---- Exchange (minor version 6): output, import anew, merge -------------------------------------------------
 
 const SHA: &str = "0000000000000000000000000000000000000000000000000000000000000029";
 
@@ -312,7 +313,7 @@ async fn exchange_carries_the_settings_and_merging_never_overwrites_silently() {
     use baruch_exchange::sample::{sample_document, sample_uuid};
     use baruch_store::exchange_apply::{ApplyMode, DeviationAction};
 
-    // Neu einlesen: Kennung, Zeitpunkt, Name und Einstellungen wie in der Datei; die Ausgabe gibt sie gleich zurück.
+    // Import anew: identifier, time, name and settings as in the file; the output returns them the same.
     let doc = sample_document();
     let there = doc.work.typeset.clone().expect("das Beispiel hat Satz-Einstellungen");
     let (_a_dir, a) = store_only().await;
@@ -333,7 +334,7 @@ async fn exchange_carries_the_settings_and_merging_never_overwrites_silently() {
         "der Grabstein satz der Datei steht hier und geht wieder hinaus"
     );
 
-    // Abgleichen mit abweichenden Werten derselben Kennung: nichts überschrieben, ein Hinweis nennt Feld und Stände.
+    // Merge with deviating values of the same identifier: nothing overwritten, a hint names field and states.
     let mut changed = sample_document();
     changed.work.typeset.as_mut().unwrap().settings.running_head = Some(RunningHead::WorkTitle);
     let report = a.exchange_apply(&changed, SHA, ApplyMode::Merge, None).await.unwrap().report;
@@ -343,7 +344,7 @@ async fn exchange_carries_the_settings_and_merging_never_overwrites_silently() {
     assert!(hint.there.contains("work_title") && hint.here.contains("chapter"), "beide Stände ({hint:?})");
     assert_eq!(a.work_typeset(applied.work).await.unwrap().unwrap().settings, there.settings, "hier unverändert");
 
-    // Ungültige Werte der Datei: nicht übernommen (unter „Nicht übernommen“), das übrige Werk schon.
+    // Invalid values of the file: not taken over (under „Nicht übernommen“), the rest of the work is.
     let (_b_dir, b) = store_only().await;
     let mut bad = sample_document();
     bad.work.typeset.as_mut().unwrap().settings.font_size_pt = Some(99.0);
@@ -351,18 +352,18 @@ async fn exchange_carries_the_settings_and_merging_never_overwrites_silently() {
     assert!(applied_b.report.refusals.iter().any(|r| r.contains("Schriftgröße")), "{:?}", applied_b.report.refusals);
     assert_eq!(b.work_typeset(applied_b.work).await.unwrap(), None, "keine ungültigen Einstellungen gespeichert");
 
-    // Fehlen sie hier, kommen sie beim Abgleichen aus der Datei.
+    // If they are missing here, they come from the file when merging.
     let report = b.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap().report;
     assert_eq!(report.add.typeset, 1, "beim Abgleichen angelegt");
     assert_eq!(b.work_typeset(applied_b.work).await.unwrap().unwrap().uuid, there.uuid, "mit der Kennung der Datei");
 
-    // Hier zurückgesetzt (Grabstein): Die Datei bringt sie nicht wieder.
+    // Reset here (tombstone): the file does not bring them back.
     b.reset_work_typeset(applied_b.work, "Lene").await.unwrap();
     let report = b.exchange_apply(&doc, SHA, ApplyMode::Merge, None).await.unwrap().report;
     assert!(report.deleted_here.iter().any(|d| d.kind == "satz" && d.uuid == there.uuid), "unter „hier gelöscht“");
     assert_eq!(b.work_typeset(applied_b.work).await.unwrap(), None, "kommt nicht wieder");
 
-    // Dort zurückgesetzt (Grabstein in der Datei): Hier bleiben sie stehen, mit Hinweis.
+    // Reset there (tombstone in the file): here they stay, with a hint.
     let mut reset_there = sample_document();
     let stone = reset_there.work.typeset.take().unwrap();
     reset_there.work.deleted.push(baruch_exchange::ExchangeTombstone {

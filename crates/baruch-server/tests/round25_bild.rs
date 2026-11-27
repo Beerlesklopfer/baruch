@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 25 „karte-bild“: Seite `/werke/{id}/karte` ohne JavaScript, Ausgaben (SVG, PDF, Markdown, FreeMind),
-//! Formulare und DOM-Vertrag der Gedankenkarte (Vertrag §4.3/§4.4). Tests schreibt karte-bild.
+//! Round 25 „karte-bild“: page `/werke/{id}/karte` without JavaScript, outputs (SVG, PDF, Markdown, FreeMind), forms
+//! and DOM contract of the idea map (contract §4.3/§4.4). Tests are written by karte-bild.
 //!
-//! Das Kartenbuch und alle Einfälle sind frei erfunden. Kein Modell, kein Netz (keine Einbettungen: Nähe wird hier
-//! nur als Anzeige geprüft). Was die Daten von karte-daten braucht (Verbindungen, Lagen, wirksame Filter), prüfen
-//! die Tests erst, wenn `idea.links` antwortet; vorher melden sie ehrlich „ÜBERSPRUNGEN (R25a fehlt)“ – nach dem
-//! Zusammenführen laufen sie voll.
+//! The map book and all ideas are freely invented. No model, no network (no embeddings: proximity is checked here only
+//! as display). What needs the data of karte-daten (links, positions, effective filters) is checked by the tests only
+//! once `idea.links` answers; before that they honestly report „ÜBERSPRUNGEN (R25a fehlt)“ – after the merge they run
+//! in full.
 
 use crate::common;
 
@@ -26,7 +26,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Erfundenes Kartenbuch: ein Teil mit drei Kapiteln (Rosen mit Abschnitt und Unterabschnitt, Dornen, Wege).
+/// Invented map book: one part with three chapters (Rosen with section and subsection, Dornen, Wege).
 fn book() -> String {
     format!(
         "#set document(title: \"Kartenbuch\")\n\n{}\n\nVorrede.\n\n= Rosen\n\nText.\n\n== Schnitt\n\nText.\n\n\
@@ -39,7 +39,7 @@ struct Book {
     server: common::Server,
     work: i64,
     slug: String,
-    /// Titel → key.
+    /// Title → key.
     keys: Vec<(String, i64)>,
 }
 
@@ -78,13 +78,13 @@ impl Book {
         (status, body)
     }
 
-    /// Commits im Spiegel des Werks (`None` ohne git).
+    /// Commits in the mirror of the work (`None` without git).
     fn commits(&self) -> Option<usize> {
         common::git(&self.server.mirror_dir_of(&self.slug), &["rev-list", "--count", "HEAD"])
             .map(|n| n.trim().parse().unwrap())
     }
 
-    /// Antwortet die RPC der Verbindungen schon (karte-daten zusammengeführt)?
+    /// Does the RPC of the links answer already (karte-daten merged)?
     async fn daten_ready(&self) -> bool {
         let answer = self.server.rpc("idea.links", json!({ "work": self.work })).await;
         answer["error"].is_null()
@@ -104,12 +104,12 @@ async fn open_book() -> Book {
     Book { server, work: report.work, slug: report.slug, keys }
 }
 
-/// Ids der Einfälle (`data-idea`) im HTML bzw. SVG.
+/// Ids of the ideas (`data-idea`) in the HTML or SVG.
 fn shown_ideas(html: &str) -> BTreeSet<i64> {
     html.split("data-idea=\"").skip(1).map(|r| r[..r.find('"').unwrap()].parse().unwrap()).collect()
 }
 
-/// `xmllint --noout` auf eine Datei; `None`, wenn es kein xmllint gibt.
+/// `xmllint --noout` on a file; `None` if there is no xmllint.
 fn xmllint(text: &str, name: &str) -> Option<(bool, String)> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join(name);
@@ -118,8 +118,8 @@ fn xmllint(text: &str, name: &str) -> Option<(bool, String)> {
     Some((output.status.success(), String::from_utf8_lossy(&output.stderr).into_owned()))
 }
 
-// Runde 34: Der Test des alten DOM-Vertrags (.im-stage, Kreise, Gliederungsliste mit Formularen) ist entfallen;
-// die Seite heißt „Mindmap“ und ihr DOM-Vertrag steht in round34_widget.rs (Seite, Bild, Menüband).
+// Round 34: the test of the old DOM contract (.im-stage, circles, outline list with forms) has been dropped; the page
+// is called „Mindmap“ and its DOM contract is in round34_widget.rs (page, image, ribbon).
 
 #[tokio::test]
 async fn titles_and_words_are_escaped_everywhere() {
@@ -172,8 +172,8 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
     assert!(html.contains("name=\"q\" value=\"Laube\""), "Suche im Formular");
     assert!(html.contains("<input type=\"hidden\" name=\"near\" value=\"0\">\n    <label class=\"inline\"><input type=\"checkbox\" name=\"near\" value=\"1\"> Nähe zeigen</label>"),
         "near=0: Kästchen leer, verstecktes near=0 davor (ohne JavaScript abschaltbar): {html}");
-    // Runde 34: `open` (Abschnitte eines Kapitels aufklappen) gilt im Baum der Mindmap nicht mehr und fällt aus dem
-    // kanonischen Filter; eingeklappt wird über `zu=` (round34_widget).
+    // Round 34: `open` (unfold the sections of a chapter) no longer applies in the tree of the mind map and drops out
+    // of the canonical filter; folding is done through `zu=` (round34_widget).
     assert!(!html.contains("name=\"open\""), "open steht nicht mehr im Filter der Mindmap");
     assert!(
         html.contains(&format!(
@@ -193,7 +193,7 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
         html.contains("name=\"back\" value=\"status=open&amp;word=Rose&amp;origin=human&amp;q=Laube&amp;near=0\""),
         "Formulare schicken den Filter als back mit (Rücksprung auf die gefilterte Karte)"
     );
-    // Ausgaben zeigen dieselben Einfälle wie die Seite (dieselbe build-Karte mit demselben Filter).
+    // Outputs show the same ideas as the page (the same build map with the same filter).
     let page_ideas = shown_ideas(&html);
     for output in ["svg", "md"] {
         let (s, _, body) = b
@@ -202,7 +202,7 @@ async fn filters_come_from_the_address_and_reach_forms_links_and_outputs() {
             .await;
         assert_eq!(s, StatusCode::OK, ".{output} lädt");
         if output == "md" {
-            // Runde 34: Markdown ist die verschachtelte Liste des Baums (ohne „Einfall n:“); geprüft am Gedanken.
+            // Round 34: Markdown is the nested list of the tree (without „Einfall n:“); checked on the thought.
             assert!(
                 body.contains("Laube im Juni.") && !body.contains("Hecke.") && !body.contains("Kies."),
                 ".md zeigt genau die Einfälle der gefilterten Seite: {body}"
@@ -253,7 +253,7 @@ async fn setting_the_reference_by_form_makes_one_commit_and_returns_to_the_filte
         html.contains(&format!("data-node=\"i:{id}\" data-parent=\"n:{wege}\"")),
         "der Einfall hängt jetzt an „Wege“ (Runde 34: data-parent im Bild der Mindmap)"
     );
-    // „ohne Kapitel“: leerer key.
+    // „ohne Kapitel“: empty key.
     let (status, location) = b.act(&format!("method=idea.update&id={id}&key=")).await;
     assert_eq!(
         (status, location.as_deref()),
@@ -262,7 +262,7 @@ async fn setting_the_reference_by_form_makes_one_commit_and_returns_to_the_filte
     );
     let idea = b.server.rpc("idea.get", json!({ "id": id })).await;
     assert!(result(&idea)["idea"]["key"].is_null(), "Bezug entfernt");
-    // Nach „Lösen“ bietet die Karte „Wiederherstellen“ an (Seitenlogik, unabhängig von den Daten).
+    // After „Lösen“ the map offers „Wiederherstellen“ (page logic, independent of the data).
     let (_, html) = b.page("ok=geloest&undo=42").await;
     assert!(
         html.contains("<input type=\"hidden\" name=\"method\" value=\"idea.link_restore\">")
@@ -287,7 +287,7 @@ async fn form_errors_come_back_as_the_page_with_the_message() {
         html.contains("role=\"alert\">Einfall") && html.contains("gehört nicht zu diesem Werk."),
         "Meldung auf der Seite"
     );
-    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "Fehlerseite ist die Karte mit Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "Fehlerseite ist die Karte mit Kopfzeile"); // Round 33: the header is the ribbon (header.band, not header.topbar)
 
     let (status, html) = b.act_page("method=idea.purge&id=1").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "unbekannte Aktion → 400");
@@ -389,7 +389,7 @@ async fn linking_unlinking_restoring_and_resetting_work_without_javascript() {
     assert!(html.contains(&format!("data-link=\"{link}\"")), "Verbindung wieder da");
 
     result(&b.server.rpc("idea.map_pos_set", json!({ "work": w, "idea": x, "x": 2500.0, "y": -40.5 })).await);
-    // Runde 34: Lagen bleiben gespeichert, die Baum-Anordnung der Mindmap benutzt sie nicht (Vertrag §0).
+    // Round 34: positions stay stored, the tree layout of the mind map does not use them (contract §0).
     let (_, html) = b.page("").await;
     assert!(!html.contains("im-pinned") && !html.contains("data-x="), "die Mindmap kennt keine angehefteten Lagen");
     let stored = b.server.rpc("idea.map", json!({ "work": w })).await;
@@ -417,7 +417,7 @@ async fn the_outputs_are_standalone_and_well_formed() {
     let (status, headers, svg) = get("svg").await;
     assert_eq!(status, StatusCode::OK, "SVG lädt");
     assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml", "eigenständige SVG-Datei");
-    // Runde 34: dieselbe Zeichnung wie auf der Seite (`mindmap::render`), eigenständig mit Namensraum und Stil.
+    // Round 34: the same drawing as on the page (`mindmap::render`), standalone with namespace and style.
     assert!(
         svg.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"mm-svg\""),
         "Namensraum an der Wurzel: {svg}"
@@ -488,7 +488,7 @@ async fn the_pdf_comes_from_source_to_pdf_with_the_map_kind() {
         "Anhang mit Namen aus dem slug"
     );
     assert!(bytes.starts_with(b"%PDF-"), "echte PDF-Bytes (über oneshot, nicht als Text)");
-    // Für dieses Werk entsteht schon ein PDF → 409 mit der Meldung auf der Karte.
+    // A PDF is already being produced for this work → 409 with the message on the map.
     let busy = baruch_server::pdf::claim(b.work).expect("Werk frei");
     let (status, html) = b.server.get(&format!("/werke/{}/karte.pdf", b.work)).await;
     drop(busy);
@@ -522,7 +522,8 @@ async fn three_hundred_ideas_are_laid_out_without_overlap_in_under_200_ms() {
         };
         b.server.state.store.idea_create(&new).await.unwrap();
     }
-    // Runde 34: Die Anordnung rechnet der Baum der Mindmap (`tree_layout`), nicht mehr die Kreise der Gedankenkarte.
+    // Round 34: the layout is computed by the tree of the mind map (`tree_layout`), no longer by the circles of the
+    // idea map.
     let scene = baruch_server::idea_map::tree::scene(
         &b.server.state,
         b.work,
@@ -574,7 +575,7 @@ async fn menu_and_idea_pages_link_the_map() {
         .unwrap();
     let (_, _, list) = b.server.send(request).await;
     assert!(
-        // Runde 33 (Menüband): Reiter Start, Gruppe Einfälle; Runde 34: der Eintrag heißt „Mindmap“.
+        // Round 33 (ribbon): tab Start, group Einfälle; Round 34: the entry is called „Mindmap“.
         list.contains(&format!("<a class=\"btn\" href=\"/werke/{w}/karte\" title=\"Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)\">Mindmap</a>")),
         "Start → Einfälle → Mindmap mit Werk: {list}"
     );

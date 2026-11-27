@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen im Satz (Runde 29b, Vertrag §8.2): Werk ohne Einstellungen byte-gleich, Hinweis zur Vorlagenregel
-//! auf der Satz-Seite, Umschlag-Seitenmaß und Rücken.
+//! Typesetting settings in the typesetting (Round 29b, contract §8.2): work without settings byte-identical, hint on
+//! the template rule on the typesetting page, cover page size and spine.
 //!
-//! Besitz: satz-typst. Das Speichern der Einstellungen gehört satz-daten (in diesem Zweig noch ehrlich abgelehnt); die
-//! Wirkung gespeicherter Einstellungen im Server prüft die Abnahme (`round29_abnahme.rs`), die Regeln selbst messen
-//! `baruch-typst/tests/typeset_*.rs` und `baruch-render/tests/typeset_measure.rs`. Alle Texte frei erfunden.
+//! Owner: satz-typst. Saving the settings belongs to satz-daten (still honestly rejected in this branch); the effect of
+//! saved settings in the server is checked by the acceptance (`round29_abnahme.rs`), the rules themselves are measured
+//! by `baruch-typst/tests/typeset_*.rs` and `baruch-render/tests/typeset_measure.rs`. All texts freely invented.
 
 use crate::common;
 
 use baruch_typst::typeset::{CANONICAL_CHAPTER_BREAK, PageFormat, RULES_MARK, TypesetSettings};
 use serde_json::{Value, json};
 
-/// Erfundenes Küstenbuch: Werkvorlage mit eigenem Format, ein Teil, drei Kapitel mit Fußnoten.
+/// Invented coast book: work template with a custom format, one part, three chapters with footnotes.
 fn coast_book(template: &str) -> String {
     let para = "Die Fähre legte bei Flut an, und die Fahrgäste trugen ihre Taschen über den nassen Steg. \
                 Am Kiosk gab es Tee in dicken Bechern, und der Wind riss an den Fahnen über dem Anleger.";
@@ -30,7 +30,7 @@ fn coast_book(template: &str) -> String {
     out
 }
 
-/// Werkvorlage mit eigenem Titel (der Import nimmt ihn als Werktitel; Titel sind je Datenordner eindeutig).
+/// Work template with a title of its own (the import takes it as the work title; titles are unique per data directory).
 fn template(title: &str) -> String {
     format!("#set document(title: \"{title}\")\n#set page(width: 120mm, height: 190mm)")
 }
@@ -40,8 +40,8 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Goldstände aus dem Stand der Schnittstelle R29-S1 (09f4f9d, `typeset.rs` und `cover.rs` von dort, gemessen mit
-/// diesem Test): Stand der Satzquelle und Seitenzahl des Küstenbuchs ohne Satz-Einstellungen.
+/// Golden states from the state of the interface R29-S1 (09f4f9d, `typeset.rs` and `cover.rs` from there, measured with
+/// this test): state of the typesetting source and page count of the coast book without typesetting settings.
 const GOLDEN_STAND: &str = "a6c2e714edd37269adb73b103f2f2acfdd1d034616692c4e1c8c5a667f978023";
 const GOLDEN_PAGES: usize = 4;
 
@@ -79,7 +79,7 @@ async fn the_typeset_page_offers_to_adopt_a_detected_chapter_rule() {
         "Link zu Einstellungen → Werk → Satz: {section}"
     );
     assert!(section.contains("pagebreak(weak: true, to: &quot;odd&quot;)"), "Regeltext maskiert gezeigt: {section}");
-    // Ohne gespeicherte Einstellungen gibt es keinen Konflikt (kein Feld gesetzt).
+    // Without saved settings there is no conflict (no field set).
     assert!(!section.contains("typeset-conflict"), "ohne Einstellungen keine Konflikte: {section}");
 
     let plain = server.import(&coast_book(&template("Küstenbuch ohne Regel")), "kuestenbuch-ohne.typ").await.work;
@@ -90,7 +90,7 @@ async fn the_typeset_page_offers_to_adopt_a_detected_chapter_rule() {
 #[tokio::test]
 async fn the_cover_follows_the_first_book_page_and_counts_blank_pages_for_the_spine() {
     let server = common::open().await;
-    // Die Vorlage setzt Kapitel auf rechte Seiten: Leerseiten entstehen und zählen für den Rücken mit.
+    // The template puts chapters on right-hand pages: blank pages are created and count for the spine.
     let with_rule = format!("{}\n{CANONICAL_CHAPTER_BREAK}", template("Küstenbuch Umschlag"));
     let work = server.import(&coast_book(&with_rule), "kuestenbuch-umschlag.typ").await.work;
     let set = server.rpc("work.meta.set", json!({ "work": work, "paper_mm": 0.1 })).await;

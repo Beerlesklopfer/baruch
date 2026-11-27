@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 33 – Menüband (Aufgabe „menueband“, Vertrag §4/§5): Band in base.html, band::apply, Andocken der Editor-Knöpfe.
+//! Round 33 – ribbon (task „menueband“, contract §4/§5): band in base.html, band::apply, docking of the editor buttons.
 //!
-//! Geprüft wird das ausgelieferte HTML (ohne JavaScript) und – im Node-Nachbau, ohne Browser – das Verhalten der
-//! übersetzten Widgets band/band-dock auf der echten Arbeitsseite des Servers. Jede Zusicherung mit Begründung, nur
-//! erfundene Werke (Text unten), kein Netz, kein Eliezer.
+//! Checked is the delivered HTML (without JavaScript) and – in the Node mock, without a browser – the behaviour of the
+//! compiled widgets band/band-dock on the real work page of the server. Every assertion with its reason, only invented
+//! works (text below), no network, no Eliezer.
 
 use std::net::SocketAddr;
 
@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use crate::common;
 use crate::round18_satzbild::run_harness;
 
-/// Frei erfundenes Werk: eine Bootswerft mit zwei Kapiteln.
+/// Freely invented work: a boatyard with two chapters.
 const WERFT: &str = "#set document(title: \"Die Bootswerft am Schilfsee\", author: \"Henrike Planke\")\n\n\
 = Kiel legen\n\nDer Kiel aus Eiche liegt seit dem Morgen auf den Böcken.\n\n\
 == Spanten\n\nZwölf Spanten warten gedämpft im Schuppen.\n\n\
@@ -29,14 +29,14 @@ fn ok(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Das Band der Seite (vom öffnenden Tag bis `</header>`).
+/// The band of the page (from the opening tag to `</header>`).
 fn band(html: &str) -> &str {
     let start = html.find("<header class=\"band\"").unwrap_or_else(|| panic!("kein Menüband: {html}"));
     let end = start + html[start..].find("</header>").expect("Band ohne Ende");
     &html[start..end]
 }
 
-/// Ein Feld des Bands (`data-band-panel="ID"` bis zum nächsten Feld bzw. Andockplatz).
+/// One panel of the band (`data-band-panel="ID"` up to the next panel or the dock).
 fn panel<'a>(head: &'a str, id: &str) -> &'a str {
     let marker = format!("data-band-panel=\"{id}\"");
     let start = head.find(&marker).unwrap_or_else(|| panic!("Feld {id} fehlt: {head}"));
@@ -46,7 +46,7 @@ fn panel<'a>(head: &'a str, id: &str) -> &'a str {
     &rest[..end]
 }
 
-/// Das Menü „Baruch ▾“.
+/// The menu „Baruch ▾“.
 fn app_menu(head: &str) -> &str {
     let start = head
         .find("<details class=\"menu\" data-menu=\"baruch\">")
@@ -55,7 +55,7 @@ fn app_menu(head: &str) -> &str {
     &head[start..end]
 }
 
-/// Kennungen der Reiter in der Reihenfolge der Seite.
+/// Identifiers of the tabs in the order of the page.
 fn tabs(head: &str) -> Vec<&str> {
     head.split("data-band-tab=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
 }
@@ -63,7 +63,7 @@ fn tabs(head: &str) -> Vec<&str> {
 struct Yard {
     server: common::Server,
     work: i64,
-    /// Schlüssel der Abschnitte: Kiel legen, Spanten, Stapellauf.
+    /// Keys of the sections: Kiel legen, Spanten, Stapellauf.
     keys: Vec<i64>,
 }
 
@@ -95,7 +95,7 @@ async fn mcp_call(server: &common::Server, tool: &str, arguments: Value) {
     assert_eq!(answer["result"]["isError"], false, "{tool} sollte gelingen: {answer}");
 }
 
-// ---- Aufbau ---------------------------------------------------------------------------------------------------------
+// ---- Structure ------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_five_panels() {
@@ -183,7 +183,7 @@ async fn the_workspace_shows_the_band_with_menu_work_choice_title_five_tabs_and_
 
 #[tokio::test]
 async fn without_a_work_there_are_only_start_and_ansicht() {
-    // Frischer Server ohne Werk und ohne Cookie: /werke kennt kein Werk.
+    // Fresh server without a work and without a cookie: /werke knows no work.
     let server = common::open().await;
     let (status, html) = server.get("/werke").await;
     assert_eq!(status, StatusCode::OK, "Werkliste lädt: {html}");
@@ -237,7 +237,7 @@ async fn other_pages_of_a_work_have_four_tabs_and_lead_back_to_the_text() {
     );
 }
 
-// ---- Zustand aus Adresse und Cookie ---------------------------------------------------------------------------------
+// ---- State from address and cookie ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn tab_from_the_address_selects_the_tab_and_keeps_the_rest_of_the_query() {
@@ -261,7 +261,7 @@ async fn tab_from_the_address_selects_the_tab_and_keeps_the_rest_of_the_query() 
         )),
         "die anderen Reiter führen auf denselben Abschnitt: {head}"
     );
-    // Ungültig bzw. auf dieser Seite nicht vorhanden: Vorgabe der Seite.
+    // Invalid or not present on this page: default of the page.
     let (_, html) = y.server.get(&format!("/?work={}&tab=unsinn", y.work)).await;
     assert!(band(&html).contains("data-tab=\"start\""), "ein unbekannter Reiter wird übergangen");
     let (_, html) = y.server.get(&format!("/gliederung?work={}&tab=einfuegen", y.work)).await;
@@ -298,7 +298,7 @@ async fn band_closed_is_remembered_as_a_cookie_next_to_the_work_cookie() {
         "zugeklappt öffnet ein Reiter das Band wieder (ohne JavaScript über ?band=open): {}",
         band(&html)
     );
-    // Beim nächsten Aufruf gilt das Cookie; ?band=open geht vor und löscht es.
+    // On the next call the cookie applies; ?band=open takes precedence and deletes it.
     let (_, _, html) = get_with_cookie(&y.server, &format!("/?work={}", y.work), "baruch_band=closed").await;
     assert!(html.contains(" data-band=\"closed\">"), "Cookie baruch_band=closed hält das Band zu");
     let (_, headers, html) =
@@ -308,7 +308,7 @@ async fn band_closed_is_remembered_as_a_cookie_next_to_the_work_cookie() {
         headers.get_all(header::SET_COOKIE).iter().any(|v| v == "baruch_band=; Path=/; Max-Age=0; SameSite=Lax"),
         "und löscht es (offen ist die Vorgabe)"
     );
-    // Ohne Schlüssel in der Adresse wird nichts gesetzt.
+    // Without a key in the address nothing is set.
     let (_, headers, _) =
         y.server.send(Request::get(format!("/gliederung?work={}", y.work)).body(Body::empty()).unwrap()).await;
     assert!(
@@ -334,7 +334,8 @@ async fn laptop_mode_on_turns_the_groups_into_details_popups() {
         head.contains("<details class=\"band-group\" data-band-group open><summary class=\"band-group-label\">Ansicht des Textes</summary><div class=\"band-items\" role=\"group\" aria-label=\"Ansicht des Textes\">"),
         "Gruppe in der wörtlichen Form des Vertrags (details/summary, role=group mit Namen): {head}"
     );
-    // Ob das Cookie schon gelesen wird, entscheidet src/laptop.rs (Aufgabe „laptop“; im Stand S1 gilt immer die Vorgabe).
+    // Whether the cookie is read already is decided by src/laptop.rs (task „laptop“; in the state S1 the default always
+    // applies).
     let read = baruch_server::laptop::LaptopState::from_request(Some("baruch_laptop=on"), None).compact();
     if !read {
         eprintln!(
@@ -360,7 +361,7 @@ async fn laptop_mode_on_turns_the_groups_into_details_popups() {
 #[tokio::test]
 async fn a_quote_in_the_query_cannot_break_out_of_the_tab_addresses() {
     let y = yard().await;
-    // Browser schicken ' in der Abfrage roh; < > und " kommen kodiert (%3C …) und sind dann harmlos.
+    // Browsers send ' in the query raw; < > and " arrive encoded (%3C …) and are harmless then.
     let uri = format!("/?work={}&x='onmouseover='alert(1)&y=%22%3E%3Cscript%3E", y.work);
     let (status, html) = y.server.get(&uri).await;
     assert_eq!(status, StatusCode::OK, "die Seite lädt trotz der fremden Schlüssel");
@@ -376,7 +377,7 @@ async fn a_quote_in_the_query_cannot_break_out_of_the_tab_addresses() {
     assert!(!html.contains("<script>alert") && !head.contains("\"><script"), "kein Skript aus der Adresse");
 }
 
-// ---- Zuordnung der alten Menüs (Vertrag §4) -------------------------------------------------------------------------
+// ---- Mapping of the old menus (contract §4) -------------------------------------------------------------------------
 
 #[tokio::test]
 async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
@@ -389,7 +390,7 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
         tail.chars().take_while(char::is_ascii_digit).collect::<String>()
     };
     let menu = app_menu(head);
-    // (Feld bzw. Menü, erwartetes Stück, Begründung: woher der Eintrag kommt und warum er dort steht)
+    // (panel or menu, expected piece, reason: where the entry comes from and why it is there)
     let entries: Vec<(&str, String, &str)> = vec![
         ("baruch", "href=\"/werke\">Alle Werke</a>".into(), "Werk ▾ → Alle Werke: gilt für das Programm, nicht für ein Werk"),
         ("baruch", "href=\"/werke/neu\" data-work-import-open aria-haspopup=\"dialog\" aria-controls=\"work-import\">Neues Werk / Importieren…</a>".into(), "Werk ▾ → Neues Werk / Importieren…: mit JavaScript der Dialog, sonst die Seite"),
@@ -448,7 +449,7 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
         !menu.contains("<button"),
         "das Menü Baruch enthält nur Links (nichts, was nur mit JavaScript etwas täte): {menu}"
     );
-    // Neue Schalter des Reiters Ansicht (Vertrag §4, wörtliche Formen; den Zustand setzt die Schicht).
+    // New switches of the tab Ansicht (contract §4, verbatim forms; the state is set by the layer).
     let view = panel(head, "ansicht");
     for piece in [
         "data-rail-toggle=\"left\"",
@@ -468,7 +469,8 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
         view.matches("aria-pressed=\"true\"").count() >= 1,
         "der geltende Laptop-Modus ist als gedrückt gezeichnet: {view}"
     );
-    // Je Haken genau ein Element im Band (die Widgets nehmen querySelector bzw. Alt+, den ersten im Dokument).
+    // Exactly one element in the band per hook (the widgets take querySelector or, for Alt+, the first in the
+    // document).
     for hook in
         ["data-work-import-open", "data-literature-open", "data-idea-open", "data-view-toggle", "data-settings-open"]
     {
@@ -509,13 +511,13 @@ fn the_template_keeps_the_three_places_for_round_32() {
     assert!(!base.contains("class=\"topbar\""), "die alte Kopfzeile steht nicht mehr in der Vorlage");
 }
 
-// ---- Abzeichen ------------------------------------------------------------------------------------------------------
+// ---- Badges ---------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages_without_javascript() {
     let y = yard().await;
     let w = y.work;
-    // Ein Antrag zur Gliederung (umbenennen wartet auf den Menschen), zwei Vorschläge, drei offene Befunde.
+    // One request on the outline (renaming waits for the human), two proposals, three open findings.
     mcp_call(&y.server, "outline_rename", json!({ "work": w, "key": y.keys[2], "title": "Stapellauf am Sonntag" }))
         .await;
     mcp_call(
@@ -554,7 +556,7 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
         "Ausgangslage: menu.badges zählt Antrag, Vorschläge und Befunde (Name und Ergebnis der Methode unverändert)"
     );
 
-    // Arbeitsseite: aus der Vorlage gezeichnet.
+    // Work page: drawn from the template.
     let (_, html) = y.server.get(&format!("/?work={w}")).await;
     let head = band(&html);
     assert!(
@@ -583,7 +585,7 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
         "am Eintrag „Befunde“ steht nur die Zahl: {head}"
     );
 
-    // Andere Seite: Die Schicht (menu::fill_badges) setzt dieselben Zahlen ins fertige HTML – ohne JavaScript.
+    // Another page: the layer (menu::fill_badges) puts the same numbers into the finished HTML – without JavaScript.
     let (_, html) = y.server.get(&format!("/werke/{w}/bilder")).await;
     let head = band(&html);
     assert!(!head.contains("data-badge-fill"), "das Kennzeichen ist nach dem Füllen entfernt: {head}");
@@ -600,7 +602,7 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
             "außerhalb der Arbeitsseite steht dieselbe Zahl im ausgelieferten HTML: {piece}\n{head}"
         );
     }
-    // Ohne offene Punkte bleiben die Abzeichen verborgen (anderes, leeres Werk).
+    // Without open items the badges stay hidden (another, empty work).
     let other = y.server.import("= Leer\n\nNichts offen.\n", "leer.typ").await.work;
     let (_, html) = y.server.get(&format!("/gliederung?work={other}")).await;
     let head = band(&html);
@@ -612,12 +614,12 @@ async fn badges_stand_at_the_tabs_on_the_workspace_and_are_filled_on_other_pages
     );
 }
 
-// ---- Editor und Andocken --------------------------------------------------------------------------------------------
+// ---- Editor and docking ---------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_ends_with_the_dock_mark() {
     let y = yard().await;
-    // Zweite Fassung, damit ‹ › Links sind.
+    // Second revision so that ‹ › are links.
     let saved = y.server.rpc("outline.save", json!({ "work": y.work, "key": y.keys[0], "body": "= Kiel legen\n\nDer Kiel aus Eiche liegt auf den Böcken, frisch geölt.\n", "mode": "new" })).await;
     ok(&saved);
     let rendered = y.server.rpc("ui.render", json!({ "work": y.work, "key": y.keys[0], "rev": 2 })).await;
@@ -695,7 +697,7 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
         7,
         "sieben Gruppen in der Form des Bands (Text, Absatz, Fassung, Assistenten; Einfügen, Bild, Register und Glossar): {bar}"
     );
-    // Fassung im Band: ‹ › ohne data-key – Alt+←/→ nimmt weiter die Links im Kopf des Editors.
+    // Revision in the band: ‹ › without data-key – Alt+←/→ still takes the links in the header of the editor.
     assert!(
         first.contains(&format!(
             "<a class=\"btn\" data-nav href=\"/?work={}&key={}&rev=1\" aria-label=\"Vorige Fassung\"",
@@ -713,7 +715,7 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
         "data-key=prev bleibt genau einmal im Kopf des Editors: {editor}"
     );
     assert!(first.contains(">2/2</span>"), "Zähler der Fassungen wie im Kopf: {first}");
-    // Der maßgebliche Knopf bleibt in der Statuszeile.
+    // The authoritative button stays in the status line.
     assert!(
         editor.contains("<button class=\"btn primary\" type=\"submit\" form=\"editor-form\" data-saved=\"Gespeichert\" data-dirty=\"Speichern\""),
         "„Speichern“ der Statuszeile unverändert (geht ohne JavaScript; trägt die Beschriftung Gespeichert/Speichern): {editor}"
@@ -723,7 +725,7 @@ async fn the_editor_fragment_keeps_the_toolbar_in_two_parts_with_every_hook_and_
         "Anker für den Hinweis ohne JavaScript im Reiter Einfügen"
     );
 
-    // Vorschau: keine Leiste, aber die Marke (band.ts leert dann den Andockplatz).
+    // Preview: no bar, but the marker (band.ts then empties the dock).
     let preview = y.server.rpc("ui.render", json!({ "work": y.work, "key": y.keys[0], "view": "preview" })).await;
     let editor = ok(&preview)["editor"].as_str().unwrap();
     assert!(!editor.contains("data-edit-toolbar"), "in der Vorschau gibt es keine Leiste");
@@ -796,9 +798,9 @@ fn the_band_style_uses_only_state_attributes_and_known_colours() {
     assert!(css.contains(":focus-visible"), "sichtbarer Fokus");
 }
 
-// ---- Verhalten der Widgets im Node-Nachbau --------------------------------------------------------------------------
+// ---- Behaviour of the widgets in the Node mock ----------------------------------------------------------------------
 
-/// Inhalt von `<body>` der echten Arbeitsseite.
+/// Content of `<body>` of the real work page.
 fn body_of(html: &str) -> &str {
     let start = html.find("<body>").expect("body") + "<body>".len();
     &html[start..html.rfind("</body>").expect("body-Ende")]
@@ -825,7 +827,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     };
     assert_eq!(seen["errors"], json!([]), "keine Fehler im Nachbau: {seen}");
 
-    // Andocken.
+    // Docking.
     assert_eq!(
         seen["before"],
         json!({ "barInPane": true, "barHidden": true, "dockChildren": 0 }),
@@ -850,7 +852,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
         "Vorgabe Satzbild: Umschalter nach dem Andocken unverändert gedrückt: {docked}"
     );
     assert_eq!(docked["sheetOpen"], true, "das Satzbild ist offen");
-    // Umschalter nach dem Andocken: wysiwyg.ts findet die Leiste auch außerhalb von div.wysiwyg.
+    // Toggle after docking: wysiwyg.ts finds the bar outside of div.wysiwyg as well.
     let q = &seen["afterQuelltext"];
     assert_eq!(
         (&q["satz"], &q["quelltext"]),
@@ -864,7 +866,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     );
     assert_eq!(q["sheetOpen"], false, "das Satzbild ist zu: {q}");
 
-    // Speichern: Strg+S und der Knopf im Band.
+    // Saving: Ctrl+S and the button in the band.
     assert_eq!(
         seen["saveDisabledClean"], true,
         "unverändert ist „Speichern“ der Statuszeile gesperrt (maßgeblicher Knopf, nicht der im Band)"
@@ -897,7 +899,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
         "nach ui.render dockt die neue Leiste an, die alte ist weg (genau eine)"
     );
 
-    // Reiter mit der Tastatur.
+    // Tabs with the keyboard.
     let t = &seen["tabs"];
     assert_eq!(t["start"]["tab"], "start", "Ausgangszustand vom Server: {t}");
     assert_eq!(t["rightPrevented"], true, "→ ist verbraucht");
@@ -911,7 +913,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
     assert_eq!(t["afterHome"]["tab"], "start", "Pos1 springt zum ersten");
     assert_eq!(t["tabIndex"], json!([0, -1, -1, -1, -1]), "nur der gewählte Reiter steht in der Tab-Folge");
 
-    // Klicks.
+    // Clicks.
     let c = &seen["clicks"];
     assert_eq!(c["buchPrevented"], true, "ein Klick auf einen Reiter lädt die Seite nicht neu");
     assert_eq!(c["afterBuch"]["tab"], "buch", "Klick wählt den Reiter");
@@ -938,7 +940,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
         "und nimmt das Cookie zurück: {c}"
     );
 
-    // Gruppen.
+    // Groups.
     let g = &seen["groups"];
     let count = g["full"]["count"].as_u64().unwrap();
     assert!(
@@ -962,7 +964,7 @@ async fn the_band_widgets_dock_the_toolbar_switch_tabs_fold_and_keep_the_shortcu
         "zurück im vollen Band sind alle wieder offen: {g}"
     );
 
-    // Tastenkürzel.
+    // Keyboard shortcuts.
     for (name, what) in [
         ("altL", "Alt+L öffnet die Literatur"),
         ("altE", "Alt+E öffnet „Einfall festhalten“"),

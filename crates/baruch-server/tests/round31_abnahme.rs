@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31 – Abnahme des Integrators (Vertrag §6) über alle drei Aufgaben (glossar-daten, register-satz,
-//! kontextmenue) an einem frei erfundenen Werk „Die Wärterin vom Kap“ mit zwei Teilen, drei Kapiteln, Bibelstellen
-//! und Personen:
-//! - Markierung → „In Glossar aufnehmen“ ohne JavaScript (Seite „Markierung“, Formular `/glossar/act`) und mit
-//!   JavaScript (RPC `glossary.add`, wie der Dialog des Kontextmenüs) → Begriff auf der Glossar-Seite, Glossarseite im
-//!   PDF (pdftotext) und Glossar im EPUB (`glossterm`/`glossdef`);
-//! - „In Register aufnehmen“ ohne JavaScript (Formular `/register/act`) und über RPC `index.mark` mit Unterstichwort und
-//!   „siehe auch“ → Registerseiten im PDF mit gemessenen Seitenzahlen und zusammengefassten Bereichen,
-//!   Personenregister, Bibelstellenregister automatisch in biblischer Reihenfolge, erste Erwähnung je Kapitel;
-//! - der Typst-Export setzt eigenständig dieselben Register (`typst compile`, sonst eingebetteter Compiler);
-//! - Persona schlägt Begriffe vor, MCP schlägt Begriffe und Registereinträge vor, nur der Mensch übernimmt (Formulare);
-//! - Rundreise in Unterversion 7 zwischen zwei Wegwerf-Instanzen (gleicher Export samt Buchende);
-//! - ohne R31-Einstellungen byte-gleicher Export und gleiches EPUB; Import eines Exports mit Buchende;
-//! - Tastatur (Menütaste, Umschalt+F10) und ARIA im ausgelieferten Kontextmenü, Link „Markierung …“ ohne JavaScript.
+//! Round 31 – acceptance by the integrator (contract §6) across all three tasks (glossar-daten, register-satz,
+//! kontextmenue) on a freely invented work „Die Wärterin vom Kap“ with two parts, three chapters, Bible references and
+//! persons:
+//! - selection → „In Glossar aufnehmen“ without JavaScript (page „Markierung“, form `/glossar/act`) and with JavaScript
+//!   (RPC `glossary.add`, like the dialog of the context menu) → term on the glossary page, glossary page in the PDF
+//!   (pdftotext) and glossary in the EPUB (`glossterm`/`glossdef`);
+//! - „In Register aufnehmen“ without JavaScript (form `/register/act`) and over RPC `index.mark` with sub-entry and
+//!   „siehe auch“ → index pages in the PDF with measured page numbers and merged ranges, index of persons, index of
+//!   Bible references automatically in biblical order, first mention per chapter;
+//! - the Typst export typesets the same indexes standalone (`typst compile`, otherwise the embedded compiler);
+//! - a persona proposes terms, MCP proposes terms and index entries, only the human accepts (forms);
+//! - round trip in minor version 7 between two throwaway instances (same export including the book end);
+//! - without R31 settings a byte-identical export and the same EPUB; import of an export with a book end;
+//! - keyboard (menu key, Shift+F10) and ARIA in the delivered context menu, link „Markierung …“ without JavaScript.
 //!
-//! Kein Netz, kein Eliezer (Modell nur `ScriptedModel`). PDFs unter `common::PDF_SERIAL`, Modell unter
-//! `common::model_queue`. Jede Zusicherung mit Begründung.
+//! No network, no Eliezer (model only `ScriptedModel`). PDFs under `common::PDF_SERIAL`, model under
+//! `common::model_queue`. Every assertion with its reason.
 
 use crate::common;
 
@@ -33,11 +33,12 @@ use baruch_typst::typeset::{
 };
 use serde_json::{Value, json};
 
-/// Ein langer Absatz für das zweite Kapitel; „Nebel“ steht nur hier (für den Seitenbereich im Register).
+/// A long paragraph for the second chapter; „Nebel“ occurs only here (for the page range in the index).
 const FOG: &str = "Der Nebel liegt schwer über der Bucht, und die Wärterin zählt die Stunden bis zum Morgen, während \
                    unten die Brandung gegen die Klippen schlägt und die Möwen schweigen.";
 
-/// Das erfundene Werk: zwei Teile, drei Kapitel, Bibelstellen im Fließtext (eine nur im Kommentar), zwei Personen.
+/// The invented work: two parts, three chapters, Bible references in the running text (one only in a comment), two
+/// persons.
 fn book() -> String {
     let fog = vec![FOG; 70].join("\n\n");
     format!(
@@ -108,7 +109,7 @@ impl Cape {
     }
 }
 
-/// Alle R31-Einstellungen eingeschaltet, Kapitel auf neuer Seite, Seitenzahlen ab der ersten Seite.
+/// All R31 settings switched on, chapters on a new page, page numbers from the first page on.
 fn r31_settings() -> TypesetSettings {
     TypesetSettings {
         chapter_start: Some(ChapterStart::NewPage),
@@ -126,12 +127,12 @@ fn r31_settings() -> TypesetSettings {
     }
 }
 
-/// Wert für `application/x-www-form-urlencoded` (alles außer Buchstaben/Ziffern als %XX).
+/// Value for `application/x-www-form-urlencoded` (everything except letters/digits as %XX).
 fn form_escape(s: &str) -> String {
     s.bytes().map(|b| if b.is_ascii_alphanumeric() { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
 }
 
-/// Text des PDFs je Seite (pdftotext); `None`, wenn pdftotext fehlt.
+/// Text of the PDF per page (pdftotext); `None` if pdftotext is missing.
 fn pdf_pages(pdf: &[u8]) -> Option<Vec<String>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("buch.pdf");
@@ -162,13 +163,13 @@ fn zip_entry<'a>(files: &'a [(String, String)], name: &str) -> &'a str {
         .1
 }
 
-/// Glossar- und Registerdaten so anlegen, wie die Oberfläche sie schickt: ohne JavaScript über die Formulare, mit
-/// JavaScript über dieselben RPC-Methoden wie Dialoge des Kontextmenüs.
+/// Create glossary and index data the way the user interface sends them: without JavaScript through the forms, with
+/// JavaScript through the same RPC methods as the dialogs of the context menu.
 async fn fill(c: &Cape) {
     let w = c.work;
     let (arrival, rev, _) = c.section("Die Ankunft").await;
 
-    // Ohne JavaScript: Link „Markierung …“ → Seite mit den drei Aktionen → Formular „In Glossar aufnehmen“.
+    // Without JavaScript: link „Markierung …“ → page with the three actions → form „In Glossar aufnehmen“.
     let (status, page) = c.server.get(&format!("/werke/{w}/markierung?key={arrival}&rev={rev}&wort=Leuchtfeuer")).await;
     assert_eq!(status, StatusCode::OK, "Seite „Markierung“ ohne JavaScript: {page}");
     assert!(page.contains(&format!("action=\"/werke/{w}/glossar/act\"")), "Formular „In Glossar aufnehmen“: {page}");
@@ -186,11 +187,11 @@ async fn fill(c: &Cape) {
     assert!(location.contains("ok=add#begriff-"), "zurück an die Markierung mit Hinweis und Anker: {location}");
     assert!(c.last_commit().contains("Baruch-Action: glossary-add"), "ein Spiegel-Commit je Änderung");
 
-    // Mit JavaScript: der Dialog „In Glossar aufnehmen“ ruft glossary.add.
+    // With JavaScript: the dialog „In Glossar aufnehmen“ calls glossary.add.
     let logbook = c.rpc("glossary.add", json!({ "term": "Logbuch", "short": "Tagebuch der Wache." })).await;
     assert_eq!(logbook["term"]["status"], "accepted", "vom Menschen angelegt = angenommen: {logbook}");
 
-    // Glossar-Seite des Werks zeigt beide Begriffe mit Anker; die Bibelstelle ist normalisiert.
+    // The glossary page of the work shows both terms with an anchor; the Bible reference is normalised.
     let (status, page) = c.server.get(&format!("/werke/{w}/glossar")).await;
     assert_eq!(status, StatusCode::OK, "Glossar-Seite");
     for needle in ["Leuchtfeuer", "Logbuch", "Ps 107,23", "id=\"begriff-"] {
@@ -199,7 +200,7 @@ async fn fill(c: &Cape) {
     let lookup = c.rpc("glossary.lookup", json!({ "word": "Leuchtfeuers" })).await;
     assert_eq!(lookup["terms"][0]["term"], "Leuchtfeuer", "Nachschlagen über die Variante: {lookup}");
 
-    // Register ohne JavaScript: alle Fundstellen von „Nebel“ im Sturm-Kapitel.
+    // Index without JavaScript: all occurrences of „Nebel“ in the Sturm chapter.
     let (storm, rev, _) = c.section("Der Sturm").await;
     let (status, location, page) = c
         .post(
@@ -212,7 +213,7 @@ async fn fill(c: &Cape) {
     let (_, _, body) = c.section("Der Sturm").await;
     assert_eq!(body.matches("<baruch-idx>").count(), 70, "jede Fundstelle von „Nebel“ markiert (neue Fassung)");
 
-    // Mit Unterstichwort und „siehe auch“ (RPC index.mark wie der Dialog „In Register aufnehmen“ beim Speichern).
+    // With sub-entry and „siehe auch“ (RPC index.mark like the dialog „In Register aufnehmen“ on saving).
     let (arrival, rev, _) = c.section("Die Ankunft").await;
     let marked = c
         .rpc(
@@ -223,7 +224,7 @@ async fn fill(c: &Cape) {
         .await;
     assert_eq!(marked["marks"], 1, "eine Marke: {marked}");
     let rev = marked["rev"].as_u64().unwrap() as u32;
-    // Personenregister.
+    // Index of persons.
     c.rpc(
         "index.mark",
         json!({ "key": arrival, "rev": rev, "word": "Berg", "register": "personen", "term": "Berg, Hanna" }),
@@ -255,7 +256,7 @@ async fn glossary_and_registers_reach_the_pdf_the_epub_and_the_standalone_export
     fill(&c).await;
     c.server.state.store.set_work_typeset(c.work, &r31_settings(), "Lene").await.expect("Satz-Einstellungen");
 
-    // Export: ein Buchende, Karte byte-gleich, erste Erwähnung je Kapitel als Link auf die Glossarseite.
+    // Export: one book end, map byte-identical, first mention per chapter as a link to the glossary page.
     let typst = c.export().await;
     assert_eq!(typst.matches(BACK_MATTER_MARK).count(), 1, "genau ein Buchende im Export");
     let map = c.server.state.store.export_map(c.work).await.unwrap();
@@ -289,7 +290,7 @@ async fn glossary_and_registers_reach_the_pdf_the_epub_and_the_standalone_export
             let lines: Vec<&str> = text.lines().map(str::trim).collect();
             let at = |l: &str| lines.iter().position(|x| *x == l).unwrap_or_else(|| panic!("Zeile „{l}“: {text}"));
             assert!(lines.contains(&format!("Nebel {first}–{last}").as_str()), "Bereich zusammengefasst: {text}");
-            // „siehe auch“ gehört zur Marke mit dem Unterstichwort und steht hinter dessen Seitenzahl.
+            // „siehe auch“ belongs to the mark with the sub-entry and comes after its page number.
             assert!(
                 at("Küste") < at(&format!("Leuchtturm {arrival}; siehe auch Nebel")),
                 "Unterstichwort unter dem Stichwort, mit Seite und „siehe auch“: {text}"
@@ -321,7 +322,7 @@ async fn glossary_and_registers_reach_the_pdf_the_epub_and_the_standalone_export
     }
     drop(_serial);
 
-    // EPUB: Glossar als glossterm/glossdef, Registerdateien, erste Erwähnung als glossref.
+    // EPUB: glossary as glossterm/glossdef, index files, first mention as glossref.
     let files = zip_entries(&c.epub().await);
     let glossary = zip_entry(&files, "OEBPS/text/glossary.xhtml");
     assert!(glossary.contains("epub:type=\"glossary\""), "Glossar im EPUB: {glossary}");
@@ -337,7 +338,7 @@ async fn glossary_and_registers_reach_the_pdf_the_epub_and_the_standalone_export
         "erste Erwähnung als glossref-Link im Kapitel"
     );
 
-    // Der Typst-Export setzt eigenständig (ohne Paket, ohne Netz) dieselben Register.
+    // The Typst export typesets the same indexes standalone (without a package, without network).
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("waerterin.typ");
     std::fs::write(&file, &typst).unwrap();
@@ -395,7 +396,7 @@ async fn personas_and_mcp_only_propose_and_the_human_accepts_without_javascript(
     let w = c.work;
     c.rpc("glossary.add", json!({ "term": "Leuchtfeuer" })).await;
 
-    // Die Persona (Lektor nach Einstellung) schlägt vor; nichts ist angenommen.
+    // The persona (lector according to the setting) proposes; nothing is accepted.
     let (storm, _, _) = c.section("Der Sturm").await;
     let suggested = c.rpc("glossary.suggest", json!({ "key": storm })).await;
     let proposed: Vec<&str> =
@@ -407,7 +408,7 @@ async fn personas_and_mcp_only_propose_and_the_human_accepts_without_javascript(
     };
     assert_eq!(accepted().await, 1, "die Persona nimmt nichts an");
 
-    // Der Mensch übernimmt auf der Glossar-Seite ohne JavaScript.
+    // The human accepts on the glossary page without JavaScript.
     let brandung = suggested["proposed"][0]["id"].as_i64().unwrap();
     let (_, page) = c.server.get(&format!("/werke/{w}/glossar")).await;
     assert!(page.contains(&format!("id=\"begriff-{brandung}\"")), "Vorschlag mit Anker auf der Glossar-Seite: {page}");
@@ -419,7 +420,7 @@ async fn personas_and_mcp_only_propose_and_the_human_accepts_without_javascript(
     let log = c.last_commit();
     assert!(log.contains("Baruch-Action: glossary-accept") && log.contains("Baruch-Proposer: @lektor"), "{log}");
 
-    // MCP schlägt einen Registereintrag vor; der Text ändert sich erst, wenn der Mensch übernimmt.
+    // MCP proposes an index entry; the text changes only when the human accepts.
     let (headers, init) = mcp(
         &c.server,
         None,
@@ -465,7 +466,7 @@ async fn two_instances_exchange_the_work_and_export_the_same_registers() {
     settings.index_pages.as_mut().unwrap().registers.push("orte".into());
     a.server.state.store.set_work_typeset(a.work, &settings, "Lene").await.unwrap();
     let xml = a.rpc("work.exchange_export", json!({ "format": "xml" })).await["xml"].as_str().unwrap().to_owned();
-    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
     assert!(xml.contains("version=\"10\"") && xml.contains("<glossar>"), "Unterversion 9 (seit Runde 34) mit Glossar");
 
     let b = common::open().await;
@@ -488,7 +489,7 @@ async fn two_instances_exchange_the_work_and_export_the_same_registers() {
         .unwrap();
     assert_eq!(graves, 1, "Grabstein des gelöschten Begriffs reist mit");
 
-    // Ein zweiter Abgleich bringt nichts doppelt.
+    // A second merge brings nothing twice.
     let merged = b
         .rpc(
             "work.exchange_import",
@@ -514,7 +515,7 @@ async fn without_r31_settings_export_and_epub_stay_byte_identical_and_an_exporte
     assert_eq!(c.export().await, before, "Glossar und Register allein ändern den Export nicht");
     assert_eq!(c.epub().await, epub_before, "… und das EPUB auch nicht");
 
-    // Mit Einstellungen exportiert und in eine zweite Instanz importiert: das Buchende landet in keinem Abschnitt.
+    // Exported with settings and imported into a second instance: the book end lands in no section.
     c.server.state.store.set_work_typeset(c.work, &r31_settings(), "Lene").await.unwrap();
     let with_tail = c.export().await;
     assert!(with_tail.contains(BACK_MATTER_MARK), "Buchende im Export");
@@ -530,7 +531,8 @@ async fn without_r31_settings_export_and_epub_stay_byte_identical_and_an_exporte
         assert!(!body.contains(BACK_MATTER_MARK), "Buchende nicht im Abschnitt „{}“: {body}", node.title);
     }
     assert_eq!(work.nodes.last().unwrap().title, "Die Rückkehr", "kein zusätzlicher Abschnitt aus dem Buchende");
-    // Auch die Zusätze der Projektion kommen nicht mit: der Text gleicht dem Original (ohne Kennungs-Labels).
+    // The additions of the projection do not come along either: the text equals the original (without identifier
+    // labels).
     for (node, original) in work.nodes.iter().zip(c.server.state.store.load_work(c.work).await.unwrap().nodes.iter()) {
         let body = node.current_number().map(|r| node.revision(r).unwrap().body.clone()).unwrap_or_default();
         let original =
@@ -560,7 +562,7 @@ async fn the_editor_offers_keyboard_menu_aria_and_the_marking_link() {
     assert!(
         base.contains(&format!("href=\"/werke/{}/glossar\"", c.work))
             && base.contains(&format!("href=\"/werke/{}/register\"", c.work)),
-        // Runde 33 (Menüband): früher Menü Werk ▾, jetzt Reiter Buch, Gruppe „Register und Glossar“ – dieselben Links.
+        // Round 33 (ribbon): formerly the menu Werk ▾, now the tab Buch, group „Register und Glossar“ – the same links.
         "Reiter Buch führt zu Glossar und Register"
     );
 }

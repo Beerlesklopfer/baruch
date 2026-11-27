@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Zeitwächter im Store (Runde 16b, Migration 0039): Vorgabe ohne Zeile, Setzen und Lesen, Grenzen,
-//! unbekanntes Werk, Löschen des Werks. Werke kommen über `import_typst` (frei erfundener Text), damit
-//! die Tests nicht von den Feldern von `NewWork` abhängen.
+//! Timekeeper in the store (Round 16b, migration 0039): default without a row, setting and reading, limits, unknown
+//! work, deleting the work. Works come through `import_typst` (freely invented text), so that the tests do not depend
+//! on the fields of `NewWork`.
 
 use baruch_store::{Store, StoreError, TimingSettings};
 

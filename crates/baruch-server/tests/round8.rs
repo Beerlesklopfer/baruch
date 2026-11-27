@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende Runde 8 (Integrator): die drei Aufgaben zusammen in einem echten Datenordner
-//! (SQLite, Git-Spiegel, Bibliothek) – Key-Adressen aus MCP-Antworten nach dem Umstellen der Gliederung,
-//! Vorschläge zweier Personas an ihrer Stelle im Lesefluss (einklappen, übernehmen), Beiträge
-//! verwalten (umwandeln = ein Commit, verschieben, löschen, MCP nur eigene), unveränderter leerer Titel
-//! speicherbar, Typst-Vorschau mit Bild und Typst-Fehler mit Abschnitt. Das „Teichbuch“ ist frei erfunden.
+//! End to end Round 8 (integrator): the three tasks together in one real data directory (SQLite, Git mirror, library) –
+//! key addresses from MCP answers after rearranging the outline, proposals of two personas at their place in the
+//! reading flow (fold, accept), managing posts (convert = one commit, move, delete, MCP only own ones), an unchanged
+//! empty title can be saved, Typst preview with image and Typst error with section. The „Teichbuch“ is freely invented.
 
 use crate::common;
 
@@ -14,7 +13,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 
-/// Erfundenes Werk: 0 „Der Teich“ (drei Absätze), 1 „Die Brücke“ (mit Bild), 2 ohne Titel.
+/// Invented work: 0 „Der Teich“ (three paragraphs), 1 „Die Brücke“ (with image), 2 without title.
 const TEICH: &str = "\
 #set document(title: \"Das Teichbuch\", author: \"Test\")
 
@@ -43,13 +42,13 @@ const LOOPBACK: ([u8; 4], u16) = ([127, 0, 0, 1], 40000);
 struct Book {
     server: common::Server,
     work: i64,
-    /// Feste Schlüssel nach Stelle beim Import.
+    /// Stable keys by position at import.
     keys: Vec<i64>,
     dir: std::path::PathBuf,
 }
 
-/// Teichbuch importieren (eigene Schlusszeile `tag`, damit der statische Typst-Zwischenspeicher je Test
-/// einen eigenen Stand sieht) und das Bild des Stegs anlegen.
+/// Import the pond book (own final line `tag`, so that the static Typst cache sees a state of its own per test) and
+/// create the image of the jetty.
 async fn book(tag: &str) -> Book {
     let server = common::open().await;
     let report = server.import(&format!("{TEICH}// {tag}\n"), &format!("{tag}.typ")).await;
@@ -115,7 +114,7 @@ async fn tool(server: &common::Server, session: &str, name: &str, arguments: Val
     mcp(server, Some(session), message).await.1["result"].clone()
 }
 
-/// Ids der Beiträge eines Abschnitts.
+/// Ids of the posts of a section.
 async fn post_ids(server: &common::Server, work: i64, key: i64) -> Vec<i64> {
     let node = server.rpc("node.get", json!({ "work": work, "key": key })).await;
     result(&node)["posts"].as_array().unwrap().iter().map(|p| p["id"].as_i64().unwrap()).collect()
@@ -132,7 +131,7 @@ async fn a_key_url_from_mcp_opens_the_right_section_after_the_outline_is_rearran
     let url = added["url"].as_str().unwrap_or_else(|| panic!("add_post nennt eine url: {added}")).to_owned();
     assert_eq!(url, format!("/?work={}&key={}", b.work, b.keys[1]), "kanonische Key-Adresse ohne rev");
 
-    // „Die Brücke“ vor „Der Teich“: alle Stellen verschieben sich, die Adresse aus MCP bleibt gültig.
+    // „Die Brücke“ before „Der Teich“: all positions shift, the address from MCP stays valid.
     let moved =
         b.server.rpc("outline.move", json!({ "work": b.work, "node": 1, "target": 0, "place": "before" })).await;
     result(&moved);
@@ -171,7 +170,7 @@ async fn two_persona_proposals_stand_at_their_place_fold_and_one_is_accepted_by_
     let block = |i: usize| flow.find(&format!("<pre class=\"pv-src\" data-b=\"{i}\">")).expect("Block im Lesefluss");
     let lektor = flow.find(&format!("data-pv=\"{teich}-2\"")).expect("Vorschlag des Lektors im Lesefluss");
     let nathan = flow.find(&format!("data-pv=\"{teich}-3\"")).expect("Vorschlag Nathans im Lesefluss");
-    // Blöcke: 0 Überschrift, 1 Seerosen, 2 Frosch, 3 Libellen.
+    // Blocks: 0 heading, 1 Seerosen, 2 Frosch, 3 Libellen.
     assert!(
         block(2) < lektor && lektor < block(3),
         "der Frosch-Vorschlag steht direkt nach dem Frosch-Absatz, vor den Libellen"
@@ -190,7 +189,7 @@ async fn two_persona_proposals_stand_at_their_place_fold_and_one_is_accepted_by_
         assert!(d.starts_with("<details") && d[..d.find('>').unwrap()].ends_with(" open"), "aufgeklappt: {d}");
     }
 
-    // Einklappen (Cookie): nur der Lektor-Vorschlag wird zur Linie an seiner Stelle.
+    // Fold (cookie): only the lector proposal becomes a line at its place.
     let folded =
         get_with_cookie(&b.server, &format!("/?work={}&key={teich}", b.work), &format!("baruch_folded={teich}-2"))
             .await;
@@ -202,7 +201,7 @@ async fn two_persona_proposals_stand_at_their_place_fold_and_one_is_accepted_by_
     assert!(!tag(2).ends_with(" open>"), "eingeklappt = nur die farbige Linie: {}", tag(2));
     assert!(tag(3).ends_with(" open>"), "der andere bleibt offen: {}", tag(3));
 
-    // Übernehmen per Formular ohne JavaScript: ein Commit, zurück zur Key-Adresse.
+    // Accept via form without JavaScript: one commit, back to the key address.
     let before = commits(&b.dir);
     let (status, location) = b
         .server
@@ -233,7 +232,7 @@ async fn posts_are_converted_moved_and_deleted_and_mcp_may_not_touch_foreign_one
             .as_i64()
             .unwrap();
 
-    // MCP: fremder Beitrag → isError, nichts geändert, kein Commit.
+    // MCP: foreign post → isError, nothing changed, no commit.
     let before = (post_ids(&b.server, b.work, teich).await, commits(&b.dir));
     for (name, args) in [
         ("post_delete", json!({ "work": b.work, "id": human })),
@@ -246,7 +245,7 @@ async fn posts_are_converted_moved_and_deleted_and_mcp_may_not_touch_foreign_one
     }
     assert_eq!((post_ids(&b.server, b.work, teich).await, commits(&b.dir)), before, "nichts geändert");
 
-    // Eigenen Beitrag über MCP in einen Einfall umwandeln: genau ein Commit mit einfaelle.md.
+    // Convert an own post into an idea over MCP: exactly one commit with einfaelle.md.
     let converted =
         tool(&b.server, &s, "post_to_idea", json!({ "work": b.work, "id": own, "words": ["Kröten"] })).await;
     assert_eq!(converted["isError"], false, "eigener Beitrag: {converted}");
@@ -259,7 +258,7 @@ async fn posts_are_converted_moved_and_deleted_and_mcp_may_not_touch_foreign_one
     }
     assert_eq!(post_ids(&b.server, b.work, teich).await, vec![human], "der umgewandelte Beitrag ist fort");
 
-    // Der Mensch verschiebt und löscht über Formulare ohne JavaScript.
+    // The human moves and deletes through forms without JavaScript.
     let (status, location) = b
         .server
         .post_form(
@@ -324,7 +323,7 @@ async fn the_typst_preview_sets_pages_with_the_image_and_reports_an_error_with_i
         "die Brücken-Seite trägt das Bild des Werks"
     );
 
-    // Ein Typst-Fehler in „Die Brücke“: keine Seiten, Meldung mit Abschnitt und Key-Link.
+    // A Typst error in „Die Brücke“: no pages, message with section and key link.
     let saved = b
         .server
         .rpc(

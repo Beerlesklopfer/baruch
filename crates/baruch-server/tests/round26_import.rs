@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „import“: Austauschdatei einlesen (Vorschau, neu, abgleichen; RPC `work.exchange_preview` und
-//! `work.exchange_import`, Formulare, CLI), Sicherheit und Grenzen. Die Austauschdatei ist die handgeschriebene,
-//! frei erfundene Prüfdatei des Lesers (`baruch-exchange/tests/data/import/werk.baruch.xml`); Container baut der
-//! Test selbst mit `zip`. Jede Zusicherung mit Begründung.
+//! Round 26 „import“: read an exchange file (preview, new, merge; RPC `work.exchange_preview` and
+//! `work.exchange_import`, forms, CLI), security and limits. The exchange file is the hand-written, freely invented
+//! test file of the reader (`baruch-exchange/tests/data/import/werk.baruch.xml`); the test builds containers itself
+//! with `zip`. Every assertion with its reason.
 
 use std::collections::BTreeMap;
 use std::io::{Cursor, Write};
@@ -41,7 +41,7 @@ const TABLES: &[&str] = &[
     "work_sword_source",
     "outline_request",
     "uuid_tombstone",
-    // Gedankenkarte (Runde 25): auch Verbindungen und Lagen schreibt keine Ablehnung.
+    // Idea map (Round 25): links and positions are not written by any rejection either.
     "idea_link",
     "idea_map_pos",
 ];
@@ -66,7 +66,7 @@ fn b64(bytes: &[u8]) -> String {
     baruch_store::encode_base64(bytes)
 }
 
-/// Multipart-Anfrage an `/austausch/vorschau` wie ein Browserformular (Felder `title`, `datei`).
+/// Multipart request to `/austausch/vorschau` like a browser form (fields `title`, `datei`).
 fn upload(file_name: &str, content: &[u8], title: &str) -> Request<Body> {
     let mut body = Vec::new();
     body.extend_from_slice(
@@ -101,12 +101,12 @@ fn inbox(server: &common::Server) -> Vec<String> {
     }
 }
 
-/// Container `.baruch` aus der Prüfdatei: Bilder als Einträge, Manifest zuletzt; `extra` hängt weitere Einträge an.
+/// Container `.baruch` from the test file: images as entries, manifest last; `extra` appends further entries.
 fn container(extra: &[(&str, &[u8])]) -> Vec<u8> {
     container_with(extra, false)
 }
 
-/// Wie [`container`]; mit `wrong_sum` nennt das Manifest für werk.xml eine falsche Prüfsumme.
+/// Like [`container`]; with `wrong_sum` the manifest names a wrong checksum for werk.xml.
 fn container_with(extra: &[(&str, &[u8])], wrong_sum: bool) -> Vec<u8> {
     let doc = baruch_exchange::read::read_xml(WERK.as_bytes(), &baruch_exchange::Limits::DEFAULT).unwrap();
     let png_daten =
@@ -152,7 +152,7 @@ fn container_with(extra: &[(&str, &[u8])], wrong_sum: bool) -> Vec<u8> {
     zip.finish().unwrap().into_inner()
 }
 
-/// Die Prüfdatei mit anderem Text der aktuellen Fassung von „Das Rad“ (wie auf der anderen Seite geändert).
+/// The test file with a different text of the current revision of „Das Rad“ (as changed on the other side).
 fn changed_xml() -> String {
     WERK.replace("Äpfel.  </text>", "Birnen.  </text>")
 }
@@ -226,7 +226,7 @@ async fn rpc_preview_and_import_follow_the_contract() {
     let meta = server.rpc("work.meta", json!({ "work": work })).await;
     assert_eq!(meta["result"]["work"]["title"], "Die Mühle am Bach", "Werk ist angelegt: {meta}");
 
-    // Zweiter gleicher Import als Abgleich: nichts kommt hinzu, kein Commit.
+    // Second identical import as a merge: nothing is added, no commit.
     let again =
         server.rpc("work.exchange_import", json!({ "data": b64(data), "sha256": sha(data), "mode": "merge" })).await;
     let total: u64 = again["result"]["added"].as_object().unwrap().values().map(|v| v.as_u64().unwrap()).sum();
@@ -258,7 +258,7 @@ async fn a_changed_text_shows_up_with_a_link_and_arrives_as_a_further_revision()
         "Link-Ziel key/rev: {deviation}"
     );
 
-    // Über die Formulare: Vorschau mit Link, Übernehmen mit Ergebnisseite.
+    // Through the forms: preview with link, accepting with result page.
     let (status, _, html) = server.send(upload("werk.baruch.xml", changed.as_bytes(), "")).await;
     assert_eq!(status, StatusCode::OK, "Vorschau: {html}");
     assert!(
@@ -371,7 +371,7 @@ async fn every_rejection_on_every_way_writes_nothing() {
         assert_eq!(counts(&server).await, before, "{what}: nichts geschrieben");
         assert!(inbox(&server).is_empty(), "{what}: keine Eingangsdatei");
     }
-    // Ablehnung erst im Übernehmen-Schritt (Modus passt nicht): nichts geschrieben, Eingangsdatei weg.
+    // Rejection only in the accept step (mode does not fit): nothing written, incoming file gone.
     let (status, _, _) = server.send(upload("werk.baruch.xml", WERK.as_bytes(), "")).await;
     assert_eq!(status, StatusCode::OK, "Vorschau geht");
     let (status, _, html) = server.send(take(&sha(WERK.as_bytes()), "merge", "")).await;
@@ -396,7 +396,7 @@ async fn a_container_reads_like_the_xml_file() {
     assert_eq!(bytes, 70, "PNG mit seinen Bytes");
 }
 
-// ---- Kommandozeile -----------------------------------------------------------------------------
+// ---- Command line ------------------------------------------------------------------------------
 
 fn cli(data: &std::path::Path, args: &[&str]) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_baruch-server"))

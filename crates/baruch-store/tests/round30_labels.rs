@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sprungmarken `<kN>` im Export, in der Export-Karte und im Spiegel, nicht in der Datenbank; Einlesen eines Exports
-//! entfernt sie und setzt Verweise auf die neuen Schlüssel um (Runde 30a, Vertrag §3.3). Texte frei erfunden.
+//! Jump labels `<kN>` in the export, in the export map and in the mirror, not in the database; importing an export
+//! removes them and maps references to the new keys (Round 30a, contract §3.3). Texts freely invented.
 
 use baruch_store::Store;
 use baruch_typst::xref::{anchor_line, find_xrefs, strip_key_labels, xref_snippet};
 use baruch_typst::{part_line, unnumbered_line};
 
-/// Werk mit Teil, „ohne Nummer“, eigenem Label und Verweisen auf den Teil und das Kapitel (Schlüssel aus einem
-/// früheren Export: 70 und 71).
+/// Work with part, „ohne Nummer“, own label and references to the part and the chapter (keys from an earlier export: 70
+/// and 71).
 fn source() -> String {
     format!(
         "#set heading(numbering: \"1.1\")\n{}Ein Wort vorab.\n\n{}\n= Leuchtturm <k71>\n\nDer Leuchtturm blinkt.\n\n\
@@ -69,7 +69,7 @@ async fn headings_with_their_own_label_get_an_anchor_line() {
 async fn importing_an_export_strips_labels_and_remaps_references() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
-    // Die Quelle stammt aus einem fremden Export: Sprungmarken k70 (Teil, über die Ankerzeile) und k71 (Kapitel).
+    // The source comes from a foreign export: jump labels k70 (part, through the anchor line) and k71 (chapter).
     let text = source().replace(&part_line("Vom Hafen"), &format!("{}{}\n", part_line("Vom Hafen"), anchor_line(70)));
     let work = store.import_typst(&text, "hafen.typ", "Ida").await.unwrap().work;
     let loaded = store.load_work(work).await.unwrap();
@@ -88,7 +88,7 @@ async fn importing_an_export_strips_labels_and_remaps_references() {
         bodies[3]
     );
 
-    // Rundreise: der Export dieses Werks wieder eingelesen ergibt dieselben Texte mit neuen Schlüsseln.
+    // Round trip: the export of this work imported again yields the same texts with new keys.
     let exported = store.export_typst(work).await.unwrap();
     let again =
         store.import_typst_titled(&exported, "hafen2.typ", "Ida", "Import", Some("Hafen 2")).await.unwrap().work;

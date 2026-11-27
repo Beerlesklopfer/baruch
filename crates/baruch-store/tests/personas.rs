@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Farbe je Persona im Store (Migration 0010, Vertrag Runde 7, „proposals“): Vorgabe aus der Palette
-//! nach Reihenfolge, Setzen und Zurücksetzen, Ablehnung unbekannter Personas und ungültiger Farben
-//! ohne Änderung, Wache in der Datenbank (CHECK).
+//! Colour per persona in the store (migration 0010, contract Round 7, „proposals“): default from the palette by order,
+//! setting and resetting, rejection of unknown personas and invalid colours without a change, guard in the database
+//! (CHECK).
 
 use baruch_core::sample;
 use baruch_store::{PERSONA_PALETTE, Store, StoreError};

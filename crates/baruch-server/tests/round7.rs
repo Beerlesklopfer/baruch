@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ende-zu-Ende-Tests der Runde 7 (Integrator): der Buch-Fehler „Absatz wird Titel“ und die
-//! Titelregeln auf allen Wegen, Vorschläge zweier Personas im Lesefluss in ihren Farben (einer
-//! übernommen, einer gefaltet), ein Einfall über MCP angelegt, in der Oberfläche als
-//! Gliederungspunkt verarbeitet, gelöscht und wiederhergestellt (mit `einfaelle.md` und Commits im
-//! Spiegel), und die Migrationen 0010 und 0011 gemeinsam auf einer Datenbank im Stand development
-//! über einen vollen Serverstart. Echter Datenordner im Temp-Ordner; alle Texte frei erfunden.
+//! End-to-end tests of Round 7 (integrator): the book bug „Absatz wird Titel“ and the title rules on all ways,
+//! proposals of two personas in the reading flow in their colours (one accepted, one folded), an idea created over MCP,
+//! processed in the user interface as an outline item, deleted and restored (with `einfaelle.md` and commits in the
+//! mirror), and the migrations 0010 and 0011 together on a database in the state development through a full server
+//! start. Real data directory in the temp directory; all texts freely invented.
 
 use crate::common;
 
@@ -35,7 +34,7 @@ fn last_message(dir: &Path) -> Option<String> {
     common::git(dir, &["log", "-1", "--format=%an%n%B"])
 }
 
-/// Gliederung als (Titel, Ebene, Schlüssel, erste Zeile der aktuellen Fassung), Teile ausgelassen.
+/// Outline as (title, level, key, first line of the current revision), parts left out.
 async fn outline(server: &common::Server, work: i64) -> Vec<(String, u8, i64, String)> {
     let loaded = result(&server.rpc("work.get", json!({ "work": work })).await, "work.get");
     let nodes = loaded["work"]["nodes"].as_array().unwrap().clone();
@@ -74,7 +73,7 @@ async fn body_of(server: &common::Server, work: i64, key: i64) -> String {
     current["body"].as_str().unwrap().to_owned()
 }
 
-/// Wie das Satzbild speichert: parse → serialize mit den Anweisungen → check → save.
+/// As the typeset view saves: parse → serialize with the instructions → check → save.
 async fn save_from_sheet(server: &common::Server, work: i64, key: i64, edits: Value) -> Value {
     let body = body_of(server, work, key).await;
     result(&server.rpc("wysiwyg.parse", json!({ "work": work, "body": body })).await, "wysiwyg.parse");
@@ -90,7 +89,7 @@ async fn save_from_sheet(server: &common::Server, work: i64, key: i64, edits: Va
     server.rpc("outline.save", json!({ "work": work, "key": key, "body": text, "split": split })).await
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Sitzung: Client `@mcp:unbekannt`).
+/// MCP request from the own machine (without a session: client `@mcp:unbekannt`).
 async fn mcp(server: &common::Server, tool: &str, arguments: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 9, "method": "tools/call",
         "params": { "name": tool, "arguments": arguments } });
@@ -110,7 +109,7 @@ fn form(fields: &[(&str, &str)]) -> String {
 
 const LEAVES: &str = "Im Oktober färbt sich der Ahorn hinter Annas Laube rot, und die Amseln suchen im Laub.";
 
-// ---- Buch-Fehler und Titelregeln --------------------------------------------------------------
+// ---- Book bug and title rules -----------------------------------------------------------------
 
 #[tokio::test]
 async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refused_on_every_way() {
@@ -120,7 +119,7 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
     let mirror = server.mirror_dir_of(&report.slug);
     let summer = key_of(&outline(&server, work).await, "Sommer");
 
-    // Neues Kapitel und ein Abschnitt darunter, wie im Baum.
+    // New chapter and a section below it, as in the tree.
     result(
         &server
             .rpc("outline.add", json!({ "work": work, "target_key": summer, "place": "after", "title": "Herbst" }))
@@ -136,8 +135,8 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
     );
     let maple = key_of(&outline(&server, work).await, "Ahorn");
 
-    // Satzbild: hinter dem Titel ein Zeilenumbruch und ein Absatz (so schickte es das alte Widget),
-    // dazu zwei weitere Absätze.
+    // Typeset view: after the title a line break and a paragraph (this is how the old widget sent it), plus two further
+    // paragraphs.
     let edits = json!([
         { "replaces": 0, "block": { "kind": "heading", "level": 2, "inlines": [
             { "t": "text", "v": "Ahorn" }, { "t": "soft" }, { "t": "text", "v": LEAVES } ] } },
@@ -150,7 +149,7 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
         format!("== Ahorn\n\n{LEAVES}\n\nDann kommt der Frost.\n\nDie Beete ruhen.\n\n"),
         "die Absätze stehen unter der Überschrift, nicht in ihr"
     );
-    // Ebene ändern: über die Gliederung und über die Format-Auswahl im Satzbild.
+    // Change the level: through the outline and through the format selection in the typeset view.
     result(&server.rpc("outline.set_level", json!({ "work": work, "key": maple, "level": 1 })).await, "Ebene 1");
     assert_titles_match_headings(&outline(&server, work).await, "nach outline.set_level");
     let edits = json!([
@@ -167,7 +166,7 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
         "kein Absatz wurde Titel, kein Punkt kam hinzu"
     );
 
-    // Titelregeln: leer, mehrzeilig, 201 Zeichen – über das Baum-Formular, RPC und MCP.
+    // Title rules: empty, multi-line, 201 characters – through the tree form, RPC and MCP.
     let long = "a".repeat(201);
     let export_before = result(&server.rpc("work.export", json!({ "work": work })).await, "export")["typst"].clone();
     let commits_before = commits(&mirror);
@@ -188,8 +187,8 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
         ]);
         let (status, _) = server.post_form("/gliederung/act", &fields).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Baum-Formular „{title:?}“ → 422");
-        // Über MCP steht ein Titel nur in der Überschriftszeile eines Vorschlags; ein Zeilenumbruch
-        // beendet sie dort (der Rest ist Text), darum nur leer und zu lang.
+        // Over MCP a title stands only in the heading line of a proposal; a line break ends it there (the rest is
+        // text), therefore only empty and too long.
         if !title.contains('\n') {
             let body = format!("== {title}\n\nText.\n");
             let answer = mcp(
@@ -210,7 +209,7 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
     assert_eq!(commits(&mirror), commits_before, "keine Ablehnung hat einen Commit erzeugt");
 }
 
-// ---- Vorschläge im Lesefluss ------------------------------------------------------------------
+// ---- Proposals in the reading flow ------------------------------------------------------------
 
 async fn page_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> String {
     let request = Request::get(uri).header(header::COOKIE, cookie).body(Body::empty()).unwrap();
@@ -219,7 +218,7 @@ async fn page_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> S
     html
 }
 
-/// Öffnendes `<details …>` des Vorschlags `<key>-<rev>`, falls da.
+/// Opening `<details …>` of the proposal `<key>-<rev>`, if present.
 fn pv_tag(html: &str, key: i64, rev: u32) -> Option<&str> {
     let at = html.find(&format!("data-pv=\"{key}-{rev}\""))?;
     let start = html[..at].rfind("<details")?;
@@ -250,7 +249,7 @@ async fn two_personas_propose_in_two_colors_one_is_folded_and_the_other_accepted
     let color = |handle: &str| colors.iter().find(|c| c.handle == handle).unwrap().color.clone();
     assert_ne!(color("@lektor"), color("@nathan"), "zwei Personas haben verschiedene Vorgabefarben");
 
-    // Nathans Vorschlag ist gefaltet (Cookie), der des Lektors offen; beide in ihrer Farbe.
+    // Nathan's proposal is folded (cookie), the lector's open; both in their colour.
     let cookie = format!("baruch_folded={seed}-{nathan}");
     let uri = format!("/?work={work}&node={seq}&rev=1");
     let html = page_with_cookie(&server, &uri, &cookie).await;
@@ -266,14 +265,14 @@ async fn two_personas_propose_in_two_colors_one_is_folded_and_the_other_accepted
         html.find(&format!("data-pv=\"{seed}-{lektor}\"")) < html.find(&format!("data-pv=\"{seed}-{nathan}\"")),
         "Reihenfolge der Personas: Lektor vor Nathan"
     );
-    // Auch in der Vorschau (Lesefluss über das Kapitel) stehen beide hinter dem Abschnitt.
+    // In the preview (reading flow across the chapter) both stand after the section as well.
     let preview = page_with_cookie(&server, &format!("{uri}&view=preview"), &cookie).await;
     assert!(
         pv_tag(&preview, seed, lektor).is_some() && pv_tag(&preview, seed, nathan).is_some(),
         "Vorschau zeigt beide Vorschläge"
     );
 
-    // Übernehmen per Formular (ohne JavaScript): genau ein Commit, Lektors Fassung wird aktuell.
+    // Accept via form (without JavaScript): exactly one commit, the lector's revision becomes current.
     let before = commits(&mirror);
     let fields = format!("method=revision.accept&work={work}&node={seq}&key={seed}&rev={lektor}&view=edit");
     let (status, location) = server.post_form("/act", &fields).await;
@@ -291,7 +290,7 @@ async fn two_personas_propose_in_two_colors_one_is_folded_and_the_other_accepted
     assert!(!nathan_tag.contains(" open"), "und bleibt gefaltet: {nathan_tag}");
 }
 
-// ---- Einfälle -------------------------------------------------------------------------------
+// ---- Ideas ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_idea_from_mcp_becomes_an_outline_point_in_the_ui_and_survives_delete_and_restore() {
@@ -303,7 +302,7 @@ async fn an_idea_from_mcp_becomes_an_outline_point_in_the_ui_and_survives_delete
     let ideas_file = mirror.join("einfaelle.md");
     assert!(!ideas_file.exists(), "ohne Einfälle keine einfaelle.md");
 
-    // Anlegen über MCP als Persona.
+    // Create over MCP as a persona.
     let created = mcp(
         &server,
         "idea_create",
@@ -330,7 +329,7 @@ async fn an_idea_from_mcp_becomes_an_outline_point_in_the_ui_and_survives_delete
         }
     }
 
-    // In der Oberfläche verarbeiten: erst ein mehrzeiliger Titel (abgelehnt, bleibt offen), dann gültig.
+    // Process in the user interface: first a multi-line title (rejected, stays open), then a valid one.
     let id_text = id.to_string();
     let bad = form(&[("method", "idea.process"), ("id", &id_text), ("as", "outline"), ("title", "Kompost\nWurm")]);
     let (status, _) = server.post_form("/einfaelle/act", &bad).await;
@@ -359,7 +358,7 @@ async fn an_idea_from_mcp_becomes_an_outline_point_in_the_ui_and_survives_delete
         assert!(log.contains("Baruch-Action: outline-add"), "und der Gliederungs-Commit: {log}");
     }
 
-    // Löschen über MCP (wiederherstellbar), Wiederherstellen in der Oberfläche.
+    // Delete over MCP (restorable), restore in the user interface.
     let deleted = mcp(&server, "idea_delete", json!({ "id": id, "persona": "@lektor" })).await;
     assert_eq!(deleted["result"]["isError"], false, "idea_delete gelingt: {deleted}");
     assert!(!ideas_file.exists(), "ohne vorhandene Einfälle verschwindet einfaelle.md");
@@ -380,7 +379,7 @@ async fn an_idea_from_mcp_becomes_an_outline_point_in_the_ui_and_survives_delete
     assert!(page.contains("Der Kompost &lt;wärmt&gt; &amp; nährt."), "maskiert in der Liste");
 }
 
-// ---- Migrationen 0010 und 0011 gemeinsam -----------------------------------------------------
+// ---- Migrations 0010 and 0011 together -------------------------------------------------------
 
 const MILL: &str = "#set document(title: \"Die Gartenmühle\", author: \"Ida Feder\")\n\
 #let korn(body) = block(inset: 3pt, body)\n\n\
@@ -398,7 +397,7 @@ async fn raw_pool(dir: &Path) -> SqlitePool {
     SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap()
 }
 
-/// Store 0001–0009 und Bibliothek 0101–0105: der Stand von development vor Runde 7.
+/// Store 0001–0009 and library 0101–0105: the state of development before Round 7.
 async fn migrate_like_development(pool: &SqlitePool) {
     let store: Vec<_> = baruch_store::MIGRATOR.iter().filter(|m| m.version <= 9).cloned().collect();
     Migrator { migrations: Cow::Owned(store), ignore_missing: true, ..Migrator::DEFAULT }.run(pool).await.unwrap();
@@ -417,7 +416,7 @@ async fn exec(pool: &SqlitePool, sql: &str, binds: &[&str]) -> i64 {
     query.fetch_optional(pool).await.unwrap().unwrap_or(0)
 }
 
-/// Werk wie ein Import in development, mit Personas, einem Vorschlag, einem Beitrag und einem Bild.
+/// Work like an import in development, with personas, one proposal, one post and one image.
 async fn insert_development_work(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(MILL).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -502,8 +501,8 @@ async fn insert_development_work(pool: &SqlitePool) -> i64 {
         &[&asset, WHEEL, &WHEEL.len().to_string()],
     )
     .await;
-    // In development lehnte der Store `./` in Pfaden ab: das Bild hängt an `bilder/rad.svg`, der Text
-    // schreibt `./bilder/rad.svg` (Normalform seit Runde 7 findet es).
+    // In development the store rejected `./` in paths: the image hangs at `bilder/rad.svg`, the text writes
+    // `./bilder/rad.svg` (the normal form since Round 7 finds it).
     exec(
         pool,
         "INSERT INTO asset_path (work_id, path, asset_id) VALUES (?, 'bilder/rad.svg', ?)",
@@ -511,8 +510,8 @@ async fn insert_development_work(pool: &SqlitePool) -> i64 {
     )
     .await;
     exec(pool, "INSERT OR REPLACE INTO store_meta (key, value) VALUES ('seeded', '1')", &[]).await;
-    // Die Umwandlung alter Teiltexte beim Start (Nutzerfrage 8) prüft `round14_conversion.rs`; hier geht es nur um die
-    // Migrationen, darum gilt sie als erledigt (Merker `parts_marked_r14`).
+    // The conversion of old part texts at start (user question 8) is checked by `round14_conversion.rs`; this is only
+    // about the migrations, therefore it counts as done (flag `parts_marked_r14`).
     exec(pool, "INSERT OR REPLACE INTO store_meta (key, value) VALUES (?, '1')", &[baruch_store::CONVERTED_KEY]).await;
     work
 }
@@ -565,12 +564,12 @@ async fn migrations_0010_and_0011_together_keep_a_development_database_lossless(
     let before = rows(&pool, &old_columns).await;
     pool.close().await;
 
-    // Voller Serverstart: Store::open (0010, 0011), Bibliothek, keine Saat, Spiegel nachführen.
+    // Full server start: Store::open (0010, 0011), library, no seed, bring the mirror up to date.
     let state = baruch_server::AppState::open(data.path()).await.expect("Start auf der Datenbank von development");
     let pool = state.store.pool().clone();
     let mut after = rows(&pool, &old_columns).await;
-    // Migration 0041 (Runde 26) trägt die Instanzkennung als neue Zeile in store_meta ein; das ist eine
-    // Ergänzung, keine Änderung einer alten Zeile. Genau diese eine Zeile nimmt der Vergleich heraus.
+    // Migration 0041 (Round 26) enters the instance identifier as a new row in store_meta; that is an addition, not a
+    // change of an old row. The comparison takes out exactly this one row.
     if let Some(meta) = after.get_mut("store_meta") {
         let count = meta.len();
         meta.retain(|row| !row.starts_with("'instance_uuid'\u{1f}"));
@@ -581,7 +580,7 @@ async fn migrations_0010_and_0011_together_keep_a_development_database_lossless(
     for (table, cols) in &old_columns {
         assert_eq!(&new_columns[table][..cols.len()], &cols[..], "{table}: alte Spalten in alter Reihenfolge");
     }
-    // Hinter color dürfen spätere Migrationen weitere Spalten anhängen (0015: prompt).
+    // After color later migrations may append further columns (0015: prompt).
     let persona_old = old_columns["persona"].len();
     assert_eq!(
         new_columns["persona"].get(persona_old).map(String::as_str),
@@ -622,7 +621,8 @@ async fn migrations_0010_and_0011_together_keep_a_development_database_lossless(
         "Vorgabefarben nach Reihenfolge der Personas"
     );
 
-    // Nach der Migration: Satzbild findet das Bild mit ./-Pfad, Vorschlag im Lesefluss, Einfall anlegbar.
+    // After the migration: the typeset view finds the image with a ./ path, proposal in the reading flow, an idea can
+    // be created.
     let state = std::sync::Arc::new(state);
     let server = common::Server { app: baruch_server::router(state.clone()), state, data };
     let (status, html) = server.get(&format!("/?work={work}&node=1")).await;
@@ -635,7 +635,7 @@ async fn migrations_0010_and_0011_together_keep_a_development_database_lossless(
         server.rpc("idea.create", json!({ "work": work, "words": "Mühle, Korn", "note": "Mahlgang prüfen" })).await;
     result(&created, "Einfall nach der Migration");
 
-    // Ein zweiter Start ändert nichts mehr.
+    // A second start changes nothing any more.
     let all = table_columns(&pool).await;
     let once = rows(&pool, &all).await;
     let migrations_once = count(&pool, "SELECT count(*) FROM _sqlx_migrations").await;

@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 37 „Hilfe auf der Webseite“, Besitz hilfe_text: die Hilfeseiten unter `site/content/de/hilfe/` und der
-//! Einstieg `docs/Bedienung.md`.
+//! Round 37 „Hilfe auf der Webseite“, owner hilfe_text: the help pages under `site/content/de/hilfe/` and the entry
+//! point `docs/Bedienung.md`.
 //!
-//! Die Hilfe ist seit Runde 37 die einzige Beschreibung der Bedienung für Anwender (Vertrag §1). Diese Tests lesen
-//! nur Dateien des Repos: kein Server, kein Netz, kein Datenordner, kein Hugo. Ob die Seiten bauen, prüft
-//! `hugo --minify --panicOnWarning -s site` (CI `scripts/ci-site.sh`); hier steht, was Hugo nicht merkt – fehlende
-//! Seiten, Platzhalter, Überschriften ohne Anker oder Bild, unbenutzte Bildnamen, Verweise ins Leere, verbotene
-//! Wörter.
+//! Since Round 37 the help is the only description of the operation for users (contract §1). These tests read only
+//! files of the repository: no server, no network, no data directory, no Hugo. Whether the pages build is checked by
+//! `hugo --minify --panicOnWarning -s site` (CI `scripts/ci-site.sh`); here is what Hugo does not notice – missing
+//! pages, placeholders, headings without anchor or image, unused image names, dangling references, forbidden words.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-/// Die 14 Seiten der Hilfe mit Titel und Gewicht aus dem Vertrag (§5); der Einstieg `_index.md` kommt dazu.
+/// The 14 pages of the help with title and weight from the contract (§5); the entry point `_index.md` is added.
 const PAGES: [(&str, u32, &str); 14] = [
     ("erste-schritte", 10, "Erste Schritte"),
     ("einlesen", 20, "Vorhandene Texte einlesen"),
@@ -29,7 +28,7 @@ const PAGES: [(&str, u32, &str); 14] = [
     ("tasten", 140, "Tasten und Maus"),
 ];
 
-/// Feste Anker der Hilfe (Vertrag §5): Die übrigen Seiten der Webseite verlinken darauf.
+/// Fixed anchors of the help (contract §5): the other pages of the website link to them.
 const FIXED_ANCHORS: [(&str, &str); 19] = [
     ("erste-schritte", "starten"),
     ("erste-schritte", "beenden"),
@@ -52,8 +51,8 @@ const FIXED_ANCHORS: [(&str, &str); 19] = [
     ("konten", "lektoren"),
 ];
 
-/// Feste Anker der übrigen Seiten (Vertrag §5, garantiert von der Aufgabe „webseite“): Nur darauf – oder auf die
-/// Seite selbst – darf die Hilfe verlinken.
+/// Fixed anchors of the other pages (contract §5, guaranteed by the task „webseite“): only to them – or to the page
+/// itself – may the help link.
 const FOREIGN_TARGETS: [&str; 12] = [
     "/installation/",
     "/installation/#bibeln-einrichten",
@@ -81,25 +80,25 @@ fn page(name: &str) -> String {
     read(&format!("site/content/de/hilfe/{name}.md"))
 }
 
-/// Alle Seiten der Hilfe: der Einstieg und die 14 Seiten, als (Name, Text).
+/// All pages of the help: the entry point and the 14 pages, as (name, text).
 fn all_pages() -> Vec<(String, String)> {
     std::iter::once("_index").chain(PAGES.iter().map(|p| p.0)).map(|name| (name.to_string(), page(name))).collect()
 }
 
-/// Kopf (zwischen den beiden `---`) und Rumpf einer Seite.
+/// Head (between the two `---`) and body of a page.
 fn split(name: &str, text: &str) -> (String, String) {
     let rest = text.strip_prefix("---\n").unwrap_or_else(|| panic!("{name}.md beginnt mit dem Kopf (---)"));
     let (head, body) = rest.split_once("\n---\n").unwrap_or_else(|| panic!("{name}.md schließt den Kopf mit ---"));
     (head.to_string(), body.to_string())
 }
 
-/// Wert einer Kopfzeile `feld: "wert"` bzw. `feld: wert`.
+/// Value of a head line `feld: "wert"` or `feld: wert`.
 fn field(head: &str, name: &str) -> Option<String> {
     head.lines()
         .find_map(|line| line.strip_prefix(&format!("{name}:")).map(|value| value.trim().trim_matches('"').to_string()))
 }
 
-/// Zeilen des Rumpfs ohne die Zeilen in Codeblöcken (dort sind `#` Kommentare der Shell, keine Überschriften).
+/// Lines of the body without the lines in code blocks (there `#` are comments of the shell, not headings).
 fn prose_lines(body: &str) -> Vec<&str> {
     let mut code = false;
     let mut lines = Vec::new();
@@ -115,7 +114,7 @@ fn prose_lines(body: &str) -> Vec<&str> {
     lines
 }
 
-/// Anker einer Überschriftszeile (`## Titel {#anker}`), wenn sie einen trägt.
+/// Anchor of a heading line (`## Titel {#anker}`) if it carries one.
 fn anchor(line: &str) -> Option<&str> {
     let start = line.rfind("{#")?;
     let anchor = line[start + 2..].strip_suffix('}')?;
@@ -123,7 +122,7 @@ fn anchor(line: &str) -> Option<&str> {
     fine.then_some(anchor)
 }
 
-/// Alle Anker einer Seite.
+/// All anchors of a page.
 fn anchors(body: &str) -> BTreeSet<String> {
     prose_lines(body)
         .iter()
@@ -133,14 +132,14 @@ fn anchors(body: &str) -> BTreeSet<String> {
         .collect()
 }
 
-/// Parameter `name="wert"` eines Shortcode-Aufrufs.
+/// Parameter `name="wert"` of a shortcode call.
 fn param<'a>(call: &'a str, name: &str) -> Option<&'a str> {
     let start = call.find(&format!("{name}=\""))? + name.len() + 2;
     let end = call[start..].find('"')?;
     Some(&call[start..start + end])
 }
 
-/// Alle Aufrufe `{{< hilfebild … >}}` einer Seite (der Text zwischen den Klammern).
+/// All calls `{{< hilfebild … >}}` of a page (the text between the brackets).
 fn image_calls(body: &str) -> Vec<&str> {
     let mut calls = Vec::new();
     let mut rest = body;
@@ -154,8 +153,8 @@ fn image_calls(body: &str) -> Vec<&str> {
     calls
 }
 
-/// Die Bildliste `site/data/hilfebilder.toml`: Name → Seiten. Einfache Zeilensuche (`name = "…"`, `seite = […]`),
-/// damit eigene Felder der Aufgabe „bilder“ nicht stören.
+/// The image list `site/data/hilfebilder.toml`: name → pages. Simple line search (`name = "…"`, `seite = […]`), so that
+/// own fields of the task „bilder“ do not interfere.
 fn image_list() -> BTreeMap<String, Vec<String>> {
     let text = read("site/data/hilfebilder.toml");
     let mut list = BTreeMap::new();
@@ -180,12 +179,12 @@ fn image_list() -> BTreeMap<String, Vec<String>> {
     list
 }
 
-/// Ziele aller Markdown-Links `](ziel)` einer Seite. Codeblöcke und Code im Text (zwischen Backticks) zählen nicht:
-/// Dort steht Markdown als Beispiel, kein Verweis.
+/// Targets of all Markdown links `](ziel)` of a page. Code blocks and code in the text (between backticks) do not
+/// count: there Markdown stands as an example, not as a reference.
 fn link_targets(body: &str) -> Vec<String> {
     let mut targets = Vec::new();
     for line in prose_lines(body) {
-        // Jedes zweite Stück zwischen Backticks ist Code.
+        // Every second piece between backticks is code.
         let text: String = line.split('`').step_by(2).collect::<Vec<_>>().join(" ");
         let mut rest = text.as_str();
         while let Some(start) = rest.find("](") {
@@ -364,7 +363,7 @@ fn every_heading_has_an_anchor_and_every_section_a_picture_or_an_exemption() {
             .unwrap_or_default();
         let lines = prose_lines(&body);
         let mut seen = BTreeSet::new();
-        // Abschnitte der zweiten Ebene: (Anker, Zeilen bis zur nächsten `## `).
+        // Sections of the second level: (anchor, lines up to the next `## `).
         let mut sections: Vec<(String, Vec<&str>)> = Vec::new();
         for line in &lines {
             if line.starts_with('#') {
@@ -463,7 +462,7 @@ fn links_lead_to_existing_help_anchors_or_to_the_fixed_anchors_of_the_other_page
 
 #[test]
 fn the_help_speaks_plainly_and_contains_nothing_forbidden() {
-    // (Suchtext, Begründung). Die Namen Dritter sind zusammengesetzt, damit dieser Test sie nicht selbst enthält.
+    // (search text, reason). The names of third parties are assembled so that this test does not contain them itself.
     let forbidden: Vec<(String, &str)> = vec![
         ("{{< doku".into(), "kein doku-Shortcode: die Hilfe verweist nicht ins Repository"),
         ("doku ".into(), "kein doku-Shortcode und kein Verweis auf „die Doku“ im Repository"),
@@ -489,8 +488,8 @@ fn the_help_speaks_plainly_and_contains_nothing_forbidden() {
         (["Depen", "denz"].concat(), "kein Titel des Buchs eines Dritten"),
         (["Narz", "issmus"].concat(), "kein Untertitel des Buchs eines Dritten"),
     ];
-    // Routen der Oberfläche als Bedienanweisung („`/werke/…` aufrufen“) gehören nicht in die Hilfe; eingetippt wird
-    // nur die Adresse des Programms selbst.
+    // Routes of the user interface as an operating instruction („`/werke/…` aufrufen“) do not belong in the help; only
+    // the address of the program itself is typed in.
     let routes = [
         "/werke/",
         "/einstellungen/",
@@ -524,7 +523,7 @@ fn the_help_speaks_plainly_and_contains_nothing_forbidden() {
                 !line.trim_start().starts_with('<') && !line.contains("</") && !line.contains("<br"),
                 "{name}.md enthält kein rohes HTML (unsafe = false; Hugo ließe es weg und warnte): {line}"
             );
-            // Verweise ab „/hilfe/…“, „/installation/…“, „/mcp/…“, „/betrieb/…“ sind Links, keine Routen.
+            // References starting with „/hilfe/…“, „/installation/…“, „/mcp/…“, „/betrieb/…“ are links, not routes.
             let without_links: String = {
                 let mut rest = line;
                 let mut out = String::new();
@@ -536,7 +535,7 @@ fn the_help_speaks_plainly_and_contains_nothing_forbidden() {
                 out.push_str(rest);
                 out
             };
-            // Code, der mit „/“ und einem Buchstaben beginnt, wäre eine Route (`/werke`); `// Stichwort: …` ist keine.
+            // Code that begins with „/“ and a letter would be a route (`/werke`); `// Stichwort: …` is none.
             let coded_route = without_links
                 .match_indices("`/")
                 .any(|(at, _)| without_links[at + 2..].chars().next().is_some_and(|c| c.is_ascii_alphabetic()));
@@ -591,12 +590,12 @@ fn keys_are_given_for_both_worlds() {
         "wo der Code nur Strg bzw. nur das erzeugte Zeichen kennt, steht das ehrlich da (Mausrad: nur ctrlKey; Alt+L \
          und Alt+, werten nur event.key aus)"
     );
-    // Auf den übrigen Seiten steht hinter jeder Strg-Taste die Mac-Taste in derselben Zeile oder der Zeile danach.
+    // On the other pages every Strg key is followed by the Mac key in the same line or the line after it.
     for (name, _, _) in PAGES.iter().filter(|p| p.0 != "tasten") {
         let (_, body) = split(name, &page(name));
         let lines = prose_lines(&body);
         for (number, line) in lines.iter().enumerate() {
-            // Überschriften nennen die Taste nur als Namen des Abschnitts; die Mac-Taste steht im Text darunter.
+            // Headings name the key only as the name of the section; the Mac key is in the text below.
             if !line.contains("Strg+") || line.starts_with('#') {
                 continue;
             }
@@ -642,7 +641,7 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
     );
 
     let table = guide.split("\n## Wo steht was\n").nth(1).unwrap().split("\n## ").next().unwrap();
-    // Jede `##`-Überschrift der früheren Datei (Stand 00537dd) – wörtlich, damit keine beim Verteilen verloren geht.
+    // Every `##` heading of the former file (state 00537dd) – verbatim, so that none is lost in the distribution.
     let old_sections = [
         "Starten",
         "Typst- oder Markdown-Datei importieren",
@@ -705,7 +704,7 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
             "der frühere Abschnitt „{section}“ führt zu mindestens einer Hilfeseite: {row}"
         );
     }
-    // Jede genannte Seite gibt es, und jeder genannte Anker steht auf der Seite, die in der Zeile davor genannt ist.
+    // Every named page exists, and every named anchor is on the page that is named in the line before it.
     let mut pairs = 0;
     for row in table.lines().filter(|line| line.starts_with("| ")) {
         let mut current: Option<&str> = None;

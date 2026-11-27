@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Varianten und Lösungen im Store (Runde 30b, Migration 0047; Besitz danach chat-loesungen). S1 prüft die voll
-//! umgesetzten Abfragen `add_proposal_on`, `variant_group`, `revision_tree` (Kennzeichen `variant`) und
-//! `finding_set_solutions`. Echte SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! Variants and solutions in the store (Round 30b, migration 0047; owner afterwards chat-loesungen). S1 checks the
+//! fully implemented queries `add_proposal_on`, `variant_group`, `revision_tree` (marker `variant`) and
+//! `finding_set_solutions`. Real SQLite file in the temp directory, test texts freely invented.
 
 use baruch_core::{Author, Post, RevisionStatus};
 use baruch_store::{FindingKind, NewFinding, Solution, Store, StoreError, VariantInfo, WorkId};
@@ -31,7 +31,7 @@ fn variant(label: &str) -> VariantInfo {
 #[tokio::test]
 async fn variants_are_siblings_on_the_same_base_and_carry_their_label() {
     let (_dir, store, work) = bridge().await;
-    // Eine neuere aktuelle Fassung: die Varianten hängen trotzdem an der gewählten Basis 1.
+    // A newer current revision: the variants hang at the chosen base 1 nevertheless.
     store.save_human(work, 0, "= Das Brückenbuch\n\nDie Brücke trägt.\n", "Ida").await.unwrap();
     let body_a = "= Das Brückenbuch\n\nDie Brücke spannt sich.\n";
     let body_b = "= Das Brückenbuch\n\nÜber den Fluss führt die Brücke.\n";
@@ -122,7 +122,7 @@ async fn solutions_of_a_finding_are_replaced_and_read_back() {
     );
 }
 
-// ---- Runde 30b (chat-loesungen): Gruppe → Abschnitt, Austausch Unterversion 5 ------------------------------------
+// ---- Round 30b (chat-loesungen): group → section, exchange minor version 5 ---------------------------------------
 
 #[tokio::test]
 async fn a_variant_group_names_its_section_and_an_unknown_group_none() {
@@ -178,7 +178,7 @@ async fn an_imported_u5_file_brings_solutions_variants_and_post_links_into_the_d
     let (_dir, store) = open_empty().await;
     let doc = sample_document();
     let work = store.exchange_apply(&doc, SHA30, ApplyMode::New, None).await.unwrap().work;
-    // Variante A der Gruppe 390 mit dem Befund 310 (über die Kennung auf die hiesige id umgesetzt).
+    // Variant A of group 390 with finding 310 (mapped to the local id through the identifier).
     let row: (Option<String>, Option<String>, String, String) = sqlx::query_as(
         "SELECT variant_group, variant_label, variant_summary, variant_findings FROM revision WHERE uuid = ?",
     )
@@ -206,7 +206,7 @@ async fn an_imported_u5_file_brings_solutions_variants_and_post_links_into_the_d
         }],
         "Lösung des Befunds wie in der Datei"
     );
-    // Beitrag: Grundlage als Nummer der Fassung 111 (Nummer 1), Kopfzeile; Antwort auf Beitrag 30.
+    // Post: basis as the number of revision 111 (number 1), header line; answer to post 30.
     let post_30 = id_of(&store, "post", &sample_uuid(30)).await;
     let post_31 = id_of(&store, "post", &sample_uuid(31)).await;
     let meta = store.post_meta(work, &[post_30, post_31]).await.unwrap();
@@ -214,7 +214,7 @@ async fn an_imported_u5_file_brings_solutions_variants_and_post_links_into_the_d
     assert_eq!(meta[&post_30].basis_label, "geprüft: aktuelle Fassung 1", "Kopfzeile aus der Datei");
     assert_eq!(meta[&post_31].reply_to, Some(post_30), "Antwort auf den Beitrag derselben Stelle");
     assert_eq!(meta[&post_31].request, None, "der Auftrag reist nicht mit (lokal)");
-    // Fadenbeitrag: Relay, Antwort, Wiederholung, Kopfzeile.
+    // Thread post: relay, answer, repetition, header line.
     let thread_post = id_of(&store, "chat_thread_post", &sample_uuid(52)).await;
     let first = id_of(&store, "chat_thread_post", &sample_uuid(51)).await;
     let tmeta = store.thread_post_meta(work, &[thread_post]).await.unwrap();
@@ -224,7 +224,7 @@ async fn an_imported_u5_file_brings_solutions_variants_and_post_links_into_the_d
         (Some("@lektor"), Some(first), Some(first), "geprüft: Faden"),
         "Metadaten des Fadenbeitrags"
     );
-    // Und zurück: die Ausgabe dieser Instanz trägt dieselben Teile.
+    // And back: the output of this instance carries the same parts.
     let dumped = store.exchange_dump(work).await.unwrap();
     assert_eq!(dumped.findings, doc.work.findings, "Befunde samt Lösungen zurück");
     assert_eq!(dumped.threads, doc.work.threads, "Fäden samt Metadaten zurück");
@@ -236,7 +236,7 @@ async fn a_merge_never_changes_known_rows_and_cross_references_follow_the_local_
     use baruch_store::exchange_apply::ApplyMode;
     let (_dir, store) = open_empty().await;
     let mut doc = sample_document();
-    // Ein Querverweis im Vorschlag 113 auf „Das Seil“ (sein Schlüssel in der ausgebenden Instanz).
+    // A cross-reference in proposal 113 to „Das Seil“ (its key in the exporting instance).
     let rope_key = find_node(&mut doc.work.outline, &sample_uuid(12)).unwrap().key.unwrap();
     let bucket = find_node(&mut doc.work.outline, &sample_uuid(11)).unwrap();
     bucket.revisions[2].body = format!("== Der Eimer\n\nSiehe #link(<k{rope_key}>)[das Seil].\n");
@@ -256,7 +256,7 @@ async fn a_merge_never_changes_known_rows_and_cross_references_follow_the_local_
             "der Verweis zeigt auf den hiesigen Schlüssel {local_rope} statt {rope_key}: {body}"
         );
     } else {
-        // Ehrlich: remap_keys ist bis zur Zusammenführung mit suchen-verweise (R30a) ein Stub.
+        // Honestly: remap_keys is a stub until the merge with suchen-verweise (R30a).
         eprintln!("remap_keys ist noch ein Stub (R30a): Umsetzen der Querverweise beim Einlesen übersprungen.");
         assert!(body.contains(&format!("<k{rope_key}>")), "ohne Umsetzung bleibt der Text, wie er kam: {body}");
     }
@@ -268,7 +268,7 @@ async fn a_merge_never_changes_known_rows_and_cross_references_follow_the_local_
             .unwrap()
     };
     let count_before = bucket_revisions(store.clone()).await;
-    // Abgleichen mit geänderten Metadaten: bekannte Zeilen bleiben, wie sie sind (nie überschreiben).
+    // Merge with changed metadata: known rows stay as they are (never overwrite).
     let mut changed = doc.clone();
     let bucket = find_node(&mut changed.work.outline, &sample_uuid(11)).unwrap();
     bucket.revisions[2].variant.as_mut().unwrap().summary = "anders".into();
@@ -294,14 +294,14 @@ async fn a_merge_never_changes_known_rows_and_cross_references_follow_the_local_
         "die Lösung eines bekannten Befunds bleibt"
     );
     if remap_works {
-        // Befund aus der Begutachtung: der Vergleich lief auf dem Rohtext der Datei (fremder Schlüssel), darum
-        // galt die Fassung mit Verweis als abweichend und kam ein zweites Mal – mit dem fremden Schlüssel.
+        // Finding from the review: the comparison ran on the raw text of the file (foreign key), therefore the revision
+        // with the reference counted as deviating and came a second time – with the foreign key.
         assert_eq!(
             bucket_revisions(store.clone()).await,
             count_before,
             "derselbe Text, nur mit dem Schlüssel der anderen Instanz: keine zusätzliche Fassung"
         );
-        // Wirklich abweichender Text mit Verweis: die abgeleitete Fassung zeigt auf den hiesigen Schlüssel.
+        // Really deviating text with a reference: the derived revision points to the local key.
         let mut edited = doc.clone();
         let bucket = find_node(&mut edited.work.outline, &sample_uuid(11)).unwrap();
         bucket.revisions[2].body = format!("== Der Eimer\n\nSiehe dazu #link(<k{rope_key}>)[das Seil].\n");

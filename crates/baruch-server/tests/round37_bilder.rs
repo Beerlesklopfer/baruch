@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 37 „Hilfe auf der Webseite“, Besitz bilder: Hilfe-Link in der Oberfläche und Bilder der Hilfe.
+//! Round 37 „Hilfe auf der Webseite“, owner bilder: help link in the user interface and images of the help.
 //!
-//! Der Eintrag „Hilfe“ im Menü „Baruch ▾“ (Vertrag §7), die Zeile auf „Über Baruch“ und die Bildliste
-//! `site/data/hilfebilder.toml` (Vertrag §6). Kein Netz: Die Adresse der Hilfe wird nur als Text geprüft, nie
-//! abgerufen. Lektorin und Werke kommen aus der Bühne von `round35_rollen` (frei erfunden).
+//! The entry „Hilfe“ in the menu „Baruch ▾“ (contract §7), the line on „Über Baruch“ and the image list
+//! `site/data/hilfebilder.toml` (contract §6). No network: the address of the help is only checked as text, never
+//! fetched. Lektor and works come from the stage of `round35_rollen` (freely invented).
 
 use axum::http::StatusCode;
 use baruch_server::about;
@@ -12,16 +12,16 @@ use serde_json::json;
 use crate::common;
 use crate::round35_rollen::{get_as, stage};
 
-/// Der Eintrag, wörtlich nach Vertrag §7.
+/// The entry, verbatim according to contract §7.
 const ENTRY: &str = "<a class=\"menu-item\" role=\"menuitem\" href=\"https://baruch.bernau.family/hilfe/\" \
                      target=\"_blank\" rel=\"noopener noreferrer\" title=\"Hilfe mit Bildern auf der Webseite von \
                      Baruch (öffnet ein neues Fenster, braucht das Internet)\">Hilfe</a>";
 
-/// Der Eintrag „Über Baruch“, vor dem die Hilfe steht.
+/// The entry „Über Baruch“, before which the help stands.
 const ABOUT_ENTRY: &str = "<a class=\"menu-item\" role=\"menuitem\" href=\"/ueber\"";
 
-/// Die Namen der Bildliste aus Vertrag §6, in der Reihenfolge des Vertrags. Der Vertrag spricht von „95 Namen“,
-/// seine Tabelle (und die Schnittstelle S1) hat 94 – maßgeblich ist die Tabelle.
+/// The names of the image list from contract §6, in the order of the contract. The contract speaks of „95 Namen“, its
+/// table (and the interface S1) has 94 – the table is authoritative.
 const NAMES: [&str; 94] = [
     "start-werkliste",
     "start-neues-werk",
@@ -124,8 +124,8 @@ fn picture_list() -> String {
     std::fs::read_to_string(path).expect("site/data/hilfebilder.toml lesen")
 }
 
-/// Die Blöcke `[[bild]]` der Liste, je als Zeilen (ohne Kommentare und Leerzeilen). Einfache Zeilensuche, kein
-/// TOML-Leser: Die Liste schreibt jedes Feld auf eine eigene Zeile.
+/// The blocks `[[bild]]` of the list, each as lines (without comments and empty lines). Simple line search, no TOML
+/// reader: the list writes every field on a line of its own.
 fn blocks(list: &str) -> Vec<Vec<&str>> {
     let mut found: Vec<Vec<&str>> = Vec::new();
     for line in list.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')) {
@@ -142,21 +142,21 @@ fn is_field(line: &str, field: &str) -> bool {
     line.split('=').next().map(str::trim) == Some(field)
 }
 
-/// Wert einer Zeile `feld = "wert"` des Blocks (ohne die Anführungszeichen).
+/// Value of a line `feld = "wert"` of the block (without the quotation marks).
 fn text_field<'a>(block: &[&'a str], field: &str) -> Option<&'a str> {
     let line = block.iter().find(|l| is_field(l, field))?;
     let value = line.split_once('=')?.1.trim();
     value.strip_prefix('"')?.strip_suffix('"')
 }
 
-/// Das Menü „Baruch ▾“ einer Seite: von `data-menu="baruch"` bis zum schließenden `</details>`.
+/// The menu „Baruch ▾“ of a page: from `data-menu="baruch"` to the closing `</details>`.
 fn baruch_menu(html: &str) -> &str {
     let start = html.find("data-menu=\"baruch\"").expect("die Seite hat das Menü „Baruch ▾“");
     let end = html[start..].find("</details>").expect("das Menü ist ein details-Element") + start;
     &html[start..end]
 }
 
-/// Prüft den Eintrag in einer Seite; `page` nennt sie in den Meldungen.
+/// Checks the entry in a page; `page` names it in the messages.
 fn assert_help_entry(html: &str, page: &str) {
     let menu = baruch_menu(html);
     assert_eq!(
@@ -249,7 +249,7 @@ async fn the_about_page_names_the_help_with_its_address() {
     let server = common::open().await;
     let (status, raw) = server.get("/ueber").await;
     assert_eq!(status, StatusCode::OK, "/ueber kommt");
-    // Die Vorlage maskiert Schrägstriche in eingesetzten Werten (&#x2f;); der Browser liest sie als „/“.
+    // The template escapes slashes in inserted values (&#x2f;); the browser reads them as „/“.
     let html = raw.replace("&#x2f;", "/");
     let link = format!("<a href=\"{0}\" rel=\"noopener noreferrer\" data-about-help>{0}</a>", about::HELP_URL);
     assert_eq!(
@@ -335,8 +335,8 @@ fn the_picture_list_keeps_every_name_of_the_contract() {
     }
 }
 
-/// Integration Runde 37: Das Foto der Seite „Literatur“ zeigte im Suchfeld das Wort „None“ – `default('')` ersetzt
-/// in minijinja nur fehlende Werte, nicht `none` (kein Suchwort).
+/// Integration Round 37: the screenshot of the page „Literatur“ showed the word „None“ in the search field –
+/// `default('')` in minijinja replaces only missing values, not `none` (no search word).
 #[tokio::test]
 async fn the_literature_search_field_starts_empty() {
     let server = common::open().await;

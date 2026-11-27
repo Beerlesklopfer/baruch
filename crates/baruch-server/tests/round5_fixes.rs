@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nacharbeit nach Runde 4 (Vertrag Runde 5, Aufgabe r4): Größengrenze von `work.import` über RPC,
-//! Schutzzweige von `works::move_to_trash`, keine neue Saat nach dem Löschen aller Werke. Echter
-//! Datenordner im Temp-Ordner.
+//! Rework after Round 4 (contract Round 5, task r4): size limit of `work.import` over RPC, guard branches of
+//! `works::move_to_trash`, no new seed after deleting all works. Real data directory in the temp directory.
 
 use crate::common;
 
@@ -16,10 +15,10 @@ use serde_json::json;
 
 const DATE: &str = "2026-11-05";
 
-// ---- work.import über RPC: bis 16 MiB Text -----------------------------------------------------
+// ---- work.import over RPC: up to 16 MiB of text ------------------------------------------------
 
-/// Typst-Text mit genau `len` Bytes: eine Überschrift, dann Zeilen aus wenigen Wörtern (der
-/// Volltextindex bleibt klein), am Ende mit Leerzeichen aufgefüllt.
+/// Typst text with exactly `len` bytes: one heading, then lines of a few words (the full-text index stays small),
+/// padded with spaces at the end.
 fn typst_of_size(len: usize) -> String {
     let mut text = String::from("= Das große Getriebe\n\n");
     let line = "Das Zahnrad dreht sich langsam.\n";
@@ -71,7 +70,7 @@ async fn work_import_over_rpc_takes_16_mib_and_refuses_one_byte_more() {
     assert_eq!(server.state.store.works().await.unwrap().len(), 2, "nur das Beispielwerk und der 16-MiB-Import");
 }
 
-// ---- move_to_trash: jeder Schutzzweig ----------------------------------------------------------
+// ---- move_to_trash: every guard branch ---------------------------------------------------------
 
 fn mirror_with_file(data: &Path, slug: &str) {
     let dir = data.join("works").join(slug);
@@ -160,7 +159,7 @@ async fn the_delete_page_tells_that_the_folder_name_stays_reserved() {
     assert!(html.contains("<code>das-gartenbuch-2</code>"), "und wie ein neues Werk dann heißt: {html}");
 }
 
-// ---- Saat: nach dem Löschen aller Werke kein Neuanfang -----------------------------------------
+// ---- Seed: no fresh start after deleting all works ---------------------------------------------
 
 #[tokio::test]
 async fn after_deleting_every_work_a_restart_does_not_seed_and_the_page_leads_to_the_list() {
@@ -170,7 +169,7 @@ async fn after_deleting_every_work_a_restart_does_not_seed_and_the_page_leads_to
     let deleted = server.rpc("work.delete", json!({ "work": sample, "confirm_title": title })).await;
     assert!(deleted["result"]["next"].is_null(), "danach gibt es kein Werk mehr: {deleted}");
 
-    // Neustart auf demselben Datenordner.
+    // Restart on the same data directory.
     let state = baruch_server::AppState::open(server.path()).await.expect("Neustart gelingt");
     assert!(state.store.works().await.unwrap().is_empty(), "kein neues Beispielwerk nach dem Neustart");
     let app = baruch_server::app(state);

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 31a (glossar-daten): Glossar und eigene Register über RPC `glossary.*` und `index.registers/register_*/
-//! proposals/decide` (je Änderung genau ein Spiegel-Commit mit `Baruch-Action`, Autor Mensch bzw. Persona/Client bei
-//! Vorschlägen, Bibelstellen mit baruch_scripture geprüft und normalisiert), Spiegeldatei `glossar.md`, MCP
-//! `glossary_list`/`glossary_propose`/`index_propose` (nur Vorschläge, nie Buchtext, `node` statt `key` → isError),
-//! `glossary.suggest` über die Lektor-Regel (nur Nachbau `ScriptedModel`, nie Eliezer) und der Austausch in
-//! Unterversion 7 zwischen zwei Instanzen (abgleichen statt doppeln, XSD u7).
+//! Round 31a (glossar-daten): glossary and own indexes over RPC `glossary.*` and `index.registers/register_*/
+//! proposals/decide` (exactly one mirror commit per change with `Baruch-Action`, author human or persona/client for
+//! proposals, Bible references checked and normalised with baruch_scripture), mirror file `glossar.md`, MCP
+//! `glossary_list`/`glossary_propose`/`index_propose` (proposals only, never book text, `node` instead of `key` →
+//! isError), `glossary.suggest` through the lector rule (only the mock `ScriptedModel`, never Eliezer) and the exchange
+//! in minor version 7 between two instances (merge instead of duplicating, XSD u7).
 //!
-//! Besitz: glossar-daten. Kein Netz, kein Eliezer. Werke und Texte frei erfunden.
+//! Owner: glossar-daten. No network, no Eliezer. Works and texts freely invented.
 
 use crate::common;
 
@@ -30,12 +30,12 @@ fn error_code(answer: &Value) -> i64 {
     answer["error"]["code"].as_i64().unwrap_or_else(|| panic!("Fehler erwartet: {answer}"))
 }
 
-/// Zahl der Commits im Spiegel.
+/// Number of commits in the mirror.
 fn commits(dir: &Path) -> usize {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map_or(0, |n| n.trim().parse().unwrap())
 }
 
-/// Autor, Betreff und Rumpf samt Trailern des letzten Commits.
+/// Author, subject and body including trailers of the last commit.
 fn last_commit(dir: &Path) -> String {
     common::git(dir, &["log", "-1", "--format=%an%n%s%n%b"]).unwrap_or_default()
 }
@@ -77,7 +77,7 @@ async fn glossary_rpc_writes_with_exactly_one_commit_each_and_checks_bible_refer
     let md = std::fs::read_to_string(dir.join("glossar.md")).expect("glossar.md im Spiegel");
     assert!(md.contains("## Möhre") && md.contains("Varianten: Möhren, Mohrrübe"), "Spiegeldatei: {md}");
 
-    // Unlesbare Bibelstelle und Doppel: abgelehnt, kein Commit.
+    // Unreadable Bible reference and duplicate: rejected, no commit.
     for (params, why) in [
         (json!({ "work": work, "term": "Beet", "bible_refs": ["Hesekiel 99,1"] }), "Kapitel gibt es nicht"),
         (json!({ "work": work, "term": "Beet", "bible_refs": ["Gartenbuch 1,1"] }), "unbekanntes Buch"),
@@ -89,7 +89,7 @@ async fn glossary_rpc_writes_with_exactly_one_commit_each_and_checks_bible_refer
     }
     assert_eq!(commits(&dir), start + 1, "abgelehnt: kein Commit");
 
-    // Nachschlagen über Begriff und Varianten; Liste mit Filter.
+    // Lookup through term and variants; list with filter.
     for word in ["möhre", "Mohrrübe", "MÖHREN"] {
         let found = result(&server.rpc("glossary.lookup", json!({ "work": work, "word": word })).await).clone();
         assert_eq!(found["terms"].as_array().unwrap().len(), 1, "„{word}“ findet die Möhre: {found}");
@@ -104,7 +104,7 @@ async fn glossary_rpc_writes_with_exactly_one_commit_each_and_checks_bible_refer
         "unbekannter Status"
     );
 
-    // Ändern: ein Commit mit vorher/nachher.
+    // Change: one commit with before/after.
     let updated = server
         .rpc(
             "glossary.update",
@@ -117,7 +117,7 @@ async fn glossary_rpc_writes_with_exactly_one_commit_each_and_checks_bible_refer
     let log = last_commit(&dir);
     assert!(log.contains("Baruch-Action: glossary-update") && log.contains("Vorher:"), "Rumpf vorher/nachher: {log}");
 
-    // Löschen nur mit Bestätigung; der Commit trägt den ganzen Begriff (wiederherstellbar).
+    // Delete only with confirmation; the commit carries the whole term (restorable).
     let unconfirmed = server.rpc("glossary.delete", json!({ "work": work, "id": id })).await;
     assert_eq!(error_code(&unconfirmed), INVALID_PARAMS, "ohne confirm abgelehnt");
     let deleted = server.rpc("glossary.delete", json!({ "work": work, "id": id, "confirm": true })).await;
@@ -220,7 +220,7 @@ async fn mcp_only_proposes_and_the_human_decides() {
         );
     }
 
-    // glossary_propose: nur ein Vorschlag, Herkunft der Client; Autor des Commits ist der Client.
+    // glossary_propose: only a proposal, origin the client; author of the commit is the client.
     let start = commits(&dir);
     let proposed = tool(
         &server,
@@ -247,7 +247,7 @@ async fn mcp_only_proposes_and_the_human_decides() {
             .await;
     assert_eq!(as_persona["result"]["structuredContent"]["origin"], "@lektor", "Herkunft nach acting_persona");
 
-    // glossary_list liest nur: Vorschläge sind nicht nachschlagbar, aber in der Liste.
+    // glossary_list only reads: proposals cannot be looked up but are in the list.
     let listed = tool(&server, &session, "glossary_list", json!({ "work": work, "status": "proposed" })).await;
     assert_eq!(listed["result"]["structuredContent"]["terms"].as_array().unwrap().len(), 2, "zwei Vorschläge");
     let looked = tool(&server, &session, "glossary_list", json!({ "work": work, "word": "Radieschen" })).await;
@@ -256,7 +256,7 @@ async fn mcp_only_proposes_and_the_human_decides() {
     tool(&server, &session, "glossary_list", json!({ "work": work })).await;
     assert_eq!(commits(&dir), before, "Lesen schreibt nichts");
 
-    // Der Mensch entscheidet: übernehmen (Commit mit Baruch-Proposer) bzw. verwerfen (Grabstein).
+    // The human decides: accept (commit with Baruch-Proposer) or discard (tombstone).
     let accepted = server.rpc("glossary.decide", json!({ "work": work, "id": id, "accept": true })).await;
     assert_eq!(result(&accepted)["term"]["status"], "accepted", "übernommen");
     let log = last_commit(&dir);
@@ -271,7 +271,8 @@ async fn mcp_only_proposes_and_the_human_decides() {
     assert_eq!(result(&rejected)["deleted"], kanne, "verworfen = gelöscht");
     assert!(last_commit(&dir).contains("Baruch-Action: glossary-reject"), "Commit glossary-reject");
 
-    // index_propose: node statt key → -32602 (Runde 23, wie propose_revision/add_post); mit key ein Registervorschlag, der Text bleibt.
+    // index_propose: node instead of key → -32602 (Round 23, like propose_revision/add_post); with key an index
+    // proposal, the text stays.
     let key = first_key(&server, work).await;
     let node_refused =
         tool(&server, &session, "index_propose", json!({ "work": work, "node": 0, "key": key, "word": "Beete" })).await;
@@ -308,7 +309,7 @@ async fn mcp_only_proposes_and_the_human_decides() {
     assert_eq!(open["proposals"][0]["id"], proposal, "index.proposals zeigt den offenen Vorschlag: {open}");
     assert_eq!(open["proposals"][0]["origin"], "@mcp:glossarprobe", "Herkunft");
 
-    // Übernahme durch den Menschen: neue Fassung mit Marke.
+    // Acceptance by the human: new revision with the mark.
     let decided = server.rpc("index.decide", json!({ "work": work, "id": proposal, "accept": true })).await;
     let answer = result(&decided);
     assert_eq!(answer["proposal"]["status"], "accepted", "übernommen: {answer}");
@@ -360,7 +361,7 @@ async fn suggest_asks_the_lector_through_the_model_port_and_only_proposes() {
 
 #[tokio::test]
 async fn suggest_reports_a_missing_model_honestly_and_writes_nothing() {
-    // AppState::open hat NoModel: ehrlicher Fehler, kein Vorschlag, kein Commit.
+    // AppState::open has NoModel: honest error, no proposal, no commit.
     let (server, work, dir) = garden().await;
     let start = commits(&dir);
     let answer = server.rpc("glossary.suggest", json!({ "work": work })).await;
@@ -370,7 +371,7 @@ async fn suggest_reports_a_missing_model_honestly_and_writes_nothing() {
     assert_eq!(commits(&dir), start, "kein Commit");
 }
 
-/// Formular-POST an `uri` → Status, Ziel der Weiterleitung, Seite.
+/// Form POST to `uri` → status, target of the redirect, page.
 async fn post_form(server: &common::Server, uri: &str, form: &str) -> (StatusCode, Option<String>, String) {
     let request = Request::post(uri)
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -382,8 +383,8 @@ async fn post_form(server: &common::Server, uri: &str, form: &str) -> (StatusCod
 
 #[tokio::test]
 async fn suggest_is_a_form_on_the_glossary_and_marking_pages_without_javascript() {
-    // Befund nach R31: „Begriffe vorschlagen lassen“ gab es nur als RPC. Jetzt ein Formular (ohne JavaScript) auf der
-    // Glossarseite (ganzes Werk) und auf der Seite „an der Markierung“ (Abschnitt); Ergebnis nur Vorschläge.
+    // Finding after R31: „Begriffe vorschlagen lassen“ existed only as RPC. Now there is a form (without JavaScript) on
+    // the glossary page (whole work) and on the page „an der Markierung“ (section); the result is proposals only.
     let _turn = common::model_queue(module_path!()).await;
     let model = ScriptedModel::with([
         Step::words("Möhre | Wurzelgemüse.\nBeet | Fläche im Garten"),
@@ -429,7 +430,7 @@ async fn suggest_is_a_form_on_the_glossary_and_marking_pages_without_javascript(
     assert_eq!(calls.len(), 1, "ein Modellaufruf über den Port (Nachbau)");
     assert!(calls[0].label.ends_with("work"), "ohne key das ganze Werk: {}", calls[0].label);
 
-    // Seite „an der Markierung“: Formular mit dem Abschnitt.
+    // Page „an der Markierung“: form with the section.
     let (_, page) = server.get(&format!("/werke/{work}/markierung?key={key}")).await;
     let form = &page[page.find("class=\"marking-suggest\"").expect("Formular an der Markierung")..];
     let form = &form[..form.find("</form>").unwrap()];
@@ -452,7 +453,7 @@ async fn suggest_is_a_form_on_the_glossary_and_marking_pages_without_javascript(
 
 #[tokio::test]
 async fn the_suggest_form_reports_a_missing_model_on_the_page() {
-    // AppState::open hat NoModel: 422 mit der ehrlichen Meldung auf der Glossarseite, nichts angelegt, kein Commit.
+    // AppState::open has NoModel: 422 with the honest message on the glossary page, nothing created, no commit.
     let (server, work, dir) = garden().await;
     let start = commits(&dir);
     let (status, _, page) = post_form(&server, &format!("/werke/{work}/glossar/act"), "action=suggest").await;
@@ -518,7 +519,7 @@ async fn two_instances_exchange_glossary_and_registers_without_doubling() {
     );
     let xml = export_xml(&a, work_a).await;
     for needle in [
-        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
         "version=\"10\"",
         "<glossar>",
         "<wort>Möhre</wort>",
@@ -531,7 +532,7 @@ async fn two_instances_exchange_glossary_and_registers_without_doubling() {
     }
     xmllint_u7(&xml);
 
-    // B liest neu ein: Begriffe, Register, Satz-Felder und Grabsteine kommen mit.
+    // B imports anew: terms, indexes, typesetting fields and tombstones come along.
     let b = common::open().await;
     let imported = import(&b, &xml, "new").await;
     let work_b = imported["work"].as_i64().unwrap();
@@ -554,7 +555,7 @@ async fn two_instances_exchange_glossary_and_registers_without_doubling() {
         .unwrap();
     assert_eq!(graves, 1, "Grabstein des gelöschten Begriffs mitgenommen");
 
-    // A ergänzt, B gleicht ab: nur das Neue kommt dazu, nichts doppelt; ein zweiter Abgleich bringt nichts.
+    // A adds, B merges: only the new comes in addition, nothing twice; a second merge brings nothing.
     result(&a.rpc("glossary.add", json!({ "work": work_a, "term": "Kresse" })).await);
     let merged = import(&b, &export_xml(&a, work_a).await, "merge").await;
     assert_eq!(merged["added"]["glossary_terms"], 1, "nur Kresse: {merged}");

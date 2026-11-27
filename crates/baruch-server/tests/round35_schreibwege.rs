@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 35 „Konten und Rollen“, Besitz rollen: Für Lektoren ist alles gesperrt, was nicht ausdrücklich erlaubt ist.
+//! Round 35 „Konten und Rollen“, owner rollen: for Lektors everything is locked that is not explicitly allowed.
 //!
-//! Die Listen entstehen aus dem Quelltext (`common::registered_routes`, `common::rpc_method_candidates`), nicht aus
-//! einer gepflegten Tabelle: Eine Route oder Methode künftiger Runden steht von selbst darin und muss für Lektoren
-//! gesperrt sein, bis sie in `roles::LEKTOR_ROUTES` bzw. `roles::LEKTOR_RPC` erlaubt wird. Bühne und Hilfen aus
-//! `round35_rollen` (Lektorin Erika mit einem freigegebenen Werk; das Vorgabewerk der Instanz ist fremd).
+//! The lists are built from the source (`common::registered_routes`, `common::rpc_method_candidates`), not from a
+//! maintained table: a route or method of future rounds is in them by itself and has to be locked for Lektors until it
+//! is allowed in `roles::LEKTOR_ROUTES` or `roles::LEKTOR_RPC`. Stage and helpers from `round35_rollen` (Lektor Erika
+//! with one granted work; the default work of the instance is foreign).
 
 use crate::common;
 use crate::round35_rollen::{
@@ -16,8 +16,8 @@ use axum::http::{Request, StatusCode, header};
 use baruch_server::roles::{LEKTOR_ROUTES, LEKTOR_RPC};
 use serde_json::{Value, json};
 
-/// Passt der Pfad auf das Muster (`{name}` = genau ein nicht leeres Segment)? Eigener, schlichter Nachbau der Regel
-/// des Routers – der Test soll nicht mit der Funktion prüfen, die er prüft.
+/// Does the path fit the pattern (`{name}` = exactly one non-empty segment)? An own, plain reconstruction of the rule
+/// of the router – the test is not meant to check with the function that it checks.
 fn matches(pattern: &str, path: &str) -> bool {
     let wanted: Vec<&str> = pattern.split('/').collect();
     let given: Vec<&str> = path.split('/').collect();
@@ -25,12 +25,12 @@ fn matches(pattern: &str, path: &str) -> bool {
         && wanted.iter().zip(&given).all(|(w, g)| if w.starts_with('{') { !g.is_empty() } else { w == g })
 }
 
-/// Erlaubt die Tabelle der Lektoren diesen Aufruf?
+/// Does the table of the Lektors allow this call?
 fn allowed(verb: &str, path: &str) -> bool {
     LEKTOR_ROUTES.iter().any(|(v, pattern, _)| *v == verb && matches(pattern, path))
 }
 
-/// Muster mit Werten füllen: `{id}` mit dem Werk, jeder andere Platzhalter mit `1` (auch `{*rest}`).
+/// Fill a pattern with values: `{id}` with the work, every other placeholder with `1` (also `{*rest}`).
 fn fill(pattern: &str, work: i64) -> String {
     pattern
         .split('/')
@@ -43,7 +43,7 @@ fn fill(pattern: &str, work: i64) -> String {
         .join("/")
 }
 
-/// Der ganze Stand, der sich nicht ändern darf: Zeilenzahl jeder Tabelle und HEAD beider Spiegel.
+/// The whole state that must not change: row count of every table and HEAD of both mirrors.
 async fn snapshot(s: &Stage) -> (std::collections::BTreeMap<String, i64>, Vec<Option<String>>) {
     (row_counts(&s.server).await, heads(&s.server, &[s.granted, s.foreign]).await)
 }
@@ -58,8 +58,8 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
     let mut closed = 0;
     for (verb, pattern) in &routes {
         if pattern == "/mcp" {
-            // `/mcp` bleibt bei Tokens: Die Schicht der Anmeldung lässt es unberührt (Vertrag §0.3), eine Sitzung
-            // – und damit eine Rolle – gibt es dort nicht.
+            // `/mcp` stays with tokens: the sign-in layer leaves it untouched (contract §0.3), a session – and with it
+            // a role – does not exist there.
             continue;
         }
         for work in [s.granted, s.foreign] {
@@ -67,7 +67,7 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
             if allowed(verb, &path) {
                 continue;
             }
-            // Mit dem freigegebenen Werk in der Adresse: Auch der günstigste Fall für den Lektor bleibt gesperrt.
+            // With the granted work in the address: even the most favourable case for the Lektor stays locked.
             let uri = format!("{path}?work={}", s.granted);
             let (status, headers, body) = match verb.as_str() {
                 "GET" => get_as(server, &s.erika, &uri).await,
@@ -88,7 +88,7 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
         }
     }
     assert!(closed >= 200, "Vorbedingung: der größte Teil der Routen ist für Lektoren gesperrt (geprüft: {closed})");
-    // JSON als Rumpf macht keinen Unterschied: Die Sperre greift vor jedem Handler.
+    // JSON as the body makes no difference: the lock takes hold before every handler.
     for (verb, pattern) in
         routes.iter().filter(|(verb, pattern)| verb == "POST" && !allowed(verb, &fill(pattern, s.granted)))
     {
@@ -105,14 +105,14 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
             "{verb} {pattern} mit JSON: 403, nicht {status}"
         );
     }
-    // Andere Verben als GET, HEAD und POST gibt es für Lektoren nicht – auch nicht auf erlaubten Pfaden.
+    // Verbs other than GET, HEAD and POST do not exist for Lektors – not on allowed paths either.
     for method in ["PUT", "DELETE", "PATCH"] {
         let request =
             Request::builder().method(method).uri(format!("/?work={}", s.granted)).body(Body::empty()).unwrap();
         let (status, headers, _) = send_as(server, &s.erika, request).await;
         assert!(status == StatusCode::FORBIDDEN && denied_by_role(&headers), "{method} / ist für Lektoren gesperrt");
     }
-    // Abwandlungen erlaubter Pfade sind keine erlaubten Pfade.
+    // Variations of allowed paths are not allowed paths.
     for uri in [
         format!("/werke/{}/befunde/", s.granted),
         format!("/werke/{}/befunde/act", s.granted),
@@ -140,7 +140,7 @@ async fn every_registered_route_outside_the_table_is_closed_for_a_lektor() {
 fn every_route_of_the_table_exists_in_the_router() {
     let routes = common::registered_routes();
     for (verb, pattern, _) in LEKTOR_ROUTES {
-        // Vorhanden ist die Route, wenn ein Muster des Routers ihren Pfad annimmt (`/einstellungen/{seite}` nimmt
+        // The route exists if a pattern of the router accepts its path (`/einstellungen/{seite}` accepts
         // `/einstellungen/darstellung`).
         let path = fill(pattern, 1);
         let registered = routes.iter().any(|(v, registered)| v == verb && matches(registered, &path));
@@ -164,7 +164,7 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
         "Vorbedingung: die Kandidaten aus dem Quelltext sind die ganze Liste ({})",
         outside.len()
     );
-    // Was der Vertrag ausdrücklich nennt, steht in der Liste (und wird damit unten geprüft).
+    // What the contract names explicitly is in the list (and is thereby checked below).
     for named in [
         "revision.save",
         "revision.accept",
@@ -247,7 +247,7 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
             "{method} über /lektorat/act: 403 mit x-baruch-abgelehnt, nicht {status} {body}"
         );
     }
-    // Als Batch: jede Antwort einzeln -32003, in der Reihenfolge der Anfragen.
+    // As a batch: every answer individually -32003, in the order of the requests.
     let batch: Vec<Value> = outside
         .iter()
         .enumerate()
@@ -260,7 +260,7 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
         assert_eq!(answer["id"], json!(i), "{method}: Antworten in der Reihenfolge der Anfragen");
         assert_eq!(code(answer), Some(FORBIDDEN), "{method} im Batch: -32003, nicht {answer}");
     }
-    // Auch Namen, die es gar nicht gibt, sind verboten – nicht „unbekannt“ (kein Abtasten der Methoden).
+    // Names that do not exist at all are forbidden too – not „unbekannt“ (no probing of the methods).
     for method in ["gibt.es_nicht", "", "revision.Accept", " revision.accept", "revision.accept ", "work"] {
         let answer = rpc_as(server, &s.erika, method, json!({ "work": s.granted })).await;
         assert_eq!(code(&answer), Some(FORBIDDEN), "„{method}“: vor jedem Dispatch verboten, nicht {answer}");
@@ -272,7 +272,7 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
     );
     assert_eq!(snapshot(&s).await, before, "kein gesperrter Aufruf hat eine Zeile oder einen Commit hinterlassen");
 
-    // Das Formular ist auch für den Autor kein zweiter Weg zu Methoden außerhalb der Tabelle.
+    // The form is no second way to methods outside the table for the author either.
     let form = format!("method=work.delete&work={}&confirm=on", s.granted);
     let (status, _, _) = form_as(server, &s.author, "/lektorat/act", &form).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "/lektorat/act nimmt nur Methoden aus LEKTOR_RPC, von wem auch immer");
@@ -283,14 +283,14 @@ async fn every_method_outside_the_table_is_forbidden_for_a_lektor() {
 async fn every_method_of_the_table_exists() {
     let s = stage().await;
     for (method, _) in LEKTOR_RPC {
-        // Ohne weitere Parameter: Schreibende Methoden scheitern an fehlenden Angaben, lesende antworten.
+        // Without further parameters: writing methods fail on missing values, reading ones answer.
         let answer = rpc_as(&s.server, &s.author, method, json!({ "work": s.granted })).await;
         assert_ne!(
             code(&answer),
             Some(-32601),
             "{method} steht in LEKTOR_RPC, aber der Server kennt die Methode nicht (umbenannt oder entfernt?)"
         );
-        // Für den Lektor ist sie nicht „verboten“ (was sonst fehlt, sind nur die Parameter).
+        // For the Lektor it is not „verboten“ (what is missing otherwise are only the parameters).
         let answer = rpc_as(&s.server, &s.erika, method, json!({ "work": s.granted })).await;
         assert_ne!(code(&answer), Some(FORBIDDEN), "{method} ist dem Lektor erlaubt: {answer}");
     }

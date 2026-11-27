@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Mehrere Werke in Server und Oberfläche (Vertrag B1.5, Abschnitt 4; Runde 4): Werkwahl ohne
-//! JavaScript, `work` in Adressen, Formularen und RPC, eigene Spiegel je Werk, Prüfung des
-//! Spiegelordners; Migration 0005 auf einer Datenbank im Stand davor.
+//! Several works in server and user interface (contract B1.5, section 4; Round 4): work choice without JavaScript,
+//! `work` in addresses, forms and RPC, own mirrors per work, check of the mirror directory; migration 0005 on a
+//! database in the state before it.
 
 use crate::common;
 
@@ -109,7 +109,7 @@ async fn ui_render_returns_a_url_with_work_and_search() {
         "Adresse trägt work, key und lq"
     );
     let tree = ui["result"]["tree"].as_str().unwrap();
-    // Das erste „&“ steht wörtlich in der Vorlage, das vor lq kommt maskiert aus der Variablen.
+    // The first „&“ is verbatim in the template, the one before lq comes escaped from the variable.
     assert!(
         tree.contains(&format!(
             "href=\"/?work={}&key={}&amp;lq=Zwei%20Zentimeter\"",
@@ -142,7 +142,7 @@ async fn forms_without_javascript_keep_work_and_search() {
 #[tokio::test]
 async fn opening_the_data_folder_mirrors_every_work() {
     let server = common::open().await;
-    // Import nur in die Datenbank, ohne Spiegel: der nächste Start holt ihn nach.
+    // Import only into the database, without mirror: the next start catches up on it.
     let imported = server.state.store.import_typst(common::GARDEN, "gartenbuch.typ", "Autor").await.unwrap();
     let dir = server.mirror_dir_of(&imported.slug);
     assert!(!dir.exists(), "vor dem Start gibt es den Spiegel noch nicht");
@@ -182,13 +182,13 @@ fn mirror_dir_refuses_symlinked_folders() {
     assert!(err.contains("symbolische Verknüpfung"), "works/<slug> als Verknüpfung abgelehnt: {err}");
 }
 
-// ---- Migration 0005 auf einer Datenbank im Stand davor -------------------------------------------
+// ---- Migration 0005 on a database in the state before it -----------------------------------------
 
-/// Titel, den beim Nutzer das gesäte Beispielwerk und das importierte Buch gemeinsam hatten.
+/// Title that the seeded sample work and the imported book shared at the user's.
 const OLD_TITLE: &str = "Mövenoog";
 
-/// Ein kleines „importiertes“ Buch, von Hand zerlegt wie `baruch_typst::parse`: Vorlage und drei
-/// Überschriften (Titel, Nummer, Elternteil, Stelle unter dem Elternteil, Art, Text).
+/// A small „imported“ book, split by hand like `baruch_typst::parse`: template and three headings (title, number,
+/// parent, position below the parent, kind, text).
 const OLD_TEMPLATE: &str = "#set document(title: \"Mövenoog\", author: \"Jemand\")\n\n";
 type OldHeading = (&'static str, &'static str, Option<i64>, i64, &'static str, &'static str);
 const OLD_HEADINGS: [OldHeading; 3] = [
@@ -197,7 +197,7 @@ const OLD_HEADINGS: [OldHeading; 3] = [
     ("Zwei", "2", None, 1, "chapter", "= Zwei\n\nText zwei.\n"),
 ];
 
-/// Migrator mit den eingebetteten Migrationen bis einschließlich `last` (Stand vor einer Migration).
+/// Migrator with the embedded migrations up to and including `last` (state before a migration).
 fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migrator {
     sqlx::migrate::Migrator {
         migrations: std::borrow::Cow::Owned(
@@ -210,7 +210,7 @@ fn partial(migrator: &sqlx::migrate::Migrator, last: i64) -> sqlx::migrate::Migr
     }
 }
 
-/// Ein importiertes Buch, wie `Store::import_typst` es vor Runde 4 schrieb (ohne Schlüssel).
+/// An imported book as `Store::import_typst` wrote it before Round 4 (without keys).
 async fn insert_imported(pool: &sqlx::SqlitePool, slug: &str, sha: &str) -> i64 {
     let work: i64 = sqlx::query_scalar(
         "INSERT INTO work (slug, kind, title, author, template, source_name, source_sha256) \
@@ -251,8 +251,8 @@ async fn insert_imported(pool: &sqlx::SqlitePool, slug: &str, sha: &str) -> i64 
     work
 }
 
-/// Das Beispielwerk mit Teilen, Vorschlägen und Beiträgen, wie eine ältere Saat es schrieb (ohne
-/// Schlüssel, ohne Quelle), aber mit dem alten Titel, den auch das Buch trägt.
+/// The sample work with parts, proposals and posts as an older seed wrote it (without keys, without source), but with
+/// the old title that the book carries as well.
 async fn insert_seeded(pool: &sqlx::SqlitePool) -> i64 {
     let sample = baruch_core::sample::work();
     let work: i64 = sqlx::query_scalar(
@@ -336,8 +336,8 @@ async fn insert_seeded(pool: &sqlx::SqlitePool) -> i64 {
     work
 }
 
-/// Export eines Werks ohne Vorlage, wie `Store::export_typst` ihn bildet: aktuelle Texte in
-/// Baumreihenfolge, ein Zeilenende zwischen Texten, die keins haben.
+/// Export of a work without a template as `Store::export_typst` builds it: current texts in tree order, one line end
+/// between texts that have none.
 fn expected_sample_export() -> String {
     fn walk(work: &baruch_core::Work, parent: Option<usize>, out: &mut Vec<usize>) {
         for child in work.children(parent) {
@@ -352,8 +352,8 @@ fn expected_sample_export() -> String {
         .iter()
         .filter_map(|&id| {
             let body = sample.nodes[id].current_index().map(|i| sample.nodes[id].revisions[i].body.clone())?;
-            // Das Vorwort (id 0) zählt seit Migration 0006 nicht mit; seit Runde 14 (Vertrag §4) projiziert der
-            // Export „ohne Nummer“ als Markierung in der ersten Überschriftszeile (die DB bleibt unverändert).
+            // The preface (id 0) has not been counted since migration 0006; since Round 14 (contract §4) the export
+            // projects „ohne Nummer“ as a marking in the first heading line (the DB stays unchanged).
             Some(if id == 0 { baruch_typst::set_numbered_line(&body, false).unwrap() } else { body })
         })
         .collect();
@@ -370,7 +370,7 @@ fn expected_sample_export() -> String {
         .collect()
 }
 
-/// Anzahl der Werke, Knoten, Revisionen, Beiträge und Verweise.
+/// Number of works, nodes, revisions, posts and references.
 async fn counts(pool: &sqlx::SqlitePool) -> Vec<i64> {
     let mut out = Vec::new();
     for table in ["work", "node", "revision", "post", "post_ref"] {
@@ -393,7 +393,7 @@ async fn migration_0005_gives_unique_titles_and_keeps_everything_else() {
         .foreign_keys(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
     let pool = sqlx::sqlite::SqlitePoolOptions::new().max_connections(1).connect_with(options).await.unwrap();
-    // Stand beim Nutzer vor Runde 4: Kern 0001–0004, Bibliothek 0101–0104, dann die Werke.
+    // State at the user's before Round 4: core 0001–0004, library 0101–0104, then the works.
     partial(&baruch_store::MIGRATOR, 4).run(&pool).await.unwrap();
     partial(&baruch_library::MIGRATOR, 104).run(&pool).await.unwrap();
     let seeded = insert_seeded(&pool).await;
@@ -404,9 +404,9 @@ async fn migration_0005_gives_unique_titles_and_keeps_everything_else() {
         sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version").fetch_all(&pool).await.unwrap();
     assert_eq!(versions, [1, 2, 3, 4, 101, 102, 103, 104], "Testaufbau: Stand vor 0005");
     pool.close().await;
-    // Die Umwandlung alter Teiltexte beim Start (Nutzerfrage 8) prüft `round14_conversion.rs`; hier geht es nur um
-    // die Migrationen. `store_meta` gibt es erst ab 0007: Store::open migriert (0005 ff.), dann gilt die Umwandlung
-    // als erledigt, danach startet der Server wie bisher.
+    // The conversion of old part texts at start (user question 8) is checked by `round14_conversion.rs`; this is only
+    // about the migrations. `store_meta` exists only from 0007 on: Store::open migrates (0005 ff.), then the conversion
+    // counts as done, after that the server starts as before.
     let store = baruch_store::Store::open(data.path()).await.expect("Migration 0005 ff.");
     sqlx::query("INSERT OR REPLACE INTO store_meta (key, value) VALUES (?, '1')")
         .bind(baruch_store::CONVERTED_KEY)
@@ -489,8 +489,8 @@ async fn migration_0005_gives_unique_titles_and_keeps_everything_else() {
     assert_eq!(book_again, format!("{OLD_TEMPLATE}{book}"), "Export nach dem zweiten Start unverändert");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Stable key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme Runde 8, Aufgabe „posts“ (Vertrag §1 und §3): Adressen über den festen Schlüssel,
-//! Beiträge löschen, verschieben und in Einfälle umwandeln (RPC, Formular ohne JavaScript, MCP nur
-//! eigene), Chat-Abzeichen, MCP-Antworten mit `url`. Echter Datenordner im Temp-Ordner (SQLite,
-//! Bibliothek, Git-Spiegel), eigenes Gartenbuch aus `tests/data/gartenbuch.typ`; Testtexte frei erfunden.
+//! Acceptance Round 8, task „posts“ (contract §1 and §3): addresses through the stable key, delete posts, move them and
+//! convert them into ideas (RPC, form without JavaScript, MCP only own ones), chat badge, MCP answers with `url`. Real
+//! data directory in the temp directory (SQLite, library, Git mirror), own garden book from
+//! `tests/data/gartenbuch.typ`; test texts freely invented.
 
 use crate::common;
 
@@ -13,8 +13,8 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 
-/// Gartenbuch: 0 Frühling, 1 Aussaat, 2 Tiefe, 3 Sommer. Gibt Server, Werk, Schlüssel je Stelle und
-/// den Spiegelordner zurück.
+/// Garden book: 0 Frühling, 1 Aussaat, 2 Tiefe, 3 Sommer. Returns server, work, key per position and the mirror
+/// directory.
 async fn garden() -> (common::Server, i64, Vec<i64>, std::path::PathBuf) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -23,7 +23,7 @@ async fn garden() -> (common::Server, i64, Vec<i64>, std::path::PathBuf) {
     (server, report.work, keys, dir)
 }
 
-/// Feste Schlüssel nach Stelle.
+/// Stable keys by position.
 async fn keys_of(server: &common::Server, work: i64) -> Vec<i64> {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? ORDER BY seq")
         .bind(work)
@@ -37,13 +37,13 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Beitrag über RPC anlegen; gibt seine id zurück.
+/// Create a post over RPC; returns its id.
 async fn add_post(server: &common::Server, work: i64, key: i64, body: &str) -> i64 {
     let added = server.rpc("post.add", json!({ "work": work, "key": key, "body": body })).await;
     result(&added)["id"].as_i64().unwrap_or_else(|| panic!("post.add nennt keine id: {added}"))
 }
 
-/// Beiträge eines Abschnitts als `(id, author, body)`.
+/// Posts of a section as `(id, author, body)`.
 async fn posts_at(server: &common::Server, work: i64, key: i64) -> Vec<(i64, String, String)> {
     let node = server.rpc("node.get", json!({ "work": work, "key": key })).await;
     result(&node)["posts"]
@@ -64,17 +64,17 @@ fn commit_count(dir: &std::path::Path) -> Option<u32> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|c| c.trim().parse().unwrap())
 }
 
-/// Betreff, Rumpf und Trailer des letzten Commits.
+/// Subject, body and trailers of the last commit.
 fn last_message(dir: &std::path::Path) -> Option<String> {
     common::git(dir, &["log", "-1", "--format=%an <%ae>%n%B"])
 }
 
-/// Alle `href="…"` einer Seite.
+/// All `href="…"` of a page.
 fn hrefs(html: &str) -> Vec<&str> {
     html.split("href=\"").skip(1).filter_map(|rest| rest.split('"').next()).collect()
 }
 
-// ---- Adressen über den festen Schlüssel (§1) ----------------------------------------------------
+// ---- Addresses through the stable key (§1) ------------------------------------------------------
 
 #[tokio::test]
 async fn a_key_address_opens_its_section_even_after_the_outline_changes() {
@@ -82,7 +82,7 @@ async fn a_key_address_opens_its_section_even_after_the_outline_changes() {
     let (status, html) = server.get(&format!("/?work={work}&key={}", keys[3])).await;
     assert_eq!(status, StatusCode::OK, "{html}");
     assert!(html.contains("Gießen, gießen, gießen."), "key öffnet „Sommer“: {html}");
-    // „Sommer“ nach vorn: alle Stellen verschieben sich, der Schlüssel bleibt.
+    // „Sommer“ to the front: all positions shift, the key stays.
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     result(&moved);
     assert_eq!(moved["result"]["key"], keys[3], "die Gliederungsantwort nennt den Schlüssel (Runde 8): {moved}");
@@ -91,7 +91,7 @@ async fn a_key_address_opens_its_section_even_after_the_outline_changes() {
     let (_, html) = server.get(&format!("/?work={work}&key={}&node=2", keys[3])).await;
     assert!(html.contains("Gießen, gießen, gießen."), "der Schlüssel geht vor einer (veralteten) Stelle");
     assert!(!html.contains("missing-key"), "kein Hinweis bei bekanntem Schlüssel");
-    // Die alte Form ?node= geht weiter.
+    // The old form ?node= still works.
     let (status, html) = server.get(&format!("/?work={work}&node=0")).await;
     assert_eq!(status, StatusCode::OK, "{html}");
     assert!(html.contains("Gießen, gießen, gießen."), "/?node=0 ist jetzt „Sommer“");
@@ -140,7 +140,7 @@ async fn ui_render_and_the_outline_pages_take_the_key() {
 #[tokio::test]
 async fn no_generated_link_or_redirect_carries_node_any_more() {
     let (server, work, keys, _) = garden().await;
-    // Beitrag mit Verweis (über MCP-Weg nicht nötig: Store direkt), Einfall mit Bezug, Vorschlag.
+    // Post with reference (not necessary through the MCP way: store directly), idea with reference, proposal.
     let post = baruch_core::Post {
         id: 0,
         created: String::new(),
@@ -172,7 +172,7 @@ async fn no_generated_link_or_redirect_carries_node_any_more() {
     for page in &pages {
         let (status, html) = server.get(page).await;
         assert_eq!(status, StatusCode::OK, "{page}: {html}");
-        // Links des Arbeitsbereichs (eigene Dateien von posts); Formularfelder `name="node"` sind keine Links.
+        // Links of the work area (own files of posts); form fields `name="node"` are not links.
         let bad: Vec<&str> = hrefs(&html).into_iter().filter(|h| h.contains("node=")).collect();
         assert!(bad.is_empty(), "{page}: Links mit node= (Vertrag Runde 8 §1): {bad:?}");
     }
@@ -183,8 +183,8 @@ async fn no_generated_link_or_redirect_carries_node_any_more() {
         "Vorschau-Umschalter in Key-Form: {html}"
     );
     assert!(html.contains(&format!("href=\"/werke/{work}/satz?key={k3}\"")), "Link „Satz“ (Runde 8): {html}");
-    // Runde 33: im Menüband (Reiter Buch, Gruppe Satz) heißt der Eintrag nach Vertrag §4 „Satz-Vorschau“ (vorher „Satz“);
-    // die Adresse darüber bleibt dieselbe.
+    // Round 33: in the ribbon (tab Buch, group Satz) the entry is called „Satz-Vorschau“ according to contract §4
+    // (before: „Satz“); the address behind it stays the same.
     assert!(html.contains(">Satz-Vorschau</a>"), "Knopf heißt „Satz-Vorschau“");
     assert!(
         html.contains(&format!("href=\"&#x2f;?work={work}&amp;key={k3}&amp;rev=2\"")),
@@ -205,7 +205,7 @@ async fn no_generated_link_or_redirect_carries_node_any_more() {
         "Treffer im Werk über node_key: {html}"
     );
 
-    // Weiterleitungen nach Formularen.
+    // Redirects after forms.
     let redirects = [
         ("/act", format!("method=post.add&work={work}&node=3&key={k3}&body=Gut")),
         ("/gliederung/act", format!("method=outline.rename&work={work}&node=1&key={}&title=Saat", keys[1])),
@@ -231,11 +231,11 @@ async fn no_generated_link_or_redirect_carries_node_any_more() {
     assert_eq!(location, Some(format!("/?work={work}&key={k3}")), "zurück zum gezeigten Abschnitt in Key-Form");
 }
 
-// ---- MCP-Antworten mit url (§1) -----------------------------------------------------------------
+// ---- MCP answers with url (§1) ------------------------------------------------------------------
 
 const LOOPBACK: ([u8; 4], u16) = ([127, 0, 0, 1], 40000);
 
-/// MCP-Anfrage vom eigenen Rechner, wahlweise mit Sitzung; gibt Kopfzeilen und Antwort zurück.
+/// MCP request from the own machine, optionally with a session; returns headers and answer.
 async fn mcp(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(id) = session {
@@ -249,7 +249,7 @@ async fn mcp(server: &common::Server, session: Option<&str>, message: Value) -> 
     (headers, value)
 }
 
-/// Sitzung als Client `name` (Handle `@mcp:<name>`).
+/// Session as client `name` (handle `@mcp:<name>`).
 async fn session(server: &common::Server, name: &str) -> String {
     let (headers, answer) = mcp(
         server,
@@ -448,7 +448,7 @@ async fn post_add_answers_with_id_and_key() {
     assert!(post["created"].as_str().is_some_and(|c| c.ends_with('Z')), "Zeitpunkt in node.get: {post}");
 }
 
-// ---- MCP nur eigene Beiträge (§3e) --------------------------------------------------------------
+// ---- MCP only own posts (§3e) -------------------------------------------------------------------
 
 #[tokio::test]
 async fn mcp_manages_only_its_own_posts() {
@@ -470,7 +470,7 @@ async fn mcp_manages_only_its_own_posts() {
     let other = session(&server, "fremd").await;
     let before = (posts_at(&server, work, keys[1]).await, commit_count(&dir));
 
-    // Fremde Beiträge: isError, nichts geändert, kein Commit.
+    // Foreign posts: isError, nothing changed, no commit.
     for (name, args) in [
         ("post_delete", json!({ "work": work, "id": human })),
         ("post_move", json!({ "work": work, "id": human, "key": keys[3] })),
@@ -482,8 +482,8 @@ async fn mcp_manages_only_its_own_posts() {
     }
     let text = tool_refused(&server, &other, "post_delete", json!({ "work": work, "id": own })).await;
     assert!(text.contains("@mcp:probe"), "ein anderer Client darf den Beitrag von probe nicht löschen: {text}");
-    // Eigentum nach Angabe des Clients (docs/MCP.md): Keine Angabe trifft den Menschen – weder eine
-    // Persona noch ein Client, der sich „Autor“ nennt (er wird @mcp:Autor, nicht „Autor“).
+    // Ownership according to what the client states (docs/MCP.md): no statement hits the human – neither a persona nor
+    // a client that calls itself „Autor“ (it becomes @mcp:Autor, not „Autor“).
     let impostor = session(&server, "Autor").await;
     for (who, args) in [
         (&s, json!({ "work": work, "id": human, "persona": "@lektor" })),
@@ -494,7 +494,7 @@ async fn mcp_manages_only_its_own_posts() {
     }
     assert_eq!((posts_at(&server, work, keys[1]).await, commit_count(&dir)), before, "nichts geändert, kein Commit");
 
-    // node statt key wird abgelehnt (Argumentfehler).
+    // node instead of key is rejected (argument error).
     let (_, answer) = mcp(
         &server,
         Some(&s),
@@ -504,7 +504,7 @@ async fn mcp_manages_only_its_own_posts() {
     .await;
     assert_eq!(answer["error"]["code"], -32602, "post_move nimmt nur key: {answer}");
 
-    // Eigene: erlaubt, mit url und je einem Commit; Persona über `persona`.
+    // Own ones: allowed, with url and one commit each; persona through `persona`.
     let moved = tool_ok(&server, &s, "post_move", json!({ "work": work, "id": own, "key": keys[3] })).await;
     assert_eq!(moved["url"], format!("/?work={work}&key={}", keys[3]), "post_move: url des Ziels: {moved}");
     if let Some(message) = last_message(&dir) {
@@ -525,7 +525,7 @@ async fn mcp_manages_only_its_own_posts() {
     assert_eq!(left, vec![human], "nur der Beitrag des Menschen bleibt");
 }
 
-// ---- Formulare ohne JavaScript (§3d, §3f) -------------------------------------------------------
+// ---- Forms without JavaScript (§3d, §3f) --------------------------------------------------------
 
 #[tokio::test]
 async fn the_chat_shows_a_badge_and_forms_that_work_without_javascript() {
@@ -554,7 +554,7 @@ async fn the_chat_shows_a_badge_and_forms_that_work_without_javascript() {
     assert!(!pane.contains(&format!("<option value=\"{k1}\">")), "der gezeigte Abschnitt ist kein Ziel");
     assert!(pane.contains("name=\"words\" required"), "Umwandeln braucht Schlagwörter");
 
-    // Löschen ohne Kästchen: 422, mit: 303.
+    // Delete without the check box: 422, with it: 303.
     let (status, _) =
         server.post_form("/beitraege/act", &format!("method=post.delete&work={work}&key={k1}&id={first}")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ohne Kästchen abgelehnt");
@@ -566,7 +566,7 @@ async fn the_chat_shows_a_badge_and_forms_that_work_without_javascript() {
         .await;
     assert_eq!(status, StatusCode::SEE_OTHER, "gelöscht");
     assert_eq!(location, Some(format!("/?work={work}&key={k1}&rev=1&view=preview&lq=Saat")), "zurück, alles bleibt");
-    // Verschieben über select target_key.
+    // Move through select target_key.
     let (status, location) = server
         .post_form(
             "/beitraege/act",
@@ -576,7 +576,7 @@ async fn the_chat_shows_a_badge_and_forms_that_work_without_javascript() {
     assert_eq!(status, StatusCode::SEE_OTHER, "verschoben");
     assert_eq!(location, Some(format!("/?work={work}&key={k1}")), "zurück zum gezeigten Abschnitt");
     assert_eq!(posts_at(&server, work, keys[3]).await.last().map(|p| p.0), Some(second), "im Sommer");
-    // Umwandeln: Schlagwörter Pflicht.
+    // Convert: keywords mandatory.
     let (status, _) = server
         .post_form("/beitraege/act", &format!("method=post.to_idea&work={work}&key={}&id={second}&words=", keys[3]))
         .await;

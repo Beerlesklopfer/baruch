@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 c „nummerierung“ (Vertrag Abschnitte 3 und 4) im Store: Kapitel ohne Nummer erscheinen in
-//! Export, Export-Karte und Spiegel als Markierung „ohne Nummer“, die Texte in SQLite bleiben
-//! unverändert, `counted_headings` folgt der Projektion, und die Nummern aus einer Funktion der
-//! Werkvorlage sind exakt. Echte SQLite-Datei im Temp-Ordner, frei erfundenes Werk.
+//! Round 14 c „nummerierung“ (contract sections 3 and 4) in the store: chapters without number appear in export, export
+//! map and mirror as the marking „ohne Nummer“, the texts in SQLite stay unchanged, `counted_headings` follows the
+//! projection, and the numbers from a function of the work template are exact. Real SQLite file in the temp directory,
+//! freely invented work.
 
 use baruch_store::{Store, WorkId};
 
-/// Erfundenes Werk: Vorlage mit Nummern, drei Kapitel, ein Abschnitt.
+/// Invented work: template with numbers, three chapters, one section.
 const WORK: &str = "#set text(lang: \"de\")\n#set heading(numbering: \"1.\")\n\
 = Vorrede\nKurz.\n\
 = Die Mühle\nDas Rad dreht sich.\n== Am Wehr\nWasser.\n\
@@ -21,7 +21,7 @@ async fn imported() -> (tempfile::TempDir, Store, WorkId) {
     (dir, store, work)
 }
 
-/// Alle Texte aller Fassungen des Werks (Schlüssel, Nummer, Text) – für „SQLite bleibt unverändert“.
+/// All texts of all revisions of the work (key, number, text) – for „SQLite bleibt unverändert“.
 async fn all_bodies(store: &Store, work: WorkId) -> Vec<(i64, i64, String)> {
     sqlx::query_as(
         "SELECT r.node_id, r.number, r.body FROM revision r JOIN node n ON n.id = r.node_id \
@@ -112,8 +112,8 @@ async fn a_chapter_without_number_is_a_marker_in_export_map_and_mirror_but_not_i
 
 #[tokio::test]
 async fn a_marker_with_the_number_switched_on_is_a_heading_line_again() {
-    // Die andere Richtung: Steht im Text eine Markierung „ohne Nummer“, zählt der Knoten aber
-    // (numbered = 1), setzt die Projektion die =-Zeile (node.numbered ist maßgeblich, Vertrag §2).
+    // The other direction: if the text contains a marking „ohne Nummer“ but the node is counted (numbered = 1), the
+    // projection sets the = line (node.numbered is authoritative, contract §2).
     let (_dir, store, work) = imported().await;
     let marked = format!("{}Mehl.\n", baruch_typst::unnumbered_line(1, "Der Müller"));
     set_body(&store, work, "Der Müller", &marked).await;
@@ -135,7 +135,7 @@ async fn a_marker_with_the_number_switched_on_is_a_heading_line_again() {
 #[tokio::test]
 async fn counted_headings_follow_the_fallback_and_same_titles() {
     let (_dir, store, work) = imported().await;
-    // Gleiche Überschrift: Runde 6 ließ die Regel weg und zählte beide; die Markierung trifft nur die Vorrede.
+    // Same heading: Round 6 left out the rule and counted both; the marking hits only the Vorrede.
     set_body(&store, work, "Der Müller", "= Vorrede\nMehl.\n").await;
     store.outline_set_numbered(work, 0, false, HUMAN).await.unwrap();
     let counted = store.counted_headings(work).await.unwrap().unwrap();
@@ -143,7 +143,7 @@ async fn counted_headings_follow_the_fallback_and_same_titles() {
     let miller = key_of(&store, work, "Der Müller").await;
     assert!(!counted.contains(&preface) && counted.contains(&miller), "nur die Vorrede zählt nicht: {counted:?}");
 
-    // Eigenes Label: Rückfall Show-Regel; die Überschrift zählt dann ebenfalls nicht.
+    // Own label: fallback show rule; the heading then is not counted either.
     set_body(&store, work, "Vorrede", "= Vorrede <vor>\nKurz.\n").await;
     set_body(&store, work, "Der Müller", "= Der Müller\nMehl.\n").await;
     let exported = baruch_typst::xref::strip_key_labels(&store.export_typst(work).await.unwrap()).into_owned();
@@ -158,8 +158,8 @@ async fn counted_headings_follow_the_fallback_and_same_titles() {
 
 #[tokio::test]
 async fn numbers_from_a_template_function_are_exact_in_the_outline() {
-    // Vertrag §3: Eine Funktion der Werkvorlage wird je Ebene ausgewertet (bis Runde 13 nur das erste
-    // numbering-Muster für alle Ebenen, hier „1.1“ statt „Kapitel 1“).
+    // Contract §3: a function of the work template is evaluated per level (up to Round 13 only the first numbering
+    // pattern for all levels, here „1.1“ instead of „Kapitel 1“).
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
     let source = "#set heading(numbering: (..n) => if n.pos().len() == 1 { \"Kapitel \" + str(n.pos().at(0)) } \

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme der Runde 35 „Konten und Rollen“ (Vertrag §5, Integrator): der echte Weg über die Naht der drei Aufgaben
-//! – Formulare, Cookie der Sitzung, Schicht `auth::gate`, Tabellen in `roles` – vom Einrichten bis zum Entzug der
-//! Freigabe. Die Tests der Aufgaben setzen die Identität über `common::with_who`; hier kommt sie allein aus dem
-//! Cookie, das `/einrichten` und `/anmelden` ausgeben.
+//! Acceptance of Round 35 „Konten und Rollen“ (contract §5, integrator): the real way across the seam of the three
+//! tasks – forms, cookie of the session, layer `auth::gate`, tables in `roles` – from the setup to the revocation of
+//! the grant. The tests of the tasks set the identity through `common::with_who`; here it comes solely from the cookie
+//! that `/einrichten` and `/anmelden` issue.
 //!
-//! Alles läuft über Formulare (ohne JavaScript bedienbar); `/rpc` dient nur zum Nachlesen und für die Gegenprobe.
-//! Kein Test fragt einen fremden Dienst.
+//! Everything runs through forms (usable without JavaScript); `/rpc` only serves for reading back and for the
+//! cross-check. No test asks a foreign service.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -20,10 +20,10 @@ use serde_json::{Value, json};
 
 use crate::common::{self, Server};
 
-/// Erfundene Passwörter (10 bis 200 Zeichen, ohne Zeichen, die im Formular kodiert werden müssten).
+/// Invented passwords (10 to 200 characters, without characters that would have to be encoded in the form).
 const AUTHOR_PW: &str = "kranich-ueber-dem-moor-7";
 const LEKTOR_PW: &str = "torfstich-im-fruehnebel";
-/// Name, unter dem der Proxy im Test erreichbar ist (`--allow-host`).
+/// Name under which the proxy is reachable in the test (`--allow-host`).
 const PROXY: &str = "lektorat.example.org";
 const LOOPBACK: SocketAddr = SocketAddr::new(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST), 50123);
 
@@ -43,15 +43,15 @@ fn rpc_request(method: &str, params: Value) -> Request<Body> {
     Request::post("/rpc").header(header::CONTENT_TYPE, "application/json").body(Body::from(body.to_string())).unwrap()
 }
 
-/// Die Anfrage kommt vom eigenen Rechner: Gegenstelle Loopback, `Host` eine IP-Adresse.
+/// The request comes from the own machine: peer loopback, `Host` an IP address.
 fn local(mut request: Request<Body>) -> Request<Body> {
     request.extensions_mut().insert(ConnectInfo(LOOPBACK));
     request.headers_mut().insert(header::HOST, "127.0.0.1:8765".parse().unwrap());
     request
 }
 
-/// Die Anfrage kommt über den Proxy auf demselben Rechner: Gegenstelle Loopback, `Host` der Proxy-Name, dazu die
-/// Kopfzeile, die ein Proxy anhängt.
+/// The request comes through the proxy on the same machine: peer loopback, `Host` the proxy name, plus the header that
+/// a proxy appends.
 fn proxied(mut request: Request<Body>) -> Request<Body> {
     request.extensions_mut().insert(ConnectInfo(LOOPBACK));
     request.headers_mut().insert(header::HOST, PROXY.parse().unwrap());
@@ -59,7 +59,7 @@ fn proxied(mut request: Request<Body>) -> Request<Body> {
     request
 }
 
-/// Sitzung als Cookie, wie der Browser sie mitschickt – über den Proxy.
+/// Session as a cookie as the browser sends it along – through the proxy.
 fn with_session(request: Request<Body>, token: &str) -> Request<Body> {
     let mut request = proxied(request);
     request.headers_mut().insert(header::COOKIE, format!("baruch_session={token}").parse().unwrap());
@@ -74,7 +74,7 @@ fn denied_by_role(headers: &HeaderMap) -> bool {
     headers.get("x-baruch-abgelehnt").is_some_and(|value| value == "rolle")
 }
 
-/// Das Token aus dem `Set-Cookie` der Antwort (genau eines).
+/// The token from the `Set-Cookie` of the answer (exactly one).
 fn token_of(headers: &HeaderMap) -> String {
     let cookies: Vec<&str> = headers
         .get_all(header::SET_COOKIE)
@@ -92,7 +92,7 @@ fn enc(text: &str) -> String {
         .collect()
 }
 
-/// Server, der zusätzlich den Proxy-Namen erlaubt (wie `serve --allow-host lektorat.example.org`).
+/// Server that additionally allows the proxy name (like `serve --allow-host lektorat.example.org`).
 async fn open_behind_proxy() -> Server {
     let data = tempfile::tempdir().unwrap();
     let mut state = baruch_server::AppState::open(data.path()).await.expect("Datenordner");
@@ -112,7 +112,7 @@ fn result<'a>(answer: &'a Value, what: &str) -> &'a Value {
     &answer["result"]
 }
 
-/// Text der aktuellen Fassung des ersten Abschnitts.
+/// Text of the current revision of the first section.
 async fn current_body(server: &Server, work: i64) -> String {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = &loaded.nodes[0];
@@ -126,7 +126,7 @@ async fn count(server: &Server, sql: &str) -> i64 {
         .unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Zeilenzahl jeder Tabelle: der Stand der Datenbank in Zahlen.
+/// Row count of every table: the state of the database in numbers.
 async fn row_counts(server: &Server) -> std::collections::BTreeMap<String, i64> {
     let pool = server.state.store.pool();
     let tables: Vec<String> = sqlx::query_scalar("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
@@ -144,7 +144,7 @@ async fn row_counts(server: &Server) -> std::collections::BTreeMap<String, i64> 
     counts
 }
 
-/// Nimmt ein Muster des Routers diesen Pfad an?
+/// Does a pattern of the router accept this path?
 fn matches(pattern: &str, path: &str) -> bool {
     let wanted: Vec<&str> = pattern.split('/').collect();
     let given: Vec<&str> = path.split('/').collect();
@@ -152,7 +152,7 @@ fn matches(pattern: &str, path: &str) -> bool {
         && wanted.iter().zip(&given).all(|(w, g)| if w.starts_with('{') { !g.is_empty() } else { w == g })
 }
 
-/// Muster mit Werten füllen: `{id}` mit dem Werk, jeder andere Platzhalter mit `1`.
+/// Fill a pattern with values: `{id}` with the work, every other placeholder with `1`.
 fn fill(pattern: &str, work: i64) -> String {
     pattern
         .split('/')
@@ -165,7 +165,7 @@ fn fill(pattern: &str, work: i64) -> String {
         .join("/")
 }
 
-/// Kommt `needle` in irgendeiner Datei unter `dir` vor (Datenbank, WAL, Spiegel, alles)?
+/// Does `needle` occur in any file below `dir` (database, WAL, mirror, everything)?
 fn files_containing(dir: &std::path::Path, needle: &[u8], found: &mut Vec<String>) {
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
@@ -179,15 +179,15 @@ fn files_containing(dir: &std::path::Path, needle: &[u8], found: &mut Vec<String
     }
 }
 
-/// Der Stand nach dem Einrichten: Autor „Tilda“, Lektorin „Bärbel“ (Handle `@lektorat:baerbel`) mit Freigabe für das
-/// importierte Werk, beide angemeldet. Das Beispielwerk der Instanz bleibt ohne Freigabe.
+/// The state after the setup: author „Tilda“, Lektor „Bärbel“ (handle `@lektorat:baerbel`) with a grant for the
+/// imported work, both signed in. The sample work of the instance stays without a grant.
 struct Desk {
     server: Server,
-    /// Das freigegebene Werk und sein Spiegelordner.
+    /// The granted work and its mirror directory.
     granted: i64,
     slug: String,
     title: String,
-    /// Das nicht freigegebene Beispielwerk (kleinste id, Vorgabewerk der Instanz).
+    /// The sample work that is not granted (smallest id, default work of the instance).
     foreign: i64,
     foreign_title: String,
     author: String,
@@ -258,7 +258,7 @@ async fn desk() -> Desk {
     }
 }
 
-// ---- ohne Konten ----------------------------------------------------------------------------------------------
+// ---- without accounts -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_accounts_the_start_page_differs_from_before_only_by_the_menu_entry() {
@@ -274,8 +274,8 @@ async fn without_accounts_the_start_page_differs_from_before_only_by_the_menu_en
     let (_, plain) = server.get("/").await;
     assert_eq!(page, plain, "mit und ohne bekannte Gegenstelle dieselbe Seite");
 
-    // Der eine neue Eintrag: steht direkt hinter „Baruch beenden…“. Ohne ihn ist die Seite die von vor Runde 35 –
-    // nichts von Konten, Rollen oder den Marken der Vorlage bleibt zurück.
+    // The one new entry: it stands directly after „Baruch beenden…“. Without it the page is the one from before Round
+    // 35 – nothing of accounts, roles or the markers of the template remains.
     let start = page
         .find("<a class=\"menu-item\" role=\"menuitem\" href=\"/einrichten\"")
         .expect("Eintrag „Konten einrichten…“ im Menü");
@@ -312,7 +312,7 @@ async fn without_accounts_the_start_page_differs_from_before_only_by_the_menu_en
         assert!(before.contains(kept), "die Startseite hat weiter alles von vorher: {kept}");
     }
 
-    // RPC und MCP antworten vom eigenen Rechner ohne Anmeldung wie bisher.
+    // RPC and MCP answer from the own machine without sign-in as before.
     let (status, _, body) = server.send(local(rpc_request("work.list", json!({})))).await;
     let answer: Value = serde_json::from_str(&body).unwrap();
     assert!(
@@ -331,13 +331,13 @@ async fn without_accounts_the_start_page_differs_from_before_only_by_the_menu_en
     assert!(headers.get("mcp-session-id").is_some(), "MCP vergibt wie bisher eine Sitzung");
 }
 
-// ---- Einrichten -----------------------------------------------------------------------------------------------
+// ---- Setup ----------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everything_needs_a_session() {
     let server = open_behind_proxy().await;
     let body = format!("name=Tilda&display=&password={AUTHOR_PW}&password2={AUTHOR_PW}");
-    // Über den Proxy und ohne bekannte Gegenstelle: kein Einrichten.
+    // Through the proxy and without a known peer: no setup.
     let (status, _, _) = server.send(proxied(form("/einrichten", &body))).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "über den Proxy richtet niemand das erste Konto ein");
     let (status, _, _) = server.send(form("/einrichten", &body)).await;
@@ -363,7 +363,7 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     assert_eq!(status, StatusCode::FORBIDDEN, "und auch der Autor richtet kein zweites erstes Konto ein");
     assert_eq!(count(&server, "SELECT count(*) FROM account").await, 1, "es bleibt bei einem Konto");
 
-    // Ab jetzt: ohne Sitzung keine Seite, kein RPC, kein Formular – auch vom eigenen Rechner (Entscheidung 0.2).
+    // From now on: without a session no page, no RPC, no form – also from the own machine (decision 0.2).
     for request in [local(get("/?work=1")), proxied(get("/?work=1"))] {
         let (status, headers, _) = server.send(request).await;
         assert_eq!(
@@ -391,7 +391,7 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     );
     assert!(!page.contains("<script"), "die Anmeldeseite braucht kein JavaScript");
 
-    // MCP bleibt bei Tokens: Die Anmelde-Schicht fasst /mcp nicht an.
+    // MCP stays with tokens: the sign-in layer does not touch /mcp.
     let init = json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
         "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": { "name": "abnahme", "version": "1" } } });
     let request = Request::post("/mcp")
@@ -402,14 +402,14 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     let (status, _, body) = server.send(local(request)).await;
     assert_eq!(status, StatusCode::OK, "MCP vom eigenen Rechner braucht auch mit Konten keine Sitzung: {body}");
 
-    // Mit der Sitzung des Autors geht alles wie vorher.
+    // With the session of the author everything works as before.
     let (status, _, page) = server.send(with_session(get("/?work=1"), &author)).await;
     assert!(
         status == StatusCode::OK && page.contains("data-rolle=\"autor\"") && page.contains("Angemeldet: Tilda (Autor)"),
         "der Autor sieht die Arbeitsseite und im Menü, wer angemeldet ist"
     );
 
-    // Falsches Passwort mehrfach: Verzögerung, während der auch das richtige nicht hilft.
+    // Wrong password several times: a delay during which the right one does not help either.
     let wrong = "name=Tilda&password=falsch-geraten-1&next=/";
     for attempt in 1..=3 {
         let (status, headers, _) = server.send(proxied(form("/anmelden", wrong))).await;
@@ -431,7 +431,7 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     assert_eq!(status, StatusCode::SEE_OTHER, "nach der Wartezeit gelingt die Anmeldung");
     let second = token_of(&headers);
 
-    // Abmelden beendet genau diese Sitzung.
+    // Signing out ends exactly this session.
     let (status, headers, _) = server.send(with_session(form("/abmelden", ""), &second)).await;
     assert_eq!(
         (status, location(&headers)),
@@ -447,7 +447,7 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     let (status, _, _) = server.send(with_session(get("/werke"), &author)).await;
     assert_eq!(status, StatusCode::OK, "die andere Sitzung des Autors läuft weiter");
 
-    // Das Passwort steht nirgends im Klartext: weder in der Datenbank noch sonst im Datenordner.
+    // The password is nowhere in plain text: neither in the database nor elsewhere in the data directory.
     sqlx::query("PRAGMA wal_checkpoint(FULL)").execute(server.state.store.pool()).await.unwrap();
     let mut found = Vec::new();
     files_containing(server.path(), AUTHOR_PW.as_bytes(), &mut found);
@@ -464,14 +464,14 @@ async fn the_first_account_is_only_set_up_from_the_own_machine_and_then_everythi
     assert_eq!(token_rows, 0, "auch das Token der Sitzung steht nicht selbst in der Datenbank, nur sein Hash");
 }
 
-// ---- der Weg der Lektorin ---------------------------------------------------------------------------------------
+// ---- the way of the Lektor --------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_revoked() {
     let d = desk().await;
     let (server, g) = (&d.server, d.granted);
 
-    // Sie sieht nur das freigegebene Werk.
+    // She sees only the granted work.
     let (status, _, page) = server.send(with_session(get("/werke"), &d.lektor)).await;
     assert_eq!(status, StatusCode::OK, "die Werkliste lädt");
     assert!(page.contains(&d.title), "das freigegebene Werk steht in der Liste");
@@ -491,7 +491,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
     let (status, headers, _) = server.send(with_session(get(&format!("/?work={}", d.foreign)), &d.lektor)).await;
     assert!(status == StatusCode::FORBIDDEN && denied_by_role(&headers), "das fremde Werk ist gesperrt: {status}");
 
-    // Arbeitsseite ohne JavaScript: Formulare an /lektorat/act, keine Knöpfe des Autors.
+    // Work page without JavaScript: forms to /lektorat/act, no buttons of the author.
     let node = rpc_with(server, &d.lektor, "node.get", json!({ "work": g, "node": 0 })).await;
     let key = result(&node, "node.get")["key"].as_i64().expect("fester Schlüssel des ersten Abschnitts");
     let original = current_body(server, g).await;
@@ -510,7 +510,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
         assert!(!page.contains(absent), "die Arbeitsseite einer Lektorin hat keinen Schreibweg des Autors: {absent}");
     }
 
-    // Vorschlag, Beitrag, Befund – alles über das Formular.
+    // Proposal, post, finding – everything through the form.
     let mirror = server.state.mirror(g).await.unwrap();
     let head_start = mirror.head().unwrap();
     let text = "= Frühling\n\nDie Beete an der Südmauer werden umgegraben.";
@@ -554,7 +554,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
         head_start,
         "ein neuer Beitrag ist wie beim Autor und bei MCP kein Commit – er steht in der Datenbank"
     );
-    // Ändert sie ihren Beitrag, steht das mit Herkunft im Spiegel (alte Fassung bleibt).
+    // If she changes her post, that is in the mirror with its origin (the old version stays).
     let post_id = written["id"].as_i64().unwrap();
     let edit =
         format!("method=post.edit&work={g}&id={post_id}&body={}", enc("Stand die Mauer nicht im Osten? (Kap. 3)"));
@@ -604,7 +604,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
         "die Befundseite bietet der Lektorin das Formular „Anmerkung zum Buch“"
     );
 
-    // Übernehmen darf sie nicht – weder über /rpc noch über ein Formular.
+    // She may not accept – neither through /rpc nor through a form.
     let accept = json!({ "work": g, "key": key, "rev": rev });
     let answer = rpc_with(server, &d.lektor, "revision.accept", accept.clone()).await;
     assert_eq!(answer["error"]["code"].as_i64(), Some(FORBIDDEN), "revision.accept bleibt dem Autor: {answer}");
@@ -616,7 +616,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
     let current = current_body(server, g).await;
     assert_eq!(current, original, "nach den Versuchen der Lektorin gilt die alte Fassung");
 
-    // Der Autor übernimmt – ohne JavaScript über /act.
+    // The author accepts – without JavaScript through /act.
     let (status, _, body) = server.send(with_session(form("/act", &accept_form), &d.author)).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "der Autor übernimmt den Vorschlag: {body}");
     let current = current_body(server, g).await;
@@ -625,7 +625,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
         assert!(log.contains("@lektorat:baerbel"), "der Commit der Übernahme nennt, von wem die Fassung stammt: {log}");
     }
 
-    // Entzug der Freigabe wirkt bei der nächsten Anfrage, die Sitzung bleibt.
+    // Revoking the grant takes effect on the next request, the session stays.
     let revoke = format!("action=revoke&account={}", d.lektor_id);
     let (status, headers, body) =
         server.send(with_session(form(&format!("/werke/{g}/mitwirkende/act"), &revoke), &d.author)).await;
@@ -652,7 +652,7 @@ async fn a_lektor_works_in_the_granted_work_with_her_handle_until_the_grant_is_r
     );
 }
 
-// ---- jeder andere Schreibweg ------------------------------------------------------------------------------------
+// ---- every other write path -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn with_a_real_session_every_route_and_method_outside_the_tables_is_closed_for_a_lektor() {
@@ -702,12 +702,12 @@ async fn with_a_real_session_every_route_and_method_outside_the_tables_is_closed
         before,
         "nach allen Versuchen sind Datenbank (Zeilenzahlen) und Spiegel (HEAD) unverändert"
     );
-    // Die Sitzung hat die Abweisungen überstanden: Erlaubtes geht weiter.
+    // The session has survived the rejections: what is allowed still works.
     let (status, _, _) = server.send(with_session(get(&format!("/?work={g}")), &d.lektor)).await;
     assert_eq!(status, StatusCode::OK, "die Arbeitsseite des freigegebenen Werks lädt weiter");
 }
 
-// ---- zuletzt geöffnetes Werk ------------------------------------------------------------------------------------
+// ---- work opened last -------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_page_without_work_leads_a_lektor_to_the_last_opened_work_if_it_is_granted() {
@@ -719,15 +719,16 @@ async fn a_page_without_work_leads_a_lektor_to_the_last_opened_work_if_it_is_gra
         request.headers_mut().insert(header::COOKIE, cookies.parse().unwrap());
         request
     };
-    // Erst eine Freigabe: Das Cookie zeigt auf das fremde Werk und zählt nicht.
+    // Only one grant at first: the cookie points to the foreign work and does not count.
     let (status, headers, _) = server.send(with_work_cookie(d.foreign)).await;
     assert_eq!(
         (status, location(&headers)),
         (StatusCode::SEE_OTHER, format!("/gliederung?work={}", d.granted).as_str()),
         "ein Cookie auf ein nicht freigegebenes Werk gibt kein Recht – es geht auf das freigegebene"
     );
-    // Seiten ohne eigenes Werk (Werkliste, Mein Konto) nehmen ihr Werk für „Zurück zum Werk“ aus dem Cookie bzw. ohne
-    // Cookie das Vorgabewerk der Instanz – für die Lektorin darf daraus nie ein Link auf das fremde Werk werden.
+    // Pages without a work of their own (work list, Mein Konto) take their work for „Zurück zum Werk“ from the cookie
+    // or, without a cookie, the default work of the instance – for the Lektor this must never become a link to the
+    // foreign work.
     for page in ["/werke", "/konto", "/ueber"] {
         let mut stale = proxied(get(page));
         let cookies = format!("baruch_work={}; baruch_session={}", d.foreign, d.lektor);
@@ -752,7 +753,7 @@ async fn a_page_without_work_leads_a_lektor_to_the_last_opened_work_if_it_is_gra
         "„Mein Konto“ führt die Lektorin zurück in das freigegebene Werk"
     );
 
-    // Zweite Freigabe (das Beispielwerk mit der kleineren id).
+    // Second grant (the sample work with the smaller id).
     let grant = format!("action=grant&account={}", d.lektor_id);
     let (status, _, body) =
         server.send(with_session(form(&format!("/werke/{}/mitwirkende/act", d.foreign), &grant), &d.author)).await;

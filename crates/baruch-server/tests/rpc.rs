@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! JSON-RPC über `POST /rpc` und Formulare über `POST /act` auf einer echten SQLite-Datei.
+//! JSON-RPC through `POST /rpc` and forms through `POST /act` on a real SQLite file.
 
 use crate::common;
 
@@ -11,7 +11,7 @@ use common::currents;
 #[tokio::test]
 async fn accepting_a_proposal_keeps_exactly_one_current() {
     let server = common::open().await;
-    // Abschnitt 2 (Einleitung) hat Vorschlag 3/3.
+    // Section 2 (introduction) has proposal 3/3.
     let answer = server.rpc("revision.accept", json!({ "node": 2, "rev": 3 })).await;
     assert_eq!(answer["result"]["node"], 2, "die Antwort nennt den Abschnitt: {answer}");
     assert_eq!(answer["result"]["rev"], 3, "und die jetzt aktuelle Fassung 3: {answer}");
@@ -36,12 +36,12 @@ async fn saving_appends_a_human_revision_that_survives_a_restart() {
     );
     assert_eq!(node["result"]["revisions"][before]["body"], "== Neu\n", "CRLF wird zu LF");
 
-    // Gleicher Text noch einmal: keine neue Revision, Antwort zeigt die aktuelle.
+    // Same text once more: no new revision, the answer shows the current one.
     let same = server.rpc("revision.save", json!({ "node": 4, "body": "== Neu\n" })).await;
     assert_eq!(same["result"]["rev"], before + 1, "gleicher Text ergibt keine neue Fassung: {same}");
     assert!(same["result"].get("commit").is_none(), "ohne Änderung kein Commit: {same}");
 
-    // Neu öffnen: die Datenbank ist die Quelle, nicht der Speicher.
+    // Reopen: the database is the source, not the memory.
     let state = baruch_server::AppState::open(server.path()).await.unwrap();
     let work = state.store.load_work(state.work).await.unwrap();
     assert_eq!(work.nodes[4].revisions.len(), before + 1, "Revision fehlt nach Neustart");
@@ -95,7 +95,7 @@ async fn posts_are_stored_and_link_to_earlier_passages() {
     let ui = server.rpc("ui.render", json!({ "node": 5 })).await;
     let html = ui["result"]["assistants"].as_str().unwrap();
     assert!(html.contains("@lektor"), "der Abschnitts-Chat zeigt den Beitrag des Lektors: {html}");
-    // minijinja maskiert „/“ als &#x2f; und „&“ als &amp; – der Browser liest /?work=1&key=K&rev=2.
+    // minijinja escapes „/“ as &#x2f; and „&“ as &amp; – the browser reads /?work=1&key=K&rev=2.
     let k = key_at(&server, 1, 4).await;
     assert!(
         html.contains(&format!("href=\"&#x2f;?work=1&amp;key={k}&amp;rev=2\"")),
@@ -128,8 +128,8 @@ async fn forms_without_javascript_redirect_back_to_the_page() {
     assert_eq!(status, axum::http::StatusCode::BAD_REQUEST, "nur erlaubte Methoden über /act");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Stable key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

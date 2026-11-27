@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Metadaten von Beiträgen (Runde 30, Migration 0047; Besitz danach chat-bedienung). S1 prüft die voll umgesetzten
-//! Abfragen `add_post_meta`, `post_meta_set`, `post_meta`, `work_post_meta`, `thread_post_meta_set`,
-//! `thread_post_meta`. Echte SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! Metadata of posts (Round 30, migration 0047; owner afterwards chat-bedienung). S1 checks the fully implemented
+//! queries `add_post_meta`, `post_meta_set`, `post_meta`, `work_post_meta`, `thread_post_meta_set`, `thread_post_meta`.
+//! Real SQLite file in the temp directory, test texts freely invented.
 
 use baruch_core::Post;
 use baruch_store::{PostMeta, PostRequest, Store, StoreError, WorkId};
@@ -107,7 +107,7 @@ async fn thread_post_metadata_stays_inside_its_thread() {
     assert!(store.thread_post_meta(elsewhere, &[reply.id]).await.unwrap().is_empty(), "fremdes Werk sieht nichts");
 }
 
-// ---- Runde 30c (chat-bedienung) -------------------------------------------------------------------------------------
+// ---- Round 30c (chat-bedienung) -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_thread_post_is_added_with_its_metadata_in_one_transaction() {

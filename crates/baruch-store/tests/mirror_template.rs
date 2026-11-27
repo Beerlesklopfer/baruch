@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werkvorlage im Spiegel (Entscheidung 2026-11-05): `vorlage.typ`, `main.typ` = Vorlage + `#include`,
-//! jede Abschnittsdatei beginnt mit `#import "../vorlage.typ": *`. Dazu das Beispielwerk, das nur in
-//! eine leere Datenbank gesät wird. Echte SQLite-Datei im Temp-Ordner, eigene Datei
-//! `tests/data/probebuch.typ`.
+//! Work template in the mirror (decision 2026-11-05): `vorlage.typ`, `main.typ` = template + `#include`, every section
+//! file begins with `#import "../vorlage.typ": *`. Plus the sample work, which is seeded only into an empty database.
+//! Real SQLite file in the temp directory, own file `tests/data/probebuch.typ`.
 
 use baruch_store::{MirrorFile, Store};
 
@@ -73,7 +72,7 @@ async fn a_work_without_template_has_neither_vorlage_typ_nor_import_lines() {
         assert!(!file.contents.contains("#import \"../vorlage.typ\""), "{}: keine Import-Zeile", file.path);
     }
 
-    // Auch ein importiertes Werk ohne Präambel hat keine Vorlage.
+    // An imported work without a preamble has no template either.
     let bare = store.import_typst("= Eins\nText\n", "nackt.typ", "Autor").await.unwrap();
     let files = store.mirror_snapshot(bare.work).await.unwrap();
     assert!(find(&files, "vorlage.typ").is_none(), "leere Vorlage → keine vorlage.typ: {files:?}");
@@ -93,7 +92,7 @@ async fn the_sample_work_is_named_beispielwerk_only_when_seeded_into_an_empty_da
     assert_eq!(works[0].2, "Beispielwerk: Leise Abhängigkeit (Auszug)", "neuer Titel des Beispielwerks");
     assert_eq!(works[0].1, "beispielwerk-leise-abhaengigkeit-auszug", "slug aus dem neuen Titel");
 
-    // Ein vorhandenes Werk mit altem Titel bleibt beim nächsten Öffnen, wie es ist (keine Migration).
+    // An existing work with an old title stays as it is on the next open (no migration).
     sqlx::query("UPDATE work SET title = 'Mövenoog – ein ganzes Jahr auf der kleinen Insel' WHERE id = ?")
         .bind(works[0].0)
         .execute(store.pool())

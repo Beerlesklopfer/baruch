@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „ids“: Kennungen (Migration 0041), Grabsteine, Instanzname (RPC `instance.*`, Einstellungen → Daten).
+//! Round 26 „ids“: identifiers (migration 0041), tombstones, instance name (RPC `instance.*`, Einstellungen → Daten).
 //!
-//! Belegt über den echten Router (`tower::ServiceExt::oneshot`) auf einem Temp-Datenordner: `instance.get` und
-//! `instance.set_name` laut Vertrag (trim, höchstens 80 Zeichen, keine Steuerzeichen, leer = zurücksetzen), kein
-//! MCP-Werkzeug dafür, `work.meta` liefert die uuid, „Werk bearbeiten“ zeigt sie nur lesend, Einstellungen →
-//! Daten zeigt Kennung und Namen und speichert den Namen ohne JavaScript; fremder Origin → 403.
+//! Proven through the real router (`tower::ServiceExt::oneshot`) on a temp data directory: `instance.get` and
+//! `instance.set_name` according to the contract (trim, at most 80 characters, no control characters, empty = reset),
+//! no MCP tool for it, `work.meta` returns the uuid, „Werk bearbeiten“ shows it read-only, Einstellungen → Daten shows
+//! identifier and name and saves the name without JavaScript; foreign Origin → 403.
 
 use std::net::SocketAddr;
 
@@ -25,7 +25,7 @@ fn is_v4(uuid: &str) -> bool {
     baruch_exchange::is_uuid(uuid) && &uuid[14..15] == "4" && matches!(&uuid[19..20], "8" | "9" | "a" | "b")
 }
 
-/// Formularwert prozentkodieren.
+/// Percent-encode a form value.
 fn enc(value: &str) -> String {
     value
         .bytes()
@@ -80,7 +80,7 @@ async fn instance_rpc_reads_and_sets_the_name_by_the_contract() {
 
 #[tokio::test]
 async fn mcp_has_no_tool_for_the_instance() {
-    // Der Instanzname ist eine Einstellung des Menschen; kein Werkzeug liest oder setzt ihn über MCP.
+    // The instance name is a setting of the human; no tool reads or sets it over MCP.
     let server = common::open().await;
     let mut request = Request::post("/mcp")
         .header(header::CONTENT_TYPE, "application/json")
@@ -111,7 +111,7 @@ async fn work_meta_and_the_edit_page_show_the_uuid_read_only() {
     assert_eq!(status, StatusCode::OK, "Seite „Werk ändern“");
     assert!(page.contains(&format!("<code>{uuid}</code>")), "die uuid steht auf der Seite: {page}");
     assert!(page.contains("Kennung des Werks (UUID"), "mit deutscher Erklärung");
-    // Nur lesend: kein Formularfeld trägt die uuid, und work.update kennt kein Feld dafür.
+    // Read-only: no form field carries the uuid, and work.update knows no field for it.
     assert!(!page.contains("name=\"uuid\""), "kein Eingabefeld für die uuid");
     let form_part = &page[page.find("<form class=\"work-form").unwrap()..];
     let form_part = &form_part[..form_part.find("</form>").unwrap()];
@@ -124,7 +124,7 @@ async fn work_meta_and_the_edit_page_show_the_uuid_read_only() {
         "work.update ändert die uuid nicht: {update}"
     );
 
-    // Dieselbe Anzeige auf der Einstellungsseite „Werk“ (gleicher Formularteil).
+    // The same display on the settings page „Werk“ (same form part).
     let (_, settings) = server.get(&format!("/einstellungen/werk?work={}", garden.work)).await;
     assert!(settings.contains(&format!("<code>{uuid}</code>")), "Einstellungen → Werk zeigt die uuid");
 }
@@ -140,7 +140,7 @@ async fn the_data_page_shows_the_instance_and_saves_its_name_without_javascript(
     assert!(page.contains("action=\"/einstellungen/daten/instanz\""), "Formular ohne JavaScript");
     assert!(page.contains("name=\"name\""), "Feld name");
 
-    // Speichern: 303 zurück auf die Seite (mit Werk), dort Hinweis und Name.
+    // Save: 303 back to the page (with work), there the notice and the name.
     let (status, headers, _) =
         form(&server, "/einstellungen/daten/instanz", &format!("work=1&name={}", enc(" Gartenhaus <&> ")), None).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Speichern leitet weiter");
@@ -161,7 +161,7 @@ async fn the_data_page_shows_the_instance_and_saves_its_name_without_javascript(
         "settings.get daten trägt die Instanz"
     );
 
-    // Ungültig: 422 mit der Seite und der Meldung, nichts gespeichert.
+    // Invalid: 422 with the page and the message, nothing saved.
     let (status, _, page) =
         form(&server, "/einstellungen/daten/instanz", &format!("name={}", "y".repeat(81)), None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "zu langer Name → 422");
@@ -172,13 +172,13 @@ async fn the_data_page_shows_the_instance_and_saves_its_name_without_javascript(
     assert!(page.contains("Steuerzeichen"), "Meldung nennt Steuerzeichen: {page}");
     assert_eq!(server.state.store.instance().await.unwrap().name, "Gartenhaus <&>", "nichts gespeichert");
 
-    // Fremder Origin: 403 vom Wächter, nichts gespeichert.
+    // Foreign Origin: 403 from the guard, nothing saved.
     let (status, _, _) =
         form(&server, "/einstellungen/daten/instanz", "name=Fremd", Some("https://evil.example")).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "fremder Origin → 403");
     assert_eq!(server.state.store.instance().await.unwrap().name, "Gartenhaus <&>", "fremder Origin ändert nichts");
 
-    // Leer = zurücksetzen.
+    // Empty = reset.
     let (status, _, _) = form(&server, "/einstellungen/daten/instanz", "name=", Some("http://127.0.0.1:8765")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "gleicher Origin geht durch");
     assert_eq!(server.state.store.instance().await.unwrap().name, "", "leer setzt zurück");

@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 25, Abnahme des Integrators: die Gedankenkarte von Ende zu Ende, nachdem karte-daten, karte-bild und
-//! karte-widget zusammengeführt sind (Vertrag §7).
+//! Round 25, acceptance by the integrator: the idea map from end to end, after karte-daten, karte-bild and karte-widget
+//! have been merged (contract §7).
 //!
-//! Ein erfundenes Werk mit zwei Teilen, Kapiteln und einem Abschnitt bekommt 40 erfundene Einfälle (mit und ohne
-//! Bezug, offen und verarbeitet, mit gleichen Schlagwörtern, ein Zwillingspaar mit gleichem Gedanken für die Nähe).
-//! Einbettungen kommen vom Nachbau `MockEliezer` (512 Dimensionen) – nie vom echten Eliezer, kein Netz außer
-//! 127.0.0.1:0. Geprüft wird über dieselben Wege wie Oberfläche, Widget und Assistenten: Seite ohne JavaScript,
-//! Formulare an `/werke/{id}/karte/act`, die RPC, die das Widget ruft (`idea.update`, `idea.link`,
-//! `idea.map_pos_set`), Spiegel `einfaelle.md` und MCP `idea_links`.
+//! An invented work with two parts, chapters and one section gets 40 invented ideas (with and without reference, open
+//! and processed, with shared keywords, one pair of twins with the same thought for the proximity). Embeddings come
+//! from the mock `MockEliezer` (512 dimensions) – never from the real Eliezer, no network except 127.0.0.1:0. The check
+//! goes through the same ways as user interface, widget and assistants: page without JavaScript, forms to
+//! `/werke/{id}/karte/act`, the RPC that the widget calls (`idea.update`, `idea.link`, `idea.map_pos_set`), mirror
+//! `einfaelle.md` and MCP `idea_links`.
 //!
-//! Was die Zweige schon einzeln prüfen, steht dort (300 Einfälle < 200 ms und ohne Überlappung in
-//! `round25_bild.rs`, Rundreise und Abgleich des Austauschs in `round25_widget.rs`); hier geht es um das
-//! Zusammenspiel.
+//! What the branches already check individually is found there (300 ideas < 200 ms and without overlap in
+//! `round25_bild.rs`, round trip and merge of the exchange in `round25_widget.rs`); this file is about the interplay.
 
 use crate::common;
 
@@ -27,8 +26,8 @@ use baruch_server::rag;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Erfundenes Buch: Teil „Morgen“ mit „Tau“ und „Nebel“ (Abschnitt „Schwaden“), Teil „Abend“ mit „Dämmerung“
-/// und „Sterne“ (bleibt ohne Einfälle).
+/// Invented book: part „Morgen“ with „Tau“ and „Nebel“ (section „Schwaden“), part „Abend“ with „Dämmerung“ and „Sterne“
+/// (stays without ideas).
 fn book() -> String {
     format!(
         "#set document(title: \"Das Wetterheft\", author: \"Wenzel Wolke\")\n\n{}\n= Tau\n\nTropfen am Gras.\n\n\
@@ -56,12 +55,12 @@ fn commits(server: &common::Server, slug: &str) -> Option<usize> {
     common::git(&server.mirror_dir_of(slug), &["rev-list", "--count", "HEAD"]).map(|n| n.trim().parse().unwrap())
 }
 
-/// Ids der gezeichneten Einfälle (`data-node="i:<id>"`).
+/// Ids of the drawn ideas (`data-node="i:<id>"`).
 fn drawn(html: &str) -> BTreeSet<i64> {
     html.split("data-node=\"i:").skip(1).map(|r| r[..r.find('"').unwrap()].parse().unwrap()).collect()
 }
 
-/// Das erste Tag, das `marker` enthält.
+/// The first tag that contains `marker`.
 fn tag_with<'a>(html: &'a str, marker: &str) -> &'a str {
     let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt"));
     let start = html[..at].rfind('<').unwrap();
@@ -109,7 +108,7 @@ async fn mcp_tool(server: &common::Server, name: &str, arguments: Value) -> Valu
     answer["result"]["structuredContent"].clone()
 }
 
-/// Ein Einfall des Plans: Bezug (Titel oder keiner), Schlagwörter, Gedanke, verarbeitet?
+/// One idea of the plan: reference (title or none), keywords, thought, processed?
 struct Planned {
     at: Option<&'static str>,
     words: String,
@@ -117,10 +116,10 @@ struct Planned {
     done: bool,
 }
 
-/// 40 erfundene Einfälle: je 7 an „Tau“, „Nebel“, „Schwaden“ (Abschnitt), „Dämmerung“, 12 ohne Bezug; jeder
-/// vierte verarbeitet; jeder fünfte trägt zusätzlich „Regen“ (Wort-Nähe). Gedanken aus Kunstwörtern je Einfall,
-/// damit sich nur gewollte Paare nahe sind; Nr. 38 und 39 sind Zwillinge mit gleichem Gedanken (Vektor-Nähe ohne
-/// gemeinsames Schlagwort).
+/// 40 invented ideas: 7 each at „Tau“, „Nebel“, „Schwaden“ (section), „Dämmerung“, 12 without reference; every fourth
+/// processed; every fifth additionally carries „Regen“ (word proximity). Thoughts from made-up words per idea, so that
+/// only intended pairs are near each other; no. 38 and 39 are twins with the same thought (vector proximity without a
+/// shared keyword).
 fn plan() -> Vec<Planned> {
     let places: [(Option<&'static str>, usize); 5] =
         [(Some("Tau"), 7), (Some("Nebel"), 7), (Some("Schwaden"), 7), (Some("Dämmerung"), 7), (None, 12)];
@@ -174,7 +173,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     let embedded = mock.embedding_inputs().len();
     assert!(embedded >= 40, "der Index hat alle 40 Einfälle über den Nachbau eingebettet: {embedded}");
 
-    // --- Seite ohne JavaScript ------------------------------------------------------------------------------
+    // --- Page without JavaScript ----------------------------------------------------------------------------
     let (status, html) = server.get(&format!("/werke/{w}/karte")).await;
     assert_eq!(status, StatusCode::OK, "Karte lädt: {html}");
     assert_eq!(
@@ -184,14 +183,14 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     );
     for (needle, why) in [
         ("<form class=\"im-filter\" method=\"get\"", "Filter per GET"),
-        // Runde 34: Die Gedankenkarte ist die Mindmap (Widget `mindmap`, Bild `mm-svg`).
+        // Round 34: the idea map is the mind map (widget `mindmap`, image `mm-svg`).
         ("data-widget=\"mindmap\"", "Widget-Anker"),
         ("<svg class=\"mm-svg\"", "SVG steht im HTML"),
         ("<section class=\"im-contradictions\"", "Liste Widersprüche"),
     ] {
         assert!(html.contains(needle), "{why} fehlt auf der Karte");
     }
-    // Runde 34: Die Formulare der alten Gliederungsliste stehen in der Gliederungsansicht (ohne JavaScript).
+    // Round 34: the forms of the old outline list are in the outline view (without JavaScript).
     assert!(html.contains(&format!("href=\"/werke/{w}/karte/gliederung\"")), "Verweis auf die Gliederungsansicht");
     let (status, outline) = server.get(&format!("/werke/{w}/karte/gliederung?wahl=i:{}", ids[0])).await;
     assert_eq!(status, StatusCode::OK, "Gliederungsansicht lädt");
@@ -217,7 +216,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     );
     assert!(html.contains("12 in der Wolke"), "die Wolke zählt die zwölf Einfälle ohne Bezug");
 
-    // Nähe: Zwillinge über Vektoren (512 Dim. vom Nachbau), „Regen“ über Schlagwörter.
+    // Proximity: twins through vectors (512 dim. from the mock), „Regen“ through keywords.
     let map = ok(server.rpc("idea.map", json!({ "work": w })).await, "idea.map");
     assert_eq!(map["near"]["state"], "ok", "Nähe mit Einbettungen verfügbar: {}", map["near"]);
     let pairs = map["near"]["pairs"].as_array().unwrap();
@@ -229,8 +228,8 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     assert!(pairs.iter().any(|p| p["via"] != "vector"), "gleiche Schlagwörter zählen als Nähe mit: {}", map["near"]);
     let a = ids[38].min(ids[39]);
     let b = ids[38].max(ids[39]);
-    // Runde 34: Nähe-Linien stehen zwischen Einfällen im Baum (hier „Regen“ an zwei Einfällen von „Tau“); für
-    // Einfälle der Wolke steht statt einer Linie der Vorschlag „passt zu Ast …“ am Kärtchen.
+    // Round 34: proximity lines run between ideas in the tree (here „Regen“ at two ideas of „Tau“); for ideas of the
+    // cloud the card shows the suggestion „passt zu Ast …“ instead of a line.
     assert!(html.contains("<path class=\"mm-near\" data-from=\"i:"), "Nähe als eigene, gepunktete Linie im Baum");
     assert!(
         !html.contains(&format!("class=\"mm-near\" data-from=\"i:{a}\" data-to=\"i:{b}\"")),
@@ -238,11 +237,11 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     );
     let (_, no_near) = server.get(&format!("/werke/{w}/karte?near=0")).await;
     assert!(!no_near.contains("class=\"mm-near\""), "near=0 lässt die Nähe-Linien weg");
-    // Verbindung von Wolke und Mindmap: Hängt ein Zwilling im Baum, bekommt der andere den Vorschlag.
+    // Connection of cloud and mind map: if one twin hangs in the tree, the other one gets the suggestion.
     ok(server.rpc("idea.move", json!({ "id": a, "parent": null, "key": tau })).await, "Zwilling an „Tau“");
-    // Das Umhängen ändert den Bezug in den Metadaten der Indexzeile: Die Hintergrund-Aufgabe ersetzt die Zeile
-    // (löschen, dann mit dem alten Vektor neu schreiben). Dazwischen fehlt der Vektor, und die Karte zeigt ehrlich
-    // nur, was gespeichert ist – darum erst warten, bis der Index ruht (sonst Wettlauf unter Last).
+    // Moving changes the reference in the metadata of the index row: the background task replaces the row (delete, then
+    // write anew with the old vector). In between the vector is missing, and the map honestly shows only what is stored
+    // – therefore wait first until the index is idle (otherwise a race under load).
     rag::wait_idle(&server.state).await;
     let (_, hinted) = server.get(&format!("/werke/{w}/karte")).await;
     let card = tag_with(&hinted, &format!("data-node=\"i:{b}\""));
@@ -253,14 +252,14 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     assert!(hinted.contains("passt zu Ast „"), "in Worten am Kärtchen");
     ok(server.rpc("idea.move", json!({ "id": a, "cloud": true })).await, "Zwilling zurück in die Wolke");
 
-    // Filter per GET.
+    // Filter via GET.
     let open: BTreeSet<i64> = ids.iter().zip(&plan).filter(|(_, p)| !p.done).map(|(id, _)| *id).collect();
     let (_, filtered) = server.get(&format!("/werke/{w}/karte?status=open")).await;
     assert_eq!(drawn(&filtered), open, "status=open zeigt nur offene Einfälle");
     let (_, rain) = server.get(&format!("/werke/{w}/karte?word=Regen")).await;
     assert_eq!(drawn(&rain).len(), 8, "word=Regen zeigt die acht mit „Regen“");
 
-    // --- Bezug setzen: Widget (RPC beim Ablegen auf ein Kapitel) und Formular, je ein Commit ------------------
+    // --- Set reference: widget (RPC when dropping onto a chapter) and form, one commit each -------------------
     let start = commits(&server, &slug);
     ok(server.rpc("idea.update", json!({ "id": ids[30], "key": tau })).await, "Ziehen auf Kapitel");
     let (status, location) = server
@@ -277,7 +276,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
         "gezogener Einfall hängt jetzt an „Tau“"
     );
 
-    // --- Verbinden: Widget-Dialog (RPC) „widerspricht“ und Formular „führt weiter“ ---------------------------
+    // --- Link: widget dialog (RPC) „widerspricht“ and form „führt weiter“ ------------------------------------
     let (x, y) = (ids[2], ids[9]);
     let made = ok(
         server.rpc("idea.link", json!({ "from": y, "to": x, "kind": "contradicts", "note": "Tau oder Nebel" })).await,
@@ -319,12 +318,12 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
         "MCP idea_links kennt den Widerspruch: {links}"
     );
 
-    // --- Lagen: speichern (Widget) und zurücksetzen (Formular), ohne Commit -----------------------------------
+    // --- Positions: save (widget) and reset (form), without commit --------------------------------------------
     let before = commits(&server, &slug);
     ok(server.rpc("idea.map_pos_set", json!({ "work": w, "idea": ids[5], "x": 777.5, "y": -12.0 })).await, "Lage");
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
-    // Runde 34: Lagen bleiben gespeichert (und im Austausch), wirken in der Mindmap aber nicht – der Baum ordnet
-    // sich selbst.
+    // Round 34: positions stay stored (and in the exchange) but have no effect in the mind map – the tree arranges
+    // itself.
     let stored = ok(server.rpc("idea.map", json!({ "work": w, "near": false })).await, "idea.map");
     assert_eq!(stored["positions"][0]["x"], 777.5, "die Lage ist gespeichert: {}", stored["positions"]);
     assert!(!html.contains("data-x=\"777.5\""), "im Bild der Mindmap hat sie keine Wirkung");
@@ -333,7 +332,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     assert_eq!(stored["positions"].as_array().map(Vec::len), Some(0), "nach dem Zurücksetzen keine Lage mehr");
     assert_eq!(commits(&server, &slug), before, "Lagen sind Anzeige: kein Commit");
 
-    // --- Gelöschter Einfall fällt samt Verbindung heraus und kommt zurück ------------------------------------
+    // --- A deleted idea drops out together with its link and comes back --------------------------------------
     ok(server.rpc("idea.delete", json!({ "id": x, "confirm": true })).await, "Einfall löschen");
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
     assert!(!drawn(&html).contains(&x), "gelöschter Einfall ist nicht gezeichnet");
@@ -346,7 +345,7 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
     let (_, html) = server.get(&format!("/werke/{w}/karte")).await;
     assert!(drawn(&html).contains(&x) && html.contains(&format!("data-link=\"{link}\"")), "mit Verbindung zurück");
 
-    // --- Ausgaben ---------------------------------------------------------------------------------------------
+    // --- Outputs ----------------------------------------------------------------------------------------------
     let (status, _, svg) =
         server.send(Request::get(format!("/werke/{w}/karte.svg")).body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::OK, "SVG");
@@ -382,7 +381,8 @@ async fn forty_ideas_on_the_map_from_page_and_widget_to_mirror_and_mcp() {
 async fn without_an_embedding_model_the_page_says_so_honestly() {
     let server = common::open().await;
     let w = server.import(&book(), "wetterheft.typ").await.work;
-    // Runde 34: mit Bezug, damit die Einfälle im Baum hängen (Nähe-Linien gibt es nur dort, nicht in der Wolke).
+    // Round 34: with reference, so that the ideas hang in the tree (proximity lines exist only there, not in the
+    // cloud).
     let nodes =
         ok(server.rpc("work.get", json!({ "work": w })).await, "work.get")["work"]["nodes"].as_array().unwrap().clone();
     let tau = key_of(&nodes, "Tau");

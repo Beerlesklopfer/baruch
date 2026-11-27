@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 27, Aufgabe umschlag-satz (R27b): Satz der Anordnung, Titelei aus der Werkvorlage, Druckprüfung des Umschlags und der Pflichtangaben.
+//! Round 27, task umschlag-satz (R27b): typesetting of the layout, front matter from the work template, print check of
+//! the cover and of the mandatory details.
 //!
-//! Echter Datenordner im Temp-Ordner, die eigene Testdatei `gartenbuch.typ` und im Test erzeugte Bilder (PNG mit
-//! dunklem oberem Drittel, SVG). Kein Netz, kein Modell.
+//! Real data directory in the temp directory, the own test file `gartenbuch.typ` and images generated in the test (PNG
+//! with a dark upper third, SVG). No network, no model.
 
 use crate::common;
 
@@ -13,7 +14,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// RGB-PNG (ungepackte Deflate-Blöcke): oberes Drittel fast schwarz, darunter hellgelb (erfunden).
+/// RGB PNG (stored deflate blocks): upper third almost black, light yellow below (invented).
 pub(crate) fn dark_top_png(width: u32, height: u32) -> Vec<u8> {
     fn crc32(bytes: &[u8]) -> u32 {
         let mut crc = 0xffff_ffffu32;
@@ -64,7 +65,7 @@ pub(crate) fn dark_top_png(width: u32, height: u32) -> Vec<u8> {
     out
 }
 
-/// Erfundenes Autorenfoto.
+/// Invented author photo.
 const FACE: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" height=\"50\">\
 <rect width=\"40\" height=\"50\" fill=\"#c9a27e\"/></svg>\n";
 
@@ -86,7 +87,7 @@ async fn add_svg(server: &common::Server, work: i64, name: &str, svg: &str) -> S
     result(&added)["name"].as_str().unwrap().to_owned()
 }
 
-/// Stand der Satzquelle (`typeset::prepare`) und SHA-256 des Umschlag-PDF.
+/// State of the typesetting source (`typeset::prepare`) and SHA-256 of the cover PDF.
 async fn fingerprints(server: &common::Server, work: i64) -> (String, String) {
     let prepared = baruch_server::typeset::prepare(&server.state, work).await.unwrap();
     let pdf = cover_pdf(server, work).await;
@@ -98,9 +99,10 @@ async fn cover_pdf(server: &common::Server, work: i64) -> Value {
     server.rpc("work.cover_pdf", json!({ "work": work })).await
 }
 
-/// Goldstände vor der ersten Änderung von R27b (aus dem Stand der Schnittstelle S1 = af07921 für diese Ausgaben
-/// gemessen): (Fall, Stand der Satzquelle, SHA-256 des Umschlag-PDF). Runde 30a: Die Stände der Satzquelle sind mit den
-/// Sprungmarken `<kN>` (Vertrag R30 §3.3) neu gemessen; die Umschlag-PDFs bleiben byte-gleich.
+/// Golden states before the first change of R27b (measured for these outputs from the state of the interface S1 =
+/// af07921): (case, state of the typesetting source, SHA-256 of the cover PDF). Round 30a: the states of the
+/// typesetting source have been measured anew with the jump labels `<kN>` (contract R30 §3.3); the cover PDFs stay
+/// byte-identical.
 const GOLDEN: [(&str, &str, &str); 6] = [
     (
         "ohne",
@@ -170,7 +172,7 @@ async fn without_layout_and_template_functions_source_and_cover_pdf_stay_byte_id
             .await,
     );
     seen.push(("ruecken_dick", fingerprints(&server, work).await));
-    // Die Fälle decken beide Seiten der 6-mm-Grenze für den Rückentext ab.
+    // The cases cover both sides of the 6 mm limit for the spine text.
     let spine = |pdf: Value| result(&pdf)["spine_mm"].as_f64().unwrap();
     let thick = spine(cover_pdf(&server, work).await);
     assert!(thick > 6.0, "Fall ruecken_dick: Rücken über 6 mm erwartet, {thick} mm");
@@ -196,12 +198,12 @@ async fn without_layout_and_template_functions_source_and_cover_pdf_stay_byte_id
     }
 }
 
-// ---- Anordnung im Umschlag, Druckprüfung -------------------------------------------------------------
+// ---- Layout in the cover, print check ----------------------------------------------------------------
 
 use baruch_server::cover_print::{CoverWarning, cover_checks, imprint_checks};
 use baruch_store::{BookMeta, CoverBlock, CoverBlockKind, CoverLayout};
 
-/// Ein Block mit Vorgaben; Lage, Breite, Größe und Farbe aus den Argumenten.
+/// A block with defaults; position, width, size and colour from the arguments.
 fn block(kind: CoverBlockKind, x: f64, y: f64, width: f64, color: &str) -> CoverBlock {
     serde_json::from_value(json!({
         "kind": kind, "x_mm": x, "y_mm": y, "width_mm": width, "align": "left", "size_pt": 14.0,
@@ -212,7 +214,7 @@ fn block(kind: CoverBlockKind, x: f64, y: f64, width: f64, color: &str) -> Cover
     .unwrap()
 }
 
-/// Gartenbuch mit Buchangaben und PNG-Umschlag (dunkles oberes Drittel).
+/// Garden book with book details and PNG cover (dark upper third).
 async fn garden_with_cover(server: &common::Server) -> i64 {
     let work = server.import_garden().await.work;
     let cover = add_png(server, work, "wolke.png", &dark_top_png(60, 90)).await;
@@ -236,8 +238,8 @@ fn has(warnings: &[CoverWarning], code: &str, kind: CoverBlockKind) -> bool {
 async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fonts() {
     let server = common::open().await;
     let work = garden_with_cover(&server).await;
-    // Gartenbuch: A4 (210 × 297 mm), Beschnitt 3 mm. Das Bild (60 × 90 px) füllt die Vorderseite samt Beschnitt
-    // (213 × 303 mm) mit 3,55 mm je Pixel; die dunklen Zeilen 0–29 reichen von y = −11 mm bis gut 95 mm.
+    // Garden book: A4 (210 × 297 mm), bleed 3 mm. The image (60 × 90 px) fills the front including the bleed (213 × 303
+    // mm) with 3.55 mm per pixel; the dark rows 0–29 reach from y = −11 mm to a good 95 mm.
     let mut title = block(CoverBlockKind::FrontTitle, -2.0, 10.0, 120.0, "light");
     title.font = Some("Gibt Es Nicht Grotesk".into());
     let author_dark_on_dark = block(CoverBlockKind::FrontAuthor, 30.0, 30.0, 120.0, "dark");
@@ -285,7 +287,7 @@ async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fon
         "ohne Titelei keine Pflichtangaben-Warnungen: {list}"
     );
 
-    // Die fehlende Schrift steht nicht im Satz (Rückfall auf die Vorgabe), der Umschlag setzt fehlerfrei.
+    // The missing font is not in the typesetting (fallback to the default), the cover typesets without error.
     let wrap = baruch_server::cover::build_wrap_for(&server.state, work, Some(&layout)).await.unwrap();
     assert!(!wrap.source.main.contains("Gibt Es Nicht Grotesk"), "unbekannte Schrift fällt weg:\n{}", wrap.source.main);
     assert!(wrap.source.main.contains("// front_title"), "Anordnungsmodus im Umschlag");
@@ -297,7 +299,7 @@ async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fon
         rendered.diagnostics
     );
 
-    // Heller Text oben mit Schatten bleibt gut; dunkler Text bleibt auch mit Schatten schlecht.
+    // Light text at the top with a shadow stays good; dark text stays bad even with a shadow.
     let mut shadowed = layout.clone();
     for b in &mut shadowed.blocks {
         if b.kind == CoverBlockKind::FrontAuthor {
@@ -307,7 +309,7 @@ async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fon
     let warnings = cover_checks(&server.state, work, Some(&shadowed)).await.unwrap();
     assert!(has(&warnings, "contrast", CoverBlockKind::FrontAuthor), "Schatten macht dunklen Text nicht lesbar");
 
-    // Ein SVG-Umschlag wird nicht gemessen (Vertrag 1.8).
+    // An SVG cover is not measured (contract 1.8).
     let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"60\" height=\"90\"><rect width=\"60\" height=\"90\" fill=\"#000\"/></svg>";
     let name = add_svg(&server, work, "schwarz.svg", svg).await;
     result(&server.rpc("work.set_cover", json!({ "work": work, "name": name })).await);
@@ -338,8 +340,8 @@ async fn without_own_layout_only_the_imprint_is_checked_and_the_layout_view_meas
 
 #[tokio::test]
 async fn the_default_font_is_the_one_typst_sets_the_body_with() {
-    // Nachbesserung Runde 27: Umschlag-PDF, Messung und Editor nehmen die Schrift, die Typst im Buch wirklich
-    // setzt – die letzte Regel auf oberster Ebene, nicht die erste Fundstelle im Text.
+    // Follow-up fix Round 27: cover PDF, measurement and editor take the font that Typst really sets in the book – the
+    // last rule at top level, not the first occurrence in the text.
     let server = common::open().await;
     let work = garden_with_cover(&server).await;
     let template = server.state.store.work_template(work).await.unwrap();

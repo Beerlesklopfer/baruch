@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Befunde: Zerlegen, Ähnlichkeit, Status, Spiegel, Austausch u4 (Runde 28, Aufgabe befunde, Vertrag R28 §1).
+//! Findings: splitting, similarity, status, mirror, exchange u4 (Round 28, task befunde, contract R28 §1).
 //!
-//! Gartenbuch aus `tests/data/gartenbuch.typ` (frei erfunden), Antworttexte der Personas ebenfalls frei erfunden. Kein
-//! Modell: Persona-Antworten entstehen als Beiträge über den Store und werden mit `findings::ingest` zerlegt (so, wie
-//! `assist::save` und `threads::answer` es seit S1 tun). Was erst nach dem Zusammenführen geht (Statusformulare der
-//! Seite, B-Verweise im RFC), prüft der Integrator in `round28_abnahme.rs`.
+//! Garden book from `tests/data/gartenbuch.typ` (freely invented), answer texts of the personas freely invented as
+//! well. No model: persona answers are created as posts through the store and split with `findings::ingest` (the way
+//! `assist::save` and `threads::answer` have done it since S1). What only works after the merge (status forms of the
+//! page, B references in the RFC) is checked by the integrator in `round28_abnahme.rs`.
 
 use baruch_core::Post;
 use baruch_server::findings::parse::split_answer;
@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use crate::common;
 
-/// Gartenbuch mit festen Schlüsseln nach Stelle (Frühling, Aussaat, Tiefe, Sommer) und Spiegelordner.
+/// Garden book with stable keys by position (Frühling, Aussaat, Tiefe, Sommer) and mirror directory.
 async fn garden() -> (common::Server, i64, Vec<i64>, std::path::PathBuf) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -43,7 +43,7 @@ fn last_message(dir: &std::path::Path) -> Option<String> {
     common::git(dir, &["log", "-1", "--format=%an <%ae>%n%B"])
 }
 
-/// Beitrag einer Persona im Abschnitt `seq` (Schlüssel `key`) anlegen und zerlegen; gibt (Beitrag, Bericht) zurück.
+/// Create a post of a persona in the section `seq` (key `key`) and split it; returns (post, report).
 async fn answer(
     server: &common::Server,
     work: i64,
@@ -58,7 +58,7 @@ async fn answer(
     (id, findings::ingest(&server.state, &source).await.unwrap())
 }
 
-/// Zeilen eines Beitrags als Text (für „byte-gleich vorher/nachher“).
+/// Rows of a post as text (for „byte-gleich vorher/nachher“).
 async fn post_row(server: &common::Server, table: &str, id: i64) -> String {
     sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
         "SELECT quote(author) || '|' || quote(body) || '|' || quote(sources) || '|' || quote(created) || '|' || \
@@ -70,7 +70,7 @@ async fn post_row(server: &common::Server, table: &str, id: i64) -> String {
     .unwrap()
 }
 
-/// Erfundene Prüfantwort mit allem, was der Zerleger kennen muss.
+/// Invented review answer with everything the splitter has to know.
 const REVIEW: &str = "\
 **Was trägt**
 - Der Einstieg mit dem Beet trägt die Szene.
@@ -123,7 +123,7 @@ async fn ingest_stores_findings_once_changes_no_post_and_never_takes_the_write_l
         summary: false,
         manual: false,
     };
-    // Bei gehaltener Schreibsperre: ingest darf sie nicht nehmen (der Aufrufer in assist::save hält sie).
+    // With the write lock held: ingest must not take it (the caller in assist::save holds it).
     let held = server.state.write_lock.lock().await;
     let report = tokio::time::timeout(std::time::Duration::from_secs(10), findings::ingest(&server.state, &source))
         .await
@@ -138,7 +138,7 @@ async fn ingest_stores_findings_once_changes_no_post_and_never_takes_the_write_l
     let counts = server.state.store.finding_open_counts(work).await.unwrap();
     assert_eq!(counts.get(&keys[1]), Some(&4), "offen zählen vier: Lob zählt nicht (Vertrag §1.5)");
 
-    // Fadenbeitrag: ohne Abschnitt.
+    // Thread post: without a section.
     let (thread, _) = server.state.store.thread_create(work, "Autor", "Wann säen?").await.unwrap();
     let reply =
         server.state.store.thread_add_post(work, thread.id, "@lektor", "Hinweis: erst nach Frost.", &[]).await.unwrap();
@@ -159,7 +159,7 @@ async fn ingest_stores_findings_once_changes_no_post_and_never_takes_the_write_l
         "Fadenbefund ohne Abschnitt"
     );
     assert_eq!(post_row(&server, "chat_thread_post", reply.id).await, before, "Fadenbeitrag byte-gleich");
-    // Manuell umgewandelt: ohne Marke ein Hinweis mit dem ganzen Text.
+    // Converted manually: without a mark one hint with the whole text.
     let plain = server.state.store.add_post(work, 0, &post("Autor", "Mehr Kompost unter die Beete.")).await.unwrap();
     let manual = IngestSource {
         work,
@@ -191,7 +191,7 @@ async fn a_repeated_rejected_finding_is_attached_and_a_summary_points_to_its_ori
         )
         .await;
     result(&rpc);
-    // Eine andere Persona meldet dasselbe noch einmal: angehängt, nicht offen.
+    // Another persona reports the same once more: attached, not open.
     let (_, second) =
         answer(&server, work, 3, keys[3], "@nathan", "Kritisch: Der Sommer braucht mehr Hitze im Text!").await;
     assert!(second.created.is_empty(), "nichts Neues: {:?}", second.created);
@@ -199,10 +199,10 @@ async fn a_repeated_rejected_finding_is_attached_and_a_summary_points_to_its_ori
     assert_eq!(second.attached[0].similar_to, Some(rejected.id), "similar_to = Original (Vertrag §1.4)");
     let counts = server.state.store.finding_open_counts(work).await.unwrap();
     assert_eq!(counts.get(&keys[3]), None, "der angehängte zählt nicht als offen (Vertrag §1.5)");
-    // Etwas anderes ist neu und offen.
+    // Something different is new and open.
     let (_, third) = answer(&server, work, 3, keys[3], "@nathan", "Hinweis: Die Bohnen fehlen ganz.").await;
     assert_eq!(third.created.len(), 1, "anderer Text: neuer Befund");
-    // Sammlung des Lektors beim RFC: [B<id>] werden summary_of.
+    // Summary of the lector in the RFC: [B<id>] become summary_of.
     let id = server
         .state
         .store
@@ -324,7 +324,7 @@ async fn set_status_refuses_bad_changes_and_writes_one_commit_with_the_trailers(
     let history = server.state.store.finding_history(work, id).await.unwrap();
     assert_eq!(history.len(), 1, "ein Verlaufseintrag");
     assert!(!history[0].proposed, "gesetzt vom Menschen, kein Vorschlag");
-    // Über MCP gibt es keinen Weg, den Status zu setzen (nur Vorschläge).
+    // Over MCP there is no way to set the status (only proposals).
     let tools = baruch_server::mcp::tools::list();
     let names: Vec<&str> = tools["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
     assert!(names.iter().all(|n| !n.contains("set_status") && *n != "finding_decide"), "kein MCP-Werkzeug: {names:?}");
@@ -370,7 +370,7 @@ async fn proposals_never_reject_never_double_and_the_human_decides_with_one_comm
     if let (Some(before), Some(after)) = (before, commit_count(&dir)) {
         assert_eq!(after, before + 2, "je ein Commit für Vorschlag und Entscheidung");
     }
-    // Abgelehnt und veraltet.
+    // Rejected and outdated.
     let (_, other) = answer(&server, work, 0, keys[0], "@nathan", "Hinweis: Mehr Regen im Frühling.").await;
     let other = other.created[0].id;
     let done = baruch_store::StatusChange::Done { reason: String::new() };
@@ -453,7 +453,7 @@ fn without_output(text: &str) -> String {
     format!("{}{}", &text[..start], &text[end..])
 }
 
-/// Befunde eines Werks als vergleichbare Zeilen (ohne ids und Zeiten der Instanz).
+/// Findings of a work as comparable rows (without ids and times of the instance).
 async fn finding_rows(server: &common::Server, work: i64) -> Vec<String> {
     sqlx::query_scalar(
         "SELECT f.uuid || '|' || f.kind || '|' || f.status || '|' || f.reason || '|' || coalesce(f.adopted_revision, '') \
@@ -490,7 +490,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
     )
     .await
     .unwrap();
-    // Ein bearbeiteter Beitrag des Menschen (Bearbeiten selbst baut chat-auftrag; hier die Zeilen, wie sie entstehen).
+    // An edited post of the human (the editing itself is built by chat-auftrag; here the rows as they come into being).
     let own = a.state.store.add_post(work_a, 0, &post("Autor", "Erste Fassung meiner Notiz.")).await.unwrap();
     sqlx::query(
         "INSERT INTO post_version (post_id, body, valid_from, replaced, edited_by) \
@@ -508,7 +508,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
 
     let xml_a = exchange_export(&a, work_a).await;
     for needle in
-        // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+        // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
         [
             "version=\"10\"",
             "<befunde>",
@@ -519,7 +519,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
     {
         assert!(xml_a.contains(needle), "{needle} in der Ausgabe:\n{xml_a}");
     }
-    // XSD u4 (xmllint; fehlt es, ehrlich übersprungen).
+    // XSD u4 (xmllint; if it is missing, honestly skipped).
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.baruch.xml");
     std::fs::write(&file, &xml_a).unwrap();
@@ -550,7 +550,7 @@ async fn findings_and_old_post_versions_travel_between_two_instances_in_version_
     let counts_a = a.state.store.finding_open_counts(work_a).await.unwrap();
     let counts_b = b.state.store.finding_open_counts(work_b).await.unwrap();
     assert_eq!(counts_a.values().sum::<usize>(), counts_b.values().sum::<usize>(), "gleich viele offene Befunde");
-    // Abgleichen derselben Datei bringt nichts doppelt.
+    // Merging the same file brings nothing twice.
     let merged = exchange_import(&b, xml_a.as_bytes(), "merge").await;
     assert_eq!(finding_rows(&b, work_b).await.len(), report.created.len(), "kein Befund doppelt: {merged}");
     let _ = post_a;

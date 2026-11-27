@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abnahme Runde 29 „Buchsatz in den Einstellungen“ (Vertrag §8.4): erfundenes Werk mit Teilen, Kapiteln, Fußnoten,
-//! Querverweis, Titelei und Umschlag – ohne Einstellungen unverändert, Formular speichern, PDF gemessen, Umschlag,
-//! Vorlagenregel übernehmen, Konflikt, MCP, Austausch, Verweis-Dialog, Spiegel.
+//! Acceptance Round 29 „Buchsatz in den Einstellungen“ (contract §8.4): invented work with parts, chapters, footnotes,
+//! cross-reference, front matter and cover – unchanged without settings, save the form, PDF measured, cover, adopt the
+//! template rule, conflict, MCP, exchange, reference dialog, mirror.
 //!
-//! Besitz: Integrator. Von der Schnittstelle R29-S1 leer angelegt.
+//! Owner: integrator. Created empty by the interface R29-S1.
 //!
-//! Hier steht, was erst nach dem Zusammenführen der drei Zweige zusammen geht: Die Einstellungen speichert das Formular
-//! der Oberfläche (satz-oberflaeche) über `typeset_settings::save` in die Tabelle `work_typeset` (satz-daten), der Haken
-//! in `snapshot::head` hängt den Regelblock aus `baruch_typst::typeset::rules` (satz-typst) an – und erst dann lässt
-//! sich im Buch-PDF messen, was die Einstellungen bewirken. Gemessen wird mit `baruch_render::page_texts` auf genau der
-//! Quelle, aus der das PDF entsteht (`typeset::prepare`, gleicher Stand), dazu `pdfinfo`/`pdftotext` am PDF selbst.
-//! Das „Fährhausbuch“ ist frei erfunden: Titelei, zwei Teile, vier Kapitel mit Abschnitten, eine Fußnote je Kapitel und
-//! ein Querverweis mit Seitenzahl. Kein Netz, kein Modell.
+//! Here is what only works together after the three branches have been merged: the settings are saved by the form of
+//! the user interface (satz-oberflaeche) through `typeset_settings::save` into the table `work_typeset` (satz-daten),
+//! the hook in `snapshot::head` appends the rule block from `baruch_typst::typeset::rules` (satz-typst) – and only then
+//! can the effect of the settings be measured in the book PDF. Measuring is done with `baruch_render::page_texts` on
+//! exactly the source from which the PDF is produced (`typeset::prepare`, same state), plus `pdfinfo`/`pdftotext` on
+//! the PDF itself. The „Fährhausbuch“ is freely invented: front matter, two parts, four chapters with sections, one
+//! footnote per chapter and one cross-reference with a page number. No network, no model.
 
 use crate::common;
 
@@ -35,7 +35,7 @@ fn mm(x: f64) -> f64 {
     x * PT_PER_MM
 }
 
-/// Frei erfundene Sätze für die Absätze.
+/// Freely invented sentences for the paragraphs.
 const SENTENCES: [&str; 6] = [
     "Die Fähre kam bei Nebel, und der Fährmann rief seinen Gruß über das graue Wasser zum Anleger hinüber.",
     "Im Fährhaus brannte schon Licht, die Wirtin stellte Becher auf den Tresen und legte Holz in den Ofen.",
@@ -45,14 +45,14 @@ const SENTENCES: [&str; 6] = [
     "Er bestellte Tee, setzte sich an den Ofen und erzählte von einer Insel, die auf keiner Karte verzeichnet war.",
 ];
 
-/// Ein erfundenes langes Wort für die Silbentrennung.
+/// An invented long word for the hyphenation.
 const LONG_WORD: &str = "Fährhauswirtinnenversammlungsprotokollbuch";
 
 fn paragraph(seed: usize) -> String {
     (0..5).map(|i| SENTENCES[(seed + i) % SENTENCES.len()]).collect::<Vec<_>>().join(" ")
 }
 
-/// Kapitel mit Überschrift (eigenes Label), `paragraphs` Absätzen, einer Fußnote im ersten Absatz und einem Abschnitt.
+/// Chapter with heading (own label), `paragraphs` paragraphs, one footnote in the first paragraph and one section.
 fn chapter(title: &str, label: &str, paragraphs: usize, extra: &str) -> String {
     let mut out = format!("= {title} <{label}>\n\n");
     for p in 0..paragraphs {
@@ -69,13 +69,13 @@ fn chapter(title: &str, label: &str, paragraphs: usize, extra: &str) -> String {
     out
 }
 
-/// Werkvorlage mit Titel (Werktitel) und Autorin; `extra` hängt weitere Vorlagenzeilen an.
+/// Work template with title (work title) and author; `extra` appends further template lines.
 fn template(title: &str, extra: &str) -> String {
     format!("#set document(title: \"{title}\", author: \"Mara Holm\")\n{extra}")
 }
 
-/// Das Fährhausbuch: zwei Teile, vier Kapitel; im dritten Kapitel ein Querverweis mit Seitenzahl auf „Der Hafen“ und
-/// ein langes Wort.
+/// The ferry house book: two parts, four chapters; in the third chapter a cross-reference with a page number to „Der
+/// Hafen“ and a long word.
 fn book(template: &str) -> String {
     let xref = format!(
         "Wie im Kapitel #link(<hafen>)[Der Hafen, S.~#context counter(page).at(<hafen>).first()] erzählt, kam der \
@@ -107,8 +107,8 @@ struct Ferry {
     keys: HashMap<String, i64>,
 }
 
-/// Neuer Datenordner mit dem Fährhausbuch (Titel je Aufruf eigen, damit Stände im prozessweiten Zwischenspeicher nicht
-/// zwischen Tests geteilt werden) und Titelei aus den Buchangaben.
+/// New data directory with the ferry house book (an own title per call, so that states in the process-wide cache are
+/// not shared between tests) and front matter from the book details.
 async fn ferry(title: &str, extra_template: &str) -> Ferry {
     let server = common::open().await;
     let report = server.import(&book(&template(title, extra_template)), "faehrhaus.typ").await;
@@ -155,7 +155,8 @@ impl Ferry {
         (status, headers.get(header::LOCATION).map(|v| v.to_str().unwrap().to_owned()), body)
     }
 
-    /// Das Buch gesetzt wie für Satz-Ansicht und PDF: Seitenzahl, Kapitelseiten, Seitenmaße und Textstücke je Seite.
+    /// The book typeset as for the typeset view and the PDF: page count, chapter pages, page sizes and text pieces per
+    /// page.
     async fn measure(&self) -> Measured {
         let typeset = baruch_server::typeset::typeset(&self.server.state, self.work).await.unwrap();
         assert!(!typeset.rendered().has_errors(), "Satz ohne Fehler: {:?}", typeset.rendered().diagnostics);
@@ -187,7 +188,7 @@ struct Measured {
     pages: usize,
     stand: String,
     main: String,
-    /// Seite (1-basiert) je Kapitel in der Reihenfolge von [`CHAPTERS`].
+    /// Page (1-based) per chapter in the order of [`CHAPTERS`].
     chapters: Vec<usize>,
     sizes: Vec<(f64, f64)>,
     texts: Vec<Vec<PlacedText>>,
@@ -198,22 +199,22 @@ impl Measured {
         &self.texts[n - 1]
     }
 
-    /// Textstücke einer Seite oberhalb von `y` pt (Kopfzeile).
+    /// Text pieces of a page above `y` pt (header).
     fn above(&self, n: usize, y: f64) -> Vec<&PlacedText> {
         self.page(n).iter().filter(|t| t.y_pt < y).collect()
     }
 
-    /// Textstücke einer Seite unterhalb von `y` pt (Fußzeile).
+    /// Text pieces of a page below `y` pt (footer).
     fn below(&self, n: usize, y: f64) -> Vec<&PlacedText> {
         self.page(n).iter().filter(|t| t.y_pt > y).collect()
     }
 
-    /// Kleinstes x der Textstücke zwischen `top` und `bottom` pt (linke Kante des Satzspiegels).
+    /// Smallest x of the text pieces between `top` and `bottom` pt (left edge of the type area).
     fn left_edge(&self, n: usize, top: f64, bottom: f64) -> f64 {
         self.page(n).iter().filter(|t| t.y_pt > top && t.y_pt < bottom).map(|t| t.x_pt).fold(f64::INFINITY, f64::min)
     }
 
-    /// Häufigste Schriftgröße der Seiten (Grundschrift) und ihr Familienname.
+    /// Most frequent font size of the pages (body font) and its family name.
     fn body_font(&self) -> (f64, String) {
         let mut counts: HashMap<(i64, String), usize> = HashMap::new();
         for t in self.texts.iter().flatten() {
@@ -224,7 +225,7 @@ impl Measured {
     }
 }
 
-/// Zeilen einer Seite: Textstücke mit gleicher Grundlinie (auf 0,1 pt), von oben nach unten, je Zeile von links.
+/// Lines of a page: text pieces with the same baseline (to 0.1 pt), from top to bottom, per line from the left.
 fn lines(page: &[PlacedText]) -> Vec<Vec<&PlacedText>> {
     let mut ys: Vec<i64> = page.iter().map(|t| (t.y_pt * 10.0).round() as i64).collect();
     ys.sort_unstable();
@@ -250,7 +251,7 @@ fn digits(texts: &[&PlacedText]) -> Vec<String> {
         .collect()
 }
 
-/// Seitenmaße aller Seiten des PDFs in pt (pdfinfo); `None`, wenn pdfinfo fehlt.
+/// Page sizes of all pages of the PDF in pt (pdfinfo); `None` if pdfinfo is missing.
 fn pdf_page_sizes(pdf: &[u8], pages: usize) -> Option<Vec<(f64, f64)>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("buch.pdf");
@@ -274,7 +275,7 @@ fn pdf_page_sizes(pdf: &[u8], pages: usize) -> Option<Vec<(f64, f64)>> {
     )
 }
 
-/// Text des PDFs (pdftotext, geschütztes Leerzeichen als Leerzeichen); `None`, wenn pdftotext fehlt.
+/// Text of the PDF (pdftotext, non-breaking space as a space); `None` if pdftotext is missing.
 fn pdf_text(pdf: &[u8]) -> Option<String> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("buch.pdf");
@@ -288,8 +289,9 @@ async fn book_pdf(f: &Ferry) -> baruch_server::pdf::PdfOut {
     baruch_server::pdf::book_pdf(&f.server.state, f.work).await.expect("Buch-PDF entsteht")
 }
 
-/// Die Formularfelder der Abnahme (Vertrag §8.4 (2)): A5, Ränder mit Bundsteg, neue rechte Seite, Seitenzahlen unten
-/// außen ab dem ersten Kapitel, Kolumnentitel Kapitel, Fußnoten je Kapitel, Verweis mit Seitenzahl, Dezimalkomma.
+/// The form fields of the acceptance (contract §8.4 (2)): A5, margins with gutter, new right-hand page, page numbers at
+/// the bottom outside from the first chapter on, running head chapter, footnotes per chapter, reference with page
+/// number, decimal comma.
 fn abnahme_form(work: i64) -> String {
     format!(
         "work={work}&action=save&chapter_start=right_page&part_side=&page_format=a5&page_width_mm=&page_height_mm=\
@@ -308,7 +310,7 @@ fn abnahme_settings() -> Value {
            "footnotes":{"numbering":"arabic","restart":"per_chapter"},"xref_with_page":true})
 }
 
-// ---- (1) ohne Einstellungen ---------------------------------------------------------------------
+// ---- (1) without settings -----------------------------------------------------------------------
 
 #[tokio::test]
 async fn without_settings_export_source_and_pages_stay_as_before_and_reset_restores_them() {
@@ -320,8 +322,8 @@ async fn without_settings_export_source_and_pages_stay_as_before_and_reset_resto
     let main = std::fs::read_to_string(f.server.mirror_dir_of(&f.slug).join("main.typ")).unwrap();
     assert!(!main.contains(RULES_MARK), "und keiner in main.typ des Spiegels");
 
-    // Setzen und Zurücksetzen über das Formular (ohne JavaScript) stellt Export, Quelle und Seiten byte-gleich wieder
-    // her – der Stand ohne Einstellungen ist derselbe wie vor Runde 29 (Goldstände dazu: Store-Test `typeset.rs`,
+    // Setting and resetting through the form (without JavaScript) restores export, source and pages byte-identically –
+    // the state without settings is the same as before Round 29 (golden states for it: store test `typeset.rs`,
     // `round29_typst.rs`).
     let (status, location, body) = f.post("/einstellungen/werk/satz", &abnahme_form(f.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Speichern leitet weiter: {body}");
@@ -339,7 +341,7 @@ async fn without_settings_export_source_and_pages_stay_as_before_and_reset_resto
     assert_eq!(after.chapters, before.chapters, "Kapitel auf denselben Seiten");
 }
 
-// ---- (2) Formular → Einstellungen → Export → PDF gemessen, (3) Umschlag, (8) Verweis, (9) Spiegel ------------
+// ---- (2) form → settings → export → PDF measured, (3) cover, (8) reference, (9) mirror -----------------------
 
 #[tokio::test]
 async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_running_heads() {
@@ -348,7 +350,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     let before = f.measure().await;
     let wrap_before = baruch_server::cover::build_wrap(&f.server.state, f.work).await.unwrap();
 
-    // Speichern über das Formular ohne JavaScript: 303, ein Commit vom Menschen mit Trailer.
+    // Save through the form without JavaScript: 303, one commit by the human with a trailer.
     let commits = f.commits();
     let (status, location, body) = f.post("/einstellungen/werk/satz", &abnahme_form(f.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Speichern: {body}");
@@ -359,8 +361,8 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert!(message.contains("Baruch-Action: typeset-set"), "Trailer: {message}");
     assert!(message.contains("Kapitelanfang: aus der Werkvorlage → neue rechte Seite"), "Rumpf: {message}");
 
-    // Vorschau ohne JavaScript: mit den gespeicherten Werten kein Hinweis „Ungespeicherte Werte“, mit einem
-    // geänderten Wert schon (Integrator R29); beide Male Vorschaubilder.
+    // Preview without JavaScript: with the saved values no hint „Ungespeicherte Werte“, with one changed value there is
+    // one (integrator R29); preview images both times.
     let (status, _, page) =
         f.post("/einstellungen/werk/satz", &abnahme_form(f.work).replace("action=save", "action=preview")).await;
     assert_eq!(status, StatusCode::OK, "Vorschau: {page}");
@@ -372,7 +374,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert_eq!(status, StatusCode::OK);
     assert!(page.contains("Ungespeicherte Werte"), "geänderter Wert: Hinweis");
 
-    // work.typeset_get liest, was das Formular gespeichert hat (Dezimalkomma 10,5 → 10.5).
+    // work.typeset_get reads what the form has saved (decimal comma 10,5 → 10.5).
     let view = f.typeset_get().await;
     assert_eq!(view["settings"], abnahme_settings(), "Formular → gespeicherte Einstellungen: {view}");
     let settings: TypesetSettings = serde_json::from_value(abnahme_settings()).unwrap();
@@ -380,7 +382,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert!(block.starts_with(RULES_MARK), "Regelblock beginnt mit „// Baruch: Satz“");
     assert_eq!(view["rules"], block, "derselbe Block in work.typeset_get");
 
-    // (8) Verweis-Dialog: Das Häkchen startet mit der Werk-Einstellung (xref.ts liest work.typeset_get).
+    // (8) Reference dialog: the check box starts with the work setting (xref.ts reads work.typeset_get).
     assert_eq!(view["settings"]["xref_with_page"], true, "Vorgabe „mit Seitenzahl“ als Werk-Einstellung");
     let xref_js = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "xref.js").expect("xref.js ausgeliefert").1;
     assert!(
@@ -388,7 +390,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
         "der Dialog liest die Werk-Einstellung (übersetztes xref.ts)"
     );
 
-    // Export, Export-Karte und main.typ tragen den Block hinter der Werkvorlage (snapshot::head).
+    // Export, export map and main.typ carry the block after the work template (snapshot::head).
     let export = f.server.state.store.export_typst(f.work).await.unwrap();
     assert!(export.contains(&block), "Export mit Regelblock");
     assert!(
@@ -398,7 +400,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     let main = std::fs::read_to_string(f.server.mirror_dir_of(&f.slug).join("main.typ")).unwrap();
     assert!(main.contains(&block), "main.typ des Spiegels mit Regelblock");
 
-    // Satz und PDF aus derselben Quelle: gleicher Stand, gleiche Seitenzahl (Satz-Vorschau = PDF).
+    // Typesetting and PDF from the same source: same state, same page count (typeset preview = PDF).
     let m = f.measure().await;
     let pdf = book_pdf(&f).await;
     assert_eq!(pdf.stand, m.stand, "PDF aus derselben Quelle wie die Satz-Ansicht");
@@ -406,7 +408,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert!(m.main.contains(&block), "die Satzquelle trägt den Block");
     assert_ne!(m.pages, before.pages, "die Einstellungen ändern die Seitenzahl ({} → {})", before.pages, m.pages);
 
-    // A5 auf jeder Seite (±0,5 pt), im Satz und im PDF selbst.
+    // A5 on every page (±0.5 pt), in the typesetting and in the PDF itself.
     let (w, h) = (mm(148.0), mm(210.0));
     for (i, (pw, ph)) in m.sizes.iter().enumerate() {
         assert!((pw - w).abs() < 0.5 && (ph - h).abs() < 0.5, "Seite {}: A5 erwartet, {pw} × {ph} pt", i + 1);
@@ -421,7 +423,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
         None => eprintln!("ÜBERSPRUNGEN: pdfinfo fehlt (Seitenmaß nur im Satz gemessen)"),
     }
 
-    // Neue rechte Seite: jedes Kapitel beginnt auf einer ungeraden Seite.
+    // New right-hand page: every chapter begins on an odd page.
     for (title, page) in CHAPTERS.iter().zip(&m.chapters) {
         assert_eq!(page % 2, 1, "Kapitel „{title}“ auf einer rechten (ungeraden) Seite: {page}");
     }
@@ -430,8 +432,8 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
 
     let top = mm(18.0);
     let bottom = h - mm(22.0);
-    // Seitenzahlen unten außen ab dem ersten Kapitel: davor keine Zahl, auf der ersten Kapitelseite „1“ rechts,
-    // auf der folgenden (geraden) Seite „2“ links.
+    // Page numbers at the bottom outside from the first chapter on: no number before it, on the first chapter page „1“
+    // on the right, on the following (even) page „2“ on the left.
     for page in 1..first {
         let footer = digits(&m.below(page, bottom));
         assert!(footer.is_empty(), "vor dem ersten Kapitel keine Seitenzahl (Seite {page}): {footer:?}");
@@ -443,8 +445,9 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
         assert_eq!(n.len(), 1, "genau eine Seitenzahl unten auf Seite {page}: {footer:?}");
         (n[0].text.trim().to_owned(), n[0].x_pt + n[0].width_pt / 2.0)
     };
-    // Jede Seite mit Text ab dem ersten Kapitel trägt ihre Zahl außen; Teil- und Leerseiten nicht. Der Kolumnentitel
-    // „Kapitel“ steht auf jeder solchen Seite außer den Kapitelanfängen und nennt das laufende Kapitel.
+    // Every page with text from the first chapter on carries its number on the outside; part pages and blank pages do
+    // not. The running head „Kapitel“ is on every such page except the chapter beginnings and names the current
+    // chapter.
     let mut numbered = 0;
     for page in first..=m.pages {
         if m.page(page).len() <= 3 {
@@ -472,13 +475,14 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert!(numbered > 6, "viele Seiten geprüft ({numbered})");
     assert_eq!(number(first).0, "1", "die erste Kapitelseite trägt die 1");
 
-    // Ränder mit Bundsteg, gespiegelt: rechte Seite innen (links) 20 + 5 mm, linke Seite außen (links) 15 mm.
+    // Margins with gutter, mirrored: right-hand page inside (left) 20 + 5 mm, left-hand page outside (left) 15 mm.
     let odd = m.left_edge(first, top, bottom);
     let even = m.left_edge(first + 1, top, bottom);
     assert!((odd - mm(25.0)).abs() < 0.5, "ungerade Seite: Innenrand + Bundsteg = 25 mm, gemessen {odd} pt");
     assert!((even - mm(15.0)).abs() < 0.5, "gerade Seite: Außenrand 15 mm links, gemessen {even} pt");
 
-    // Querverweis „S. n“ = die auf der Zielseite gedruckte Zahl (Zählung ab dem ersten Kapitel, Titelei ohne Zahl).
+    // Cross-reference „S. n“ = the number printed on the target page (counting from the first chapter, front matter
+    // without a number).
     let target = m.chapters[1];
     let printed = (target - first + 1).to_string();
     let xref_line = m
@@ -505,7 +509,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
         None => eprintln!("ÜBERSPRUNGEN: pdftotext fehlt"),
     }
 
-    // (3) Umschlag: Seitenmaß = Satz-Format, Rücken aus der neuen Seitenzahl.
+    // (3) Cover: page size = typesetting format, spine from the new page count.
     let wrap = baruch_server::cover::build_wrap(&f.server.state, f.work).await.unwrap();
     assert!(
         (wrap.page_width_mm - 148.0).abs() < 0.2 && (wrap.page_height_mm - 210.0).abs() < 0.2,
@@ -523,7 +527,7 @@ async fn the_saved_form_sets_the_book_pdf_in_a5_with_right_pages_numbers_and_run
     assert!(wrap.spine_mm > wrap_before.spine_mm, "mehr Seiten, breiterer Rücken");
 }
 
-// ---- jede Einstellung einzeln über den Server ----------------------------------------------------
+// ---- every setting individually through the server -----------------------------------------------
 
 #[tokio::test]
 async fn each_setting_alone_shows_in_the_typeset_book() {
@@ -531,7 +535,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     let plain = f.measure().await;
     let (plain_size, plain_font) = plain.body_font();
 
-    // Seitenformat 12 × 19 und eigenes Format.
+    // Page format 12 × 19 and a custom format.
     for (format, (fw, fh)) in [
         (PageFormat::Mm120x190, (120.0, 190.0)),
         (PageFormat::Custom { width_mm: 100.0, height_mm: 160.0 }, (100.0, 160.0)),
@@ -543,7 +547,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
         }
     }
 
-    // Kapitelanfang „neue Seite“: Über jeder Kapitelüberschrift steht auf ihrer Seite kein Text.
+    // Chapter beginning „neue Seite“: above every chapter heading there is no text on its page.
     f.set(&TypesetSettings { chapter_start: Some(ChapterStart::NewPage), ..Default::default() }).await;
     let m = f.measure().await;
     for (title, page) in CHAPTERS.iter().zip(&m.chapters) {
@@ -551,7 +555,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
         assert!(first_line.contains(title), "„{title}“ ist die erste Zeile seiner Seite {page}: {first_line:?}");
     }
 
-    // Grundschrift und Größe.
+    // Body font and size.
     let families = tokio::task::spawn_blocking(baruch_render::font_families).await.unwrap();
     let other = families
         .iter()
@@ -564,7 +568,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     assert!((size - 12.0).abs() < 0.05, "Grundschrift 12 pt (vorher {plain_size}): {size}");
     assert!(font.eq_ignore_ascii_case(&other), "Grundschrift {other} (vorher {plain_font}): {font}");
 
-    // Einzug vs. Abstand: mit Einzug beginnen Zeilen 2 em rechts der Kante, mit Abstand keine.
+    // Indent vs. spacing: with indent lines begin 2 em to the right of the edge, with spacing none do.
     let indented = |m: &Measured| -> usize {
         let (size, _) = m.body_font();
         m.texts
@@ -586,7 +590,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     assert!(with_indent > 10, "Einzug 2 em: viele Absatzanfänge eingerückt ({with_indent})");
     assert_eq!(with_spacing, 0, "Abstand statt Einzug: keine eingerückte Zeile");
 
-    // Zeilenabstand: 1,0 em statt 0,5 em rückt Grundlinien um 0,5 em weiter auseinander.
+    // Line spacing: 1.0 em instead of 0.5 em moves the baselines 0.5 em further apart.
     let pitch = |m: &Measured| -> f64 {
         let (size, _) = m.body_font();
         let page = m.page(m.chapters[0]);
@@ -605,7 +609,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     let wide = pitch(&f.measure().await);
     assert!((wide - narrow - 0.5 * plain_size).abs() < 0.3, "Zeilenabstand +0,5 em: {narrow} → {wide} pt");
 
-    // Silbentrennung (de) bei schmaler Spalte: Trennstrich am Zeilenende, ohne Trennung keiner.
+    // Hyphenation (de) with a narrow column: hyphen at the end of a line, without hyphenation none.
     let narrow_page = |hyphenate: bool| TypesetSettings {
         hyphenate: Some(hyphenate),
         lang: Some("de".into()),
@@ -628,7 +632,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     assert!(on > 0, "Silbentrennung: mindestens ein Trennstrich am Zeilenende ({on})");
     assert_eq!(off, 0, "ohne Silbentrennung keiner");
 
-    // Seitenzahlen verborgen: keine Zahl in Kopf- oder Fußzeile.
+    // Page numbers hidden: no number in header or footer.
     f.set(&TypesetSettings {
         page_numbers: Some(PageNumbers { position: PageNumberPosition::Hidden, start: PageNumberStart::FirstPage }),
         ..Default::default()
@@ -642,7 +646,7 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
         assert!(digits(&edges).is_empty(), "verborgen: keine Seitenzahl auf Seite {page}: {edges:?}");
     }
 
-    // Kolumnentitel „Werktitel“ auf einer Folgeseite des ersten Kapitels.
+    // Running head „Werktitel“ on a following page of the first chapter.
     f.set(&TypesetSettings { running_head: Some(RunningHead::WorkTitle), ..Default::default() }).await;
     let m = f.measure().await;
     let mut shown = 0;
@@ -657,9 +661,9 @@ async fn each_setting_alone_shows_in_the_typeset_book() {
     assert!(shown >= 2, "auf mehreren Folgeseiten (A4, elf Seiten: {shown})");
     assert!(f.typeset_get().await["warnings"].as_array().unwrap().is_empty(), "die Vorlage setzt einen Titel");
 
-    // Fußnoten mit Buchstaben: fortlaufend a–d, je Kapitel neu immer „a“.
-    // Ein Fußnotenzeichen (hochgestellt, eigene Schriftmerkmale) ist ein eigenes Textstück aus einem Zeichen – im Text
-    // und am Fuß (wie in `baruch-render/tests/typeset_measure.rs`).
+    // Footnotes with letters: continuous a–d, restarting per chapter always „a“.
+    // A footnote mark (superscript, own font features) is a text piece of its own consisting of one character – in the
+    // text and at the foot (as in `baruch-render/tests/typeset_measure.rs`).
     let marks = |m: &Measured| -> Vec<String> {
         let mut found: Vec<String> = m
             .texts
@@ -698,7 +702,7 @@ async fn a_work_title_head_without_a_title_in_the_template_is_named_in_the_warni
     );
 }
 
-// ---- (4) Vorlagenregel übernehmen ------------------------------------------------------------------
+// ---- (4) adopt the template rule -------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_template_rule_is_offered_adopted_with_one_commit_and_chapters_stay_on_their_pages() {
@@ -708,7 +712,7 @@ async fn the_template_rule_is_offered_adopted_with_one_commit_and_chapters_stay_
         assert_eq!(page % 2, 1, "die Vorlagenregel setzt „{title}“ auf eine rechte Seite");
     }
 
-    // Angebot im Block „Satz“ (ohne JavaScript) und auf der Satz-Seite.
+    // Offer in the block „Satz“ (without JavaScript) and on the typesetting page.
     let (status, page) = f.server.get(&format!("/einstellungen/werk?work={}", f.work)).await;
     assert_eq!(status, StatusCode::OK);
     assert!(page.contains("data-typeset-adopt"), "Angebot zur Vorlagenregel im Block „Satz“");
@@ -716,14 +720,14 @@ async fn the_template_rule_is_offered_adopted_with_one_commit_and_chapters_stay_
     let (_, satz) = f.server.get(&format!("/werke/{}/satz", f.work)).await;
     assert!(satz.contains("typeset-template-rule"), "Hinweis auf der Satz-Seite");
 
-    // Ohne Häkchen: 422, nichts geändert.
+    // Without the check box: 422, nothing changed.
     let commits = f.commits();
     let revisions = f.server.state.store.template_revisions(f.work).await.unwrap().len();
     let (status, _, body) = f.post("/einstellungen/werk/satz/vorlage", &format!("work={}", f.work)).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ohne Bestätigung abgelehnt: {body}");
     assert_eq!(f.commits(), commits, "kein Commit ohne Bestätigung");
 
-    // Bestätigt: 303, neue Vorlagenfassung ohne die Zeile, chapter_start right_page, ein Commit.
+    // Confirmed: 303, new template revision without the line, chapter_start right_page, one commit.
     let (status, location, body) =
         f.post("/einstellungen/werk/satz/vorlage", &format!("work={}&confirm=1", f.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Übernahme: {body}");
@@ -748,7 +752,7 @@ async fn the_template_rule_is_offered_adopted_with_one_commit_and_chapters_stay_
     assert_eq!(after.pages, before.pages, "gleiche Seitenzahl");
 }
 
-// ---- (5) Konflikt Vorlage/Einstellung ---------------------------------------------------------------
+// ---- (5) conflict template/setting ------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_conflicting_template_line_is_named_in_block_and_typeset_page_and_the_setting_wins() {
@@ -782,7 +786,7 @@ async fn a_conflicting_template_line_is_named_in_block_and_typeset_page_and_the_
     }
 }
 
-// ---- (6) MCP nur lesend --------------------------------------------------------------------------------
+// ---- (6) MCP read-only ---------------------------------------------------------------------------------
 
 async fn mcp(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -839,7 +843,7 @@ async fn mcp_reads_the_settings_and_has_no_way_to_write_them() {
     assert_eq!(f.commits(), commits, "kein Commit");
 }
 
-// ---- (7) Austausch u6 und Zurücksetzen mit Grabstein über zwei Instanzen -----------------------------
+// ---- (7) exchange u6 and reset with tombstone across two instances -----------------------------------
 
 async fn export_xml(server: &common::Server, work: i64) -> String {
     let answer = server.rpc("work.exchange_export", json!({ "work": work, "format": "xml" })).await;
@@ -863,12 +867,12 @@ async fn the_settings_travel_in_u6_and_a_reset_leaves_a_tombstone_across_two_ins
     let (status, _, _) = a.post("/einstellungen/werk/satz", &abnahme_form(a.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     let xml = export_xml(&a.server, a.work).await;
-    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
     assert!(xml.contains("version=\"10\"") && xml.contains("<satz uuid="), "Unterversion 9 (seit Runde 34) mit <satz>");
     let (_, exchange_page) = a.server.get(&format!("/werke/{}/austausch", a.work)).await;
     assert!(exchange_page.contains("Satz-Einstellungen: Kapitelanfang"), "Austauschseite nennt die Satz-Einstellungen");
 
-    // B liest als neues Werk ein: dieselben Einstellungen, derselbe Satz.
+    // B imports it as a new work: the same settings, the same typesetting.
     let b = common::open().await;
     let imported = import_xml(&b, &xml, "new").await;
     let work_b = imported["work"].as_i64().unwrap();
@@ -881,7 +885,7 @@ async fn the_settings_travel_in_u6_and_a_reset_leaves_a_tombstone_across_two_ins
     let stand_b = baruch_server::typeset::prepare(&b.state, work_b).await.unwrap().source.main;
     assert_eq!(stand_b, stand_a, "B setzt dieselbe Quelle wie A (Regelblock aus den mitgereisten Einstellungen)");
 
-    // A setzt über das Formular zurück: ein Commit, Grabstein in der Ausgabe.
+    // A resets through the form: one commit, tombstone in the output.
     let commits = a.commits();
     let (status, _, _) = a.post("/einstellungen/werk/satz", &format!("work={}&action=reset&confirm=1", a.work)).await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -891,13 +895,13 @@ async fn the_settings_travel_in_u6_and_a_reset_leaves_a_tombstone_across_two_ins
     let uuid = view_a["uuid"].as_str().unwrap();
     assert!(xml.contains(&format!("<eintrag uuid=\"{uuid}\" art=\"satz\"")), "Grabstein satz in der Ausgabe");
 
-    // B gleicht ab: Regel „nie still überschreiben“ (docs/Austauschformat.md) – B behält seine Einstellungen.
+    // B merges: rule „nie still überschreiben“ (docs/Austauschformat.md) – B keeps its settings.
     let merged = import_xml(&b, &xml, "merge").await;
     assert!(merged["refusals"].as_array().unwrap().is_empty(), "nichts abgelehnt: {merged}");
     let after_b = result(&b.rpc("work.typeset_get", json!({ "work": work_b })).await).clone();
     assert_eq!(after_b["settings"], view_a["settings"], "B behält seine Einstellungen (nichts still gelöscht)");
 
-    // Eine dritte Instanz übernimmt die Ausgabe ohne Einstellungen und kennt den Grabstein.
+    // A third instance takes over the output without settings and knows the tombstone.
     let c = common::open().await;
     let work_c = import_xml(&c, &xml, "new").await["work"].as_i64().unwrap();
     assert_eq!(

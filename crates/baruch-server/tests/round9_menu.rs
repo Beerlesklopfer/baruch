@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 9, Aufgabe „menu“: eine gemeinsame Kopfzeile in `base.html`, seitenlokale Links in
-//! `{% block page_actions %}`, kleiner Thema-Umschalter, „Einstellungen“ (Alt+,), Abzeichen
-//! (Anträge zur Gliederung, offene Vorschläge) und die Hülle des Einstellungs-Dialogs am Seitenende.
+//! Round 9, task „menu“: one shared header in `base.html`, page-local links in
+//! `{% block page_actions %}`, small theme toggle, „Einstellungen“ (Alt+,), badges
+//! (requests on the outline, open proposals) and the shell of the settings dialog at the end of the page.
 //!
-//! Runde 33 (Menüband, Vertrag R33 §4): Die Kopfzeile mit den Menüs Werk ▾, Ansicht ▾ und Werkzeuge ▾ ist das
-//! Menüband geworden (`header.band`: Menü Baruch ▾ und die Reiter Start · Einfügen · Prüfen · Buch · Ansicht). Die
-//! Zusicherungen dieser Datei sind darum auf die neue Stelle umgeschrieben, keine ist entfallen: Was hier „im Menü
-//! Werk“ stand, wird jetzt im Menü Baruch ▾ bzw. im Feld des Reiters verlangt (Begründung je Stelle). Die volle
-//! Zuordnung mit Begründung je Eintrag steht in `round33_menueband.rs`.
-//! Alle Testtexte frei erfunden (`tests/data/gartenbuch.typ` und die Texte hier).
+//! Round 33 (ribbon, contract R33 §4): the header with the menus Werk ▾, Ansicht ▾ and Werkzeuge ▾ has become the
+//! ribbon (`header.band`: menu Baruch ▾ and the tabs Start · Einfügen · Prüfen · Buch · Ansicht). The
+//! assertions of this file have therefore been rewritten for the new place, none has been dropped: what stood „im
+//! Menü Werk“ here is now demanded in the menu Baruch ▾ or in the panel of the tab (reason per place). The full
+//! mapping with a reason per entry is in `round33_menueband.rs`.
+//! All test texts freely invented (`tests/data/gartenbuch.typ` and the texts here).
 
 use crate::common;
 
@@ -27,14 +27,14 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Der Kopf der Seite (vom öffnenden Tag bis `</header>`). Runde 33: `header.band` statt `header.topbar`.
+/// The header of the page (from the opening tag to `</header>`). Round 33: `header.band` instead of `header.topbar`.
 fn topbar(html: &str) -> &str {
     let start = html.find("<header class=\"band\"").unwrap_or_else(|| panic!("kein Menüband: {html}"));
     let end = start + html[start..].find("</header>").expect("Kopf ohne Ende");
     &html[start..end]
 }
 
-/// Das Menü „Baruch ▾“ (`<details class="menu" data-menu="baruch">` bis `</details>`).
+/// The menu „Baruch ▾“ (`<details class="menu" data-menu="baruch">` up to `</details>`).
 fn app_menu(head: &str) -> &str {
     let marker = "<details class=\"menu\" data-menu=\"baruch\">";
     let start = head.find(marker).unwrap_or_else(|| panic!("Menü Baruch fehlt: {head}"));
@@ -42,7 +42,7 @@ fn app_menu(head: &str) -> &str {
     &head[start..end]
 }
 
-/// Feld eines Reiters (`data-band-panel="ID"` bis zum nächsten Feld bzw. zum Andockplatz).
+/// Panel of a tab (`data-band-panel="ID"` up to the next panel or the dock).
 fn panel<'a>(head: &'a str, id: &str) -> &'a str {
     let marker = format!("data-band-panel=\"{id}\"");
     let start = head.find(&marker).unwrap_or_else(|| panic!("Feld {id} fehlt: {head}"));
@@ -71,7 +71,7 @@ async fn mcp_call(server: &common::Server, tool: &str, arguments: Value) -> Valu
     answer
 }
 
-/// Feste Schlüssel der Abschnitte in Baumreihenfolge.
+/// Stable keys of the sections in tree order.
 async fn keys(server: &common::Server, work: i64) -> Vec<(i64, String)> {
     let answer = server.rpc("work.get", json!({ "work": work })).await;
     result(&answer)["work"]["nodes"]
@@ -88,7 +88,7 @@ async fn get_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> (S
     (status, html)
 }
 
-/// Alle Seiten mit Kopfzeile (Abnahme Runde 9): Adresse → HTML, im Gartenbuch mit Bild und Einfall.
+/// All pages with a header (acceptance Round 9): address → HTML, in the garden book with image and idea.
 struct Pages {
     work: i64,
     key: i64,
@@ -111,7 +111,7 @@ async fn all_pages(server: &common::Server) -> Pages {
     let idea = result(&idea)["idea"]["id"].as_i64().unwrap();
     let list = server.rpc("library.list", json!(null)).await;
     let title = result(&list)["titles"][0]["id"].as_i64().unwrap();
-    // Integrator Runde 28: ein eigener Beitrag für die Beitragsseite (chat-auftrag).
+    // Integrator Round 28: an own post for the posts page (chat-auftrag).
     let seq = server.state.store.node_seq(work, key).await.unwrap();
     let note = baruch_core::Post {
         id: 0,
@@ -122,8 +122,8 @@ async fn all_pages(server: &common::Server) -> Pages {
         refs: vec![],
     };
     let post = server.state.store.add_post(work, seq, &note).await.unwrap();
-    // Integrator Runde 30: eine Variantengruppe (zwei Geschwister-Vorschläge) für die Vergleichsseite /varianten
-    // (chat-loesungen), direkt über den Store angelegt, weil die Seite nur eine vorhandene Gruppe zeigt.
+    // Integrator Round 30: a variant group (two sibling proposals) for the comparison page /varianten (chat-loesungen),
+    // created directly through the store because the page shows only an existing group.
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = &loaded.nodes[seq];
     let base = node.current_number().unwrap();
@@ -155,9 +155,9 @@ async fn all_pages(server: &common::Server) -> Pages {
         format!("/literatur?work={work}&key={key}"),
         format!("/quelle?title={title}&work={work}&key={key}"),
         format!("/werke/{work}/satz?key={key}"),
-        // Integrator Runde 11: Umschlagseite (cover).
+        // Integrator Round 11: cover page (cover).
         format!("/werke/{work}/umschlag"),
-        // Integrator Runde 9: Seiten aus settings (Werk bearbeiten, Gliederungsschema, Einstellungen).
+        // Integrator Round 9: pages from settings (edit work, outline scheme, settings).
         format!("/werke/{work}/bearbeiten"),
         format!("/werke/{work}/nummerierung"),
         format!("/einstellungen/darstellung?work={work}"),
@@ -167,53 +167,53 @@ async fn all_pages(server: &common::Server) -> Pages {
         format!("/einstellungen/quellen?work={work}"),
         format!("/einstellungen/mcp?work={work}"),
         format!("/einstellungen/daten?work={work}"),
-        // Runde 13 (abgleich): Seite des Abgleichs mit MultiGPT.
+        // Round 13 (abgleich): page of the reconciliation with MultiGPT.
         format!("/abgleich?work={work}"),
-        // Integrator Runde 13: Dokumentansicht von MultiGPT (quellen) und Belegseite der Websuche (websuche).
+        // Integrator Round 13: document view of MultiGPT (quellen) and evidence page of the web search (websuche).
         format!("/quelle/multigpt?work={work}&key={key}&collection=Nachbau&document=doc-1"),
         format!("/websuche/belege?work={work}&key={key}&post=1"),
-        // Integrator Runde 15 (auftraege): Fäden ohne Abschnitt und die Bibelseite der Literatur (ohne Bibel
-        // ein ehrlicher Hinweis, die Seite lädt trotzdem).
+        // Integrator Round 15 (auftraege): threads without a section and the Bible page of the literature (without a
+        // Bible an honest hint, the page loads nevertheless).
         format!("/faeden?work={work}"),
         format!("/literatur/bibel?work={work}&key={key}"),
-        // Runde 16c (stichwortzettel): Seite des Stichwortzettels mit Formatwahl und Vorschau.
+        // Round 16c (stichwortzettel): page of the cue sheet with format choice and preview.
         format!("/werke/{work}/stichwortzettel"),
-        // Runde 17c (pruefanzeige): Prüfanzeige der Zitate (ohne Bibel ein ehrlicher Hinweis, die Seite lädt).
+        // Round 17c (pruefanzeige): check display of the quotations (without a Bible an honest hint, the page loads).
         format!("/werke/{work}/pruefung?key={key}"),
-        // Runde 26 (Schnittstelle): Austausch ausgeben (Seite des Werks) und einlesen (Formular).
+        // Round 26 (interface): write the exchange (page of the work) and read it (form).
         format!("/werke/{work}/austausch"),
         "/austausch/einlesen".to_owned(),
-        // Runde 25 (karte-bild): Gedankenkarte der Einfälle.
+        // Round 25 (karte-bild): idea map of the ideas.
         format!("/werke/{work}/karte"),
-        // Integrator Runde 28: Befunde übers Werk (befund-uebersicht), ganze Chat-Historie und Beitragsseite
-        // ohne JavaScript (chat-auftrag).
+        // Integrator Round 28: findings across the work (befund-uebersicht), whole chat history and posts page without
+        // JavaScript (chat-auftrag).
         format!("/werke/{work}/befunde"),
         format!("/beitraege?work={work}&key={key}"),
         format!("/beitrag?work={work}&id={post}"),
-        // Integrator Runde 30: Werk-Suche (suchen-verweise), Querverweise (suchen-verweise) und der Vergleich der
-        // Varianten (chat-loesungen).
+        // Integrator Round 30: work search (suchen-verweise), cross-references (suchen-verweise) and the comparison of
+        // the variants (chat-loesungen).
         format!("/suche?work={work}&q=Laube"),
         format!("/verweise?work={work}"),
         format!("/varianten?work={work}&key={key}&group={group}"),
-        // Runde 20b (reader): EPUB-Vorschau je Reader.
+        // Round 20b (reader): EPUB preview per reader.
         format!("/werke/{work}/epub/vorschau"),
-        // Integrator Runde 20: Prüfbericht des EPUB (epub-pruefung).
+        // Integrator Round 20: check report of the EPUB (epub-pruefung).
         format!("/werke/{work}/epub/pruefung"),
-        // Runde 31 (Schnittstelle R31-S1): Glossar, Register und Formular an der Markierung (kontextmenue).
+        // Round 31 (interface R31-S1): glossary, index and form at the selection (kontextmenue).
         format!("/werke/{work}/glossar"),
         format!("/werke/{work}/register"),
         format!("/werke/{work}/markierung?key={key}"),
-        // Integrator Runde 22: Archiv der gelöschten Werke (befund-rueckfrage) und Verlauf einer Fassung (fassungen).
+        // Integrator Round 22: archive of the deleted works (befund-rueckfrage) and history of a revision (fassungen).
         "/werke/archiv".to_owned(),
         format!("/werke/{work}/fassungen/verlauf?key={key}&rev=1"),
-        // Runde 24 (pakete): Über Baruch.
+        // Round 24 (pakete): Über Baruch.
         "/ueber".to_owned(),
     ] {
         let (status, html) = get_with_cookie(server, &uri, &format!("baruch_work={work}")).await;
         assert_eq!(status, StatusCode::OK, "{uri} lädt: {html}");
         pages.push((uri, html));
     }
-    // Bestätigungsseite: Speichern ohne JavaScript würde den Abschnitt teilen (neue Überschrift).
+    // Confirmation page: saving without JavaScript would split the section (new heading).
     let body = format!(
         "method=outline.save&work={work}&key={}&body={}",
         nodes[3].0, "%3D+Sommer%0A%0AGie%C3%9Fen.%0A%0A%3D+Herbst%0A%0ALaub.%0A"
@@ -230,9 +230,9 @@ async fn all_pages(server: &common::Server) -> Pages {
 }
 
 #[tokio::test]
-/// Runde 33: früher „genau eine Kopfzeile mit den drei Menüs“ – jetzt genau ein Menüband mit dem Menü Baruch ▾ und
-/// den Reitern; die übrigen Zusicherungen (Widget menubar, Thema, Einstellungen, Haken, keine node=-Links) gelten
-/// an der neuen Stelle weiter.
+/// Round 33: formerly „genau eine Kopfzeile mit den drei Menüs“ – now exactly one ribbon with the menu Baruch ▾ and the
+/// tabs; the remaining assertions (widget menubar, theme, settings, hooks, no node= links) continue to hold at the new
+/// place.
 async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
     let server = common::open().await;
     let Pages { work, pages, .. } = all_pages(&server).await;
@@ -257,12 +257,12 @@ async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
         assert!(!html.contains("class=\"topbar\""), "{uri}: die alte Kopfzeile steht nicht mehr daneben");
         let head = topbar(html);
         assert!(
-            // Runde 23a: außerhalb der Arbeitsseite trägt die Leiste zusätzlich das Werk für die Abzeichen.
+            // Round 23a: outside the work page the bar additionally carries the work for the badges.
             head.contains("<nav class=\"menubar\" data-widget=\"menubar\" aria-label=\"Menü\""),
             "{uri}: Menüleiste als Widget menubar mit Namen für Hilfsmittel: {head}"
         );
-        // Runde 33: statt der drei Menüs werk/ansicht/werkzeuge genau ein Menü „Baruch ▾“ – mit denselben
-        // Eigenschaften (ein <details>, <summary> mit aria-haspopup, Liste role=menu, keine Knöpfe).
+        // Round 33: instead of the three menus werk/ansicht/werkzeuge exactly one menu „Baruch ▾“ – with the same
+        // properties (one <details>, <summary> with aria-haspopup, list role=menu, no buttons).
         assert_eq!(
             head.matches("<details class=\"menu\"").count(),
             1,
@@ -278,8 +278,8 @@ async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
             !m.contains("<button"),
             "{uri}: das Menü enthält keine Knöpfe, die nur mit JavaScript etwas tun – alles Links: {m}"
         );
-        // Runde 33: Die Einträge der alten Menüs stehen in den Feldern der Reiter; jede Seite hat mindestens Start
-        // und Ansicht, mit dem Werk aus Seite oder Cookie auch Prüfen und Buch – als Links (role=tab).
+        // Round 33: the entries of the old menus are in the panels of the tabs; every page has at least Start and
+        // Ansicht, with the work from page or cookie also Prüfen and Buch – as links (role=tab).
         for id in ["start", "pruefen", "buch", "ansicht"] {
             assert_eq!(
                 head.matches(&format!("<a class=\"band-tab\" role=\"tab\" id=\"band-tab-{id}\"")).count(),
@@ -293,8 +293,8 @@ async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
             html.contains(" data-band=\"open\">"),
             "{uri}: <html> trägt den Zustand des Bands (Schicht band::apply)"
         );
-        // Die Satz-Seite lädt kein main.js (Runde 18a): Dort sind Thema und Einstellungen schlichte Links
-        // (Nachbesserung Runde 18, geprüft in round18_menueband::the_typeset_page_header_works_without_main_js).
+        // The typesetting page loads no main.js (Round 18a): there theme and settings are plain links (follow-up fix
+        // Round 18, checked in round18_menueband::the_typeset_page_header_works_without_main_js).
         if uri.contains("/satz") {
             assert!(head.contains("aria-label=\"Thema einstellen"), "{uri}: Thema als Link ohne Widget: {head}");
         } else {
@@ -302,8 +302,8 @@ async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
                 panel(head, "ansicht").contains("data-widget=\"theme\""),
                 "{uri}: kleiner Thema-Umschalter bleibt im Kopf (Runde 33: Reiter Ansicht, Gruppe Darstellung)"
             );
-            // Runde 33: „Einstellungen“ ist ein Eintrag des Menüs Baruch ▾ (vorher ein Knopf rechts in der Zeile);
-            // Ziel, Alt+, und der Haken data-settings-open sind dieselben.
+            // Round 33: „Einstellungen“ is an entry of the menu Baruch ▾ (before: a button on the right in the line);
+            // target, Alt+, and the hook data-settings-open are the same.
             assert!(
                 app_menu(head).contains(&format!(
                     "<a class=\"menu-item settings-open\" role=\"menuitem\" href=\"/einstellungen/darstellung?work={work}\" data-settings-open \
@@ -367,20 +367,20 @@ async fn the_workspace_topbar_keeps_every_former_address() {
         let tail = &head[head.find("&rev=").expect("rev in der Kopfzeile") + 5..];
         tail.chars().take_while(char::is_ascii_digit).collect::<String>()
     };
-    // Runde 33: Orte der früheren Menüeinträge – Menü Baruch ▾ (Programm) und die Felder der Reiter.
+    // Round 33: places of the former menu entries – menu Baruch ▾ (program) and the panels of the tabs.
     let baruch = app_menu(head);
     let start = panel(head, "start");
     let pruefen = panel(head, "pruefen");
     let buch = panel(head, "buch");
-    // Werkwahl wie bisher (GET-Formular), nur auf der Arbeitsseite.
+    // Work choice as before (GET form), only on the work page.
     assert!(
         head.contains("<form class=\"work-select\" action=\"/\" method=\"get\"")
             && head.contains("<select name=\"work\" aria-label=\"Werk\" data-widget=\"work-select\">")
             && head.contains("<noscript><button class=\"btn\" type=\"submit\">Öffnen</button></noscript>"),
         "Werkwahl unverändert in der Kopfzeile: {head}"
     );
-    // Runde 33: Der Schriftzug „Baruch“ (Link zum Werk) ist das Menü Baruch ▾ geworden; auf der Arbeitsseite ist man
-    // schon beim Werk, auf anderen Seiten führt „Zum Text“ (Reiter Start) dorthin – siehe
+    // Round 33: the lettering „Baruch“ (link to the work) has become the menu Baruch ▾; on the work page one is already
+    // at the work, on other pages „Zum Text“ (tab Start) leads there – see
     // other_pages_keep_their_local_links_in_page_actions.
     assert!(baruch.contains(">Baruch ▾</summary>"), "Baruch steht als Menü vorn im Kopf: {head}");
     assert!(
@@ -404,7 +404,7 @@ async fn the_workspace_topbar_keeps_every_former_address() {
         (&format!("href=\"/werke/{work}/nummerierung\">Gliederungsschema</a>"), buch),
         (&format!("href=\"/werke/{work}/bilder\">Bilder</a>"), buch),
         (&format!("href=\"/werke/{work}/export\""), buch),
-        // Runde 11: das Buch als PDF, die Umschlagseite und das Umschlag-PDF (Herunterladen als Anhang).
+        // Round 11: the book as PDF, the cover page and the cover PDF (download as attachment).
         (&format!("href=\"/werke/{work}/pdf\" download"), buch),
         (&format!("href=\"/werke/{work}/umschlag\" title"), buch),
         (&format!("href=\"/werke/{work}/umschlag.pdf\" download"), buch),
@@ -428,7 +428,7 @@ async fn the_workspace_topbar_keeps_every_former_address() {
             start,
         ),
         (&format!("href=\"/einfaelle?work={work}\" title=\"Liste der Einfälle dieses Werks\">Einfälle</a>"), start),
-        // Runde 25 (karte-bild): Gedankenkarte, nur mit Werk; seit Runde 34 heißt sie „Mindmap“ (gleiche Adresse).
+        // Round 25 (karte-bild): idea map, only with a work; since Round 34 it is called „Mindmap“ (same address).
         (
             &format!(
                 "href=\"/werke/{work}/karte\" title=\"Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)\">Mindmap</a>"
@@ -436,25 +436,25 @@ async fn the_workspace_topbar_keeps_every_former_address() {
             start,
         ),
     ] {
-        // Runde 33: Einträge im Menü Baruch ▾ sind weiter `a.menu-item`, Einträge in den Feldern der Reiter `a.btn`.
+        // Round 33: entries in the menu Baruch ▾ are still `a.menu-item`, entries in the panels of the tabs `a.btn`.
         assert!(
             place.contains(&format!("<a class=\"menu-item\" role=\"menuitem\" {entry}"))
                 || place.contains(&format!("<a class=\"btn\" {entry}")),
             "Eintrag {entry} steht als gewöhnlicher Link (ohne JavaScript bedienbar) am richtigen Ort des Bands: {place}"
         );
     }
-    // Runde 33: „Satz“ heißt im Reiter Buch „Satz-Vorschau“ (neben „EPUB-Vorschau“); „Literatur“ wie bisher.
+    // Round 33: „Satz“ is called „Satz-Vorschau“ in the tab Buch (next to „EPUB-Vorschau“); „Literatur“ as before.
     assert!(buch.contains(">Satz-Vorschau</a>") && pruefen.contains(">Literatur</a>"), "Beschriftungen: {buch}");
-    // Vorschau: der Umschalter zeigt zurück auf den Editor.
+    // Preview: the toggle points back to the editor.
     let (_, preview) = server.get(&format!("/?work={work}&key={key}&view=preview")).await;
     let toggle = panel(topbar(&preview), "start");
     assert!(
         toggle.contains(&format!("data-nav data-view-toggle href=\"/?work={work}&key={key}&rev={rev}\" title=\"Zwischen Editor und Vorschau im Browser wechseln\">Editor</a>")),
         "in der Vorschau führt der Umschalter zum Editor (Key-Form, ohne view): {toggle}"
     );
-    // Runde 20b (reader): „EPUB-Vorschau“ ist kein Stub mehr, sondern ein Link auf die Vorschau des Werks; daneben
-    // „EPUB“ als Anhang neben dem PDF. Runde 33: beides im Reiter Buch (Gruppen Satz und Ausgabe); die Einträge heißen
-    // in der Gruppe Ausgabe kurz „PDF“, „Entwurf“, „EPUB“ (das „herunterladen“ steht im title).
+    // Round 20b (reader): „EPUB-Vorschau“ is no longer a stub but a link to the preview of the work; next to it „EPUB“
+    // as an attachment next to the PDF. Round 33: both in the tab Buch (groups Satz and Ausgabe); in the group Ausgabe
+    // the entries are called briefly „PDF“, „Entwurf“, „EPUB“ (the „herunterladen“ is in the title).
     assert!(
         buch.contains(&format!(
             "<a class=\"btn\" href=\"/werke/{work}/epub/vorschau\" title=\"Das EPUB des Werks in mehreren Readern nebeneinander\">EPUB-Vorschau</a>"
@@ -470,8 +470,8 @@ async fn the_workspace_topbar_keeps_every_former_address() {
     let pdf = buch.find(">PDF</a>").expect("PDF im Reiter Buch");
     let epub = buch.find(">EPUB</a>").expect("EPUB im Reiter Buch");
     assert!(pdf < epub, "EPUB steht neben dem PDF (dahinter)");
-    // Runde 13 (abgleich): „Abgleichen“ ist kein Stub mehr, sondern ein gewöhnlicher Link auf /abgleich (Runde 33:
-    // Reiter Prüfen, Gruppe Quellen).
+    // Round 13 (abgleich): „Abgleichen“ is no longer a stub but an ordinary link to /abgleich (Round 33: tab Prüfen,
+    // group Quellen).
     assert!(
         pruefen.contains(&format!(
             "<a class=\"btn\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
@@ -483,16 +483,17 @@ async fn the_workspace_topbar_keeps_every_former_address() {
         !pruefen.contains("aria-disabled") && !buch.contains("aria-disabled") && !baruch.contains("aria-disabled"),
         "in Prüfen, Buch und im Menü Baruch ist nichts gesperrt (früher: Menüs Ansicht und Werkzeuge)"
     );
-    // Runde 24 (pakete): „Über Baruch“ als gewöhnlicher Link (Runde 33: im Menü Baruch ▾ statt am Ende von Werkzeuge).
+    // Round 24 (pakete): „Über Baruch“ as an ordinary link (Round 33: in the menu Baruch ▾ instead of at the end of
+    // Werkzeuge).
     assert!(
         baruch.contains(
             "<a class=\"menu-item\" role=\"menuitem\" href=\"/ueber\" title=\"Version, Lizenz, Quellcode und Bibliotheken Dritter\">Über Baruch</a>"
         ),
         "Über Baruch verlinkt die Seite /ueber (ohne JavaScript bedienbar): {baruch}"
     );
-    // Runde 33: früher „statt elf Knöpfen nur noch der Thema-Umschalter als Knopf“ in der einen Zeile. Im Band ist
-    // die Zeile 1 weiter frei von losen Knöpfen: dort stehen nur das Menü, die Reiter, die Werkwahl, der Titel und
-    // der Schalter auf/zu; alle Einträge liegen in Gruppen der Felder.
+    // Round 33: formerly „statt elf Knöpfen nur noch der Thema-Umschalter als Knopf“ in the one line. In the band line
+    // 1 is still free of loose buttons: only the menu, the tabs, the work choice, the title and the switch open/closed
+    // are there; all entries lie in groups of the panels.
     let top = &head[..head.find("<div class=\"band-panels\"").expect("Felder des Bands")];
     assert_eq!(top.matches("<a class=\"btn").count(), 1, "in Zeile 1 nur der Schalter auf/zu als Knopf-Link: {top}");
     assert_eq!(top.matches("<button class=\"btn\" type=\"button\"").count(), 0, "kein loser Knopf in Zeile 1: {top}");
@@ -505,9 +506,9 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
     let page = |prefix: &str| -> &str {
         &pages.iter().find(|(uri, _)| uri.starts_with(prefix)).unwrap_or_else(|| panic!("Seite {prefix}")).1
     };
-    // Alle früheren Kopfzeilen-Adressen der Seiten (Stand 596ba72), jetzt hinter der Menüleiste (Runde 33: im Feld
-    // des Reiters Start; die Aufgabe „seiten“ fasst sie dort in Gruppen bzw. verteilt sie auf die Reiter – geprüft
-    // wird darum nur, dass der Link im Kopf hinter der Menüleiste steht).
+    // All former header addresses of the pages (state 596ba72), now after the menu bar (Round 33: in the panel of the
+    // tab Start; the task „seiten“ puts them into groups there or distributes them over the tabs – therefore only
+    // checked is that the link is in the header after the menu bar).
     let expected: Vec<(String, Vec<String>)> = vec![
         (
             "/werke".into(),
@@ -521,7 +522,7 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
             format!("/werke/{work}/loeschen"),
             vec![
                 "<a class=\"btn\" href=\"/werke\">Werke</a>".into(),
-                // back_url ist ein Wert (kein Vorlagentext): minijinja maskiert „/“ als &#x2f; wie bisher.
+                // back_url is a value (not template text): minijinja escapes „/“ as &#x2f; as before.
                 format!("<a class=\"btn\" href=\"&#x2f;?work={work}\">Zurück zum Werk</a>"),
             ],
         ),
@@ -570,10 +571,10 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
             );
         }
     }
-    // Runde 18a: Die Satz-Seite trägt „Zurück zum Werk“ und „PDF herunterladen“ im Menüband der Satz-Ansicht (Haken
-    // data-ribbon-satz) – dieselben Adressen, nur ein Ort. Runde 33: Die Leiste wandert mit der Aufgabe „seiten“ als
-    // Gruppen in den Reiter Buch; verlangt wird darum der Ort am Haken (gleich, ob er im Kopf oder darunter steht) und
-    // dass „Zurück zum Werk“ auf der Seite nicht doppelt steht (vorher: „nicht zusätzlich in der Kopfzeile“).
+    // Round 18a: the typesetting page carries „Zurück zum Werk“ and „PDF herunterladen“ in the ribbon of the typeset
+    // view (hook data-ribbon-satz) – the same addresses, only one place. Round 33: the bar moves with the task „seiten“
+    // as groups into the tab Buch; therefore the place at the hook is demanded (no matter whether it is in the header
+    // or below it) and that „Zurück zum Werk“ is not on the page twice (before: „nicht zusätzlich in der Kopfzeile“).
     let satz = page(&format!("/werke/{work}/satz"));
     assert_eq!(
         satz.matches(">Zurück zum Werk</a>").count(),
@@ -586,14 +587,14 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
         "Zurück zum Werk (am Abschnitt) im Menüband: {ribbon}"
     );
     assert!(ribbon.contains(&format!("href=\"/werke/{work}/pdf\" download")), "PDF im Menüband: {ribbon}");
-    // Die Literaturseite: „Literatur“ auf /quelle führt zurück zur Liste (mit Werk und Schlüssel).
+    // The literature page: „Literatur“ on /quelle leads back to the list (with work and key).
     let source = topbar(page("/quelle"));
     let back = &source[source.find("</nav>").unwrap()..];
     assert!(
         back.contains(&format!("href=\"/literatur?work={work}&amp;key={key}")),
         "Literatur-Link auf /quelle: {back}"
     );
-    // Seitentitel wie bisher in .work-title.
+    // Page title as before in .work-title.
     for (prefix, title) in [
         ("/werke", "Werke".to_owned()),
         ("/gliederung?", "Gliederung · Das Gartenbuch".to_owned()),
@@ -606,7 +607,7 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
             "{prefix}: Seitentitel „{title}“ in .work-title"
         );
     }
-    // Außerhalb der Arbeitsseite: keine Werkwahl, Literatur und Satz ohne Abschnitt, Werk aus der Seite.
+    // Outside the work page: no work choice, literature and typesetting without a section, work from the page.
     let assets = topbar(page(&format!("/werke/{work}/bilder")));
     assert!(!assets.contains("work-select"), "Werkwahl nur auf der Arbeitsseite");
     assert!(
@@ -617,8 +618,8 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
         panel(assets, "buch").contains(&format!("href=\"/werke/{work}/satz\"")),
         "Satz des Werks (Runde 33: Reiter Buch)"
     );
-    // Runde 33: „Ansicht ▾ → Editor“ (= Arbeitsseite) heißt außerhalb der Arbeitsseite „Zum Text“ und steht unter Start;
-    // er ersetzt dort auch den Schriftzug „Baruch“ als Weg zurück zum Werk.
+    // Round 33: „Ansicht ▾ → Editor“ (= work page) is called „Zum Text“ outside the work page and is under Start; there
+    // it also replaces the lettering „Baruch“ as the way back to the work.
     assert!(
         panel(assets, "start").contains(&format!(
             "href=\"/?work={work}\" title=\"Zur Arbeitsseite mit Gliederung, Editor und Assistenten\">Zum Text</a>"
@@ -631,14 +632,14 @@ async fn other_pages_keep_their_local_links_in_page_actions() {
 #[tokio::test]
 async fn without_any_work_the_work_entries_point_to_the_list_of_works() {
     let server = common::open().await;
-    // Ohne Cookie und ohne `work` auf der Seite: /werke hat kein Werk.
+    // Without a cookie and without `work` on the page: /werke has no work.
     let (status, html) = server.get("/werke").await;
     assert_eq!(status, StatusCode::OK, "Werkliste lädt");
     let head = topbar(&html);
-    // Runde 33 (Vertrag §4: „ohne Werk Start · Ansicht“): Früher standen die fünfzehn Werk-Einträge auch ohne Werk im
-    // Menü Werk und zeigten alle auf /werke („Erst ein Werk wählen“). Jetzt gibt es die Reiter Prüfen und Buch ohne
-    // Werk nicht; an ihre Stelle tritt EIN Eintrag „Werk wählen“ mit demselben Ziel und demselben Hinweis. Die
-    // Zusicherungen „keine Adresse mit erfundenem Werk“ gelten für den ganzen Kopf weiter.
+    // Round 33 (contract §4: „ohne Werk Start · Ansicht“): formerly the fifteen work entries were in the menu Werk even
+    // without a work and all pointed to /werke („Erst ein Werk wählen“). Now the tabs Prüfen and Buch do not exist
+    // without a work; in their place there is ONE entry „Werk wählen“ with the same target and the same hint. The
+    // assertions „keine Adresse mit erfundenem Werk“ continue to hold for the whole header.
     assert!(
         !head.contains("data-band-tab=\"pruefen\"") && !head.contains("data-band-tab=\"buch\""),
         "ohne Werk keine Reiter Prüfen und Buch: {head}"
@@ -658,13 +659,13 @@ async fn without_any_work_the_work_entries_point_to_the_list_of_works() {
         "auch PDF, Umschlag und Satz ohne erfundenes Werk: {head}"
     );
     assert!(app_menu(head).contains("href=\"/werke\">Alle Werke</a>"), "Alle Werke bleibt im Menü Baruch ▾: {head}");
-    // Runde 26: Einlesen braucht kein Werk und führt ohne Werk auf das Formular ohne `work`.
+    // Round 26: importing needs no work and leads without a work to the form without `work`.
     assert!(
         app_menu(head).contains("<a class=\"menu-item\" role=\"menuitem\" href=\"/austausch/einlesen\" title="),
         "Austausch einlesen ohne Werk: Formular ohne work: {head}"
     );
     assert!(head.contains("href=\"/einstellungen/darstellung\" data-settings-open"), "Einstellungen ohne Werk");
-    // Mit Cookie baruch_work: dasselbe Werk wie die Arbeitsseite.
+    // With the cookie baruch_work: the same work as the work page.
     let (_, html) = get_with_cookie(&server, "/werke", &format!("baruch_work={}", server.state.work)).await;
     let w = server.state.work;
     assert!(
@@ -680,7 +681,7 @@ async fn badges_count_open_outline_requests_and_proposals() {
     let nodes = keys(&server, work).await;
     let (_, html) = server.get(&format!("/?work={work}")).await;
     let head = topbar(&html);
-    // Runde 33: Die Abzeichen stehen an den Reitern (Buch: Anträge, Start: Vorschläge) statt an den Menüknöpfen.
+    // Round 33: the badges are at the tabs (Buch: requests, Start: proposals) instead of at the menu buttons.
     assert!(
         head.contains("<span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\" hidden>0</span>")
             && head.contains("<span class=\"badge\" data-badge=\"open_proposals\" title=\"offene Vorschläge im Werk\" hidden>0</span>"),
@@ -694,7 +695,7 @@ async fn badges_count_open_outline_requests_and_proposals() {
         "RPC menu.badges liefert dieselben Nullen"
     );
 
-    // Ein Antrag über MCP (umbenennen wartet auf den Menschen) und zwei Vorschläge in zwei Abschnitten.
+    // One request over MCP (renaming waits for the human) and two proposals in two sections.
     let (summer, _) = nodes.iter().find(|(_, t)| t == "Sommer").unwrap().clone();
     let (seed, _) = nodes.iter().find(|(_, t)| t == "Aussaat").unwrap().clone();
     mcp_call(&server, "outline_rename", json!({ "work": work, "key": summer, "title": "Hochsommer" })).await;
@@ -709,8 +710,8 @@ async fn badges_count_open_outline_requests_and_proposals() {
 
     let (_, html) = server.get(&format!("/?work={work}&key={}", nodes[0].0)).await;
     let head = topbar(&html);
-    // Runde 33: früher am Menüknopf „Werk ▾“ (Anträge, „0 offen“ verborgen) und „Ansicht ▾“ (Vorschläge) – jetzt an
-    // den Reitern Buch, Prüfen und Start; Zahlen und Haken sind dieselben.
+    // Round 33: formerly at the menu button „Werk ▾“ (requests, „0 offen“ hidden) and „Ansicht ▾“ (proposals) – now at
+    // the tabs Buch, Prüfen and Start; numbers and hooks are the same.
     assert!(
         head.contains(">Buch <span class=\"badge\" data-badge=\"outline_requests\" title=\"offene Anträge zur Gliederung\">1</span></a>"),
         "Abzeichen am Reiter Buch: ein offener Antrag, serverseitig gezeichnet: {head}"
@@ -735,8 +736,8 @@ async fn badges_count_open_outline_requests_and_proposals() {
         &json!({ "work": work, "outline_requests": 1, "open_proposals": 2, "open_findings": 0 }),
         "RPC menu.badges liefert dieselben Zahlen wie die Arbeitsseite"
     );
-    // Andere Seiten (Runde 23a): Der Server setzt die Zahlen auch dort ins ausgelieferte HTML (ohne JavaScript
-    // sichtbar); menu.ts frischt sie nur noch auf.
+    // Other pages (Round 23a): the server puts the numbers into the delivered HTML there as well (visible without
+    // JavaScript); menu.ts only refreshes them.
     let (_, assets) = server.get(&format!("/werke/{work}/bilder")).await;
     assert!(
         topbar(&assets).contains(
@@ -747,7 +748,7 @@ async fn badges_count_open_outline_requests_and_proposals() {
         "außerhalb der Arbeitsseite stehen dieselben Zahlen wie in menu.badges im HTML: {}",
         topbar(&assets)
     );
-    // Ohne work das Vorgabewerk; falsche Parameter → -32602.
+    // Without work the default work; wrong parameters → -32602.
     let default = server.rpc("menu.badges", json!({})).await;
     assert_eq!(result(&default)["work"], json!(server.state.work), "ohne work das Vorgabewerk");
     for bad in [json!({ "work": 99999 }), json!({ "work": "eins" }), json!([1])] {
@@ -756,10 +757,10 @@ async fn badges_count_open_outline_requests_and_proposals() {
     }
 }
 
-/// Runde 33: früher „die Kopfzeile bleibt bei 1024 px einzeilig“ (Regeln `.topbar` in app.css). Die Kopfzeile ist das
-/// Menüband geworden, seine Regeln stehen in band.css; die Absicht der alten Zusicherungen gilt für Zeile 1 des Bands:
-/// Bedienelemente schrumpfen nicht, der Titel kürzt sich mit „…“, die Menüliste liegt über der Seite. Ehrlich: Der
-/// Test liest nur CSS-Regeln und misst keine Breite.
+/// Round 33: formerly „die Kopfzeile bleibt bei 1024 px einzeilig“ (rules `.topbar` in app.css). The header has become
+/// the ribbon, its rules are in band.css; the intent of the old assertions holds for line 1 of the band: controls do
+/// not shrink, the title shortens itself with „…“, the menu list lies above the page. Honestly: the test only reads CSS
+/// rules and measures no width.
 #[tokio::test]
 async fn the_first_row_of_the_band_keeps_its_controls_and_shortens_the_title() {
     let server = common::open().await;
@@ -788,8 +789,8 @@ async fn the_first_row_of_the_band_keeps_its_controls_and_shortens_the_title() {
     );
     assert!(rule(".menubar").contains("flex-wrap: nowrap"), "die Menüleiste bricht nicht um");
 
-    // Zahl der Bedienelemente in Zeile 1: früher acht direkte Kinder der Kopfzeile (zwei Knöpfe, drei Menüs) – jetzt
-    // Menüleiste mit einem Menü, Reiterzeile, Werkwahl, Titel, Autor, Lücke, Schalter.
+    // Number of controls in line 1: formerly eight direct children of the header (two buttons, three menus) – now menu
+    // bar with one menu, tab row, work choice, title, author, gap, switch.
     let work = server.import_garden().await.work;
     let (_, html) = server.get(&format!("/?work={work}")).await;
     let head = topbar(&html);
@@ -814,11 +815,11 @@ async fn the_first_row_of_the_band_keeps_its_controls_and_shortens_the_title() {
     assert_eq!(top.matches("role=\"tab\"").count(), 5, "fünf Reiter auf der Arbeitsseite: {top}");
 }
 
-/// Runde 18a: In schmalen Fenstern bricht die Kopfzeile um, statt Knöpfe aus dem Bild zu schieben. Runde 33: Die
-/// Medienregel `@media (max-width: 999.98px)` für `.topbar` ist entfallen (Vertrag §2: die Modi hängen nur an den
-/// Attributen von <html>, keine Media-Queries). Dieselbe Absicht erfüllt das Band ohne Medienregel: Zeile 1 und die
-/// Felder dürfen immer umbrechen. Ehrlich: Der Test liest nur die CSS-Regeln und misst keine Breite; ob alles im
-/// Fenster bleibt, zeigt erst die Sichtprüfung des Integrators.
+/// Round 18a: in narrow windows the header wraps instead of pushing buttons out of view. Round 33: the media rule
+/// `@media (max-width: 999.98px)` for `.topbar` has been dropped (contract §2: the modes depend only on the attributes
+/// of <html>, no media queries). The band fulfils the same intent without a media rule: line 1 and the panels may
+/// always wrap. Honestly: the test only reads the CSS rules and measures no width; whether everything stays in the
+/// window is shown only by the visual check of the integrator.
 #[test]
 fn in_narrow_windows_the_band_wraps_instead_of_running_out_of_the_window() {
     let css = include_str!("../static/band.css");
@@ -871,20 +872,19 @@ async fn the_scripts_bring_the_menu_keyboard_and_the_theme_listens_to_settings()
     );
 }
 
-/// Integrator Runde 9: Die Seiten, die settings auf `page_title`/`page_actions` umgestellt hat, behalten
-/// jede Adresse ihrer früheren eigenen Kopfzeile (Stand development f851000) – im Menü oder in
-/// `page_actions`, also ohne JavaScript erreichbar.
+/// Integrator Round 9: the pages that settings has moved to `page_title`/`page_actions` keep every address of their
+/// former own header (state development f851000) – in the menu or in `page_actions`, i.e. reachable without JavaScript.
 #[tokio::test]
 async fn settings_pages_keep_the_addresses_of_their_former_topbars() {
     let server = common::open().await;
     let work = server.import_garden().await.work;
     let cookie = format!("baruch_work={work}");
     let cases: Vec<(String, Vec<String>)> = vec![
-        // work_edit.html: „Werke“, „Zurück zum Werk“ (back_url = Arbeitsseite des Werks).
+        // work_edit.html: „Werke“, „Zurück zum Werk“ (back_url = work page of the work).
         (format!("/werke/{work}/bearbeiten"), vec!["/werke".to_owned(), format!("/?work={work}")]),
         // work_numbering.html: „Werk ändern“, „Zurück zum Werk“.
         (format!("/werke/{work}/nummerierung"), vec![format!("/werke/{work}/bearbeiten"), format!("/?work={work}")]),
-        // personas.html (heute Einstellungen → Assistenten): „Zurück zum Werk“.
+        // personas.html (today Einstellungen → Assistenten): „Zurück zum Werk“.
         (format!("/einstellungen/assistenten?work={work}"), vec![format!("/?work={work}")]),
     ];
     for (uri, former) in cases {
@@ -906,14 +906,14 @@ async fn settings_pages_keep_the_addresses_of_their_former_topbars() {
     }
 }
 
-/// Die Abzeichen an den Menüs (`menu.css`: Text `--warning` auf `--warning-soft`, 11 px) sind normaler
-/// Text: WCAG AA verlangt mindestens 4,5 : 1 – wie bei den Tönungen der Personas. Geprüft werden alle
-/// Paare in `app.css` (helles Thema, dunkles Thema über die Systemvorgabe und über `data-theme`).
+/// The badges at the menus (`menu.css`: text `--warning` on `--warning-soft`, 11 px) are normal text: WCAG AA demands
+/// at least 4.5 : 1 – as with the tints of the personas. Checked are all pairs in `app.css` (light theme, dark theme
+/// through the system default and through `data-theme`).
 #[test]
 fn menu_badges_keep_aa_contrast_in_both_themes() {
     use baruch_server::personas::{MIN_CONTRAST, contrast_ratio};
-    // Runde 33: Die Abzeichen stehen an den Reitern und an Einträgen der Felder (band.css); die Regel der Einträge
-    // im Menü (menu.css) bleibt.
+    // Round 33: the badges are at the tabs and at entries of the panels (band.css); the rule of the entries in the menu
+    // (menu.css) stays.
     let menu = include_str!("../static/menu.css");
     let band = include_str!("../static/band.css");
     assert!(

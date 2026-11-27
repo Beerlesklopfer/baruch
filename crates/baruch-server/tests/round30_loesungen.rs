@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Lösungsvorschläge (Runde 30b): Lösungsform, Nachforderung, RFC „Mein Vorschlag“, solution.adopt, Prüfgrundlage,
-//! Kontext (Gliederung mit Schlüsseln, „schon gemeldet“, Relay gerahmt), Befunde mit Lösungen in Seite und Akkordeon.
+//! Solution proposals (Round 30b): solution form, follow-up demand, RFC „Mein Vorschlag“, solution.adopt, review basis,
+//! context (outline with keys, „schon gemeldet“, relay framed), findings with solutions in page and accordion.
 //!
-//! Besitz: chat-loesungen. Kein Netz, kein Eliezer: Modelle nur über `ScriptedModel`. Alle Texte frei erfunden (ein
-//! kleiner Roman über einen Leuchtturm und einen Wachturm).
+//! Owner: chat-loesungen. No network, no Eliezer: models only through `ScriptedModel`. All texts freely invented (a
+//! small novel about a lighthouse and a watchtower).
 
 use crate::common;
 
@@ -29,7 +29,7 @@ struct Tower {
     server: common::Server,
     model: ScriptedModel,
     work: i64,
-    /// Schlüssel von Ankunft, Leuchtturm, Wachturm, Leer, Abfahrt.
+    /// Keys of Ankunft, Leuchtturm, Wachturm, Leer, Abfahrt.
     keys: Vec<i64>,
 }
 
@@ -82,7 +82,7 @@ fn order(t: &Tower, key: usize, persona: &str, mode: Mode) -> Order {
     }
 }
 
-/// Auftrag ausführen und die Gründe der Ereignisse `Retry` einsammeln.
+/// Run the order and collect the reasons of the events `Retry`.
 async fn run_collect(t: &Tower, order: &Order) -> (baruch_server::assist::Outcome, Vec<String>) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
     let outcome = baruch_server::assist::run(&t.server.state, order, Some(&tx)).await.expect("Auftrag gelingt");
@@ -113,7 +113,7 @@ const WITHOUT: &str = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel
 const WITH: &str = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel.\n- statt: „Immer leuchtet der Turm“\n\
                     - besser: „Meist leuchtet der Turm“";
 
-// ---- Vorgabe-Prompts und Lösungsform -----------------------------------------------------------------------
+// ---- Default prompts and solution form ---------------------------------------------------------------------
 
 #[test]
 fn every_default_prompt_asks_for_a_solution_in_the_fixed_form() {
@@ -167,8 +167,8 @@ fn solutions_hang_on_their_finding_and_spans_cover_the_solution_lines() {
 
 #[test]
 fn a_solution_after_a_blank_line_still_belongs_to_its_critical_point() {
-    // Befund der Begutachtung: die Leerzeile schloss den Punkt, die Lösung darunter ging verloren – Baruch forderte
-    // nach und vermerkte „ohne Lösungsvorschlag“, obwohl der Beitrag dieselbe Lösung als übernehmbar zeigte.
+    // Finding of the review: the empty line closed the point, the solution below it was lost – Baruch demanded once
+    // more and noted „ohne Lösungsvorschlag“ although the post showed the same solution as adoptable.
     let answer = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel.\n\n\
                   - statt: „Immer leuchtet der Turm“\n- besser: „Meist leuchtet der Turm“\n\n\
                   Der Wächter zählt gut.";
@@ -180,7 +180,7 @@ fn a_solution_after_a_blank_line_still_belongs_to_its_critical_point() {
     assert_eq!(prompts::mark_missing_solutions(answer), answer, "kein Vermerk „ohne Lösungsvorschlag“");
     let critical = &answer[finding_spans(answer)[0].range.clone()];
     assert!(critical.ends_with("„Meist leuchtet der Turm“"), "die Spanne reicht bis zur Lösung: {critical:?}");
-    // Ohne Lösung bleibt die Leerzeile eine Grenze: der folgende Fließtext hängt nicht am Punkt.
+    // Without a solution the empty line stays a boundary: the following running text does not hang at the point.
     let bare = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel.\n\nDer Wächter zählt gut.";
     let found = split_answer(bare);
     assert_eq!(
@@ -190,7 +190,7 @@ fn a_solution_after_a_blank_line_still_belongs_to_its_critical_point() {
     assert_eq!(prompts::missing_solutions(bare), 1, "ohne Lösung weiter nachgefordert");
 }
 
-// ---- Nachforderung --------------------------------------------------------------------------------------
+// ---- Follow-up demand -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_critical_point_without_solution_is_asked_again_once_in_a_review_and_the_solution_is_stored() {
@@ -262,7 +262,7 @@ async fn a_cut_answer_is_not_asked_again_for_a_solution() {
     assert!(!outcome.post.unwrap().body.contains(prompts::NO_SOLUTION_NOTE), "und kein Vermerk über die Lösung");
 }
 
-// ---- RFC „Mein Vorschlag“ und Prüfgrundlage ---------------------------------------------------------------
+// ---- RFC „Mein Vorschlag“ and review basis ----------------------------------------------------------------
 
 #[tokio::test]
 async fn the_rfc_ends_with_one_collective_proposal_and_every_post_names_the_same_basis() {
@@ -270,7 +270,7 @@ async fn the_rfc_ends_with_one_collective_proposal_and_every_post_names_the_same
     let t = tower([]).await;
     let (others, lector) = rfc_personas(&t.server.state).await.unwrap();
     let lector = lector.expect("ein Lektor ist aktiv");
-    // Jede andere Persona mit einem kritischen Punkt samt Lösung (Nathan braucht ihn ohnehin als Pflichtbefund).
+    // Every other persona with one critical point including a solution (Nathan needs it anyway as a mandatory finding).
     for _ in &others {
         t.model.push(Step::words(WITH));
     }
@@ -314,14 +314,14 @@ async fn the_rfc_ends_with_one_collective_proposal_and_every_post_names_the_same
         format!("Mein Vorschlag von {lector} (Beitrag {})", lector_post.id),
         "Notiz nach Vertrag §3.4"
     );
-    // Alle Beiträge der Personas nennen dieselbe Prüfgrundlage – aus dem Aufruf, nicht vom Modell.
+    // All posts of the personas name the same review basis – from the call, not from the model.
     let ids: Vec<i64> = outcome.posts.iter().skip(1).map(|p| p.id).collect();
     let meta = t.server.state.store.post_meta(t.work, &ids).await.unwrap();
     for id in &ids {
         assert_eq!(meta[id].basis_label, "geprüft: aktuelle Fassung 1", "Beitrag {id}: gleiche Prüfgrundlage");
         assert_eq!(meta[id].basis_rev, Some(1), "Beitrag {id}: Fassung 1");
     }
-    // Nur der Lektor bekommt fremde Befunde als Prüfgegenstand; im RFC-Auftrag steht „Mein Vorschlag:“.
+    // Only the lector gets foreign findings as the subject of the review; the RFC order contains „Mein Vorschlag:“.
     let calls = t.model.calls();
     assert!(user(calls.last().unwrap()).contains(context::RFC_TASK), "der Lektor sammelt und schließt mit Vorschlag");
     assert!(context::RFC_TASK.contains("Mein Vorschlag:"), "der Auftrag verlangt den Schlussblock");
@@ -346,7 +346,7 @@ async fn a_heading_only_current_version_gives_way_to_the_proposal_and_current_br
         )
         .await
         .unwrap();
-    // Vorgabe „gezeigt“: die aktuelle Fassung hat nur die Überschrift – alle prüfen den Vorschlag.
+    // Default „gezeigt“: the current revision has only the heading – all review the proposal.
     let answer =
         t.server.rpc("persona.review", json!({ "work": t.work, "key": t.keys[3], "persona": "@lektor" })).await;
     let r = result(&answer);
@@ -356,7 +356,7 @@ async fn a_heading_only_current_version_gives_way_to_the_proposal_and_current_br
     let post = r["post"]["id"].as_i64().unwrap();
     let meta = t.server.state.store.post_meta(t.work, &[post]).await.unwrap();
     assert_eq!(meta[&post].basis_rev, Some(proposal), "der Beitrag trägt die Grundlage");
-    // Ausdrücklich „aktuell“: bleibt bei der Überschrift, mit Hinweis im Kopf und im Auftrag (kein Befund „leer“).
+    // Explicitly „aktuell“: stays with the heading, with a hint in the header and in the order (no finding „leer“).
     let answer = t
         .server
         .rpc("persona.review", json!({ "work": t.work, "key": t.keys[3], "persona": "@lektor", "basis": "current" }))
@@ -375,7 +375,7 @@ async fn a_heading_only_current_version_gives_way_to_the_proposal_and_current_br
     assert_eq!(bad["error"]["code"], -32602, "unbekannte Prüfgrundlage: {bad}");
 }
 
-// ---- Kontext: Gliederung mit Schlüsseln, schon gemeldet, Relay -------------------------------------------
+// ---- Context: outline with keys, already reported, relay -------------------------------------------------
 
 #[tokio::test]
 async fn the_prompt_shows_the_outline_with_keys_and_the_rule_for_jump_marks() {
@@ -452,10 +452,10 @@ async fn a_relay_answer_is_framed_and_defused_as_foreign_text() {
     );
 }
 
-// ---- solution.adopt und das Formular -------------------------------------------------------------------
+// ---- solution.adopt and the form -----------------------------------------------------------------------
 
-/// Ein Beitrag von @lektor mit zwei übernehmbaren Lösungen und einer, deren Zitat nicht im Text steht; dazu seine
-/// Befunde (über `findings::ingest`, wie nach einem echten Auftrag).
+/// A post of @lektor with two adoptable solutions and one whose quotation is not in the text; plus its findings
+/// (through `findings::ingest`, as after a real order).
 async fn post_with_solutions(t: &Tower) -> i64 {
     let body = "Kritisch: „Immer leuchtet der Turm“ behauptet zu viel.\n- statt: „Immer leuchtet der Turm“\n\
                 - besser: „Meist leuchtet der Turm“\nKritisch: „steht am Kai“ ist blass.\n\
@@ -542,7 +542,7 @@ async fn a_doubled_pick_sets_its_solution_only_once() {
         .server
         .rpc("solution.adopt", json!({ "work": t.work, "key": t.keys[1], "post": post, "picks": [1, 1] }))
         .await;
-    // Gutachten R30: doppelte Nummern setzten dieselbe Ersetzung zweimal ein (oder scheiterten am schon ersetzten Zitat).
+    // Review R30: duplicate numbers applied the same replacement twice (or failed on the quotation already replaced).
     let r = result(&answer).clone();
     let rev = r["rev"].as_u64().expect("ein Vorschlag trotz doppelter Nummer") as u32;
     let work = t.server.state.store.load_work(t.work).await.unwrap();
@@ -581,7 +581,7 @@ async fn the_form_adopts_without_javascript_and_a_foreign_origin_is_refused() {
     assert_eq!(status, StatusCode::FORBIDDEN, "fremder Origin → 403 (guard::same_origin)");
 }
 
-// ---- Befunde mit Lösungen auf Seite und Arbeitsseite ------------------------------------------------------
+// ---- Findings with solutions on page and work page --------------------------------------------------------
 
 #[tokio::test]
 async fn findings_show_their_solutions_and_the_matrix_counts_with_and_without_solution() {
@@ -622,7 +622,7 @@ async fn findings_show_their_solutions_and_the_matrix_counts_with_and_without_so
         other.contains("&lt;b&gt;zählt&lt;/b&gt;") && !other.contains("<b>zählt</b>"),
         "Befundtext maskiert (Markdown)"
     );
-    // Akkordeon „Befunde“ auf der Arbeitsseite: dieselben Lösungen und „Lösungen umsetzen“ (Varianten).
+    // Accordion „Befunde“ on the work page: the same solutions and „Lösungen umsetzen“ (variants).
     let (_, ws) = t.server.get(&format!("/?work={}&key={}", t.work, t.keys[1])).await;
     assert!(ws.contains("besser „ragt über den Kai“"), "Lösung im Akkordeon: {ws}");
     assert!(ws.contains("value=\"solution.variants\"") && ws.contains("Lösungen umsetzen"), "Knopf für Varianten");
@@ -637,7 +637,7 @@ fn post_solutions_are_offered_only_for_quotes_of_the_shown_version() {
     assert!(!solutions::post_solutions(WITH, "== Der Leuchtturm\n\nAnders.\n")[0].adoptable, "sonst nicht");
 }
 
-// ---- Makros für chat-bedienung: Befund als Block, Lösungen eines Beitrags ----------------------------------------
+// ---- Macros for chat-bedienung: finding as a block, solutions of a post ------------------------------------------
 
 #[tokio::test]
 async fn the_finding_block_shows_kind_status_buttons_solutions_and_adopt() {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 32, Aufgabe docx_export: Word-Export (Seite, Datei, RPC work.docx_export, CLI).
+//! Round 32, task docx_export: Word export (page, file, RPC work.docx_export, CLI).
 //!
-//! Echter Datenordner, frei erfundenes Werk, kein Modell, kein Netz. Die Datei wird mit eigenen kleinen Lesehilfen
-//! (zip, Suche im XML) geprüft, nicht mit dem Leser der Nachbaraufgabe.
+//! Real data directory, freely invented work, no model, no network. The file is checked with own small reading helpers
+//! (zip, search in the XML), not with the reader of the neighbouring task.
 
 use crate::common;
 
@@ -38,7 +38,7 @@ struct Book {
     slug: String,
 }
 
-/// Das Werk mit einem eingebetteten Bild (`bilder/steg.png`, Alternativtext in den Bildangaben).
+/// The work with an embedded image (`bilder/steg.png`, alternative text in the image details).
 async fn setup(server: &common::Server) -> Book {
     let report = server.import(BOOK, "steg.typ").await;
     let added = server
@@ -53,7 +53,7 @@ async fn setup(server: &common::Server) -> Book {
     Book { work: report.work, slug: report.slug }
 }
 
-/// Aktueller Text des Abschnitts `node` mit einer Ersetzung.
+/// Current text of the section `node` with one replacement.
 async fn changed(server: &common::Server, work: i64, node: usize, from: &str, to: &str) -> String {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let n = &loaded.nodes[node];
@@ -73,7 +73,7 @@ async fn get_raw(server: &common::Server, uri: &str, headers: &[(&str, &str)]) -
     (status, headers, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
 }
 
-/// Ein Teil der Word-Datei als Text.
+/// One part of the Word file as text.
 fn part(docx: &[u8], name: &str) -> String {
     let mut zip = zip::ZipArchive::new(Cursor::new(docx)).expect("die Antwort ist ein ZIP-Archiv");
     let mut entry = zip.by_name(name).unwrap_or_else(|_| panic!("Teil {name} fehlt in der Word-Datei"));
@@ -89,7 +89,7 @@ fn names(docx: &[u8]) -> Vec<String> {
         .collect()
 }
 
-/// Wert des Attributs `attr` im ersten Element `<tag …>` hinter `from`.
+/// Value of the attribute `attr` in the first element `<tag …>` after `from`.
 fn attribute(xml: &str, tag: &str, attr: &str) -> String {
     let at = xml.find(&format!("<{tag} ")).unwrap_or_else(|| panic!("<{tag}> fehlt: {xml}"));
     let element = &xml[at..at + xml[at..].find('>').unwrap()];
@@ -98,8 +98,8 @@ fn attribute(xml: &str, tag: &str, attr: &str) -> String {
     element[start..start + element[start..].find('"').unwrap()].to_owned()
 }
 
-/// Stand des Werks, den der Export nicht ändern darf: alle Fassungen samt Text, die Beiträge und der Kopf des
-/// Spiegels.
+/// State of the work that the export must not change: all revisions including text, the posts and the head of the
+/// mirror.
 async fn snapshot(server: &common::Server, book: &Book) -> (String, String, Option<String>) {
     let store = &server.state.store;
     let tree = serde_json::to_string(&store.revision_tree(book.work).await.unwrap()).unwrap();
@@ -203,13 +203,13 @@ async fn the_latest_open_proposal_of_each_section_becomes_tracked_changes() {
     let server = common::open().await;
     let book = setup(&server).await;
     let store = &server.state.store;
-    // Abschnitt 0: zwei offene Vorschläge (der jüngste von @kritiker zählt).
+    // Section 0: two open proposals (the most recent one, of @kritiker, counts).
     let older = changed(&server, book.work, 0, "knarrte leise", "knarrte laut").await;
     store.add_proposal(book.work, 0, &older, "@lektor", "probe", "laut").await.unwrap();
     let latest = changed(&server, book.work, 0, "Der alte Steg", "Der morsche Steg").await;
     let latest_number = store.add_proposal(book.work, 0, &latest, "@kritiker", "probe", "morsch").await.unwrap();
-    // Abschnitt 1: ein verworfener Vorschlag, danach eine neue aktuelle Fassung und die Marke „bis hierhin“ –
-    // er ist ausgeblendet und zählt nicht.
+    // Section 1: a discarded proposal, after it a new current revision and the mark „bis hierhin“ – it is hidden and
+    // does not count.
     let rejected = changed(&server, book.work, 1, "Reiher und", "grauer Reiher und").await;
     let number = store.add_proposal(book.work, 1, &rejected, "@lektor", "probe", "grau").await.unwrap();
     store.reject(book.work, 1, number).await.unwrap();
@@ -432,7 +432,7 @@ async fn cli_export_writes_the_file_and_never_overwrites() {
     assert!(!missing.exists(), "und hinterlässt keine Datei");
 }
 
-/// Programm `baruch-server` mit Datenordner `data` aufrufen: (Exit-Code, stdout, stderr).
+/// Call the program `baruch-server` with the data directory `data`: (exit code, stdout, stderr).
 fn cli(data: &std::path::Path, args: &[&str]) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
         .args(args)

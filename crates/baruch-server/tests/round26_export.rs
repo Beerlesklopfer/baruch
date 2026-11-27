@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 26 „export“: Austauschdatei ausgeben (Seite, Downloads, RPC `work.exchange_export`, CLI `--baruch`, MCP
-//! `exchange_export`), Ausgabe gegen das XSD.
+//! Round 26 „export“: write the exchange file (page, downloads, RPC `work.exchange_export`, CLI `--baruch`, MCP
+//! `exchange_export`), output against the XSD.
 //!
-//! Echter Datenordner im Temp-Ordner, Router über `oneshot`, Geheimnisse nur in `MemorySecrets`; keine Anfrage
-//! an Eliezer oder ins Netz. Testtexte frei erfunden.
+//! Real data directory in the temp directory, router through `oneshot`, secrets only in `MemorySecrets`; no request to
+//! Eliezer or to the network. Test texts freely invented.
 
 use crate::common;
 
@@ -19,7 +19,7 @@ use baruch_core::Post;
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Frei erfundenes Buch mit Teil, Kapiteln und Abschnitt.
+/// Freely invented book with part, chapters and section.
 const BOOK: &str = "#set text(lang: \"de\")\n\n\
 #heading(level: 1, numbering: none)[Erster Teil] <baruch-part>\n\n\
 = Die Mühle\nDas Rad dreht sich am Bach.\n\n\
@@ -36,7 +36,7 @@ async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, HeaderMap
     (status, headers, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
 }
 
-/// Werk „Die Mühle“ mit einem Vorschlag, einem Beitrag, einem Einfall und einem Bild; gibt (id, slug) zurück.
+/// Work „Die Mühle“ with one proposal, one post, one idea and one image; returns (id, slug).
 async fn mill(server: &common::Server) -> (i64, String) {
     let report = server.import(BOOK, "muehle.typ").await;
     let store = &server.state.store;
@@ -85,7 +85,7 @@ fn xmllint_available() -> bool {
     Command::new("xmllint").arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
-/// Prüft XML gegen `docs/schema/baruch-werk-1-u10.xsd`; fehlt xmllint, mit Meldung übersprungen.
+/// Checks XML against `docs/schema/baruch-werk-1-u10.xsd`; if xmllint is missing, skipped with a message.
 fn assert_schema(name: &str, xml: &[u8]) {
     if !xmllint_available() {
         eprintln!("xmllint fehlt: XSD-Prüfung von {name} übersprungen (die Rust-Prüfung steht in baruch-exchange).");
@@ -100,7 +100,7 @@ fn assert_schema(name: &str, xml: &[u8]) {
     assert!(output.status.success(), "{name} besteht das XSD nicht: {}", String::from_utf8_lossy(&output.stderr));
 }
 
-/// Einträge eines ZIP in Reihenfolge: (Name, Inhalt).
+/// Entries of a ZIP in order: (name, content).
 fn unzip(bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes.to_vec())).unwrap();
     (0..archive.len())
@@ -117,7 +117,7 @@ fn entry<'a>(entries: &'a [(String, Vec<u8>)], name: &str) -> &'a [u8] {
     &entries.iter().find(|(n, _)| n == name).unwrap_or_else(|| panic!("{name} fehlt im ZIP")).1
 }
 
-// ---- Seite und Downloads ---------------------------------------------------------------------------
+// ---- Page and downloads ----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_page_works_without_javascript_and_links_both_downloads() {
@@ -125,14 +125,14 @@ async fn the_page_works_without_javascript_and_links_both_downloads() {
     let (work, slug) = mill(&server).await;
     let (status, html) = server.get(&format!("/werke/{work}/austausch")).await;
     assert_eq!(status, StatusCode::OK, "Seite: {html}");
-    // Genau eine Kopfzeile (aus base.html), keine eigene.
-    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau eine Kopfzeile"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
-    // Ohne JavaScript: gewöhnliche Links auf beide Downloads und auf das Einlesen.
+    // Exactly one header (from base.html), none of its own.
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "genau eine Kopfzeile"); // Round 33: the header is the ribbon (header.band, not header.topbar)
+    // Without JavaScript: ordinary links to both downloads and to the import.
     assert!(html.contains(&format!("href=\"/werke/{work}/austausch.baruch\"")), "Download .baruch: {html}");
     assert!(html.contains(&format!("href=\"/werke/{work}/austausch.xml\"")), "Download .baruch.xml: {html}");
     assert!(html.contains(&format!("href=\"/austausch/einlesen?work={work}\"")), "Link zum Einlesen: {html}");
     assert!(html.contains(&format!("{slug}.baruch")), "Dateiname mit slug");
-    // Erklärung: was drin ist und was nicht; Kennung des Werks und Umfang.
+    // Explanation: what is in it and what is not; identifier of the work and extent.
     assert!(html.contains("allen Fassungen") && html.contains("Nicht in der Datei"), "Erklärung");
     let uuid = server.state.store.work_uuid(work).await.unwrap();
     assert!(html.contains(&uuid), "Werk-Kennung auf der Seite");
@@ -216,7 +216,7 @@ async fn rpc_returns_fields_and_bytes_that_match_their_checksum() {
     assert_eq!(xml["sha256"], baruch_exchange::sha256_hex(text.as_bytes()), "sha256 des XML");
     assert_schema("rpc.baruch.xml", text.as_bytes());
 
-    // Vorgabe: format baruch, ohne work das Vorgabewerk (das gesäte Beispielwerk hat die kleinste id).
+    // Default: format baruch, without work the default work (the seeded sample work has the smallest id).
     let default = server.rpc("work.exchange_export", json!({})).await;
     assert!(default["result"]["data"].is_string(), "Vorgabeform baruch: {default}");
     assert_eq!(default["result"]["work"], server.state.default_work().await.unwrap(), "Vorgabewerk");
@@ -229,14 +229,14 @@ async fn rpc_returns_fields_and_bytes_that_match_their_checksum() {
     }
 }
 
-// ---- Kein Geheimnis im Export -------------------------------------------------------------------------
+// ---- No secret in the export --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn no_secret_token_or_persona_model_ends_up_in_any_export() {
     let server = common::open().await;
     let (work, _) = mill(&server).await;
-    // Verbindungsgeheimnis (nur im Speicher), MCP-Token und ein eindeutiges Persona-Modell, das in keiner Fassung
-    // steht: keine dieser Zeichenketten darf in XML, ZIP, RPC- oder MCP-Antwort vorkommen.
+    // Connection secret (in memory only), MCP token and a unique persona model that appears in no revision: none of
+    // these strings may occur in XML, ZIP, RPC or MCP answer.
     let set = server.rpc("connection.set_secret", json!({ "kind": "multigpt", "secret": SECRET })).await;
     assert!(set["error"].is_null(), "Geheimnis gesetzt: {set}");
     let token = server.rpc("mcp_token.create", json!({ "name": "Prüfrechner" })).await;
@@ -267,7 +267,7 @@ async fn no_secret_token_or_persona_model_ends_up_in_any_export() {
             assert!(!text.contains(secret), "{what} enthält „{secret}“");
         }
     }
-    // Gegenprobe: Das Modell eines Vorschlags (Herkunft) steht sehr wohl in der Datei.
+    // Cross-check: the model of a proposal (origin) does appear in the file.
     assert!(texts.iter().any(|(w, t)| w == "XML" && t.contains("modell=\"probe\"")), "Modell der Fassung als Herkunft");
 }
 
@@ -301,9 +301,9 @@ async fn mcp_lists_exchange_export_read_only_and_returns_xml() {
     assert!(description.contains("read-only"), "deutsche Beschreibung, nur lesend: {description}");
     assert!(description.contains("Reading in does not exist over MCP"), "kein Einlesen über MCP: {description}");
     assert!(!description.starts_with("STUB"), "kein Stub");
-    // Kein Werkzeug zum Einlesen.
+    // No tool for importing.
     assert!(!names.iter().any(|n| n.contains("import") || n.contains("einlesen")), "kein Einlesen: {names:?}");
-    // Der Hinweis beim Verbinden nennt das Werkzeug, sonst findet ein Client es nur über tools/list.
+    // The hint on connecting names the tool, otherwise a client finds it only through tools/list.
     let init = mcp(
         &server,
         json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": { "clientInfo": { "name": "x" } } }),
@@ -325,13 +325,13 @@ async fn mcp_lists_exchange_export_read_only_and_returns_xml() {
     assert_eq!(content["sha256"], baruch_exchange::sha256_hex(xml.as_bytes()), "sha256 des XML");
     assert_schema("mcp.baruch.xml", xml.as_bytes());
 
-    // Auch per slug und als ZIP.
+    // Also by slug and as ZIP.
     let answer =
         mcp_call(&server, json!({ "name": "exchange_export", "arguments": { "work": slug, "format": "baruch" } }))
             .await;
     let data = answer["result"]["structuredContent"]["data"].as_str().expect("ZIP als Base64");
     assert!(baruch_store::decode_base64(data).unwrap().starts_with(b"PK\x03\x04"), "ZIP");
-    // Unbekanntes Format ist ein Argumentfehler, unbekanntes Werk ein ehrlicher Werkzeugfehler.
+    // An unknown format is an argument error, an unknown work an honest tool error.
     let answer =
         mcp_call(&server, json!({ "name": "exchange_export", "arguments": { "work": work, "format": "zip" } })).await;
     assert_eq!(answer["error"]["code"], -32602, "format zip: {answer}");
@@ -343,7 +343,7 @@ async fn mcp_lists_exchange_export_read_only_and_returns_xml() {
 async fn mcp_refuses_files_above_the_documented_limit_honestly() {
     let server = common::open().await;
     let (work, slug) = mill(&server).await;
-    // Ein Vorschlag mit gut 4 MiB Text macht die Datei größer als die dokumentierte Grenze.
+    // A proposal with a good 4 MiB of text makes the file larger than the documented limit.
     let filler = "Das Wasser fließt und fließt. ".repeat(160_000);
     let body = format!("= Die Mühle\n{filler}\n");
     assert!(body.len() > baruch_server::mcp::exchange::MCP_EXPORT_LIMIT, "Text über der Grenze");
@@ -355,7 +355,7 @@ async fn mcp_refuses_files_above_the_documented_limit_honestly() {
     assert!(message.contains("4 MiB"), "Grenze genannt: {message}");
     assert!(message.contains(&format!("/werke/{work}/austausch")), "Hinweis auf das Formular: {message}");
     assert!(message.contains(&format!("baruch-server export {slug} --baruch")), "Hinweis auf die CLI: {message}");
-    // Über RPC und die Seite geht dieselbe Datei weiter (die Grenze gilt nur für MCP).
+    // Over RPC and the page the same file still works (the limit applies only to MCP).
     let rpc = server.rpc("work.exchange_export", json!({ "work": work, "format": "xml" })).await;
     assert!(
         rpc["result"]["bytes"].as_u64().unwrap() > baruch_server::mcp::exchange::MCP_EXPORT_LIMIT as u64,
@@ -363,7 +363,7 @@ async fn mcp_refuses_files_above_the_documented_limit_honestly() {
     );
 }
 
-// ---- Kommandozeile -------------------------------------------------------------------------------
+// ---- Command line --------------------------------------------------------------------------------
 
 fn cli(args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_baruch-server")).args(args).output().expect("baruch-server startet")
@@ -395,21 +395,21 @@ async fn the_cli_writes_zip_or_xml_never_overwrites_and_refuses_mixed_exports() 
     assert!(xml.starts_with(b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<werk "), "bei .xml nur XML");
     assert_schema("cli.baruch.xml", &xml);
 
-    // Vorhandene Datei: Exit 1, nichts überschrieben.
+    // Existing file: exit 1, nothing overwritten.
     std::fs::write(&xml_path, "alt").unwrap();
     let out = cli(&["export", &slug, "--baruch", xml_path.to_str().unwrap(), "--data", data_arg]);
     assert_eq!(out.status.code(), Some(1), "vorhandene Datei → Exit 1");
     assert_eq!(std::fs::read_to_string(&xml_path).unwrap(), "alt", "nicht überschrieben");
     assert!(String::from_utf8_lossy(&out.stderr).contains("nichts überschrieben"), "ehrliche Meldung");
 
-    // --baruch mit --out, --pdf oder --stichwort: Gebrauchsfehler, Exit 2, keine Datei.
+    // --baruch with --out, --pdf or --stichwort: usage error, exit 2, no file.
     let other = dir.path().join("neu.baruch");
     for extra in [["--out", "ordner"], ["--pdf", "buch.pdf"], ["--stichwort", "zettel.pdf"]] {
         let out = cli(&["export", &slug, "--baruch", other.to_str().unwrap(), extra[0], extra[1], "--data", data_arg]);
         assert_eq!(out.status.code(), Some(2), "--baruch mit {}: Exit 2", extra[0]);
         assert!(!other.exists(), "keine Datei bei {}", extra[0]);
     }
-    // Unbekanntes Werk → Exit 1.
+    // Unknown work → exit 1.
     let out = cli(&["export", "gibt-es-nicht", "--baruch", other.to_str().unwrap(), "--data", data_arg]);
     assert_eq!(out.status.code(), Some(1), "unbekanntes Werk → Exit 1");
     assert!(!other.exists(), "keine Datei für ein unbekanntes Werk");

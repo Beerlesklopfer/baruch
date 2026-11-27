@@ -1,25 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 7, „bugs“: Ein Absatz wurde zum Titel eines Gliederungspunkts (Backlog „Absatz wird
-//! Überschrift“). Nachgestellt über RPC, so wie die Oberfläche es tut: neues Kapitel und Abschnitt
-//! darunter (`outline.add`), Text mit mehreren Absätzen im Satzbild schreiben und speichern
-//! (`wysiwyg.parse` → `wysiwyg.serialize` mit den Anweisungen des Widgets → `outline.check` →
-//! `outline.save`), danach die Ebene ändern (`outline.set_level` und die Format-Auswahl im Satzbild).
-//! Danach heißt jeder Gliederungspunkt wie seine Überschriftszeile, und kein Absatz ist Titel.
+//! Round 7, „bugs“: a paragraph became the title of an outline item (backlog „Absatz wird Überschrift“). Reproduced
+//! over RPC the way the user interface does it: new chapter and a section below it (`outline.add`), write a text with
+//! several paragraphs in the typeset view and save it (`wysiwyg.parse` → `wysiwyg.serialize` with the instructions of
+//! the widget → `outline.check` → `outline.save`), then change the level (`outline.set_level` and the format selection
+//! in the typeset view). Afterwards every outline item is named like its heading line, and no paragraph is a title.
 //!
-//! Ursache: Das Widget schickt eine Überschrift, in der ein einfacher Zeilenumbruch steht
-//! (Umschalt+Enter oder ein `<br>` des Browsers hinter dem Titel, danach der getippte bzw. eingefügte
-//! Absatz), als **einen** Überschriftsblock. `baruch_wysiwyg::emit` machte daraus eine einzige
-//! Überschriftszeile (`Inline::Soft` in Überschriften → Leerzeichen), und `outline.save` übernahm die
-//! ganze Zeile als Titel. Jetzt endet die Überschrift am ersten Zeilenumbruch, der Rest wird ein
-//! eigener Absatz; und Titel über 200 Zeichen (ein ganzer eingefügter Absatz) lehnt der Store ab.
+//! Cause: the widget sends a heading that contains a simple line break (Shift+Enter or a `<br>` of the browser after
+//! the title, then the typed or pasted paragraph) as **one** heading block. `baruch_wysiwyg::emit` turned it into a
+//! single heading line (`Inline::Soft` in headings → space), and `outline.save` took the whole line as the title. Now
+//! the heading ends at the first line break, the rest becomes a paragraph of its own; and titles above 200 characters
+//! (a whole pasted paragraph) are rejected by the store.
 //!
-//! Testtexte frei erfunden (Gartenmotive).
+//! Test texts freely invented (garden motifs).
 
 use crate::common;
 
 use serde_json::{Value, json};
 
-/// Gliederung als (Titel, Ebene, Schlüssel, erste Zeile der aktuellen Fassung) in Baumreihenfolge.
+/// Outline as (title, level, key, first line of the current revision) in tree order.
 async fn outline(server: &common::Server, work: i64) -> Vec<(String, u8, i64, String)> {
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
     let nodes = loaded["result"]["work"]["nodes"].as_array().expect("work.get liefert Knoten").clone();
@@ -46,7 +44,7 @@ async fn outline(server: &common::Server, work: i64) -> Vec<(String, u8, i64, St
     out
 }
 
-/// Jeder Punkt (außer Teilen) heißt wie seine Überschriftszeile, und deren Ebene ist seine Ebene.
+/// Every item (except parts) is named like its heading line, and the level of that line is its level.
 fn assert_titles_match_headings(points: &[(String, u8, i64, String)], when: &str) {
     for (title, level, _, first) in points {
         if *level == 0 {
@@ -66,7 +64,7 @@ fn ok(answer: &Value, what: &str) -> Value {
     answer["result"].clone()
 }
 
-/// Aktueller Text eines Punkts über seinen Schlüssel.
+/// Current text of an item through its key.
 async fn body_of(server: &common::Server, work: i64, key: i64) -> String {
     let node = server.rpc("node.get", json!({ "work": work, "key": key })).await;
     let node = ok(&node, "node.get");
@@ -74,8 +72,8 @@ async fn body_of(server: &common::Server, work: i64, key: i64) -> String {
     current["body"].as_str().unwrap().to_owned()
 }
 
-/// Speichern wie das Satzbild: `wysiwyg.serialize` mit den Anweisungen des Widgets, dann
-/// `outline.check` und `outline.save` (mit Bestätigung, falls der Check Teilen verlangt).
+/// Save like the typeset view: `wysiwyg.serialize` with the instructions of the widget, then `outline.check` and
+/// `outline.save` (with confirmation if the check demands splitting).
 async fn save_from_sheet(server: &common::Server, work: i64, key: i64, edits: Value) -> Value {
     let body = body_of(server, work, key).await;
     let parsed = ok(&server.rpc("wysiwyg.parse", json!({ "work": work, "body": body })).await, "wysiwyg.parse");
@@ -99,7 +97,7 @@ async fn a_paragraph_typed_behind_the_heading_never_becomes_the_title() {
     let points = outline(&server, work).await;
     let summer = key_of(&points, "Sommer");
 
-    // Neues Kapitel hinter „Sommer“, darin ein Abschnitt.
+    // New chapter after „Sommer“, in it a section.
     let added = server
         .rpc("outline.add", json!({ "work": work, "target_key": summer, "place": "after", "title": "Herbst" }))
         .await;
@@ -114,8 +112,8 @@ async fn a_paragraph_typed_behind_the_heading_never_becomes_the_title() {
     assert_titles_match_headings(&points, "nach dem Anlegen");
     assert_eq!(body_of(&server, work, leaves).await, "== Laub\n\n", "Fassung 1 = Überschrift und Leerzeile");
 
-    // Im Satzbild: hinter dem Titel Umschalt+Enter (bzw. ein <br> des Browsers), dann der Absatz,
-    // Enter, ein zweiter Absatz. So schickte das Widget es vor dem Fix: der Absatz in der Überschrift.
+    // In the typeset view: after the title Shift+Enter (or a <br> of the browser), then the paragraph, Enter, a second
+    // paragraph. This is how the widget sent it before the fix: the paragraph in the heading.
     let edits = json!([
         { "replaces": 0, "block": { "kind": "heading", "level": 2, "inlines": [
             { "t": "text", "v": "Laub" }, { "t": "soft" }, { "t": "text", "v": PARAGRAPH } ] } },
@@ -137,7 +135,7 @@ async fn a_paragraph_typed_behind_the_heading_never_becomes_the_title() {
         "der Absatz steht unter der Überschrift, nicht in ihr"
     );
 
-    // Ebene ändern über die Gliederung: Laub wird Kapitel und wieder Abschnitt.
+    // Change the level through the outline: Laub becomes a chapter and a section again.
     ok(&server.rpc("outline.set_level", json!({ "work": work, "key": leaves, "level": 1 })).await, "Ebene 2 → 1");
     let points = outline(&server, work).await;
     assert_titles_match_headings(&points, "nach outline.set_level");
@@ -147,8 +145,8 @@ async fn a_paragraph_typed_behind_the_heading_never_becomes_the_title() {
         "Ebene 1: nur das Gleichheitszeichen ändert sich, der Absatz bleibt Absatz"
     );
 
-    // Ebene ändern über die Format-Auswahl im Satzbild („Überschrift 2“ am Cursor in der Überschrift);
-    // die übrigen Blöcke schickt das Widget als keep.
+    // Change the level through the format selection in the typeset view („Überschrift 2“ with the cursor in the
+    // heading); the remaining blocks are sent by the widget as keep.
     let edits = json!([
         { "replaces": 0, "block": { "kind": "heading", "level": 2, "inlines": [ { "t": "text", "v": "Laub" } ] } },
         { "keep": 1 }, { "keep": 2 }
@@ -165,9 +163,9 @@ async fn a_paragraph_typed_behind_the_heading_never_becomes_the_title() {
     assert_eq!(points[5].1, 2, "Laub ist wieder Abschnitt unter Herbst: {points:?}");
 }
 
-/// Nachbesserung: Der Umbruch steht in einer Hervorhebung der Überschrift (Drop oder ein `<br>`
-/// des Browsers in `<b>`). Vorher wurde er in der Überschriftszeile ein Leerzeichen, und der Absatz
-/// war wieder Titel (unter 200 Zeichen griff auch die Titelregel nicht).
+/// Follow-up fix: the break is inside an emphasis of the heading (drop or a `<br>` of the browser in `<b>`). Before, it
+/// became a space in the heading line, and the paragraph was the title again (below 200 characters the title rule did
+/// not take hold either).
 #[tokio::test]
 async fn a_paragraph_after_a_break_inside_bold_never_becomes_the_title() {
     let server = common::open().await;
@@ -185,11 +183,11 @@ async fn a_paragraph_after_a_break_inside_bold_never_becomes_the_title() {
     ok(&save_from_sheet(&server, work, leaves, edits).await, "Speichern aus dem Satzbild");
     let points = outline(&server, work).await;
     assert_titles_match_headings(&points, "nach dem Speichern mit Umbruch in *…*");
-    // Ursache des Fehlers: Titel „Laub Anna's Laube …“. Jetzt bleibt der Titel „Laub“.
+    // Cause of the bug: title „Laub Anna's Laube …“. Now the title stays „Laub“.
     assert!(points.iter().all(|p| !p.0.contains("Kürbisse")), "kein Absatz ist Titel geworden: {points:?}");
-    // Der Titel ist die Überschriftszeile samt Markup, wie bei jeder hervorgehobenen Überschrift.
+    // The title is the heading line including markup, as with every emphasised heading.
     assert!(points.iter().any(|p| p.0 == "*Laub*"), "das Kapitel heißt weiter „*Laub*“: {points:?}");
-    // Der Absatz bleibt erhalten und hervorgehoben, nur eben unter der Überschrift.
+    // The paragraph is kept and emphasised, only now below the heading.
     assert_eq!(body_of(&server, work, leaves).await, format!("= *Laub*\n\n*{PARAGRAPH}*\n\n"));
 }
 
@@ -200,7 +198,7 @@ async fn a_whole_paragraph_pasted_into_the_heading_is_refused_as_title() {
     let points = outline(&server, work).await;
     let summer = key_of(&points, "Sommer");
     let before = body_of(&server, work, summer).await;
-    // Ein ganzer eingefügter Absatz in der Überschrift (ohne Zeilenumbruch): über 200 Zeichen.
+    // A whole pasted paragraph in the heading (without a line break): more than 200 characters.
     let long = format!("{PARAGRAPH} {PARAGRAPH} {PARAGRAPH}");
     assert!(long.chars().count() > 200, "Testtext länger als die Titelgrenze");
     let edits = json!([
@@ -218,14 +216,14 @@ async fn a_whole_paragraph_pasted_into_the_heading_is_refused_as_title() {
 const EMPTY: &str = "Ein Gliederungspunkt braucht einen Titel.";
 const NEWLINE: &str = "Der Titel darf keinen Zeilenumbruch enthalten.";
 
-/// Abgelehnt mit -32602 und genau dieser Meldung (bzw. deren Anfang).
+/// Rejected with -32602 and exactly this message (or its beginning).
 fn refused_with(answer: &Value, message: &str, what: &str) {
     assert_eq!(answer["error"]["code"], -32602, "{what}: Titelregel → INVALID_PARAMS: {answer}");
     let text = answer["error"]["message"].as_str().unwrap_or_default();
     assert!(text.starts_with(message), "{what}: Meldung „{message}“ erwartet: {answer}");
 }
 
-/// MCP-Aufruf vom eigenen Rechner ohne Sitzung (Autor `@mcp:unbekannt`).
+/// MCP call from the own machine without a session (author `@mcp:unbekannt`).
 async fn mcp_call(server: &common::Server, tool: &str, arguments: Value) -> Value {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
@@ -253,9 +251,9 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
         async move { common::rpc(server, "work.export", json!({ "work": work })).await["result"]["typst"].clone() }
     };
     let before = export(&server).await;
-    let long = "Kürbis".repeat(34); // 204 Zeichen
+    let long = "Kürbis".repeat(34); // 204 characters
 
-    // Baum: Umbenennen und Anlegen über RPC.
+    // Tree: rename and create over RPC.
     for (title, message) in [("   ", EMPTY), ("Saat\nund Ernte", NEWLINE), (long.as_str(), "Der Titel ist zu lang")] {
         let renamed = server.rpc("outline.rename", json!({ "work": work, "key": seed, "title": title })).await;
         refused_with(&renamed, message, "outline.rename");
@@ -264,7 +262,7 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
             .await;
         refused_with(&added, message, "outline.add");
     }
-    // Baum ohne JavaScript: Formular an /gliederung/act → 422.
+    // Tree without JavaScript: form to /gliederung/act → 422.
     let form = format!("method=outline.rename&work={work}&key={seed}&node=1&title=+%09+");
     let (status, _) = server.post_form("/gliederung/act", &form).await;
     assert_eq!(status, axum::http::StatusCode::UNPROCESSABLE_ENTITY, "leerer Titel im Formular → 422");
@@ -272,7 +270,7 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
     let (status, _) = server.post_form("/gliederung/act", &form).await;
     assert_eq!(status, axum::http::StatusCode::UNPROCESSABLE_ENTITY, "Zeilenumbruch im Formular → 422");
 
-    // Editor und Fassungen: Speichern, revision.save, Fassung ändern, Prüfen.
+    // Editor and revisions: save, revision.save, change a revision, check.
     let empty_heading = "== \n\nRadieschen & Möhren.\n";
     refused_with(
         &server.rpc("outline.save", json!({ "work": work, "key": seed, "body": empty_heading })).await,
@@ -293,7 +291,7 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
         "revision.update der aktuellen Fassung",
     );
 
-    // MCP: propose_revision geht über den Store (Titelprüfung im Vorschlag) → isError.
+    // MCP: propose_revision goes through the store (title check in the proposal) → isError.
     let answer =
         mcp_call(&server, "propose_revision", json!({ "work": work, "key": seed, "body": empty_heading })).await;
     assert_eq!(answer["result"]["isError"], true, "MCP lehnt den Vorschlag ab: {answer}");
@@ -303,7 +301,7 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
     assert_eq!(answer["result"]["isError"], true, "auch ein zu langer Titel: {answer}");
     assert_eq!(export(&server).await, before, "keine Ablehnung hat etwas geändert");
 
-    // Umschalten: Fassung 1 (alt) ändern ist erlaubt, Umschalten auf sie nicht.
+    // Switching: changing revision 1 (old) is allowed, switching to it is not.
     let saved = server.rpc("revision.save", json!({ "work": work, "key": seed, "body": "== Aussaat\n\nNeu.\n" })).await;
     ok(&saved, "gültige neue Fassung");
     let edited =

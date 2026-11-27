@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a (Härtung, Besitz web) auf echten SQLite-Dateien im Temp-Ordner, mit frei erfundenen Werken:
-//! - „Ändern über den Baum“ (`update_revision`) legt auf der aktuellen bzw. einer fortgeschriebenen Fassung einen
-//!   Schritt im Verlauf an und erhöht den Stand; ein veralteter Stand wird abgelehnt (`StoreError::Stale`).
-//! - Befunde: offene Vorschläge in einer Abfrage, Sammelbefunde zählen nicht in „k offen“ und werden „veraltet“.
-//! - `ExportMap`: Zeilen des Buchendes gehören nicht zum letzten Abschnitt.
+//! Round 23a (hardening, owner web) on real SQLite files in the temp directory, with freely invented works:
+//! - „Ändern über den Baum“ (`update_revision`) creates a step in the history on the current or an amended revision and
+//!   increases the state; an outdated state is rejected (`StoreError::Stale`).
+//! - Findings: open proposals in one query, summary findings do not count in „k offen“ and become „veraltet“.
+//! - `ExportMap`: lines of the book end do not belong to the last section.
 
 use baruch_core::{Post, RevisionStatus};
 use baruch_store::{
@@ -50,7 +50,7 @@ async fn updating_the_current_version_over_the_tree_writes_a_step_and_raises_the
     let (rev, before) = current(&store, work, 0).await;
     assert_eq!(amend_seq(&store, work, 0, rev).await, 0, "Testvoraussetzung: nie fortgeschrieben");
 
-    // Erst im Editor fortschreiben (Stand 1), dann über den Baum ändern.
+    // First amend in the editor (state 1), then change through the tree.
     let amended = before.replacen("Morgen", "frühen Morgen", 1);
     let (change, reason) =
         store.save_human_at(work, 0, &amended, HUMAN, Some(rev), Some(0), SaveMode::Auto).await.unwrap();
@@ -81,7 +81,7 @@ async fn updating_the_current_version_over_the_tree_writes_a_step_and_raises_the
     );
     assert_eq!(steps[1].author, HUMAN, "der Mensch steht am Schritt");
 
-    // Rückgängig über den Verlauf geht auch für diesen Schritt (als neuer Schritt, nie durch Löschen).
+    // Undo through the history works for this step as well (as a new step, never by deleting).
     let undone = store.amend_undo(work, 0, rev, 2, HUMAN).await.unwrap();
     assert_eq!(undone.amend_seq, Some(3), "die Rücknahme ist Schritt 3");
     assert_eq!(current(&store, work, 0).await.1, amended, "der Text vor dem Ändern über den Baum steht wieder da");
@@ -89,14 +89,14 @@ async fn updating_the_current_version_over_the_tree_writes_a_step_and_raises_the
 
 #[tokio::test]
 async fn a_stale_editor_no_longer_overwrites_a_change_made_over_the_tree() {
-    // Codereview store-1: Reiter A lädt Fassung n mit Stand 0; im Baum (Reiter B) ändert der Mensch den Text.
+    // Code review store-1: tab A loads revision n with state 0; in the tree (tab B) the human changes the text.
     let (_dir, store, work) = fresh().await;
     let (rev, loaded_by_a) = current(&store, work, 0).await;
     let from_b = loaded_by_a.replacen("der erste Schnee", "der erste nasse Schnee", 1);
     let edit = RevisionEdit { body: Some(&from_b), note: None };
     store.update_revision(work, 0, rev, &edit, HUMAN).await.unwrap().expect("B ändert");
 
-    // A speichert eine kleine Änderung auf seinem alten Text, mit dem Stand, den er geladen hatte.
+    // A saves a small change on its old text, with the state that it had loaded.
     let from_a = loaded_by_a.replacen("Morgen", "Mittag", 1);
     let (change, reason) =
         store.save_human_at(work, 0, &from_a, HUMAN, Some(rev), Some(0), SaveMode::Auto).await.unwrap();
@@ -122,7 +122,7 @@ async fn update_with_an_outdated_stand_is_refused_and_changes_nothing() {
     let done = store.update_revision_at(work, 1, rev, &edit, HUMAN, Some(0)).await.unwrap().expect("geändert");
     assert_eq!(done.amend_seq, Some(1), "auf der aktuellen Fassung entsteht Stand 1");
 
-    // Ein zweites Formular, das noch Stand 0 zeigt (Codereview web-3).
+    // A second form that still shows state 0 (code review web-3).
     let late = body.replacen("vom Fluss", "aus der Grube", 1);
     let edit = RevisionEdit { body: Some(&late), note: None };
     let err = store.update_revision_at(work, 1, rev, &edit, HUMAN, Some(0)).await.unwrap_err();
@@ -133,7 +133,7 @@ async fn update_with_an_outdated_stand_is_refused_and_changes_nothing() {
     assert_eq!(current(&store, work, 1).await.1, first, "der neuere Text ist nicht überschrieben");
     assert_eq!(store.amend_history(work, 1, rev).await.unwrap().len(), 1, "kein weiterer Schritt");
 
-    // Mit dem richtigen Stand und ohne Angabe (alte Clients) geht es weiter.
+    // With the right state and without a value (old clients) it continues.
     let ok = store.update_revision_at(work, 1, rev, &edit, HUMAN, Some(1)).await.unwrap().expect("geändert");
     assert_eq!(ok.amend_seq, Some(2), "mit dem aktuellen Stand wird geändert");
     let note_only = RevisionEdit { body: None, note: Some("nur Notiz") };
@@ -156,7 +156,7 @@ async fn a_never_amended_proposal_gets_no_history_when_the_human_edits_it() {
     assert_eq!(amend_seq(&store, work, 1, number).await, 0, "Stand bleibt 0");
 }
 
-// ---- Befunde -------------------------------------------------------------------------------------------------------
+// ---- Findings ------------------------------------------------------------------------------------------------------
 
 fn post(body: &str) -> Post {
     Post { id: 0, created: String::new(), author: "@lektor".into(), body: body.into(), sources: vec![], refs: vec![] }
@@ -220,7 +220,7 @@ async fn summaries_do_not_count_as_open_and_turn_stale_when_all_origins_are_deci
     );
     assert_eq!(store.finding_open_counts(work).await.unwrap().get(&key), None, "kein offener Befund zählt mehr");
 
-    // Ein entschiedener Sammelbefund ist nicht mehr „veraltet“ (das Kennzeichen gilt nur für offene).
+    // A decided summary finding is no longer „veraltet“ (the marker applies only to open ones).
     store.finding_set_status(work, summary.id, &StatusChange::Done { reason: String::new() }, HUMAN).await.unwrap();
     assert!(!store.finding_get(work, summary.id).await.unwrap().stale_summary, "entschieden: kein Kennzeichen");
 }
@@ -235,9 +235,9 @@ async fn a_list_carries_the_latest_open_proposal_of_every_finding() {
         ids.push(finding(&store, work, key, &format!("Hinweis {n}: Sand prüfen."), &[]).await.id);
     }
     let done = StatusChange::Done { reason: String::new() };
-    // Befund 0: zwei Vorschläge (der jüngste zählt); Befund 3: einer; Befund 5: einer, vom Menschen abgelehnt.
+    // Finding 0: two proposals (the most recent counts); finding 3: one; finding 5: one, rejected by the human.
     store.finding_propose_status(work, ids[0], &done, &lektor, "erste Notiz").await.unwrap();
-    // Derselbe Vorschlag doppelt wird abgelehnt; der zweite schlägt darum „übernommen in Fassung n“ vor.
+    // The same proposal twice is rejected; the second therefore proposes „übernommen in Fassung n“.
     let (rev, _) = current(&store, work, 1).await;
     let adopted = StatusChange::Adopted { rev };
     let latest = store.finding_propose_status(work, ids[0], &adopted, &lektor, "zweite Notiz").await.unwrap();
@@ -262,7 +262,7 @@ async fn a_list_carries_the_latest_open_proposal_of_every_finding() {
     }
 }
 
-// ---- Karte des Exports ---------------------------------------------------------------------------------------------
+// ---- Map of the export ---------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn lines_of_the_book_end_do_not_belong_to_the_last_section() {
@@ -277,7 +277,7 @@ async fn lines_of_the_book_end_do_not_belong_to_the_last_section() {
         "ohne Buchende gehört die letzte Zeile weiter zum letzten Abschnitt"
     );
 
-    // Dieselbe Karte mit einem Buchende dahinter (wie `append_tail` es anhängt).
+    // The same map with a book end after it (as `append_tail` appends it).
     let mut with_tail = plain.clone();
     with_tail.typst.push_str("\n#pagebreak()\n= Register\n#baruch-register()\n");
     let first = with_tail.tail_first_line().expect("Buchende vorhanden");

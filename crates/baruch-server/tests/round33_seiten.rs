@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 33 – Übrige Seiten (Aufgabe „seiten“, Vertrag §7): Vorgabe-Reiter und Gruppen je Seite, Satz-Seite ohne edit_toolbar.
+//! Round 33 – remaining pages (task „seiten“, contract §7): default tab and groups per page, typesetting page without
+//! edit_toolbar.
 //!
-//! Jede Zusicherung mit Begründung, nur erfundene Werke (`tests/data/gartenbuch.typ` und die Texte hier), kein Netz,
-//! kein Eliezer. Die Tests hängen nicht am Aussehen von `base.html`: Sie prüfen den Wert von `data-band-default`
-//! (den base.html aus `{% block band_tab %}` schreibt) und die Gruppen der Seite in der wörtlichen Form des Vertrags
-//! – gleich, ob base.html die Blöcke noch in der alten Kopfzeile (Schnittstelle S1) oder schon in den Feldern des
-//! Menübands zeigt.
+//! Every assertion with its reason, only invented works (`tests/data/gartenbuch.typ` and the texts here), no network,
+//! no Eliezer. The tests do not depend on the look of `base.html`: they check the value of `data-band-default` (which
+//! base.html writes from `{% block band_tab %}`) and the groups of the page in the verbatim form of the contract – no
+//! matter whether base.html still shows the blocks in the old header (interface S1) or already in the panels of the
+//! ribbon.
 
 use crate::common;
 
@@ -23,10 +24,10 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Eine Gruppe des Menübands: Name und Inhalt (zwischen `<div class="band-items" …>` und `</div></details>`).
+/// One group of the ribbon: name and content (between `<div class="band-items" …>` and `</div></details>`).
 struct Group<'a> {
     name: &'a str,
-    /// Text zwischen `class="band-group"` und ` data-band-group open>` (weitere Attribute, sonst leer).
+    /// Text between `class="band-group"` and ` data-band-group open>` (further attributes, otherwise empty).
     extra: &'a str,
     inner: &'a str,
 }
@@ -35,10 +36,10 @@ const GROUP_OPEN: &str = "<details class=\"band-group\"";
 const GROUP_TAG_END: &str = " data-band-group open>";
 const GROUP_END: &str = "</div></details>";
 
-/// Alle Gruppen eines HTML-Texts in der **wörtlichen Form des Vertrags** (§4):
+/// All groups of an HTML text in the **verbatim form of the contract** (§4):
 /// `<details class="band-group" data-band-group open><summary class="band-group-label">Name</summary><div
-/// class="band-items" role="group" aria-label="Name">…</div></details>`. Weicht eine Gruppe davon ab, scheitert der
-/// Test mit der Stelle – `band::apply` ersetzt Zeichenketten und fände eine abweichende Gruppe nicht.
+/// class="band-items" role="group" aria-label="Name">…</div></details>`. If a group deviates from it, the test
+/// fails with the position – `band::apply` replaces strings and would not find a deviating group.
 fn groups<'a>(html: &'a str, at: &str) -> Vec<Group<'a>> {
     let mut out = Vec::new();
     let mut rest = html;
@@ -73,7 +74,7 @@ fn groups<'a>(html: &'a str, at: &str) -> Vec<Group<'a>> {
     out
 }
 
-/// Adressen (`href`, `action`) eines HTML-Stücks, lesbar gemacht (minijinja maskiert `/` in Werten als `&#x2f;`).
+/// Addresses (`href`, `action`) of a piece of HTML, made readable (minijinja escapes `/` in values as `&#x2f;`).
 fn addresses(html: &str) -> Vec<String> {
     let mut out = Vec::new();
     for attr in ["href=\"", "action=\""] {
@@ -107,7 +108,7 @@ async fn get_with_cookie(server: &common::Server, uri: &str, cookie: &str) -> (S
     (status, html)
 }
 
-/// Ein erfundenes Werk (Gartenbuch) mit allem, was die Seiten brauchen: Bild, Einfall, Beitrag, Variantengruppe.
+/// An invented work (garden book) with everything the pages need: image, idea, post, variant group.
 struct Fixture {
     server: common::Server,
     work: i64,
@@ -146,7 +147,7 @@ async fn fixture() -> Fixture {
         refs: vec![],
     };
     let post = server.state.store.add_post(work, seq, &note).await.unwrap();
-    // Zwei Geschwister-Vorschläge als Variantengruppe: /varianten zeigt nur eine vorhandene Gruppe.
+    // Two sibling proposals as a variant group: /varianten shows only an existing group.
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = &loaded.nodes[seq];
     let base = node.current_number().unwrap();
@@ -173,9 +174,9 @@ impl Fixture {
     }
 }
 
-/// Erwartung an eine ausgelieferte Seite: Vorgabe-Reiter und je Gruppe die Adressen, die vor dem Umbau (Stand
-/// ed9d210) in `page_actions` der Seite standen. Eine Adresse mit `*` am Ende ist ein Anfang (der Rest hängt am
-/// Werk, z. B. der erste Abschnitt).
+/// Expectation for a delivered page: default tab and per group the addresses that stood in `page_actions` of the page
+/// before the rebuild (state ed9d210). An address with `*` at the end is a beginning (the rest depends on the work,
+/// e.g. the first section).
 struct Expect {
     name: &'static str,
     uri: String,
@@ -491,8 +492,8 @@ fn expectations(f: &Fixture) -> Vec<Expect> {
 async fn every_page_names_its_default_tab_and_keeps_its_actions_in_groups() {
     let f = fixture().await;
     let pages = expectations(&f);
-    // Die Liste der Abnahme (Vertrag „seiten“): jede dort genannte Seite kommt vor (die Satz-Seite hat ihren
-    // eigenen Test unten, Export ist eine Datei und keine Seite).
+    // The list of the acceptance (contract „seiten“): every page named there occurs (the typesetting page has its own
+    // test below, export is a file and not a page).
     for wanted in [
         "Werke",
         "Neues Werk",
@@ -533,8 +534,8 @@ async fn every_page_names_its_default_tab_and_keeps_its_actions_in_groups() {
         );
         let found = groups(&html, uri);
         for (group, wanted) in expected {
-            // Nach dem Zusammenführen bringt base.html eigene Gruppen mit (auch gleichen Namens): Es genügt, dass
-            // eine Gruppe dieses Namens die Adressen der Seite in dieser Reihenfolge trägt.
+            // After the merge base.html brings groups of its own (also of the same name): it is enough that one group
+            // of this name carries the addresses of the page in this order.
             let ok = found.iter().filter(|g| g.name == *group).any(|g| {
                 let have = addresses(g.inner);
                 let mut rest = have.iter();
@@ -548,10 +549,10 @@ async fn every_page_names_its_default_tab_and_keeps_its_actions_in_groups() {
             );
         }
         for g in &found {
-            // Ohne JavaScript bedienbar: In den Gruppen dieser Seiten stehen nur gewöhnliche Links und Formulare.
-            // Integration Runde 33: Ausgenommen ist die Gruppe „Darstellung“ aus base.html (Reiter Ansicht) – der
-            // Thema-Knopf ist nach Vertrag §4 das unveränderte Widget „theme“, „Zoom zurücksetzen“ trägt `js-only`;
-            // ohne JavaScript stellt man das Thema wie bisher unter Einstellungen → Darstellung ein.
+            // Usable without JavaScript: the groups of these pages contain only ordinary links and forms.
+            // Integration Round 33: excepted is the group „Darstellung“ from base.html (tab Ansicht) – the
+            // theme button is, according to contract §4, the unchanged widget „theme“, „Zoom zurücksetzen“ carries `js-only`;
+            // without JavaScript the theme is set as before under Einstellungen → Darstellung.
             if g.name == "Darstellung" {
                 assert!(
                     g.inner.contains("data-widget=\"theme\"")
@@ -581,9 +582,9 @@ fn group_named<'a, 'b>(found: &'a [Group<'b>], name: &str) -> &'a Group<'b> {
 
 #[tokio::test]
 async fn the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without_any_script() {
-    // Vorher (Runde 18a) stand die Bedienung in einem eigenen Menüband unter der Kopfzeile
-    // (fragments/edit_toolbar.html, Zweig satz_page; geprüft in round18_menueband und round9_menu). Seit Runde 33
-    // steht sie im Reiter „Buch“; die Zusicherungen von dort gelten hier an der neuen Stelle weiter.
+    // Before (Round 18a) the controls were in a ribbon of their own below the header (fragments/edit_toolbar.html,
+    // branch satz_page; checked in round18_menueband and round9_menu). Since Round 33 they are in the tab „Buch“; the
+    // assertions from there continue to hold here at the new place.
     let f = common::open().await;
     let source = "= Eins\n\nErster Text.\n\n#pagebreak()\n\n= Zwei\n\nZweiter.\n\n// Test: runde33-seiten-satz\n";
     let report = f.import(source, "runde33-seiten-satz.typ").await;
@@ -653,7 +654,7 @@ async fn the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without
         run.inner
     );
 
-    // Auf der zweiten Seite: ‹ als Link mit rel=prev, › gesperrt.
+    // On the second page: ‹ as a link with rel=prev, › disabled.
     let (status, second) = f.get(&format!("/werke/{work}/satz?key={key}&page=2")).await;
     assert_eq!(status, StatusCode::OK, "zweite Seite lädt: {second}");
     assert!(
@@ -667,7 +668,7 @@ async fn the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without
         "› auf der letzten Seite gesperrt: {second}"
     );
     assert!(second.contains("<span class=\"typeset-at\">Seite 2 von 2</span>"), "Seitenangabe: {second}");
-    // Das Formular führt weiter ohne neuen Lauf zurück auf die Seite (Route unverändert).
+    // The form still leads back to the page without a new run (route unchanged).
     let (status, location) = f.post_form(&format!("/werke/{work}/satz/abbrechen"), &format!("key={key}")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Abbrechen → 303");
     assert_eq!(
@@ -677,7 +678,7 @@ async fn the_typeset_page_carries_its_controls_as_groups_of_the_book_tab_without
     );
 }
 
-// ---- Vorlagen (Quelltext) ------------------------------------------------------------------------------------
+// ---- Templates (source text) ---------------------------------------------------------------------------------
 
 fn templates_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates")
@@ -687,7 +688,7 @@ fn read(path: &std::path::Path) -> String {
     std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{} lässt sich nicht lesen: {e}", path.display()))
 }
 
-/// Inhalt von `{% block NAME %}…{% endblock %}` (die Blöcke des Bands enthalten keine weiteren Blöcke).
+/// Content of `{% block NAME %}…{% endblock %}` (the blocks of the band contain no further blocks).
 fn block<'a>(source: &'a str, name: &str) -> Option<&'a str> {
     let open = format!("{{% block {name} %}}");
     let start = source.find(&open)? + open.len();
@@ -695,7 +696,8 @@ fn block<'a>(source: &'a str, name: &str) -> Option<&'a str> {
     Some(&source[start..start + end])
 }
 
-/// Vorlagentext ohne Gruppen, ohne minijinja-Anweisungen und -Kommentare – was übrig bleibt, stünde lose im Band.
+/// Template text without groups, without minijinja statements and comments – what remains would stand loose in the
+/// band.
 fn loose(content: &str) -> String {
     let mut text = String::new();
     let mut rest = content;
@@ -714,13 +716,13 @@ fn loose(content: &str) -> String {
     text.trim().to_owned()
 }
 
-/// Jede Vorlage, die `base.html` erweitert: Vorgabe-Reiter und die Adressen, die vor dem Umbau (Stand ed9d210) in
-/// ihrem Block `page_actions` standen – wörtlich wie im Vorlagentext. So sind auch Seiten erfasst, die nur als
-/// Antwort auf ein Formular entstehen (Import-Bericht, Austausch-Vorschau, Hinweisseite der Assistenten).
+/// Every template that extends `base.html`: default tab and the addresses that stood in its block `page_actions` before
+/// the rebuild (state ed9d210) – verbatim as in the template text. That way pages are covered as well that only come
+/// into being as the answer to a form (import report, exchange preview, notice page of the assistants).
 const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("about.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
     ("shutdown.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
-    // Runde 35 (Konten): „Mein Konto“ und „Mitwirkende“; Anmelden und Einrichten sind eigenständige Seiten ohne Menüband.
+    // Round 35 (accounts): „Mein Konto“ and „Mitwirkende“; sign-in and setup are standalone pages without ribbon.
     ("konto.html", "start", &["href=\"/{% if settings.work %}?work={{ settings.work }}{% endif %}\""]),
     (
         "mitwirkende.html",
@@ -754,7 +756,7 @@ const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("import_report.html", "start", &["href=\"/werke\"", "href=\"{{ work_url|safe }}\""]),
     ("index_page.html", "buch", &["href=\"/?work={{ work.id }}\"", "href=\"/werke/{{ work.id }}/glossar\""]),
     ("karte.html", "start", &["href=\"{{ ideas_href }}\"", "href=\"{{ workspace }}\""]),
-    // Runde 34: Einlesen und Gliederungsansicht der Mindmap (mindmap_austausch).
+    // Round 34: import and outline view of the mind map (mindmap_austausch).
     (
         "karte_einlesen.html",
         "start",
@@ -787,8 +789,8 @@ const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ),
     ("notes.html", "start", &["href=\"{{ back }}\""]),
     ("outline.html", "start", &["href=\"{{ work_url }}\""]),
-    // Rückfrage- und Fehlerseite beim Speichern ohne JavaScript: hatten nie Aktionen in der Kopfzeile (ihre Knöpfe
-    // stehen im Formular der Seite).
+    // Confirmation and error page when saving without JavaScript: never had actions in the header (their buttons are in
+    // the form of the page).
     ("outline_confirm.html", "start", &[]),
     ("outline_edit.html", "start", &["href=\"{{ manager_url }}\"", "href=\"{{ work_url }}\""]),
     ("outline_retry.html", "start", &[]),
@@ -804,8 +806,8 @@ const TEMPLATES: &[(&str, &str, &[&str])] = &[
     ("sync.html", "pruefen", &["href=\"/{% if selected %}?work={{ selected }}{% endif %}\""]),
     ("thread.html", "start", &["href=\"{{ list_url }}\"", "href=\"{{ work_url }}\" data-back"]),
     ("threads.html", "start", &["href=\"{{ work_url }}\" data-back"]),
-    // Die Satz-Seite hatte seit Runde 18a keine page_actions mehr; ihre Bedienung stand im Fragment
-    // edit_toolbar.html (Zweig satz_page) und steht jetzt hier.
+    // The typesetting page has had no page_actions since Round 18a; its controls were in the fragment edit_toolbar.html
+    // (branch satz_page) and are here now.
     (
         "typeset.html",
         "buch",
@@ -840,7 +842,7 @@ fn every_template_puts_its_actions_as_literal_groups_into_the_block_of_its_tab()
             continue;
         }
         let source = read(&path);
-        // base.html selbst und die Arbeitsseite (workspace.html, Aufgaben menueband und laptop) gehören nicht hierher.
+        // base.html itself and the work page (workspace.html, tasks menueband and laptop) do not belong here.
         if !source.contains("{% extends \"base.html\" %}") || file == "workspace.html" {
             continue;
         }
@@ -945,9 +947,9 @@ fn the_typeset_page_no_longer_includes_the_edit_toolbar_fragment() {
 #[test]
 fn the_user_guide_describes_the_band_and_names_no_old_menu_path() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    // Runde 37: Die Bedienung für Anwender steht in der Hilfe der Webseite (`site/content/de/hilfe/`); der Abschnitt
-    // „Menüband“ wird darum in der zuständigen Hilfeseite gesucht. Jede Überschrift der Hilfe trägt einen festen
-    // Anker, deshalb endet die Zeile nicht mehr hinter dem Wort.
+    // Round 37: the user guide for users is in the help of the website (`site/content/de/hilfe/`); the section
+    // „Menüband“ is therefore searched for in the responsible help page. Every heading of the help carries a fixed
+    // anchor, which is why the line no longer ends after the word.
     let help = read(&root.join("site/content/de/hilfe/menueband.md"));
     assert!(
         help.contains("\n## Menüband {#menueband}\n"),
@@ -971,8 +973,7 @@ fn the_user_guide_describes_the_band_and_names_no_old_menu_path() {
             .into_iter()
             .map(String::from)
             .collect();
-    // Alle Hilfeseiten, im Verzeichnis gelesen (nicht aufgezählt): Auch eine neue Seite darf keinen alten Menüpfad
-    // nennen.
+    // All help pages, read from the directory (not enumerated): a new page must not name an old menu path either.
     let mut pages: Vec<String> = std::fs::read_dir(root.join("site/content/de/hilfe"))
         .expect("site/content/de/hilfe lesen")
         .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())

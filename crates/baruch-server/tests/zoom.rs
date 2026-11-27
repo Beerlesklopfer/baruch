@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Strg+Mausrad vergrößert nur den Bereich unter dem Mauszeiger (Wunsch 2026-11-06, `web/src/zoom.ts`):
-//! Zonen über `data-zoom-zone`, im Editor Kopf, Werkzeugleiste, Blatt und Statuszeile je für sich.
+//! Ctrl+mouse wheel enlarges only the area under the mouse pointer (wish 2026-11-06, `web/src/zoom.ts`): zones through
+//! `data-zoom-zone`, in the editor header, toolbar, sheet and status line each for itself.
 
 use crate::common;
 

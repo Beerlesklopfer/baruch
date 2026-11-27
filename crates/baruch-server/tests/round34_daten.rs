@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 34 „Mindmap wie XMind“ – Daten (Besitz mindmap_daten): Einfälle als Baum über RPC und MCP, die Mindmap
-//! als Baum (`idea_map::tree::tree`, RPC `idea.tree`) samt der Wolke daneben (Nachtrag des Nutzers vom 2026-11-25:
-//! Einfälle ohne Platz liegen in der Wolke), Baum-Import in einer Transaktion mit einem Spiegel-Commit, Austausch
-//! in Unterversion 9 und der Spiegel `einfaelle.md`. Werk und Einfälle sind frei erfunden; kein Modell, kein Netz.
+//! Round 34 „Mindmap wie XMind“ – data (owner mindmap_daten): ideas as a tree over RPC and MCP, the mind map as a tree
+//! (`idea_map::tree::tree`, RPC `idea.tree`) including the cloud next to it (the user's addendum of 2026-11-25: ideas
+//! without a place lie in the cloud), tree import in one transaction with one mirror commit, exchange in minor version
+//! 9 and the mirror `einfaelle.md`. Work and ideas are freely invented; no model, no network.
 
 use crate::common;
 
@@ -26,7 +26,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Fehlercode einer abgelehnten RPC-Anfrage samt Meldung.
+/// Error code of a rejected RPC request including the message.
 fn error_of(answer: &Value) -> (i64, String) {
     assert!(answer["result"].is_null(), "RPC sollte scheitern: {answer}");
     (answer["error"]["code"].as_i64().unwrap(), answer["error"]["message"].as_str().unwrap_or_default().to_owned())
@@ -65,7 +65,7 @@ impl Book {
         self.create(params).await["id"].as_i64().unwrap()
     }
 
-    /// Spiegelordner des Leuchtturmbuchs (der leere Speicher bringt schon ein Beispielwerk mit).
+    /// Mirror directory of the lighthouse book (the empty store already brings a sample work along).
     fn mirror(&self) -> std::path::PathBuf {
         self.server.mirror_dir_of("leuchtturmbuch")
     }
@@ -91,7 +91,7 @@ fn ids(nodes: &[TreeNode]) -> Vec<&str> {
     nodes.iter().map(|n| n.id.as_str()).collect()
 }
 
-// ---- Baum ---------------------------------------------------------------------------------------------------------
+// ---- Tree ---------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_tree_has_the_work_in_the_middle_chapters_in_order_main_topics_and_children_by_position() {
@@ -154,7 +154,7 @@ async fn the_tree_has_the_work_in_the_middle_chapters_in_order_main_topics_and_c
         "walk nennt die Tiefe: Werk 0, Hauptthema 1, Lampe 2, Docht 3: {order:?}"
     );
 
-    // Die Wolke: der Einfall ohne Platz steht nicht im Baum, sondern daneben.
+    // The cloud: the idea without a place is not in the tree but next to it.
     assert!(map.find(&format!("i:{loose}")).is_none(), "ein Einfall ohne Platz steht nicht im Baum");
     assert!(map.find("none").is_none(), "die Wolke none der flachen Karte gibt es im Baum nicht");
     assert_eq!(map.total_ideas, 6, "total_ideas zählt die gezeigten Einfälle im Baum, ohne die Wolke");
@@ -178,7 +178,8 @@ async fn the_cloud_holds_ideas_without_a_place_and_moving_connects_it_with_the_m
     assert_eq!(ids(&cloud.ideas), [format!("i:{a}"), format!("i:{c}")], "neue Einfälle ohne Platz landen in der Wolke");
     assert_eq!((cloud.count, cloud.count_with_children), (2, 3), "zwei in der Wolke, mit dem Unterknoten drei");
     assert_eq!(ids(&cloud.ideas[1].children), [format!("i:{below}")], "ein Einfall der Wolke behält seine Unterknoten");
-    // Nähe als Hilfe: „passt zu Ast …“ aus gleichen Schlagwörtern, auch wenn der Filter die Nähe im Bild ausschaltet.
+    // Proximity as help: „passt zu Ast …“ from shared keywords, even if the filter switches the proximity off in the
+    // image.
     let hint = cloud.hints.iter().find(|h| h.idea == a).expect("Vorschlag für den Einfall mit gleichem Schlagwort");
     assert_eq!(
         (hint.node.as_str(), hint.branch.as_str()),
@@ -192,7 +193,7 @@ async fn the_cloud_holds_ideas_without_a_place_and_moving_connects_it_with_the_m
     );
     assert!(cloud.hints.iter().all(|h| h.idea != c), "ohne Nähe kein Vorschlag");
 
-    // Aus der Wolke auf einen Knoten ziehen: Unterknoten; die Wolke zählt einen weniger.
+    // Drag from the cloud onto a node: child node; the cloud counts one fewer.
     let moved = result(&b.server.rpc("idea.move", json!({ "id": a, "parent": topic })).await).clone();
     assert_eq!((moved["changed"].as_bool(), moved["idea"]["parent"].as_i64()), (Some(true), Some(topic)), "{moved}");
     assert_eq!(moved["idea"]["cloud"], false, "nicht mehr in der Wolke");
@@ -204,7 +205,7 @@ async fn the_cloud_holds_ideas_without_a_place_and_moving_connects_it_with_the_m
     );
     assert_eq!(cloud.count, 1, "„1 in der Wolke“");
 
-    // Einen Knoten in die Wolke ziehen: Er löst sich mit seinen Unterknoten (der Teilbaum bleibt beisammen).
+    // Drag a node into the cloud: it detaches together with its child nodes (the subtree stays together).
     let back = result(&b.server.rpc("idea.move", json!({ "id": topic, "cloud": true })).await).clone();
     assert_eq!(back["idea"]["cloud"], true, "{back}");
     let (map, cloud) = tree::tree_and_cloud(state, b.work, &quiet()).await.unwrap();
@@ -216,7 +217,7 @@ async fn the_cloud_holds_ideas_without_a_place_and_moving_connects_it_with_the_m
     assert_eq!(ids(&in_cloud.children), [format!("i:{a}")], "mit seinem Unterknoten");
     assert_eq!((cloud.count, cloud.count_with_children), (2, 4), "zwei in der Wolke, vier mit Unterknoten");
 
-    // RPC idea.tree liefert beides in einer Antwort.
+    // RPC idea.tree returns both in one answer.
     let answer = result(&b.server.rpc("idea.tree", json!({ "work": b.work, "near": false })).await).clone();
     assert_eq!(answer["map"]["root"]["id"], "w", "idea.tree: die Mindmap");
     assert_eq!(answer["cloud"]["count"], 2, "idea.tree: die Wolke mit Zähler");
@@ -224,7 +225,7 @@ async fn the_cloud_holds_ideas_without_a_place_and_moving_connects_it_with_the_m
     let (code, _) = error_of(&b.server.rpc("idea.tree", json!({})).await);
     assert_eq!(code, -32602, "idea.tree ohne Werk: falsche Parameter");
 
-    // Ohne JavaScript: das Formular der Seite des Einfalls legt in die Wolke bzw. hängt unter einen Einfall.
+    // Without JavaScript: the form of the page of the idea puts it into the cloud or hangs it below an idea.
     let (status, page) = b.server.get(&format!("/einfaelle/{a}")).await;
     assert_eq!(status, StatusCode::OK, "Seite des Einfalls");
     assert!(page.contains("Platz in der Mindmap") && page.contains("In die Wolke legen"), "Formulare für den Platz");
@@ -265,7 +266,7 @@ async fn a_filter_keeps_ancestors_of_visible_ideas_as_ghosts_and_the_flat_map_st
 
     let by_word = b.tree(&MapFilter { word: Some("eiche".into()), ..quiet() }).await;
     assert!(by_word.find(&format!("i:{done}")).is_some_and(|n| !n.ghost), "Filter nach Schlagwort (ohne Groß/klein)");
-    // q blendet nichts aus, es markiert Treffer – auch über den Titel (Volltext).
+    // q hides nothing, it marks hits – also through the title (full text).
     let searched = b.tree(&MapFilter { q: Some("Helling".into()), ..quiet() }).await;
     assert!(searched.find(&format!("i:{middle}")).is_some_and(|n| n.hit), "Treffer der Suche über den Titel");
     assert!(
@@ -273,7 +274,7 @@ async fn a_filter_keeps_ancestors_of_visible_ideas_as_ghosts_and_the_flat_map_st
         "der Rest bleibt sichtbar, ohne hit"
     );
 
-    // Die flache Sicht idea.map bleibt (Abwärtsverträglichkeit) und nennt je Einfall Titel und Platz im Baum.
+    // The flat view idea.map stays (backward compatibility) and names title and place in the tree per idea.
     let flat = result(&b.server.rpc("idea.map", json!({ "work": b.work, "near": false })).await).clone();
     let ideas = flat["ideas"].as_array().expect("idea.map liefert die Einfälle");
     assert_eq!(ideas.len(), 4, "alle vier Einfälle in der flachen Sicht");
@@ -302,7 +303,7 @@ async fn create_takes_title_parent_and_before_and_refuses_an_idea_without_title_
     );
     let root_id = root["id"].as_i64().unwrap();
     let before = b.commits();
-    // parent ohne work: das Werk kommt vom Elternknoten.
+    // parent without work: the work comes from the parent node.
     let child = result(&b.server.rpc("idea.create", json!({ "title": "Schaf", "parent": root_id })).await).clone();
     assert_eq!(child["idea"]["work"].as_i64(), Some(b.work), "work aus dem Elternknoten: {child}");
     assert_eq!(child["idea"]["parent"].as_i64(), Some(root_id), "Unterknoten angelegt");
@@ -331,7 +332,7 @@ async fn create_takes_title_parent_and_before_and_refuses_an_idea_without_title_
         error_of(&b.server.rpc("idea.create", json!({ "title": "Quer", "parent": root_id, "cloud": true })).await);
     assert_eq!(code, -32602, "in die Wolke und zugleich unter einen Knoten widerspricht sich");
 
-    // Umbenennen ist idea.update mit title; die Antwort trägt den neuen Titel, der Commit nennt alt und neu.
+    // Renaming is idea.update with title; the answer carries the new title, the commit names old and new.
     let renamed = result(&b.server.rpc("idea.update", json!({ "id": first, "title": "Lamm" })).await).clone();
     assert_eq!(
         (renamed["changed"].as_bool(), renamed["idea"]["title"].as_str()),
@@ -366,7 +367,7 @@ async fn move_rehangs_and_orders_in_one_commit_and_refuses_what_the_contract_for
     assert_eq!(same["changed"], false, "steht schon dort: {same}");
     assert_eq!(b.commits(), before + 1, "ohne Änderung kein Commit");
 
-    // Auf ein Kapitel: parent null, key gesetzt; aufs Werk: beides null.
+    // Onto a chapter: parent null, key set; onto the work: both null.
     let at = result(&b.server.rpc("idea.move", json!({ "id": bank, "parent": null, "key": b.nebel })).await).clone();
     assert_eq!((at["idea"]["parent"].is_null(), at["idea"]["key"].as_i64()), (true, Some(b.nebel)), "{at}");
     let at = result(&b.server.rpc("idea.move", json!({ "id": bank, "parent": null, "key": null })).await).clone();
@@ -376,7 +377,7 @@ async fn move_rehangs_and_orders_in_one_commit_and_refuses_what_the_contract_for
         "aufs Werk: {at}"
     );
 
-    // Ablehnungen (Code „abgelehnt“), nichts geändert.
+    // Rejections (code „abgelehnt“), nothing changed.
     let second = b.server.import("#set document(title: \"Zweitwerk\")\n\n= Eins\n\nText.\n", "zweit.typ").await.work;
     let foreign = result(&b.server.rpc("idea.create", json!({ "work": second, "title": "Fremd" })).await)["idea"]["id"]
         .as_i64()
@@ -396,7 +397,7 @@ async fn move_rehangs_and_orders_in_one_commit_and_refuses_what_the_contract_for
     let (code, message) = error_of(&b.server.rpc("idea.move", json!({ "id": rope, "parent": root })).await);
     assert_eq!(code, baruch_server::rpc::REFUSED, "gelöschter Einfall: {message}");
     assert!(message.contains("gelöscht"), "{message}");
-    // Tiefe: eine Kette bis 32, der Teilbaum „Fähre“ passt dann nicht mehr darunter.
+    // Depth: a chain up to 32, the subtree „Fähre“ then no longer fits below it.
     let mut last = b.id(json!({ "title": "Kette 1", "cloud": false })).await;
     for n in 2..=32 {
         last = b.id(json!({ "title": format!("Kette {n}"), "parent": last })).await;
@@ -409,7 +410,7 @@ async fn move_rehangs_and_orders_in_one_commit_and_refuses_what_the_contract_for
     let unchanged = result(&b.server.rpc("idea.get", json!({ "id": ferry })).await)["idea"].clone();
     assert_eq!(unchanged["parent"].as_i64(), Some(root), "die Fähre hängt, wo sie hing");
 
-    // Kapitel und Teile lassen sich über idea.* nicht ändern: Ihre Kennung ist kein Einfall.
+    // Chapters and parts cannot be changed through idea.*: their identifier is not an idea.
     let (code, _) = error_of(&b.server.rpc("idea.move", json!({ "id": b.nebel + 100_000, "parent": null })).await);
     assert_eq!(code, -32602, "ein key ist keine Einfall-id: unbekannter Einfall");
     let (code, _) =
@@ -462,7 +463,7 @@ async fn delete_takes_the_children_along_and_restore_brings_exactly_them_back() 
         result(&b.server.rpc("idea.map", json!({ "work": b.work, "near": false })).await)["positions"].clone();
     assert!(positions.as_array().unwrap().iter().any(|p| p["idea"] == paddle), "die Lage blieb erhalten: {positions}");
 
-    // Elternknoten noch gelöscht: detached, der Einfall liegt in der Wolke.
+    // Parent node still deleted: detached, the idea lies in the cloud.
     result(&b.server.rpc("idea.delete", json!({ "id": root, "confirm": true })).await);
     let alone = result(&b.server.rpc("idea.restore", json!({ "id": wheel })).await).clone();
     assert_eq!(alone["detached"], true, "der Elternknoten ist noch gelöscht: {alone}");
@@ -530,7 +531,7 @@ async fn import_creates_the_tree_in_one_transaction_with_one_commit_and_the_give
     let mirror = std::fs::read_to_string(b.mirror().join("einfaelle.md")).expect("einfaelle.md im Spiegel");
     assert!(mirror.contains("- Titel: Strandhafer\n"), "die neuen Einfälle stehen im Spiegel:\n{mirror}");
 
-    // Unter einen Knoten.
+    // Below a node.
     let under = tree::import(
         &b.server.state,
         b.work,
@@ -544,7 +545,7 @@ async fn import_creates_the_tree_in_one_transaction_with_one_commit_and_the_give
     let coast = map.root.children.iter().find(|n| n.title == "Küste").unwrap();
     assert_eq!(coast.children.last().and_then(|n| n.idea), Some(under.ideas[0]), "hinter den vorhandenen Unterknoten");
 
-    // Überschreitungen: abgelehnt, nichts angelegt, kein Commit.
+    // Limits exceeded: rejected, nothing created, no commit.
     let (ideas, commits) = (map.total_ideas, b.commits());
     let too_many = ImportTree {
         nodes: (0..=MAX_IMPORT_NODES).map(|n| leaf(&format!("Knoten {n}"))).collect(),
@@ -649,7 +650,7 @@ async fn mcp_creates_subnodes_moves_them_and_reads_the_tree_with_its_origin_in_t
         by_name("idea_map")["description"].as_str().unwrap().contains("mind map"),
         "idea_map spricht von der Mindmap"
     );
-    // Die Fragmente aus docs/r34 sind eingesetzt: MCP.md nennt die Werkzeuge, RPC.md die Methoden.
+    // The fragments from docs/r34 are inserted: MCP.md names the tools, RPC.md the methods.
     for (file, names) in [("MCP.md", ["idea_move", "idea_tree"]), ("RPC.md", ["idea.move", "idea.tree"])] {
         let docs = std::fs::read_to_string(format!("{}/../../docs/{file}", env!("CARGO_MANIFEST_DIR"))).unwrap();
         for name in names {
@@ -714,7 +715,7 @@ async fn mcp_creates_subnodes_moves_them_and_reads_the_tree_with_its_origin_in_t
     assert_eq!(gone["deleted_ids"], json!([root_id, child_id]), "idea_delete nimmt die Unterknoten mit: {gone}");
 }
 
-// ---- Austausch, Spiegel, Suche ------------------------------------------------------------------------------------
+// ---- Exchange, mirror, search -------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn export_in_version_nine_and_reading_it_back_keeps_title_parent_and_order() {
@@ -732,7 +733,7 @@ async fn export_in_version_nine_and_reading_it_back_keeps_title_parent_and_order
         "Titel und Hauptthema: {xml}"
     );
     assert!(xml.contains(" eltern=\"") && xml.contains(" platz=\""), "Elternknoten und Platz stehen in der Datei");
-    // Gültig nach dem XSD der Unterversion 9 (fehlt xmllint, ehrlich übersprungen).
+    // Valid according to the XSD of minor version 9 (if xmllint is missing, honestly skipped).
     let schema = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/schema/baruch-werk-1-u10.xsd");
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("werk.baruch.xml");
@@ -747,7 +748,7 @@ async fn export_in_version_nine_and_reading_it_back_keeps_title_parent_and_order
         Err(_) => eprintln!("xmllint fehlt: Prüfung gegen das XSD übersprungen."),
     }
 
-    // Eine zweite Instanz liest die Datei als neues Werk: Titel, Elternknoten und Reihenfolge sind da.
+    // A second instance reads the file as a new work: title, parent node and order are there.
     let other = common::open().await;
     let data = baruch_store::encode_base64(xml.as_bytes());
     let sha = baruch_exchange::sha256_hex(xml.as_bytes());
@@ -797,7 +798,7 @@ async fn the_mirror_shows_title_and_tree_and_the_search_finds_an_idea_by_its_tit
         "idea.list: jede Antwort mit idea trägt title, parent, position"
     );
 
-    // Die Seiten zeigen Titel und Platz, ohne JavaScript.
+    // The pages show title and place, without JavaScript.
     let (status, page) = b.server.get(&format!("/einfaelle?work={}", b.work)).await;
     assert_eq!(status, StatusCode::OK, "Liste der Einfälle");
     assert!(page.contains("Bronzeglocke") && page.contains(">Wolke<"), "Titel und „Wolke“ an den Karten");

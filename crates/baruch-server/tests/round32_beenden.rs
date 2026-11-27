@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 32, Aufgabe beenden: Seite und Formular /beenden, Herunterfahren, Starter.
+//! Round 32, task beenden: page and form /beenden, shutdown, launcher.
 //!
-//! - Seiten und Schutz: echter Server im Testprozess (`shutdown::serve_until` auf `127.0.0.1:0`, kurze Frist,
-//!   keine Signale), damit die Gegenstelle (`ConnectInfo`) wie im Betrieb vorliegt; ohne Gegenstelle über `oneshot`.
-//! - Prozess: `baruch-server serve --listen 127.0.0.1:0 --data <Temp> --secrets memory`. Vorher stellt der Test im
-//!   Datenordner die Verbindungen `eliezer` und `multigpt` auf `http://127.0.0.1:9` (Umweg aus SKILLS.md), damit
-//!   beim Start keine Anfrage an einen echten Dienst geht. Beendet wird nur über die Oberfläche bzw. per Signal an
-//!   die eigene PID.
-//! - Starter: `packaging/linux/baruch` mit Attrappen in einem abgeschlossenen `PATH` – nie ein echter Browser.
+//! - Pages and protection: real server in the test process (`shutdown::serve_until` on `127.0.0.1:0`, short grace
+//!   period, no signals), so that the peer (`ConnectInfo`) is present as in operation; without a peer through
+//!   `oneshot`.
+//! - Process: `baruch-server serve --listen 127.0.0.1:0 --data <Temp> --secrets memory`. Beforehand the test sets the
+//!   connections `eliezer` and `multigpt` in the data directory to `http://127.0.0.1:9` (detour from SKILLS.md), so
+//!   that no request goes to a real service at start. Quitting happens only through the user interface or via a signal
+//!   to the own PID.
+//! - Launcher: `packaging/linux/baruch` with decoys in a closed `PATH` – never a real browser.
 
 use crate::common;
 
@@ -25,7 +26,7 @@ use baruch_server::shutdown::{self, DONE_TEXT, GOODBYE, GRACE, REPLY_DELAY};
 use serde_json::{Value, json};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-/// Länger als [`REPLY_DELAY`]: Wäre ein Auslöser unterwegs, hätte er bis dahin gewirkt.
+/// Longer than [`REPLY_DELAY`]: if a trigger were on its way, it would have taken effect by then.
 const AFTER_DELAY: Duration = Duration::from_millis(900);
 
 fn root() -> PathBuf {
@@ -36,7 +37,7 @@ fn client() -> reqwest::Client {
     reqwest::Client::builder().no_proxy().build().unwrap()
 }
 
-// ---- Server im Testprozess ----------------------------------------------------------------------------------
+// ---- Server in the test process -----------------------------------------------------------------------------
 
 struct Running {
     address: SocketAddr,
@@ -51,7 +52,7 @@ impl Running {
     }
 }
 
-/// Echter Server im Testprozess mit eigener Frist; `proxy_names` wie `--allow-host`.
+/// Real server in the test process with its own grace period; `proxy_names` like `--allow-host`.
 async fn run(grace: Duration, proxy_names: &str) -> Running {
     let data = tempfile::tempdir().unwrap();
     let mut state = baruch_server::AppState::open(data.path()).await.expect("Datenordner lässt sich nicht öffnen");
@@ -63,7 +64,7 @@ async fn run(grace: Duration, proxy_names: &str) -> Running {
     Running { address, state, served, _data: data }
 }
 
-/// Wartet auf das Ende des Servers; `Err` nach `limit`.
+/// Waits for the end of the server; `Err` after `limit`.
 async fn ended(running: &mut Running, limit: Duration) -> Result<Duration, ()> {
     let begin = Instant::now();
     match tokio::time::timeout(limit, &mut running.served).await {
@@ -96,7 +97,7 @@ async fn the_page_asks_first_and_works_as_a_plain_form() {
     assert!(!running.state.shutdown.is_requested(), "die Rückfrage allein (GET) beendet nichts");
     assert!(ended(&mut running, Duration::from_millis(50)).await.is_err(), "der Server läuft weiter");
 
-    // Mit dem Cookie des zuletzt geöffneten Werks führt „Abbrechen“ dorthin zurück.
+    // With the cookie of the work opened last „Abbrechen“ leads back there.
     let work = running.state.default_work().await.unwrap();
     let html = client()
         .get(running.url("/beenden"))
@@ -133,7 +134,7 @@ async fn under_a_proxy_name_the_page_explains_and_offers_no_form() {
     assert_eq!(answer.status(), StatusCode::FORBIDDEN, "auch das Formular selbst ist unter dem Proxy-Namen abgelehnt");
     assert!(!answer.text().await.unwrap().contains(DONE_TEXT), "die Antwort behauptet kein Beenden");
 
-    // Unter der Adresse geht es am selben Server weiterhin (Proxy-Namen sperren den eigenen Rechner nicht aus).
+    // Under the address it still works on the same server (proxy names do not lock out the own machine).
     let answer = client().get(running.url("/beenden")).send().await.unwrap();
     assert_eq!(answer.status(), StatusCode::OK, "direkt am Rechner bleibt die Rückfrage erreichbar");
 
@@ -152,7 +153,7 @@ async fn a_foreign_origin_or_an_unknown_peer_cannot_quit() {
     let answer = client().post(running.url("/beenden")).header("sec-fetch-site", "cross-site").send().await.unwrap();
     assert_eq!(answer.status(), StatusCode::FORBIDDEN, "ebenso mit Sec-Fetch-Site: cross-site");
 
-    // Ohne Gegenstelle (oneshot kennt keine): im Zweifel nicht der eigene Rechner.
+    // Without a peer (oneshot knows none): in case of doubt not the own machine.
     let server = common::open().await;
     let (status, html) = server.get("/beenden").await;
     assert_eq!(status, StatusCode::FORBIDDEN, "ohne bekannte Gegenstelle zeigt GET die Erklärung");
@@ -160,7 +161,7 @@ async fn a_foreign_origin_or_an_unknown_peer_cannot_quit() {
     let (status, _, html) = server.send(Request::post("/beenden").body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "ohne bekannte Gegenstelle ist POST abgelehnt");
     assert!(!html.contains(DONE_TEXT), "keine Abschlussseite");
-    // Eine fremde Gegenstelle (Betrieb mit --listen im Heimnetz) ebenso.
+    // A foreign peer (operation with --listen in the home network) likewise.
     let mut request = Request::post("/beenden").header(header::HOST, "192.168.7.20:8765").body(Body::empty()).unwrap();
     request.extensions_mut().insert(ConnectInfo(SocketAddr::from(([192, 168, 7, 21], 40000))));
     let (status, _, _) = server.send(request).await;
@@ -214,7 +215,7 @@ async fn quitting_answers_with_a_self_contained_page_and_stops_the_server() {
     );
 }
 
-/// Kopfzeilen und der erste Teil des Rumpfs einer RPC-Anfrage; der Rest (`.1`) fehlt noch.
+/// Headers and the first part of the body of an RPC request; the rest (`.1`) is still missing.
 fn half_request(address: SocketAddr) -> (String, String) {
     let body = json!({ "jsonrpc": "2.0", "id": 7, "method": "work.list", "params": {} }).to_string();
     let (first, rest) = body.split_at(body.len() / 2);
@@ -233,7 +234,7 @@ async fn a_running_request_is_still_answered_after_the_trigger() {
     let mut stream = tokio::net::TcpStream::connect(running.address).await.unwrap();
     stream.write_all(head.as_bytes()).await.unwrap();
     stream.flush().await.unwrap();
-    // Der Server hat die Kopfzeilen und wartet auf den Rest: Die Anfrage läuft.
+    // The server has the headers and waits for the rest: the request is running.
     tokio::time::sleep(Duration::from_millis(300)).await;
     running.state.shutdown.request();
     assert!(
@@ -251,7 +252,7 @@ async fn a_running_request_is_still_answered_after_the_trigger() {
     assert!(answer.starts_with("HTTP/1.1 200"), "die laufende Anfrage bekommt ihre Antwort: {answer}");
     let json: Value =
         serde_json::from_str(answer.split("\r\n\r\n").nth(1).unwrap_or_default().trim_matches(|c: char| {
-            // Bei `Transfer-Encoding: chunked` stehen Längenzeilen um den Rumpf.
+            // With `Transfer-Encoding: chunked` there are length lines around the body.
             c.is_ascii_hexdigit() || c.is_whitespace()
         }))
         .unwrap_or_else(|e| panic!("vollständige JSON-Antwort erwartet ({e}): {answer}"));
@@ -263,8 +264,8 @@ async fn a_running_request_is_still_answered_after_the_trigger() {
 
 #[tokio::test]
 async fn an_open_connection_holds_the_shutdown_no_longer_than_the_grace_period() {
-    // Ersatz für einen offenen Strom (Live-Chat): eine Verbindung mitten in einer Anfrage, die nie zu Ende geht.
-    // Für das Herunterfahren ist beides dasselbe – eine Verbindung, die von selbst nicht endet.
+    // Substitute for an open stream (live chat): a connection in the middle of a request that never ends.
+    // For the shutdown both are the same – a connection that does not end by itself.
     const SHORT: Duration = Duration::from_millis(600);
     let mut running = run(SHORT, "").await;
     let (head, _never_sent) = half_request(running.address);
@@ -287,7 +288,7 @@ async fn an_open_connection_holds_the_shutdown_no_longer_than_the_grace_period()
     drop(stream);
 }
 
-// ---- kein RPC, kein MCP -------------------------------------------------------------------------------------
+// ---- no RPC, no MCP -----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn there_is_no_rpc_method_and_no_mcp_tool_to_quit() {
@@ -326,7 +327,7 @@ async fn there_is_no_rpc_method_and_no_mcp_tool_to_quit() {
     }
     assert!(!server.state.shutdown.is_requested(), "keiner der Aufrufe hat etwas ausgelöst");
 
-    // Im Quelltext verlangt nur shutdown.rs das Herunterfahren – kein anderer Weg (RPC, MCP, Seiten) kommt heran.
+    // In the source only shutdown.rs requests the shutdown – no other way (RPC, MCP, pages) gets at it.
     fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap() {
             let path = entry.unwrap().path();
@@ -349,9 +350,9 @@ async fn there_is_no_rpc_method_and_no_mcp_tool_to_quit() {
     assert_eq!(callers, ["shutdown.rs"], "nur POST /beenden löst aus (die Signale gehen nicht über den Auslöser)");
 }
 
-// ---- echter Prozess -----------------------------------------------------------------------------------------
+// ---- real process -------------------------------------------------------------------------------------------
 
-/// Laufender `baruch-server serve`; beim Verwerfen wird der eigene Kindprozess beendet (falls ein Test scheitert).
+/// Running `baruch-server serve`; on drop the own child process is terminated (in case a test fails).
 struct Process {
     child: Child,
     url: String,
@@ -367,7 +368,7 @@ impl Drop for Process {
 }
 
 impl Process {
-    /// Datenordner vorbereiten (keine Anfrage an echte Dienste), Server starten, auf „Baruch läuft“ warten.
+    /// Prepare the data directory (no request to real services), start the server, wait for „Baruch läuft“.
     async fn start() -> Process {
         let data = tempfile::tempdir().unwrap();
         {
@@ -378,7 +379,7 @@ impl Process {
                 let answer = common::rpc(app.clone(), "connection.set", set).await;
                 assert!(answer["error"].is_null(), "Verbindung {kind} auf eine tote Adresse gestellt: {answer}");
             }
-            // Der Testprozess gibt die Datenbank ab: Nur so ist der Server später ihre letzte Verbindung.
+            // The test process hands over the database: only this way is the server its last connection later.
             state.store.pool().close().await;
         }
         let mut child = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
@@ -416,7 +417,7 @@ impl Process {
         process
     }
 
-    /// Schreibt etwas über die Oberfläche, damit das Protokoll der Datenbank (`-wal`) nicht leer ist.
+    /// Writes something through the user interface so that the log of the database (`-wal`) is not empty.
     async fn write_something(&self) {
         let body = json!({ "jsonrpc": "2.0", "id": 1, "method": "connection.set",
             "params": { "kind": "multigpt", "config": { "url": "http://127.0.0.1:9/mcp" } } });
@@ -430,7 +431,7 @@ impl Process {
         );
     }
 
-    /// Wartet auf das Ende des Prozesses; liefert Exit-Code und alle weiteren Zeilen der Standardausgabe.
+    /// Waits for the end of the process; returns the exit code and all further lines of the standard output.
     fn finish(&mut self, limit: Duration) -> (Option<i32>, Vec<String>) {
         let end = Instant::now() + limit;
         let status = loop {
@@ -447,7 +448,7 @@ impl Process {
         (status.code(), lines)
     }
 
-    /// Die Datenbank wurde sauber geschlossen: SQLite hat das Protokoll in die Datei zurückgeschrieben.
+    /// The database was closed cleanly: SQLite has written the log back into the file.
     async fn assert_closed_cleanly(&self, how: &str) {
         for suffix in ["-wal", "-shm"] {
             let file = self.data.path().join(format!("baruch.sqlite{suffix}"));
@@ -490,7 +491,7 @@ async fn the_button_ends_the_real_process_cleanly() {
 async fn sigterm_ends_the_real_process_as_cleanly() {
     let mut process = Process::start().await;
     process.write_something().await;
-    // Nur an die eigene PID (kein pkill, kein Muster).
+    // Only to the own PID (no pkill, no pattern).
     let sent = Command::new("kill").arg("-TERM").arg(process.child.id().to_string()).status().unwrap();
     assert!(sent.success(), "SIGTERM an den eigenen Kindprozess");
     let (code, lines) = process.finish(GRACE + Duration::from_secs(10));
@@ -513,18 +514,18 @@ async fn ctrl_c_ends_the_real_process_the_same_way() {
     process.assert_closed_cleanly("nach Strg+C").await;
 }
 
-// ---- Starter ------------------------------------------------------------------------------------------------
+// ---- Launcher -----------------------------------------------------------------------------------------------
 
 #[cfg(unix)]
 mod starter {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
 
-    /// Abgeschlossene Umgebung für den Starter: `PATH` enthält nur Attrappen und die paar Werkzeuge, die das Skript
-    /// braucht – ein echter Browser des Rechners ist so nicht erreichbar.
+    /// Closed environment for the launcher: `PATH` contains only decoys and the few tools that the script needs – a
+    /// real browser of the machine cannot be reached this way.
     struct Sandbox {
         dir: tempfile::TempDir,
-        /// Lauscht, damit der Starter „Server antwortet schon“ feststellt und nur den Browser öffnet.
+        /// Listens so that the launcher finds „Server antwortet schon“ and only opens the browser.
         listener: std::net::TcpListener,
     }
 
@@ -538,7 +539,7 @@ mod starter {
                 std::os::unix::fs::symlink(real.unwrap_or_else(|| panic!("{tool} fehlt")), sandbox.bin().join(tool))
                     .unwrap();
             }
-            // Wird nie gestartet (der Server „läuft schon“), muss aber ausführbar sein.
+            // Is never started (the server „läuft schon“) but has to be executable.
             sandbox.script(&sandbox.dir.path().join("baruch-server"), "exit 0");
             sandbox
         }
@@ -557,7 +558,7 @@ mod starter {
             std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        /// Attrappe eines Programms: schreibt Namen und Argumente in das Protokoll, startet nichts.
+        /// Decoy of a program: writes name and arguments into the log, starts nothing.
         fn decoy_at(&self, path: &Path, label: &str) {
             self.script(path, &format!("echo \"{label} $*\" >> '{}'", self.log().display()));
         }
@@ -570,8 +571,8 @@ mod starter {
             format!("http://{}/", self.listener.local_addr().unwrap())
         }
 
-        /// Führt den Starter aus und liefert die protokollierten Aufrufe (nach kurzem Warten: Der Starter schickt
-        /// den Browser in den Hintergrund).
+        /// Runs the launcher and returns the logged calls (after a short wait: the launcher sends the browser into the
+        /// background).
         fn start(&self, env: &[(&str, &str)], expect_call: bool) -> Vec<String> {
             let _ = std::fs::remove_file(self.log());
             let mut command = Command::new("/bin/bash");
@@ -674,7 +675,7 @@ mod starter {
 
     #[test]
     fn on_macos_the_app_bundles_are_searched_and_open_is_the_fallback() {
-        // macOS nachgestellt: `uname` meldet Darwin, die Programme liegen in einem eigenen Ordner.
+        // macOS simulated: `uname` reports Darwin, the programs are in a directory of their own.
         for app in ["Google Chrome", "Chromium", "Brave Browser", "Microsoft Edge"] {
             let sandbox = Sandbox::new();
             std::fs::remove_file(sandbox.bin().join("uname")).unwrap();
@@ -711,7 +712,7 @@ mod starter {
 
 #[test]
 fn the_windows_starter_prefers_edge_as_an_app_window() {
-    // Nur am Text geprüft – die Datei ist auf keinem Windows gelaufen (docs/Verteilung.md nennt das).
+    // Checked on the text only – the file has not run on any Windows (docs/Verteilung.md says so).
     let cmd = std::fs::read_to_string(root().join("packaging/windows/baruch-start.cmd")).unwrap();
     assert!(cmd.is_ascii(), "cmd.exe liest die Datei in der Codepage des Systems: nur ASCII");
     let edge = cmd.find(r#"start "" "%BARUCH_EDGE%" --app=%BARUCH_URL%"#).expect("Edge als App-Fenster");
@@ -752,8 +753,8 @@ fn the_service_units_do_not_restart_after_a_clean_exit() {
 
 #[test]
 fn pages_are_built_and_deployed_in_two_jobs() {
-    // Die Regeln selbst prüft scripts/ci-check-workflows.sh (Gegenprobe in scripts/ci-selftest.sh); hier nur, dass
-    // beide Abläufe die Trennung tragen und die Aktionen ihre geprüften SHAs behalten.
+    // The rules themselves are checked by scripts/ci-check-workflows.sh (cross-check in scripts/ci-selftest.sh); here
+    // only that both workflows carry the separation and the actions keep their verified SHAs.
     for workflow in ["pages.yml", "release.yml"] {
         let text = std::fs::read_to_string(root().join(".github/workflows").join(workflow)).unwrap();
         let build = text.find("\n  pages-build:\n").unwrap_or_else(|| panic!("{workflow}: Job pages-build"));
@@ -793,8 +794,8 @@ fn pages_are_built_and_deployed_in_two_jobs() {
     );
 }
 
-/// Die Gruppe `pages` hält in release.yml nicht die ganze Auslieferung (je Job, dazwischen frei); die Doku
-/// darf darum nicht mehr versprechen, als GitHub zusichert, und muss die Regel für den Push auf main nennen.
+/// The group `pages` does not hold the whole delivery in release.yml (per job, free in between); the docs therefore
+/// must not promise more than GitHub guarantees, and have to name the rule for the push to main.
 #[test]
 fn pages_group_limit_is_documented() {
     let group = "concurrency:\n      group: pages\n      cancel-in-progress: false";

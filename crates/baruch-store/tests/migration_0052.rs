@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0052 (Runde 34 „Mindmap wie XMind“, Vertrag §1: Titel, Elternknoten und Reihenfolge am Einfall; dazu
-//! nach dem Nachtrag des Nutzers vom 2026-11-25 die Spalte `main_topic`) auf einer nachgebauten Datenbank im Stand von
-//! development vor Runde 34 (Store bis 0051, Bibliothek vollständig) mit frei erfundenen Einfällen (offen,
-//! verarbeitet, gelöscht, mit und ohne Bezug, ohne Werk), Verbindungen (auch einer gelösten) und Lagen.
+//! Migration 0052 (Round 34 „Mindmap wie XMind“, contract §1: title, parent node and order at the idea; plus, after the
+//! user's addendum of 2026-11-25, the column `main_topic`) on a reconstructed database in the state of development
+//! before Round 34 (store up to 0051, library complete) with freely invented ideas (open, processed, deleted, with and
+//! without reference, without a work), links (also a removed one) and positions.
 //!
-//! Belegt: 0052 ist die einzige neue Store-Migration und steht nicht in `FOREIGN_KEYS_OFF`; jede Zeile jeder alten
-//! Tabelle bleibt in ihren alten Spalten byte-gleich (ids, uuid, `updated`), auch der Volltextindex; die neuen Spalten
-//! tragen in jeder alten Zeile ihre Vorgabe; im Schema ändert sich nur die Tabelle `idea` um genau die vier Spalten,
-//! neu ist nur der Index `idea_parent`; die CHECKs lehnen ab, was der Vertrag verbietet; ein hart gelöschter
-//! Elternknoten löst nur die Bindung; der Store liest die alten Einfälle danach als Einfälle der Wolke.
+//! Proven: 0052 is the only new store migration and is not in `FOREIGN_KEYS_OFF`; every row of every old table stays
+//! byte-identical in its old columns (ids, uuid, `updated`), also the full-text index; the new columns carry their
+//! default in every old row; in the schema only the table `idea` changes by exactly the four columns, new is only the
+//! index `idea_parent`; the CHECKs reject what the contract forbids; a hard-deleted parent node only dissolves the
+//! binding; the store reads the old ideas afterwards as ideas of the cloud.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -23,7 +23,7 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Der Kahn am Wehr\", author: \"Tilda Rohr\")\n\n\
 = Schleuse\n\nDas Wasser steigt langsam.\n\n= Wehr\n\nDas Wasser fällt laut.\n";
 
-/// Spalten, die 0052 an `idea` hängt (Spalte, Vorgabe per `quote()`, Definition wörtlich).
+/// Columns that 0052 appends to `idea` (column, default via `quote()`, definition verbatim).
 const NEW_COLUMNS: [(&str, &str, &str); 4] = [
     ("title", "''", "title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200)"),
     ("parent_id", "NULL", "parent_id INTEGER REFERENCES idea(id) ON DELETE SET NULL"),
@@ -57,8 +57,8 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
-/// Store bis 0051 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek: der
-/// Stand von development vor Runde 34.
+/// Store up to 0051 (0040 with foreign keys switched off as in `baruch_store::migrate`) and the library: the state of
+/// development before Round 34.
 async fn migrate_before(pool: &SqlitePool) {
     let versions: Vec<i64> = baruch_store::MIGRATOR.iter().map(|m| m.version).filter(|v| *v < 100).collect();
     assert_eq!(
@@ -90,9 +90,9 @@ async fn migrate_before(pool: &SqlitePool) {
     );
 }
 
-/// Ein Werk mit zwei Kapiteln und sechs Einfällen direkt in SQLite (wie der Store sie im Stand 0051 schrieb, samt
-/// Schlagwörtern und Volltextindex), dazu ein Einfall ohne Werk, drei Verbindungen (eine gelöst) und zwei Lagen.
-/// Rückgabe: id des Werks.
+/// A work with two chapters and six ideas directly in SQLite (as the store wrote them in the state 0051, including
+/// keywords and full-text index), plus one idea without a work, three links (one removed) and two positions.
+/// Returns: id of the work.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(BOOK).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -122,7 +122,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
         nodes.push(id);
     }
     assert_eq!(nodes.len(), 2, "Vorbedingung: zwei Kapitel");
-    // (Werk, Bezug, Gedanke, Herkunft, Name, Status, erledigt als, angelegt/geändert, gelöscht, Schlagwörter)
+    // (work, reference, thought, origin, name, status, done as, created/changed, deleted, keywords)
     type Seed<'a> = (
         Option<i64>,
         Option<i64>,
@@ -297,14 +297,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values via `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -320,7 +320,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     out
 }
 
-/// Der Volltextindex der Einfälle als sortierte Zeilen (er ist eine virtuelle Tabelle und fehlt in [`contents`]).
+/// The full-text index of the ideas as sorted rows (it is a virtual table and is missing in [`contents`]).
 async fn fts(pool: &SqlitePool) -> Vec<String> {
     sqlx::query_scalar("SELECT rowid || char(31) || words || char(31) || note FROM idea_fts ORDER BY rowid")
         .fetch_all(pool)
@@ -356,10 +356,10 @@ async fn migration_0052_keeps_every_idea_link_and_position_and_adds_the_tree_col
         "vor 0052 gibt es die Spalte title nicht (sonst prüfte dieser Test nichts)"
     );
 
-    // Nur 0052, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0052, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 52).run(&pool).await.expect("0052 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder alten Tabelle in ihren alten Spalten byte-gleich (ids, uuid, updated, deleted).
+    // Data: every row of every old table byte-identical in its old columns (ids, uuid, updated, deleted).
     let after = contents(&pool, &layout).await;
     for (table, old) in &before {
         if table != "_sqlx_migrations" {
@@ -368,7 +368,7 @@ async fn migration_0052_keeps_every_idea_link_and_position_and_adds_the_tree_col
     }
     assert_eq!(fts(&pool).await, fts_before, "der Volltextindex der Einfälle bleibt, wie er war (nichts nachgefüllt)");
 
-    // Neue Spalten: genau die vier, hinten an `idea`, mit der Vorgabe in jeder alten Zeile.
+    // New columns: exactly the four, at the end of `idea`, with the default in every old row.
     let layout_after = tables(&pool).await;
     for (table, cols) in &layout {
         let mut expected = cols.clone();
@@ -386,13 +386,13 @@ async fn migration_0052_keeps_every_idea_link_and_position_and_adds_the_tree_col
         assert_eq!(values, [default], "idea.{column}: jede bestehende Zeile trägt die Vorgabe");
     }
 
-    // Schema: nur `idea` ändert sich (um genau die neuen Spalten), neu ist nur der Index `idea_parent`.
+    // Schema: only `idea` changes (by exactly the new columns), new is only the index `idea_parent`.
     let schema_after = schema(&pool).await;
     for (name, (kind, table, sql)) in &schema_before {
         let now = schema_after.get(name).unwrap_or_else(|| panic!("Schemaobjekt {name} fehlt nach 0052"));
         if name == "idea" {
-            // SQLite schreibt die neuen Spalten in den gespeicherten CREATE-Text hinter die zuletzt angehängte
-            // Spalte (uuid aus 0041): Nimmt man genau diesen Zusatz heraus, steht die alte Definition wörtlich da.
+            // SQLite writes the new columns into the stored CREATE text after the column appended last (uuid from
+            // 0041): if exactly this addition is taken out, the old definition is there verbatim.
             let added: String = NEW_COLUMNS.iter().map(|(_, _, definition)| format!(", {definition}")).collect();
             let text = now.2.clone().unwrap();
             assert_eq!(text.matches(&added).count(), 1, "idea: genau einmal der Zusatz der vier Spalten: {text}");
@@ -413,7 +413,7 @@ async fn migration_0052_keeps_every_idea_link_and_position_and_adds_the_tree_col
         "kein Fremdschlüssel ist nach 0052 verletzt"
     );
 
-    // CHECKs und Fremdschlüssel der neuen Spalten.
+    // CHECKs and foreign keys of the new columns.
     let ideas: Vec<i64> = sqlx::query_scalar("SELECT id FROM idea WHERE work_id = ? ORDER BY id")
         .bind(work)
         .fetch_all(&pool)
@@ -446,7 +446,7 @@ async fn migration_0052_keeps_every_idea_link_and_position_and_adds_the_tree_col
     );
     pool.close().await;
 
-    // Der Store öffnet die Datenbank (migrate ist danach ein Nichtstun) und liest die alten Einfälle mit Vorgaben.
+    // The store opens the database (migrate is a no-op after that) and reads the old ideas with defaults.
     let store = Store::open(dir.path()).await.expect("der Store öffnet die migrierte Datenbank");
     let listed = store.idea_list(&IdeaFilter { scope: IdeaScope::Work(work), ..IdeaFilter::default() }).await.unwrap();
     assert_eq!(listed.len(), 4, "vier nicht gelöschte Einfälle des Werks (einer wurde oben hart gelöscht)");

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Titelregeln der Gliederung (Vertrag Runde 7, 4b): leer, nur Leerraum, Zeilenumbruch und über
-//! 200 Zeichen werden auf jedem Weg abgelehnt (Umbenennen, Anlegen, Speichern im Editor samt
-//! Teilen, Prüfen, Speichern und Ändern der aktuellen Fassung, Vorschläge, Umschalten), und dann
-//! ändert sich nichts. Vorhandene leere Titel bleiben lesbar und lassen sich umbenennen; Import und
-//! Export bleiben byte-gleich. Echte SQLite-Datei im Temp-Ordner, Testtexte frei erfunden.
+//! Title rules of the outline (contract Round 7, 4b): empty, only whitespace, line break and more than 200 characters
+//! are rejected on every way (renaming, creating, saving in the editor including splitting, checking, saving and
+//! changing the current revision, proposals, switching), and then nothing changes. Existing empty titles stay readable
+//! and can be renamed; import and export stay byte-identical. Real SQLite file in the temp directory, test texts freely
+//! invented.
 
 use baruch_store::{MAX_TITLE_CHARS, Place, Restructure, RevisionEdit, Store, StoreError, WorkId, check_title};
 
 const HUMAN: &str = "Anna";
 
-/// Eigenes kleines Buch; „Beete“ ohne Titel (`== `), wie es ein früherer Fehler hinterlassen hat.
+/// Own small book; „Beete“ without a title (`== `), as an earlier bug left it behind.
 const LAUBE: &str = "\
 #set document(title: \"Anna's Laube\", author: \"Test\")
 
@@ -35,7 +35,7 @@ async fn laube() -> (tempfile::TempDir, Store, WorkId) {
     (dir, store, work)
 }
 
-/// Alles, was ein Fehlversuch nicht ändern darf: Export, Titel und Zahl der Fassungen.
+/// Everything that a failed attempt must not change: export, titles and number of revisions.
 async fn snapshot(store: &Store, work: WorkId) -> (String, Vec<String>, i64) {
     let export = baruch_typst::xref::strip_key_labels(&store.export_typst(work).await.unwrap()).into_owned();
     let titles = store.load_work(work).await.unwrap().nodes.into_iter().map(|n| n.title).collect();
@@ -54,7 +54,7 @@ const EMPTY: &str = "Ein Gliederungspunkt braucht einen Titel.";
 const NEWLINE: &str = "Der Titel darf keinen Zeilenumbruch enthalten.";
 
 fn too_long() -> String {
-    "Laub".repeat(51) // 204 Zeichen
+    "Laub".repeat(51) // 204 characters
 }
 
 #[test]
@@ -139,14 +139,14 @@ async fn saving_and_editing_the_current_version_and_proposals_check_the_title() 
 async fn switching_to_a_version_with_a_bad_title_is_refused_and_changes_nothing() {
     let (_dir, store, work) = laube().await;
     store.save_human(work, 1, "== Bänke\n\nDrei Bänke aus Lärche.\n", HUMAN).await.unwrap().expect("Fassung 2");
-    // Eine alte Fassung zu ändern prüft nichts (nur die aktuelle bestimmt die Gliederung) …
+    // Changing an old revision checks nothing (only the current one determines the outline) …
     let edit = RevisionEdit { body: Some("==   \n\nZwei Bänke.\n"), note: None };
     store.update_revision(work, 1, 1, &edit, HUMAN).await.unwrap().expect("Fassung 1 geändert");
     let before = snapshot(&store, work).await;
-    // … aber Umschalten auf sie ließe die Gliederung einem leeren Titel folgen.
+    // … but switching to it would make the outline follow an empty title.
     assert_eq!(title_error(store.set_current(work, 1, 1).await), EMPTY, "Umschalten (gleiche Ebene)");
     assert_eq!(snapshot(&store, work).await, before, "Umschalten abgelehnt, nichts geändert");
-    // Ein Zeilenende im Sinn von Typst (U+2028) mitten in der Überschriftszeile, dazu eine andere Ebene.
+    // A line end in the sense of Typst (U+2028) in the middle of the heading line, plus a different level.
     let edit = RevisionEdit { body: Some("= Bänke\u{2028}im Schatten\n\nText.\n"), note: None };
     let proposal = store.add_proposal(work, 1, "== Bänke im Schatten\n\nText.\n", "@lektor", "Testmodell", "").await;
     let proposal = proposal.expect("gültiger Vorschlag");
@@ -181,7 +181,7 @@ async fn an_existing_empty_title_stays_readable_and_can_be_renamed() {
     assert_eq!(current.body, "== Hecke\n\nOhne Titel geblieben.\n\n", "nur die Überschriftszeile ändert sich");
 }
 
-/// Wie LAUBE, dazu „Pflaster“ mit einem 201 Zeichen langen Titel (Import prüft nicht).
+/// Like LAUBE, plus „Pflaster“ with a title 201 characters long (the import does not check).
 fn laube_with_long_title() -> (String, String) {
     let long_title = "Stein".repeat(40) + "e";
     (format!("{LAUBE}\n== {long_title}\n\nPflastersteine.\n"), long_title)
@@ -189,8 +189,8 @@ fn laube_with_long_title() -> (String, String) {
 
 #[tokio::test]
 async fn an_unchanged_bad_title_does_not_block_saving_but_a_changed_one_is_still_checked() {
-    // Runde 8 (Gutachten-Rest): Wer in einem importierten Abschnitt mit leerem oder überlangem Titel nur
-    // den Text ändert, soll speichern können; nur neue oder geänderte Titel werden geprüft.
+    // Round 8 (rest from the review): whoever changes only the text in an imported section with an empty or overlong
+    // title is meant to be able to save; only new or changed titles are checked.
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path()).await.unwrap();
     let (source, long_title) = laube_with_long_title();
@@ -200,24 +200,24 @@ async fn an_unchanged_bad_title_does_not_block_saving_but_a_changed_one_is_still
     assert_eq!(loaded.nodes[2].title, "", "Punkt 2 hat den leeren Titel");
     assert_eq!(loaded.nodes[4].title, long_title, "Punkt 4 den überlangen");
 
-    // Editor (outline.save), leerer Titel unverändert.
+    // Editor (outline.save), empty title unchanged.
     let saved = store
         .outline_save(work, 2, "== \n\nNeu bepflanzt.\n", None, Restructure::default(), HUMAN)
         .await
         .expect("unveränderter leerer Titel lässt sich speichern");
     assert!(saved.change.is_some(), "neue Fassung angelegt");
     assert!(store.outline_check(work, 2, "== \n\nNoch einmal.\n").await.unwrap().valid, "outline.check ebenso");
-    // revision.save (save_human) mit unverändertem 201-Zeichen-Titel.
+    // revision.save (save_human) with an unchanged 201-character title.
     let body = format!("== {long_title}\n\nNeue Steine.\n");
     store.save_human(work, 4, &body, HUMAN).await.expect("save_human mit unverändertem langem Titel");
-    // Vorschlag mit unverändertem Titel.
+    // Proposal with an unchanged title.
     let proposal = format!("== {long_title}\n\nVorschlag: Kies statt Steine.\n");
     store.add_proposal(work, 4, &proposal, "@lektor", "Testmodell", "").await.expect("Vorschlag geht");
     let after = store.load_work(work).await.unwrap();
     assert_eq!(after.nodes[2].title, "", "Titel bleibt leer (nicht umbenannt)");
     assert_eq!(after.nodes[4].title, long_title, "langer Titel bleibt");
 
-    // Geänderte ungültige Titel bleiben abgelehnt.
+    // Changed invalid titles stay rejected.
     let changed = format!("== {long_title}x\n\nText.\n");
     assert!(
         title_error(store.save_human(work, 4, &changed, HUMAN).await).contains("hier 202"),

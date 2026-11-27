@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 25 „karte-widget“: Verbindungen und Lagen im Austauschformat (Unterversion 2, Vertrag §4.5/§4.6).
+//! Round 25 „karte-widget“: links and positions in the exchange format (minor version 2, contract §4.5/§4.6).
 //!
-//! - Das Widget der Gedankenkarte (`idea_map.ts`) ist seit Runde 34 durch `mindmap.ts` ersetzt; seine Tests (Skript,
-//!   DOM-Vertrag, erlaubte RPC) stehen jetzt in `round34_widget.rs`.
-//! - Austausch: Rundreise A → B → A mit Verbindungen und Lagen über RPC; Verbindungen und Lagen „hier“ entstehen über
-//!   SQL, weil die Schreibwege der Karte (karte-daten) in diesem Zweig noch Stubs sind. Die Fülltrigger aus 0043
-//!   vergeben ihre Kennungen wie auf jedem anderen Weg.
+//! - The widget of the idea map (`idea_map.ts`) has been replaced by `mindmap.ts` since Round 34; its tests (script,
+//!   DOM contract, allowed RPC) are now in `round34_widget.rs`.
+//! - Exchange: round trip A → B → A with links and positions over RPC; links and positions „hier“ are created through
+//!   SQL, because the write paths of the map (karte-daten) are still stubs in this branch. The fill triggers from 0043
+//!   assign their identifiers as on every other path.
 //!
-//! Keine Anfrage an Eliezer oder andere Dienste (kein Modell, keine Einbettung).
+//! No request to Eliezer or other services (no model, no embedding).
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -19,7 +19,7 @@ use crate::common;
 
 const BOUNDARY: &str = "baruch-karte-grenze";
 
-// ---- Austausch mit Karte ------------------------------------------------------------------------------------
+// ---- Exchange with map --------------------------------------------------------------------------------------
 
 fn sha(bytes: &[u8]) -> String {
     baruch_exchange::sha256_hex(bytes)
@@ -46,7 +46,7 @@ async fn export(server: &common::Server, work: i64, format: &str) -> Vec<u8> {
     }
 }
 
-/// XML ohne `<ausgabe …/>` (Zeit und Instanz der Ausgabe unterscheiden sich naturgemäß).
+/// XML without `<ausgabe …/>` (time and instance of the output naturally differ).
 fn without_output(xml: &[u8]) -> String {
     let text = String::from_utf8(xml.to_vec()).expect("UTF-8");
     let Some(start) = text.find("<ausgabe") else { return text };
@@ -81,7 +81,7 @@ async fn idea_id(server: &common::Server, work: i64, n: u32) -> i64 {
         .unwrap()
 }
 
-/// Multipart-Anfrage an `/austausch/vorschau` wie ein Browserformular (ohne JavaScript).
+/// Multipart request to `/austausch/vorschau` like a browser form (without JavaScript).
 fn upload(file_name: &str, content: &[u8]) -> Request<Body> {
     let mut body = Vec::new();
     body.extend_from_slice(
@@ -101,13 +101,13 @@ fn upload(file_name: &str, content: &[u8]) -> Request<Body> {
 
 #[tokio::test]
 async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
-    // A liest das Beispielwerk (Unterversion 3, mit Karte) als neues Werk.
+    // A reads the sample work (minor version 3, with map) as a new work.
     let a = common::open().await;
     let sample = write_xml(&sample_document(), ImageMode::Inline).unwrap();
     let work_a = import(&a, sample.as_bytes(), "new").await["work"].as_i64().unwrap();
     let xml_a = export(&a, work_a, "xml").await;
     let text_a = String::from_utf8(xml_a.clone()).unwrap();
-    // Runde 34 (mindmap_daten): Der Schreiber schreibt jetzt Unterversion 9 (Baum der Einfälle).
+    // Round 34 (mindmap_daten): the writer now writes minor version 9 (tree of the ideas).
     assert!(text_a.contains("version=\"10\""), "Ausgabe in Unterversion 9 (seit Runde 34)");
     assert!(
         text_a.contains("<karte>") && text_a.contains("art=\"widerspricht\"") && text_a.contains("<lage "),
@@ -116,14 +116,14 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
     assert!(text_a.contains("art=\"verbindung\"") && text_a.contains("art=\"lage\""), "Grabsteine der Karte");
     assert_u2("a.baruch.xml", &xml_a);
 
-    // Rundreise A → B (neu) → Ausgabe: byte-gleich bis auf <ausgabe>, auch über den Container.
+    // Round trip A → B (new) → output: byte-identical except for <ausgabe>, also through the container.
     let b = common::open().await;
     let zip_a = export(&a, work_a, "baruch").await;
     let work_b = import(&b, &zip_a, "new").await["work"].as_i64().unwrap();
     let xml_b = export(&b, work_b, "xml").await;
     assert_eq!(without_output(&xml_b), without_output(&xml_a), "Rundreise mit Karte ohne Verlust");
 
-    // Auf B: neue Verbindung 40 „gehört zu“ 42, neue Lage für 42 und die Lage von 40 verschoben.
+    // On B: new link 40 „gehört zu“ 42, new position for 42 and the position of 40 moved.
     let pool_b = b.state.store.pool();
     sqlx::query("INSERT INTO idea_link (from_id, to_id, kind, note, origin_kind, origin_name) VALUES (?, ?, 'belongs_to', 'auf B', 'human', 'Autor')")
         .bind(idea_id(&b, work_b, 40).await)
@@ -144,7 +144,7 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
         .unwrap();
     let new_link: String =
         sqlx::query_scalar("SELECT uuid FROM idea_link WHERE note = 'auf B'").fetch_one(pool_b).await.unwrap();
-    // Auf A: dieselbe Lage anders verschoben (lokal gewinnt).
+    // On A: the same position moved differently (local wins).
     let pool_a = a.state.store.pool();
     sqlx::query("UPDATE idea_map_pos SET x = 11.0 WHERE uuid = ?")
         .bind(sample_uuid(152))
@@ -153,7 +153,7 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
         .unwrap();
 
     let zip_b = export(&b, work_b, "baruch").await;
-    // Vorschau ohne JavaScript: die Seite nennt Verbindungen und Lagen.
+    // Preview without JavaScript: the page names links and positions.
     let (status, _, page) = a.send(upload("b.baruch", &zip_b)).await;
     assert_eq!(status, StatusCode::OK, "Vorschauseite: {page}");
     assert!(page.contains("1 Verbindung der Gedankenkarte"), "Vorschau zählt die Verbindung: {page}");
@@ -181,12 +181,12 @@ async fn links_and_positions_travel_a_to_b_and_back_without_loss_or_doubles() {
         .unwrap();
     assert_eq!(x, 11.0, "die Lage auf A bleibt (bekannte Kennung, lokal gewinnt)");
 
-    // Zweiter Abgleich: nichts doppelt.
+    // Second merge: nothing twice.
     let again = import(&a, &zip_b, "merge").await;
     let total: u64 = again["added"].as_object().unwrap().values().map(|v| v.as_u64().unwrap()).sum();
     assert_eq!(total, 0, "ein zweiter Abgleich legt nichts an: {again}");
 
-    // Die Seite „Austausch: Ausgeben“ nennt den Umfang der Karte.
+    // The page „Austausch: Ausgeben“ names the extent of the map.
     let (status, html) = a.get(&format!("/werke/{work_a}/austausch")).await;
     assert_eq!(status, StatusCode::OK, "Seite Austausch");
     assert!(

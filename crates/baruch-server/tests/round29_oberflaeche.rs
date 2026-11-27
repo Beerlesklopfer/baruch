@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen, Oberfläche (Runde 29c, Vertrag §8.3): Block „Satz“ ohne JavaScript, 422 mit erhaltenen Eingaben,
-//! Vorschau (work.typeset_preview, Vorschaubilder), Vorlagen-Angebot, fremde Herkunft, reine Funktionen der Widgets
-//! (typeset_settings.ts, xref.ts) unter Node.
+//! Typesetting settings, user interface (Round 29c, contract §8.3): block „Satz“ without JavaScript, 422 with the
+//! inputs kept, preview (work.typeset_preview, preview images), template offer, foreign origin, pure functions of the
+//! widgets (typeset_settings.ts, xref.ts) under Node.
 //!
-//! Besitz: satz-oberflaeche. Kein Netz, kein Eliezer. Den Erfolgsweg von Speichern, Zurücksetzen und Übernehmen prüft
-//! der Integrator (§8.4); hier nur, was vor dem Speichern geschieht – ohne Ausweichzweige. Alle Werke frei erfunden;
-//! jedes Werk hat einen eigenen Titel, damit seine Vorschau einen eigenen Stand im prozessweiten Zwischenspeicher hat.
+//! Owner: satz-oberflaeche. No network, no Eliezer. The success path of saving, resetting and adopting is checked by
+//! the integrator (§8.4); here only what happens before saving – without fallback branches. All works freely invented;
+//! every work has a title of its own, so that its preview has a state of its own in the process-wide cache.
 
 use crate::common;
 
@@ -17,11 +17,11 @@ use baruch_server::settings::work_typeset::settings_from_form;
 use baruch_typst::typeset::{CANONICAL_CHAPTER_BREAK, FIELDS, TypesetSettings};
 use serde_json::{Value, json};
 
-/// Erfundenes Buch ohne eigene Kapitelanfangs-Regel.
+/// Invented book without a chapter beginning rule of its own.
 const PLAIN: &str = "#set document(title: \"Das Muschelbuch\", author: \"Lene Probst\")\n\
 #set text(lang: \"de\")\n\n= Ebbe\n\nDas Wasser zieht sich zurück.\n\n= Flut\n\nEs kommt wieder.\n";
 
-/// Erfundenes Buch, dessen Vorlage den Kapitelanfang selbst regelt (kanonische Zeile, Zeile 3).
+/// Invented book whose template rules the chapter beginning itself (canonical line, line 3).
 fn ruled() -> String {
     format!(
         "#set document(title: \"Das Leuchtfeuerbuch\", author: \"Ole Tamm\")\n#set text(lang: \"de\")\n\
@@ -34,7 +34,7 @@ fn ok(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Nur der Block „Satz“ aus einer Einstellungsseite (vom Anker bis zum nächsten Block „Abgleich“).
+/// Only the block „Satz“ from a settings page (from the anchor to the next block „Abgleich“).
 fn satz_block(page: &str) -> &str {
     let start = page.find("id=\"satz\"").unwrap_or_else(|| panic!("Block „Satz“ fehlt: {page}"));
     let end = page[start..].find("id=\"abgleich\"").map_or(page.len(), |e| start + e);
@@ -71,13 +71,13 @@ async fn the_block_shows_all_sixteen_fields_in_groups_without_javascript() {
     let block = satz_block(&page);
     assert!(!block.contains("Noch nicht umgesetzt"), "kein Stub mehr: {block}");
     assert!(block.contains("<h3>Satz</h3>"), "Überschrift des Blocks");
-    // Seit Runde 31 stehen auch Glossarseite, Registerseiten und erste Erwähnung im Block (S1-Ausnahme entfallen).
+    // Since Round 31 glossary page, index pages and first mention are in the block as well (S1 exception dropped).
     for (id, label) in FIELDS.iter() {
-        // S1-Ausnahme Runde 22: „Entwurf“ (draft) bekommt sein Formular erst mit spiegel-entwurf (dann entfernen).
+        // S1 exception Round 22: „Entwurf“ (draft) gets its form only with spiegel-entwurf (remove then).
         if *id == "draft" {
             continue;
         }
-        // minijinja maskiert „/“ als &#x2f; („Schusterjungen/Hurenkinder“).
+        // minijinja escapes „/“ as &#x2f; („Schusterjungen/Hurenkinder“).
         let label = label.replace('/', "&#x2f;");
         assert!(block.contains(&label), "Bezeichnung „{label}“ ({id}) fehlt im Block: {block}");
     }
@@ -90,7 +90,7 @@ async fn the_block_shows_all_sixteen_fields_in_groups_without_javascript() {
     ] {
         assert!(block.contains(&format!("<legend class=\"small\">{legend}</legend>")), "Gruppe „{legend}“ fehlt");
     }
-    // Jedes Formularfeld aus Vertrag §6.3 steht im Block (ohne JavaScript bedienbar).
+    // Every form field from contract §6.3 is in the block (usable without JavaScript).
     for name in [
         "chapter_start",
         "part_side",
@@ -121,9 +121,9 @@ async fn the_block_shows_all_sixteen_fields_in_groups_without_javascript() {
     ] {
         assert!(block.contains(&format!("name=\"{name}\"")), "Formularfeld {name} fehlt: {block}");
     }
-    // Elf Auswahllisten mit erster Wahl „aus der Werkvorlage“: sieben Listen (Kapitelanfang, Teil-Seite, Seitenformat,
-    // Absatz, Seitenzahlen, Kolumnentitel, Fußnoten) und vier Schalter (Blocksatz, Silbentrennung,
-    // Schusterjungen/Hurenkinder, Verweis mit Seitenzahl); die Zählweisen gelten nur mit gewählter Hauptliste.
+    // Eleven select lists with the first choice „aus der Werkvorlage“: seven lists (chapter beginning, part page, page
+    // format, paragraph, page numbers, running head, footnotes) and four switches (justification, hyphenation,
+    // widows/orphans, reference with page number); the numbering styles apply only with a chosen main list.
     let first_choices = block.matches("<option value=\"\" selected>aus der Werkvorlage</option>").count();
     assert_eq!(first_choices, 11, "ohne Einstellungen ist überall „aus der Werkvorlage“ gewählt: {block}");
     assert!(block.contains("placeholder=\"Vorlage (Typst: 11)\""), "Platzhalter mit dem Vorgabewert der Schriftgröße");
@@ -142,8 +142,9 @@ async fn the_block_shows_all_sixteen_fields_in_groups_without_javascript() {
     assert!(!block.contains("{{") && !block.contains("{%"), "keine Reste der Vorlage: {block}");
 }
 
-/// Befund R29: Die Satzbegriffe Bundsteg, Schusterjunge/Hurenkind und Kolumnentitel sind beim Feld kurz erklärt und
-/// über `aria-describedby` mit ihm verbunden (Bildschirmleser lesen die Erklärung zum Feld vor) – ohne JavaScript.
+/// Finding R29: the typesetting terms Bundsteg, Schusterjunge/Hurenkind and Kolumnentitel are briefly explained at the
+/// field and connected with it through `aria-describedby` (screen readers read the explanation for the field aloud) –
+/// without JavaScript.
 #[tokio::test]
 async fn the_typesetting_terms_are_explained_at_their_fields() {
     let server = common::open().await;
@@ -243,7 +244,7 @@ async fn the_offer_appears_with_line_and_text_of_the_canonical_template_rule() {
     let block = satz_block(&page);
     assert!(block.contains("action=\"/einstellungen/werk/satz/vorlage\""), "Angebot als Formular ohne JavaScript");
     assert!(block.contains(&format!("(Zeile {line})")), "Zeile der Regel aus work.typeset_get: {block}");
-    // minijinja maskiert u. a. " und > (aus „it => …“).
+    // minijinja escapes among others " and > (from „it => …“).
     let escaped = CANONICAL_CHAPTER_BREAK.replace('"', "&quot;").replace('>', "&gt;");
     assert!(block.contains(&format!("<code>{escaped}</code>")), "Text der Regel, maskiert: {block}");
     assert!(block.contains("„neue rechte Seite“"), "der Regelwert in Worten (to: \"odd\" → neue rechte Seite)");
@@ -251,7 +252,7 @@ async fn the_offer_appears_with_line_and_text_of_the_canonical_template_rule() {
     assert!(offer.contains("name=\"confirm\" value=\"1\" required"), "Pflicht-Häkchen vor der Übernahme");
 }
 
-/// Erstes Vorschaubild in einer Seite: `/einstellungen/werk/satz/vorschau/<stand>/1.svg`.
+/// First preview image in a page: `/einstellungen/werk/satz/vorschau/<stand>/1.svg`.
 fn first_image(page: &str) -> String {
     let marker = "<img src=\"/einstellungen/werk/satz/vorschau/";
     let at = page.find(marker).unwrap_or_else(|| panic!("kein Vorschaubild: {page}")) + "<img src=\"".len();
@@ -279,7 +280,7 @@ async fn the_preview_works_without_javascript_and_serves_only_cached_pages() {
     let (status, headers, svg) = server.send(Request::get(&url).body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::OK, "Vorschaubild aus dem Zwischenspeicher: {svg}");
     assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml", "SVG-Kopf");
-    // Der Router hängt allen Antworten noch „frame-ancestors 'none'“ an; die SVG-Regel steht vorn.
+    // The router additionally appends „frame-ancestors 'none'“ to all answers; the SVG rule comes first.
     let csp = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
     assert!(csp.starts_with(baruch_server::typeset::SVG_CSP), "SVG ohne Skripte (CSP): {csp}");
     assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff", "kein Raten des Typs");
@@ -371,10 +372,10 @@ async fn an_unknown_work_or_action_changes_nothing() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "unbekannte Aktion → 400");
 }
 
-// ---- Widgets unter Node -----------------------------------------------------------------------
+// ---- Widgets under Node -----------------------------------------------------------------------
 
-/// Ruft einen Ausdruck mit den ausgelieferten Modulen unter Node auf (alle Skripte im selben Ordner, damit die Importe
-/// aufgehen) und liefert das Ergebnis als JSON (Muster aus `round30_live.rs`).
+/// Calls an expression with the delivered modules under Node (all scripts in the same directory so that the imports
+/// resolve) and returns the result as JSON (pattern from `round30_live.rs`).
 fn node(module: &str, expr: &str) -> Value {
     let dir = tempfile::tempdir().unwrap();
     for (name, source) in baruch_server::SCRIPTS {
@@ -388,7 +389,7 @@ fn node(module: &str, expr: &str) -> Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 
-/// Formular als JavaScript-Liste `[[name, wert], …]`.
+/// Form as a JavaScript list `[[name, wert], …]`.
 fn js_pairs(form: &[(&str, &str)]) -> String {
     serde_json::to_string(&form.iter().map(|(k, v)| [*k, *v]).collect::<Vec<_>>()).unwrap()
 }
@@ -396,7 +397,7 @@ fn js_pairs(form: &[(&str, &str)]) -> String {
 #[test]
 fn the_widget_reads_the_form_exactly_like_the_server() {
     let forms: [&[(&str, &str)]; 5] = [
-        // Alle Felder gesetzt, mit Dezimalkomma und eigenem Format.
+        // All fields set, with decimal comma and custom format.
         &[
             ("work", "3"),
             ("chapter_start", "right_page"),
@@ -425,7 +426,7 @@ fn the_widget_reads_the_form_exactly_like_the_server() {
             ("footnote_restart", "per_chapter"),
             ("widows_orphans", "on"),
             ("xref_with_page", "off"),
-            // Runde 22: Entwurf mit allen Feldern (Häkchen, Text, Zusatz, Datum, Deckkraft, Lage, Umschlag).
+            // Round 22: draft with all fields (check box, text, addition, date, opacity, position, cover).
             ("draft", "1"),
             ("draft_text", " Vorabzug "),
             ("draft_note", "für die Lektorin"),
@@ -434,10 +435,10 @@ fn the_widget_reads_the_form_exactly_like_the_server() {
             ("draft_placement", "header"),
             ("draft_cover", "1"),
         ],
-        // Runde 22: Entwurf mit leeren Feldern → Vorgaben („ENTWURF“, 12 %, diagonal); ohne Häkchen kein Entwurf.
+        // Round 22: draft with empty fields → defaults („ENTWURF“, 12 %, diagonal); without the check box no draft.
         &[("draft", "1"), ("draft_text", ""), ("draft_opacity", ""), ("draft_placement", "")],
         &[("draft_text", "Vorabzug"), ("draft_opacity", "25")],
-        // Lauter „aus der Werkvorlage“, Unterfelder ohne Hauptwahl zählen nicht.
+        // All „aus der Werkvorlage“, sub-fields without a main choice do not count.
         &[
             ("chapter_start", ""),
             ("part_side", ""),
@@ -450,7 +451,7 @@ fn the_widget_reads_the_form_exactly_like_the_server() {
             ("binding_mm", ""),
             ("justify", ""),
         ],
-        // Vorgaben der Unterfelder: Abstand ohne Maß, Seitenzahlen ohne Zählung, Bundsteg leer.
+        // Defaults of the sub-fields: spacing without a measure, page numbers without numbering, gutter empty.
         &[
             ("paragraph", "spacing"),
             ("page_number_position", "hidden"),
@@ -469,7 +470,7 @@ fn the_widget_reads_the_form_exactly_like_the_server() {
         assert_eq!(widget["errors"], json!([]), "das Widget meldet keinen Fehler: {widget}");
         let read: TypesetSettings =
             serde_json::from_value(widget["settings"].clone()).expect("das Widget schickt gültiges JSON");
-        // Gleiches Formular → gleiche Einstellungen: die Vorschau zeigt, was „Speichern“ speichern würde.
+        // Same form → same settings: the preview shows what „Speichern“ would save.
         assert_eq!(read, server, "Widget und settings_from_form lesen das Formular gleich: {widget}");
     }
     let partial = node("typeset_settings.js", &format!("m.formToSettings({})", js_pairs(&[("binding_mm", "5")])));
@@ -481,7 +482,7 @@ fn the_widget_reads_the_form_exactly_like_the_server() {
 
 #[test]
 fn the_preview_is_debounced_and_only_the_newest_request_counts() {
-    // Nachgebaute Zeitgeber: set merkt sich die Aufgabe, clear verwirft sie, fire führt die offenen aus.
+    // Mocked timers: set remembers the task, clear discards it, fire runs the open ones.
     let result = node(
         "typeset_settings.js",
         "(() => { const tasks = new Map(); let id = 0; \
@@ -513,7 +514,7 @@ fn the_reference_dialog_starts_with_the_work_setting() {
           m.initialPage(undefined, null, true), m.initialPage(undefined, undefined, false), \
           m.initialPage(false, true, true)]",
     );
-    // Werk-Einstellung vor Browser-Gedächtnis; ein vorhandener Verweis (Bearbeiten) behält seine Form.
+    // Work setting before browser memory; an existing reference (editing) keeps its form.
     assert_eq!(cases, json!([true, false, true, false, false]), "Anfangswert des Häkchens „mit Seitenzahl“");
     let source = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "xref.js").unwrap().1;
     assert!(source.contains("work.typeset_get"), "der Dialog liest die Werk-Einstellung über work.typeset_get");

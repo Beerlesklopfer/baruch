@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Vorschau mit Werkvorlage (Vertrag Runde 8, Abschnitt 4): RPC `preview.typst`, Seiten
-//! `/werke/{id}/satz` und `/werke/{id}/satz/{stand}/{n}.svg`, MCP `typst_check`. Echter
-//! Datenordner im Temp-Verzeichnis, frei erfundene Werke unter `tests/data/round8/`.
+//! Typst preview with work template (contract Round 8, section 4): RPC `preview.typst`, pages `/werke/{id}/satz` and
+//! `/werke/{id}/satz/{stand}/{n}.svg`, MCP `typst_check`. Real data directory in the temp directory, freely invented
+//! works under `tests/data/round8/`.
 //!
-//! Der Zwischenspeicher ist statisch und gilt für alle Tests dieser Datei: Jeder Test hängt darum
-//! eine eigene Kommentarzeile an sein Werk, damit sein Stand nur ihm gehört.
+//! The cache is static and applies to all tests of this file: every test therefore appends a comment line of its own to
+//! its work, so that its state belongs only to it.
 
 use crate::common;
 
@@ -23,7 +23,7 @@ const LAUBE_SVG: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"40\" 
 <rect width=\"40\" height=\"20\" fill=\"#3a7\"/><circle cx=\"10\" cy=\"10\" r=\"6\" fill=\"#fd4\"/></svg>";
 const LOOPBACK: ([u8; 4], u16) = ([127, 0, 0, 1], 40000);
 
-/// Werk aus `source` mit eigener Schlusszeile `tag` anlegen; mit `image` das Bild der Laube.
+/// Create a work from `source` with its own final line `tag`; with `image` the image of the arbour.
 async fn import(server: &common::Server, source: &str, tag: &str, image: bool) -> (i64, Work) {
     let report = server.import(&format!("{source}// Test: {tag}\n"), &format!("{tag}.typ")).await;
     if image {
@@ -122,9 +122,9 @@ async fn the_time_limit_answers_refused() {
     let error = refused.err().expect("mit Zeitlimit 0 darf kein Ergebnis kommen");
     assert_eq!(error.code, baruch_server::rpc::REFUSED, "Zeitüberschreitung ist ein fachlicher Fehler (REFUSED)");
     assert!(error.message.starts_with("Typst brauchte länger als"), "verständliche Meldung: {}", error.message);
-    // Ob der abgelaufene Lauf schon begonnen hatte, hängt davon ab, ob ein paralleler Test gerade die
-    // Sperre hielt; dass er zu Ende rechnet und den Zwischenspeicher füllt, prüft darum der
-    // Unit-Test `a_timed_out_run_finishes_in_the_background_and_fills_the_cache` in `typeset.rs`.
+    // Whether the expired run had already begun depends on whether a parallel test was just holding the lock; that it
+    // computes to the end and fills the cache is therefore checked by the unit test
+    // `a_timed_out_run_finishes_in_the_background_and_fills_the_cache` in `typeset.rs`.
     let later = baruch_server::typeset::typeset(&server.state, work).await.expect("mit 60 s gelingt der Satz");
     assert_eq!(later.page_count(), 3, "nach der Zeitüberschreitung setzt der nächste Aufruf normal");
 }
@@ -182,7 +182,7 @@ async fn the_page_shows_the_chapter_with_navigation_and_links_without_javascript
     let (status, html) = server.get(&format!("/werke/{work}/satz?key={}&page=3", ofen.key)).await;
     assert_eq!(status, StatusCode::OK, "Blättern ohne JavaScript");
     assert!(html.contains("/3.svg\" alt=\"Seite 3 von 3\""), "Seite 3 gezeigt: {html}");
-    // Seit Runde 18a steht › im Menüband, gesperrt mit aria-label (Bildschirmleser lesen sonst nur „›“).
+    // Since Round 18a › is in the ribbon, disabled with aria-label (screen readers otherwise read only „›“).
     assert!(
         html.contains(
             "<span class=\"btn\" aria-disabled=\"true\" aria-label=\"Nächste Seite (dies ist die letzte)\">›</span>"
@@ -229,7 +229,7 @@ async fn svg_pages_are_served_safely_and_only_for_the_current_stand() {
         assert_eq!(status, StatusCode::NOT_FOUND, "{why} → 404 ({uri})");
     }
 
-    // Nach dem Speichern ist der alte Stand veraltet.
+    // After saving the old state is outdated.
     let winter = node(&loaded, "Der Frühling");
     let body = "= Der Frühling\nDie Äpfel blühen schon.\n";
     server.state.store.save_human(work, winter.id, body, "Mensch").await.unwrap();
@@ -293,8 +293,8 @@ async fn typst_check_reports_errors_warnings_and_url_and_writes_nothing() {
 
 #[tokio::test]
 async fn the_rule_for_unnumbered_headings_compiles_under_every_scheme() {
-    // Backlog „nicht mit typst compile geprüft“: die Show-Regel `numbering: none` für Knoten mit
-    // `numbered = 0` (hier „Die Laube“ als Vorwort) zusammen mit jedem Gliederungsschema.
+    // Backlog „nicht mit typst compile geprüft“: the show rule `numbering: none` for nodes with `numbered = 0` (here
+    // „Die Laube“ as a preface) together with every outline scheme.
     let server = common::open().await;
     let (work, loaded) = import(&server, BOOK, "ohne-nummer", true).await;
     let preface = node(&loaded, "Die Laube");
@@ -306,7 +306,7 @@ async fn the_rule_for_unnumbered_headings_compiles_under_every_scheme() {
     for scheme in baruch_store::NumberingScheme::ALL {
         let custom = (scheme == baruch_store::NumberingScheme::Custom).then_some("I.;A.;1.");
         match server.state.store.set_numbering_scheme(work, scheme.id(), custom).await {
-            // „aus der Werkvorlage“ ist nach dem Import schon eingestellt.
+            // „aus der Werkvorlage“ is already set after the import.
             Ok(_) | Err(baruch_store::StoreError::Refused(_)) => {}
             Err(e) => panic!("Schema {} lässt sich nicht setzen: {e}", scheme.id()),
         }
@@ -315,8 +315,8 @@ async fn the_rule_for_unnumbered_headings_compiles_under_every_scheme() {
         let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
         assert!(errors.is_empty(), "Schema {}: Typst meldet Fehler {errors:?}\n{exported}", scheme.id());
         assert_eq!(typeset.page_count(), 3, "Schema {}: drei Kapitel, drei Seiten", scheme.id());
-        // Seit Runde 14 (Vertrag §4) projiziert der Export die erste Überschriftszeile auf die Markierung
-        // „ohne Nummer“ statt einer Show-Regel, sobald die wirksame Nummerierung nicht aus ist.
+        // Since Round 14 (contract §4) the export projects the first heading line onto the marking „ohne Nummer“
+        // instead of a show rule as soon as the effective numbering is not off.
         if scheme != baruch_store::NumberingScheme::None {
             assert!(
                 exported.contains("#heading(level: 1, numbering: none)[Die Laube] <baruch-unnumbered>"),

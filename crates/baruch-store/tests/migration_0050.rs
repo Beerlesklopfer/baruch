@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0050 (Fortschreiben der aktuellen Fassung, Einstellung „Fassungen“, Stand übernommener Befunde;
-//! Runde 22, Vertrag §1/§3.1) auf einer nachgebauten Datenbank im Stand von development vor Runde 22 (Store bis 0049,
-//! Bibliothek vollständig) mit frei erfundenen Zeilen in allen Tabellen mit uuid – darunter die drei Tabellen, die 0050
-//! um Spalten erweitert (`revision`, `finding`, `finding_status`) – und Grabsteinen aller neunzehn bisherigen Arten.
+//! Migration 0050 (amending the current revision, setting „Fassungen“, state of accepted findings; Round 22, contract
+//! §1/§3.1) on a reconstructed database in the state of development before Round 22 (store up to 0049, library
+//! complete) with freely invented rows in all tables with a uuid – among them the three tables that 0050 extends by
+//! columns (`revision`, `finding`, `finding_status`) – and tombstones of all nineteen previous kinds.
 //!
-//! Hinweis: Der Vertrag spricht von „21 bisherigen Arten“ und „20 Grabstein-Triggern“; im CHECK von 0049 stehen
-//! tatsächlich neunzehn Arten mit je einem Grabstein-Trigger, nach 0050 sind es zwanzig (mit `revision_amend`). Der Test
-//! prüft die tatsächlichen Zahlen.
+//! Note: the contract speaks of „21 bisherigen Arten“ and „20 Grabstein-Triggern“; the CHECK of 0049 actually contains
+//! nineteen kinds with one tombstone trigger each, after 0050 there are twenty (with `revision_amend`). The test checks
+//! the actual numbers.
 //!
-//! Belegt: 0050 ist die einzige neue Store-Migration (0051–0054 reserviert, unbenutzt) und steht nicht in
-//! `FOREIGN_KEYS_OFF`; auf `uuid_tombstone` zeigt kein Fremdschlüssel; jede Zeile jeder alten Tabelle bleibt in ihren alten
-//! Spalten byte-gleich samt ids, auch alle Grabsteine; die neuen Spalten tragen ihre Vorgaben (`amend_seq` 0, die übrigen
-//! NULL); im Schema ändern sich nur der CHECK von `uuid_tombstone` und die drei erweiterten Tabellen (um genau die neuen
-//! Spalten), die neunzehn Grabstein-Trigger stehen wörtlich wieder da; neu sind genau die Objekte von `revision_amend`
-//! und `work_revision_policy`; die CHECKs lehnen ab, was der Vertrag verbietet; Fülltrigger, Grabstein (mit Werk-uuid)
-//! und Kaskade feuern beim Löschen einer Fassung und beim Löschen des Werks, alle alten Grabstein-Trigger danach weiter.
+//! Proven: 0050 is the only new store migration (0051–0054 reserved, unused) and is not in `FOREIGN_KEYS_OFF`; no
+//! foreign key points to `uuid_tombstone`; every row of every old table stays byte-identical in its old columns
+//! including ids, also all tombstones; the new columns carry their defaults (`amend_seq` 0, the others NULL); in the
+//! schema only the CHECK of `uuid_tombstone` and the three extended tables change (by exactly the new columns), the
+//! nineteen tombstone triggers are there again verbatim; new are exactly the objects of `revision_amend` and
+//! `work_revision_policy`; the CHECKs reject what the contract forbids; fill trigger, tombstone (with work uuid) and
+//! cascade fire when a revision is deleted and when the work is deleted, all old tombstone triggers keep firing
+//! afterwards.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -29,7 +30,7 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Die Fähre im Nebel\", author: \"Mira Holt\")\n\n\
 = Morgen\n\nDie Fähre legt im Nebel ab.\n\n= Abend\n\nDie Möwen kehren heim.\n";
 
-/// Die neunzehn Grabstein-Arten vor 0050 (Wert in `uuid_tombstone.kind`) und der Name ihres Grabstein-Triggers.
+/// The nineteen tombstone kinds before 0050 (value in `uuid_tombstone.kind`) and the name of their tombstone trigger.
 const KINDS: [(&str, &str); 19] = [
     ("work", "work_uuid_tombstone"),
     ("node", "node_uuid_tombstone"),
@@ -52,10 +53,10 @@ const KINDS: [(&str, &str); 19] = [
     ("index_register", "index_register_uuid_tombstone"),
 ];
 
-/// Zusatz, um den sich der CHECK von `uuid_tombstone` nach 0050 unterscheiden darf.
+/// Addition by which the CHECK of `uuid_tombstone` may differ after 0050.
 const TOMBSTONE_KIND: &str = ",\n                                          'revision_amend'";
 
-/// Objekte, die 0050 neu anlegt (Tabellen, Indizes samt der automatischen für UNIQUE, Trigger).
+/// Objects that 0050 creates (tables, indexes including the automatic ones for UNIQUE, triggers).
 const NEW_OBJECTS: [&str; 7] = [
     "revision_amend",
     "sqlite_autoindex_revision_amend_1",
@@ -66,7 +67,7 @@ const NEW_OBJECTS: [&str; 7] = [
     "work_revision_policy",
 ];
 
-/// Spalten, die 0050 an bestehende Tabellen hängt (Tabelle, Spalte, Vorgabe per `quote()`, Definition wörtlich).
+/// Columns that 0050 appends to existing tables (table, column, default via `quote()`, definition verbatim).
 const NEW_COLUMNS: [(&str, &str, &str, &str); 4] = [
     ("revision", "amend_seq", "0", "amend_seq INTEGER NOT NULL DEFAULT 0 CHECK (amend_seq >= 0)"),
     (
@@ -114,10 +115,10 @@ async fn rejected(pool: &SqlitePool, sql: &str) -> bool {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.is_err()
 }
 
-/// Store bis 0048 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
-/// der Stand von development vor Runde 31.
-/// Store bis 0049 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
-/// der Stand von development vor Runde 22.
+/// Store up to 0048 (0040 with foreign keys switched off as in `baruch_store::migrate`) and the library:
+/// the state of development before Round 31.
+/// Store up to 0049 (0040 with foreign keys switched off as in `baruch_store::migrate`) and the library:
+/// the state of development before Round 22.
 async fn migrate_before(pool: &SqlitePool) {
     let versions: Vec<i64> = baruch_store::MIGRATOR.iter().map(|m| m.version).filter(|v| *v < 100).collect();
     assert_eq!(
@@ -142,8 +143,8 @@ async fn migrate_before(pool: &SqlitePool) {
     assert_eq!(highest, 49, "Stand davor: Store bis 0049");
 }
 
-/// Werk mit Inhalten in allen Tabellen mit uuid (auch Satz-Einstellungen, Glossar, Register, Vorschlag, Befund samt
-/// Verlauf) und Grabsteinen aller neunzehn Arten direkt in SQLite; Rückgabe: id des Werks.
+/// Work with content in all tables with a uuid (also typesetting settings, glossary, index, proposal, finding including
+/// history) and tombstones of all nineteen kinds directly in SQLite; returns the id of the work.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let doc = baruch_typst::parse(BOOK).unwrap();
@@ -296,7 +297,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
     )
     .await;
     assert!(thread_post > 0, "Fadenbeitrag angelegt");
-    // Runde 22 berührt revision: ein Vorschlag 2 einer Persona auf Fassung 1 (Fassung 1 bleibt aktuell).
+    // Round 22 touches revision: a proposal 2 of a persona on revision 1 (revision 1 stays current).
     exec(
         pool,
         &format!(
@@ -307,7 +308,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
         ),
     )
     .await;
-    // Glossar und Register (Arten glossary_term, index_register aus 0049).
+    // Glossary and index (kinds glossary_term, index_register from 0049).
     exec(
         pool,
         &format!(
@@ -321,7 +322,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
         &format!("INSERT INTO index_register (work_id, slug, title, position) VALUES ({work}, 'orte', 'Orte', 0)"),
     )
     .await;
-    // Grabsteine aller neunzehn Arten (wie nach früheren Löschungen; erfundene uuids).
+    // Tombstones of all nineteen kinds (as after earlier deletions; invented uuids).
     for (n, (kind, _)) in KINDS.iter().enumerate() {
         exec(
             pool,
@@ -356,14 +357,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values via `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -402,17 +403,17 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
     .await;
     assert_eq!(pointing, 0, "kein Fremdschlüssel auf uuid_tombstone: darum reicht 0050 ohne FOREIGN_KEYS_OFF");
 
-    // Nur 0050, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0050, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 50).run(&pool).await.expect("0050 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder alten Tabelle in ihren alten Spalten byte-gleich (ids, uuids, alle Grabsteine).
+    // Data: every row of every old table byte-identical in its old columns (ids, uuids, all tombstones).
     let after = contents(&pool, &layout).await;
     for (table, old) in &before {
         if table != "_sqlx_migrations" {
             assert_eq!(after.get(table), Some(old), "Tabelle {table}: alle Zeilen in den alten Spalten unverändert");
         }
     }
-    // Neue Spalten: genau die vereinbarten, hinten angehängt, mit Vorgaben in jeder alten Zeile.
+    // New columns: exactly the agreed ones, appended at the end, with defaults in every old row.
     let layout_after = tables(&pool).await;
     for (table, cols) in &layout {
         let mut expected: Vec<String> = cols.clone();
@@ -428,7 +429,7 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
         assert_eq!(values, [default], "{table}.{column}: jede alte Zeile trägt die Vorgabe {default}");
     }
 
-    // Schema: alte Objekte wörtlich bis auf den CHECK von uuid_tombstone und die angehängten Spalten.
+    // Schema: old objects verbatim except for the CHECK of uuid_tombstone and the appended columns.
     let schema_after = schema(&pool).await;
     let added: BTreeSet<String> = schema_after.keys().filter(|k| !schema_before.contains_key(*k)).cloned().collect();
     let expected: BTreeSet<String> = NEW_OBJECTS.iter().map(|s| s.to_string()).collect();
@@ -442,7 +443,8 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
             assert!(now.contains(TOMBSTONE_KIND), "Zusatz aus 0050 steht im CHECK: {now}");
             assert_eq!(now.replacen(TOMBSTONE_KIND, "", 1), old, "uuid_tombstone sonst wörtlich gleich");
         } else if NEW_COLUMNS.iter().any(|(t, ..)| t == name) {
-            // ALTER TABLE ADD COLUMN setzt „, <Definition>“ hinter die letzte Spalte; ohne sie ist der Text wörtlich alt.
+            // ALTER TABLE ADD COLUMN puts „, <Definition>“ after the last column; without it the text is verbatim the
+            // old one.
             let mut stripped = now.clone();
             for (_, column, _, definition) in NEW_COLUMNS.iter().filter(|(t, ..)| t == name) {
                 let clause = format!(", {definition}");
@@ -451,7 +453,7 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
             }
             assert_eq!(stripped, old, "{name}: bis auf die neuen Spalten wörtlich unverändert");
         } else {
-            // Auch die neunzehn Grabstein-Trigger: wörtlich wie vorher.
+            // The nineteen tombstone triggers as well: verbatim as before.
             assert_eq!(now, old, "Schema von {name} unverändert");
         }
     }
@@ -460,7 +462,7 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
     }
     assert!(schema_after.contains_key("uuid_tombstone_work"), "Index der Grabsteine neu angelegt");
 
-    // CHECKs: neue Art erlaubt, das XML-Wort nicht; revision_amend und work_revision_policy lehnen Verbotenes ab.
+    // CHECKs: new kind allowed, the XML word not; revision_amend and work_revision_policy reject what is forbidden.
     exec(&pool, "INSERT INTO uuid_tombstone (uuid, kind) VALUES ('probe-am', 'revision_amend')").await;
     assert!(
         rejected(&pool, "INSERT INTO uuid_tombstone (uuid, kind) VALUES ('probe-x', 'fortschreibung')").await,
@@ -512,7 +514,7 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
     .unwrap();
     assert_eq!(policy, (1, 20, 30), "Vorgaben der Tabelle: an, 20 %, 30 Minuten");
 
-    // Kaskade beim Löschen einer Fassung: erst die Schritte (Grabstein mit Werk-uuid), dann die Fassung.
+    // Cascade when deleting a revision: first the steps (tombstone with work uuid), then the revision.
     let work_uuid = text(&pool, &format!("SELECT uuid FROM work WHERE id = {work}")).await;
     let proposal: i64 = scalar(
         &pool,
@@ -543,10 +545,10 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
     assert_eq!(integrity, "ok", "integrity_check");
     pool.close().await;
 
-    // Store::open danach: Fortschreiben über die Store-API, dann Werk löschen → Grabsteine aller zwanzig Arten.
+    // Store::open afterwards: amend through the store API, then delete the work → tombstones of all twenty kinds.
     let store = Store::open(dir.path()).await.expect("Store::open nach 0050");
-    // Die Zeile oben trägt die Spaltenvorgaben von 0050 (20 %, 30 min); die Vorgabe ohne Zeile ist seit 2026-11-27
-    // eine andere (RevisionPolicy::default: ohne Grenzen), die Store-API schreibt immer alle Spalten.
+    // The row above carries the column defaults of 0050 (20 %, 30 min); the default without a row has been a different
+    // one since 2026-11-27 (RevisionPolicy::default: without limits), the store API always writes all columns.
     assert_eq!(
         store.revision_policy(work).await.unwrap(),
         RevisionPolicy { amend: true, max_change_percent: 20, new_after_minutes: 30 },
@@ -561,7 +563,7 @@ async fn migration_0050_keeps_every_row_and_tombstone_and_adds_the_amend_history
         .expect("Text geändert");
     assert_eq!(saved.amend_seq, Some(1), "Fortschreibung schreibt Stand 1 in die migrierte Fassung");
     let pool = store.pool();
-    exec(pool, "DELETE FROM idea WHERE note = 'Nebel über dem Wasser'").await; // Arten idea und idea_link (nur im Test)
+    exec(pool, "DELETE FROM idea WHERE note = 'Nebel über dem Wasser'").await; // kinds idea and idea_link (test only)
     store.delete_work(work, "Die Fähre im Nebel").await.expect("Werk löschen schreibt Grabsteine");
     let fresh: Vec<(String, String)> = sqlx::query_as(
         "SELECT uuid, kind FROM uuid_tombstone WHERE uuid NOT LIKE '00000000-0000-4000-8000-%' AND work_uuid = ?",

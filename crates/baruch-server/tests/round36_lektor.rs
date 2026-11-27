@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 36 „Reste“, Besitz reste: Reste aus Runde 35 (Konten, Rollen, Lektor-Oberfläche).
+//! Round 36 „Reste“, owner reste: rests from Round 35 (accounts, roles, Lektor user interface).
 //!
-//! Bühne und Helfer aus `round35_rollen` (zwei frei erfundene Werke: das Beispielwerk der Instanz mit der kleinsten
-//! id – für den Lektor fremd – und ein freigegebenes; Konten per SQL, Identität über `common::with_who`). Kein
-//! Modell, kein Netz.
+//! Stage and helpers from `round35_rollen` (two freely invented works: the sample work of the instance with the
+//! smallest id – foreign for the Lektor – and a granted one; accounts via SQL, identity through `common::with_who`). No
+//! model, no network.
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
@@ -15,14 +15,14 @@ use serde_json::{Value, json};
 use crate::common;
 use crate::round35_rollen::{FORBIDDEN, Stage, code, denied_by_role, get_as, rpc_as, send_as, stage};
 
-/// Die fünf Methoden, deren Werk-Bindung Runde 36 lockert.
+/// The five methods whose work binding Round 36 loosens.
 const LOOSENED: [&str; 5] = ["wysiwyg.parse", "wysiwyg.serialize", "wysiwyg.diff", "wysiwyg.style", "ribbon.formats"];
 
 fn get_with_cookie(uri: &str, cookie: &str) -> Request<Body> {
     Request::get(uri).header(header::COOKIE, cookie).body(Body::empty()).unwrap()
 }
 
-/// Nennt der Text das fremde Werk – über seinen Titel oder über eine Adresse mit seiner id?
+/// Does the text name the foreign work – through its title or through an address with its id?
 fn names_foreign(s: &Stage, text: &str) -> bool {
     text.contains(&s.foreign_title)
         || text.contains(&format!("work={}\"", s.foreign))
@@ -30,8 +30,8 @@ fn names_foreign(s: &Stage, text: &str) -> bool {
         || text.contains(&format!("/werke/{}/", s.foreign))
 }
 
-/// Grundlage der Lockerung (Vertrag §5a): Über `AppState::default_work` erreicht ein Lektor nie ein nicht
-/// freigegebenes Werk – auch nicht, wenn ihm gar keines freigegeben ist.
+/// Basis of the loosening (contract §5a): through `AppState::default_work` a Lektor never reaches a work that is not
+/// granted – not even if none is granted to it at all.
 #[tokio::test]
 async fn the_default_work_of_a_lektor_is_never_a_work_that_is_not_granted() {
     let s = stage().await;
@@ -50,7 +50,7 @@ async fn the_default_work_of_a_lektor_is_never_a_work_that_is_not_granted() {
         matches!(auth::scope(s.gustav.clone(), state.default_work()).await, Err(StoreError::UnknownWork(0))),
         "ohne Freigabe gibt es kein Vorgabewerk (UnknownWork(0)), nie das der Instanz"
     );
-    // Entzug wirkt bei der nächsten Anfrage: nichts wird gemerkt.
+    // Revocation takes effect on the next request: nothing is remembered.
     state.store.member_revoke(s.granted, s.erika_id).await.expect("Freigabe entziehen");
     assert!(
         matches!(auth::scope(s.erika.clone(), state.default_work()).await, Err(StoreError::UnknownWork(0))),
@@ -93,8 +93,8 @@ async fn the_tables_carry_the_loosened_entries_without_a_work() {
     );
 }
 
-/// Die Seite Darstellung ohne `work`: erreichbar für jeden Lektor, nie mit fremdem Inhalt – auch nicht über ein
-/// altes Cookie `baruch_work`, das auf ein fremdes Werk zeigt (Falle der Sichtprüfung R35).
+/// The page Darstellung without `work`: reachable for every Lektor, never with foreign content – not even through an
+/// old cookie `baruch_work` that points to a foreign work (trap of the visual check R35).
 #[tokio::test]
 async fn the_display_settings_open_without_a_work_and_never_show_a_foreign_one() {
     let s = stage().await;
@@ -127,7 +127,7 @@ async fn the_display_settings_open_without_a_work_and_never_show_a_foreign_one()
     let (_, _, page) = get_as(server, &s.gustav, "/einstellungen/darstellung").await;
     assert!(!page.contains("work="), "ohne Freigabe nennt die Seite gar kein Werk");
 
-    // Ein genanntes Werk wird weiter geprüft – die Lockerung gilt nur für das fehlende.
+    // A named work is still checked – the loosening applies only to the missing one.
     for who in [&s.erika, &s.gustav] {
         let (status, headers, body) =
             get_as(server, who, &format!("/einstellungen/darstellung?work={}", s.foreign)).await;
@@ -138,19 +138,19 @@ async fn the_display_settings_open_without_a_work_and_never_show_a_foreign_one()
     let (status, _, _) = get_as(server, &s.erika, &format!("/einstellungen/darstellung?work={}", s.granted)).await;
     assert_eq!(status, StatusCode::OK, "mit dem freigegebenen Werk wie bisher");
 
-    // Gegenprobe: Für den Autor zählt das Cookie weiter.
+    // Cross-check: for the author the cookie still counts.
     let (status, _, page) = send_as(server, &s.author, get_with_cookie("/einstellungen/darstellung", &stale)).await;
     assert_eq!(status, StatusCode::OK, "der Autor erreicht die Seite");
     assert!(page.contains(&format!("work={}", s.foreign)), "beim Autor gilt das zuletzt geöffnete Werk des Cookies");
 }
 
-/// `wysiwyg.*` und `ribbon.formats` ohne `work`: für die Lektorin das freigegebene Werk, ohne Freigabe ein Fehler –
-/// nie das Vorgabewerk der Instanz.
+/// `wysiwyg.*` and `ribbon.formats` without `work`: for the Lektor the granted work, without a grant an error – never
+/// the default work of the instance.
 #[tokio::test]
 async fn the_loosened_methods_without_a_work_use_the_granted_work_only() {
     let s = stage().await;
     let server = &s.server;
-    // Ein Bild nur im freigegebenen Werk: Daran zeigt das Satzbild, in welchem Werk es nachsieht.
+    // An image only in the granted work: by it the typeset view shows in which work it looks.
     let picture = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"30\" height=\"20\"><rect width=\"30\" height=\"20\"/></svg>\n";
     let added = rpc_as(
         server,
@@ -161,7 +161,7 @@ async fn the_loosened_methods_without_a_work_use_the_granted_work_only() {
     )
     .await;
     assert!(added.get("error").is_none(), "Bild angelegt: {added}");
-    // Das Satzbild findet ein Bild über seinen Pfad im Werk (nicht über den Namen).
+    // The typeset view finds an image through its path in the work (not through the name).
     let image = "#image(\"/bilder/hafen.svg\")";
     let body = format!("Ein Absatz.\n\n{image}\n");
     let body = body.as_str();
@@ -178,7 +178,7 @@ async fn the_loosened_methods_without_a_work_use_the_granted_work_only() {
         p
     };
 
-    // Vorbedingung, damit die Probe etwas unterscheidet: Der Autor bekommt ohne work das fremde Werk.
+    // Precondition so that the probe distinguishes anything: without work the author gets the foreign work.
     let author = rpc_as(server, &s.author, "wysiwyg.parse", params("wysiwyg.parse", None, 0)).await;
     let author_html = author["result"]["html"].as_str().unwrap();
     assert!(
@@ -215,15 +215,15 @@ async fn the_loosened_methods_without_a_work_use_the_granted_work_only() {
         parsed["result"]["html"].as_str().unwrap().contains(&format!("/werke/{}/bilder/", s.granted)),
         "das Bild im Satzbild zeigt auf das freigegebene Werk: {parsed}"
     );
-    // Ein fester Schlüssel des fremden Werks führt ohne work nicht hinüber: Gesucht wird nur im freigegebenen.
+    // A stable key of the foreign work does not lead across without work: the search is only in the granted one.
     let diff = rpc_as(server, &s.erika, "wysiwyg.diff", json!({ "key": s.foreign_key, "rev": 1 })).await;
     let reached_foreign = diff.get("result").is_some() && s.foreign_key != s.granted_key;
     assert!(!reached_foreign, "ein Schlüssel des fremden Werks wird ohne work nicht im fremden Werk gesucht: {diff}");
 }
 
-// ---- Anzeigename zur Herkunft @lektorat:<slug> --------------------------------------------------------------
+// ---- Display name for the origin @lektorat:<slug> -----------------------------------------------------------
 
-/// Text der Elemente mit der Klasse `class` (roh, bis zum nächsten schließenden Tag desselben Namens).
+/// Text of the elements with the class `class` (raw, up to the next closing tag of the same name).
 fn texts_of(page: &str, class: &str) -> Vec<String> {
     let mut found = Vec::new();
     let mut rest = page;
@@ -237,8 +237,8 @@ fn texts_of(page: &str, class: &str) -> Vec<String> {
     found
 }
 
-/// Fassungen, Beiträge und Befunde eines Lektors zeigten auf der Arbeitsseite nur den Handle. Jetzt steht der
-/// Anzeigename des Kontos davor – nur als Anzeige: Attribute, Buchtext und Beitragstext bleiben wörtlich.
+/// Revisions, posts and findings of a Lektor showed only the handle on the work page. Now the display name of the
+/// account stands before it – only as display: attributes, book text and post text stay verbatim.
 #[tokio::test]
 async fn the_workspace_shows_the_display_name_next_to_the_lektor_handle() {
     let s = stage().await;
@@ -277,19 +277,19 @@ async fn the_workspace_shows_the_display_name_next_to_the_lektor_handle() {
         );
         assert!(!page.contains("Erika Beispiel (Erika Beispiel"), "{name}: der Name steht nicht doppelt da");
     }
-    // Befunde: Karte auf der Befundseite des Werks.
+    // Findings: card on the findings page of the work.
     let (status, _, findings) = get_as(server, &s.author, &format!("/werke/{g}/befunde?key={key}")).await;
     assert_eq!(status, StatusCode::OK, "die Befundseite lädt");
     if findings.contains("fd-persona") {
         let personas = texts_of(&findings, "fd-persona").join(" | ");
         assert!(personas.contains(shown), "der Befund nennt Anzeigename und Handle: {personas}");
     }
-    // Der Rahmen nach einem Wechsel ohne Neuladen (ui.render) trägt denselben Namen.
+    // The frame after a switch without reloading (ui.render) carries the same name.
     let rendered = rpc_as(server, &s.author, "ui.render", json!({ "work": g, "key": key, "rev": rev })).await;
     let editor = rendered["result"]["editor"].as_str().expect("ui.render liefert den Editor");
     assert!(editor.contains(shown), "auch das über ui.render nachgeladene Stück nennt den Anzeigenamen");
 
-    // Ein Konto ohne Anzeigenamen und ein unbekannter Handle bleiben, wie sie sind.
+    // An account without a display name and an unknown handle stay as they are.
     sqlx::query("UPDATE account SET display = '' WHERE id = ?")
         .bind(s.erika_id)
         .execute(server.state.store.pool())
@@ -302,8 +302,8 @@ async fn the_workspace_shows_the_display_name_next_to_the_lektor_handle() {
     );
 }
 
-/// Ohne Konten bleibt die Seite, wie sie war: Ein Handle `@lektorat:…` (etwa aus einem Austausch mit einer anderen
-/// Instanz) wird nicht umgeschrieben.
+/// Without accounts the page stays as it was: a handle `@lektorat:…` (for example from an exchange with another
+/// instance) is not rewritten.
 #[tokio::test]
 async fn without_accounts_a_lektor_handle_is_shown_unchanged() {
     let server = common::open().await;
@@ -332,7 +332,7 @@ async fn without_accounts_a_lektor_handle_is_shown_unchanged() {
     );
 }
 
-// ---- „Im Werk suchen“, gesperrte Links ----------------------------------------------------------------------
+// ---- „Im Werk suchen“, locked links -------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_search_button_is_named_for_what_a_lektor_can_do() {
@@ -357,7 +357,7 @@ async fn the_search_button_is_named_for_what_a_lektor_can_do() {
     );
     assert!(!author.contains(">Im Werk suchen (Strg+Umschalt+F)</a>"), "der Knopf der Lektoren fehlt beim Autor ganz");
 
-    // Ohne Konten: nur der eine Knopf, ohne Kennzeichen (wie vor Runde 35).
+    // Without accounts: only the one button, without marker (as before Round 35).
     let open = common::open().await;
     let (_, page) = open.get("/").await;
     assert!(
@@ -375,7 +375,7 @@ fn part_between<'a>(page: &'a str, start: &str, end: &str) -> Option<&'a str> {
 const COVER: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"60\" height=\"90\">\
 <rect width=\"60\" height=\"90\" fill=\"#35506b\"/></svg>\n";
 
-/// Links auf gesperrte Seiten: Das Umschlagbild in der Werkliste führte Lektoren auf `/werke/{id}/umschlag` (403).
+/// Links to locked pages: the cover image in the work list led Lektors to `/werke/{id}/umschlag` (403).
 #[tokio::test]
 async fn the_cover_in_the_work_list_is_no_link_to_a_locked_page_for_a_lektor() {
     let s = stage().await;
@@ -393,7 +393,7 @@ async fn the_cover_in_the_work_list_is_no_link_to_a_locked_page_for_a_lektor() {
     assert!(set.get("error").is_none(), "Umschlag gesetzt: {set}");
     let link = format!("<a href=\"/werke/{}/umschlag\">", s.granted);
     let image = format!("src=\"/werke/{}/bilder/{name}/vorschau?b=320\"", s.granted);
-    // Die Zelle des Umschlags in der Zeile des freigegebenen Werks.
+    // The cell of the cover in the row of the granted work.
     let cell = |page: &str| -> String {
         let at = page.find(&image).expect("das Umschlagbild steht in der Werkliste");
         let from = page[..at].rfind("<td class=\"works-cover\">").expect("Zelle des Umschlags");
@@ -411,7 +411,7 @@ async fn the_cover_in_the_work_list_is_no_link_to_a_locked_page_for_a_lektor() {
         !shown.contains("<a ") && !shown.contains(&format!("/werke/{}/umschlag", s.granted)),
         "aber ohne Link auf die Seite des Umschlags, die für sie gesperrt ist: {shown}"
     );
-    // Die Sperre selbst bleibt in roles – das Ausblenden ist nur Bequemlichkeit.
+    // The lock itself stays in roles – the hiding is only convenience.
     let (status, headers, _) = get_as(server, &s.erika, &format!("/werke/{}/umschlag", s.granted)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "die Seite des Umschlags bleibt für Lektoren gesperrt");
     assert!(denied_by_role(&headers), "abgelehnt von der Rollenprüfung");
@@ -419,9 +419,9 @@ async fn the_cover_in_the_work_list_is_no_link_to_a_locked_page_for_a_lektor() {
     assert_eq!(status, StatusCode::OK, "die Vorschau des Bilds ist erreichbar – kein toter Verweis in der Liste");
 }
 
-// ---- Anmelden und Einrichten nach dem Cookie baruch_theme ---------------------------------------------------
+// ---- Sign-in and setup according to the cookie baruch_theme -------------------------------------------------
 
-/// Das öffnende `<html …>` der Seite.
+/// The opening `<html …>` of the page.
 fn html_tag(page: &str) -> &str {
     let start = page.find("<html").expect("Seite mit <html>");
     &page[start..start + page[start..].find('>').unwrap() + 1]
@@ -429,7 +429,7 @@ fn html_tag(page: &str) -> &str {
 
 #[tokio::test]
 async fn the_login_and_setup_pages_follow_the_theme_cookie_without_javascript() {
-    // Einrichten: noch ohne Konten.
+    // Setup: still without accounts.
     let open = common::open().await;
     let (status, plain) = open.get("/einrichten").await;
     assert!(plain.contains("konto-seite"), "Vorbedingung: die Seite Einrichten wird gezeigt (Status {status})");
@@ -450,7 +450,7 @@ async fn the_login_and_setup_pages_follow_the_theme_cookie_without_javascript() 
         }
     }
 
-    // Anmelden: mit Konten, ohne Sitzung.
+    // Sign-in: with accounts, without a session.
     let s = stage().await;
     let server = &s.server;
     let (status, plain) = server.get("/anmelden").await;
@@ -461,7 +461,7 @@ async fn the_login_and_setup_pages_follow_the_theme_cookie_without_javascript() 
     let (_, _, light) = server.send(get_with_cookie("/anmelden", "baruch_theme=light")).await;
     assert_eq!(html_tag(&light), "<html lang=\"de\" data-theme=\"light\">", "hell nach dem Cookie");
     assert!(dark.contains("name=\"password\"") && !dark.contains("<script"), "das Formular bleibt, ohne JavaScript");
-    // Auch die Antwort auf eine gescheiterte Anmeldung (POST) folgt dem Cookie.
+    // The answer to a failed sign-in (POST) follows the cookie as well.
     let request = Request::post("/anmelden")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .header(header::COOKIE, "baruch_theme=dark")
@@ -470,7 +470,7 @@ async fn the_login_and_setup_pages_follow_the_theme_cookie_without_javascript() 
     let (status, _, failed) = server.send(request).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "falsches Passwort");
     assert_eq!(html_tag(&failed), "<html lang=\"de\" data-theme=\"dark\">", "auch die Fehlerseite ist dunkel");
-    // Der Stil hängt an genau diesem Attribut (hell und dunkel in app.css).
+    // The style depends on exactly this attribute (light and dark in app.css).
     let css = include_str!("../static/app.css");
     assert!(
         css.contains(":root[data-theme=\"dark\"]") && css.contains(":root:not([data-theme=\"light\"])"),

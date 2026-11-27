@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Personas im Store (Runde 9, Einstellungen „Assistenten“): `Store::persona_list` liest alle Felder
-//! aus der Tabelle (ohne Werk), `Store::update_persona` ändert Rolle, Modell, Kontextlänge und aktiv
-//! atomar, prüft die Grenzen und lässt bei jedem Fehler alles, wie es ist.
+//! Personas in the store (Round 9, settings „Assistenten“): `Store::persona_list` reads all fields from the table
+//! (without a work), `Store::update_persona` changes role, model, context length and active atomically, checks the
+//! limits and leaves everything as it is on every error.
 
 use baruch_core::sample;
 use baruch_store::{PERSONA_PALETTE, PersonaEdit, Store, StoreError};
@@ -28,7 +28,7 @@ async fn the_persona_list_reads_every_field_from_the_table_without_a_work() {
         assert_eq!(row.color, PERSONA_PALETTE[index], "{}: Vorgabefarbe nach Reihenfolge", row.handle);
         assert!(!row.chosen, "{}: keine eigene Farbe gewählt", row.handle);
     }
-    // Ohne Werke bleibt die Liste vollständig: Personas sind global.
+    // Without works the list stays complete: personas are global.
     sqlx::query("UPDATE persona SET context_length = 4096 WHERE handle = '@exeget'")
         .execute(store.pool())
         .await
@@ -96,7 +96,7 @@ async fn the_lector_follows_context_and_active_in_the_loaded_work() {
     let (_dir, store) = open().await;
     let work = store.default_work().await.unwrap();
     assert_eq!(store.load_work(work).await.unwrap().lector().unwrap().handle, "@lektor", "Vorgabe: fest @lektor");
-    // Runde 10: Dem Kontext folgt der Lektor nur in der Wahl „automatisch“.
+    // Round 10: the lector follows the context only in the choice „automatisch“.
     store.set_lector_choice(&baruch_core::LectorChoice::Auto).await.unwrap();
     store
         .update_persona("@nathan", &PersonaEdit { context_length: Some(200_000), ..Default::default() })
