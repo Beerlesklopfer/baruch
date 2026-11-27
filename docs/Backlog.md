@@ -5,7 +5,7 @@ der Arbeitsstand in `HANDOFF.md`.
 
 ## Nach 0.9.0 (Wünsche 2026-11-24/25, Stand nach Veröffentlichung von 0.9.0)
 
-Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; Runde 36), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
+Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; **erledigt in Runde 36**, 2026-11-27; Offenes unter „Runde 36“ und „Nach Runde 36 offen“), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37, als Nächstes) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
 - (**erledigt R36**: `baruch-typst` und `baruch-server typst`, Pakete mit `baruch-typst`, CI ohne Typst-Download; offen bleibt: AppImage, .dmg und .msi mit `baruch-typst` bauen und starten (Windows-`.cmd`, codesign mit Symlink), Gegenprobe `scripts/ci-typst.sh … typst` mit einem fremden Typst; die Typst-Schalter `--input`, `--pages`, `--pdf-standard`, Ausgabe auf stdout und `watch` sind bewusst nicht umgesetzt) **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
 - (**erledigt R36, nicht ausgeführt geprüft**: `pages.yml` läuft zusätzlich bei `release: published` und checkt dabei `main` aus; ob das die Beobachtung vom 2026-11-24 behebt, zeigt das nächste Release; Handweg `gh workflow run pages.yml --ref main`, siehe `docs/Verteilung.md`, „Auslieferung je Commit“) **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
@@ -77,7 +77,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-27: R13–R35 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-27: R13–R36 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -116,6 +116,41 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R32 | Word-Import, Word-Export, Baruch beenden (Vorhaben Lektorat) – **erledigt 2026-11-25** (≈ 200 min ab `35140b5` mit Prüfung, Nachbesserung `a9a1ffb` und PM-Abschluss; S1 `647ae42` auf `development` nach Runde 33, Vorlage `ccd471f`); nicht Teil von 0.9.0 | docx_import · docx_export · beenden | – |
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
+| R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
+
+### Nach Runde 36 offen (Prüfung und PM-Abschluss 2026-11-27)
+
+Die Prüfung nach der Integration meldete drei niedrige Befunde; es gab keine Nachbesserung. Der PM hat sie am
+Code nachgelesen und lässt sie stehen:
+
+- (niedrig, → Nutzer bei der Veröffentlichung) `pages.yml` bei `release: published` läuft mit dem Ref des Tags;
+  der Job `pages-deploy` nutzt die Umgebung `github-pages`. Lässt deren Regel Tags `v*` nicht zu, scheitert die
+  Auslieferung genau in dem Fall, den der Auslöser beheben soll. Außerdem gilt die Workflow-Datei am Tag-Commit:
+  Ein Tag vor diesem Stand löst nichts aus. Nie gelaufen. Die Einrichtung steht in `docs/Verteilung.md`
+  („Auslieferung je Commit“ und „Einmalige Einrichtung“, Schritt 3); der Handweg bleibt
+  `gh workflow run pages.yml --ref main`.
+- (niedrig, → Nutzerfrage) `baruch-typst compile --format pdf a.typ a.typ` überschreibt die Quelle mit der
+  Ausgabe (`typst_cli.rs`: kein Vergleich von Eingabe und Ausgabe). Das tut Typst ebenso; ohne `--format` lehnt
+  `format_of` die Endung `.typ` ab. Nicht geändert, weil der Alias sich wie Typst verhalten soll – ob Baruch hier
+  strenger sein soll als das Vorbild, entscheidet der Nutzer.
+- (niedrig) `baruch_render::cli::TYPST_VERSION` ist wörtlich „0.15.1“ und nicht aus der Abhängigkeit abgeleitet.
+  Nach einem Anheben von Typst stimmt `baruch-typst --version` erst wieder, wenn die Zeile mitgezogen wird; den
+  Abgleich mit `Cargo.lock` macht nur `scripts/ci-typst.sh` (lokal ausführbar, in der CI Pflicht). Beim nächsten
+  Anheben von Typst mit erledigen (`docs/Verteilung.md`, „Werkzeuge anheben“).
+
+Vom PM gegengelesen: die 73 Vermerke „R36: nicht bearbeitet, <Grund>“ der Aufgabe `reste` an den alten Stellen.
+Die Einordnung trägt (rund ein Dutzend „Browser nötig“, zwei Dutzend „Fachentscheidung“, der Rest „zu groß“ mit
+dem Umbau, den der Punkt verlangte); kein Punkt war so klein, dass er in die Runde gehört hätte. Einige dieser
+Zeilen sind durch den angehängten Satz länger als der übliche Umbruch – so gelassen, damit der Vermerk an seinem
+Punkt bleibt.
+
+Nicht eingereiht aus Runde 36 (→ Nutzerfrage, `docs/Fahrplan.md`, „Nicht eingereiht“): Live-Chat für Lektoren und
+eigene Beiträge der Lektoren auf `/beitrag` und `/beitraege` – beides verlangt neue Einträge in
+`LEKTOR_ROUTES`/`LEKTOR_RPC`, also eine Entscheidung über die Rechte der Lektoren.
+
+Aufgeräumt: Worktrees der Runde samt `target/` entfernt; die Zweige `team/typst_alias`, `team/sqlx09` (mit dem
+zusätzlichen Merge-Commit `2c06f76`) und `team/reste` bleiben. In podman liegen beendete Container früherer
+Runden (`baruch-r12-*`); der PM hat sie nicht angefasst.
 
 ### Runde 36 – integriert (Integrator, 2026-11-27)
 

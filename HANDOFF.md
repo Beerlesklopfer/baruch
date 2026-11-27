@@ -1,9 +1,19 @@
-# Übergabe (Stand 2026-11-27, Runde 36 „Reste“ **integriert** (Typst-Kommandozeile, sqlx 0.9.1, Reste; PM-Abschluss steht aus); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 36 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserung; sie stehen
+  in `docs/Backlog.md`, „Nach Runde 36 offen“ (`pages.yml` bei `release: published` braucht Tags `v*` in der
+  Umgebung `github-pages`; `baruch-typst compile --format pdf a.typ a.typ` überschreibt wie Typst die Quelle;
+  `TYPST_VERSION` steht wörtlich im Code). Voller Lauf des PM im Hauptordner nach `cargo clean -p` aller
+  Workspace-Crates: Exit 0, 215 Ergebnisse „ok“, 3527 bestanden, 0 gescheitert, 2 ignoriert; Server-Bündel 1568 bestanden; pgvector-Tests liefen mit.
+  `grep -rn "STUB:" crates` findet nur vier Zusicherungen in Tests, dass kein Vermerk mehr da ist – kein offener
+  Stub. Die 73 Vermerke „R36: nicht bearbeitet, <Grund>“ im Backlog sind gegengelesen. Worktrees der Runde samt
+  `target/` entfernt, die Zweige `team/typst_alias`, `team/sqlx09`, `team/reste` bleiben; Fahrplan nachgeführt
+  (als Nächstes Runde 37 „Hilfe auf der Webseite“, dann 0.9.1). Nicht gepusht. Bildschirmfotos der Sichtprüfung:
+  `.claude/sicht/r36/` (9 Bilder, nicht im Repo; der PM hat 02 und 05 nachgesehen).
 - **Runde 36 „Reste“ integriert** (2026-11-27, Integrator, auf `development`; Schnittstelle R36-S1 `d03be8d`;
   Zweige `team/typst_alias` `fdfe844`, `team/reste` `252b7fa` und zuletzt `team/sqlx09` `350cb5e` (vorher
   `development` in den Zweig geholt, `2c06f76`) mit `--no-ff`, **ohne Textkonflikte**; danach der
@@ -34,8 +44,6 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   - **Sichtprüfung** (Firefox headless, eigener Wegwerf-Server): 9 Fotos unter `.claude/sicht/r36/`; dabei
     behoben: Kopfzeile des Vorschlags im Lesefluss ohne Anzeigenamen. Offenes: `docs/Backlog.md`, „Runde 36 –
     integriert“.
-  - **Offen für den PM:** `docs/Fahrplan.md` nachführen, Begründungen „R36: nicht bearbeitet“ im Backlog
-    gegenlesen, Worktrees `.claude/worktrees/wf_64d48837-2a4-3/-4/-5` samt `target/` entfernen.
 - **Runde 35 abgeschlossen (PM, 2026-11-27):** Prüfung mit vier Befunden, der mittlere behoben (`40d6591`: Die Sperre
   gegen Durchprobieren zählt jetzt vor der Passwortprüfung, `Store::login_reserve`); die drei niedrigen stehen in
   `docs/Betrieb.md` und in `docs/Backlog.md`, „Nach Runde 35 offen“. Voller Lauf des PM im Hauptordner nach
@@ -2254,6 +2262,14 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. Nach Runde 36 (abgeschlossen, **keine Migration**, aber **sqlx 0.9.1**): Der Dienst des Nutzers wird nicht
+   angefasst. Vor dem Einspielen den Datenordner sichern – eine echte, von sqlx 0.8.6 geschriebene Datenbank hat
+   in der Runde niemand mit 0.9 geöffnet (nur nachgebaute; die Prüfsummen der Migrationen sind nachgerechnet).
+   Ansehen im eigenen Browser: `docs/Backlog.md`, „Runde 36 – Reste“ (Mindmap dunkel im breiten Fenster,
+   Token-Liste in schmaler Spalte, erster Aufruf nach einer Größenänderung, Anmeldeseite dunkel). Als Nächstes
+   nach Vorschlag des PM: Runde 37 „Hilfe auf der Webseite“, danach die Veröffentlichung 0.9.1 durch den Nutzer
+   (`docs/Fahrplan.md`, „Geplant“). Bei der Veröffentlichung zeigt sich erstmals, ob `scripts/ci-typst.sh` in
+   `ci.yml`, `pages.yml` bei `release: published` und `baruch-typst` in AppImage, .dmg und .msi laufen.
 0. Nach Runde 35 (integriert, **Migrationen 0053 und 0054**, nur neue Tabellen): Der Dienst des Nutzers wird nicht
    angefasst; vor dem Einspielen den Datenordner sichern. Ohne Konten ändert sich nach dem Einspielen nichts. Wer
    Konten will: am Rechner selbst (`http://127.0.0.1:8765/einrichten`) das Autor-Konto anlegen, dann Einstellungen →
