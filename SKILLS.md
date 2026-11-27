@@ -1536,6 +1536,18 @@ New sections of this file are written in English; the sections above are still G
   `development` and the English comment from the branch, then run the check between `development` and the branch
   (exit 0) before merging with `--no-ff`. A doc line that starts with an intra-doc link and a colon
   (`` [`NAME`]: text ``) is not a link definition; the check knows that since the integration of Round 38.
+- **Lessons of Round 38b (rest of the comments):** one developer manages about 1,500 to 1,900 umlaut lines
+  (3,000 to 3,800 comment lines) including one full run; measure with the scanners of the check tool and split by
+  path, never by line range. Two bracket characters in code spans with prose between them (`` `[` and `]` ``) are
+  not an intra-doc link; the check knows that since the integration of Round 38b (a target neither starts nor ends
+  with a blank). Before translating a file, grep the tests for its name: `crates/baruch-rag/src/lib.rs` is pinned
+  by a SHA-256 in `crates/baruch-rag/tests/port.rs` (`LIB_SHA256`), so a comment change there needs the new hash
+  in the same commit and is the integrator's job. Run `--umlaute --allow /dev/null` on the own paths: a broad allow
+  entry hides untranslated lines. Allow entries are narrow – path of one file, the quoted text as substring; a
+  single word as substring (`Prüfen`, `Löschen`) would also hide an untranslated line with that word. A stop-word
+  scan over the comments (German words without umlauts outside „…“ and backticks) finds what the umlaut check
+  cannot. German `//` comments inside JavaScript that a test carries in a raw string are string content: they stay
+  until the string itself is changed.
 - **List continuation in doc comments:** keep the list structure (`- `, `1. `) of a doc comment when translating;
   clippy `doc_lazy_continuation` fails otherwise.
 - **Work language in tests:** set it with `store.set_work_language(work, WorkLanguage::En)`; the model is

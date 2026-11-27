@@ -128,7 +128,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
 | R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **erledigt 2026-11-27** (≈ 95 min ab S1 `4a5b9d2` mit Prüfung und PM-Abschluss, Vertrag davor nicht in Git; Integration `ef9a9f0`; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“); nicht Teil von 0.9.0 | a hilfe_text · b webseite · c bilder | 150 |
 | R38 | **Part 1 done 2026-11-27, delivered in part** (≈ 162 min from `3fa5806` with review, follow-up `478be2a` and PM close; S1 `4315b01`, integration `511527f`; only a, b, c started, none finished its whole scope – see "Open after Round 38"; rest in R38b and R38c). Plan as it was: A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
-| R38b | Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
+| R38b | **Done 2026-11-27** (≈ 140 min from S1 `58b9dd5` to the integration; eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
 | R38c | Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models and the words read back from @schrift/@belege; the low review findings of Round 38 | a skills_plan · b bedienung_verteilung_wysiwyg · c architektur_1 · d architektur_2_austausch · e mcp_rpc_doku (two waves) | 120 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
@@ -1579,13 +1579,13 @@ never started (the round's output schema allowed three tasks, see contract §0) 
   from @schrift/@belege (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are recognised in German only, so
   an English work still gets these German words. Prompts of the personas other than the lector are about 140
   characters longer than before (language rule); only the lector prompt was trimmed to its old length.
-- **Comments still German:** server `src/import.rs` to `src/xref.rs` (97 files) and all of
+- (**done in Round 38b**, 2026-11-27, see "Round 38b – integrated" below) **Comments still German:** server `src/import.rs` to `src/xref.rs` (97 files) and all of
   `crates/baruch-server/tests/` (205 files), about 10,600 comment lines; everything of `kommentare_store`
   (`baruch-store`, `baruch-typst`) and `kommentare_rest` (the other crates, `web/src/**/*.ts`, `templates/**`,
   `scripts/`, `site/tools/`). `python3 scripts/check-comments-only.py --umlaute crates scripts site/tools` listed
   about 12,100 lines at integration. Suggested split: server src i–p, server src q–x, server tests, store+typst,
   rest. Before translating `src/typeset.rs` look at `tests/round33_seiten.rs` (reads that file).
-- **Allow list is broad:** `scripts/comment-umlaut-allow.txt` allows every comment line in `crates/baruch-server`
+- (**done in Round 38b**, 2026-11-27: the broad entry is removed, 570 narrow entries) **Allow list is broad:** `scripts/comment-umlaut-allow.txt` allows every comment line in `crates/baruch-server`
   that contains „ (quoted German UI text). That also hides untranslated lines with a quotation; narrow the entry
   when the server comments are finished.
 - **Vocabulary of the comment translation** (chosen freely by kommentare_server, to be kept by the follow-up):
@@ -1629,6 +1629,60 @@ never started (the round's output schema allowed three tasks, see contract §0) 
   3586 passed, 0 failed, 2 ignored in 218 test binaries (the PM session ended during its run at 19:50; the run was repeated on the same build by a second session, 19:51–19:54). Worktrees `.claude/worktrees/wf_8703464a-e4f-{3,4,5}` with their `target/` removed; the branches
   `team/regeln_doku`, `team/mcp_rpc`, `team/kommentare_server` stay. `docs/Fahrplan.md` updated: Round 38 as
   part 1, the rest as Rounds 38b (comments) and 38c (developer docs) before Round 39.
+
+### Round 38b – integrated (2026-11-27)
+
+Contract "Comments in English, rest": base `174c996`, S1 `58b9dd5` (selftest of the check tool extended), eight
+branches `team/r38b-<id>` (`srv_src_i_p`, `srv_src_q_z`, `srv_tests_1`, `srv_tests_2`, `store`, `crates_a`,
+`crates_b`, `web`), merged with `--no-ff` without a conflict. 801 files carry English comments now.
+
+- **Delivered:** every comment under `crates`, `scripts` and `site/tools` in the file types of the contract (Rust,
+  TypeScript, `{# #}` in templates, `#` in shell and Python) is English. `python3 scripts/check-comments-only.py
+  174c996 HEAD crates scripts site/tools` reports only `scripts/check-comments-only.py` itself (S1 and the fix
+  below) and one string, `LIB_SHA256` in `crates/baruch-rag/tests/port.rs` (next point). `--umlaute crates scripts
+  site/tools` exits 0 with the allow list; with an empty allow list 647 lines remain, all quoted German (texts of
+  the user interface, commit subjects, messages, user quotations, sample inputs, names in invented test data). A
+  stop-word scan over all comments (German words without umlauts outside „…“ and backticks) found 133 lines, all
+  of them quotations, names of ribbon tabs (Buch, Prüfen) or English words (Verse).
+- **Done by the integrator:** (1) `crates/baruch-rag/src/lib.rs` – the developer left it German because
+  `tests/port.rs` pins its SHA-256 and the file header reserves changes to the integrator; comments translated,
+  `LIB_SHA256` updated in the same commit (code and strings of `lib.rs` unchanged, proved with the check tool).
+  This is the only string changed in the round. (2) Check tool: the pattern for intra-doc links took
+  "`` `[` und `]` ``" for a link with the target " und "; a target now neither starts nor ends with a blank
+  (selftest 68 assertions). Three files were waiting for it (`baruch-typst/src/lib.rs`, `src/marker.rs`,
+  `baruch-wysiwyg/src/parse.rs`). (3) `crates_b` had translated all 119 files but reported before its full run
+  ended and had committed nothing; the integrator committed the worktree state on `team/r38b-crates_b` (`54e3b72`)
+  – fmt, clippy and tests of that branch ran only as part of the integrated run. (4) Allow list rebuilt from the
+  reported lines; the 106 lines of the Round 38 part 1 files that the broad entry had hidden got narrow entries
+  as well (all are quotations).
+- **Tests:** full run in the main folder after `cargo clean -p` of all workspace crates: 3586 passed, 0 failed,
+  2 ignored, 218 results "ok" (server bundle 1609; pgvector tests ran; run 2026-11-28). The count is the same as before
+  the round (3586 passed, 2 ignored, 218 results): no test was added or removed, the workspace has no doctests.
+  All seven developers who ran the full run on their branch reported the same numbers.
+- **Left open (small, not planned as a round):**
+  - German `//` comments inside JavaScript that `crates/baruch-server/tests/round18_satzbild.rs` carries in raw
+    strings (constants `DOM` and `SCENE`): string content, out of scope; goes with the strings (Round 39) or stays.
+  - `crates/baruch-server/tests/round23_web/widgets.mjs` (file type `.mjs`, out of scope) still has German comments;
+    likewise CSS, `.typ`, `.sql`, `.toml`, `.yml` as listed above under "Out of scope of Round 38".
+  - The fenced `text` block in the module doc of `crates/baruch-typst/src/marker.rs` keeps „Teil“ and
+    „Kapitel/Abschnitt ohne Nummer“ (code blocks in doc comments stay verbatim).
+  - Allow entries with a single word as substring (`Prüfen`, `Löschen`, `Frühling`, `Einfügen`, `Brücke`, `Über`,
+    `Menü`, `läuft` … – names of tabs and buttons without quotation marks, titles of invented test data, wrapped
+    quotations) would also hide a new untranslated line with that word in the same file. They are bound to one
+    file each; widen them to the phrase when such a file is touched.
+  - Wording outside the binding vocabulary differs slightly between branches (Bedeutungssuche = "semantic search"
+    in server src i–p and `baruch-rag`, "meaning search" in server src q–z; Stichwortzettel = "cue notes" / "cue
+    sheet"; Satz-Einstellungen = "typeset settings" / "typesetting settings"). Not unified.
+  - Ten trailing comments in server tests were moved to a line of their own above the statement, because the line
+    was already longer than 120 characters (`srv_tests_1`; the check accepts it). Four table rows in the module
+    doc of `crates/baruch-epub/src/xhtml.rs` stay longer than 120 characters (a Markdown table row cannot wrap).
+  - Comments quote headings of German documents („Nach Runde 14 offen“, „Zeitwächter“ in `docs/RPC.md` …); they
+    follow when Round 38c translates those documents (then also remove their allow entries).
+  - No runtime-visible doc comments exist (no clap derive, no `schemars::JsonSchema`), so none was left German
+    for that reason.
+- **For the PM:** the worktrees `.claude/worktrees/wf_b51eb61c-fd2-{3,4,5,6,7,8,9,10}` with their `target/` and
+  the branches `team/r38b-*` are still there. Visual check (no change of the user interface expected): one
+  picture of the work page, `.claude/sicht/r38b/` (not in the repository).
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 

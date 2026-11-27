@@ -89,8 +89,9 @@ fn the_identity_of_a_hit_ignores_case_and_margins() {
 
 /// SHA-256 of the files fixed verbatim (contract Round 12, appendix A; `src/lib.rs` extended by Round 19, S1;
 /// `Cargo.toml` extended by Round 24, S1: `publish = false`; `src/lib.rs` extended in Round 24 by an `#[allow]`
-/// with a reason before `is_weak`, code unchanged), the same in all branches.
-const LIB_SHA256: &str = "9131bf01b9453cc078ac1aad6c926ddad400ace68a38bd191e729fa1d5d65228";
+/// with a reason before `is_weak`, code unchanged; comments of `src/lib.rs` translated into English by the
+/// integrator of Round 38b, code and strings unchanged), the same in all branches.
+const LIB_SHA256: &str = "4ea249117202614e13a7e255376db6827adc11af819de3b2663bf5dd420bcdb0";
 const CARGO_SHA256: &str = "a034c2f423452dbf2f8caca79317c13921620cec85c6262fac622ca7ddd5eafe";
 
 fn sha256_hex(bytes: &[u8]) -> String {

@@ -6,16 +6,573 @@
 # Typical reasons: a quoted German text of the user interface, a marker such as „Kritisch:“, a proper name, a
 # comment whose wording a test asserts. Maintained by the integrator only; developers report wanted entries as
 # finished lines in their report.
-crates/baruch-server/*	„	quoted German UI text, marker, commit subject or user quotation (opening quote on the line)
+crates/baruch-docx/src/sample.rs	„Der Garten hinter der Mühle“	title of the invented German sample document
+crates/baruch-docx/src/sample.rs	„Der Zaun war grün gestrichen“	quoted wording of the invented German sample document
+crates/baruch-docx/src/write/styles.rs	„Überschrift 1“	style names as Word shows them in German
+crates/baruch-docx/src/write/styles.rs	„Fußnotentext“	style name as Word shows it in German
+crates/baruch-epub/tests/package.rs	„ÜBERSPRUNGEN“	quoted German test output
+crates/baruch-exchange/src/sample.rs	„führt weiter“	German XML word of a link kind in the sample work
+crates/baruch-gitmirror/src/lib.rs	„Fassung 2 gelöscht“	quoted German commit subject (example)
+crates/baruch-library/src/highlights.rs	Widerspruch, zu prüfen.	German display labels of the highlight kinds
+crates/baruch-library/src/highlights.rs	„nicht prüfbar“	quoted German UI labels of the full-text check
+crates/baruch-library/src/highlights.rs	„ä“	sample character (NFC comparison)
+crates/baruch-library/src/highlights.rs	„Ü“	sample character of the test text
+crates/baruch-library/src/lib.rs	„langmütig“	German sample word of the search
+crates/baruch-library/src/seed.rs	„langmütig“	German sample word of the seed data
+crates/baruch-library/tests/highlights.rs	„ä“	sample character (NFC comparison)
+crates/baruch-library/tests/library.rs	„langmütig“	German sample word of the test data
+crates/baruch-library/tests/library.rs	„Abhängigkeit“	German sample word of the test data
+crates/baruch-llm/src/lib.rs	„Verbindung prüfen“	quoted German UI label
+crates/baruch-llm/src/lib.rs	„Modelle der Personas über Eliezer“	quoted backlog title
+crates/baruch-llm/src/secret.rs	„Verbindung prüfen“	quoted German UI label
+crates/baruch-llm/src/secret.rs	k?>~ü ß/+9	invented test secret with umlauts (sample input)
+crates/baruch-llm/tests/client.rs	„ü“	sample character split across packets
+crates/baruch-render/src/lib.rs	für 300 dpi braucht es	quoted German print warning (example message)
+crates/baruch-render/tests/index_measure.rs	Ähre like Ahre	German sample headword of the sorting test
+crates/baruch-render/tests/index_measure.rs	„Römer“	German Bible book name
+crates/baruch-render/tests/schemes.rs	„nicht mit typst compile geprüft“	quoted German backlog entry
+crates/baruch-render/tests/typeset_measure.rs	„Vorlagenregel übernehmen“	quoted German button label
+crates/baruch-scripture/src/books.rs	„1. Kön“	German Bible book abbreviation (sample input)
+crates/baruch-scripture/src/lib.rs	„1. Kön	German Bible book abbreviation (sample input)
+crates/baruch-scripture/src/lib.rs	„1. Könige“	German Bible book name
+crates/baruch-scripture/src/lib.rs	Röm 8,28“	German Bible reference (sample input)
+crates/baruch-scripture/src/lib.rs	„Ob 3 oder 4 Gäste kommen“	German sample sentence
+crates/baruch-scripture/src/wording.rs	erzählt:	German sample sentence with introductory words (continuation line included)
+crates/baruch-scripture/src/wording.rs	„In Joh 3 heißt es: „…““	German sample sentence with introductory words
+crates/baruch-scripture/src/wording.rs	decomposed „ü“	the letter the comment is about
+crates/baruch-scripture/tests/mapping.rs	2. Kön 15	German Bible book abbreviation
+crates/baruch-server/src/about.rs	„Über Baruch“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/asset_requests.rs	„Bildantrag n bestätigt: …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/asset_requests.rs	„Bestätigen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assets.rs	„Bild hinzufügen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assets.rs	„Bild einfügen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/basis.rs	„geprüft: aktuelle Fassung n“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/basis.rs	„geprüft: Fassung n (Vorschlag von @x)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/basis.rs	„aktuelle Fassung enthält nur die Überschrift – Vorschlag n prüfen?“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/basis.rs	„geprüft:“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„übernommen in Fassung n“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„prüf den Vorschlag“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„bitte überprüfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„Kannst du das prüfen?“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„@nathan prüf den Vorschlag“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/chat.rs	„übernommen“	quoted German text (user interface, marker, prompt or commit subject)
 crates/baruch-server/src/assist/context.rs	können.“	continuation of a quoted user sentence
 crates/baruch-server/src/assist/context.rs	nicht erneut melden“	continuation of a quoted prompt line
-crates/baruch-server/src/assist/mod.rs	Lösungsvorschlag)“	continuation of a quoted note of Baruch
-crates/baruch-server/src/assist/prompts.rs	entmutigend für den Autor.“	continuation of a quoted user sentence
-crates/baruch-server/src/assist/solutions.rs	sind Lösungsvorschläge.	continuation of a quoted user sentence
-crates/baruch-server/src/assist/variants.rs	Lösungen als Vorschläge	continuation of a quoted user sentence
-crates/baruch-server/src/cover.rs	übernehmen“ (	continuation of a quoted button label
-crates/baruch-server/src/idea_map/links.rs	(angelegt|gelöscht|wiederhergestellt)“	continuation of a quoted commit subject
+crates/baruch-server/src/assist/context.rs	„Kapitel: 1 Frühjahr“	quoted German text (user interface, marker, prompt or commit subject)
 crates/baruch-server/src/assist/glossary.rs	`Begriff | kurze Erklärung`	answer form the model is asked for (code span)
+crates/baruch-server/src/assist/glossary.rs	`Begriff | Erklärung`	answer form the model is asked for (code span)
+crates/baruch-server/src/assist/mod.rs	Lösungsvorschlag)“	continuation of a quoted note of Baruch
+crates/baruch-server/src/assist/mod.rs	„zuerst, was trägt“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/mod.rs	„--- Titel: wird geprüft, steht unten im Wortlaut ---“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/mod.rs	„wird geprüft, steht unten“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/mod.rs	„Stück k von n (…)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	entmutigend für den Autor.“	continuation of a quoted user sentence
+crates/baruch-server/src/assist/prompts.rs	„Natürlich“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	„Natürlich …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	„Personas fragen, ob eine Kritik erledigt ist, wenn sie der Meinung sind, allem genüge getan zu haben.“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	„Was trägt:“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	„Natürlichkeit …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/prompts.rs	„Was aus dem Chat nicht hervorgeht, sind Lösungsvorschläge.	user quotation (continues on the next line)
+crates/baruch-server/src/assist/rag_facts.rs	„Ähnlichkeit 72 %“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/rag_facts.rs	„Ähnlichkeit (schwach, 12 %)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/rag_facts.rs	· Ähnlichkeit <p> %“	quoted German line of the facts block
+crates/baruch-server/src/assist/ref_claims.rs	„ (Stelle ungültig: <Grund>)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/ref_claims.rs	„Stelle ungültig“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/ref_claims.rs	„(Stelle ungültig: …)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	sind Lösungsvorschläge.	continuation of a quoted user sentence
+crates/baruch-server/src/assist/solutions.rs	„übernommen in Fassung n“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	„Besser wäre …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	„Schritt für Schritt …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	„übernommen in Fassung `rev`“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	„Lösungen umsetzen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	„übrige verwerfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/solutions.rs	`statt: „<wörtliches Zitat>“`	answer form the model is asked for (code span)
+crates/baruch-server/src/assist/variants.rs	Lösungen als Vorschläge	continuation of a quoted user sentence
+crates/baruch-server/src/assist/variants.rs	„übrige verwerfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/variants.rs	„@lektor setze die Lösungen in Varianten um“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/variants.rs	„Was hältst du von Varianten?“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/assist/variants.rs	„Wir sollten den Lektor befähigen, die	user quotation (continues on the next line)
+crates/baruch-server/src/assist/variants.rs	„[B3] kritisch: … – Lösungen: statt „x“ besser „y“; Schritt: …“	quoted German line of the call
+crates/baruch-server/src/auth/gate.rs	„Zurück zum Werk“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/band.rs	„Einfügen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/bible_research.rs	„Bäume“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/bibles.rs	„ungeprüft“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/bibles.rs	„Psalmüberschrift als Vers 1“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/chat_render.rs	„Was trägt:“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/chat_render.rs	„Was stört:“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/chat_render.rs	„Hinweis: Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft.“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/chat_render.rs	„geprüft: …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/chat_render.rs	title="Sprungmarke ungeprüft: …">	quoted HTML attribute with German user-interface text
+crates/baruch-server/src/connections/check.rs	„Verbindung prüfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/connections/mod.rs	„Verbindung prüfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/connections/multigpt.rs	„Verbindung prüfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/connections/multigpt.rs	„ö“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/connections/pages.rs	„Schlüssel verschlüsselter Module“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/connections/pgvector.rs	„Verbindung prüfen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover.rs	übernehmen“ (	continuation of a quoted button label
+crates/baruch-server/src/cover.rs	„Buchangaben geändert: <Felder>“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover.rs	„Buchangaben geändert: …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover.rs	„Impressum-Vorlage übernehmen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover_layout.rs	„Umschlag: Anordnung geändert“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover_layout.rs	„Umschlag: Anordnung geändert (Antrag N)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/cover_layout.rs	Anordnung zurückgesetzt“	continuation of a quoted commit subject
 crates/baruch-server/src/docx_import/mod.rs	ä→ae	transliteration rule of the handle
 crates/baruch-server/src/docx_import/mod.rs	ö→oe, ü→ue, ß→ss	transliteration rule of the handle
+crates/baruch-server/src/docx_import/mod.rs	„Änderungen aus Word von <Name>, <Datum>“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/docx_import/pages.rs	„Übernehmen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/epub_check.rs	„EPUBCheck ausführen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/exchange/import.rs	„Übernehmen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„offen, älter als n Tagen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„Sammelvorschläge“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„mit Lösung / ohne Lösung“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„2 mit Lösung, 1 ohne Lösung“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„2 offen, 1 übernommen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/page.rs	„Offen, älter als n Tage“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was trägt“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was stört“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was trägt:“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„(Stelle ungültig: …)“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was trägt / Was fehlt / Was stört“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was trägt: …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„Was trägt den Text? …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/parse.rs	„ohne Lösungsvorschlag“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/view.rs	„übernommen in Fassung `rev`“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/view.rs	„übernommen in Fassung 3“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/view.rs	„übernommen in Fassung 3 · Stand 2“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/findings/view.rs	„übernommen in Fassung …“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/glossary.rs	„Röm 3,24“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/glossary.rs	„röm 3, 24“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/idea_map/bild/mod.rs	„Lösen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/idea_map/bild/mod.rs	„Widersprüche“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/idea_map/bild/mod.rs	„Übernehmen“	quoted German text (user interface, marker, prompt or commit subject)
 crates/baruch-server/src/idea_map/files/export.rs	führt weiter	mirror notation of a link kind (code span)
+crates/baruch-server/src/idea_map/files/export.rs	„Widersprüche“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/idea_map/files/export.rs	„Nähe“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/idea_map/links.rs	(angelegt|gelöscht|wiederhergestellt)“	continuation of a quoted commit subject
+crates/baruch-server/src/ideas.rs	„Einfall <id>: umgehängt“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/ideas.rs	„Lösen“	quoted German text (user interface, marker, prompt or commit subject)
+crates/baruch-server/src/index_page.rs	„Übernehmen“	quoted German user-interface text
+crates/baruch-server/src/lib.rs	„Zurück zum Werk“	quoted German user-interface text
+crates/baruch-server/src/lib.rs	„Fassung ändern“	quoted German user-interface text
+crates/baruch-server/src/lib.rs	„wirklich löschen“	quoted German user-interface text
+crates/baruch-server/src/literature.rs	„vorheriger/nächster Teil“	quoted German user-interface text
+crates/baruch-server/src/literature.rs	„In die Bibliothek übernehmen“	quoted German user-interface text
+crates/baruch-server/src/literature.rs	„Abschnitt wählen“	quoted German user-interface text
+crates/baruch-server/src/literature.rs	„Bedeutungssuche nicht verfügbar: <Grund>.	quoted German message
+crates/baruch-server/src/literature.rs	„Ähnliches suchen“	quoted German user-interface text
+crates/baruch-server/src/literature/bibles.rs	„voriges/nächstes Kapitel“	quoted German user-interface text
+crates/baruch-server/src/literature/fulltext.rs	„nicht prüfbar“	quoted German user-interface text
+crates/baruch-server/src/literature/fulltext.rs	prüfbar“ with a reason	quoted German status text of the full-text check, wrapped across two lines
+crates/baruch-server/src/main.rs	„Baruch läuft“	quoted German user-interface text
+crates/baruch-server/src/mcp/cover.rs	Bilder → Anträge	German UI page path
+crates/baruch-server/src/mcp/outline.rs	„Ein LLM hat den besseren Überblick durch	user quotation
+crates/baruch-server/src/mcp/outline.rs	„UD nach Bestätigung“	user quotation
+crates/baruch-server/src/mcp/session.rs	„Büro“	German sample token name with umlaut
+crates/baruch-server/src/mcp/session.rs	(ä → ae, ö → oe, ü → ue, ß → ss)	transliteration rule names the umlauts
+crates/baruch-server/src/mcp/session.rs	„ü“	German sample token name with umlaut
+crates/baruch-server/src/mcp/tools.rs	„Nur eigene Beiträge …“	quoted German user-interface text
+crates/baruch-server/src/mcp/tools.rs	„Websuche für @belege“	quoted German user-interface text
+crates/baruch-server/src/menu.rs	tabs Start · Einfügen ·	German UI tab names
+crates/baruch-server/src/menu.rs	Prüfen · Buch · Ansicht	German UI tab names
+crates/baruch-server/src/menu.rs	tab Prüfen „N offen“	German UI tab name
+crates/baruch-server/src/menu.rs	„Anträge zur Gliederung“	quoted German user-interface text
+crates/baruch-server/src/menu.rs	„Über Baruch“	quoted German user-interface text
+crates/baruch-server/src/menu.rs	„Prüfen“	quoted German user-interface text
+crates/baruch-server/src/mirror.rs	„…: Fassung n geändert“	quoted German commit subject
+crates/baruch-server/src/mirror.rs	Fassung n gelöscht“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	„Fassung n geändert“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Fassung n gelöscht“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Fassungen: <Felder> geändert“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„was außer der aktuellen Fassung mitgelöscht wurde“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Bild <name>: hinzugefügt / Fassung n ersetzt	quoted German commit subject
+crates/baruch-server/src/mirror.rs	Fassung n gelöscht / gelöscht“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	„Bildantrag <id> bestätigt: <Zusammenfassung>“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Einfall <id>: angelegt|geändert|gelöscht|wiederhergestellt|verarbeitet als <…>“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Beitrag <id>: gelöscht“	quoted German commit subject
+crates/baruch-server/src/mirror.rs	„bestätigt“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„übernommen in Fassung 3“	quoted German commit subject or body text
+crates/baruch-server/src/mirror.rs	„Vorschlag „…“ bestätigt|abgelehnt|veraltet“	quoted German commit subject
+crates/baruch-server/src/mirror.rs	<Bezeichnungen> geändert“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	übernommen (Vorlagenfassung n)“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	angelegt|geändert|gelöscht|vorgeschlagen von <handle>|übernommen|verworfen“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	„…“)|gelöscht“	quoted German commit subject (wrapped)
+crates/baruch-server/src/mirror.rs	Registereintrag „<Stichwort>“ übernommen	quoted German commit subject
+crates/baruch-server/src/models.rs	„Verbindung prüfen“	quoted German user-interface text
+crates/baruch-server/src/outline.rs	„Löschen“	quoted German user-interface text
+crates/baruch-server/src/outline.rs	„bestätigt“	quoted German user-interface text
+crates/baruch-server/src/outline.rs	„neue Fassung n (Überschrift geändert)“	quoted German user-interface text
+crates/baruch-server/src/pdf.rs	„Für dieses Werk entsteht gerade ein	quoted German message
+crates/baruch-server/src/pdf.rs	„für dieses Werk entsteht ein PDF“	quoted German user-interface text
+crates/baruch-server/src/pdf.rs	„Typst brauchte länger als …“	quoted German user-interface text
+crates/baruch-server/src/pdf_import/mod.rs	„Übernehmen“	quoted German user-interface text
+crates/baruch-server/src/pdf_import/pages.rs	„Übernehmen“	quoted German user-interface text
+crates/baruch-server/src/posts.rs	„✕ Löschen“	quoted German user-interface text
+crates/baruch-server/src/posts.rs	„wirklich löschen“	quoted German user-interface text
+crates/baruch-server/src/posts.rs	„übernommen“	quoted German user-interface text
+crates/baruch-server/src/rag/check.rs	„Verbindung prüfen“	quoted German button label
+crates/baruch-server/src/rag/mod.rs	„Verbindung prüfen“	quoted German button label
+crates/baruch-server/src/revisions.rs	„Bis hier zurück“	quoted German button label
+crates/baruch-server/src/ribbon.rs	`@schlüssel`	German sample input of a citation key (code span)
+crates/baruch-server/src/rpc.rs	„Einfälle“	quoted heading of docs/RPC.md
+crates/baruch-server/src/rpc.rs	„ungeprüft“	quoted German result word of the wording check
+crates/baruch-server/src/rpc.rs	„Zeitwächter“	quoted heading of docs/RPC.md
+crates/baruch-server/src/rpc.rs	„Lösungsvorschläge und Varianten“	quoted heading of docs/RPC.md
+crates/baruch-server/src/rpc.rs	„nur Vorschläge lassen sich übernehmen“	quoted German error message
+crates/baruch-server/src/rpc.rs	„Zurück“	quoted German button label
+crates/baruch-server/src/scripture.rs	„ungeprüft“	quoted German result word of the wording check
+crates/baruch-server/src/scripture.rs	„Wortlaut geprüft von Baruch (nicht vom Modell)	quoted German line Baruch appends to answers
+crates/baruch-server/src/scripture.rs	hat ihn nicht selbst bestätigt (…).“	continuation of the quoted German line Baruch appends to answers
+crates/baruch-server/src/scripture_check.rs	„ungeprüft“	quoted German result words of the check display
+crates/baruch-server/src/scripture_check.rs	„Zitate prüfen“	quoted German link label
+crates/baruch-server/src/scripture_map.rs	„Stellenprüfung“	quoted heading of docs/RPC.md
+crates/baruch-server/src/search/page.rs	„Rückgängig“	quoted German button label
+crates/baruch-server/src/settings/mod.rs	„Menü und Einstellungen als Popup“	quoted German round title
+crates/baruch-server/src/settings/work.rs	übernehmen“ (`POST /werke/umschlag/impressum`	continuation of a quoted German button label
+crates/baruch-server/src/settings/work.rs	„ältere Fassungen ausblenden“	quoted German UI text
+crates/baruch-server/src/settings/work_typeset.rs	„Rand innen: 5 bis 80 mm; Schriftgröße: 6 bis 24 pt“	quoted German validation message
+crates/baruch-server/src/shutdown.rs	„Baruch läuft“	quoted German start line of the server
+crates/baruch-server/src/shutdown/signals.rs	„Baruch läuft“	quoted German start line of the server
+crates/baruch-server/src/threads.rs	„Fadenbeitrag n: gelöscht“	quoted German commit subject
+crates/baruch-server/src/threads.rs	„wirklich löschen“	quoted German checkbox label
+crates/baruch-server/src/timing.rs	„Zeitwächter“	quoted heading of docs/RPC.md
+crates/baruch-server/src/typeset.rs	„Typst brauchte länger als 60 s“	quoted German error message
+crates/baruch-server/src/typeset_settings.rs	„als Einstellung übernehmen“	quoted German UI text
+crates/baruch-server/src/typeset_settings.rs	„Satz: Einstellungen zurückgesetzt“	quoted German commit subject
+crates/baruch-server/src/view.rs	„ältere Fassungen“	quoted German switch label
+crates/baruch-server/src/view.rs	„ältere Fassungen ausblenden“	quoted German UI text
+crates/baruch-server/src/view.rs	„n ältere Fassungen“	quoted German switch label
+crates/baruch-server/src/view.rs	„Übernehmen“	quoted German button label
+crates/baruch-server/src/view.rs	„übernommen in dieser Fassung“	quoted German UI text
+crates/baruch-server/src/view.rs	„Bild einfügen“	quoted German button label
+crates/baruch-server/src/view.rs	„fest gewählt“	quoted German badge title
+crates/baruch-server/src/works.rs	„Werk geändert: <Felder>“	quoted German commit subject
+crates/baruch-server/src/works.rs	„Werk gelöscht: <Titel>“	quoted German commit subject
+crates/baruch-server/src/works.rs	„größer als 16 MiB“	quoted German error message
+crates/baruch-server/src/works.rs	„Werk geändert: Titel, Autor, Werkvorlage Fassung 3“	quoted German commit subject
+crates/baruch-server/src/works.rs	„Werk gelöscht: …“	quoted German commit subject
+crates/baruch-server/src/works.rs	„Zurück“	quoted German button label
+crates/baruch-server/src/xref.rs	„mögliche	quoted German list title (continues on the next line)
+crates/baruch-server/src/xref.rs	„zwölfte“	German sample input of an ordinal number
+crates/baruch-server/templates/assets.html	„Bild hinzufügen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/base.html	Über	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/base.html	Prüfen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/base.html	„Einfügen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/base.html	„Öffnen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/befunde.html	„offen, älter als n Tagen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/befunde.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/consent.html	„Später entscheiden“	quoted German user-interface text or sample input
+crates/baruch-server/templates/epub_check.html	„EPUBCheck ausführen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/exchange_preview.html	„Übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/asset_requests.html	„Bestätigen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assist_scope.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	„fest gewählt“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	„größter Kontext“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	„geprüft: …“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/assistants.html	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	Prüfen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/assistants.html	Fäden	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/assistants.html	„Ältere Beiträge“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/assistants.html	„Beitrag öffnen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/basis_select.html	„geprüft: …“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/cover_panel.html	„Impressum-Vorlage in die Werkvorlage übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/edit_toolbar.html	Einfügen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/edit_toolbar.html	„n ältere verbergen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/edit_toolbar.html	„Einfügen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/edit_toolbar.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/editor.html	„Fassung ändern“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/editor.html	„Löschen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/editor.html	„n ältere verbergen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/finding_block.html	„Als Vorschlag übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/findings_panel.html	„Bestätigen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/highlights.html	„Gegen den Volltext prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/highlights.html	„Als eigene übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/post_item.html	„geprüft: …“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/post_item.html	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/post_item.html	öffnen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/post_solutions.html	„Als Vorschlag übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/post_solutions.html	Lösung	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/post_solutions.html	„übernommen in Fassung n“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/post_solutions.html	Lösungen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/proposals.html	„n offene Vorschläge“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/revisions.html	„Fassung ändern“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/revisions.html	„Löschen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/revisions.html	„n ältere Fassungen zeigen ▸ / verbergen ▾“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/revtree.html	„geändert“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/revtree.html	„übernommen in dieser Fassung“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/toast.html	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/tree.html	wählen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/fragments/tree.html	„N Anträge zur Gliederung“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/tree.html	„Zielzeit überschritten um m:ss“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/tree.html	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/tree.html	„Nur Kapitel römisch“	quoted German user-interface text or sample input
+crates/baruch-server/templates/fragments/tree.html	Bestätigen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/idea.html	„Lösen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/karte_gliederung.html	„Wählen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/literature.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/literature_bible.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/outline.html	„Bestätigen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/post.html	„Löschen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/post.html	„wirklich löschen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/posts.html	„Beitrag öffnen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/posts.html	geprüft	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/posts.html	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/revision_history.html	„Bis hier zurück“	quoted German user-interface text or sample input
+crates/baruch-server/templates/scripture_check.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/search.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/settings/quellen.html	„Verschlüsselung“	quoted German user-interface text or sample input
+crates/baruch-server/templates/settings/verbindungen.html	„Verbindung prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/settings/werk.html	übernehmen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/source.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/source_multigpt.html	„vorheriger/nächster Teil“	quoted German user-interface text or sample input
+crates/baruch-server/templates/source_multigpt.html	„In die Bibliothek übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/source_multigpt.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/sync.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/thread.html	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/typeset.html	Zurück	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/variants.html	übrige	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/work_numbering.html	„Übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/works.html	Öffnen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/works.html	Ändern	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/works.html	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/templates/workspace.html	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/templates/xrefs.html	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/tests/fassungen_ausblenden.rs	„4 ältere Fassungen zeigen“	quoted German UI text, message or marker
+crates/baruch-server/tests/headings.rs	„Fassung ändern“	quoted German UI text, message or marker
+crates/baruch-server/tests/headings.rs	Frühling	German title of invented test data (proper name)
+crates/baruch-server/tests/kritik_zyklus.rs	„Prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/literature.rs	„Abschnitt wählen“	quoted German UI text, message or marker
+crates/baruch-server/tests/node_keys.rs	Frühling	German title of invented test data (proper name)
+crates/baruch-server/tests/node_keys.rs	„Frühling“	quoted German title or text of invented test data
+crates/baruch-server/tests/numbering.rs	Frühling	German title of invented test data (proper name)
+crates/baruch-server/tests/numbering.rs	„Nur Kapitel römisch“	quoted German UI text, message or marker
+crates/baruch-server/tests/outline.rs	Frühling	German title of invented test data (proper name)
+crates/baruch-server/tests/personas.rs	„Zurück zum Werk“	quoted German UI text, message or marker
+crates/baruch-server/tests/pgvector_support/mod.rs	ÜBERSPRUNGEN	German message of the tests on stderr
+crates/baruch-server/tests/round10.rs	„Wortlaut: ungeprüft“	quoted German UI text, message or marker
+crates/baruch-server/tests/round10.rs	„Prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round10_models.rs	„Verbindung prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round10_personas.rs	Frühjahr	German title of invented test data (proper name)
+crates/baruch-server/tests/round10_personas.rs	„[… gekürzt: n Zeichen]“	quoted German UI text, message or marker
+crates/baruch-server/tests/round10_scripture.rs	„ungeprüft“	quoted German UI text, message or marker
+crates/baruch-server/tests/round11.rs	„Bildantrag n bestätigt“	quoted German UI text, message or marker
+crates/baruch-server/tests/round11_images.rs	„Bild einfügen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round12_lancedb.rs	„Verbindung prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round12_pgvector.rs	„Verbindung prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round12_search_ui.rs	„ließ sich nicht“	quoted German UI text, message or marker
+crates/baruch-server/tests/round13.rs	„Die Fähre im Nebel“	quoted German title or text of invented test data
+crates/baruch-server/tests/round13_abgleich.rs	Prüfen	name of a ribbon tab (German UI text)
+crates/baruch-server/tests/round13_websuche.rs	„Websuche für @belege“	quoted German UI text, message or marker
+crates/baruch-server/tests/round14_conversion.rs	Fähre	German title of invented test data (proper name)
+crates/baruch-server/tests/round14_numbering.rs	Frühling	German title of invented test data (proper name)
+crates/baruch-server/tests/round14_numbering.rs	„Seite Gliederungsschema: große Abstände oben“	quoted German UI text, message or marker
+crates/baruch-server/tests/round15.rs	„wird geprüft“	quoted German UI text, message or marker
+crates/baruch-server/tests/round15_lektor.rs	Frühjahr	German title of invented test data (proper name)
+crates/baruch-server/tests/round15_nachbesserung.rs	„Stück k von n (…)“	quoted German UI text, message or marker
+crates/baruch-server/tests/round15_nachbesserung.rs	„wird geprüft, steht unten“	quoted German UI text, message or marker
+crates/baruch-server/tests/round16_antraege.rs	„Später entscheiden“	quoted German UI text, message or marker
+crates/baruch-server/tests/round16_zeit.rs	„Zeitwächter“	German round or task name (proper name)
+crates/baruch-server/tests/round17.rs	„Verszählungen“	German round or task name (proper name)
+crates/baruch-server/tests/round17.rs	„Zitate prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round17_pruefanzeige.rs	„Prüfanzeige“	German round or task name (proper name)
+crates/baruch-server/tests/round18_menueband.rs	Einfügen	name of a ribbon tab (German UI text)
+crates/baruch-server/tests/round18_menueband.rs	„Menüband der Satz-Ansicht“	quoted German UI text, message or marker
+crates/baruch-server/tests/round18_satzbild.rs	„ä“	the letter itself is the subject (UTF-16 length)
+crates/baruch-server/tests/round18_satzbild.rs	„ÜBERSPRUNGEN“	quoted German UI text, message or marker
+crates/baruch-server/tests/round18_satzbild.rs	„Bild einfügen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round20_abnahme.rs	„Die Stürme“	quoted German title or text of invented test data
+crates/baruch-server/tests/round20_abnahme.rs	„Der Wärter“	quoted German title or text of invented test data
+crates/baruch-server/tests/round20_abnahme.rs	Wärter	German title of invented test data (proper name)
+crates/baruch-server/tests/round20_epub.rs	„Mühle“	quoted German title or text of invented test data
+crates/baruch-server/tests/round20_epub.rs	„Die Mühle“	quoted German title or text of invented test data
+crates/baruch-server/tests/round21_abnahme.rs	„Der Frühling“	quoted German title or text of invented test data
+crates/baruch-server/tests/round21_pdf_import.rs	„ÜBERSPRUNGEN“	quoted German UI text, message or marker
+crates/baruch-server/tests/round22_abnahme.rs	„Das Fährhaus am Deich“	quoted German title or text of invented test data
+crates/baruch-server/tests/round22_befunde.rs	„Fährhaus“	quoted German title or text of invented test data
+crates/baruch-server/tests/round22_befunde.rs	„Prüfen“	quoted German UI text, message or marker
+crates/baruch-server/tests/round22_befunde.rs	„Der Befund lässt sich nirgends anspringen“	user quotation
+crates/baruch-server/tests/round23_abnahme.rs	„Härtung“	German round or task name (proper name)
+crates/baruch-server/tests/round23_abnahme.rs	„Das Mühlenbuch“	quoted German title or text of invented test data
+crates/baruch-server/tests/round23_abnahme.rs	nutzer:schlüssel	German placeholder inside a code span
+crates/baruch-server/tests/round23_geheimnisse.rs	„Härtung“	German round or task name (proper name)
+crates/baruch-server/tests/round23_mcp_namen.rs	„Härtung“	German round or task name (proper name)
+crates/baruch-server/tests/round23_mcp_namen.rs	„Mühlenbuch“	quoted German title or text of invented test data
+crates/baruch-server/tests/round23_mcp_namen.rs	„Werkstatt_Süd“	quoted German title or text of invented test data
+crates/baruch-server/tests/round23_mcp_namen.rs	(ü → '-')	the letter itself is the subject (handle rule)
+crates/baruch-server/tests/round23_mcp_namen.rs	„Büro“	quoted German title or text of invented test data
+crates/baruch-server/tests/round23_web.rs	„Härtung“	German round or task name (proper name)
+crates/baruch-server/tests/round23_web/befunde.rs	„Offen, älter als n Tage“	quoted German UI text, message or marker
+crates/baruch-server/tests/round23_web/fassungen.rs	„Fassung ändern“	quoted German UI text, message or marker
+crates/baruch-server/tests/round23_web/schutz.rs	„Anträge zur Gliederung“	quoted German UI text, message or marker
+crates/baruch-server/tests/round23_web/schutz.rs	Prüfen	name of a ribbon tab (German UI text)
+crates/baruch-server/tests/round23_web/widgets.rs	„ÜBERSPRUNGEN“	quoted German UI text, message or marker
+crates/baruch-server/tests/round23_web/widgets.rs	„ trägt.“	quoted German title or text of invented test data
+crates/baruch-server/tests/round24_abnahme.rs	„Unveröffentlicht“	quoted German UI text, message or marker
+crates/baruch-server/tests/round24_pakete.rs	„Über Baruch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round24_pakete.rs	„keine Aktualisierungsprüfung“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_abnahme.rs	„Dämmerung“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_abnahme.rs	„führt weiter“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_bild.rs	„ÜBERSPRUNGEN (R25a fehlt)“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_bild.rs	„Lösen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_bild.rs	Einfälle	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round25_daten.rs	„Säen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_daten.rs	Säen	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round25_daten.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round25_daten.rs	„Ränder“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round25_widget.rs	„gehört zu“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round26_export.rs	„Die Mühle“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round26_roundtrip.rs	„Umschalten genügt“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round27_daten.rs	Bestätigen	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round27_widget.rs	„Impressum-Vorlage in die Werkvorlage übernehmen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round27_widget.rs	ÜBERSPRUNGEN	test message literal
+crates/baruch-server/tests/round28_abnahme.rs	„Brückenbuch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round28_abnahme.rs	„Brücke“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round28_abnahme.rs	Brücke	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round28_abnahme.rs	„Sammelvorschläge“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round28_befunde.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round28_chat.rs	„übernommen in Fassung n“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round28_uebersicht.rs	Prüfen	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round29_abnahme.rs	„Fährhausbuch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round29_abnahme.rs	„nie still überschreiben“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_abnahme.rs	„Küstenbuch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_abnahme.rs	„Brücke“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_abnahme.rs	„Rückschau“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_abnahme.rs	Rückschau	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round30_abnahme.rs	„Als Vorschlag übernehmen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_bedienung.rs	„Brückenbuch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_bedienung.rs	Brücke	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round30_loesungen.rs	„ohne Lösungsvorschlag“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_loesungen.rs	„Lösungen umsetzen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_varianten.rs	„übrige verwerfen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round30_verweise.rs	„Rückblick“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round31_abnahme.rs	„Die Wärterin vom Kap“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round31_kontextmenue.rs	„ÜBERSPRUNGEN“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round31_kontextmenue.rs	„k<Schlüssel>“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round32_abnahme.rs	„Baruch läuft“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round32_abnahme.rs	läuft	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round32_beenden.rs	„Baruch läuft“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round32_beenden.rs	„läuft schon“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round32_docx_import.rs	„Jörg Müller“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round33_laptop.rs	ÜBERSPRUNGEN	test message literal
+crates/baruch-server/tests/round33_laptop.rs	„ÜBERSPRUNGEN“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round33_seiten.rs	„Zoom zurücksetzen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round33_seiten.rs	„Menüband“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round34_abnahme.rs	„Rückgängig“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round34_daten.rs	„Fähre“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round35_abnahme.rs	„Bärbel“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round35_abnahme.rs	„Zurück zum Werk“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round35_konten.rs	„Baruch läuft“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round36_reste.rs	ÜBERSPRUNGEN	test message literal
+crates/baruch-server/tests/round37_bilder.rs	„Über Baruch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round4.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round7_titles.rs	„Absatz wird Überschrift“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round7_titles.rs	„Überschrift 2“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round8.rs	„Die Brücke“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round8_posts.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round8_typst.rs	„nicht mit typst compile geprüft“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_connections.rs	„Verbindung prüfen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	Einfügen	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round9_menu.rs	Menü	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round9_menu.rs	Über	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round9_menu.rs	„genau eine Kopfzeile mit den drei Menüs“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	Prüfen	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/tests/round9_menu.rs	„Über Baruch“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	„statt elf Knöpfen nur noch der Thema-Umschalter als Knopf“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	„Zurück zum Werk“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	„Erst ein Werk wählen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	„Werk wählen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/round9_menu.rs	„Werk ändern“	quoted German text (UI label, message or invented sample title)
+crates/baruch-server/tests/tree.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-server/web/src/assist.ts	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/band.ts	„Prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/chat.ts	„Neue Beiträge ↓“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/chat.ts	„Ältere Beiträge“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/chat.ts	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/web/src/chat.ts	„Beitrag öffnen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/consent.ts	„Später entscheiden“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/findings.ts	„Zurück zur ganzen Matrix“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/jump.ts	„Zurück zum Chat“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/jump.ts	„← Zurück“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/jump.ts	„Vorwärts →“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/laptop.ts	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/library.ts	#lit-<Schlüssel>	German user-interface label or placeholder kept verbatim
+crates/baruch-server/web/src/library.ts	„langmütig“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/literature.ts	Ähnliches	German user-interface label or placeholder kept verbatim
+crates/baruch-server/web/src/literature.ts	„langmütig“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/menu.ts	Prüfen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/web/src/menu.ts	„Anträge zur Gliederung“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/mindmap.ts	„Rückgängig“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/outline.ts	Löschen	German user-interface label or placeholder kept verbatim
+crates/baruch-server/web/src/scripture_check.ts	„Zitate prüfen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/sheet.ts	„Bild einfügen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/sheet.ts	„Bild einfügen …“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/toast.ts	„Schließen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/typeset_settings.ts	„Zurücksetzen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/variants.ts	„Unterschied zu den übrigen Varianten“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/variants.ts	„Übrige verwerfen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/works.ts	„Öffnen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/ws_command.ts	`@schlüssel`	quoted German user-interface text or sample input
+crates/baruch-server/web/src/wysiwyg.ts	„Übernehmen“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/wysiwyg.ts	`@schlüssel`	quoted German user-interface text or sample input
+crates/baruch-server/web/src/xref.ts	„Öffnen | Bearbeiten“	quoted German user-interface text or sample input
+crates/baruch-server/web/src/zoom.ts	„Zoom zurücksetzen“	quoted German user-interface text or sample input
+crates/baruch-store/src/assets.rs	Das Bild ist unverändert.	quoted German refusal message (user-interface text)
+crates/baruch-store/src/assets.rs	Die Fassung ist unverändert.	quoted German refusal message (user-interface text)
+crates/baruch-store/src/exchange_apply.rs	„hier gelöscht“	quoted German heading of the exchange report (user-interface text)
+crates/baruch-store/src/exchange_apply.rs	„Nicht übernommen“	quoted German heading of the exchange report (user-interface text)
+crates/baruch-store/src/findings.rs	„übernommen“	quoted German status labels (FindingStatus::label)
+crates/baruch-store/src/idea_links.rs	„führt weiter“	quoted German link label (LinkKind::label)
+crates/baruch-store/src/idea_links.rs	„→ 79 führt weiter“	quoted line of the mirror file einfaelle.md (German output)
+crates/baruch-store/src/idea_links.rs	„gehört zu“	quoted German link label (LinkKind::label)
+crates/baruch-store/src/idea_links.rs	„Beispiel für“	quoted German link label (LinkKind::label)
+crates/baruch-store/src/ideas.rs	→ 79 führt weiter; ↔ 48 widerspricht	quoted line of the mirror file einfaelle.md (German output)
+crates/baruch-store/src/import.rs	„// Baruch: Überschriften	quoted marker line that the export writes into the Typst file
+crates/baruch-store/src/lib.rs	„Nur Vorschläge lassen sich übernehmen.“	quoted German refusal message (user-interface text)
+crates/baruch-store/src/lib.rs	ä→ae ö→oe ü→ue ß→ss	transliteration rule of slug() names the umlauts themselves
+crates/baruch-store/src/mcp_tokens.rs	„Laptop Küche“	German sample input (token name with umlaut)
+crates/baruch-store/src/outline.rs	vor „Frühling“ verschoben	quoted German commit subject (sample)
+crates/baruch-store/src/outline.rs	römisch“	quoted German name of a numbering scheme (user-interface text), wrapped across two lines
+crates/baruch-store/src/outline.rs	(höchstens 200 Zeichen, hier N)	quoted German title-rule message (user-interface text)
+crates/baruch-store/src/replace.rs	„Rückgängig“	quoted German button label (user-interface text)
+crates/baruch-store/src/requests.rs	„UD nach Bestätigung“	user quotation (wish of 2026-11-06)
+crates/baruch-store/src/requests.rs	„bestätigt“	quoted German decision labels (user-interface text)
+crates/baruch-store/src/revision_fold.rs	„Ältere Fassungen ausblenden bis …“	quoted German user-interface text
+crates/baruch-store/src/snapshot.rs	// Baruch: Überschriften ohne Nummer über die Sprungmarke	quoted marker line that the export writes into the Typst file
+crates/baruch-store/src/tree.rs	Vorschläge lassen sich übernehmen.")	quoted German refusal message (user-interface text)
+crates/baruch-store/src/tree.rs	lässt sich nicht löschen; erst auf eine andere umschalten.	quoted German refusal message (user-interface text)
+crates/baruch-store/tests/assets.rs	„Bild einfügen“	quoted German UI label / backlog title
+crates/baruch-store/tests/exchange_apply.rs	„Schöpfeimer“	German sample term of the test data
+crates/baruch-store/tests/exchange_dump.rs	Zwischenstück	German sample title of the test data
+crates/baruch-store/tests/exchange_map.rs	„Anordnung zurücksetzen“	quoted German UI label
+crates/baruch-store/tests/import_export_blocks.rs	„// Baruch: Überschriften ohne Nummer“	literal marker line written by the export
+crates/baruch-store/tests/migration_0040.rs	„ältere Fassungen ausblenden“	quoted German UI text, message or marker
+crates/baruch-store/tests/migration_0041.rs	„ältere Fassungen ausblenden“	quoted German UI text, message or marker
+crates/baruch-store/tests/migration_0053.rs	„gesät“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/round14_numbering.rs	„SQLite bleibt unverändert“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/round23_web.rs	„Ändern über den Baum“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/round23_web.rs	„übernommen in Fassung n“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/sqlx09_migrations.rs	„gesät“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/switch_level.rs	„Ebene ändern“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/switch_level.rs	Frühling	German proper name (UI label or title in the invented sample work)
+crates/baruch-store/tests/typeset.rs	„Nicht übernommen“	quoted German text (UI label, message or invented sample title)
+crates/baruch-store/tests/uuids.rs	„Die Bäume“	quoted German text (UI label, message or invented sample title)
+crates/baruch-sword/src/lib.rs	„Verszählung „X“ kennt Baruch nicht“	quoted German error message
+crates/baruch-sword/src/reference.rs	„Bäume“	German sample words of the lemma probe
+crates/baruch-sword/src/reference.rs	„Bäum“ → „Baum“, „Söhn“ → „Sohn“, „Füß“ → „Fuß“	German sample words of the lemma probe
+crates/baruch-typst/src/cover_layout.rs	Vorderseite, Rücken, Rückseite	German display names of the cover faces
+crates/baruch-typst/src/index.rs	(ä = a, ö = o, ü = u), ß = ss	sample characters of the DIN 5007-1 sort rule
+crates/baruch-typst/src/index/back.rs	„Ägypten“	German sample keyword
+crates/baruch-typst/src/timing.rs	„Zeitwächter“	proper name of the feature / section title in docs/Bedienung.md
+crates/baruch-typst/src/typeset/rules.rs	„Vorlagenregel übernehmen“	quoted German button label
+crates/baruch-typst/tests/scheme.rs	„Nur Kapitel römisch“	quoted German UI label
+crates/baruch-typst/tests/timing.rs	„Zeitwächter“	proper name of the feature
+crates/baruch-typst/tests/typeset_rules.rs	„Vorlagenregel übernehmen“	quoted German button label
+crates/baruch-wysiwyg/src/emit.rs	`(ort: [Küche])`	Typst sample input (code span)
+crates/baruch-wysiwyg/src/html.rs	„Öffnen | Bearbeiten“	quoted German menu labels
+crates/baruch-wysiwyg/src/lib.rs	`/ Begriff: Erklärung`	Typst sample input (code span)
+crates/baruch-wysiwyg/src/lib.rs	`#szene(ort: [Küche])[…]`	Typst sample input (code span)
+scripts/ci-check-workflows.sh	„Regeln der Arbeitsabläufe“	quoted German user-interface text or sample input
+scripts/ci-fingerprint.sh	„Schlüssel für das	quoted heading of docs/Verteilung.md (quote continues on the next line)
+site/tools/bildschirmfotos.py	„Zitate prüfen“	quoted German user-interface text or sample input
+site/tools/bildschirmfotos.py	<kSchlüssel>	German user-interface label or placeholder kept verbatim

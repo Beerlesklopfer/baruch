@@ -47,10 +47,20 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
   `bible_research`, `bibles`, `chat_live`, `chat_render`, `consent`, `cover*`, `epub*`, `glossary*`, `guard`). Only
   comments changed – no string, identifier or behaviour (`scripts/check-comments-only.py` proves it); quoted German
   UI texts and markers stay verbatim.
+- **Comments, rest (Round 38b):** All remaining comments are English: the server modules `import` to `xref`, the
+  server tests, every other crate (`baruch-store`, `baruch-typst`, `baruch-core`, `baruch-gitmirror`,
+  `baruch-lancedb`, `baruch-rag`, `baruch-library`, `baruch-llm`, `baruch-docx`, `baruch-epub`, `baruch-exchange`,
+  `baruch-render`, `baruch-scripture`, `baruch-sword`, `baruch-wysiwyg`), the TypeScript widgets, the developer
+  comments of the templates (`{# #}`), the scripts under `scripts/` and `site/tools/bildschirmfotos.py` – 801 files.
+  Only comments changed; the one exception is the checksum in `crates/baruch-rag/tests/port.rs`, which pins
+  `crates/baruch-rag/src/lib.rs` byte for byte and follows its translated comments. Quoted German texts of the user
+  interface, commit subjects, user quotations and sample inputs stay German inside the English sentences; every
+  such comment line with an umlaut has its own entry in `scripts/comment-umlaut-allow.txt` (the broad entry for
+  `crates/baruch-server` is gone), so `check-comments-only.py --umlaute crates scripts site/tools` is empty. The
+  check tool no longer takes two bracket characters in code spans for an intra-doc link.
 - **Not finished, still German** (see `docs/Backlog.md`, "Open after Round 38"): `docs/MCP.md` and `docs/RPC.md`
-  apart from their new Round 38 sections; the task texts Baruch puts around a section when it calls a model; the
-  comments of the server modules `import` to `xref`, of the server tests and of all other crates, TypeScript
-  sources, templates and scripts.
+  apart from their new Round 38 sections; the task texts Baruch puts around a section when it calls a model; seven
+  developer documents (Round 38c). Strings, test names and assertion messages are German until Round 39.
 - **Acceptance:** `round38_abnahme` (4 tests: the work language from the form through the exchange file to a second
   instance and from an older file, English interfaces with a German user interface, language rule in the prompt
   with unchanged German behaviour, tools and records of the round).

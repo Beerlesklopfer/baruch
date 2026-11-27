@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-27, Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Round 38b "Comments in English, rest" **integrated** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; PM close open); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -6,6 +6,29 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Round 38b "Comments in English, rest" integrated** (2026-11-27/28, integrator, on `development`; base
+  `174c996`, S1 `58b9dd5`; branches `team/r38b-srv_src_i_p` `52a4567`, `-srv_src_q_z` `8fff3d9`, `-srv_tests_1`
+  `e26c8c4`, `-srv_tests_2` `89aac9e`, `-store` `d36ad3b`, `-crates_a` `2e03ac5`, `-crates_b` `54e3b72`, `-web`
+  `74ba07d` merged with `--no-ff`, no conflict; then the integration commit; not pushed). Version unchanged 0.9.0,
+  CHANGELOG under „Unveröffentlicht“. No migration (highest 0055), no new route, RPC method or MCP tool, no stub.
+  **Delivered:** comments English in 801 files – server `src/import.rs` to `src/xref.rs`, server tests, all other
+  crates, TypeScript, template comments `{# #}`, `scripts/`, `site/tools/bildschirmfotos.py`. Comments only; the
+  one changed string is `LIB_SHA256` in `crates/baruch-rag/tests/port.rs` (it pins `crates/baruch-rag/src/lib.rs`,
+  whose comments the integrator translated because the file is reserved to him).
+  **Checks:** `check-comments-only.py 174c996 HEAD crates scripts site/tools` reports only the tool itself and that
+  string; `--umlaute crates scripts site/tools` exit 0 with the rebuilt allow list (570 narrow entries, the broad
+  entry for `crates/baruch-server` removed; 647 quoted lines with an empty list); stop-word scan for German without
+  umlauts: only quotations. `cargo fmt --check`, clippy `-D warnings`, `ci-selftest.sh` green. Full run in the main
+  folder after `cargo clean -p` of all workspace crates: exit 0, 218 results "ok", **3586 passed**, 0 failed,
+  2 ignored (server bundle 1609; pgvector tests ran) – the same count as before the round.
+  **Fixed by the integrator:** the check tool took two bracket characters in code spans ("`` `[` und `]` ``") for
+  an intra-doc link (`f28a857`, selftest 68 assertions); `crates_b` had not committed (its run was not finished
+  when it had to report) – committed as `54e3b72` and tested with the integrated tree only.
+  **Open:** small leftovers in `docs/Backlog.md`, "Round 38b – integrated" (German comments inside JavaScript
+  strings of `round18_satzbild.rs`, `widgets.mjs`, single-word allow entries, wording not unified between
+  branches). Visual check with an own throwaway server (no request to Eliezer): `.claude/sicht/r38b/` (work page,
+  unchanged; not in the repository). Worktrees `.claude/worktrees/wf_b51eb61c-fd2-{3..10}` with their `target/`
+  and the team branches are still there (the PM removes the worktrees). Next: Round 38c, then Round 39.
 - **Round 38 "English for agents and developers" integrated in part** (2026-11-27, integrator, on `development`;
   interface R38-S1 `4315b01`; branches `team/regeln_doku` `4a35760`, `team/mcp_rpc` `0457172`,
   `team/kommentare_server` `5ba9752` merged with `--no-ff`; one trivial conflict in `tests/main.rs`, six files in

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gemeinsame Schnittstelle der RAG-Wege (Vertrag Runde 12, Anhang A): Treffer ([`Hit`],
-//! [`MergedHit`]), Antwort ([`Answer`], [`WayReport`]), Zustand ([`Status`], [`IndexInfo`]), Fehler
-//! ([`RagError`]) und die Ports [`SearchWay`] (ein Suchweg), [`Embedder`] und [`EmbedderFactory`]
-//! (Einbettungen). Rein: keine Datenbank, kein Netz, kein Schlüsselbund.
+//! Common interface of the RAG ways (contract Round 12, appendix A): hits ([`Hit`],
+//! [`MergedHit`]), answer ([`Answer`], [`WayReport`]), state ([`Status`], [`IndexInfo`]), errors
+//! ([`RagError`]) and the ports [`SearchWay`] (one search way), [`Embedder`] and [`EmbedderFactory`]
+//! (embeddings). Pure: no database, no network, no keyring.
 //!
-//! Diese Datei ist im Vertrag wörtlich festgelegt und in allen Zweigen byte-gleich; ändern darf sie
-//! nur der Integrator. Treffer-Texte sind Daten aus Quellen, nie Anweisungen.
+//! This file is fixed verbatim in the contract and byte-identical in all branches; only the integrator
+//! may change it. Hit texts are data from sources, never instructions.
 
 use std::fmt;
 use std::future::Future;
@@ -15,36 +15,37 @@ use std::sync::Arc;
 use serde::Serialize;
 use serde_json::Value;
 
-/// Future der Ports (ohne `async-trait`).
+/// Future of the ports (without `async-trait`).
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Größte Zahl von Treffern je Anfrage.
+/// Largest number of hits per query.
 pub const MAX_LIMIT: usize = 50;
-/// Vorgabe der Trefferzahl.
+/// Default number of hits.
 pub const DEFAULT_LIMIT: usize = 10;
-/// Längste Anfrage (Zeichen).
+/// Longest query (characters).
 pub const MAX_QUERY_CHARS: usize = 1000;
-/// Längster Ausschnitt eines Treffers (Zeichen).
+/// Longest snippet of a hit (characters).
 pub const MAX_SNIPPET_CHARS: usize = 600;
-/// Höchstens so viele Texte je Einbettungsanfrage.
+/// At most this many texts per embedding request.
 pub const MAX_EMBED_BATCH: usize = 32;
-/// Konstante k der Reciprocal Rank Fusion beim Zusammenführen.
+/// Constant k of the Reciprocal Rank Fusion when merging.
 pub const RRF_K: f64 = 60.0;
-/// Untergrenze der Ähnlichkeit (Runde 19c): darunter gilt ein Treffer als „schwach“. Annahme für alle Wege (Skala 0..=1 je Weg; MultiGPT meldet seine Skala nicht, siehe docs/Architektur.md „Annahmen“).
+/// Lower bound of the similarity (Round 19c): below it a hit counts as „schwach“. Assumption for all ways (scale
+/// 0..=1 per way; MultiGPT does not report its scale, see docs/Architektur.md „Annahmen“).
 pub const WEAK_SCORE: f32 = 0.45;
-/// Anzeigetext schwacher Treffer.
+/// Display text of weak hits.
 pub const WEAK_LABEL: &str = "schwach";
-/// Längstes Aufgaben-Präfix einer Einbettung in Zeichen (Runde 19b).
+/// Longest task prefix of an embedding in characters (Round 19b).
 pub const MAX_PREFIX_CHARS: usize = 64;
 
-/// Schwach: `score` < [`WEAK_SCORE`] oder keine Zahl (NaN).
-// Die verneinte Form bleibt: `score < WEAK_SCORE` wäre für NaN falsch, NaN soll aber als schwach gelten.
+/// Weak: `score` < [`WEAK_SCORE`] or not a number (NaN).
+// The negated form stays: `score < WEAK_SCORE` would be false for NaN, but NaN is meant to count as weak.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn is_weak(score: f32) -> bool {
     !(score >= WEAK_SCORE)
 }
 
-/// Aufgaben-Präfixe einer Einbettung (z. B. nomic-embed-text „search_query: “ / „search_document: “); leer = keins.
+/// Task prefixes of an embedding (e.g. nomic-embed-text „search_query: “ / „search_document: “); empty = none.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct EmbedPrefixes {
     pub query: String,
@@ -60,7 +61,8 @@ impl EmbedPrefixes {
     }
 }
 
-/// Präfix prüfen: höchstens MAX_PREFIX_CHARS Zeichen, keine Steuerzeichen (auch kein Zeilenumbruch); Leerzeichen bleiben, auch am Ende. Fehler → RagError::Invalid mit deutschem Satz, der `field` nennt.
+/// Check a prefix: at most MAX_PREFIX_CHARS characters, no control characters (no line break either); blanks
+/// stay, also at the end. Error → RagError::Invalid with a German sentence that names `field`.
 pub fn check_prefix(field: &str, value: &str) -> Result<String, RagError> {
     if value.chars().any(char::is_control) {
         return Err(RagError::Invalid(format!(
@@ -76,7 +78,7 @@ pub fn check_prefix(field: &str, value: &str) -> Result<String, RagError> {
     Ok(value.to_owned())
 }
 
-/// Ein Suchweg (gleiche Namen wie `baruch_store::RagWay`).
+/// One search way (same names as `baruch_store::RagWay`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Way {
@@ -86,7 +88,7 @@ pub enum Way {
 }
 
 impl Way {
-    /// Alle Wege in fester Reihenfolge (auch die Reihenfolge bei Gleichstand).
+    /// All ways in a fixed order (also the order on a tie).
     pub const ALL: [Way; 3] = [Way::Lancedb, Way::Pgvector, Way::Multigpt];
 
     pub fn as_str(self) -> &'static str {
@@ -97,7 +99,7 @@ impl Way {
         }
     }
 
-    /// Anzeigename.
+    /// Display name.
     pub fn title(self) -> &'static str {
         match self {
             Way::Lancedb => "LanceDB (lokal)",
@@ -106,7 +108,7 @@ impl Way {
         }
     }
 
-    /// Text → Weg; unbekannt → `None`.
+    /// Text → way; unknown → `None`.
     pub fn parse(s: &str) -> Option<Way> {
         Way::ALL.into_iter().find(|w| w.as_str() == s.trim())
     }
@@ -118,67 +120,67 @@ impl fmt::Display for Way {
     }
 }
 
-/// Eine Suchanfrage an den Dienst (RPC `rag.search`, MCP `rag_search`, Oberfläche, Personas).
+/// A search query to the service (RPC `rag.search`, MCP `rag_search`, user interface, personas).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchRequest {
-    /// Werk (`baruch_store::WorkId`).
+    /// Work (`baruch_store::WorkId`).
     pub work: i64,
     pub query: String,
-    /// `None` = die Wege des Werks; sonst nur diese (geschnitten mit den Wegen des Werks).
+    /// `None` = the ways of the work; otherwise only these (intersected with the ways of the work).
     pub ways: Option<Vec<Way>>,
-    /// `None` = alle; LanceDB: Arten `section`, `idea`, `highlight`, `library`; remote: Schnitt mit den
-    /// gewählten Sammlungen des Werks.
+    /// `None` = all; LanceDB: kinds `section`, `idea`, `highlight`, `library`; remote: intersection with the
+    /// collections chosen for the work.
     pub collections: Option<Vec<String>>,
     /// 1..=[`MAX_LIMIT`].
     pub limit: usize,
-    /// Wer fragt: „Autor“, „@mcp:<name>“ oder das Handle der Persona.
+    /// Who asks: „Autor“, „@mcp:<name>“ or the handle of the persona.
     pub origin: String,
 }
 
-/// Eine Suchanfrage an einen Weg.
+/// A search query to one way.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Query {
-    /// Anfrage, am Rand beschnitten, 1..=[`MAX_QUERY_CHARS`] Zeichen.
+    /// Query, trimmed at both ends, 1..=[`MAX_QUERY_CHARS`] characters.
     pub text: String,
     /// 1..=[`MAX_LIMIT`].
     pub limit: usize,
-    /// pgvector/MultiGPT: die zu durchsuchenden Sammlungen (nie leer, sonst wird der Weg nicht gefragt);
-    /// LanceDB: Arten `section`, `idea`, `highlight`, `library`, leer = alle.
+    /// pgvector/MultiGPT: the collections to search (never empty, otherwise the way is not asked);
+    /// LanceDB: kinds `section`, `idea`, `highlight`, `library`, empty = all.
     pub collections: Vec<String>,
-    /// Werk (`baruch_store::WorkId`) für LanceDB; die Remote-Wege übergehen es.
+    /// Work (`baruch_store::WorkId`) for LanceDB; the remote ways ignore it.
     pub work: i64,
 }
 
-/// Ein Treffer eines Wegs.
+/// A hit of one way.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Hit {
     pub way: Way,
-    /// Sammlung (pgvector/MultiGPT) bzw. Art bei LanceDB (`section`, `idea`, `highlight`, `library`).
+    /// Collection (pgvector/MultiGPT) or kind with LanceDB (`section`, `idea`, `highlight`, `library`).
     pub collection: String,
-    /// Dokument: bei LanceDB `work:<id>`, `idea:<id>`, `title:<id>`; remote die Kennung der Gegenstelle.
+    /// Document: with LanceDB `work:<id>`, `idea:<id>`, `title:<id>`; remote the identifier of the remote side.
     pub document: String,
-    /// Stelle im Dokument (LanceDB `key:<key>`, `highlight:<id>`, `quote:<id>`); `None` = ganzes Dokument.
+    /// Place in the document (LanceDB `key:<key>`, `highlight:<id>`, `quote:<id>`); `None` = whole document.
     pub section: Option<String>,
-    /// Titel für die Anzeige.
+    /// Title for the display.
     pub title: String,
-    /// Ausschnitt, höchstens [`MAX_SNIPPET_CHARS`] Zeichen ([`clean_snippet`]).
+    /// Snippet, at most [`MAX_SNIPPET_CHARS`] characters ([`clean_snippet`]).
     pub snippet: String,
-    /// Ähnlichkeit 0..=1 (1 = gleich) innerhalb des Wegs; über Wege hinweg nicht vergleichbar.
+    /// Similarity 0..=1 (1 = equal) within the way; not comparable across ways.
     pub score: f32,
-    /// Adresse: relativ in Baruch (beginnt mit `/`) oder http(s) der Gegenstelle; `None` = keine.
+    /// Address: relative in Baruch (starts with `/`) or http(s) of the remote side; `None` = none.
     pub url: Option<String>,
-    /// Zusatzangaben des Wegs (z. B. `key`, `rev`, `chunk`, `idea`); nie Geheimnisse.
+    /// Additional details of the way (e.g. `key`, `rev`, `chunk`, `idea`); never secrets.
     pub meta: Value,
 }
 
 impl Hit {
-    /// Schlüssel für Doppelte: Dokument und Stelle, beschnitten und klein geschrieben.
+    /// Key for duplicates: document and place, trimmed and in lower case.
     pub fn identity(&self) -> (String, String) {
         (self.document.trim().to_lowercase(), self.section.as_deref().unwrap_or("").trim().to_lowercase())
     }
 }
 
-/// Rang eines Treffers in einem Weg (1 = bester).
+/// Rank of a hit in one way (1 = best).
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
 pub struct WayRank {
     pub way: Way,
@@ -186,29 +188,29 @@ pub struct WayRank {
     pub score: f32,
 }
 
-/// Treffer nach dem Zusammenführen.
+/// Hit after merging.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MergedHit {
-    /// Vertreter: der Treffer mit dem besten Rang (Gleichstand: der frühere Weg in [`Way::ALL`]).
+    /// Representative: the hit with the best rank (tie: the earlier way in [`Way::ALL`]).
     #[serde(flatten)]
     pub hit: Hit,
-    /// Platz in der Antwort, 1..=n.
+    /// Position in the answer, 1..=n.
     pub rank: usize,
-    /// Summe über `found_by` von 1 / ([`RRF_K`] + Rang).
+    /// Sum over `found_by` of 1 / ([`RRF_K`] + rank).
     pub fused: f64,
-    /// Alle Wege, die dieses Dokument bzw. diese Stelle fanden, in der Reihenfolge von [`Way::ALL`].
+    /// All ways that found this document or this place, in the order of [`Way::ALL`].
     pub found_by: Vec<WayRank>,
 }
 
-/// Zustand eines Wegs.
+/// State of one way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WayState {
-    /// Gefragt und geantwortet (auch mit 0 Treffern).
+    /// Asked and answered (also with 0 hits).
     Connected,
-    /// Gefragt, aber gescheitert (Fehler, Zeitlimit, Modell passt nicht).
+    /// Asked, but failed (error, time limit, model does not fit).
     Failed,
-    /// Nicht gefragt: nicht gewählt, nicht eingerichtet oder keine Sammlung gewählt.
+    /// Not asked: not chosen, not set up or no collection chosen.
     Off,
 }
 
@@ -223,14 +225,14 @@ impl WayState {
     }
 }
 
-/// Bericht je Weg.
+/// Report per way.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct WayReport {
     pub way: Way,
     pub state: WayState,
     /// [`WayState::label`].
     pub label: &'static str,
-    /// Deutscher Satz: Grund bei `failed`/`off`, sonst kurz; nie ein Geheimnis.
+    /// German sentence: reason with `failed`/`off`, otherwise short; never a secret.
     pub message: String,
     pub hits: usize,
     pub millis: u64,
@@ -242,70 +244,70 @@ impl WayReport {
     }
 }
 
-/// Antwort einer Suche.
+/// Answer of a search.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Answer {
     pub work: i64,
     pub query: String,
     pub hits: Vec<MergedHit>,
-    /// Immer alle drei Wege in der Reihenfolge von [`Way::ALL`].
+    /// Always all three ways in the order of [`Way::ALL`].
     pub ways: Vec<WayReport>,
 }
 
-/// Zustand des lokalen Index.
+/// State of the local index.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct IndexInfo {
-    /// Ordner des Index (absolut).
+    /// Folder of the index (absolute).
     pub dir: String,
-    /// Einträge (Stücke) des Werks samt Einfällen und Bibliothek.
+    /// Entries (chunks) of the work with its ideas and library.
     pub entries: u64,
-    /// Modell und Dimension, mit denen der Index aufgebaut ist; `None` = noch nicht aufgebaut.
+    /// Model and dimension the index is built with; `None` = not built yet.
     pub model: Option<String>,
     pub dimension: Option<usize>,
-    /// Eingestelltes Modell (Verbindung LanceDB, `embedding_model`).
+    /// Configured model (connection LanceDB, `embedding_model`).
     pub configured_model: String,
-    /// Letzter vollständiger Aufbau (ISO 8601) bzw. `None`.
+    /// Last complete build (ISO 8601) or `None`.
     pub built: Option<String>,
-    /// Ausstehende Aufträge.
+    /// Pending jobs.
     pub pending: usize,
-    /// Liegengebliebene Aufträge (nach erschöpften Versuchen; erneut versucht erst nach neuem Inhalt oder „Index neu aufbauen“).
+    /// Stale jobs (after the attempts are used up; tried again only after new content or „Index neu aufbauen“).
     pub stale: usize,
-    /// Warum die Bedeutungssuche gerade nicht geht; `None` = sie geht.
+    /// Why the semantic search does not work at the moment; `None` = it works.
     pub problem: Option<String>,
 }
 
-/// Zustand aller Wege eines Werks (ohne Netz ermittelt).
+/// State of all ways of one work (determined without the network).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Status {
     pub work: i64,
-    /// Immer alle drei Wege in der Reihenfolge von [`Way::ALL`].
+    /// Always all three ways in the order of [`Way::ALL`].
     pub ways: Vec<WayReport>,
     pub index: IndexInfo,
-    /// Die Wortlaut-Suche (FTS5) ist immer da.
+    /// The wording search (FTS5) is always there.
     pub fts: bool,
 }
 
-/// Fehler eines Wegs oder des Dienstes. Kein Text enthält ein Geheimnis.
+/// Error of one way or of the service. No text contains a secret.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RagError {
-    /// Eingabe ungültig (leere Anfrage, Grenze überschritten).
+    /// Input invalid (empty query, limit exceeded).
     Invalid(String),
-    /// Weg nicht eingerichtet (keine Adresse, kein Rechner, Geheimnis gilt einem anderen Ziel); Weg „aus“.
+    /// Way not set up (no address, no host, secret belongs to another target); way „aus“.
     NotConfigured(String),
-    /// Kein Einbettungsmodell erreichbar; die Wortlaut-Suche bleibt.
+    /// No embedding model reachable; the wording search stays.
     NoEmbedder(String),
-    /// Einbettungsmodell oder Dimension passen nicht zu Index bzw. Daten.
+    /// Embedding model or dimension do not fit the index or the data.
     ModelMismatch(String),
     Unreachable(String),
     Denied(String),
     Timeout(String),
-    /// Schema bzw. Antwort der Gegenstelle passt nicht (Tabelle, Spalte, Werkzeug, Format).
+    /// Schema or answer of the remote side does not fit (table, column, tool, format).
     Schema(String),
     Failed(String),
 }
 
 impl RagError {
-    /// Fester Code.
+    /// Fixed code.
     pub fn code(&self) -> &'static str {
         match self {
             RagError::Invalid(_) => "invalid",
@@ -320,7 +322,7 @@ impl RagError {
         }
     }
 
-    /// Deutscher Satz.
+    /// German sentence.
     pub fn message(&self) -> &str {
         match self {
             RagError::Invalid(m)
@@ -335,7 +337,7 @@ impl RagError {
         }
     }
 
-    /// Weg „aus“ statt „ausgefallen“?
+    /// Way „aus“ instead of „ausgefallen“?
     pub fn is_off(&self) -> bool {
         matches!(self, RagError::NotConfigured(_))
     }
@@ -349,38 +351,38 @@ impl fmt::Display for RagError {
 
 impl std::error::Error for RagError {}
 
-/// Vektoren einer Einbettungsanfrage.
+/// Vectors of one embedding request.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Embeddings {
-    /// Tatsächlich antwortendes Modell.
+    /// Model that actually answered.
     pub model: String,
     pub dimension: usize,
-    /// Je Eingabetext ein Vektor der Länge `dimension`, gleiche Reihenfolge.
+    /// One vector of length `dimension` per input text, same order.
     pub vectors: Vec<Vec<f32>>,
 }
 
-/// Port für Einbettungen (Eliezer über die OpenAI-kompatible Schnittstelle bzw. ein Nachbau).
+/// Port for embeddings (Eliezer through the OpenAI-compatible interface or a mock).
 pub trait Embedder: Send + Sync {
-    /// Modellname, wie er an das Backend geht.
+    /// Model name as it goes to the backend.
     fn model(&self) -> &str;
-    /// 1..=[`MAX_EMBED_BATCH`] Texte → Vektoren; mehr oder keiner → [`RagError::Invalid`].
+    /// 1..=[`MAX_EMBED_BATCH`] texts → vectors; more or none → [`RagError::Invalid`].
     fn embed<'a>(&'a self, texts: &'a [String]) -> BoxFuture<'a, Result<Embeddings, RagError>>;
 }
 
-/// Liefert einen Einbetter für ein bestimmtes Modell.
+/// Provides an embedder for a given model.
 pub trait EmbedderFactory: Send + Sync {
     fn for_model(&self, model: &str) -> Arc<dyn Embedder>;
 }
 
-/// Port für einen Suchweg.
+/// Port for one search way.
 pub trait SearchWay: Send + Sync {
     fn way(&self) -> Way;
-    /// Treffer dieses Wegs (höchstens `query.limit`), nach Ähnlichkeit absteigend.
+    /// Hits of this way (at most `query.limit`), by similarity descending.
     fn search<'a>(&'a self, query: &'a Query) -> BoxFuture<'a, Result<Vec<Hit>, RagError>>;
 }
 
-/// Ausschnitt säubern: Steuerzeichen und Leerraum außer Zeilenumbruch → Leerzeichen, beschnitten,
-/// höchstens [`MAX_SNIPPET_CHARS`] Zeichen (sonst mit „…“ am Ende).
+/// Clean a snippet: control characters and whitespace except line breaks → blank, trimmed,
+/// at most [`MAX_SNIPPET_CHARS`] characters (otherwise with „…“ at the end).
 pub fn clean_snippet(text: &str) -> String {
     let cleaned: String =
         text.chars().map(|c| if c != '\n' && (c.is_control() || c.is_whitespace()) { ' ' } else { c }).collect();
