@@ -321,11 +321,17 @@ def reconcile(pictures):
 # ---------------------------------------------------------------------------------------------------------------
 
 def find_server(given):
-    candidates = [given, os.environ.get("BARUCH_SERVER")]
-    candidates += [REPO / "target" / "release" / "baruch-server", REPO / "target" / "debug" / "baruch-server"]
-    for candidate in candidates:
+    for candidate in (given, os.environ.get("BARUCH_SERVER")):
         if candidate and Path(candidate).is_file():
             return Path(candidate).resolve()
+    # Ohne Angabe die zuletzt gebaute Datei: Ein alter Release-Bau neben einem frischen Testbau zeigte sonst eine
+    # alte Oberfläche (Runde 37: Bau vom Vortag, 404 beim Word-Export). Welche Datei läuft, steht in der Ausgabe.
+    built = [path for path in (REPO / "target" / "release" / "baruch-server", REPO / "target" / "debug" / "baruch-server")
+             if path.is_file()]
+    if built:
+        newest = max(built, key=lambda path: path.stat().st_mtime)
+        sys.stderr.write(f"Server: {newest} (zuletzt gebaut; anderer mit --server PFAD)\n")
+        return newest.resolve()
     fail("baruch-server nicht gefunden. Erst bauen (nach der Stromregel in AGENTS.md: "
          "nice -n 10 ionice -c3 taskset -c 0-7 cargo build -p baruch-server -j 4) oder mit --server PFAD angeben.")
 

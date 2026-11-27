@@ -1,12 +1,24 @@
-# Übergabe (Stand 2026-11-27, Runde 37 „Hilfe auf der Webseite“ **integriert** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Prüfung und PM-Abschluss stehen aus); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-27, Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Runde 37 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserungsrunde.
+  Zwei hat der PM behoben (Fotowerkzeug nimmt ohne `--server` die zuletzt gebaute Datei statt immer des
+  Release-Baus; alt-Text von `einfaelle-festhalten` nach dem Bild berichtigt), der dritte steht in
+  `docs/Backlog.md`, „Nach Runde 37 offen“ (ein fehlendes Hilfebild bricht den Bau nicht ab). Voller Lauf des PM im
+  Hauptordner nach `cargo clean -p` aller Workspace-Crates: Exit 0, 215 Ergebnisse „ok“, 3547 bestanden, 0 gescheitert, 2 ignoriert; Server-Bündel 1588 bestanden; pgvector-Tests liefen mit. Nach den beiden Korrekturen gezielt wiederholt
+  (63 Tests des Server-Bündels, Hugo, `site-check.py`, `--abgleich`). `grep -rn "STUB:" crates` findet nur vier
+  Zusicherungen in Tests, dass kein Vermerk mehr da ist – kein offener Stub. Worktrees der Runde samt `target/`
+  entfernt, die Zweige `team/hilfe_text`, `team/webseite`, `team/bilder-r37` bleiben; Fahrplan nachgeführt (als
+  Nächstes die Durchsicht der Hilfe und die Veröffentlichung 0.9.1 durch den Nutzer; Reste als Vorschlag Runde 38).
+  Nicht gepusht. Bildschirmfotos der Sichtprüfung: `.claude/sicht/r37/` (28 Bilder der Webseite `seite-*.png`,
+  Kontaktbögen aller Hilfebilder unter `bogen/`; nicht im Repo). Die Bilder der Hilfe selbst liegen im Repo unter
+  `site/static/bilder/hilfe/`.
 - **Runde 37 „Hilfe auf der Webseite“ integriert** (2026-11-27, Integrator, auf `development`; Schnittstelle R37-S1
   `4a5b9d2`; Zweige `team/bilder-r37` `c694a70`, `team/webseite` `b0f5266`, `team/hilfe_text` `999d243` mit `--no-ff`,
-  **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht; Worktrees und team-Zweige stehen noch). Version
+  **ohne Konflikte**; danach der Integrations-Commit; nicht gepusht). Version
   unverändert 0.9.0, CHANGELOG unter „Unveröffentlicht“. **Keine Migration**, keine neue Route, RPC-Methode oder
   MCP-Werkzeug, kein neuer Stub. Voller Lauf im Hauptordner nach `cargo clean -p` aller Workspace-Crates
   (`RUST_TEST_THREADS=4 … taskset -c 0-7 cargo test --workspace -j 4`): Exit 0, 215 Ergebnisse „ok“, 3546 bestanden,
@@ -30,8 +42,8 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
   - **Sichtprüfung:** `.claude/sicht/r37/` (nicht im Repo): Kontaktbögen aller Bilder unter `bogen/`, dazu die
     Webseite (`seite-*.png`: Start, Hilfe, zwei Hilfeseiten, Installation, Betrieb, MCP – hell, dunkel, 1280 und
     390 px). Die Fotos der Webseite stammen von einer Kopie ohne `loading=lazy` (headless lädt solche Bilder nicht).
-  - **Offen:** `docs/Backlog.md`, „Runde 37 – integriert“ (dort auch die Bausteine der drei Aufgaben). Fahrplan
-    führt der PM nach.
+  - **Offen:** `docs/Backlog.md`, „Runde 37 – integriert“ (dort auch die Bausteine der drei Aufgaben) und
+    „Nach Runde 37 offen“ (Prüfung und PM-Abschluss).
 - **Runde 36 abgeschlossen (PM, 2026-11-27):** Prüfung mit drei niedrigen Befunden, keine Nachbesserung; sie stehen
   in `docs/Backlog.md`, „Nach Runde 36 offen“ (`pages.yml` bei `release: published` braucht Tags `v*` in der
   Umgebung `github-pages`; `baruch-typst compile --format pdf a.typ a.typ` überschreibt wie Typst die Quelle;
@@ -2290,8 +2302,7 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
-0. Nach Runde 37 (integriert, **keine Migration**): Der Dienst des Nutzers wird nicht angefasst. Es fehlen Prüfung
-   und PM-Abschluss (Fahrplan). Die Hilfe erscheint erst mit dem Fast-Forward nach `main` auf der Webseite; bis
+0. Nach Runde 37 (abgeschlossen, **keine Migration**): Der Dienst des Nutzers wird nicht angefasst. Die Hilfe erscheint erst mit dem Fast-Forward nach `main` auf der Webseite; bis
    dahin führt der neue Eintrag Baruch ▾ → Hilfe auf eine Adresse, die es noch nicht gibt (`/hilfe/`; die alte
    Seite `/bedienung/` bleibt bis dahin online). Vor der Veröffentlichung im eigenen Browser ansehen: die Hilfe
    (`hugo server -s site`), besonders die Bilder zur Bibel, die Tasten am Mac und die Druckansicht. Danach die

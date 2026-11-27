@@ -29,7 +29,7 @@ site/tools/bildschirmfotos.py --fotos   --temp /var/tmp/baruch-hilfe  # mit Fire
 | `--nur NAME[,NAME]` | nur diese Bilder (Namen wie in `--liste`); zum Nachfotografieren. Das Beispielwerk wird trotzdem ganz aufgebaut. |
 | `--sword ORDNER` | Ordner mit Bibelmodulen (`mods.d`, `modules`) für Bilder mit `braucht = ["sword"]`. Ohne die Angabe nennt das Skript sie als übersprungen. |
 | `--temp ORDNER` | wo Wegwerf-Datenordner und Firefox-Profile entstehen. **Immer einen Ordner auf einer Platte angeben** – `/tmp` ist hier Arbeitsspeicher. |
-| `--server PFAD` | `baruch-server` (Vorgabe `target/release/…`, sonst `target/debug/…`, auch `BARUCH_SERVER`). |
+| `--server PFAD` | `baruch-server` (auch `BARUCH_SERVER`; ohne Angabe die zuletzt gebaute Datei aus `target/release/` oder `target/debug/`, das Skript nennt sie). |
 | `--ziel ORDNER` | wohin die Bilder kommen (Vorgabe `site/static/bilder`; die Hilfe darunter in `hilfe/`). |
 | `--breite N` | größte Breite der fertigen Bilder (Vorgabe 1400). |
 | `--ohne-palette` | Bilder nicht auf 256 Farben verringern (siehe „Größe“). |
@@ -169,8 +169,9 @@ die sieben Bilder der Seite „Funktionen“ sind aufgenommen und angesehen. Was
   Bibelmodule und die Vorgabe unter dem Heimatordner. `--fotos` bricht darum ab, wenn `--temp` oder `--sword` den
   Heimatordner oder den Anmeldenamen enthalten; der Wegwerf-Server läuft mit einem eigenen, leeren `HOME` neben dem
   Datenordner. Aufgenommen mit `--temp /var/tmp/baruch-hilfe` (Platte, neutraler Pfad; danach löschen).
-- **Der richtige Server:** Ohne `--server` nimmt das Skript `target/release/baruch-server`, auch wenn er älter ist
-  als der Quelltext. Nach einem Testlauf `--server target/debug/baruch-server` angeben.
+- **Der richtige Server:** Ohne `--server` nimmt das Skript die zuletzt gebaute Datei aus `target/release/` oder
+  `target/debug/` und nennt sie in der Ausgabe (bis zum PM-Abschluss der Runde 37 nahm es immer den Release-Bau,
+  auch einen alten). Ob der Bau zum Quelltext passt, prüft es nicht: nach einer Änderung erst bauen oder testen.
 - **Anker rücken nichts ins Bild:** `firefox --screenshot` nimmt immer den Anfang der Seite auf. Blöcke weiter unten
   bekommen ein hohes Fenster und einen gemessenen Ausschnitt (`fenster = "1400x9000"`, `ausschnitt = "css:#satz"`);
   reicht der Ausschnitt unter das Fenster, sagt `--fotos` es („das Fenster höher wählen“).

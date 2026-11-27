@@ -9,7 +9,7 @@ Ein **Einfall** hält fest, was beim Schreiben, Lesen oder Beten einfällt, ohne
 
 ## Einen Einfall festhalten {#festhalten}
 
-{{< hilfebild name="einfaelle-festhalten" alt="Das kleine Fenster „Einfall festhalten“ über der Arbeitsseite: Felder für Schlagwörter und Gedanke, darunter der zuvor markierte Text im Feld „Markiert“ und der Bezug auf den offenen Abschnitt." titel="Ein Einfall ist in wenigen Sekunden festgehalten." >}}
+{{< hilfebild name="einfaelle-festhalten" alt="Das kleine Fenster „Einfall festhalten“ über der Arbeitsseite: Felder für Schlagwörter, Gedanke, Markiert und Quelle – hier noch leer –, darunter der Bezug auf den offenen Abschnitt „Der erste Morgen“ und der Knopf „Festhalten (Enter)“." titel="Ein Einfall ist in wenigen Sekunden festgehalten." >}}
 
 So geht es:
 

@@ -5,7 +5,7 @@ der Arbeitsstand in `HANDOFF.md`.
 
 ## Nach 0.9.0 (Wünsche 2026-11-24/25, Stand nach Veröffentlichung von 0.9.0)
 
-Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; **erledigt in Runde 36**, 2026-11-27; Offenes unter „Runde 36“ und „Nach Runde 36 offen“), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (Runde 37, als Nächstes) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
+Erledigt und in 0.9.0 bzw. auf development: Menüband und Laptop-Modus (Runde 33), ältere Fassungen ausblenden, Kritik-Zyklus, Befunde anspringen; Runde 32 (Word, Beenden) auf development unter „Unveröffentlicht“. Offene Wünsche aus der Nacht – Reihenfolge: Mindmap (0.9.1; **erledigt in Runde 34**), Konten und Rollen (**erledigt in Runde 35**, 2026-11-27; Reste unter „Nach Runde 35 offen“), Reste (Typst-Alias, Pages je Commit, sqlx 0.9; **erledigt in Runde 36**, 2026-11-27; Offenes unter „Runde 36“ und „Nach Runde 36 offen“), zuletzt die Hilfe auf der Webseite mit Bildschirmfotos (**erledigt in Runde 37**, 2026-11-27; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“) – Nummern nach `docs/Fahrplan.md`, „Geplant“:
 
 - (**erledigt R36**: `baruch-typst` und `baruch-server typst`, Pakete mit `baruch-typst`, CI ohne Typst-Download; offen bleibt: AppImage, .dmg und .msi mit `baruch-typst` bauen und starten (Windows-`.cmd`, codesign mit Symlink), Gegenprobe `scripts/ci-typst.sh … typst` mit einem fremden Typst; die Typst-Schalter `--input`, `--pages`, `--pdf-standard`, Ausgabe auf stdout und `watch` sind bewusst nicht umgesetzt) **Typst als Alias von Baruch (Nutzer 2026-11-24: „typst ist ein Alias für baruch, das spart Storage“).** Mehrfachaufruf: Als `typst` (argv[0]) oder `baruch-server typst …` verhält sich die Binärdatei wie die Typst-Kommandozeile – gleiche Engine 0.15.1 und eingebettete Schriften (typst-kit, typst-pdf/-svg/-render schon im Bau). Umfang: `compile EINGABE [AUSGABE]` mit `--root`, `--font-path`, `--format pdf|png|svg`, `fonts`, `--version`; Nicht-Unterstütztes (watch, query, Pakete aus dem Netz) ehrlich melden. Pakete: Symlink `baruch-typst` → baruch-server (.deb `/usr/bin/baruch-typst`, AppImage/.dmg/.msi entsprechend), kein fremdes `typst` überschreiben. CI: `typst compile`-Prüfung mit dem eigenen Programm, Download von Typst entfällt. Doku: Export → Typst-Ordner, Hilfe, Webseite. → Runde 36 (Reste).
 - (**erledigt R36, nicht ausgeführt geprüft**: `pages.yml` läuft zusätzlich bei `release: published` und checkt dabei `main` aus; ob das die Beobachtung vom 2026-11-24 behebt, zeigt das nächste Release; Handweg `gh workflow run pages.yml --ref main`, siehe `docs/Verteilung.md`, „Auslieferung je Commit“) **Pages:** Auslieferung je Commit – ein Release-Tag auf demselben Commit wie der letzte main-Lauf wird nicht neu ausgeliefert (2026-11-24 beobachtet). Release-Ablauf sollte das berücksichtigen (z. B. Pages-Lauf nach dem Veröffentlichen des Release auslösen). → Runde 36 (Reste).
@@ -77,7 +77,7 @@ Entscheidungen des Nutzers:
 - **Start nach dem Release 0.9.0.** Die Runden plant der PM nach der Stromregel in AGENTS.md. Über die
   Versionsnummer entscheidet der Nutzer.
 
-## Rundenplan (Stand 2026-11-27: R13–R36 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
+## Rundenplan (Stand 2026-11-27: R13–R37 erledigt; Weiteres in `docs/Fahrplan.md`, „Geplant“)
 
 Jeder offene Punkt weiter unten trägt seine Runde: „(→ R15b)“ = Runde 15, Aufgabe b. „(→ Nutzer)“ = Handprüfung im
 Browser des Nutzers, „(→ Nutzerfrage)“ = braucht eine Entscheidung und ist nicht eingeplant, „(überholt: …)“ mit Beleg,
@@ -117,14 +117,44 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R34 | Mindmap wie XMind, Wolke und Mindmap verbunden (Wunsch für 0.9.1, vorgezogen vor Konten und Rollen) – **erledigt 2026-11-25**, PM-Abschluss 2026-11-26 (≈ 130 min Arbeitszeit ab `b7bcb91` mit Prüfung und PM-Abschluss; S1 `67faa2f`, Integration `826964a`); nicht Teil von 0.9.0 | mindmap_daten · mindmap_widget · mindmap_austausch | – |
 | R35 | Konten und Rollen (Lektorat II): Anmeldung, Autor und Lektoren, Freigabe je Werk – **erledigt 2026-11-27** (≈ 120 min ab `4a2ec19` mit Prüfung, Nachbesserung `40d6591` und PM-Abschluss; S1 `e56c3f3`, Integration `bae1816`); nicht Teil von 0.9.0 | konten · rollen · oberflaeche_konten | 240 |
 | R36 | Reste: Typst-Kommandozeile als Alias, Pages beim Release, sqlx 0.9.1, Reste aus R34, R35, 0.9.0 und „offen nach R24“ – **erledigt 2026-11-27** (≈ 155 min ab `bdd6d9f` mit Stromausfall 01:39, Prüfung und PM-Abschluss; S1 `d03be8d`, Integration `f2bb112`); nicht Teil von 0.9.0 | typst_alias · sqlx09 · reste | 150 |
-| R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **integriert 2026-11-27** (S1 `4a5b9d2`; Prüfung und PM-Abschluss stehen aus; Offenes unter „Runde 37 – integriert“) | a hilfe_text · b webseite · c bilder | 150 |
+| R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **erledigt 2026-11-27** (≈ 95 min ab S1 `4a5b9d2` mit Prüfung und PM-Abschluss, Vertrag davor nicht in Git; Integration `ef9a9f0`; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“); nicht Teil von 0.9.0 | a hilfe_text · b webseite · c bilder | 150 |
+
+### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
+
+Die Prüfung nach der Integration meldete drei niedrige Befunde; eine Nachbesserungsrunde gab es nicht. Der PM hat
+sie am Code und am Bild nachgesehen, zwei im Abschluss behoben und einen stehen lassen. Voller Lauf des PM im
+Hauptordner nach `cargo clean -p` aller Workspace-Crates: Exit 0, 215 Ergebnisse „ok“, 3547 bestanden, 0 gescheitert, 2 ignoriert; Server-Bündel 1588 bestanden; pgvector-Tests liefen mit. Nach den beiden Korrekturen wiederholt: die Tests `round37`, `round24_abnahme`,
+`round32_abnahme`, `round33` des Server-Bündels (63 bestanden), `hugo --minify --panicOnWarning`,
+`scripts/site-check.py` (ohne Fund), `bildschirmfotos.py --abgleich` (keine Datei fehlt).
+
+- (niedrig, **behoben**) `site/tools/bildschirmfotos.py` nahm ohne `--server` immer `target/release/baruch-server`,
+  auch einen alten (der Integrator hätte so einen Bau vom 24. November fotografiert). Jetzt gilt ohne Angabe die
+  zuletzt gebaute Datei aus `target/release/` oder `target/debug/`, und das Skript nennt sie. Ob der Bau zum
+  Quelltext passt, prüft es weiterhin nicht. README des Werkzeugs und SKILLS.md sind nachgezogen.
+- (niedrig, **behoben**) Der alt-Text von `einfaelle-festhalten` behauptete markierten Text im Feld „Markiert“; im
+  Bild ist das Feld leer. Der Text beschreibt jetzt das Bild. **Offen bleibt:** Die übrigen rund 100 alt-Texte sind
+  nicht Wort für Wort gegen die Bilder gelesen (→ Nutzer bei der Durchsicht der Hilfe). Wer das Bild lieber mit
+  markiertem Text hätte: Der Schritt in `site/data/hilfebilder.toml` müsste vor dem Öffnen des Fensters markieren.
+- (niedrig, offen, → Reste) Ein fehlendes Hilfebild bricht den Bau nicht ab: Der Shortcode `hilfebild` gibt ohne
+  Datei nichts aus (so gewollt, solange es keine Fotos gab), `scripts/site-check.py` sieht nur eine fehlende dunkle
+  Fassung (weil `<source>` sie nennt), und `bildschirmfotos.py --abgleich` meldet „Fehlende Dateien“ nur als Text
+  (Exit 1 nur bei unbekannten Namen oder zu viel Platz) und läuft in keinem CI-Skript. Heute fehlt nichts. Vorschlag:
+  im Shortcode ein `errorf` im fehlenden Zweig, jetzt, wo alle Bilder eingecheckt sind.
+- (→ Nutzer) Nicht geprüft und nur vom Nutzer prüfbar: Druckansicht der Hilfe, die Webseite auf einem echten
+  Telefon, die Tasten am Mac, `python3` in den Jobs von `ci.yml`, `pages.yml` und `release.yml`.
+- (Hinweis) Der Beginn der Runde steht nicht in Git: Der Vertrag hat keinen eigenen Commit, belegt ist sie ab S1
+  `4a5b9d2` (15:38). Der Fahrplan zählt darum ab S1.
+- (Hinweis) Die Commits der Runde tragen die Schlusszeile „Co-Authored-By: Claude Fable 5.2“ (Vorgabe der Sitzung),
+  nicht die im Auftragstext der Entwickler genannte.
+- (Hinweis) Vorfall „Firefox neben einem Testlauf“ (Aufgabe bilder, Probe mit nicht ausführbarer Attrappe): sieben
+  Aufnahmen, gelöscht, nichts eingecheckt, der Testlauf danach ganz wiederholt. Lehre im Fahrplan.
 
 ### Runde 37 – integriert (Integrator, 2026-11-27)
 
 Hilfe auf der Webseite: `team/bilder-r37`, `team/webseite`, `team/hilfe_text` mit `--no-ff` zusammengeführt (kein
 Konflikt), Fotos aufgenommen, Sichtprüfung. Offen aus der Integration:
 
-- **Fahrplan:** `docs/Fahrplan.md` führt der PM am Ende der Runde nach (Runde 37 steht dort noch als geplant).
+- **Fahrplan:** (**erledigt**, PM-Abschluss 2026-11-27) `docs/Fahrplan.md` ist nachgeführt.
 - **Bilder mit Bibelmodul (→ Nutzerfrage):** `bibel-nachschlagen`, `bibel-einstellungen` und `bibel-zitate-pruefen`
   zeigen eine erzeugte „Beispielbibel“ mit einem einzigen Vers (Psalm 119,105), damit jedes Bild der Liste
   vorliegt und „Zitate prüfen“ ein geprüftes Zitat zeigt. Das greift der offenen Frage vor (erfundenes Modul oder
@@ -159,8 +189,8 @@ Konflikt), Fotos aufgenommen, Sichtprüfung. Offen aus der Integration:
   (`scripts/ci-site.sh` ruft jetzt `scripts/site-check.py`; lokal läuft es, auf den Ubuntu-Läufern von GitHub ist
   python3 üblicherweise vorhanden – ausgeführt ist dort nichts); Mac-Tasten; die Webseite auf einem echten Telefon
   (nur Firefox mit 390 px Fensterbreite).
-- **Aufräumen:** Worktrees `.claude/worktrees/wf_d4829f9b-9c7-{3,4,5}` samt `target/` und die Zweige
-  `team/hilfe_text`, `team/webseite`, `team/bilder-r37` stehen noch (Auftrag: nicht löschen).
+- **Aufräumen:** (**erledigt**, PM-Abschluss 2026-11-27) Die drei Worktrees der Runde samt `target/` sind entfernt;
+  die Zweige `team/hilfe_text`, `team/webseite`, `team/bilder-r37` bleiben.
 
 #### Aus dem Baustein `hilfe_text`
 

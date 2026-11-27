@@ -1498,9 +1498,9 @@ eigenem `target/`; EPUBCheck in Tests nur als selbst geschriebenes Skript über 
   Bibelmodule dorthin kopieren; das Werkzeug bricht `--fotos` sonst ab und gibt dem Wegwerf-Server ein eigenes
   `HOME`. Nach den Fotos jedes Bild ansehen (Kontaktbögen mit `montage`) und die PNG-Dateien mit `grep -a` nach dem
   eigenen Namen durchsuchen.
-- **`target/release/baruch-server` kann alt sein:** Das Werkzeug nimmt ihn zuerst. Nach dem Testlauf
-  `--server target/debug/baruch-server` angeben, sonst fotografiert man eine alte Oberfläche (hier: 404 beim
-  Word-Export).
+- **`target/release/baruch-server` kann alt sein:** Das Werkzeug nahm ihn zuerst und fotografierte eine alte
+  Oberfläche (hier: 404 beim Word-Export). Seit dem PM-Abschluss der Runde 37 nimmt es ohne `--server` die zuletzt
+  gebaute Datei und nennt sie; ob sie zum Quelltext passt, prüft es nicht – nach Änderungen erst bauen.
 - **`firefox --headless --screenshot`:** nimmt den Seitenanfang auf, ein Anker in der Adresse ändert nichts (hohes
   Fenster plus gemessener Ausschnitt nehmen); Bilder mit `loading="lazy"` fehlen im Foto, obwohl sie im Browser
   kommen – für die Sichtprüfung der Webseite eine Kopie von `site/public` ohne `loading=lazy` fotografieren.
