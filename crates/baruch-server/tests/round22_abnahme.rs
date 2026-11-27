@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Abnahme, Besitz Integrator): Ende zu Ende über die Grenzen der drei Aufgaben hinweg – Fortschreiben,
-//! Verlauf und Rückgängig, neue Fassung mit Grund (fassungen), Rückfrage „Befund n scheint erledigt“ (befund-rueckfrage),
-//! Wasserzeichen „Entwurf“, Austausch Unterversion 8 mit neuem Teil als Antrag und `<kN>`-Regel beim Re-Import
-//! (spiegel-entwurf), Archiv (befund-rueckfrage) und die Verdrahtung des Integrators (Seitenzweig gleich nach einem
-//! Vorschlag, Menü „Als Entwurf herunterladen“, `post.repeat` ohne doppelte Rückfrage).
+//! Round 22 (acceptance, ownership integrator): end to end across the boundaries of the three tasks – amending, history
+//! and undo, new revision with reason (fassungen), question „Befund n scheint erledigt“ (befund-rueckfrage), watermark
+//! „Entwurf“, exchange sub-version 8 with a new part as a request and `<kN>` rule on re-import (spiegel-entwurf),
+//! archive (befund-rueckfrage) and the wiring of the integrator (side branch right after a proposal, menu
+//! „Als Entwurf herunterladen“, `post.repeat` without a doubled question).
 //!
-//! Alle Werke frei erfunden („Die Salzwiese“, „Das Fährhaus am Deich“, „Rast“). Modelle nur über `MockEliezer` auf
-//! 127.0.0.1:0 unter `common::model_queue`, PDFs unter `common::PDF_SERIAL`; kein Eliezer, kein Netz. Jede Zusicherung
-//! mit Begründung. Alles über RPC bzw. Formulare ohne JavaScript.
+//! All works freely invented („Die Salzwiese“, „Das Fährhaus am Deich“, „Rast“). Models only through `MockEliezer` on
+//! 127.0.0.1:0 under `common::model_queue`, PDFs under `common::PDF_SERIAL`; no Eliezer, no network. Every assertion
+//! with a reason. Everything through RPC or forms without JavaScript.
 
 use std::net::SocketAddr;
 use std::path::Path;
@@ -53,7 +53,7 @@ fn readable(page: &str) -> String {
     page.replace("&#x2f;", "/").replace("&amp;", "&").replace("&quot;", "\"")
 }
 
-/// Ein Wort vor das erste Ankerwort („Wasser“, „Sturm“, „Schlick“) setzen: weit unter 20 % (kleine Korrektur).
+/// Put a word before the first anchor word („Wasser“, „Sturm“, „Schlick“): far below 20 % (small correction).
 fn touched(body: &str, word: &str) -> String {
     let anchor = ["Wasser", "Sturm", "Schlick"].into_iter().find(|a| body.contains(a)).expect("Testtext mit Ankerwort");
     body.replacen(anchor, &format!("{word} {anchor}"), 1)
@@ -82,8 +82,8 @@ async fn save(server: &common::Server, work: i64, key: i64, body: &str, based_on
     result(&answer).clone()
 }
 
-/// Das Alter einer Fassung zurückstellen (Zeitgrenze ohne Schlafen): `revision.created` ist per Trigger
-/// unveränderlich – Trigger kurz herausnehmen und wörtlich wieder anlegen (wie SKILLS.md, `age_revision`).
+/// Set back the age of a revision (time limit without sleeping): `revision.created` is immutable by trigger – take the
+/// trigger out briefly and recreate it literally (like SKILLS.md, `age_revision`).
 async fn age_revision(server: &common::Server, key: i64, number: u64) {
     let pool = server.state.store.pool();
     let trigger: String = sqlx::query_scalar(
@@ -109,7 +109,7 @@ async fn meadow(server: &common::Server) -> (i64, i64, std::path::PathBuf) {
     (report.work, key, server.mirror_dir_of(&report.slug))
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without token only loopback).
 async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut request = Request::post("/mcp")
@@ -129,7 +129,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     let original = current(&node(&server, work, key).await)["body"].as_str().unwrap().to_owned();
     let start = commits(&dir);
 
-    // Dreimal eine kleine Korrektur auf der eigenen Fassung: eine Fassung, drei Fortschreibungen, drei Commits.
+    // Three times a small correction on the own revision: one revision, three amendments, three commits.
     let mut texts = vec![original.clone()];
     for (i, word) in ["hohe", "graue", "kalte"].into_iter().enumerate() {
         let next = touched(texts.last().unwrap(), word);
@@ -155,7 +155,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     assert_eq!(shown["revisions"].as_array().unwrap().len(), 1, "keine neue Fassung durch kleine Korrekturen");
     assert_eq!(current(&shown)["amend_seq"], 3, "node.get trägt den Stand 3");
 
-    // Verlauf: drei Schritte mit Text vorher/nachher, auch als Seite ohne JavaScript.
+    // History: three steps with text before/after, also as a page without JavaScript.
     let amends = result(&server.rpc("revision.amends", json!({ "work": work, "key": key, "rev": 1 })).await).clone();
     let steps = amends["steps"].as_array().unwrap();
     assert_eq!(steps.len(), 3, "drei Schritte im Verlauf: {amends}");
@@ -172,7 +172,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     assert_eq!(status, StatusCode::OK, "Verlaufsseite lädt");
     assert!(page.contains("Bis hier zurück") && page.contains("Stand 3"), "Verlauf mit Knopf „Bis hier zurück“");
 
-    // Rückgängig über das Formular (ohne JavaScript): Stand vor Schritt 3 als neuer Schritt 4, ein Commit.
+    // Undo through the form (without JavaScript): state before step 3 as new step 4, one commit.
     let form = format!("method=revision.amend_undo&work={work}&key={key}&rev=1&seq=3");
     let (status, location) = server.post_form("/werke/fassungen/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Formular „Bis hier zurück“ leitet weiter");
@@ -185,7 +185,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
         assert!(last_message(&dir).unwrap().contains("Baruch-Action: amend-undone"), "Trailer der Rücknahme");
     }
 
-    // „Als neue Fassung speichern“ ohne JavaScript (as_new=1 neben dem versteckten mode=auto): neue Nummer.
+    // „Als neue Fassung speichern“ without JavaScript (as_new=1 next to the hidden mode=auto): new number.
     let form = format!(
         "method=outline.save&work={work}&key={key}&based_on=1&mode=auto&as_new=1&body={}",
         form_escape(&touched(&texts[2], "nasse"))
@@ -194,8 +194,8 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     assert_eq!(status, StatusCode::SEE_OTHER, "Editor-Formular leitet weiter");
     assert!(location.unwrap().ends_with("&saved=new-2"), "neue Fassung 2 auf Wunsch");
 
-    // Große Änderung: mit der Vorgabe (seit 2026-11-27 ohne Grenzen) schreibt Speichern auch einen Umbau fort; erst
-    // mit eingeschalteter Grenze (20 %) entsteht eine neue Fassung mit Grund large_change.
+    // Large change: with the default (since 2026-11-27 without limits) saving amends even a restructuring; only with
+    // the limit switched on (20 %) a new revision with reason large_change is created.
     let rebuilt =
         format!("{}\nEin ganz neuer Absatz über Ebbe, Flut, Möwen, Priele und das Watt bei Nacht.\n", texts[2]);
     let amended = save(&server, work, key, &rebuilt, 2).await;
@@ -213,7 +213,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
     );
     assert_eq!(saved["reason_label"], "große Änderung", "deutscher Grund");
 
-    // Zeitabstand: Einstellung „Fassungen“ über das Formular (5 Minuten), Fassung 3 gealtert → time_elapsed.
+    // Time distance: setting „Fassungen“ through the form (5 minutes), revision 3 aged → time_elapsed.
     let (status, location) = server
         .post_form(
             "/einstellungen/werk/fassungen",
@@ -231,7 +231,7 @@ async fn an_author_amends_three_times_takes_one_back_and_gets_new_versions_only_
         (Some("new"), Some(4), Some("time_elapsed")),
         "nach der Zeitgrenze entsteht eine neue Fassung: {saved}"
     );
-    // Fortschreiben aus: jede Speicherung eine neue Fassung (policy_off).
+    // Amending off: every save a new revision (policy_off).
     result(&server.rpc("revision.policy_set", json!({ "work": work, "amend": false })).await);
     let body = current(&node(&server, work, key).await)["body"].as_str().unwrap().to_owned();
     let saved = save(&server, work, key, &touched(&body, "leise"), 4).await;
@@ -243,7 +243,8 @@ async fn on_a_persona_version_saving_always_gives_a_new_version_and_the_proposal
     let server = common::open().await;
     let (work, key, dir) = meadow(&server).await;
     let original = current(&node(&server, work, key).await)["body"].as_str().unwrap().to_owned();
-    // Vorschlag über MCP (propose_revision): der Seitenzweig entsteht gleich (Integrator, ohne Revisions-Commit).
+    // Proposal through MCP (propose_revision): the side branch is created right away (integrator, without revision
+    // commit).
     let proposed_text = touched(&original, "brackige");
     let answer = mcp(
         &server,
@@ -263,7 +264,7 @@ async fn on_a_persona_version_saving_always_gives_a_new_version_and_the_proposal
         );
     }
 
-    // Der Mensch übernimmt den Vorschlag; das nächste Speichern im Editor ist eine neue Fassung (not_own).
+    // The human accepts the proposal; the next save in the editor is a new revision (not_own).
     result(&server.rpc("revision.accept", json!({ "work": work, "key": key, "rev": 2 })).await);
     let saved = save(&server, work, key, &touched(&proposed_text, "eigene"), 2).await;
     assert_eq!(
@@ -275,13 +276,13 @@ async fn on_a_persona_version_saving_always_gives_a_new_version_and_the_proposal
     let persona = shown["revisions"].as_array().unwrap().iter().find(|r| r["number"] == 2).unwrap().clone();
     assert_eq!(persona["body"].as_str(), Some(proposed_text.as_str()), "der Vorschlag bleibt eine eigene Fassung");
     assert_eq!(persona["amend_seq"], 0, "der Vorschlag wurde nie fortgeschrieben");
-    // Danach ist die Fassung wieder die des Menschen: kleine Korrektur schreibt fort.
+    // After that the revision is that of the human again: a small correction amends.
     let mine = current(&shown)["body"].as_str().unwrap().to_owned();
     let saved = save(&server, work, key, &touched(&mine, "kühle"), 3).await;
     assert_eq!(saved["saved"], "amended", "die eigene neue Fassung lässt sich fortschreiben: {saved}");
 }
 
-/// Datenordner mit dem Nachbau des Modell-Backends (nie Eliezer).
+/// Data folder with the mock of the model backend (never Eliezer).
 async fn with_mock() -> (common::Server, MockEliezer) {
     let data = tempfile::tempdir().unwrap();
     let state = baruch_server::AppState::open_with(
@@ -309,7 +310,7 @@ async fn a_persona_rechecks_after_the_correction_asks_whether_its_finding_is_don
     let report = server.import(FERRY, "faehrhaus-deich.typ").await;
     let work = report.work;
     let key = server.state.store.load_work(work).await.unwrap().nodes[0].key;
-    // Erste Prüfung durch @nathan: ein kritischer Befund (mit Lösung, damit nichts nachgefordert wird).
+    // First check by @nathan: one critical finding (with solution, so that nothing is requested again).
     eliezer.push(Reply::text(&["Kritisch: „graue Seil“ ist zu blass.\n- statt: „graue Seil“\n- besser: „nasse Seil“"]));
     let order = Order {
         work,
@@ -332,18 +333,18 @@ async fn a_persona_rechecks_after_the_correction_asks_whether_its_finding_is_don
     let id = outcome.findings[0];
     let post = server.state.store.finding_get(work, id).await.unwrap().post.expect("Befund aus einem Beitrag");
 
-    // Der Autor setzt den Befund um – kleine Korrektur, also Fortschreibung der eigenen Fassung.
+    // The author implements the finding – small correction, hence an amendment of the own revision.
     let body = current(&node(&server, work, key).await)["body"].as_str().unwrap().replace("graue Seil", "nasse Seil");
     assert_eq!(save(&server, work, key, &body, 1).await["saved"], "amended", "Korrektur schreibt Fassung 1 fort");
 
-    // ↻ Wiederholen: @nathan sieht den eigenen offenen Befund und meldet ihn erledigt, ohne neue Kritik.
+    // ↻ Wiederholen: @nathan sees the own open finding and reports it done, without new criticism.
     let reply = format!("Erledigt: Befund {id} (Stelle „nasse Seil“)\n\n{}", prompts::ALL_DONE_SENTENCE);
     eliezer.push(Reply::text(&[reply.as_str()]));
     let answer = server.rpc("post.repeat", json!({ "work": work, "id": post })).await;
     let repeated = result(&answer).clone();
     let last = eliezer.chat_bodies().pop().unwrap().to_string();
     assert!(last.contains(&format!("[B{id}]")), "die Persona sah ihren offenen Befund im Kontext");
-    // Integrator: posts::repeat schlägt einen Befund mit offener Rückfrage nicht noch einmal vor.
+    // Integrator: posts::repeat does not propose a finding with an open question once more.
     assert_eq!(repeated["proposed_done"], json!([]), "keine zweite Rückfrage über die Wiederholung: {repeated}");
     assert_eq!(repeated["notes"], json!([]), "kein Vermerk „schon offen“: {repeated}");
     let finding = server.state.store.finding_get(work, id).await.unwrap();
@@ -358,7 +359,7 @@ async fn a_persona_rechecks_after_the_correction_asks_whether_its_finding_is_don
     let all = server.state.store.finding_list(work, &filter).await.unwrap();
     assert_eq!(all.len(), 1, "keine neue Kritik zum selben Punkt: {all:?}");
 
-    // Arbeitsseite ohne JavaScript: „Ja, erledigt“ / „Nein, noch offen“; der Mensch bestätigt per Formular.
+    // Work page without JavaScript: „Ja, erledigt“ / „Nein, noch offen“; the human confirms through the form.
     let (_, page) = server.get(&format!("/?work={work}&key={key}")).await;
     let page = readable(&page);
     assert!(page.contains("Ja, erledigt") && page.contains("Nein, noch offen"), "beide Knöpfe sichtbar");
@@ -371,7 +372,7 @@ async fn a_persona_rechecks_after_the_correction_asks_whether_its_finding_is_don
     assert!(finding.pending.is_none(), "die Rückfrage ist beantwortet");
 }
 
-/// Text eines PDFs je Seite ohne jeden Leerraum (pdftotext trennt Seiten mit \x0c); `None` ohne pdftotext.
+/// Text of a PDF per page without any whitespace (pdftotext separates pages with \x0c); `None` without pdftotext.
 fn pdf_pages(bytes: &[u8]) -> Option<Vec<String>> {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("probe.pdf");
@@ -425,7 +426,7 @@ async fn current_texts(server: &common::Server, work: i64) -> Vec<String> {
 async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing_changes_without_it() {
     let _serial = common::PDF_SERIAL.lock().await;
     let server = common::open().await;
-    // Erfundenes Werk, lang genug für mehrere Seiten (die Messung „auf jeder Seite“ braucht mehr als eine).
+    // Invented work, long enough for several pages (the measurement "on every page" needs more than one).
     let mut source = String::from("#set document(title: \"Deichtage\", author: \"Ole Siel\")\n\n");
     for (i, title) in ["Morgen", "Mittag", "Abend", "Nacht"].iter().enumerate() {
         source.push_str(&format!("= {title}\n\n"));
@@ -439,11 +440,11 @@ async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing
     let work = server.import(&source, "deichtage.typ").await.work;
     let (plain, _) = pdf(&server, "work.pdf", json!({ "work": work })).await;
 
-    // „Als Entwurf herunterladen“ ohne Einstellung: Menü-Eintrag und Download, die Einstellung bleibt leer.
+    // „Als Entwurf herunterladen“ without the setting: menu entry and download, the setting stays empty.
     let (_, page) = server.get(&format!("/?work={work}")).await;
     assert!(
-        // Runde 33 (Menüband): „Als Entwurf herunterladen“ (Menü Werk ▾) heißt im Reiter Buch, Gruppe Ausgabe, kurz
-        // „Entwurf“; Adresse und download-Attribut sind dieselben, das „herunterladen“ steht im title.
+        // Round 33 (ribbon): „Als Entwurf herunterladen“ (menu Werk ▾) is called „Entwurf“ for short in the tab Buch,
+        // group Ausgabe; address and download attribute are the same, the „herunterladen“ is in the title.
         page.contains(&format!("<a class=\"btn\" href=\"/werke/{work}/pdf?entwurf=1\" download title=\"Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)\">Entwurf</a>")),
         "Reiter Buch bietet „Entwurf“ herunterladen (Link, ohne JavaScript)"
     );
@@ -452,7 +453,7 @@ async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing
     assert_ne!(baruch_render::sha256_hex(&download), plain, "der Download trägt das Wasserzeichen");
     assert_eq!(typeset_settings(&server, work).await, json!({}), "der Download ändert die Einstellung nicht");
 
-    // Einstellung „Entwurf“ mit Datum in der Fußzeile.
+    // Setting „Entwurf“ with date in the footer.
     result(
         &server
             .rpc(
@@ -489,7 +490,7 @@ async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing
     assert_eq!(status, StatusCode::OK, "Satz-Seite lädt");
     assert!(page.contains("Ohne Wasserzeichen herunterladen"), "bei eingeschaltetem Entwurf auch „ohne“ herunterladen");
 
-    // Umschlag: nicht nach Einstellung (ohne draft.cover), auf Wunsch mit Warnung der Druckprüfung.
+    // Cover: not by the setting (without draft.cover), on request with a warning of the print check.
     let codes = |answer: &Value| -> Vec<String> {
         result(answer)["checks"].as_array().unwrap().iter().map(|c| c["code"].as_str().unwrap().to_owned()).collect()
     };
@@ -499,13 +500,13 @@ async fn the_draft_watermark_with_date_reaches_every_output_as_asked_and_nothing
     let cover = server.rpc("work.cover_pdf", json!({ "work": work, "draft": true })).await;
     assert!(codes(&cover).contains(&"draft".to_owned()), "Umschlag auf Wunsch mit Wasserzeichen: Druckprüfung warnt");
 
-    // EPUB nach Einstellung: Titelseite und Titel-Metadatum.
+    // EPUB by the setting: title page and title metadata.
     let epub = server.rpc("work.epub", json!({ "work": work, "inline": true })).await;
     let epub = baruch_store::decode_base64(result(&epub)["epub_base64"].as_str().unwrap()).unwrap();
     assert!(epub_entry(&epub, "OEBPS/content.opf").contains("(Entwurf)</dc:title>"), "dc:title mit „(Entwurf)“");
     assert!(epub_entry(&epub, "OEBPS/text/title.xhtml").contains("Entwurf: ENTWURF"), "Hinweis auf der Titelseite");
 
-    // Ohne Wasserzeichen trotz Einstellung: byte-gleich zum Werk ohne Einstellung; die Einstellung bleibt.
+    // Without watermark despite the setting: byte-identical to the work without the setting; the setting stays.
     let (without, _) = pdf(&server, "work.pdf", json!({ "work": work, "draft": false })).await;
     assert_eq!(without, plain, "draft:false byte-gleich zum PDF ohne Einstellung");
     let export =
@@ -561,7 +562,7 @@ async fn two_throwaway_instances_carry_amends_the_watermark_and_a_new_part_as_a_
         "Unterversion 9 (seit Runde 34) mit Fortschreibungen"
     );
 
-    // B liest ein: Stand 2 mit denselben Schritten (gleiche uuids), Entwurf in den Satz-Einstellungen.
+    // B reads in: state 2 with the same steps (same uuids), draft in the typesetting settings.
     let b = common::open().await;
     let work_b = exchange_import(&b, &xml, "new").await["work"].as_i64().unwrap();
     let key_b = b.state.store.load_work(work_b).await.unwrap().nodes[0].key;
@@ -575,7 +576,7 @@ async fn two_throwaway_instances_carry_amends_the_watermark_and_a_new_part_as_a_
     assert_eq!(draft["text"], "VORABZUG", "der Entwurf reist mit: {draft}");
     assert_eq!(comparable(&exchange_export(&b, work_b).await), comparable(&xml), "A → B → Ausgabe byte-gleich");
 
-    // A schreibt weiter fort und legt einen Teil vor das erste Kapitel; B gleicht ab.
+    // A keeps amending and puts a part before the first chapter; B syncs.
     let body = current(&node(&a, work_a, key_a).await)["body"].as_str().unwrap().to_owned();
     save(&a, work_a, key_a, &touched(&body, "kalte"), 1).await;
     let seq = a.state.store.node_seq(work_a, key_a).await.unwrap();
@@ -599,7 +600,7 @@ async fn two_throwaway_instances_carry_amends_the_watermark_and_a_new_part_as_a_
         !b.state.store.load_work(work_b).await.unwrap().nodes.iter().any(|n| n.kind == baruch_core::NodeKind::Part),
         "ohne Zustimmung ist nichts angelegt"
     );
-    // Zustimmen ohne JavaScript: Formular auf der Gliederungsseite.
+    // Consenting without JavaScript: form on the outline page.
     let (_, page) = b.get(&format!("/gliederung?work={work_b}")).await;
     assert!(page.contains("mit Kennung und"), "die Gliederung nennt den Antrag mit Kennung");
     let decided =
@@ -655,7 +656,7 @@ async fn the_jump_label_rule_of_an_unnumbered_title_with_code_survives_export_an
         result(&server.rpc("work.export", json!({ "work": work })).await)["typst"].as_str().unwrap().to_owned();
     assert!(export.contains(&format!("#show <k{}>: set heading(numbering: none)", pause.key)), "Regel im Export");
 
-    // Re-Import in einer zweiten Instanz: der Block verschwindet aus der Vorlage, der Abschnitt ist „ohne Nummer“.
+    // Re-import in a second instance: the block vanishes from the template, the section is „ohne Nummer“.
     let other = common::open().await;
     let again = other.import(&export, "rast-export.typ").await.work;
     let numbered: Vec<i64> = sqlx::query_scalar("SELECT numbered FROM node WHERE work_id = ? ORDER BY seq")

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder im Server (Vertrag Runde 6, Abschnitt 4f): RPC `asset.*`, Seiten „Bilder“ ohne
-//! JavaScript, Hochladen (multipart) und Formulare, Spiegel-Commits je Änderung. Echter Datenordner
-//! (SQLite, Git-Spiegel) im Temp-Ordner; alle Bilder im Test erzeugt.
+//! Images in the server (contract Round 6, section 4f): RPC `asset.*`, pages „Bilder“ without JavaScript, upload
+//! (multipart) and forms, mirror commits per change. Real data folder (SQLite, Git mirror) in the temp folder; all
+//! images are created in the test.
 
 use crate::common;
 
@@ -13,7 +13,7 @@ use tower::ServiceExt;
 const HOUSE: &str =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><path d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
 const HOUSE_RED: &str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><path fill=\"red\" d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
-/// PNG-Signatur und erfundene Bytes: genug, damit der Typ erkannt wird.
+/// PNG signature and invented bytes: enough for the type to be recognised.
 const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR\0\0\0\x01\0\0\0\x01\x08\0\0\0\0erfunden";
 const BOUNDARY: &str = "baruch-bild-grenze";
 
@@ -22,7 +22,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Antwort als Status, Kopfzeilen und Bytes (Bilder sind nicht immer UTF-8).
+/// Response as status, headers and bytes (images are not always UTF-8).
 async fn send_raw(server: &common::Server, request: Request<Body>) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
     let response = server.app.clone().oneshot(request).await.unwrap();
     let status = response.status();
@@ -30,7 +30,7 @@ async fn send_raw(server: &common::Server, request: Request<Body>) -> (StatusCod
     (status, headers, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
 }
 
-/// Multipart-Anfrage an `POST /werke/bilder/hochladen` wie ein Browserformular.
+/// Multipart request to `POST /werke/bilder/hochladen` like a browser form.
 fn upload(fields: &[(&str, &str)], file_name: &str, content: &[u8]) -> Request<Body> {
     let mut body = Vec::new();
     for (name, value) in fields {
@@ -238,7 +238,7 @@ async fn every_image_change_is_one_commit_with_trailers_and_deleting_keeps_the_c
     assert!(removed.contains(&encoded), "das gelöschte Bild steht als Base64 im Rumpf: {removed}");
     let dir_status = common::git(&dir, &["status", "--porcelain"]).unwrap();
     assert!(dir_status.is_empty(), "Spiegel sauber: {dir_status}");
-    // Ändern und Löschen einer nicht aktuellen Fassung ändern keine Datei: leere Protokoll-Commits.
+    // Changing and deleting a revision that is not current change no file: empty log commits.
     let names = common::git(&dir, &["show", "--name-only", "--format=", "HEAD~1"]).unwrap();
     assert!(names.trim().is_empty(), "Fassung löschen ändert keine Datei (leerer Commit): {names}");
 }
@@ -303,9 +303,9 @@ async fn the_image_pages_work_without_javascript() {
 
     let (status, html) = server.get(&format!("/?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsbereich des Werks lädt");
-    // Runde 9: „Bilder“ steht im Menü „Werk ▾“ der Kopfzeile, gleich nach dem Gliederungsschema.
-    // Runde 33 (Menüband): Das Menü Werk ▾ ist der Reiter Buch geworden; „Bilder“ steht dort in der Gruppe Werk,
-    // weiter gleich nach dem Gliederungsschema und als gewöhnlicher Link.
+    // Round 9: „Bilder“ is in the menu „Werk ▾“ of the header, right after the outline scheme.
+    // Round 33 (ribbon): the menu Werk ▾ has become the tab Buch; „Bilder“ is there in the group Werk, still right
+    // after the outline scheme and as an ordinary link.
     let menu = &html[html.find("data-band-panel=\"buch\"").expect("Feld des Reiters Buch")..];
     let menu = &menu[..menu.find("</details>").unwrap()];
     assert!(

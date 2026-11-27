@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 17 Ende-zu-Ende (Integrator): die drei Teile „Verszählungen“ (R17a), „Stellen“ (R17b) und „Prüfanzeige“
-//! (R17c) auf einem erfundenen Werk zusammen. Alle SWORD-Module schreibt der Test selbst (`baruch_sword::fixture`,
-//! frei erfundener Text, Temp-Ordner): eine BZIP2-gepackte Bibel in KJV-Zählung und eine XZ-gepackte, mit einem
-//! frei erfundenen Testschlüssel selbst verschlüsselte Bibel in deutscher Zählung. Schlüsselbund ist der
-//! Ersatz im Speicher (`MemorySecrets`, wie `--secrets memory`), Modell der Nachbau `ScriptedModel`. Kein echtes
-//! Modul, kein echtes Modell, kein Netz.
+//! Round 17 end to end (integrator): the three parts „Verszählungen“ (R17a), „Stellen“ (R17b) and „Prüfanzeige“ (R17c)
+//! together on an invented work. All SWORD modules are written by the test itself (`baruch_sword::fixture`, freely
+//! invented text, temp folder): a BZIP2-packed Bible in KJV versification and an XZ-packed Bible in German
+//! versification, encrypted by the test itself with a freely invented test key. The keyring is the substitute in memory
+//! (`MemorySecrets`, like `--secrets memory`), the model the mock `ScriptedModel`. No real module, no real model, no
+//! network.
 
 use crate::common;
 
@@ -18,11 +18,11 @@ use baruch_server::assist::{Mode, Order, Scope, prompts, ref_claims};
 use baruch_sword::fixture::{Block, Compression, Fixture, Layout, write};
 use serde_json::{Value, json};
 
-/// Frei erfundener Testschlüssel; darf nie in einer Antwort, Seite oder Weiterleitung stehen.
+/// Freely invented test key; must never be in a response, page or redirect.
 const TEST_KEY: &str = "Uferschwalbe-R17-Testschluessel-c41e";
 
-/// Erfundene Bibel in KJV-Zählung, BZIP2-gepackt: Maleachi hat dort vier Kapitel (KJV Mal 4,1–6 = deutsch
-/// Mal 3,19–24), Lk 15 ist in beiden Zählungen gleich.
+/// Invented Bible in KJV versification, BZIP2-packed: Malachi has four chapters there (KJV Mal 4:1–6 = German Mal
+/// 3:19–24), Luke 15 is the same in both versifications.
 fn shore_bible() -> Fixture {
     let kjv = versification("KJV").unwrap();
     let mut f = Fixture::new("Uferbibel", Layout::ZText(Block::Chapter), kjv)
@@ -41,7 +41,7 @@ fn shore_bible() -> Fixture {
     f
 }
 
-/// Erfundene Bibel in deutscher Zählung, XZ-gepackt und mit Sapphire II selbst verschlüsselt.
+/// Invented Bible in German versification, XZ-packed and encrypted by the test itself with Sapphire II.
 fn sealed_bible() -> Fixture {
     Fixture::new("Siegelufer", Layout::ZText(Block::Book), german())
         .compression(Compression::Xz)
@@ -102,8 +102,8 @@ fn line_with<'a>(text: &'a str, needle: &str) -> &'a str {
     text.lines().find(|l| l.contains(needle)).unwrap_or_else(|| panic!("Zeile mit {needle} fehlt: {text}"))
 }
 
-/// Abschnitt mit allen Parser-Fällen von R17b: Komma-Liste, Uhrzeit, Anzahl, „Psalm 139 … Vers 23“, ein
-/// verschachteltes Zitat, ein Zitat über zwei Absätze, ein Blockzitat in `#szene` und ein falsch erinnertes Zitat.
+/// Section with all parser cases of R17b: comma list, time of day, count, „Psalm 139 … Vers 23“, a nested quotation, a
+/// quotation across two paragraphs, a block quotation in `#szene` and a wrongly remembered quotation.
 const PARTS: &str = "= Am Steg\n\n\
 Probe Mi 19:30 im Gemeindehaus; das hat er Johannes 3 Mal gesagt.\n\n\
 Er las: „Der Fährmann sprach: ‚Komm‘, das Boot liegt am Steg.“ (Joh 3,16, 18)\n\n\
@@ -118,14 +118,15 @@ async fn an_english_counted_bzip2_bible_serves_a_german_sermon_from_creation_to_
     let dir = tempfile::tempdir().unwrap();
     modules(&server, dir.path(), &[shore_bible()]).await;
 
-    // R17a: Die englische Angabe wird in die deutsche Zählung umgerechnet.
+    // R17a: the English reference is converted into the German versification.
     let mapped = ok(&server, "scripture.map", json!({ "ref": "Mal 4,1–6", "from": "KJV", "to": "German" })).await;
     let entry = &mapped["refs"][0];
     assert_eq!(entry["status"], "moved", "Mal 4 (KJV) ist im deutschen Kapitel 3 eingeordnet: {mapped}");
     assert_eq!(entry["target"], "Mal 3,19–24", "deutsche Schreibweise des Ziels: {mapped}");
     assert_eq!(entry["verses"].as_array().map(Vec::len), Some(6), "sechs Verse: {mapped}");
 
-    // R17c über R17b: Die Predigt in deutscher Zählung liest ihren Predigttext aus der KJV-Bibel über die Abbildung.
+    // R17c on top of R17b: the sermon in German versification reads its sermon text from the KJV Bible through the
+    // mapping.
     let created = ok(
         &server,
         "work.create",
@@ -154,7 +155,7 @@ async fn an_english_counted_bzip2_bible_serves_a_german_sermon_from_creation_to_
         "der Lizenzvermerk der conf steht in der Prüfantwort, damit der Nutzer ihn bei jeder Prüfung sieht: {check}"
     );
 
-    // R17b: Parser-Fälle in einem Predigtteil; R17c: bible.marks mit Byte-Bereichen der gezeigten Fassung.
+    // R17b: parser cases in a sermon part; R17c: bible.marks with byte ranges of the revision shown.
     let part = keys[2];
     ok(&server, "revision.save", json!({ "work": work, "key": part, "body": PARTS })).await;
     let marks = ok(&server, "bible.marks", json!({ "work": work, "key": part })).await;
@@ -186,7 +187,7 @@ async fn an_english_counted_bzip2_bible_serves_a_german_sermon_from_creation_to_
         "der Unterschied ist benannt: {marks}"
     );
 
-    // Dieselbe Liste ohne JavaScript: Prüfseite und Link aus der Statuszeile des Editors.
+    // The same list without JavaScript: check page and link from the status line of the editor.
     let (status, page) = server.get(&format!("/werke/{work}/pruefung?key={part}")).await;
     assert_eq!(status, axum::http::StatusCode::OK, "Prüfseite lädt: {page}");
     assert!(
@@ -218,7 +219,7 @@ async fn an_xz_enciphered_bible_stays_locked_until_the_memory_keyring_holds_the_
     let locked = ok(&server, "bible.check", json!({ "work": work, "key": key })).await;
     assert_eq!(locked["refs"][0]["wording_code"], "unchecked", "verschlüsselt ohne Schlüssel kein Wortlaut: {locked}");
 
-    // Falscher Schlüssel über das Formular: ehrliche Meldung, nichts gespeichert.
+    // Wrong key through the form: honest message, nothing stored.
     let (status, to) = server
         .post_form(
             "/einstellungen/quellen/act",
@@ -232,7 +233,7 @@ async fn an_xz_enciphered_bible_stays_locked_until_the_memory_keyring_holds_the_
     let wrong = err(&server, "bible.cipher_key_set", json!({ "module": "Siegelufer", "key": "auch-falsch" })).await;
     assert_eq!(wrong["message"], "Schlüssel passt nicht zum Modul; nichts gespeichert.", "RPC ebenso: {wrong}");
 
-    // Richtiger Schlüssel: probegelesen (Sapphire II, XZ), im Schlüsselbund-Ersatz, nie angezeigt.
+    // Right key: trial-read (Sapphire II, XZ), in the keyring substitute, never displayed.
     let (_, to) = server
         .post_form(
             "/einstellungen/quellen/act",
@@ -293,7 +294,7 @@ async fn the_lector_on_a_sermon_marks_foreign_quotes_false_reference_claims_and_
         json!({ "work": work, "key": part, "body": "= Beobachtung am Text\n\nWer sucht, findet.\n" }),
     )
     .await;
-    // Ein fremder Befund und ein Einfall: beide stehen im Aufruf, belegen aber nichts.
+    // A foreign finding and an idea: both are in the call, but evidence nothing.
     let seq = server.state.store.node_seq(work, part).await.unwrap();
     let foreign = baruch_core::Post {
         id: 0,
@@ -355,8 +356,8 @@ async fn the_lector_on_a_sermon_marks_foreign_quotes_false_reference_claims_and_
 
 #[tokio::test]
 async fn the_work_page_accordion_shows_the_lector_and_context_like_the_settings_without_asking_the_backend() {
-    // Offener Punkt aus R17a (L4): Das Akkordeon der Arbeitsseite rechnete mit `Work::lector` und der Einstellung
-    // (`context_length / 1024`), Einstellungen → Assistenten dagegen mit der wirksamen Länge ohne Netz.
+    // Open point from R17a (L4): the accordion of the work page calculated with `Work::lector` and the setting
+    // (`context_length / 1024`), Einstellungen → Assistenten in contrast with the effective length without network.
     let _turn = common::model_queue(module_path!()).await;
     let model = ScriptedModel::new().with_reported_context(4096);
     let server = server_with(Arc::new(model.clone())).await;
@@ -384,8 +385,8 @@ async fn the_work_page_accordion_shows_the_lector_and_context_like_the_settings_
 
 #[test]
 fn the_check_list_hangs_on_the_whole_status_line_and_is_not_cut_off() {
-    // Sichtprüfung Integrator Runde 17: Am Knopf „Zitate prüfen“ rechts ausgerichtet ragte die Liste links aus dem
-    // Editorbereich und wurde abgeschnitten. Jetzt hängt sie an der Statuszeile (links und rechts bündig).
+    // Visual check integrator Round 17: right-aligned at the button „Zitate prüfen“ the list stuck out of the editor
+    // area on the left and was cut off. Now it hangs on the status line (flush left and right).
     let css = include_str!("../static/pruefung.css");
     assert!(
         css.contains(".editor-status:has(.scripture-check) { position: relative; }"),

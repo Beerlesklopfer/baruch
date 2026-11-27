@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 15b „anbieter“: Verbindung je Persona (Eliezer, OpenAI-kompatibel, Ollama), lokal/extern mit Freigabe,
-//! Modellliste je Verbindung mit Rückfall auf den abgelaufenen Zwischenspeicher, Abgleich der Kontextlänge,
-//! Kurztest in der Datenbank, Schlüssel je Verbindung an ihr Ziel gebunden, `persona.list` ohne Werk,
-//! Formulare ohne JavaScript und Schalter „Bibel-Belege“.
+//! Round 15b „anbieter“: connection per persona (Eliezer, OpenAI-compatible, Ollama), local/external with clearance,
+//! model list per connection with fallback to the expired cache, reconciliation of the context length, short test in
+//! the database, key per connection bound to its target, `persona.list` without a work, forms without JavaScript and
+//! switch „Bibel-Belege“.
 //!
-//! Jede Gegenstelle ist ein eigener Nachbau (`baruch_llm::mock::MockEliezer` auf 127.0.0.1:0, als Eliezer, Ollama
-//! oder OpenAI-kompatibel); Geheimnisse nur in `MemorySecrets` mit eindeutigem Test-Geheimnis. Kein Test erreicht
-//! den echten Eliezer oder einen fremden Dienst.
+//! Every peer is a mock of its own (`baruch_llm::mock::MockEliezer` on 127.0.0.1:0, as Eliezer, Ollama or
+//! OpenAI-compatible); secrets only in `MemorySecrets` with a unique test secret. No test reaches the real Eliezer or a
+//! foreign service.
 
 use crate::common;
 
@@ -18,13 +18,13 @@ use baruch_server::assist::eliezer::EliezerPort;
 use baruch_server::connections::MemorySecrets;
 use serde_json::{Value, json};
 
-/// Eindeutiges Test-Geheimnis; es darf in keiner Antwort und keiner Seite stehen.
+/// Unique test secret; it must be in no response and on no page.
 const SECRET: &str = "Rr8-anbieter-geheim-5f2c";
 
 const TEXT: &str = "#set document(title: \"Die Fähre am Morgen\", author: \"Ida Kranich\")\n\n\
 = Ablegen\n\nDie Fähre legt ab, als der Nebel noch über dem Fluss liegt.\n";
 
-/// Server mit dem echten Adapter (EliezerPort), Eliezer auf einen eigenen Nachbau gestellt, und einem Werk.
+/// Server with the real adapter (EliezerPort), Eliezer pointed to an own mock, and a work.
 async fn ferry() -> (common::Server, MockEliezer, i64, i64) {
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with(data.path(), Arc::new(MemorySecrets::default()), Arc::new(EliezerPort))
@@ -51,7 +51,7 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Neue Modell-Verbindung auf den Nachbau `mock`.
+/// New model connection to the mock `mock`.
 async fn connection(server: &common::Server, name: &str, kind: &str, mock: &MockEliezer, external: bool) -> i64 {
     let made = ok(
         server,

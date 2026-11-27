@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Befund-Rückfrage, Besitz befund-rueckfrage): Personas fragen nach erledigten Befunden, Statusvorschlag Done, „Ja, erledigt“/„Nein, noch offen“, Stand k.
+//! Round 22 (finding question, ownership befund-rueckfrage): personas ask about findings that are done, status proposal
+//! Done, „Ja, erledigt“/„Nein, noch offen“, state k.
 //!
-//! Modelle nur über den Nachbau `MockEliezer` auf 127.0.0.1:0 (nie Eliezer, nie Netz), Tests mit Modellen unter
-//! `common::model_queue`. Das „Fährhaus“ und alle Antworten der Personas sind frei erfunden.
+//! Models only through the mock `MockEliezer` on 127.0.0.1:0 (never Eliezer, never the network), tests with models
+//! under `common::model_queue`. The „Fährhaus“ and all answers of the personas are freely invented.
 
 use std::sync::Arc;
 
@@ -38,7 +39,7 @@ impl Ferry {
         common::git(&self.server.mirror_dir_of(&self.slug), &["log", "-1", "--format=%an%n%s%n%b"]).unwrap_or_default()
     }
 
-    /// Prüfauftrag an `persona` für den ersten Abschnitt (wie „Prüfen“ in der Oberfläche bzw. MCP review).
+    /// Check job for `persona` for the first section (like „Prüfen“ in the user interface or MCP review).
     async fn review(&self, persona: &str, reply: &str) -> baruch_server::assist::Outcome {
         self.eliezer.push(Reply::text(&[reply]));
         baruch_server::assist::run(&self.server.state, &order(self.work, self.keys[0], persona, Mode::Review), None)
@@ -46,7 +47,7 @@ impl Ferry {
             .expect("Prüfen gelingt")
     }
 
-    /// Letzter an den Nachbau geschickter Aufruf: (System, Nutzer).
+    /// Last call sent to the mock: (system, user).
     fn last_call(&self) -> (String, String) {
         let body = self.eliezer.chat_bodies().pop().expect("ein Aufruf ging an den Nachbau");
         messages(&body)
@@ -118,7 +119,7 @@ async fn ferry() -> Ferry {
     Ferry { server, eliezer, work: report.work, slug: report.slug, keys }
 }
 
-/// Erste Prüfung von @nathan mit genau einem kritischen Befund (mit Lösung, damit nichts nachgefordert wird).
+/// First check by @nathan with exactly one critical finding (with solution, so that nothing is requested again).
 const FIRST: &str =
     "Kritisch: „graue Seil“ ist zu blass für den Morgen.\n- statt: „graue Seil“\n- besser: „nasse Seil“";
 
@@ -137,7 +138,7 @@ async fn a_recheck_shows_the_persona_its_own_open_findings_and_the_rule() {
         let (system, user) = f.last_call();
         assert!(!user.contains(prompts::OWN_FINDINGS_TITLE), "die erste Prüfung kennt noch keine eigenen Befunde");
         assert!(!system.contains(prompts::RECHECK_RULE), "ohne eigene Befunde keine Regel im System");
-        // Ein fremder offener Befund (@lektor) gehört nicht in den Block der eigenen.
+        // A foreign open finding (@lektor) does not belong in the block of the own ones.
         let lektor = f.review("@lektor", "Hinweis: „Nebel“ könnte einen zweiten Satz tragen.").await;
         assert_eq!(lektor.findings.len(), 1, "der Lektor hat seinen eigenen Befund");
         f.review("@nathan", "Kritisch: „bellt“ wirkt verloren.\n- Schritt: den Hund früher nennen.").await;
@@ -180,8 +181,8 @@ async fn a_done_line_becomes_a_status_proposal_instead_of_a_new_finding() {
         format!("Befund {id} scheint erledigt (Stelle „nasse Seil“) – als erledigt markieren?"),
         "Notiz nach Vertrag §2.8"
     );
-    // Prüfen selbst committet nicht (Beitrag und Befunde stehen im nächsten Schnappschuss); der Vorschlag ist genau
-    // ein Commit wie in Runde 28.
+    // Checking itself does not commit (post and findings are in the next snapshot); the proposal is exactly one commit
+    // as in Round 28.
     assert_eq!(f.commits().await, commits + 1, "genau ein Commit für den Vorschlag");
     let last = f.last_commit().await;
     assert!(last.contains("Baruch-Action: finding-propose"), "Commit des Vorschlags: {last}");
@@ -216,7 +217,7 @@ async fn foreign_unknown_decided_and_doubled_numbers_are_skipped_and_noted() {
     );
     let lektor = f.server.state.store.finding_get(f.work, foreign).await.unwrap();
     assert!(lektor.pending.is_none(), "ein fremder Befund bekommt keine Rückfrage von @nathan");
-    // Dieselbe Rückmeldung noch einmal: kein zweiter offener Vorschlag.
+    // The same feedback once more: no second open proposal.
     let again = f.review("@nathan", &format!("Erledigt: Befund {own}\n\n{}", prompts::ALL_DONE_SENTENCE)).await;
     assert!(again.done_proposals.is_empty(), "kein doppelter offener Vorschlag: {again:?}");
     assert!(
@@ -270,14 +271,14 @@ async fn repeat_and_rfc_are_rechecks_too() {
     let f = ferry().await;
     let id = nathan_finding(&f).await;
     let first = f.server.state.store.finding_get(f.work, id).await.unwrap().post.expect("Befund aus einem Beitrag");
-    // ↻ Wiederholen (post.repeat) des Beitrags mit dem Befund.
+    // ↻ Wiederholen (post.repeat) of the post with the finding.
     f.eliezer.push(Reply::text(&[FIRST]));
     let answer = f.server.rpc("post.repeat", json!({ "work": f.work, "id": first })).await;
     assert!(answer["error"].is_null(), "Wiederholen gelingt: {answer}");
     let (system, user) = f.last_call();
     assert!(user.contains(prompts::OWN_FINDINGS_TITLE) && user.contains(&format!("[B{id}]")), "Wiederholen: {user}");
     assert!(system.contains(prompts::RECHECK_RULE), "Wiederholen: Regel im System");
-    // RFC: alle aktiven Personas; nur @nathan hat eigene offene Befunde.
+    // RFC: all active personas; only @nathan has open findings of his own.
     let (others, lector) = baruch_server::assist::chat::rfc_personas(&f.server.state).await.unwrap();
     let before = f.eliezer.chat_bodies().len();
     for _ in others.iter().chain(lector.iter()) {
@@ -327,10 +328,10 @@ async fn the_question_shows_yes_and_no_and_the_human_decides_with_a_form() {
         );
     }
     assert!(workspace.contains("data-finding-question"), "Kasten der Rückfrage für das Widget");
-    // Der Befund im Chat-Beitrag (finding_block) trägt die Rückfrage ebenfalls.
+    // The finding in the chat post (finding_block) carries the question as well.
     assert!(workspace.contains("fb-question"), "Befundkarte im Chat zeigt die Rückfrage");
 
-    // „Nein, noch offen“ ohne JavaScript: der Befund bleibt offen, der Vorschlag ist abgelehnt.
+    // „Nein, noch offen“ without JavaScript: the finding stays open, the proposal is declined.
     let commits = f.commits().await;
     let back = format!("/?work={}&key={}", f.work, f.keys[0]);
     let form = format!("method=finding.decide&work={}&entry={entry}&confirm=0&back={}", f.work, urlencoding(&back));
@@ -343,7 +344,7 @@ async fn the_question_shows_yes_and_no_and_the_human_decides_with_a_form() {
     assert_eq!(f.commits().await, commits + 1, "Entscheidung = genau ein Commit");
     assert!(f.last_commit().await.contains("Baruch-Action: finding-decide"), "Commit der Entscheidung");
 
-    // Neue Rückfrage, dann „Ja, erledigt“.
+    // New question, then „Ja, erledigt“.
     f.review("@nathan", &reply).await;
     let entry = f.server.state.store.finding_get(f.work, id).await.unwrap().pending.expect("neue Rückfrage").id;
     let form = format!("method=finding.decide&work={}&entry={entry}&confirm=1&back={}", f.work, urlencoding(&back));
@@ -378,7 +379,7 @@ async fn an_adopted_finding_shows_version_and_stand_in_card_list_and_matrix() {
         manual: false,
     };
     let id = baruch_server::findings::ingest(&f.server.state, &source).await.unwrap().created[0].id;
-    // Stand per SQL (die Aufgabe fassungen baut das Fortschreiben; hier nur der Stand der Fassung).
+    // State by SQL (the task fassungen builds the amending; here only the state of the revision).
     sqlx::query("UPDATE revision SET amend_seq = 2 WHERE node_id = ? AND number = 1")
         .bind(f.keys[0])
         .execute(f.server.state.store.pool())
@@ -398,7 +399,7 @@ async fn an_adopted_finding_shows_version_and_stand_in_card_list_and_matrix() {
     assert!(workspace.contains("übernommen in Fassung 1 · Stand 2"), "Akkordeon „Befunde“ nennt den Stand");
 }
 
-/// Prozentkodierung für Formularwerte (nur, was in einer Adresse vorkommt).
+/// Percent-encoding for form values (only what occurs in an address).
 fn urlencoding(text: &str) -> String {
     text.bytes()
         .map(|b| match b {
@@ -437,14 +438,14 @@ async fn mcp_ask_persona_review_is_a_recheck_and_proposes_done() {
     assert_eq!(pending.status, FindingStatus::Done, "Statusvorschlag „erledigt“ auch auf dem MCP-Weg");
 }
 
-/// PM-Abschluss R22 (Gutachten): Eine Rückmeldung zu einem eigenen offenen Befund aus einem anderen Abschnitt wird
-/// übergangen – die Persona hat dessen Text in diesem Auftrag nicht gesehen.
+/// PM close R22 (review): feedback on an own open finding from another section is passed over – the persona has not
+/// seen its text in this job.
 #[tokio::test]
 async fn a_done_claim_for_a_finding_of_another_section_is_skipped() {
     let _turn = common::model_queue(module_path!()).await;
     let f = ferry().await;
     let own = nathan_finding(&f).await;
-    // Mit „Kritisch:“, damit @nathan keinen Pflichtbefund nachfordert (ein Aufruf an den Nachbau).
+    // With „Kritisch:“, so that @nathan does not request a mandatory finding again (one call to the mock).
     let reply = format!(
         "Erledigt: Befund {own} (Stelle „Hund“)\n\nKritisch: „Drüben“ bleibt vage.\n- Schritt: das Ufer nennen."
     );
@@ -465,9 +466,9 @@ async fn a_done_claim_for_a_finding_of_another_section_is_skipped() {
     assert!(finding.pending.is_none(), "kein Statusvorschlag am Befund aus dem anderen Abschnitt");
 }
 
-/// Nachbesserung 0.9.0 (Nutzer 2026-11-24: „Der Befund lässt sich nirgends anspringen“): Das Zitat eines Befunds
-/// und „zur Stelle“ führen mit einer Sprung-Adresse (`find`) an die Stelle im Abschnitt – im Akkordeon und auf der
-/// Befundseite, ohne JavaScript als gewöhnlicher Link.
+/// Follow-up fix 0.9.0 (user 2026-11-24: „Der Befund lässt sich nirgends anspringen“): the quotation of a finding and
+/// „zur Stelle“ lead with a jump address (`find`) to the place in the section – in the accordion and on the findings
+/// page, without JavaScript as an ordinary link.
 #[tokio::test]
 async fn the_quote_of_a_finding_jumps_to_its_place_in_the_section() {
     let f = ferry().await;
@@ -490,15 +491,15 @@ async fn the_quote_of_a_finding_jumps_to_its_place_in_the_section() {
     assert!(detail.contains(&format!("href=\"{jump}\" data-jump")), "auch auf der Befundseite anspringbar");
 }
 
-/// Runde 36 (Hinweis aus 0.9.0): Seit dem Kritik-Zyklus bekam jede direkt angesprochene Persona ihre eigenen offenen
-/// Befunde in den Kontext – auch bei einer schlichten Frage, die mit dem Prüfen nichts zu tun hat. Jetzt nur noch
-/// bei einem Prüfauftrag (`chat::is_check_order`); RFC, „Prüfen“ und ↻ bleiben erneutes Prüfen.
+/// Round 36 (note from 0.9.0): since the critique cycle every directly addressed persona got its own open findings into
+/// the context – even with a plain question that has nothing to do with checking. Now only with a check job
+/// (`chat::is_check_order`); RFC, „Prüfen“ and ↻ stay renewed checking.
 #[tokio::test]
 async fn a_plain_question_to_an_addressed_persona_carries_no_own_findings_but_a_check_order_does() {
     let _turn = common::model_queue(module_path!()).await;
     let f = ferry().await;
     let id = nathan_finding(&f).await;
-    // Der erste Aufruf an den Nachbau, den die Nachricht auslöst (eine Nachforderung käme danach).
+    // The first call to the mock that the message triggers (a repeated request would come after it).
     let ask = async |message: &str| -> (String, String) {
         let before = f.eliezer.chat_bodies().len();
         f.eliezer.push(Reply::text(&["Kritisch: „Rolle“ knarrt nicht.\n- Schritt: das Knarren hörbar machen."]));

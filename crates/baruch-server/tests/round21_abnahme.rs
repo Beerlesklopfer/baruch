@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21 (Import und Bilder): Abnahme des Integrators Ende zu Ende über die Grenzen der drei Aufgaben hinweg.
+//! Round 21 (import and images): acceptance of the integrator end to end across the boundaries of the three tasks.
 //!
-//! - PDF mit drei Kapiteln lokal (Formular ohne JavaScript) und über den MultiGPT-Nachbau (RPC) → Vorschau →
-//!   bearbeitete Gliederung bestätigen → Werk; nichts wird vor der Bestätigung angelegt.
-//! - EPUB mit Bild → Werk mit Bild; EPUB als Quelle → `/quelle` zeigt den lokalen Volltext (Verdrahtung
+//! - PDF with three chapters locally (form without JavaScript) and through the MultiGPT mock (RPC) → preview → confirm
+//!   the edited outline → work; nothing is created before the confirmation.
+//! - EPUB with image → work with image; EPUB as a source → `/quelle` shows the local full text (wiring
 //!   `fulltext::has_fulltext`).
-//! - Markdown-ZIP mit Bildern → Werk mit Warnungen → `export --out` → erneuter Import gleichwertig;
-//!   `export --out` lehnt einen verknüpften Zwischenordner vorab ab.
-//! - Manipulierte Archive (Pfadflucht, Bombe) werden über alle Wege ohne Schreiben abgelehnt.
-//! - Bild mit Typwechsel ersetzen, Altbestand `/x.png` gegen `x.png`, MCP-Kontingent, Aufräumen entschiedener Anträge.
-//! - EPUB-Cover eines importierten Werks zeigt Titel, Untertitel und Autor als Bild.
-//! - CLI-Weiche (main.rs, Integrator): Flags nur für PDF/EPUB, Hinweise auf stderr.
+//! - Markdown ZIP with images → work with warnings → `export --out` → renewed import equivalent; `export --out` rejects
+//!   a linked intermediate folder in advance.
+//! - Manipulated archives (path traversal, bomb) are rejected through all ways without writing.
+//! - Replacing an image with a type change, legacy `/x.png` against `x.png`, MCP quota, clearing away decided requests.
+//! - EPUB cover of an imported work shows title, subtitle and author as an image.
+//! - CLI switch (main.rs, integrator): flags only for PDF/EPUB, hints on stderr.
 //!
-//! Alle Dokumente sind frei erfunden und entstehen im Test (PDF über `baruch_render::compile_pdf` unter
-//! `common::PDF_SERIAL`, EPUB und ZIP von Hand gezippt, Bilder über `baruch_epub::sample::png`). Kein Eliezer,
-//! kein MultiGPT (nur `connections::multigpt::mock` auf 127.0.0.1:0), kein Internet.
+//! All documents are freely invented and are created in the test (PDF through `baruch_render::compile_pdf` under
+//! `common::PDF_SERIAL`, EPUB and ZIP zipped by hand, images through `baruch_epub::sample::png`). No Eliezer, no
+//! MultiGPT (only `connections::multigpt::mock` on 127.0.0.1:0), no internet.
 
 use crate::common;
 
@@ -31,7 +31,7 @@ use tower::ServiceExt;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
-// ---- Hilfen ------------------------------------------------------------------------------------------------------
+// ---- Helpers ----------------------------------------------------------------------------------------------------
 
 fn result(answer: &Value) -> Value {
     assert!(answer["error"].is_null(), "RPC sollte gelingen: {answer}");
@@ -56,7 +56,7 @@ fn poppler() -> bool {
     found
 }
 
-/// Frei erfundenes Buch: drei Kapitel, zwei Abschnitte.
+/// Freely invented book: three chapters, two sections.
 const ORCHARD: &str = "#set document(title: \"Der Apfelgarten am Deich\", author: \"Ilse Morgen\")
 #set text(lang: \"de\")
 
@@ -107,7 +107,7 @@ fn zip_of(entries: &[(&str, Vec<u8>)]) -> Vec<u8> {
     zip.finish().unwrap().into_inner()
 }
 
-/// Frei erfundenes EPUB 3 mit zwei Kapiteln (nav.xhtml) und einem PNG mit Unterschrift im ersten Kapitel.
+/// Freely invented EPUB 3 with two chapters (nav.xhtml) and a PNG with caption in the first chapter.
 fn epub_with_picture(title: &str, picture: &[u8]) -> Vec<u8> {
     let container = r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#;
     let opf = format!(
@@ -129,7 +129,7 @@ fn epub_with_picture(title: &str, picture: &[u8]) -> Vec<u8> {
 
 const BOUNDARY: &str = "----baruch-r21-abnahme";
 
-/// multipart/form-data wie ein Browserformular: Textfelder, dann Dateien im Feld `field`.
+/// multipart/form-data like a browser form: text fields, then files in the field `field`.
 fn multipart(uri: &str, fields: &[(&str, &str)], field: &str, files: &[(&str, &[u8])]) -> Request<Body> {
     let mut body = Vec::new();
     for (name, value) in fields {
@@ -171,12 +171,12 @@ async fn get_bytes(server: &common::Server, uri: &str) -> (StatusCode, HeaderMap
     (status, headers, to_bytes(response.into_body(), usize::MAX).await.unwrap().to_vec())
 }
 
-/// Wert eines Attributs nach `marker` in einer Seite (erstes Vorkommen).
+/// Value of an attribute after `marker` in a page (first occurrence).
 fn attribute(page: &str, marker: &str) -> String {
     page.split(marker).nth(1).and_then(|r| r.split('"').next()).unwrap_or_else(|| panic!("{marker} fehlt")).to_owned()
 }
 
-/// Zeilen der bearbeitbaren Gliederung in der Vorschau-Seite: (src, line).
+/// Rows of the editable outline in the preview page: (src, line).
 fn outline_rows(page: &str) -> Vec<(String, String)> {
     let srcs: Vec<String> =
         page.split("name=\"src\" value=\"").skip(1).map(|r| r.split('"').next().unwrap().to_owned()).collect();
@@ -189,7 +189,7 @@ fn outline_rows(page: &str) -> Vec<(String, String)> {
     srcs.into_iter().zip(lines).collect()
 }
 
-/// Dateien unter einem Ordner (relativ, sortiert).
+/// Files under a folder (relative, sorted).
 fn files_under(dir: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
@@ -212,7 +212,7 @@ fn unkeyed(text: &str) -> String {
     baruch_typst::xref::strip_key_labels(text).into_owned()
 }
 
-// ---- 1. PDF lokal über die Seiten ohne JavaScript ----------------------------------------------------------------
+// ---- 1. PDF locally through the pages without JavaScript --------------------------------------------------------
 
 #[tokio::test]
 async fn a_local_pdf_goes_through_preview_edited_outline_and_confirmation_into_a_work_without_javascript() {
@@ -251,7 +251,7 @@ async fn a_local_pdf_goes_through_preview_edited_outline_and_confirmation_into_a
     assert!(page.contains("Im April blühen"), "Begründung: Textprobe je Kapitel: {page}");
     let draft = attribute(&page, "data-draft=\"");
 
-    // Der Mensch bearbeitet: „Der Frühling“ umbenannt, „Die Bienen“ eine Ebene tiefer, „Das Gewitter“ gestrichen.
+    // The human edits: „Der Frühling“ renamed, „Die Bienen“ one level deeper, „Das Gewitter“ struck out.
     let edited: Vec<(String, String)> = rows
         .iter()
         .map(|(src, line)| {
@@ -287,7 +287,7 @@ async fn a_local_pdf_goes_through_preview_edited_outline_and_confirmation_into_a
     assert!(workspace.contains("Blüte"), "Begründung: der Baum zeigt die bestätigte Gliederung");
 }
 
-// ---- 2. PDF über den MultiGPT-Nachbau ----------------------------------------------------------------------------
+// ---- 2. PDF through the MultiGPT mock ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_pdf_through_the_multigpt_mock_becomes_a_work_and_a_linked_source_after_confirmation() {
@@ -355,7 +355,7 @@ async fn a_pdf_through_the_multigpt_mock_becomes_a_work_and_a_linked_source_afte
     assert_eq!(mock.tool_calls("upload_document").len(), 1, "Begründung: Übernehmen lädt nicht erneut hoch");
 }
 
-// ---- 3. EPUB mit Bild → Werk; EPUB als Quelle → lokaler Volltext auf /quelle ---------------------------------------
+// ---- 3. EPUB with image → work; EPUB as a source → local full text on /quelle -----------------------------------
 
 #[tokio::test]
 async fn an_epub_with_a_picture_becomes_a_work_with_the_picture_and_a_source_with_local_fulltext() {
@@ -389,7 +389,7 @@ async fn an_epub_with_a_picture_becomes_a_work_with_the_picture_and_a_source_wit
     assert_eq!(headers[header::CONTENT_TYPE], "image/png");
     assert_eq!(bytes, picture, "Begründung: byte-gleich mit dem Bild aus dem EPUB");
 
-    // Dieselbe Datei als Quelle: lokaler Volltext, sichtbar in der Dokumentansicht ohne JavaScript.
+    // The same file as a source: local full text, visible in the document view without JavaScript.
     let shown = result(
         &server
             .rpc(
@@ -413,7 +413,7 @@ async fn an_epub_with_a_picture_becomes_a_work_with_the_picture_and_a_source_wit
     );
 }
 
-// ---- 4. Markdown-ZIP mit Bildern → Werk → export --out → Re-Import ----------------------------------------------
+// ---- 4. Markdown ZIP with images → work → export --out → re-import ----------------------------------------------
 
 const MEADOW: &str = "---\ntitle: Das Wiesenheft\nauthor: Paul Klee-Feld\n---\n\n# Die Wiese\n\n\
 Die Wiese ist *bunt* und **hoch**.\n\n![Ein Schaf](bilder/schaf.png)\n\n\
@@ -455,7 +455,7 @@ async fn a_markdown_zip_with_pictures_becomes_a_work_with_warnings_and_survives_
     let typst = server.state.store.export_typst(work).await.unwrap();
     assert!(typst.contains("emph[bunt]") || typst.contains("_bunt_"), "Begründung: Hervorhebung abgebildet: {typst}");
 
-    // export --out: ein verknüpfter Zwischenordner wird vorab abgelehnt, ohne Datei.
+    // export --out: a linked intermediate folder is rejected in advance, without a file.
     let tmp = tempfile::tempdir().unwrap();
     let outside = tmp.path().join("draussen");
     std::fs::create_dir_all(&outside).unwrap();
@@ -466,7 +466,7 @@ async fn a_markdown_zip_with_pictures_becomes_a_work_with_warnings_and_survives_
     assert!(error.contains("nichts geschrieben"), "Begründung: Ablehnung vorab mit Zusage: {error}");
     assert!(files_under(&outside).is_empty(), "Begründung: nichts außerhalb von --out gelandet");
 
-    // export --out sauber → Ordner als ZIP → Re-Import auf einem frischen Datenordner gleichwertig.
+    // export --out clean → folder as ZIP → re-import on a fresh data folder equivalent.
     let out = tmp.path().join("aus");
     baruch_server::import::export_to_dir(&server.state.store, work, &out).await.expect("export --out");
     let files = files_under(&out);
@@ -499,7 +499,7 @@ async fn a_markdown_zip_with_pictures_becomes_a_work_with_warnings_and_survives_
     );
 }
 
-// ---- 5. Manipulierte Archive -------------------------------------------------------------------------------------
+// ---- 5. Manipulated archives ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn manipulated_archives_are_refused_on_every_way_without_writing_anything() {
@@ -521,7 +521,7 @@ async fn manipulated_archives_are_refused_on_every_way_without_writing_anything(
             "Begründung: das Formular lehnt {name} mit 422/413 ab: {status} {page}"
         );
     }
-    // Dieselben Fallen als EPUB über den PDF/EPUB-Import.
+    // The same traps as EPUB through the PDF/EPUB import.
     let epub_escape = zip_of(&[
         ("mimetype", b"application/epub+zip".to_vec()),
         ("../META-INF/container.xml", b"<container/>".to_vec()),
@@ -543,7 +543,7 @@ async fn manipulated_archives_are_refused_on_every_way_without_writing_anything(
     );
 }
 
-// ---- 6. Bilder: Typwechsel, Altbestand, MCP-Kontingent, Aufräumen ------------------------------------------------
+// ---- 6. Images: type change, legacy, MCP quota, clearing away ---------------------------------------------------
 
 async fn post_mcp(server: &common::Server, session: Option<&str>, message: Value) -> (HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -600,7 +600,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
     );
     let work = report["work"].as_i64().unwrap();
 
-    // Typwechsel: PNG statt SVG nur mit rename; der alte Pfad liefert danach das PNG.
+    // Type change: PNG instead of SVG only with rename; the old path delivers the PNG afterwards.
     let png = baruch_epub::sample::png(12, 6, [180, 40, 40]);
     let content = baruch_store::encode_base64(&png);
     let refused = server
@@ -639,7 +639,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
         assert_eq!(headers[header::CONTENT_TYPE], "application/pdf");
     }
 
-    // Altbestand: /x.png und x.png zeigen auf zwei Bilder; der Mensch wählt.
+    // Legacy: /x.png and x.png point to two images; the human chooses.
     let red = baruch_epub::sample::png(2, 2, [255, 0, 0]);
     let blue = baruch_epub::sample::png(2, 2, [0, 0, 255]);
     result(
@@ -677,7 +677,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
         assert_eq!(bytes, blue, "Begründung: {path} liefert das gewählte Bild");
     }
 
-    // MCP-Kontingent: der 31. schreibende Aufruf eines Clients scheitert ehrlich, nichts gespeichert.
+    // MCP quota: the 31st writing call of a client fails honestly, nothing stored.
     use baruch_server::mcp::assets::MAX_MCP_ASSET_WRITES_PER_DAY;
     let session = mcp_session(&server, "Abnahme-Hilfe").await;
     for n in 0..MAX_MCP_ASSET_WRITES_PER_DAY - 1 {
@@ -715,7 +715,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
         "Begründung: nichts gespeichert"
     );
 
-    // Aufräumen: Antrag entscheiden, Entscheidung 31 Tage zurückdatieren → Inhalt weg, Datei 410.
+    // Clearing away: decide a request, backdate the decision by 31 days → content gone, file 410.
     result(&server.rpc("asset.request_decide", json!({ "work": work, "id": request_id, "decision": "reject" })).await);
     sqlx::query("UPDATE asset_request SET decided = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-31 days') WHERE id = ?")
         .bind(request_id)
@@ -729,7 +729,7 @@ async fn pictures_of_an_imported_work_change_type_resolve_legacy_paths_keep_the_
     assert_eq!(status, StatusCode::GONE, "Begründung: die Antragsdatei antwortet 410");
 }
 
-// ---- 7. EPUB-Cover eines importierten Werks ----------------------------------------------------------------------
+// ---- 7. EPUB cover of an imported work --------------------------------------------------------------------------
 
 fn block(kind: &str, y_mm: f64, size_pt: f64, visible: bool) -> Value {
     json!({ "kind": kind, "x_mm": 10.0, "y_mm": y_mm, "width_mm": 100.0, "align": "center", "size_pt": size_pt,
@@ -797,7 +797,7 @@ async fn the_epub_cover_of_an_imported_work_shows_title_subtitle_and_author_as_a
     assert!(differing(&all, &no_author) > 200, "Begründung: der Autor steht im Bild");
 }
 
-// ---- 8. CLI-Weiche und Seiten ohne JavaScript ---------------------------------------------------------------------
+// ---- 8. CLI switch and pages without JavaScript ------------------------------------------------------------------
 
 fn cli(data: &std::path::Path, args: &[&std::ffi::OsStr]) -> (i32, String, String) {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_baruch-server"))
@@ -826,7 +826,8 @@ async fn the_cli_switch_keeps_pdf_flags_to_pdf_and_prints_hints_and_the_menus_le
     let (code, out, err) = cli(data.path(), &["import".as_ref(), md.as_os_str()]);
     assert_eq!(code, 0, "Begründung: Markdown-Import über die CLI gelingt: {err}");
     assert!(out.contains("Werk"), "Begründung: Bericht auf stdout: {out}");
-    // markdown_import::cli_import liefert den Bericht samt Hinweisen als Text (Ok → stdout, wie die Austausch-Befehle).
+    // markdown_import::cli_import delivers the report including hints as text (Ok → stdout, like the exchange
+    // commands).
     assert!(
         out.contains("Hinweis (md-html-block, Zeile 3)"),
         "Begründung: die Warnung steht mit Code und Zeile im Bericht, nicht still verworfen: {out}"

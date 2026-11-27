@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 15 „auftraege“, Nutzerwunsch 2026-11-07 „Bibeln in der Literatur“: Kasten „Bibeln“ (Popup und
-//! `/literatur`), Seite `/literatur/bibel` (Buch/Kapitel blättern, Stelle aufschlagen, Wortlautsuche), Treffergruppe
-//! „Bibel“ im gemeinsamen Suchfeld, Zitat als Vorschlag-Revision mit Stellenangabe und „an Persona geben“ – alles
-//! ohne JavaScript.
+//! Round 15 „auftraege“, user wish 2026-11-07 „Bibeln in der Literatur“: box „Bibeln“ (popup and `/literatur`), page
+//! `/literatur/bibel` (paging through book/chapter, opening a passage, verbatim search), hit group „Bibel“ in the
+//! shared search field, quotation as a proposal revision with passage reference and „an Persona geben“ – everything
+//! without JavaScript.
 //!
-//! Die Bibeln schreibt der Test selbst (`baruch_sword::fixture`) mit frei erfundenem Text in einen Temp-Ordner und
-//! setzt die Modulordner per `bible.set_dirs`; die echten Modulordner des Rechners werden nie gelesen. Modell:
-//! `ScriptedModel` (kein Netz, kein Eliezer).
+//! The Bibles are written by the test itself (`baruch_sword::fixture`) with freely invented text into a temp folder,
+//! and it sets the module folders through `bible.set_dirs`; the real module folders of the machine are never read.
+//! Model: `ScriptedModel` (no network, no Eliezer).
 
 use crate::common;
 
@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 const BOOK: &str = "#set document(title: \"Das Kieselbuch\", author: \"Lena Fluss\")\n\n\
 = Am Bach\n\nDer Bach rauscht leise.\n\n= Am Ufer\n\nDas Ufer ist still.\n";
 
-/// Erfundene Testbibel in deutscher Zählung.
+/// Invented test Bible in German versification.
 fn kiesel() -> Fixture {
     Fixture::new("Kiesel", Layout::ZText(Block::Book), german())
         .conf("Description", "Erfundene Kieselbibel")
@@ -33,7 +33,7 @@ fn kiesel() -> Fixture {
         .verse("Ps", 139, 24, "Und führe ihn den Bach hinab.")
 }
 
-/// Zweite erfundene Bibel (englische Zählung).
+/// Second invented Bible (English versification).
 fn englisch() -> Fixture {
     Fixture::new("Englisch", Layout::RawText, versification("KJV").unwrap())
         .conf("Description", "Erfundene Bibel mit KJV-Zählung")
@@ -54,7 +54,7 @@ struct Shelf {
     key: i64,
 }
 
-/// Server mit `ScriptedModel`, eigenen Testbibeln (ohne Module: keine Ordner gesetzt) und dem Kieselbuch.
+/// Server with `ScriptedModel`, own test Bibles (without modules: no folders set) and the Kieselbuch.
 async fn shelf(modules: &[Fixture], steps: Vec<Step>) -> Shelf {
     let model = ScriptedModel::with(steps);
     let data = tempfile::tempdir().unwrap();

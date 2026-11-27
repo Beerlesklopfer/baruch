@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 c „nummerierung“ (Vertrag Abschnitte 3 und 4): eine Nummerierungsquelle für Baum, Satz und
-//! Re-Import, Kapitel ohne Nummer als Markierung im Export, Seite „Gliederungsschema“ mit engem Kopf.
-//! Echter Datenordner im Temp-Ordner, Gartenbuch aus `tests/data` (Frühling, Aussaat, Tiefe, Sommer).
+//! Round 14 c „nummerierung“ (contract sections 3 and 4): one numbering source for tree, typesetting and re-import,
+//! chapters without number as a marking in the export, page „Gliederungsschema“ with a tight head. Real data folder in
+//! the temp folder, Gartenbuch from `tests/data` (Frühling, Aussaat, Tiefe, Sommer).
 
 use crate::common;
 
@@ -28,7 +28,7 @@ async fn export(server: &common::Server, work: i64) -> String {
     result(&answer)["typst"].as_str().unwrap().to_owned()
 }
 
-/// Ausschnitt `<header class="numbering-head">…</header>` einer Seite.
+/// Excerpt `<header class="numbering-head">…</header>` of a page.
 fn head(html: &str) -> &str {
     let start = html.find("<header class=\"numbering-head\">").unwrap_or_else(|| panic!("Kopf fehlt: {html}"));
     let rest = &html[start..];
@@ -37,9 +37,9 @@ fn head(html: &str) -> &str {
 
 #[tokio::test]
 async fn the_numbering_page_head_is_one_tight_block_on_both_pages() {
-    // Backlog „Seite Gliederungsschema: große Abstände oben“: Hinweis, Überschrift und Absätze standen
-    // einzeln in der Flex-Spalte und behielten ihre Absatzränder. Jetzt ein Block mit Rand 0 und
-    // kleiner Lücke – auf der eigenen Seite und auf Einstellungen → Werk (gleiche Vorlage).
+    // Backlog „Seite Gliederungsschema: große Abstände oben“: hint, heading and paragraphs stood individually in the
+    // flex column and kept their paragraph margins. Now one block with margin 0 and a small gap – on its own page and
+    // on Einstellungen → Werk (same template).
     let server = common::open().await;
     let work = server.import_garden().await.work;
     let (status, page) = server.get(&format!("/werke/{work}/nummerierung?ok=1")).await;
@@ -73,14 +73,14 @@ async fn the_numbering_page_head_is_one_tight_block_on_both_pages() {
 
 #[tokio::test]
 async fn a_work_with_a_word_scheme_exported_and_imported_again_keeps_its_numbers() {
-    // Vertrag Runde 14, Abschnitt 3: Die Regel von „Juristisch“ (und den anderen Schemata mit Wörtern)
-    // kommt beim Re-Import als genau dieses Schema zurück – bis Runde 13 als „1.1“.
+    // Contract Round 14, section 3: the rule of „Juristisch“ (and the other schemes with words) comes back on re-import
+    // as exactly this scheme – up to Round 13 as „1.1“.
     let server = common::open().await;
     let work = server.import_garden().await.work;
     for scheme in ["legal", "sermon", "book", "parts_chapters", "chapter_words"] {
         result(&server.rpc("numbering.set", json!({ "work": work, "scheme": scheme })).await);
         let expected = numbers(&server, work).await;
-        // Eigener Titel je Kopie (Werktitel sind eindeutig); die Nummerierung bleibt davon unberührt.
+        // Own title per copy (work titles are unique); the numbering stays untouched by that.
         let typst = export(&server, work).await.replace("Das Gartenbuch", &format!("Gartenbuch {scheme}"));
         let again = server.import(&typst, &format!("wieder-{scheme}.typ")).await.work;
         assert_eq!(numbers(&server, again).await, expected, "{scheme}: Re-Import hat dieselben Nummern");

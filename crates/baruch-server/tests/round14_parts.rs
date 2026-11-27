@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 (R14a, Vertrag Abschnitte 1 und 5): Teil-Markierungen im Server – Import und Export,
-//! Satzbild (`wysiwyg.*`, vorgerendertes Satzbild im Editor), Teil-Seite im Satz (`typeset::prepare`,
-//! gleiche Quelle für Satz-Ansicht und `work.pdf`). Werke frei erfunden; jedes Werk hat einen eigenen
-//! Titel und Text, also einen eigenen Stand im statischen Zwischenspeicher der Vorschau.
+//! Round 14 (R14a, contract sections 1 and 5): part markings in the server – import and export, typeset view
+//! (`wysiwyg.*`, pre-rendered typeset view in the editor), part page in the typesetting (`typeset::prepare`, same
+//! source for typesetting view and `work.pdf`). Works freely invented; every work has a title and text of its own,
+//! hence a state of its own in the static cache of the preview.
 
 use crate::common;
 
@@ -14,7 +14,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Werk mit Werkvorlage, Vorwort ohne Nummer, zwei Teilen und drei Kapiteln (frei erfunden).
+/// Work with work template, preface without number, two parts and three chapters (freely invented).
 fn book(title: &str) -> String {
     format!(
         "#set document(title: \"{title}\", author: \"Erna Erfunden\")\n#set page(width: 10cm, height: 14cm)\n\
@@ -29,7 +29,7 @@ fn book(title: &str) -> String {
     )
 }
 
-/// (Schlüssel, Art, Titel, Nummer) aller Knoten.
+/// (key, kind, title, number) of all nodes.
 async fn outline(server: &common::Server, work: i64) -> Vec<(i64, NodeKind, String, String)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded.nodes.iter().map(|n| (n.key, n.kind, n.title.clone(), n.number.clone())).collect()
@@ -86,7 +86,8 @@ async fn the_typeset_puts_every_part_on_its_own_right_page() {
     for (moved, original) in prepared.map.sections.iter().zip(&map.sections) {
         assert_eq!(
             &prepared.source.main[moved.start..moved.end],
-            // Runde 30a: im Satz steht die Ankerzeile eines Teils vor der Teil-Zeile (sonst nach dem Umbruch).
+            // Round 30a: in the typesetting the anchor line of a part is before the part line (otherwise after the
+            // break).
             &*baruch_typst::xref::part_anchors_for_typesetting(&map.typst[original.start..original.end]),
             "Die Bytebereiche der Abschnitte rücken mit (Meldungen finden ihren Abschnitt)"
         );

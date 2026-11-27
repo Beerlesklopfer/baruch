@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Stellenprüfung im Server (Runde 10, Aufgabe „scripture“): RPC `scripture.check` (Dispatch setzt der
-//! Integrator, hier über `scripture::call`), MCP-Werkzeug `scripture_check` (Funktion direkt), Haken
-//! `facts_for` und `mark_answer` für die Personas. Ohne gewählte Bibel ist der Wortlaut immer „ungeprüft“
-//! (mit Bibel: `sword_bibles.rs`).
+//! Passage check in the server (Round 10, task „scripture“): RPC `scripture.check` (the dispatch is set by the
+//! integrator, here through `scripture::call`), MCP tool `scripture_check` (function directly), hooks `facts_for` and
+//! `mark_answer` for the personas. Without a chosen Bible the wording is always „ungeprüft“ (with a Bible:
+//! `sword_bibles.rs`).
 
 use crate::common;
 
@@ -56,7 +56,7 @@ async fn the_mcp_tool_answers_like_the_rpc_method_and_only_reads() {
     assert!(baruch_server::mcp::scripture::DESCRIPTION.contains("unchecked"), "Beschreibung nennt den Wortlaut");
     assert!(!baruch_server::mcp::scripture::DESCRIPTION.starts_with("STUB"), "kein Stub");
     let schema = baruch_server::mcp::scripture::schema();
-    // Seit 2026-11-06 geht statt text auch key (Abschnitt des Werks); eines von beiden ist Pflicht.
+    // Since 2026-11-06 key (section of the work) works instead of text too; one of the two is mandatory.
     assert!(
         schema["properties"]["text"].is_object() && schema["properties"]["key"].is_object(),
         "text oder key: {schema}"

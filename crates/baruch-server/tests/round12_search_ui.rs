@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 12, Aufgabe „pgvector“: Oberfläche der Bedeutungssuche ohne JavaScript und die RPC dazu.
+//! Round 12, task „pgvector“: user interface of the semantic search without JavaScript and the RPC for it.
 //!
-//! - Einstellungen → Verbindungen, Abschnitt `#rag`: Sammlungen je Weg (wiederholtes Feld `collection`,
-//!   `collection_new`), „Status der Wege“, „Index neu aufbauen“ (mit/ohne `confirm`), Meldungscodes,
-//!   LanceDB-Prüfknopf frei, Nutzungstexte nach Vertrag §5.
-//! - RPC `connection.collections_get/set` (nicht über MCP, nicht über `POST /act`).
-//! - Literatur (`lmode`) und Einfälle (`mode`): Umschalter als GET-Formular, `lmode` reist in Links mit; ohne
-//!   Einbetter (Tests) fällt LanceDB ehrlich aus, die Seite zeigt den Grund und verlinkt die FTS-Suche.
-//! - Reine Render-Funktionen für eine Antwort (`literature::rag_view`): Weg-Abzeichen, Zustandszeile,
-//!   sichere Links.
+//! - Einstellungen → Verbindungen, section `#rag`: collections per way (repeated field `collection`, `collection_new`),
+//!   „Status der Wege“, „Index neu aufbauen“ (with/without `confirm`), message codes, LanceDB check button free, usage
+//!   texts according to contract §5.
+//! - RPC `connection.collections_get/set` (not through MCP, not through `POST /act`).
+//! - Literature (`lmode`) and ideas (`mode`): switch as a GET form, `lmode` travels along in links; without an embedder
+//!   (tests) LanceDB honestly fails, the page shows the reason and links the FTS search.
+//! - Pure render functions for an answer (`literature::rag_view`): way badge, state line, safe links.
 
 use crate::common;
 
@@ -19,8 +18,8 @@ use baruch_server::literature::{hit_link, rag_view, safe_link, ways_line};
 use baruch_store::{ConnectionKind, RagWay};
 use serde_json::{Value, json};
 
-/// Seit der Integration ist die Bedeutungssuche verdrahtet; Tests binden keinen Einbetter an (nie Netz), also
-/// fällt LanceDB ehrlich mit diesem Grund aus (Anfang von `rag::NO_EMBEDDER`).
+/// Since the integration the semantic search is wired; tests attach no embedder (never network), so LanceDB honestly
+/// fails with this reason (beginning of `rag::NO_EMBEDDER`).
 const NO_EMBEDDER: &str = "Kein Einbettungsmodell angebunden";
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
@@ -47,7 +46,7 @@ fn section<'a>(html: &'a str, kind: &str) -> &'a str {
     &rest[..end]
 }
 
-/// Teil des RAG-Abschnitts für einen Weg (`data-collections="…"` bis zum nächsten Formular).
+/// Part of the RAG section for one way (`data-collections="…"` up to the next form).
 fn collections_form<'a>(html: &'a str, way: &str) -> &'a str {
     let rag = section(html, "rag");
     let start = rag.find(&format!("data-collections=\"{way}\"")).unwrap_or_else(|| panic!("Sammlungen {way}: {rag}"));
@@ -71,7 +70,7 @@ fn esc(text: &str) -> String {
         .replace('/', "&#x2f;")
 }
 
-// ---- Einstellungen → Verbindungen ------------------------------------------------------------------
+// ---- Einstellungen → Verbindungen -----------------------------------------------------------------
 
 #[tokio::test]
 async fn usage_texts_follow_the_contract_and_every_connection_can_be_checked() {
@@ -161,7 +160,7 @@ async fn the_rag_section_offers_collections_status_and_reindex_without_javascrip
     );
     assert!(!rag.contains("Noch nicht umgesetzt"), "der alte STUB-Hinweis unter den Wegen ist weg: {rag}");
 
-    // Wählen ohne JavaScript: wiederholtes Feld collection und collection_new.
+    // Choosing without JavaScript: repeated field collection and collection_new.
     let body = format!(
         "method=connection.collections_set&work={work}&way=pgvector&collection=Leuchtfeuer&collection=Gezeiten&collection_new=+Seekarten+"
     );
@@ -189,7 +188,7 @@ async fn the_rag_section_offers_collections_status_and_reindex_without_javascrip
     );
     assert!(!part.contains("data-gone"), "ohne Prüfung heißt nichts „nicht mehr gemeldet“: {part}");
 
-    // Nach einer Prüfung: gemeldete Sammlungen als Kästchen, gewählte ohne Meldung „nicht mehr gemeldet“.
+    // After a check: reported collections as checkboxes, chosen ones without the message „nicht mehr gemeldet“.
     let details = json!({ "server_version": "PostgreSQL 17", "vector": "0.8.0", "table": "public.chunks",
                           "collections": [{ "name": "Leuchtfeuer", "count": 12 }, { "name": "Brandung", "count": 3 }],
                           "chunks": 15, "dimension": 768, "models": ["nomic-embed-text"] });
@@ -222,11 +221,11 @@ async fn the_rag_section_offers_collections_status_and_reindex_without_javascrip
         assert!(pg.contains(line), "Angaben der Prüfung als Zeile „{line}“: {pg}");
     }
 
-    // Abwählen: nur die angehakten bleiben.
+    // Deselecting: only the ticked ones stay.
     form(&server, &format!("method=connection.collections_set&work={work}&way=pgvector&collection=Brandung")).await;
     assert_eq!(server.state.store.work_collections(work, RagWay::Pgvector).await.unwrap(), ["Brandung"], "ersetzt");
 
-    // Fehler: feste Codes, deutsche Texte, nichts geändert.
+    // Errors: fixed codes, German texts, nothing changed.
     let long = "x".repeat(201);
     let location =
         form(&server, &format!("method=connection.collections_set&work={work}&way=pgvector&collection_new={long}"))
@@ -246,7 +245,8 @@ async fn the_rag_section_offers_collections_status_and_reindex_without_javascrip
         "fehler=sammlung auf Deutsch"
     );
 
-    // Index neu aufbauen: ohne Kästchen fehler=bestaetigen, mit Kästchen ohne Einbetter ehrlich „ließ sich nicht“.
+    // Rebuilding the index: without the checkbox fehler=bestaetigen, with the checkbox without an embedder honestly
+    // „ließ sich nicht“.
     let location = form(&server, &format!("method=rag.reindex&work={work}")).await;
     assert_eq!(location, format!("/einstellungen/verbindungen?fehler=bestaetigen&work={work}"), "ohne confirm");
     let location = form(&server, &format!("method=rag.reindex&work={work}&confirm=1")).await;
@@ -332,7 +332,7 @@ async fn collections_over_rpc_only_for_remote_ways_and_never_over_mcp_or_act() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "auch rag.reindex nicht über POST /act");
 }
 
-// ---- Literatur -------------------------------------------------------------------------------------
+// ---- Literature -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_literature_switch_works_without_javascript_and_says_why_rag_is_missing() {
@@ -504,7 +504,7 @@ fn an_answer_renders_badges_states_percent_and_safe_links() {
     assert!(view["ways_line"].as_str().unwrap().contains("LanceDB: ausgefallen"), "Zustandszeile bleibt: {view}");
 }
 
-// ---- Einfälle --------------------------------------------------------------------------------------
+// ---- Ideas ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn ideas_switch_to_meaning_only_within_a_work_and_say_why_it_is_missing() {
@@ -548,15 +548,15 @@ async fn ideas_switch_to_meaning_only_within_a_work_and_say_why_it_is_missing() 
     fails(&server, "idea.search", json!({ "query": "Möwen", "mode": "rag", "work": "none" }), -32602).await;
     fails(&server, "idea.search", json!({ "query": "Möwen", "mode": "bild", "work": work }), -32602).await;
     fails(&server, "idea.search", json!({ "query": " ", "mode": "rag", "work": work }), -32602).await;
-    // Mit Werk fragt die Suche; ohne Einbetter (Tests) ist LanceDB ehrlich ausgefallen. Seit Runde 19c ist das ein
-    // Fehler -32001 (RAG_UNAVAILABLE) mit Grund statt einer leeren Liste.
+    // With a work the search asks; without an embedder (tests) LanceDB has honestly failed. Since Round 19c that is an
+    // error -32001 (RAG_UNAVAILABLE) with a reason instead of an empty list.
     let message = fails(&server, "idea.search", json!({ "query": "Möwen", "mode": "rag", "work": work }), -32001).await;
     assert!(message.contains(NO_EMBEDDER), "Ausfall mit Grund: {message}");
     let fts = ok(&server, "idea.search", json!({ "query": "Möwen", "mode": "fts", "work": work })).await;
     assert_eq!(fts["hits"].as_array().unwrap().len(), 1, "mode fts wie bisher: {fts}");
 }
 
-/// GET wie von einer fremden Seite (`<img src>` bzw. Link): `Sec-Fetch-Site: cross-site`, Host 127.0.0.1.
+/// GET as from a foreign page (`<img src>` or link): `Sec-Fetch-Site: cross-site`, Host 127.0.0.1.
 async fn get_from(server: &common::Server, uri: &str, site: &str) -> (StatusCode, String) {
     let request = axum::http::Request::get(uri)
         .header("host", "127.0.0.1:8765")
@@ -572,9 +572,9 @@ async fn a_foreign_page_cannot_start_the_meaning_search_over_get() {
     let server = common::open().await;
     let work = server.state.default_work().await.unwrap();
     let foreign = esc(baruch_server::literature::FOREIGN_PAGE);
-    // Begründung: Ohne Einbetter (Tests) nennt jede tatsächlich gelaufene Suche den Ausfall von LanceDB
-    // (NO_EMBEDDER). Fehlt dieser Grund und steht der Hinweis auf die fremde Seite da, lief keine Suche –
-    // also auch keine Einbettung, keine pgvector-Verbindung und keine MultiGPT-Sitzung.
+    // Reason: without an embedder (tests) every search that actually ran names the failure of LanceDB (NO_EMBEDDER). If
+    // this reason is missing and the hint about the foreign page is there, no search ran – hence no embedding, no
+    // pgvector connection and no MultiGPT session either.
     for uri in [
         format!("/literatur?work={work}&lq=M%C3%B6wen&lmode=rag"),
         format!("/einfaelle?work={work}&q=M%C3%B6wen&mode=rag"),

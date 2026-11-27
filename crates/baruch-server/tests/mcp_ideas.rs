@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einfälle über MCP (Vertrag Runde 7, Abschnitt 6f): `idea_create`, `idea_read`, `idea_list`,
-//! `idea_search`, `idea_update`, `idea_delete` mit vollem CRUD auch für Assistenten (Einfälle ändern
-//! keinen Buchtext), Herkunft `persona` bzw. `@mcp:<client>` in Datenbank und Spiegel-Commit.
+//! Ideas through MCP (contract Round 7, section 6f): `idea_create`, `idea_read`, `idea_list`, `idea_search`,
+//! `idea_update`, `idea_delete` with full CRUD for assistants too (ideas change no book text), origin `persona` or
+//! `@mcp:<client>` in database and mirror commit.
 
 use crate::common;
 
@@ -12,7 +12,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 
-/// MCP-Anfrage vom eigenen Rechner, wahlweise mit Sitzung; Antwort und Kopfzeilen.
+/// MCP request from the own machine, optionally with a session; response and headers.
 async fn post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(id) = session {
@@ -72,7 +72,7 @@ async fn the_six_idea_tools_follow_read_asset_and_say_they_change_no_book_text()
     let tools = answer["result"]["tools"].as_array().unwrap();
     let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     let at = names.iter().position(|n| *n == "read_asset").unwrap();
-    // Runde 9: das lesende sources_list steht direkt hinter read_asset, die Einfälle danach.
+    // Round 9: the reading sources_list is directly after read_asset, the ideas after it.
     assert_eq!(names[at + 1], "sources_list", "sources_list direkt nach read_asset: {names:?}");
     let at = at + 1;
     assert_eq!(

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einfälle über RPC und Oberfläche (Vertrag Runde 7, Abschnitte 6c–6e): echter Datenordner im
-//! Temp-Ordner (SQLite, Bibliothek, Git-Spiegel), Router über `oneshot`. Je Aktion genau ein Commit
-//! mit Herkunft, `einfaelle.md` im Werkspiegel bzw. in `<data>/einfaelle/`, Verarbeiten zu
-//! Gliederungspunkt, Beitrag und Notiz, Persona-Auftrag als Stub, Seiten ohne JavaScript mit
-//! Formularen an `/einfaelle/act`, Maskierung und Schutz vor fremden Seiten. Testtexte frei erfunden.
+//! Ideas through RPC and user interface (contract Round 7, sections 6c–6e): real data folder in the temp folder
+//! (SQLite, library, Git mirror), router through `oneshot`. Per action exactly one commit with origin, `einfaelle.md`
+//! in the work mirror or in `<data>/einfaelle/`, processing into outline item, post and note, persona job as a stub,
+//! pages without JavaScript with forms to `/einfaelle/act`, escaping and protection against foreign pages. Test texts
+//! freely invented.
 
 use crate::common;
 
@@ -20,7 +20,7 @@ fn error_code(answer: &Value) -> i64 {
     answer["error"]["code"].as_i64().unwrap_or_else(|| panic!("Fehler erwartet: {answer}"))
 }
 
-/// Formularwert prozentkodieren.
+/// Percent-encode a form value.
 fn enc(value: &str) -> String {
     let mut out = String::new();
     for byte in value.bytes() {
@@ -46,7 +46,7 @@ async fn key(server: &common::Server, work: i64, seq: i64) -> i64 {
         .unwrap()
 }
 
-/// Anzahl der Commits im Spiegelordner; `None` ohne git-Programm.
+/// Number of commits in the mirror folder; `None` without a git program.
 fn commits(dir: &std::path::Path) -> Option<usize> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|n| n.trim().parse().unwrap())
 }
@@ -245,7 +245,7 @@ async fn processing_makes_an_outline_point_a_post_or_a_note_and_the_persona_task
     let stub = server.rpc("idea.create", json!({ "work": work, "key": k, "words": ["Auftrag"] })).await;
     let stub = result(&stub)["idea"]["id"].as_i64().unwrap();
     let answer = server.rpc("idea.process", json!({ "id": stub, "as": "persona", "persona": "@lektor" })).await;
-    // Runde 10: kein Stub mehr; ohne Modell-Backend (AppState::open = NoModel) ehrlich abgelehnt.
+    // Round 10: no longer a stub; without a model backend (AppState::open = NoModel) honestly rejected.
     assert_eq!(error_code(&answer), -32000, "ohne Modell-Backend abgelehnt: {answer}");
     let message = answer["error"]["message"].as_str().unwrap();
     assert!(message.contains("Kein Modell-Backend"), "ehrliche Meldung ohne Backend: {message}");
@@ -335,7 +335,7 @@ async fn the_pages_work_without_javascript_and_escape_everything() {
     let (status, location) = server
         .post_form("/einfaelle/act", &form(&[("method", "idea.process"), ("id", &id.to_string()), ("as", "persona")]))
         .await;
-    // Runde 10: kein Stub mehr; dieser Einfall hat keinen Abschnitt, also fehlt das Ziel des Auftrags.
+    // Round 10: no longer a stub; this idea has no section, so the target of the job is missing.
     assert_eq!(
         (status, location),
         (StatusCode::UNPROCESSABLE_ENTITY, None),

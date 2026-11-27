@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Alle Integrationstests von `baruch-server` in **einer** Test-Binärdatei (Runde 13, Vorlauf „bau“).
+//! All integration tests of `baruch-server` in **one** test binary (Round 13, preliminary run „bau“).
 //!
-//! Jede Test-Binärdatei linkt den ganzen Server samt LanceDB statisch mit (≈ 500 MB); mit einer Datei je
-//! Fachgebiet wuchs `target/` auf ≈ 40 GB. Darum ist `autotests = false` gesetzt (`Cargo.toml`) und jede
-//! bisherige Datei `tests/<gebiet>.rs` ein Modul dieses Bündels. **Neue Testdatei:** `tests/<gebiet>.rs`
-//! anlegen und unten `mod <gebiet>;` eintragen (der Test [`every_test_file_is_bundled`] erinnert daran);
-//! gemeinsame Hilfen über `use crate::common;` statt `mod common;`.
+//! Every test binary links the whole server including LanceDB statically (≈ 500 MB); with one file per subject area
+//! `target/` grew to ≈ 40 GB. Therefore `autotests = false` is set (`Cargo.toml`) and every former file
+//! `tests/<gebiet>.rs` is a module of this bundle. **New test file:** create `tests/<gebiet>.rs` and enter
+//! `mod <gebiet>;` below (the test [`every_test_file_is_bundled`] reminds of it); shared helpers through
+//! `use crate::common;` instead of `mod common;`.
 //!
-//! Alle Tests laufen in einem Prozess: Prozessweite Zustände (Markierung „PDF entsteht“ je Werk-id,
-//! Warteschlange der Modelle, MCP-Sitzungen, Satz-Semaphore) teilen sich jetzt alle Module, nicht mehr nur
-//! die Tests einer Datei. PDF-Erzeugung nur unter [`common::PDF_SERIAL`]; Umgebungsvariablen nie setzen.
-//! Einzeln laufen lassen: `cargo test -p baruch-server --test server <gebiet>::`.
+//! All tests run in one process: process-wide states (mark „PDF entsteht“ per work id, queue of the models, MCP
+//! sessions, typesetting semaphore) are now shared by all modules, no longer only by the tests of one file. PDF
+//! generation only under [`common::PDF_SERIAL`]; never set environment variables. Run individually:
+//! `cargo test -p baruch-server --test server <gebiet>::`.
 
 mod common;
 mod pgvector_support;
@@ -201,8 +201,8 @@ mod works;
 mod wysiwyg;
 mod zoom;
 
-/// Jede Datei `tests/*.rs` (außer dieser) ist hier als Modul eingetragen; sonst würde sie wegen
-/// `autotests = false` stillschweigend nicht gebaut und ihre Tests gingen verloren.
+/// Every file `tests/*.rs` (except this one) is entered here as a module; otherwise, because of `autotests = false`, it
+/// would silently not be built and its tests would be lost.
 #[test]
 fn every_test_file_is_bundled() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests");

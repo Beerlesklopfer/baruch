@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Eigenes PostgreSQL für Tests von pgvector (Vertrag Runde 12, §0; auch für den Integrator per
-//! `#[path = "pgvector_support/mod.rs"] mod pgvector_support;`). Nie das pgvector des Nutzers.
+//! Own PostgreSQL for tests of pgvector (contract Round 12, §0; also for the integrator through
+//! `#[path = "pgvector_support/mod.rs"] mod pgvector_support;`). Never the pgvector of the user.
 //!
-//! Reihenfolge ([`start`]):
-//! 1. `podman run` mit einem **lokal vorhandenen** Abbild `docker.io/pgvector/pgvector:pg17` bzw. `:pg16`
-//!    (der Test lädt nichts aus dem Netz), Port nur auf `127.0.0.1` (zufällig, `-p 127.0.0.1::5432`),
-//!    Name `baruch-r12-<aufgabe>-<pid>-<n>`; [`Drop`] entfernt genau diesen Container (`podman rm -f`).
-//!    Fremde Container und Abbilder bleiben unberührt (kein `podman rmi`).
-//! 2. sonst ein Wegwerf-Cluster aus `/usr/lib/postgresql/<n>/bin` (`initdb`, `pg_ctl`) im Bauordner –
-//!    **ohne** pgvector ([`Pg::vector`] = `false`); [`Drop`] stoppt nur diesen Datenordner.
-//! 3. sonst `None` mit `ÜBERSPRUNGEN: …` auf stderr.
+//! Order ([`start`]):
+//! 1. `podman run` with a **locally present** image `docker.io/pgvector/pgvector:pg17` or `:pg16` (the test loads
+//!    nothing from the network), port only on `127.0.0.1` (random, `-p 127.0.0.1::5432`), name
+//!    `baruch-r12-<aufgabe>-<pid>-<n>`; [`Drop`] removes exactly this container (`podman rm -f`). Foreign containers
+//!    and images stay untouched (no `podman rmi`).
+//! 2. otherwise a throwaway cluster from `/usr/lib/postgresql/<n>/bin` (`initdb`, `pg_ctl`) in the build folder –
+//!    **without** pgvector ([`Pg::vector`] = `false`); [`Drop`] stops only this data folder.
+//! 3. otherwise `None` with `ÜBERSPRUNGEN: …` on stderr.
 //!
-//! Ein Server für alle (Runde 13): Seit die Server-Tests eine Binärdatei sind (`tests/main.rs`), teilen sich
-//! gleichzeitig laufende Tests **einen** Server (der Start dauert 30–45 s); jeder Test bekommt darin eine
-//! eigene, frische Datenbank (`rag_<n>`), damit sich Tabellen wie `chunks` nicht ins Gehege kommen. Der
-//! Server endet mit dem letzten [`Pg`] (danach startet ein späterer Test einen neuen).
+//! One server for all (Round 13): since the server tests are one binary (`tests/main.rs`), tests running at the same
+//! time share **one** server (the start takes 30–45 s); every test gets a fresh database of its own in it (`rag_<n>`),
+//! so that tables such as `chunks` do not get in each other's way. The server ends with the last [`Pg`] (after that a
+//! later test starts a new one).
 //!
-//! Benutzer `probe` mit Passwort [`PASSWORD`] (scram-sha-256, Superuser des Wegwerf-Servers), Datenbank
-//! [`Pg::database`]. Testdaten frei erfunden.
+//! User `probe` with password [`PASSWORD`] (scram-sha-256, superuser of the throwaway server), database
+//! [`Pg::database`]. Test data freely invented.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -30,17 +30,17 @@ use serde_json::{Value, json};
 use sqlx::Connection;
 use sqlx::postgres::{PgConnectOptions, PgConnection, PgSslMode};
 
-/// Passwort des Testbenutzers (nur für diesen Wegwerf-Server).
+/// Password of the test user (only for this throwaway server).
 pub const PASSWORD: &str = "Wegwerf-Pg-7c1e-Probe";
 pub const USER: &str = "probe";
-/// Datenbank, die der Server beim Start anlegt (nur zum Anlegen der Testdatenbanken).
+/// Database that the server creates at start (only for creating the test databases).
 pub const DATABASE: &str = "rag";
 
-/// Abbilder in dieser Reihenfolge (nur lokal vorhandene).
+/// Images in this order (only locally present ones).
 pub const IMAGES: [&str; 2] = ["docker.io/pgvector/pgvector:pg17", "docker.io/pgvector/pgvector:pg16"];
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
-/// Der gerade laufende gemeinsame Server (lebt, solange ein [`Pg`] ihn hält).
+/// The shared server currently running (lives as long as a [`Pg`] holds it).
 static SHARED: tokio::sync::Mutex<Weak<Instance>> = tokio::sync::Mutex::const_new(Weak::new());
 
 enum Backend {
@@ -48,7 +48,7 @@ enum Backend {
     Cluster { pg_ctl: PathBuf, data: PathBuf, _dir: tempfile::TempDir },
 }
 
-/// Ein laufender Wegwerf-Server (gemeinsam für gleichzeitig laufende Tests).
+/// A running throwaway server (shared by tests running at the same time).
 struct Instance {
     port: u16,
     vector: bool,
@@ -56,14 +56,14 @@ struct Instance {
     backend: Backend,
 }
 
-/// Eigene Datenbank eines Tests auf dem gemeinsamen Wegwerf-Server.
+/// Own database of a test on the shared throwaway server.
 pub struct Pg {
     pub port: u16,
-    /// Gibt es die Erweiterung `vector` (Container ja, initdb-Cluster nein)?
+    /// Does the extension `vector` exist (container yes, initdb cluster no)?
     pub vector: bool,
-    /// Woher: Abbild des Containers bzw. „initdb …“.
+    /// From where: image of the container or „initdb …“.
     pub origin: String,
-    /// Eigene Datenbank dieses Tests (`rag_<n>`).
+    /// Own database of this test (`rag_<n>`).
     pub database: String,
     _server: Arc<Instance>,
 }
@@ -82,7 +82,7 @@ impl Drop for Instance {
 }
 
 impl Pg {
-    /// Anmeldedaten des Testbenutzers.
+    /// Credentials of the test user.
     pub fn options(&self) -> PgConnectOptions {
         PgConnectOptions::new_without_pgpass()
             .host("127.0.0.1")
@@ -93,19 +93,19 @@ impl Pg {
             .ssl_mode(PgSslMode::Disable)
     }
 
-    /// Eigene Verbindung (Testbenutzer, darf schreiben – nur zum Anlegen der Testdaten).
+    /// Own connection (test user, may write – only for creating the test data).
     pub async fn connect(&self) -> PgConnection {
         PgConnection::connect_with(&self.options()).await.expect("Verbindung zum Wegwerf-Server")
     }
 
-    /// Mehrere Anweisungen ohne Parameter (Testdaten anlegen).
+    /// Several statements without parameters (creating test data).
     pub async fn exec(&self, sql: &str) {
         let mut conn = self.connect().await;
         sqlx::raw_sql(sqlx::AssertSqlSafe(sql)).execute(&mut conn).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
         let _ = conn.close().await;
     }
 
-    /// Einstellungen der Verbindung pgvector für Baruch (ohne Passwort; das gehört in den Schlüsselbund).
+    /// Settings of the connection pgvector for Baruch (without password; that belongs in the keyring).
     pub fn config(&self) -> Value {
         json!({ "host": "127.0.0.1", "port": self.port, "database": self.database, "user": USER, "tls": "disable" })
     }
@@ -119,7 +119,7 @@ fn image_present(image: &str) -> bool {
     Command::new("podman").args(["image", "exists", image]).output().is_ok_and(|o| o.status.success())
 }
 
-/// Wartet, bis sich der Testbenutzer anmelden kann (höchstens `limit`).
+/// Waits until the test user can log in (at most `limit`).
 async fn ready(port: u16, limit: Duration) -> Result<(), String> {
     let options = PgConnectOptions::new_without_pgpass()
         .host("127.0.0.1")
@@ -156,7 +156,7 @@ async fn start_container(task: &str, image: &str) -> Result<Instance, String> {
         .arg(image)
         .output()
         .map_err(|e| format!("podman run: {e}"))?;
-    // Ab hier gehört der Name uns: auch bei einem Fehler wieder entfernen.
+    // From here on the name belongs to us: remove it again on an error too.
     let pg = |port| Instance {
         port,
         vector: true,
@@ -179,7 +179,7 @@ async fn start_container(task: &str, image: &str) -> Result<Instance, String> {
     Ok(server)
 }
 
-/// `/usr/lib/postgresql/<n>/bin` mit `initdb`, `pg_ctl`, `postgres`; höchste Version zuerst.
+/// `/usr/lib/postgresql/<n>/bin` with `initdb`, `pg_ctl`, `postgres`; highest version first.
 fn postgres_bin() -> Option<PathBuf> {
     let mut found: Vec<PathBuf> = std::fs::read_dir("/usr/lib/postgresql")
         .ok()?
@@ -209,7 +209,7 @@ async fn free_port() -> u16 {
     listener.local_addr().unwrap().port()
 }
 
-/// Wegwerf-Cluster ohne pgvector (im Bauordner, nicht unter /tmp).
+/// Throwaway cluster without pgvector (in the build folder, not under /tmp).
 async fn start_cluster(bin: &Path) -> Result<Instance, String> {
     let dir = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).map_err(|e| e.to_string())?;
     let data = dir.path().join("daten");
@@ -256,7 +256,7 @@ async fn start_cluster(bin: &Path) -> Result<Instance, String> {
         origin: format!("initdb {}", bin.display()),
         backend: Backend::Cluster { pg_ctl, data, _dir: dir },
     };
-    // Datenbank `rag` anlegen (der Cluster hat nur `postgres`).
+    // Create database `rag` (the cluster only has `postgres`).
     let admin = PgConnectOptions::new_without_pgpass()
         .host("127.0.0.1")
         .port(port)
@@ -273,8 +273,8 @@ async fn start_cluster(bin: &Path) -> Result<Instance, String> {
     Ok(server)
 }
 
-/// Eigene Datenbank auf dem gemeinsamen Wegwerf-Server (siehe Moduldoku); läuft keiner, wird einer
-/// gestartet (`task` geht in den Containernamen). `None` = übersprungen (die Meldung steht auf stderr).
+/// Own database on the shared throwaway server (see module docs); if none is running, one is started (`task` goes into
+/// the container name). `None` = skipped (the message is on stderr).
 pub async fn start(task: &str) -> Option<Pg> {
     let server = {
         let mut shared = SHARED.lock().await;
@@ -304,7 +304,7 @@ pub async fn start(task: &str) -> Option<Pg> {
     Some(Pg { port: server.port, vector: server.vector, origin: server.origin.clone(), database, _server: server })
 }
 
-/// Neuen Wegwerf-Server starten: Container, sonst initdb-Cluster, sonst `None`.
+/// Start a new throwaway server: container, otherwise initdb cluster, otherwise `None`.
 async fn start_instance(task: &str) -> Option<Instance> {
     let mut why = Vec::new();
     if podman_ok() {
@@ -335,8 +335,8 @@ async fn start_instance(task: &str) -> Option<Instance> {
     None
 }
 
-/// Nachbau-Einbetter mit festen Vektoren (kein Eliezer): je Text ein fester Vektor, sonst `default`;
-/// antwortet als `model` mit `answer_model`.
+/// Mock embedder with fixed vectors (no Eliezer): one fixed vector per text, otherwise `default`; answers as `model`
+/// with `answer_model`.
 pub struct FixedEmbedder {
     pub requested: String,
     pub answer_model: String,
@@ -366,7 +366,7 @@ impl baruch_rag::Embedder for FixedEmbedder {
     }
 }
 
-/// Fabrik für [`FixedEmbedder`]; merkt sich, für welches Modell gefragt wurde.
+/// Factory for [`FixedEmbedder`]; remembers for which model it was asked.
 pub struct FixedFactory {
     pub answer_model: Option<String>,
     pub table: Vec<(String, Vec<f32>)>,
@@ -386,7 +386,7 @@ impl FixedFactory {
         }
     }
 
-    /// Zahl der Einbettungsanfragen des zuletzt gebauten Einbetters.
+    /// Number of embedding requests of the embedder built last.
     pub fn calls(&self) -> usize {
         self.last.lock().unwrap().as_ref().map_or(0, |e| e.calls.lock().unwrap().len())
     }

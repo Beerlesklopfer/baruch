@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 13, Aufgabe „abgleich“: Abgleich Baruch ↔ MultiGPT (`crate::sync`, Migration 0033).
+//! Round 13, task „abgleich“: sync Baruch ↔ MultiGPT (`crate::sync`, migration 0033).
 //!
-//! - Ohne Knopfdruck keine Anfrage an MultiGPT (auch nicht beim Start, Speichern oder Anzeigen).
-//! - Hochladen nur mit Schalter (Vorgabe aus, Einschalten nur mit Bestätigung): ein Dokument je Kapitel,
-//!   unverändert nichts, geändert erst neu hochladen und dann das alte löschen, gelöschte Kapitel und Werke
-//!   räumen ihre Dokumente ab; ohne `docs.write` ein Hinweis und lokal keine Änderung.
-//! - Holen gewählter Sammlungen nur bei Änderung, mit Grenzen und Hinweisen; danach findet die lokale Suche
-//!   das Dokument als Art `remote` mit Link auf die Dokumentansicht; `local_document` für den Integrator.
-//! - Seite `/abgleich` und Einstellungen → Werk ohne JavaScript; kein MCP-Werkzeug zum Abgleich.
+//! - Without pressing a button no request to MultiGPT (not at start, saving or displaying either).
+//! - Upload only with the switch (default off, switching on only with confirmation): one document per chapter,
+//!   unchanged nothing, changed first upload anew and then delete the old one, deleted chapters and works clear away
+//!   their documents; without `docs.write` a hint and locally no change.
+//! - Fetching chosen collections only on a change, with limits and hints; afterwards the local search finds the
+//!   document as kind `remote` with a link to the document view; `local_document` for the integrator.
+//! - Page `/abgleich` and Einstellungen → Werk without JavaScript; no MCP tool for the sync.
 //!
-//! Gegenstellen sind nur Nachbauten auf 127.0.0.1:0 ([`MockDocs`] für MultiGPT, [`MockEliezer`] für die
-//! Einbettungen). Texte frei erfunden („Die Insel der Bienen“).
+//! Peers are only mocks on 127.0.0.1:0 ([`MockDocs`] for MultiGPT, [`MockEliezer`] for the embeddings). Texts freely
+//! invented („Die Insel der Bienen“).
 
 use crate::common;
 
@@ -57,7 +57,7 @@ fn error_code(answer: &Value) -> i64 {
     answer["error"]["code"].as_i64().unwrap_or_else(|| panic!("Fehler erwartet: {answer}"))
 }
 
-/// Server mit eigenem Werk und dem Nachbau als MultiGPT (Adresse eingetragen, ohne Token).
+/// Server with a work of its own and the mock as MultiGPT (address entered, without token).
 async fn island() -> (common::Server, MockDocs, i64) {
     let server = common::open().await;
     let mock = MockDocs::start().await;
@@ -67,7 +67,7 @@ async fn island() -> (common::Server, MockDocs, i64) {
     (server, mock, work)
 }
 
-/// Einen Lauf starten, abwarten und den letzten Lauf aus `sync.status` liefern.
+/// Start a run, wait and deliver the last run from `sync.status`.
 async fn run(server: &common::Server) -> Value {
     let started = server.rpc("sync.run", json!({})).await;
     assert_eq!(result(&started)["started"], true, "kein anderer Lauf läuft, dieser startet: {started}");
@@ -83,7 +83,7 @@ async fn upload_on(server: &common::Server, work: i64) {
     assert_eq!(result(&on)["upload"], true, "eingeschaltet: {on}");
 }
 
-/// Knoten eines Werks: (Schlüssel, Titel, Text der aktuellen Fassung, Nummer der aktuellen Fassung).
+/// Nodes of a work: (key, title, text of the current revision, number of the current revision).
 async fn nodes(server: &common::Server, work: i64) -> Vec<(i64, String, String, i64)> {
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
     result(&loaded)["work"]["nodes"]
@@ -131,7 +131,7 @@ async fn without_pressing_the_button_nothing_reaches_multigpt_not_even_at_start_
         let (code, html) = server.get(&uri).await;
         assert_eq!(code, StatusCode::OK, "{uri} lädt: {html}");
     }
-    // Neustart: ein zweiter AppState auf demselben Datenordner (wie beim Hochfahren des Dienstes).
+    // Restart: a second AppState on the same data folder (as when the service starts up).
     let again = baruch_server::AppState::open(server.path()).await.expect("Neustart");
     assert!(!sync::running(&again), "beim Start läuft kein Abgleich");
     assert!(
@@ -198,7 +198,7 @@ async fn each_chapter_becomes_one_document_and_only_changes_are_uploaded_again()
     assert_eq!(states[0].item, format!("work:{work}/key:{}", keys[0].0), "item = work:<W>/key:<K>: {states:?}");
     assert!(states.iter().all(|s| s.hash.len() == 64 && s.remote_id.starts_with("doc-")), "Hash und ID gemerkt");
 
-    // Zweiter Lauf ohne Änderung: nichts angefasst.
+    // Second run without a change: nothing touched.
     mock.clear_requests();
     let last = run(&server).await;
     let calls = tool_names(&mock);
@@ -208,7 +208,7 @@ async fn each_chapter_becomes_one_document_and_only_changes_are_uploaded_again()
     );
     assert_eq!((last["unchanged"].as_i64(), last["uploaded"].as_i64()), (Some(3), Some(0)), "Zahlen: {last}");
 
-    // Eine Änderung im Unterabschnitt: genau dieses Kapitel neu, danach das alte Dokument gelöscht.
+    // A change in the subsection: exactly this chapter anew, afterwards the old document deleted.
     let old_id = states[0].remote_id.clone();
     let (key, _, body, rev) = &keys[1];
     let saved = server
@@ -239,7 +239,7 @@ async fn each_chapter_becomes_one_document_and_only_changes_are_uploaded_again()
     let states = server.state.store.sync_states(SyncSide::Baruch, Some(COLLECTION)).await.unwrap();
     assert_ne!(states[0].remote_id, old_id, "sync_state zeigt auf das neue Dokument: {states:?}");
 
-    // Ein gelöschtes Kapitel löscht sein Dokument.
+    // A deleted chapter deletes its document.
     let gone = keys[3].0;
     let deleted = server.rpc("outline.delete", json!({ "work": work, "key": gone, "confirm": true })).await;
     result(&deleted);
@@ -297,7 +297,7 @@ async fn without_docs_write_the_run_ends_with_a_hint_and_nothing_changes_locally
         assert!(states.is_empty(), "{deny:?}: kein Stand gespeichert (nächster Lauf versucht es neu): {states:?}");
         let after = server.rpc("work.export", json!({ "work": work })).await;
         assert_eq!(after, before, "{deny:?}: der Buchtext ist unverändert");
-        // Die Arbeit geht weiter: Speichern gelingt.
+        // The work goes on: saving succeeds.
         let list = nodes(&server, work).await;
         let (key, _, body, rev) = &list[2];
         let saved = server
@@ -329,7 +329,7 @@ async fn offline_the_run_reports_unreachable_and_a_second_concurrent_run_says_ru
     sync::wait_idle(&server.state).await;
     assert_eq!(mock.tool_calls("upload_document").len(), 3, "nur der erste Lauf lud hoch");
 
-    // Gegenstelle weg (Adresse auf einen geschlossenen Port): Hinweis, ok=0, lokal bleibt alles.
+    // Peer gone (address on a closed port): hint, ok=0, locally everything stays.
     let closed = {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         listener.local_addr().unwrap().port()
@@ -395,7 +395,7 @@ async fn chosen_collections_are_fetched_only_when_changed_and_then_found_offline
         "ohne URL"
     );
 
-    // Zweiter Lauf: Änderungszeiten gleich → nichts gelesen.
+    // Second run: modification times equal → nothing read.
     mock.clear_requests();
     let last = run(&server).await;
     assert!(
@@ -404,7 +404,7 @@ async fn chosen_collections_are_fetched_only_when_changed_and_then_found_offline
     );
     assert_eq!((last["unchanged"].as_i64(), last["downloaded"].as_i64()), (Some(2), Some(0)), "Zahlen: {last}");
 
-    // Ein Dokument ändert sich bei MultiGPT: genau dieses wird gelesen.
+    // A document changes at MultiGPT: exactly this one is read.
     mock.put_document(
         "Leuchtfeuer",
         "lf-2",
@@ -416,14 +416,14 @@ async fn chosen_collections_are_fetched_only_when_changed_and_then_found_offline
     assert_eq!(mock.tool_calls("read_document"), vec![json!({ "document_id": "lf-2" })], "nur das geänderte gelesen");
     assert_eq!(last["downloaded"], 1, "ein Dokument neu geholt: {last}");
 
-    // Ohne Änderungszeit: gelesen wird, aber gleicher Hash ändert nichts.
+    // Without a modification time: it is read, but the same hash changes nothing.
     mock.configure(|b| b.stamps = false);
     mock.clear_requests();
     let last = run(&server).await;
     assert_eq!(mock.tool_calls("read_document").len(), 2, "ohne remote_stamp entscheidet der Hash des Texts");
     assert_eq!((last["downloaded"].as_i64(), last["unchanged"].as_i64()), (Some(0), Some(2)), "Zahlen: {last}");
 
-    // Offline suchbar: der lokale Index hat das Dokument als Art „remote“ mit Herkunft und Link.
+    // Searchable offline: the local index has the document as kind „remote“ with origin and link.
     rag::wait_idle(&server.state).await;
     let found = server
         .rpc(
@@ -440,7 +440,7 @@ async fn chosen_collections_are_fetched_only_when_changed_and_then_found_offline
     assert!(hit["meta"]["sync"].is_i64(), "meta.sync = id der Kopie: {hit}");
     assert!(eliezer.requests().iter().all(|r| r.path == "/v1/embeddings"), "nur Einbettungen, kein Chat");
 
-    // Bei MultiGPT gelöscht → lokal entfernt; abgewählt → lokal entfernt.
+    // Deleted at MultiGPT → removed locally; deselected → removed locally.
     mock.remove_document("lf-2");
     let last = run(&server).await;
     assert_eq!(last["removed"], 1, "die Kopie des gelöschten Dokuments entfernt: {last}");
@@ -505,7 +505,8 @@ async fn the_sync_page_works_without_javascript() {
     let (server, mock, work) = island().await;
     let (code, html) = server.get(&format!("/abgleich?work={work}")).await;
     assert_eq!(code, StatusCode::OK, "Seite lädt: {html}");
-    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "eine Kopfzeile aus base.html"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    assert_eq!(html.matches("<header class=\"band\"").count(), 1, "eine Kopfzeile aus base.html");
     assert!(html.contains("<h1 class=\"pane-title\">Abgleich mit MultiGPT</h1>"), "Überschrift: {html}");
     assert!(html.contains("<input type=\"hidden\" name=\"action\" value=\"run\">"), "Formular action=run: {html}");
     assert!(html.contains(">Abgleichen</button>"), "Knopf „Abgleichen“: {html}");
@@ -521,7 +522,7 @@ async fn the_sync_page_works_without_javascript() {
     assert!(!html.contains("data-sync-unconfigured"), "MultiGPT ist eingerichtet, kein Hinweis darauf");
     assert!(mock.requests().is_empty(), "die Seite fragt MultiGPT nicht");
 
-    // Einschalten ohne Kästchen: abgelehnt, mit: eingeschaltet.
+    // Switching on without the checkbox: rejected, with it: switched on.
     let (code, location) = server.post_form("/abgleich/act", &format!("action=upload&work={work}&on=1")).await;
     assert_eq!(code, StatusCode::SEE_OTHER, "303");
     assert_eq!(location.as_deref(), Some(format!("/abgleich?work={work}&fehler=bestaetigen").as_str()), "Grund");
@@ -532,7 +533,7 @@ async fn the_sync_page_works_without_javascript() {
     assert_eq!(location.as_deref(), Some(format!("/abgleich?work={work}&ok=hochladen_an").as_str()), "eingeschaltet");
     assert!(server.state.store.sync_work(work).await.unwrap().upload, "Schalter gespeichert");
 
-    // Sammlungen wählen (wiederholtes Feld und neues Feld), laden auf Knopfdruck.
+    // Choosing collections (repeated field and new field), loading at the press of a button.
     mock.put_document("Bibeln", "b-1", "Psalm der Wellen", "Erfundener Psalm.");
     let (_, location) = server
         .post_form(
@@ -553,7 +554,7 @@ async fn the_sync_page_works_without_javascript() {
         "gewählte Sammlung angehakt: {html}"
     );
 
-    // Abgleichen über das Formular: 303, danach Ergebnis mit Zahlen auf der Seite.
+    // Syncing through the form: 303, afterwards the result with numbers on the page.
     let (code, location) = server.post_form("/abgleich/act", &format!("action=run&work={work}")).await;
     assert_eq!(
         (code, location.as_deref()),
@@ -581,7 +582,7 @@ async fn the_sync_page_works_without_javascript() {
     assert!(html.contains("geholt: <span data-count=\"downloaded\">1</span>"), "geholt aus Bibeln: {html}");
     assert!(html.contains("data-sync-upload=\"an\""), "Schalter an: {html}");
 
-    // Fremde Seite: abgewiesen.
+    // Foreign page: rejected.
     let request = Request::post("/abgleich/act")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .header(header::ORIGIN, "http://fremd.example")
@@ -627,8 +628,8 @@ async fn the_tools_menu_links_to_the_sync_page_instead_of_a_stub() {
         html.contains(&format!(
             "<a class=\"btn\" href=\"/abgleich?work={work}\" title=\"Abgleich mit MultiGPT\">Abgleichen</a>"
         )),
-        // Runde 33 (Menüband): „Abgleichen“ stand im Menü Werkzeuge ▾ und steht jetzt im Reiter Prüfen (Gruppe
-        // Quellen) – weiter ein gewöhnlicher Link, kein Stub.
+        // Round 33 (ribbon): „Abgleichen“ was in the menu Werkzeuge ▾ and is now in the tab Prüfen (group Quellen) –
+        // still an ordinary link, no stub.
         "Reiter Prüfen verlinkt die Seite: {html}"
     );
     let base = include_str!("../templates/base.html");
@@ -677,20 +678,20 @@ async fn an_old_version_whose_deletion_failed_is_deleted_by_the_next_run() {
         .await;
     result(&saved);
 
-    // Löschen scheitert: Das neue Dokument ist oben, das alte bleibt vorerst liegen.
+    // Deleting fails: the new document is up, the old one stays lying for the time being.
     mock.configure(|b| b.fail_delete = true);
     let last = run(&server).await;
     assert_eq!(last["ok"], false, "der gescheiterte Löschversuch macht den Lauf nicht fehlerfrei: {last}");
     assert!(last["message"].as_str().unwrap().contains(&old_id), "der Hinweis nennt die alte ID: {last}");
     assert_eq!(mock.documents(COLLECTION).len(), 4, "vorübergehend doppelt: drei Kapitel und die alte Fassung");
     let states = server.state.store.sync_states(SyncSide::Baruch, Some(COLLECTION)).await.unwrap();
-    // Begründung: Die alte ID darf nicht verloren gehen, sonst löscht sie kein späterer Lauf (Ersetzen statt Doppeln).
+    // Reason: the old ID must not get lost, otherwise no later run deletes it (replacing instead of doubling).
     assert!(
         states.iter().any(|s| s.remote_id == old_id && s.item.contains("/stale:")),
         "die alte ID bleibt als eigener Stand gemerkt: {states:?}"
     );
 
-    // Nächster Lauf mit funktionierendem Löschen: Das Kapitel ist unverändert, die alte Fassung wird gelöscht.
+    // Next run with working deletion: the chapter is unchanged, the old version is deleted.
     mock.configure(|b| b.fail_delete = false);
     mock.clear_requests();
     let last = run(&server).await;
@@ -717,12 +718,12 @@ async fn a_document_read_page_by_page_is_stored_whole_like_the_online_fulltext()
     let last = run(&server).await;
     assert_eq!((last["downloaded"].as_i64(), last["ok"].as_bool()), (Some(1), Some(true)), "geholt: {last}");
     let pages: Vec<Value> = mock.tool_calls("read_document").iter().map(|a| a["page"].clone()).collect();
-    // Begründung: 112 Zeichen zu je 40 → drei Seiten; jede wird genau einmal angefragt.
+    // Reason: 112 characters at 40 each → three pages; each is requested exactly once.
     assert_eq!(pages, vec![json!(1), json!(2), json!(3)], "alle Seiten gelesen: {pages:?}");
     let copy = sync::local_document(&server.state, "Hafen", "hf-1").await.unwrap().expect("lokale Kopie");
     assert!(copy.text.contains("Das Feuer brennt"), "auch die letzte Seite steht in der Kopie: {:?}", copy.text);
-    // Begründung: Offline-Prüfungen (Hervorhebungen, Dokumentansicht) vergleichen mit der Kopie; sie muss dem
-    // Online-Volltext (read_full, Seiten mit Leerzeile verbunden) gleichen.
+    // Reason: offline checks (highlights, document view) compare with the copy; it must equal the online full text
+    // (read_full, pages joined with an empty line).
     let way = baruch_server::connections::multigpt::MultigptWay::new(
         &mock.url(),
         None,
@@ -730,7 +731,7 @@ async fn a_document_read_page_by_page_is_stored_whole_like_the_online_fulltext()
     );
     assert_eq!(copy.text, way.read_full("hf-1").await.expect("Volltext"), "Kopie = Online-Volltext");
 
-    // Eine Änderung nur auf der letzten Seite ändert den Hash und wird geholt.
+    // A change only on the last page changes the hash and is fetched.
     mock.configure(|b| b.stamps = false);
     mock.put_document("Hafen", "hf-1", "Hafenbuch", &text.replace("brennt", "erlischt"));
     let last = run(&server).await;

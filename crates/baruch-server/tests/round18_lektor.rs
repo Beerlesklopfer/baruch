@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 18b (konstrukte): Lektor-Reste aus „Nach Runde 15 offen“ – Zusammenfassungen der Stückelung im Speicher
-//! zwischengespeichert (Zahl der Modellaufrufe mit eigenem `ModelPort` gezählt), „an Persona geben“ auf
-//! `/quelle/multigpt` ohne übernommenen Titel (Nachbau `MockMultigpt` auf 127.0.0.1:0), Retry im Strom verwirft nur
-//! das laufende Stück (SSE). Die Zeile der ausgelassenen Teile prüft `assist::context` (Unit-Test), die Rechnung
-//! dazu `assist::chunk`. Kein Eliezer, kein Netz außer eigenen Nachbauten; Tests mit `common::model_queue`. Alle
-//! Texte frei erfunden.
+//! Round 18b (konstrukte): lector leftovers from „Nach Runde 15 offen“ – summaries of the chunking cached in memory
+//! (number of model calls counted with an own `ModelPort`), „an Persona geben“ on `/quelle/multigpt` without an adopted
+//! title (mock `MockMultigpt` on 127.0.0.1:0), retry in the stream discards only the running piece (SSE). The line of
+//! the omitted parts is checked by `assist::context` (unit test), the calculation for it by `assist::chunk`. No
+//! Eliezer, no network except own mocks; tests with `common::model_queue`. All texts freely invented.
 
 use crate::common;
 
@@ -46,8 +45,8 @@ fn system(call: &ModelCall) -> &str {
     call.messages.iter().find(|m| m.role == Role::System).map(|m| m.content.as_str()).unwrap_or("")
 }
 
-/// Nachbau: zählt Aufrufe; Zusammenfassungen bekommen einen festen Satz. Prüfungen je Stück: Stück 1 mit
-/// „Kritisch:“, ab Stück 2 zunächst ohne (dann fordert Baruch einmal nach), nach der Nachforderung mit.
+/// Mock: counts calls; summaries get a fixed sentence. Checks per piece: piece 1 with „Kritisch:“, from piece 2 on at
+/// first without (then Baruch asks again once), after the repeated request with.
 #[derive(Clone, Default)]
 struct Counter {
     calls: Arc<Mutex<Vec<ModelCall>>>,
@@ -104,7 +103,7 @@ const HIVE: &str = "#set document(title: \"Das Bienenjahr\", author: \"Ida Wabe\
 == Pollen\n\nGelbe Höschen an den Beinen zeigen, dass das Volk brütet.\n\n\
 == Wasser\n\nAn der Tränke stehen morgens die Wasserholerinnen.\n";
 
-/// Langer Abschnitt „Wasser“ aus `n` verschiedenen Sätzen.
+/// Long section „Wasser“ of `n` different sentences.
 fn long_water(n: usize) -> String {
     let sentences: Vec<String> = (1..=n).map(|i| format!("Die Tränke {i} am Bach steht leer.")).collect();
     format!("== Wasser\n\n{}\n", sentences.join(" "))
@@ -152,7 +151,7 @@ async fn summaries_of_the_same_text_and_model_come_from_the_cache() {
         "derselbe Text, dasselbe Modell: keine neue Zusammenfassung (Zwischenspeicher, vorher fasste jeder Auftrag neu)"
     );
 
-    // Anderer Text (jeder Satz anders): neue Zusammenfassungen, nie eine alte für geänderten Text.
+    // Different text (every sentence different): new summaries, never an old one for changed text.
     let other = long_water(160).replace("steht leer", "ist voll");
     ok(&server, "revision.save", json!({ "work": work, "key": keys[2], "body": other })).await;
     baruch_server::assist::run(&server.state, &order(work, keys[1]), None).await.unwrap();
@@ -160,7 +159,7 @@ async fn summaries_of_the_same_text_and_model_come_from_the_cache() {
     assert!(summary_cache().len() <= SUMMARY_CACHE_MAX, "der Zwischenspeicher hat eine Obergrenze");
 }
 
-/// Kapitel aus `sections` Abschnitten zu je etwa `chars` Zeichen (erfundener Text über Mühlen).
+/// Chapter of `sections` sections of about `chars` characters each (invented text about mills).
 fn mills(sections: usize, chars: usize) -> String {
     let mut text = String::from(
         "#set document(title: \"Die Mühlen\", author: \"Jo Rad\")\n#set heading(numbering: \"1.1\")\n\n\
@@ -176,9 +175,9 @@ fn mills(sections: usize, chars: usize) -> String {
 
 #[tokio::test]
 async fn omitted_parts_in_one_line_let_a_long_chapter_fit_without_any_call_over_the_context() {
-    // Backlog „Nach Runde 15 offen“: Bei etwa 20 überlappenden Stücken und 4096 Tokens lehnte Baruch ab, weil jeder
-    // ausgelassene Teil eine eigene Zeile mit Hinweis kostete. Aufeinanderfolgende ausgelassene Teile stehen jetzt in
-    // einer Zeile; derselbe Fall passt, und kein Aufruf überschreitet gemessen das Budget.
+    // Backlog „Nach Runde 15 offen“: with about 20 overlapping pieces and 4096 tokens Baruch rejected, because every
+    // omitted part cost a line of its own with a hint. Consecutive omitted parts are now on one line; the same case
+    // fits, and no call exceeds the budget when measured.
     let _turn = common::model_queue(module_path!()).await;
     let port = Counter::default();
     let server = server_with(Arc::new(port.clone())).await;
@@ -193,7 +192,7 @@ async fn omitted_parts_in_one_line_let_a_long_chapter_fit_without_any_call_over_
     assert!(outcome.compressed.as_ref().is_some_and(|c| c.chunks >= 2), "gestückelt geprüft: {:?}", outcome.compressed);
     let calls = port.calls.lock().unwrap().clone();
     for call in &calls {
-        // Dieselbe Formel wie `context::prepare`: (Kontextlänge − max_tokens − Rücklage 256) · 3 Zeichen.
+        // The same formula as `context::prepare`: (context length − max_tokens − reserve 256) · 3 characters.
         let size: usize = call.messages.iter().map(|m| m.content.chars().count()).sum();
         let budget = (4096u32.saturating_sub(call.max_tokens).saturating_sub(256) * 3) as usize;
         assert!(size <= budget, "Aufruf {} mit {size} Zeichen über dem Budget {budget}", call.label);
@@ -206,7 +205,7 @@ async fn omitted_parts_in_one_line_let_a_long_chapter_fit_without_any_call_over_
     assert!(merged, "mindestens eine Zeile nennt mehrere ausgelassene Teile, durch „; “ getrennt");
 }
 
-/// Strom-Ereignisse aus SSE-Text.
+/// Stream events from SSE text.
 fn events(text: &str) -> Vec<(String, Value)> {
     text.split("\n\n")
         .filter_map(|block| {
@@ -232,7 +231,7 @@ async fn a_retry_in_a_split_review_discards_only_the_running_piece() {
     let work = server.import(HIVE, "bienen.typ").await.work;
     let keys = keys_of(&server, work).await;
     ok(&server, "revision.save", json!({ "work": work, "key": keys[2], "body": long_water(600) })).await;
-    // Runde 28: Nachgefordert wird „Kritisch:“ nur noch bei Nathan (Auditor); der Lektor ist Begleiter.
+    // Round 28: „Kritisch:“ is requested again only for Nathan (auditor) any more; the lector is a companion.
     ok(&server, "persona.update", json!({ "handle": "@nathan", "context_length": 3200 })).await;
     let request = Request::post("/assistenten/stream")
         .header(header::CONTENT_TYPE, "application/json")
@@ -265,7 +264,7 @@ async fn a_retry_in_a_split_review_discards_only_the_running_piece() {
         first_piece.contains("Tränke 1 am Bach"),
         "das fertige erste Stück liegt vor dem Ereignis piece – der Client behält es beim Retry: {first_piece:?}"
     );
-    // Der Client (assist.ts): `piece` beginnt einen neuen Teil, `retry` leert nur diesen.
+    // The client (assist.ts): `piece` begins a new part, `retry` empties only this one.
     let script = include_str!("../web/src/assist.ts");
     let on_piece = script.find("event === \"piece\"").expect("assist.ts behandelt piece");
     let on_retry = script.find("event === \"retry\"").expect("assist.ts behandelt retry");
@@ -273,7 +272,7 @@ async fn a_retry_in_a_split_review_discards_only_the_running_piece() {
     assert!(script[on_retry..].contains("segment.textContent = \"\";"), "retry leert nur den laufenden Teil");
 }
 
-/// Der Nachbau mit dem Dokument `lt-1` samt Titel.
+/// The mock with the document `lt-1` including title.
 fn with_document(mock: &MockMultigpt, text: &str) {
     let text = text.to_owned();
     mock.configure(move |b| {

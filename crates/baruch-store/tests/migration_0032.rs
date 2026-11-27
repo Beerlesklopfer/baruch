@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0032 (Treffer der Bedeutungssuche als Belege je Persona, Runde 12) auf einer nachgebauten
-//! Datenbank im Stand davor (alle Store-Migrationen unter 0032 – im Stand von development bis 0030, nach dem
-//! Zusammenführen auch 0031 – und Bibliothek 0101–0105), mit frei erfundenem Werk, Vorschlag, Beitrag,
-//! Personas samt eigenem Prompt, Lektor-Wahl, Bibel des Werks und Verbindung.
+//! Migration 0032 (hits of the semantic search as evidence per persona, Round 12) on a reproduced database in the state
+//! before it (all store migrations below 0032 – in the state of development up to 0030, after the merge also 0031 – and
+//! library 0101–0105), with a freely invented work, proposal, post, personas including an own prompt, lector choice,
+//! Bible of the work and connection.
 //!
-//! Nach einem Migrator bis 0032: Das Schema jeder alten Tabelle bleibt, neu ist genau `persona_rag`, leer.
-//! Danach `Store::open`: jede Zeile jeder alten Tabelle unverändert, keine Persona hat den Schalter an;
-//! Setzen geht, Löschen der Persona nimmt die Zeile mit, ein zweites Öffnen ändert nichts.
+//! After a migrator up to 0032: the schema of every old table stays, new is exactly `persona_rag`, empty. Afterwards
+//! `Store::open`: every row of every old table unchanged, no persona has the switch on; setting works, deleting the
+//! persona takes the row along, a second opening changes nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0032 und Bibliothek 0101–0105.
+/// Store below 0032 and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 32), "die neue Migration ist 0032");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 30), "Stand davor hat mindestens 0030 (development)");
@@ -230,7 +230,7 @@ async fn migration_0032_keeps_every_row_and_only_adds_persona_rag() {
     assert_eq!(personas.len(), 3, "PersonaRow unverändert lesbar, keine Persona dazugekommen");
     store.set_persona_rag("@lektor", true).await.unwrap();
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -240,7 +240,7 @@ async fn migration_0032_keeps_every_row_and_only_adds_persona_rag() {
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
     assert!(store.persona_rag("@lektor").await.unwrap(), "der Schalter überdauert das Öffnen");
 
-    // Löschen der Persona nimmt ihre Zeile mit (ON DELETE CASCADE).
+    // Deleting the persona takes its row along (ON DELETE CASCADE).
     sqlx::query("DELETE FROM persona WHERE handle = '@lektor'").execute(store.pool()).await.unwrap();
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM persona_rag").fetch_one(store.pool()).await.unwrap();
     assert_eq!(left, 1, "nur die Zeile von @belege bleibt (@lektor ist mit seiner Persona gegangen)");
@@ -249,8 +249,8 @@ async fn migration_0032_keeps_every_row_and_only_adds_persona_rag() {
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

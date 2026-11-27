@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20a (epub, Besitz „epub“): EPUB über Server, RPC `work.epub`, Seite `/werke/{id}/epub`, MCP `epub_export` und
-//! CLI `export --epub`.
+//! Round 20a (epub, ownership „epub“): EPUB through server, RPC `work.epub`, page `/werke/{id}/epub`, MCP `epub_export`
+//! and CLI `export --epub`.
 //!
-//! Echter Datenordner im Temp-Ordner, Router über `oneshot`; keine Anfrage an Eliezer oder ins Netz, kein Typst-Satz.
-//! Testtexte frei erfunden, Bilder im Test erzeugt.
+//! Real data folder in the temp folder, router through `oneshot`; no request to Eliezer or into the network, no Typst
+//! typesetting. Test texts freely invented, images created in the test.
 
 use crate::common;
 
@@ -17,7 +17,7 @@ use axum::http::{HeaderMap, Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Frei erfundenes Buch: Teil, zwei Kapitel, Abschnitt, Fußnote, Abbildung, Seitenumbruch-Regel der Vorlage.
+/// Freely invented book: part, two chapters, section, footnote, figure, page-break rule of the template.
 const BOOK: &str = "#set text(lang: \"de\")\n\
 #show heading.where(level: 1): it => { pagebreak(weak: true); it }\n\n\
 #heading(level: 1, numbering: none)[Am Wasser] <baruch-part>\n\n\
@@ -62,13 +62,13 @@ fn entry(files: &[(String, Vec<u8>)], name: &str) -> String {
     String::from_utf8(file.1.clone()).unwrap()
 }
 
-/// Werk „Mühle“ importieren; (id, slug).
+/// Import the work „Mühle“; (id, slug).
 async fn mill(server: &common::Server) -> (i64, String) {
     let report = server.import(BOOK, "muehle.typ").await;
     (report.work, report.slug)
 }
 
-/// Bild des Werks unter `bilder/stein.png` und Umschlag, Buchangaben mit ISBN und Titelei.
+/// Image of the work under `bilder/stein.png` and cover, book details with ISBN and front matter.
 async fn furnish(server: &common::Server, work: i64) {
     let stone = baruch_epub::sample::png(4, 4, [120, 120, 120]);
     let answer = server
@@ -111,7 +111,7 @@ async fn work_epub_describes_the_book_and_inline_bytes_match_the_download() {
     assert_eq!(r["url"], format!("/werke/{work}/epub"), "Adresse zum Herunterladen");
     assert_eq!(r["footnotes"], "popup", "Vorgabe Popup");
     let kinds: Vec<&str> = r["files"].as_array().unwrap().iter().map(|f| f["kind"].as_str().unwrap()).collect();
-    // Runde 21c: Auch ohne Umschlagbild hat das EPUB ein Cover (Vorderseite mit Titel als Rasterbild) vorn.
+    // Round 21c: even without a cover image the EPUB has a cover (front with title as a raster image) at the front.
     assert_eq!(
         kinds,
         ["cover", "part", "chapter", "chapter"],
@@ -233,7 +233,7 @@ async fn a_work_without_sections_is_refused_with_422_and_minus_32000() {
     let server = common::open().await;
     let (work, _) = mill(&server).await;
     let pool = server.state.store.pool();
-    // Ein Werk ohne Gliederungspunkt entsteht über die Oberfläche nicht; nachgestellt direkt in SQLite (wie
+    // A work without an outline item does not arise through the user interface; reproduced directly in SQLite (like
     // outline_mcp.rs).
     for sql in [
         "UPDATE revision SET status = 'superseded' WHERE status = 'current' AND node_id IN (SELECT id FROM node WHERE work_id = ?)",
@@ -302,7 +302,7 @@ async fn mcp_epub_export_reads_only_and_delivers_bytes_only_on_request() {
     assert!(entries(&bytes).iter().any(|f| f.0 == "OEBPS/text/notes.xhtml"), "Endnoten gewählt");
 }
 
-/// RGB-Rauschen, das sich nicht komprimieren lässt (lineare Kongruenz, fester Startwert).
+/// RGB noise that cannot be compressed (linear congruence, fixed seed).
 fn noise_png(side: u32, seed: u32) -> Vec<u8> {
     baruch_epub::sample::png_with(side, side, |x, y| {
         let mut v = seed ^ x.wrapping_mul(0x9E37_79B1) ^ y.wrapping_mul(0x85EB_CA77);
@@ -318,8 +318,8 @@ fn noise_png(side: u32, seed: u32) -> Vec<u8> {
 async fn mcp_epub_export_refuses_bytes_above_eight_mib_and_names_the_way_out() {
     let server = common::open().await;
     let (work, slug) = mill(&server).await;
-    // Drei Bilder mit Rauschen zu je gut 3 MiB: das EPUB wird größer als 8 MiB, jedes Bild bleibt unter der
-    // Bildgrenze des Werks.
+    // Three images with noise of a good 3 MiB each: the EPUB gets larger than 8 MiB, every image stays below the image
+    // limit of the work.
     let mut text = String::from("= Die Mühle\nDas Rad dreht sich am Bach.\n");
     for n in 0..3 {
         let png = noise_png(1050, n + 1);
@@ -336,7 +336,7 @@ async fn mcp_epub_export_refuses_bytes_above_eight_mib_and_names_the_way_out() {
         result(&answer);
         text.push_str(&format!("\n#image(\"{path}\")\n"));
     }
-    // Abschnitt 1 („Die Mühle“, nach dem Teil) bekommt die Bilder über einen angenommenen Vorschlag.
+    // Section 1 („Die Mühle“, after the part) gets the images through an accepted proposal.
     let rev = server.state.store.add_proposal(work, 1, &text, "@lektor", "probe", "Bilder").await.unwrap();
     result(&server.rpc("revision.accept", json!({ "work": work, "node": 1, "rev": rev })).await);
 

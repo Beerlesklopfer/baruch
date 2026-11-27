@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20 (Abnahme, Integrator): Ende-zu-Ende mit einem frei erfundenen Werk „Das Feuer am Kap“ (zwei Teile,
-//! Kapitel mit Abschnitten, Fußnoten, Bilder, ein Querverweis, ein Bibelverweis, Umschlag, ISBN, Buchangaben mit
-//! Sonderzeichen, Satz-Einstellungen, Werkvorlage mit Kapitelumbruch-Regel).
+//! Round 20 (acceptance, integrator): end to end with a freely invented work „Das Feuer am Kap“ (two parts, chapters
+//! with sections, footnotes, images, a cross-reference, a Bible reference, cover, ISBN, book details with special
+//! characters, typesetting settings, work template with a chapter-break rule).
 //!
-//! Wege: Menü (Link im Menü Werk), Download, RPC `work.epub`, CLI `export --epub`, Vorschau je Reader mit iframes und
-//! Reader-Dateien, eigene Prüfung (auch absichtlich kaputter EPUBs), EPUBCheck als selbst geschriebenes Skript über
-//! `path_env` (nie ein echtes Programm, nie ein Download), MCP `epub_export` und `epub_check`. Alles ohne JavaScript
-//! (Formular-GET, Links, iframes). Keine Anfrage an Eliezer oder ins Netz, kein Typst-Satz; Bilder im Test erzeugt.
+//! Ways: menu (link in the menu Werk), download, RPC `work.epub`, CLI `export --epub`, preview per reader with iframes
+//! and reader files, own check (also of deliberately broken EPUBs), EPUBCheck as a self-written script through
+//! `path_env` (never a real program, never a download), MCP `epub_export` and `epub_check`. Everything without
+//! JavaScript (form GET, links, iframes). No request to Eliezer or into the network, no Typst typesetting; images
+//! created in the test.
 
 use crate::common;
 
@@ -27,7 +28,7 @@ use tower::ServiceExt;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
-/// Frei erfundenes Buch. Vorlage mit Sprache und einer Show-Regel, die vor jedem Kapitel umbricht.
+/// Freely invented book. Template with language and a show rule that breaks before every chapter.
 fn cape() -> String {
     format!(
         "#set text(lang: \"de\")\n\
@@ -92,7 +93,7 @@ fn entry(files: &[(String, Vec<u8>)], name: &str) -> String {
     String::from_utf8(file.1.clone()).unwrap()
 }
 
-/// ZIP aus `list`; `mimetype` mit `mimetype_method`, alles andere DEFLATE (wie ein Werkzeug, das falsch packt).
+/// ZIP from `list`; `mimetype` with `mimetype_method`, everything else DEFLATE (like a tool that packs wrongly).
 fn zip_of(list: &[(String, Vec<u8>)], mimetype_method: CompressionMethod) -> Vec<u8> {
     let mut zip = ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (name, bytes) in list {
@@ -103,9 +104,9 @@ fn zip_of(list: &[(String, Vec<u8>)], mimetype_method: CompressionMethod) -> Vec
     zip.finish().unwrap().into_inner()
 }
 
-/// Bilder (eines mit Alternativtext im Text, eines mit Alternativtext nur in den Bildangaben), Umschlag,
-/// Buchangaben mit Sonderzeichen, Satz-Einstellungen und ein Querverweis von „Die Stürme“ auf „Der Wärter“.
-/// Gibt (Schlüssel „Der Wärter“, Schlüssel „Die Stürme“) zurück.
+/// Images (one with alternative text in the text, one with alternative text only in the image details), cover, book
+/// details with special characters, typesetting settings and a cross-reference from „Die Stürme“ to „Der Wärter“.
+/// Returns (key „Der Wärter“, key „Die Stürme“).
 async fn furnish(app: &Router, store: &baruch_store::Store, work: i64) -> (i64, i64) {
     for (file, path, alt, color) in [
         ("linse.png", "bilder/linse.png", "", [200, 200, 220]),
@@ -155,7 +156,7 @@ async fn furnish(app: &Router, store: &baruch_store::Store, work: i64) -> (i64, 
     (keeper, storms.key)
 }
 
-/// Werk anlegen und ausstatten; (Server, Werk, Slug, Schlüssel Wärter, Schlüssel Stürme).
+/// Create and equip the work; (server, work, slug, key Wärter, key Stürme).
 async fn cape_server() -> (common::Server, i64, String, i64, i64) {
     let server = common::open().await;
     let report = server.import(&cape(), "kap.typ").await;
@@ -168,7 +169,7 @@ fn xmllint() -> Option<&'static Path> {
     path.exists().then_some(path)
 }
 
-/// Jede XML-Datei des EPUB mit `xmllint --noout --nonet` (stdin); ohne xmllint ehrlich übersprungen.
+/// Every XML file of the EPUB with `xmllint --noout --nonet` (stdin); without xmllint honestly skipped.
 fn xmllint_every_file(files: &[(String, Vec<u8>)]) {
     let Some(tool) = xmllint() else {
         println!("ÜBERSPRUNGEN: xmllint fehlt, Wohlgeformtheit nur über die eigene Prüfung");
@@ -198,7 +199,7 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     let (server, work, slug, keeper, storms) = cape_server().await;
     let app = &server.app;
 
-    // Menü Werk → „Als EPUB herunterladen“ (gewöhnlicher Link mit download, ohne JavaScript).
+    // Menu Werk → „Als EPUB herunterladen“ (ordinary link with download, without JavaScript).
     let (status, html) = get_text(app, &format!("/?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Werkseite lädt");
     assert!(
@@ -217,7 +218,7 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     let inline = baruch_store::decode_base64(r["epub_base64"].as_str().unwrap()).unwrap();
     assert_eq!(inline, download, "RPC und Download liefern dieselben Bytes (gleicher Stand, deterministisch)");
 
-    // Jede Teil-Seite und jedes Kapitel ist eine eigene Datei; Umschlag und Titelei vorn.
+    // Every part page and every chapter is a file of its own; cover and front matter at the front.
     let listed: Vec<(String, String)> = r["files"]
         .as_array()
         .unwrap()
@@ -249,7 +250,7 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     let ncx = entry(&files, "OEBPS/toc.ncx");
     assert!(ncx.contains("Das Wetter") && ncx.contains("Die Glocke"), "EPUB-2-Rückfall toc.ncx: {ncx}");
 
-    // Fußnoten als Popup: Verweis und Fußnote in derselben Kapiteldatei, das Ziel existiert.
+    // Footnotes as popup: reference and footnote in the same chapter file, the target exists.
     let lamp = files
         .iter()
         .find(|f| f.0.starts_with("OEBPS/text/k") && String::from_utf8_lossy(&f.1).contains("Die Lampe</h"))
@@ -273,14 +274,14 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     assert!(keeper_text.contains("alt=\"Ein aufgeschlagenes Wachbuch\""), "Alternativtext aus den Bildangaben");
     assert!(keeper_text.contains(&format!("id=\"k{keeper}\"")), "Überschrift mit Sprungmarke k{keeper}");
 
-    // Querverweis als interner Link in die Datei des Ziels.
+    // Cross-reference as an internal link into the file of the target.
     let storms_text = entry(&files, &format!("OEBPS/text/k{storms}.xhtml"));
     assert!(
         storms_text.contains(&format!("href=\"k{keeper}.xhtml#k{keeper}\"")),
         "#link(<k{keeper}>) wird ein Link in die Kapiteldatei: {storms_text}"
     );
 
-    // Umschlag als Cover, Metadaten wörtlich (maskiert).
+    // Cover image as cover, metadata literally (escaped).
     let opf = entry(&files, "OEBPS/content.opf");
     for (needle, why) in [
         ("properties=\"cover-image\"", "Umschlag als cover-image"),
@@ -302,7 +303,7 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     let dedication = entry(&files, "OEBPS/text/dedication.xhtml");
     assert!(dedication.contains("Für alle Wärter &amp; &lt;Wärterinnen&gt;"), "Widmung wörtlich: {dedication}");
 
-    // Satz-Einstellungen als CSS.
+    // Typesetting settings as CSS.
     let css = entry(&files, "OEBPS/style/book.css");
     assert!(css.contains("\"Libertinus Serif\""), "Schrift aus den Satz-Einstellungen: {css}");
     assert!(css.contains("text-indent: 1.5em"), "Einzug 1,5 em: {css}");
@@ -310,7 +311,7 @@ async fn the_invented_book_downloads_by_menu_and_rpc_with_parts_chapters_notes_l
     assert!(css.contains("Sprache: de"), "Sprache der Silbentrennung: {css}");
     assert!(css.contains("section.baruch-chapter") && css.contains("break-before"), "Kapitel auf neuer Seite");
 
-    // Wohlgeformt und ohne Fehler in der eigenen Prüfung.
+    // Well-formed and without errors in the own check.
     xmllint_every_file(&files);
     let (findings, tool) = check_structure(&download, xmllint());
     let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).collect();
@@ -364,7 +365,7 @@ async fn the_preview_shows_several_readers_side_by_side_with_chapter_boundaries_
     assert!(html.contains("data-epub-check-summary"), "darunter der Prüfbericht");
     assert!(html.contains("method=\"get\""), "Wahl der Reader als Formular-GET (ohne JavaScript)");
 
-    // Zwei frei gewählte Profile, eine bestimmte Datei, Nachtmodus.
+    // Two freely chosen profiles, a particular file, night mode.
     let file = format!("text/k{keeper}.xhtml");
     let uri = format!("/werke/{work}/epub/vorschau?leser=tolino&leser=kindle&datei={file}&nacht=1");
     let (status, html) = get_text(app, &uri).await;
@@ -373,7 +374,7 @@ async fn the_preview_shows_several_readers_side_by_side_with_chapter_boundaries_
     let tolino = format!("/werke/{work}/epub/leser/tolino/{file}");
     assert!(html.contains(&tolino), "Rahmen zeigt die gewählte Datei: {html}");
 
-    // Die Datei im Rahmen: XHTML mit Reader-CSS, eigener CSP, nur in Baruch einrahmbar.
+    // The file in the frame: XHTML with reader CSS, own CSP, frameable only in Baruch.
     let (status, headers, body) = get_bytes(app, &tolino, &[]).await;
     assert_eq!(status, StatusCode::OK, "Reader-Datei lädt");
     let content_type = headers[header::CONTENT_TYPE].to_str().unwrap();
@@ -386,7 +387,7 @@ async fn the_preview_shows_several_readers_side_by_side_with_chapter_boundaries_
     let (_, headers, _) = get_bytes(app, &format!("/werke/{work}/epub/vorschau"), &[]).await;
     assert_eq!(headers[header::X_FRAME_OPTIONS], "DENY", "die Vorschau-Seite selbst bleibt unrahmbar");
 
-    // RPC epub.preview nennt alle Profile mit Adressen.
+    // RPC epub.preview names all profiles with addresses.
     let all: Vec<&str> = PROFILES.iter().map(|p| p.slug).collect();
     let answer = rpc(app, "epub.preview", json!({ "work": work, "readers": all })).await;
     let readers = result(&answer)["readers"].as_array().unwrap().clone();
@@ -397,7 +398,7 @@ async fn the_preview_shows_several_readers_side_by_side_with_chapter_boundaries_
     );
 }
 
-/// Nimmt eine Werkvorlage mit einer pagebreak-Regel, die nicht auf Kapitel abbildbar ist.
+/// Takes a work template with a pagebreak rule that cannot be mapped to chapters.
 #[tokio::test]
 async fn a_pagebreak_rule_the_epub_cannot_map_is_a_visible_warning() {
     let server = common::open().await;
@@ -433,14 +434,14 @@ async fn the_check_finds_deliberately_broken_epubs() {
     };
     assert!(error_codes(&good).is_empty(), "Ausgangslage ohne Fehler");
 
-    // Fehlende Datei: eine Kapiteldatei aus dem ZIP genommen, das Manifest nennt sie weiter.
+    // Missing file: a chapter file taken out of the ZIP, the manifest still names it.
     let mut missing = list.clone();
     let gone = missing.iter().position(|f| f.0.starts_with("OEBPS/text/k")).unwrap();
     missing.remove(gone);
     let found = error_codes(&zip_of(&missing, CompressionMethod::Stored));
     assert!(found.iter().any(|c| c == codes::MANIFEST_FILE_MISSING), "fehlende Datei gefunden: {found:?}");
 
-    // Falscher mimetype: einmal falscher Inhalt, einmal komprimiert.
+    // Wrong mimetype: once wrong content, once compressed.
     let mut wrong = list.clone();
     wrong[0].1 = b"application/zip".to_vec();
     let found = error_codes(&zip_of(&wrong, CompressionMethod::Stored));
@@ -448,7 +449,7 @@ async fn the_check_finds_deliberately_broken_epubs() {
     let found = error_codes(&zip_of(&list, CompressionMethod::Deflated));
     assert!(found.iter().any(|c| c == codes::MIMETYPE_COMPRESSED), "komprimierter mimetype gefunden: {found:?}");
 
-    // Kaputtes XHTML: ein schließendes Tag fehlt.
+    // Broken XHTML: a closing tag is missing.
     let mut broken = list.clone();
     let chapter = broken
         .iter()
@@ -470,7 +471,7 @@ async fn epubcheck_is_used_when_present_and_otherwise_reported_honestly() {
     let (server, work, _, _, _) = cape_server().await;
     let readers = [profile("kindle").unwrap(), profile("apple-books-iphone").unwrap()];
 
-    // Leerer PATH-Inhalt und kein Jar: ehrlich „nicht gefunden“, die eigene Prüfung gilt trotzdem.
+    // Empty PATH content and no jar: honestly „nicht gefunden“, the own check holds nevertheless.
     let empty = tempfile::tempdir().unwrap();
     let none = Some(empty.path().as_os_str());
     let checked = baruch_server::epub_check::run_check(&server.state, work, &readers, FootnoteMode::Popup, true, none)
@@ -483,7 +484,7 @@ async fn epubcheck_is_used_when_present_and_otherwise_reported_honestly() {
         "Kindle-Hinweis zur Umwandlung über Send to Kindle"
     );
 
-    // Selbst geschriebenes EPUBCheck im übergebenen PATH-Inhalt: es läuft und besteht.
+    // Self-written EPUBCheck in the PATH content passed in: it runs and passes.
     let bin = tempfile::tempdir().unwrap();
     let script = bin.path().join("epubcheck");
     std::fs::write(&script, "#!/bin/sh\necho 'EPUBCheck v5.2.0'\necho 'No errors or warnings detected.'\nexit 0\n")
@@ -501,7 +502,7 @@ async fn epubcheck_is_used_when_present_and_otherwise_reported_honestly() {
         other => panic!("EPUBCheck lief: {other:?}"),
     }
 
-    // Prüfseite ohne JavaScript: Bericht, Status und Knopf als Formular.
+    // Check page without JavaScript: report, status and button as a form.
     let (status, html) = server.get(&format!("/werke/{work}/epub/pruefung?leser=kindle")).await;
     assert_eq!(status, StatusCode::OK, "Prüfseite lädt: {html}");
     assert!(html.contains("<form") && html.contains("EPUBCheck ausführen"), "Knopf als Formular");

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0034 (Belege der Websuche, Runde 13 „websuche“) auf einer nachgebauten Datenbank im Stand davor
-//! (alle Store-Migrationen unter 0034 – im Stand von development bis 0032, nach dem Zusammenführen auch 0033 –
-//! und Bibliothek 0101–0105), mit frei erfundenem Werk, Beiträgen samt Quellen und Bezug, Personas und
-//! Einstellungen in `store_meta`.
+//! Migration 0034 (evidence of the web search, Round 13 „websuche“) on a reproduced database in the state before it
+//! (all store migrations below 0034 – in the state of development up to 0032, after the merge also 0033 – and library
+//! 0101–0105), with a freely invented work, posts including sources and reference, personas and settings in
+//! `store_meta`.
 //!
-//! Nach einem Migrator bis 0034: Das Schema jeder alten Tabelle bleibt, neu sind genau `web_evidence` und der
-//! Index `web_evidence_post`, die Tabelle ist leer. Danach `Store::open`: jede Zeile jeder alten Tabelle
-//! unverändert; ein Beleg zu einem Beitrag lässt sich anlegen, das Löschen des Beitrags setzt `post_id` auf
-//! NULL (der Beleg bleibt), ein zweites Öffnen ändert nichts.
+//! After a migrator up to 0034: the schema of every old table stays, new are exactly `web_evidence` and the index
+//! `web_evidence_post`, the table is empty. Afterwards `Store::open`: every row of every old table unchanged; evidence
+//! for a post can be created, deleting the post sets `post_id` to NULL (the evidence stays), a second opening changes
+//! nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -37,7 +37,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0034 und Bibliothek 0101–0105.
+/// Store below 0034 and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 34), "die neue Migration ist 0034");
     assert!(
@@ -56,7 +56,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Werk mit zwei Kapiteln, drei Beiträge (einer mit Quellen und Bezug), Personas, Einstellungen.
+/// Work with two chapters, three posts (one with sources and reference), personas, settings.
 async fn insert_rows(pool: &SqlitePool) -> (i64, Vec<i64>) {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -249,7 +249,7 @@ async fn migration_0034_keeps_every_row_and_only_adds_web_evidence() {
     let kept = evidence(store.pool(), posts[1], "belegt").await.expect("Beleg zum Beitrag anlegen");
     let other = evidence(store.pool(), posts[2], "nicht_zitiert").await.unwrap();
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -258,7 +258,7 @@ async fn migration_0034_keeps_every_row_and_only_adds_web_evidence() {
     assert_eq!(schema(store.pool()).await, schema_once, "zweites Öffnen: Schema gleich");
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 
-    // Löschen des Beitrags (über den Store, wie die Oberfläche) setzt post_id auf NULL; der Beleg bleibt.
+    // Deleting the post (through the store, like the user interface) sets post_id to NULL; the evidence stays.
     let deleted = store.post_delete(work, posts[1]).await.expect("Beitrag löschen");
     assert_eq!(deleted.id, posts[1], "der Beitrag mit Beleg ist gelöscht");
     let post: Option<i64> = sqlx::query_scalar("SELECT post_id FROM web_evidence WHERE id = ?")
@@ -278,8 +278,8 @@ async fn migration_0034_keeps_every_row_and_only_adds_web_evidence() {
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

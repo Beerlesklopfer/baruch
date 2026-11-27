@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0039 (Zeitwächter, Runde 16b) auf einer nachgebauten Datenbank im Stand von development zu Beginn
-//! von Runde 16 (Store bis 0038, Bibliothek 0101–0106) mit frei erfundener Predigt: Punkte, Fassungen (aktuell
-//! und Vorschlag), Beiträge, Personas, Faden.
+//! Migration 0039 (time keeper, Round 16b) on a reproduced database in the state of development at the beginning of
+//! Round 16 (store up to 0038, library 0101–0106) with a freely invented sermon: items, revisions (current and
+//! proposal), posts, personas, thread.
 //!
-//! Nach einem Migrator bis 0039: Das Schema jeder alten Tabelle bleibt, neu ist genau `work_timing` (leer).
-//! Danach `Store::open`: jede Zeile jeder alten Tabelle unverändert, Export byte-gleich, ohne Zeile gilt die
-//! Vorgabe (110 Wörter je Minute, keine Zielzeit); Einstellungen lassen sich setzen; Löschen des Werks nimmt
-//! seine `work_timing`-Zeile mit (ON DELETE CASCADE, ohne dass `Store::delete_work` sie kennt).
+//! After a migrator up to 0039: the schema of every old table stays, new is exactly `work_timing` (empty). Afterwards
+//! `Store::open`: every row of every old table unchanged, export byte-identical, without a row the default holds (110
+//! words per minute, no target time); settings can be set; deleting the work takes its `work_timing` row along (ON
+//! DELETE CASCADE, without `Store::delete_work` knowing it).
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store bis 0038 (Stand development zu Beginn von Runde 16) und Bibliothek bis 0106.
+/// Store up to 0038 (state of development at the beginning of Round 16) and library up to 0106.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 39), "die neue Migration ist 0039");
     assert!(
@@ -55,7 +55,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Predigt mit zwei Punkten, Fassungen, zwei Beiträgen (einer mit Quelle), Personas und einem Faden.
+/// Sermon with two items, revisions, two posts (one with source), personas and a thread.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -242,7 +242,7 @@ async fn migration_0039_keeps_every_row_and_only_adds_the_timing_table() {
     store.set_timing_settings(work, set).await.expect("Einstellungen setzen nach der Migration");
     assert_eq!(store.timing_settings(work).await.unwrap(), set, "gesetzte Werte werden gelesen");
 
-    // Werk löschen nimmt seine Zeile mit (ON DELETE CASCADE).
+    // Deleting the work takes its row along (ON DELETE CASCADE).
     store.delete_work(work, "Die Fähre im Schilf").await.expect("Werk löschen");
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM work_timing").fetch_one(store.pool()).await.unwrap();
     assert_eq!(left, 0, "mit dem Werk ist seine Zeit-Einstellung fort");
@@ -251,8 +251,8 @@ async fn migration_0039_keeps_every_row_and_only_adds_the_timing_table() {
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

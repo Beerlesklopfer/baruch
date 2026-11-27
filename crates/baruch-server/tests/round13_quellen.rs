@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 13 („quellen“): Volltext über MultiGPT, Bereichsprüfung von Hervorhebungen, gemeinsame MCP-Sitzung.
+//! Round 13 („quellen“): full text through MultiGPT, range check of highlights, shared MCP session.
 //!
-//! Alles gegen den Nachbau `connections::multigpt::mock::MockMultigpt` auf 127.0.0.1:0 – nie gegen das echte
-//! MultiGPT, nie gegen Eliezer. Geheimnisse nur in `MemorySecrets`, Einbettungen nur über einen Nachbau-Einbetter.
-//! Testtexte frei erfunden („Das Jahr am Leuchtturm“, „Senfkornbuch“).
+//! Everything against the mock `connections::multigpt::mock::MockMultigpt` on 127.0.0.1:0 – never against the real
+//! MultiGPT, never against Eliezer. Secrets only in `MemorySecrets`, embeddings only through a mock embedder. Test
+//! texts freely invented („Das Jahr am Leuchtturm“, „Senfkornbuch“).
 //!
-//! - Sitzung: Vorrat (zwei Suchen, ein `initialize`, ein `tools/list`), `close` und Ablauf mit `DELETE`.
-//! - Nachträge: langsame `document_info`/`read_document` halten die Suche nicht über ihr Zeitlimit auf.
-//! - Verbindungsprüfung: ein gemeinsames Zeitlimit gegen einen langsamen Nachbau.
-//! - Dokumentansicht `/quelle/multigpt` und `/quelle`: Teile, Fundstelle, Maskierung, Größengrenze, Ausfall.
-//! - `source.adopt` mit Verknüpfung und Index, `highlight.add` mit Prüfung, MCP `source_read`.
+//! - Session: pool (two searches, one `initialize`, one `tools/list`), `close` and expiry with `DELETE`.
+//! - Supplements: slow `document_info`/`read_document` do not hold up the search beyond its time limit.
+//! - Connection check: one shared time limit against a slow mock.
+//! - Document view `/quelle/multigpt` and `/quelle`: parts, place found, escaping, size limit, failure.
+//! - `source.adopt` with link and index, `highlight.add` with check, MCP `source_read`.
 
 use crate::common;
 
@@ -30,7 +30,7 @@ use baruch_server::connections::multigpt::{
 };
 use serde_json::{Value, json};
 
-/// Eindeutiges Test-Token; es darf nirgends erscheinen.
+/// Unique test token; it must appear nowhere.
 const TOKEN: &str = "Mg13-quellen-token-7c3a1f";
 
 async fn open_with(secrets: MemorySecrets) -> common::Server {
@@ -52,7 +52,7 @@ async fn fails(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// MultiGPT auf den Nachbau stellen (mit Token, wie der Mensch nach einer Adressänderung).
+/// Point MultiGPT to the mock (with token, like the human after an address change).
 async fn point_to(server: &common::Server, mock: &MockMultigpt, token: Option<&str>) {
     ok(server, "connection.set", json!({ "kind": "multigpt", "config": { "url": mock.url() } })).await;
     if let Some(token) = token {
@@ -73,7 +73,7 @@ fn count(mock: &MockMultigpt, method: &str) -> usize {
     mock.requests().iter().filter(|r| r["method"] == method).count()
 }
 
-/// Erfundener Text aus `n` Absätzen zu je etwa 1000 Zeichen; Absatz `marker_at` enthält `marker`.
+/// Invented text of `n` paragraphs of about 1000 characters each; paragraph `marker_at` contains `marker`.
 fn long_text(n: usize, marker_at: usize, marker: &str) -> String {
     (0..n)
         .map(|i| {
@@ -91,7 +91,7 @@ fn long_text(n: usize, marker_at: usize, marker: &str) -> String {
         .join("\n\n")
 }
 
-/// Der Nachbau mit dem Dokument `lt-1` (Volltext `text`) samt Angaben.
+/// The mock with the document `lt-1` (full text `text`) including details.
 fn with_document(mock: &MockMultigpt, text: &str) {
     let text = text.to_owned();
     mock.configure(move |b| {
@@ -101,7 +101,7 @@ fn with_document(mock: &MockMultigpt, text: &str) {
     });
 }
 
-/// `read_document` ohne Seitenparameter (dann teilt Baruch selbst).
+/// `read_document` without page parameters (then Baruch splits itself).
 fn tools_without_page(mock: &MockMultigpt) {
     let mut tools = baruch_server::connections::multigpt::mock::default_tools();
     for tool in &mut tools {
@@ -122,7 +122,7 @@ async fn mcp(server: &common::Server, message: Value) -> Value {
     serde_json::from_str(&body).unwrap_or(Value::Null)
 }
 
-// ---- Sitzung und Vorrat --------------------------------------------------------------------------------
+// ---- Session and pool ---------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn two_searches_share_one_session_and_close_ends_it_with_delete() {
@@ -145,7 +145,7 @@ async fn two_searches_share_one_session_and_close_ends_it_with_delete() {
     assert_eq!(mock.tool_calls("search_documents").len(), 2, "beide Suchen fragen MultiGPT");
     assert!(TOOLS_TTL >= SESSION_IDLE, "die Werkzeugliste gilt mindestens so lange, wie eine Sitzung ruht");
 
-    // Begründung: `close` beendet die Sitzung bei der Gegenstelle; sonst blieben dort Sitzungen liegen.
+    // Reason: `close` ends the session at the peer; otherwise sessions would be left lying there.
     let session = Session::connect(&mock.url(), None, Limits::SEARCH).await.expect("Sitzung aus dem Vorrat");
     assert!(session.schema("read_document").is_some(), "Schema eines angebotenen Werkzeugs");
     assert!(session.schema("upload_document").is_none(), "nicht angeboten → None");
@@ -170,7 +170,7 @@ async fn an_idle_session_ends_with_delete_and_the_token_goes_along() {
         "gerade zurückgegeben: noch keine SESSION_IDLE alt, bleibt im Vorrat"
     );
     assert_eq!(count(&mock, "DELETE"), 0, "noch kein DELETE");
-    // Begründung: `expire_idle` ist dieselbe Ablaufprüfung wie nach SESSION_IDLE, nur mit kurzer Frist.
+    // Reason: `expire_idle` is the same expiry check as after SESSION_IDLE, only with a short period.
     assert_eq!(expire_idle(&mock.url(), Duration::ZERO).await, 1, "die ruhende Sitzung läuft ab");
     let deletes: Vec<Value> = mock.requests().into_iter().filter(|r| r["method"] == "DELETE").collect();
     assert_eq!(deletes.len(), 1, "abgelaufene Sitzung endet mit DELETE: {deletes:?}");
@@ -187,8 +187,8 @@ async fn a_pooled_session_the_remote_forgot_is_replaced_once() {
         "text": "Ein Korn.", "score": 0.5, "url": "https://bib.example/sk-1" })]);
     let way = MultigptWay::new(&mock.url(), None, Limits::SEARCH);
     way.search(&query(&["Senfkorn"])).await.expect("erste Suche");
-    // Begründung: Startet die Gegenstelle neu, kennt sie die ruhende Sitzung nicht mehr (HTTP 400/404). Die
-    // Suche darf daran nicht scheitern: einmal neu verbinden, dann weiter.
+    // Reason: if the peer restarts, it no longer knows the resting session (HTTP 400/404). The search must not fail on
+    // that: reconnect once, then go on.
     mock.configure(|b| b.session_id = "nachbau-sitzung-2".into());
     let found = way.search(&query(&["Senfkorn"])).await.expect("zweite Suche mit neuer Sitzung");
     assert_eq!(found.len(), 1, "Treffer trotz vergessener Sitzung: {found:?}");
@@ -199,7 +199,7 @@ async fn a_pooled_session_the_remote_forgot_is_replaced_once() {
     assert_eq!(e.code(), "unreachable", "ohne Gegenstelle ehrlich „nicht erreichbar“: {e}");
 }
 
-// ---- Nachträge -----------------------------------------------------------------------------------------
+// ---- Supplements --------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn slow_follow_ups_do_not_hold_the_hits_back() {
@@ -223,9 +223,9 @@ async fn slow_follow_ups_do_not_hold_the_hits_back() {
     let found = ok(&server, "rag.search", json!({ "work": 1, "query": "Licht über dem Wasser" })).await;
     let took = started.elapsed();
     let multigpt = found["ways"].as_array().unwrap().iter().find(|w| w["way"] == "multigpt").unwrap().clone();
-    // Begründung: Jeder Nachtrag hat höchstens FOLLOW_UP_TIMEOUT (4 s), alle zusammen FOLLOW_UP_BUDGET (6 s);
-    // ein Nachtrag mit 12 s Verzögerung darf die Suche also nicht bis zum Zeitlimit des Wegs (20 s) aufhalten,
-    // und die schon gefundenen Treffer müssen trotzdem zurückkommen.
+    // Reason: every supplement has at most FOLLOW_UP_TIMEOUT (4 s), all together FOLLOW_UP_BUDGET (6 s); a supplement
+    // with a 12 s delay must therefore not hold up the search until the time limit of the way (20 s), and the hits
+    // already found must come back nevertheless.
     assert_eq!(multigpt["state"], "connected", "der Weg gilt als verbunden, nicht als ausgefallen: {found}");
     let documents: Vec<&str> =
         found["hits"].as_array().unwrap().iter().filter_map(|h| h["document"].as_str()).collect();
@@ -243,7 +243,7 @@ async fn slow_follow_ups_do_not_hold_the_hits_back() {
     );
 }
 
-// ---- Verbindung prüfen ---------------------------------------------------------------------------------
+// ---- Checking the connection --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_check_has_one_timeout_for_all_requests() {
@@ -255,8 +255,8 @@ async fn the_check_has_one_timeout_for_all_requests() {
     let outcome = baruch_server::connections::check::multigpt(&mock.url(), None).await;
     let took = started.elapsed();
     let limit = baruch_server::connections::check::TIMEOUT;
-    // Begründung: initialize, tools/list und list_collections haben zusammen höchstens TIMEOUT (10 s); ohne das
-    // gemeinsame Limit dauerte eine Prüfung mit drei langsamen Anfragen bis zu 30 s.
+    // Reason: initialize, tools/list and list_collections together have at most TIMEOUT (10 s); without the shared
+    // limit a check with three slow requests would take up to 30 s.
     assert!(took <= limit + Duration::from_secs(2), "höchstens TIMEOUT plus Toleranz: {took:?}");
     assert!(!outcome.ok, "eine abgebrochene Prüfung ist fehlgeschlagen: {outcome:?}");
     assert!(
@@ -266,7 +266,7 @@ async fn the_check_has_one_timeout_for_all_requests() {
     );
 }
 
-// ---- Dokumentansicht -----------------------------------------------------------------------------------
+// ---- Document view ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_document_view_shows_part_one_masked_with_part_links_and_the_found_place() {
@@ -356,7 +356,7 @@ async fn a_paging_remote_is_read_page_by_page() {
         "Seite eins vom Kai.\n\nSeite zwei: das Leuchtfeuer.\n\nSeite drei.",
         "read_full liest alle Seiten bis zum Ende und verbindet sie mit Leerzeilen"
     );
-    // Die Seitenzahl kennt erst die Gegenstelle: Eine Seite hinter dem Ende meldet sie selbst (isError).
+    // Only the peer knows the page count: it reports a page beyond the end itself (isError).
     let error = fails(&server, "source.read", json!({ "document": "pg-1", "part": 4 })).await;
     assert_eq!(error["code"], -32000, "Seite hinter dem Ende, gemeldet von MultiGPT: {error}");
     assert!(error["message"].as_str().unwrap().contains("Seite 4 gibt es nicht"), "mit ihrem Text: {error}");
@@ -429,14 +429,14 @@ async fn a_foreign_page_does_not_make_baruch_fetch_the_fulltext() {
         .unwrap();
     let (status, _, page) = server.send(request).await;
     assert_eq!(status, StatusCode::OK, "Seite da: {page}");
-    // Begründung: Sonst könnte eine fremde Seite (Link, Bild) mit dem Token von Baruch Last auf MultiGPT erzeugen.
+    // Reason: otherwise a foreign page (link, image) could create load on MultiGPT with the token of Baruch.
     assert!(mock.tool_calls("read_document").is_empty(), "von einer fremden Seite aus fragt Baruch MultiGPT nicht");
     assert!(page.contains("fremden Seite") && page.contains("Volltext laden"), "ehrlicher Hinweis mit Link: {page}");
 }
 
-// ---- Übernehmen und Index ------------------------------------------------------------------------------
+// ---- Adopting and index -------------------------------------------------------------------------------
 
-/// Nachbau-Einbetter: feste Vektoren, merkt sich jeden Text.
+/// Mock embedder: fixed vectors, remembers every text.
 #[derive(Clone, Default)]
 struct Recorder {
     seen: Arc<Mutex<Vec<String>>>,
@@ -494,8 +494,8 @@ async fn adopting_a_document_links_one_title_and_enqueues_the_shared_index() {
     assert_eq!(again["title"]["id"], id, "ein zweites Übernehmen legt keinen zweiten Titel an: {again}");
     assert!(!adopted.to_string().contains(TOKEN), "kein Token in der Antwort");
 
-    // Begründung: Ein neuer Titel ändert library_title; der Weg meldet das mit rag::notify(None), damit der
-    // gemeinsame Bereich nicht erst bei der nächsten Suche (höchstens alle 30 s) nachgezogen wird.
+    // Reason: a new title changes library_title; the way reports that with rag::notify(None), so that the shared area
+    // is not caught up only at the next search (at most every 30 s).
     baruch_server::rag::wait_idle(&server.state).await;
     let seen = recorder.seen.lock().unwrap().clone();
     assert!(
@@ -503,7 +503,7 @@ async fn adopting_a_document_links_one_title_and_enqueues_the_shared_index() {
         "der übernommene Titel ist eingebettet (gemeinsamer Bereich des Index): {seen:?}"
     );
 
-    // Formular ohne JavaScript, auf ein zweites Dokument.
+    // Form without JavaScript, on a second document.
     mock.configure(|b| {
         b.documents.insert("sk-1".into(), json!({ "title": "Senfkornbuch" }));
     });
@@ -518,7 +518,7 @@ async fn adopting_a_document_links_one_title_and_enqueues_the_shared_index() {
         "Hinweis und Titel: {page}"
     );
 
-    // Nicht über MCP: Es gibt kein Werkzeug zum Übernehmen.
+    // Not through MCP: there is no tool for adopting.
     let list = mcp(&server, json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" })).await;
     let names: Vec<&str> =
         list["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
@@ -535,7 +535,7 @@ async fn adopting_a_document_links_one_title_and_enqueues_the_shared_index() {
     );
 }
 
-// ---- Prüfung von Hervorhebungen -------------------------------------------------------------------------
+// ---- Check of highlights -------------------------------------------------------------------------------
 
 fn char_range(text: &str, needle: &str) -> (i64, i64) {
     let at = text.find(needle).expect("Ausschnitt im Text");
@@ -578,7 +578,7 @@ async fn highlights_without_a_quote_are_checked_against_the_fulltext_and_never_i
     let plain = ok(&server, "highlight.add", json!({ "title": title, "text": "Möwen", "kind": "core" })).await;
     assert!(plain["check"].is_null(), "ohne Bereich wird nichts geprüft (und nichts erfunden): {plain}");
 
-    // Ohne Verknüpfung: nicht prüfbar.
+    // Without a link: not checkable.
     let titles = baruch_library::list_titles(server.state.store.pool()).await.unwrap();
     let unlinked = titles.iter().find(|t| t.title.id != title).expect("ein Beispieltitel").title.id;
     let other =
@@ -587,7 +587,7 @@ async fn highlights_without_a_quote_are_checked_against_the_fulltext_and_never_i
     assert_eq!(other["check"]["result"], "unverifiable", "ohne Verknüpfung nicht prüfbar: {other}");
     assert!(other["check"]["message"].as_str().unwrap().contains("nicht mit MultiGPT verknüpft"), "Grund: {other}");
 
-    // Liste und Seite zeigen das Ergebnis.
+    // List and page show the result.
     let list = ok(&server, "highlight.list", json!({ "title": title })).await;
     let results: Vec<Value> =
         list["highlights"].as_array().unwrap().iter().map(|h| h["check"]["result"].clone()).collect();
@@ -608,7 +608,7 @@ async fn highlights_without_a_quote_are_checked_against_the_fulltext_and_never_i
     );
     assert!(page.contains("value=\"check\""), "Knopf „Gegen den Volltext prüfen“: {page}");
 
-    // Ausfall: nicht prüfbar mit Grund; die Hervorhebung bleibt gespeichert.
+    // Failure: not checkable, with a reason; the highlight stays stored.
     drop(mock);
     let down = ok(
         &server,
@@ -634,7 +634,7 @@ async fn highlights_without_a_quote_are_checked_against_the_fulltext_and_never_i
     assert_eq!(error["code"], -32602, "Hervorhebungen in Zitaten prüft das Zitat selbst, nicht der Volltext: {error}");
 }
 
-// ---- RPC und MCP -----------------------------------------------------------------------------------------
+// ---- RPC and MCP ----------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn source_read_answers_honestly_for_unlinked_titles_and_missing_settings() {
@@ -667,7 +667,7 @@ async fn mcp_offers_source_read_after_rag_status_read_only() {
     assert!(!description.starts_with("STUB"), "kein Stub");
     assert!(description.contains("collections chosen by the human"), "die Einschränkung steht in der Beschreibung");
 
-    // Das Dokument kommt in einem Treffer einer Suche in der gewählten Sammlung vor (wie nach rag_search).
+    // The document occurs in a hit of a search in the chosen collection (as after rag_search).
     mock.set_hits(vec![json!({ "title": "Das Jahr am Leuchtturm", "document_id": "lt-1", "collection": "Leuchtturm",
         "text": "Der Leuchtturm steht am Kai.", "score": 0.9 })]);
     MultigptWay::new(&mock.url(), None, Limits::SEARCH).search(&query(&["Leuchtturm"])).await.expect("Suche");
@@ -708,7 +708,7 @@ async fn mcp_source_read_refuses_documents_outside_the_chosen_collections() {
     });
     let server = common::open().await;
     point_to(&server, &mock, None).await;
-    // Eine Suche in der gewählten Sammlung „Leuchtturm“ findet nur lt-9; fremd-7 liegt in „Geheim“.
+    // A search in the chosen collection „Leuchtturm“ finds only lt-9; fremd-7 lies in „Geheim“.
     mock.set_hits(vec![
         json!({ "document_id": "lt-9", "collection": "Leuchtturm", "text": "Kai.", "score": 0.9 }),
         json!({ "document_id": "fremd-7", "collection": "Geheim", "text": "Vertraulich.", "score": 0.8 }),
@@ -724,8 +724,8 @@ async fn mcp_source_read_refuses_documents_outside_the_chosen_collections() {
         (4, json!({ "document": "fremd-7" })),
     ] {
         let refused = mcp(&server, call(n, arguments.clone())).await;
-        // Begründung: read_document kennt keine Sammlung; ohne diese Prüfung läse ein MCP-Client jedes Dokument,
-        // das das Token lesen darf – die Wahl der Sammlungen gehört dem Menschen (Runde 12).
+        // Reason: read_document knows no collection; without this check an MCP client would read every document that
+        // the token may read – the choice of the collections belongs to the human (Round 12).
         assert_eq!(refused["result"]["isError"], true, "{arguments}: abgelehnt: {refused}");
         let text = refused["result"]["content"][0]["text"].as_str().unwrap();
         assert!(text.contains("collections chosen by the human"), "{arguments}: ehrlicher Grund: {text}");
@@ -740,7 +740,7 @@ async fn mcp_source_read_refuses_documents_outside_the_chosen_collections() {
     assert_eq!(allowed["result"]["isError"], false, "Treffer aus der gewählten Sammlung: lesbar: {allowed}");
     let wrong_label = mcp(&server, call(6, json!({ "document": "lt-9", "collection": "Geheim" }))).await;
     assert_eq!(wrong_label["result"]["isError"], true, "falsches Etikett zählt nicht: {wrong_label}");
-    // Die Oberfläche (RPC, der Mensch) bleibt davon unberührt.
+    // The user interface (RPC, the human) stays untouched by that.
     let rpc = ok(&server, "source.read", json!({ "document": "fremd-7", "collection": "Geheim" })).await;
     assert!(rpc["text"].as_str().unwrap().contains("fremden Sammlung"), "RPC liest weiter: {rpc}");
 }
@@ -759,8 +759,8 @@ async fn a_pooled_session_is_not_retried_after_a_timeout_because_the_call_may_ha
     let short = Limits { timeout: Duration::from_millis(500), ..Limits::SEARCH };
     let e = pooled.call("read_document", json!({ "document_id": "lt-1" }), Some(short)).await.unwrap_err();
     assert_eq!(e.code(), "timeout", "ehrliche Zeitüberschreitung: {e}");
-    // Begründung: Nach dem Senden kann die Gegenstelle den Aufruf schon ausführen; eine Wiederholung legte etwa
-    // ein upload_document des Abgleichs doppelt an. Wiederholt wird nur bei HTTP 400/404 oder ohne Verbindung.
+    // Reason: after sending, the peer may already execute the call; a repetition would, for instance, create an
+    // upload_document of the sync twice. A repetition happens only on HTTP 400/404 or without a connection.
     assert_eq!(mock.tool_calls("read_document").len(), 1, "genau ein Aufruf, keine Wiederholung");
     assert_eq!(count(&mock, "initialize"), 1, "keine neue Sitzung für eine Wiederholung");
     pooled.close().await;

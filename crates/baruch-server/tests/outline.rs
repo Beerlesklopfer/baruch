@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsmanager über RPC, Formulare und Seiten (Vertrag Runde 4, Abschnitte 4–6): echter
-//! Datenordner im Temp-Ordner (SQLite, Bibliothek, Git-Spiegel), Gartenbuch aus `tests/data`.
+//! Outline manager through RPC, forms and pages (contract Round 4, sections 4–6): real data folder in the temp folder
+//! (SQLite, library, Git mirror), Gartenbuch from `tests/data`.
 
 use crate::common;
 
@@ -14,7 +14,7 @@ use axum::http::{Request, StatusCode, header};
 use serde_json::{Value, json};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
-/// Gartenbuch importieren: Frühling (0), Aussaat (1), Tiefe (2), Sommer (3).
+/// Import the Gartenbuch: Frühling (0), Aussaat (1), Tiefe (2), Sommer (3).
 async fn garden() -> (common::Server, i64, std::path::PathBuf) {
     let server = common::open().await;
     let report = server.import_garden().await;
@@ -156,8 +156,8 @@ async fn saving_in_the_editor_follows_the_headings_split_and_merge_need_confirma
         .rpc("outline.save", json!({ "work": work, "node": 0, "body": "= Lenz\n\nDie Beete werden umgegraben.\n\n" }))
         .await;
     assert_eq!(result(&renamed)["outline"]["action"], "renamed", "geänderte Überschriftszeile benennt um: {renamed}");
-    // Der rohe Weg (revision.save) ändert die Gliederung nie: eine andere Ebene wird abgelehnt,
-    // sonst liefen Gliederung und Überschriftszeile auseinander (Export und Import ergäben anderes).
+    // The raw way (revision.save) never changes the outline: a different level is rejected, otherwise outline and
+    // heading line would drift apart (export and import would yield something else).
     let plain = server.rpc("revision.save", json!({ "work": work, "node": 3, "body": "== Roh\n" })).await;
     assert_eq!(plain["error"]["code"], -32000, "revision.save mit anderer Ebene abgelehnt: {plain}");
     let loaded = server.rpc("work.get", json!({ "work": work })).await;
@@ -185,7 +185,7 @@ async fn numbering_follows_the_setting_and_is_one_commit() {
     assert_eq!(bad["error"]["code"], -32602, "Muster ohne Zählzeichen: ungültige Parameter (Runde 6): {bad}");
 }
 
-// ---- Formulare ohne JavaScript -----------------------------------------------------------------
+// ---- Forms without JavaScript ------------------------------------------------------------------
 
 #[tokio::test]
 async fn forms_post_to_gliederung_act_and_redirect_back() {
@@ -270,7 +270,7 @@ async fn the_outline_form_from_a_foreign_origin_is_refused() {
     assert_eq!(titles(&loaded["result"]).len(), 4, "abgelehntes Formular löscht nichts");
 }
 
-// ---- Seiten ------------------------------------------------------------------------------------
+// ---- Pages ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_outline_pages_list_every_point_with_buttons_in_german() {
@@ -300,7 +300,7 @@ async fn the_outline_pages_list_every_point_with_buttons_in_german() {
     }
     assert!(edit.contains("name=\"confirm\" value=\"1\" required"), "Löschen nur mit Kästchen");
     assert!(edit.contains("value=\"outline.add\""), "Anlegen davor/danach/darunter");
-    // Runde 7: Titelfelder schon im Browser begrenzt (maßgeblich bleibt der Server, `check_title`).
+    // Round 7: title fields limited in the browser already (the server stays authoritative, `check_title`).
     assert!(edit.matches("name=\"title\"").count() >= 2, "Umbenennen und Anlegen haben ein Titelfeld: {edit}");
     assert_eq!(
         edit.matches("name=\"title\"").count(),
@@ -374,10 +374,10 @@ async fn mcp_offers_no_tool_that_changes_the_outline() {
     let answer: Value = serde_json::from_str(&body).unwrap();
     let names: Vec<&str> =
         answer["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    // Einfälle (idea_*, Runde 7) und eigene Beiträge (post_*, Runde 8) ändern weder Gliederung noch
-    // Buchtext; `idea_delete`, `post_move` und `post_delete` zählen nicht. Die Gliederungswerkzeuge
-    // outline_* (Wunsch 2026-11-06) legen an oder stellen nur Anträge; das prüft der Text unten. Die
-    // Bildwerkzeuge asset_* (Runde 11) betreffen die Gliederung nicht; `asset_delete` ist ein Antrag.
+    // Ideas (idea_*, Round 7) and own posts (post_*, Round 8) change neither outline nor book text; `idea_delete`,
+    // `post_move` and `post_delete` do not count. The outline tools outline_* (wish 2026-11-06) create or only file
+    // requests; the text below checks that. The image tools asset_* (Round 11) do not concern the outline;
+    // `asset_delete` is a request.
     let excepted = |n: &str| {
         n.starts_with("idea_") || n.starts_with("post_") || n.starts_with("outline_") || n.starts_with("asset_")
     };
@@ -411,7 +411,7 @@ async fn mcp_offers_no_tool_that_changes_the_outline() {
     assert!(names.contains(&"outline"), "das lesende Werkzeug outline bleibt: {names:?}");
 }
 
-// ---- Migration 0006 mit Bibliothek ------------------------------------------------------------
+// ---- Migration 0006 with library ---------------------------------------------------------------
 
 #[tokio::test]
 async fn the_server_starts_on_a_database_before_0006_and_resolves_titles() {
@@ -433,7 +433,7 @@ async fn the_server_starts_on_a_database_before_0006_and_resolves_titles() {
         };
         migrator.run(&pool).await.unwrap();
     }
-    // Ein Werk wie aus dem alten Import: Titel wörtlich mit Maskierung.
+    // A work as from the old import: title literally with escaping.
     sqlx::raw_sql(
         "INSERT INTO work (id, slug, kind, title, author, template) VALUES (1, 'laube', 'book', 'Laube', 'Test', '');
          INSERT INTO node (work_id, seq, parent_seq, position, number, title, kind) VALUES
@@ -468,8 +468,8 @@ async fn the_server_starts_on_a_database_before_0006_and_resolves_titles() {
     assert!(data.path().join("works/laube/abschnitte/000-anna-s-laube.typ").is_file(), "Spiegel mit aufgelöstem Titel");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Fixed key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

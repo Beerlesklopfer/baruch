@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 15, Aufgabe „lektor“: ganzes Kapitel im Kontext, Befunde der anderen Personas, Prüfen und Vorschlag für
-//! das ganze Kapitel, Budget aus `ModelPort::context`, Stückeln und Komprimieren (nie still kürzen), „Kritisch:“
-//! im Code, Vorschlag ohne Befundzeilen und ohne Einleitungsprüfung, Faktenblock aus SWORD (über
-//! `BibleInput::Given`), Toast-Baustein und Umfangsauswahl.
+//! Round 15, task „lektor“: whole chapter in the context, findings of the other personas, checking and proposal for the
+//! whole chapter, budget from `ModelPort::context`, chunking and compressing (never shorten silently), „Kritisch:“ in
+//! code, proposal without finding lines and without introduction check, fact block from SWORD (through
+//! `BibleInput::Given`), toast building block and scope selection.
 //!
-//! Kein Netz, kein Eliezer: `ScriptedModel` bzw. der Nachbau `Responder` unten (antwortet nach der Art des
-//! Aufrufs und zählt gleichzeitige Aufrufe). Alle Texte sind frei erfunden (ein kleines Imkerbuch).
+//! No network, no Eliezer: `ScriptedModel` or the mock `Responder` below (answers according to the kind of call and
+//! counts concurrent calls). All texts are freely invented (a small beekeeping book).
 
 use crate::common;
 
@@ -32,7 +32,7 @@ const HIVE: &str = "#set document(title: \"Das Wabenjahr\", author: \"Ida Korb\"
 struct Hive {
     server: common::Server,
     work: i64,
-    /// Schlüssel von Frühjahr, Ausflug, Pollen, Wasser, Sommer.
+    /// Keys of Frühjahr, Ausflug, Pollen, Wasser, Sommer.
     keys: Vec<i64>,
 }
 
@@ -89,9 +89,8 @@ async fn save(h: &Hive, key: usize, body: &str) {
     assert!(saved["result"]["rev"].is_number(), "neue Fassung gespeichert: {saved}");
 }
 
-/// Nachbau eines Modells: Zusammenfassungen (Bezeichnung „Zusammenfassung“) bekommen einen kurzen Text,
-/// Prüfungen je Stück einen Befund, den alle Stücke teilen (Überlappung), und einen eigenen. Zählt, wie viele
-/// Aufrufe gleichzeitig laufen (jeder dauert ein wenig).
+/// Mock of a model: summaries (label „Zusammenfassung“) get a short text, checks per piece a finding that all pieces
+/// share (overlap), and one of their own. Counts how many calls run at the same time (each takes a little while).
 #[derive(Clone, Default)]
 struct Responder {
     calls: Arc<Mutex<Vec<ModelCall>>>,
@@ -151,7 +150,7 @@ impl ModelPort for Responder {
     }
 }
 
-// ---- Kontext: ganzes Kapitel, Befunde anderer Personas --------------------------------------------------
+// ---- Context: whole chapter, findings of other personas ------------------------------------------------
 
 #[tokio::test]
 async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_personas_are_in_the_prompt() {
@@ -160,7 +159,7 @@ async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_persona
         Step::words("Kritisch: „brütet“ ist zu sicher.\n- Schritt: prüfen."),
     ]);
     let h = hive_with(Arc::new(model.clone())).await;
-    // Ein Befund von @exeget zu „Ausflug“ (anderer Abschnitt desselben Kapitels) und einer zu „Sommer“ (anderes Kapitel).
+    // A finding by @exeget on „Ausflug“ (another section of the same chapter) and one on „Sommer“ (another chapter).
     let ask =
         |key: usize| json!({ "work": h.work, "key": h.keys[key], "persona": "@exeget", "question": "Passt das?" });
     result(&h.server.rpc("persona.ask", ask(1)).await);
@@ -207,7 +206,7 @@ async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_persona
 async fn scope_chapter_reviews_the_whole_chapter_and_proposes_each_part_only_as_proposed() {
     let model = ScriptedModel::with([
         Step::words("Kritisch: 1.1 Ausflug: „warmen Tagen“ ist ungenau.\n- Schritt: prüfen."),
-        // Vorschlag je Teil des Kapitels: Frühjahr, Ausflug, Pollen, Wasser (in dieser Reihenfolge).
+        // Proposal per part of the chapter: Frühjahr, Ausflug, Pollen, Wasser (in this order).
         Step::words("= Frühjahr\n\nDie Völker erwachen schon im Februar.\n\nKritisch: zu kurz."),
         Step::words("== Ausflug\n\nDie ersten Sammlerinnen fliegen an warmen Tagen zum Weidenkätzchen.\n"),
         Step::words("```typ\n== Pollen\n\nGelbe Höschen zeigen Brut an.\n```"),
@@ -275,7 +274,7 @@ async fn scope_chapter_reviews_the_whole_chapter_and_proposes_each_part_only_as_
     assert_eq!(wrong["error"]["code"], -32602, "unbekannter Umfang → ehrlicher Fehler: {wrong}");
 }
 
-// ---- Budget aus dem Port --------------------------------------------------------------------------------
+// ---- Budget from the port ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_budget_comes_from_the_model_port_and_a_smaller_reported_length_shrinks_it() {
@@ -304,7 +303,7 @@ async fn the_budget_comes_from_the_model_port_and_a_smaller_reported_length_shri
     }
 }
 
-// ---- Stückeln und Komprimieren ---------------------------------------------------------------------------
+// ---- Chunking and compressing ---------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_text_too_long_is_cut_into_overlapping_pieces_and_summaries_come_one_after_another() {
@@ -342,7 +341,7 @@ async fn a_text_too_long_is_cut_into_overlapping_pieces_and_summaries_come_one_a
         let budget = ((4000 - call.max_tokens - 256) * 3) as usize;
         assert!(size <= budget, "{}: Eingabe ({size} Zeichen) passt ins Budget ({budget})", call.label);
     }
-    // Jedes Prüfstück im Wortlaut, zusammen decken sie den ganzen Abschnitt ab, Nachbarn überlappen.
+    // Every check piece verbatim, together they cover the whole section, neighbours overlap.
     let pieces: Vec<String> = reviews
         .iter()
         .map(|c| {
@@ -367,7 +366,7 @@ async fn a_text_too_long_is_cut_into_overlapping_pieces_and_summaries_come_one_a
         "das Umfeld steht als Zusammenfassung da: {environment}"
     );
 
-    // Fortschritt: Start, dann Compressed vor dem ersten Delta.
+    // Progress: Start, then Compressed before the first Delta.
     let compressed_at = events.iter().position(|e| matches!(e, Progress::Compressed(_))).expect("Compressed gemeldet");
     let first_delta = events.iter().position(|e| matches!(e, Progress::Delta(_))).expect("Deltas");
     assert!(matches!(events[0], Progress::Start { .. }), "zuerst Start");
@@ -427,8 +426,8 @@ async fn a_proposal_with_a_compressed_context_says_so_and_a_section_too_long_for
     let calls_before = responder.calls().len();
     let refused = baruch_server::assist::run(&h.server.state, &o, None).await.expect_err("zu lang für einen Vorschlag");
     assert_eq!(refused.code, -32000, "ehrlicher Fehler");
-    // Je nach Länge greift die Prüfung des Abschnitts („zu lang … Nichts angelegt“) oder schon die des ganzen
-    // Aufrufs (Antwortraum eines langen Vorschlags plus Rollen-Prompt sprengen die Kontextlänge) – beide ehrlich.
+    // Depending on the length the check of the section takes effect („zu lang … Nichts angelegt“) or already that of
+    // the whole call (answer room of a long proposal plus role prompt burst the context length) – both honest.
     let m = &refused.message;
     assert!(
         (m.contains("zu lang") && m.contains("Nichts angelegt"))
@@ -438,7 +437,7 @@ async fn a_proposal_with_a_compressed_context_says_so_and_a_section_too_long_for
     assert_eq!(responder.calls().len(), calls_before, "kein Modellaufruf, wenn der Abschnitt gar nicht passt");
 }
 
-// ---- „Kritisch:“ und Vorschlag -------------------------------------------------------------------------
+// ---- „Kritisch:“ and proposal -------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_missing_critical_finding_is_requested_once_with_a_retry_event_and_otherwise_noted() {
@@ -507,7 +506,7 @@ async fn a_proposal_loses_its_critical_lines_and_keeps_a_first_sentence_beginnin
     assert_eq!(model.calls().len(), 1, "beim Vorschlag wird eine Einleitung nicht neu angefordert");
 }
 
-// ---- Faktenblock aus SWORD ---------------------------------------------------------------------------------
+// ---- Fact block from SWORD --------------------------------------------------------------------------------
 
 fn research() -> Research {
     let note = |kind, module: &str, reference: &str, text: &str| ScriptureNote {
@@ -592,7 +591,7 @@ async fn without_research_there_is_no_sword_block() {
         "Kritisch: [S1] gibt es hier nicht.\n- Schritt: prüfen.",
         "ohne Block wird nichts markiert (wie bei der Bedeutungssuche ohne Schalter)"
     );
-    // Im Dienst kommt die Recherche über den Haken; bis zur Integration liefert sie keinen Block.
+    // In the service the research comes through the hook; until the integration it delivers no block.
     let persona = baruch_server::assist::context::active_persona(&h.server.state, "@lektor").await.unwrap();
     let hooked =
         baruch_server::assist::hooks::bible_research(&h.server.state, h.work, &persona.handle, "Spr 6,6", 4000).await;
@@ -604,9 +603,9 @@ async fn without_research_there_is_no_sword_block() {
     );
 }
 
-// ---- Strom, Toast, Umfang ------------------------------------------------------------------------------------
+// ---- Stream, toast, scope -----------------------------------------------------------------------------------
 
-/// Ereignisse aus einem SSE-Text: (Name, Daten).
+/// Events from an SSE text: (name, data).
 fn events(text: &str) -> Vec<(String, Value)> {
     text.split("\n\n")
         .filter_map(|block| {

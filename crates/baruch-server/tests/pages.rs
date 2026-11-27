@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gerenderte Seiten: Gerüst, Skripte, Stil und die Literatur im Popup der Kopfzeile ohne JavaScript.
+//! Rendered pages: scaffold, scripts, style and the literature in the popup of the header without JavaScript.
 
 use crate::common;
 
@@ -47,7 +47,7 @@ async fn searching_from_the_literature_column_lists_work_and_library_hits() {
     assert!(html.contains("Treffer für „langmütig“"), "Trefferliste fehlt: {html}");
     assert!(html.contains("data-kind=\"revision\""), "kein Treffer im Werk");
     assert!(html.contains("data-kind=\"quote\""), "kein Treffer in der Bibliothek");
-    // Der Link steht wörtlich in der Vorlage, nur Werte werden eingesetzt.
+    // The link is literally in the template, only values are inserted.
     let k = key_at(&server, 1, 4).await;
     assert!(
         html.contains(&format!("href=\"/?work=1&amp;key={k}&amp;rev=")),
@@ -59,7 +59,7 @@ async fn searching_from_the_literature_column_lists_work_and_library_hits() {
     assert!(none.contains("Keine Treffer."), "Leerfall fehlt");
 }
 
-/// `href` des ersten Werk-Treffers (HTML-Maskierung von `&` zurückgenommen).
+/// `href` of the first work hit (HTML escaping of `&` undone).
 fn first_work_hit_link(html: &str) -> String {
     let start = html
         .find("<li class=\"library-hit\" data-kind=\"revision\"")
@@ -83,7 +83,7 @@ async fn a_hit_link_keeps_work_and_query_so_the_hit_list_stays() {
         link.ends_with("&lq=langm%C3%BCtig#fundstelle"),
         "Link trägt die Suche (urlencode) und den Anker der Fundstelle: {link}"
     );
-    // Dem Link folgen: Die Seite zeigt den Abschnitt und dieselbe Trefferliste.
+    // Follow the link: the page shows the section and the same hit list.
     let (status, page) = server.get(&link).await;
     assert_eq!(status, StatusCode::OK, "Treffer-Link führt auf eine Fehlerseite: {page}");
     assert!(page.contains("Treffer für „langmütig“"), "Trefferliste nach dem Klick weg: {page}");
@@ -173,8 +173,8 @@ async fn an_escaped_heading_shows_its_resolved_title() {
     assert!(html.contains("= Anna\\&#x27;s \\#1"), "die Überschriftszeile im Editor bleibt wörtlich: {html}");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Fixed key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 13 („websuche“): Websuche für `@belege` über MultiGPT (`web_search`, `fetch_url`) mit Prüfung im Code.
+//! Round 13 („websuche“): web search for `@belege` through MultiGPT (`web_search`, `fetch_url`) with a check in code.
 //!
-//! - Schalter (Vorgabe aus): aus → keine einzige Anfrage an den Nachbau; nur `@belege`, nie beim Vorschlag.
-//! - Bevorzugte Quellen zuerst („site:<Rechner>“, höchstens drei), dann das allgemeine Web; Kennzeichnung nach
-//!   dem Rechner der Adresse.
-//! - Nur abgerufene Seiten im Block (höchstens vier), zu große und zu langsame übersprungen mit Hinweis; die ganze
-//!   Websuche endet nach 30 s, der Auftrag läuft mit „Websuche ausgefallen“ weiter.
-//! - Prompt-Injektion bleibt im Block, die Regel steht im System-Prompt.
-//! - Prüfung der Zitate im Code, Quellenzeile vom Code, Belege in `web_evidence`, Belegseite und Übernahme in
-//!   die Bibliothek ohne JavaScript (nur bei „belegt“), danach meldet sich die Bibliothek beim Index.
-//! - Kein MCP-Werkzeug.
+//! - Switch (default off): off → not a single request to the mock; only `@belege`, never for the proposal.
+//! - Preferred sources first („site:<Rechner>“, at most three), then the general web; labelling by the host of the
+//!   address.
+//! - Only fetched pages in the block (at most four), too large and too slow ones skipped with a hint; the whole web
+//!   search ends after 30 s, the job goes on with „Websuche ausgefallen“.
+//! - Prompt injection stays in the block, the rule is in the system prompt.
+//! - Check of the quotations in code, source line from the code, evidence in `web_evidence`, evidence page and adoption
+//!   into the library without JavaScript (only for „belegt“), afterwards the library reports to the index.
+//! - No MCP tool.
 //!
-//! Nachbauten: `websearch::mock::{MockWebMcp, MockSite}` (127.0.0.1:0, Seiten unter `*.example`, nie Internet),
-//! Modell `assist::mock::ScriptedModel`, Einbetter ein fester Nachbau. Testtexte frei erfunden.
+//! Mocks: `websearch::mock::{MockWebMcp, MockSite}` (127.0.0.1:0, pages under `*.example`, never the internet), model
+//! `assist::mock::ScriptedModel`, embedder a fixed mock. Test texts freely invented.
 
 use crate::common;
 
@@ -51,7 +51,7 @@ struct House {
     _site: MockSite,
 }
 
-/// Werk, Nachbau-Modell mit `steps`, Testseiten und MCP-Nachbau als MultiGPT eingetragen; Schalter aus.
+/// Work, mock model with `steps`, test pages and MCP mock entered as MultiGPT; switch off.
 async fn house(steps: impl IntoIterator<Item = Step>) -> House {
     let model = ScriptedModel::with(steps);
     let data = tempfile::tempdir().unwrap();
@@ -110,7 +110,7 @@ async fn ask(h: &House, persona: &str) -> Value {
         .await
 }
 
-/// Wie minijinja maskiert (auch `/`).
+/// As minijinja escapes (also `/`).
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -124,12 +124,12 @@ fn today() -> String {
     baruch_server::websearch::now_stamp().1
 }
 
-/// Abfragen von `web_search` in Reihenfolge.
+/// Queries of `web_search` in order.
 fn queries(mcp: &MockWebMcp) -> Vec<String> {
     mcp.tool_calls("web_search").iter().map(|a| a["query"].as_str().unwrap_or("").to_owned()).collect()
 }
 
-/// Der Block „Abgerufene Webseiten“ in der Nutzer-Nachricht (bis zum Abschnitt).
+/// The block „Abgerufene Webseiten“ in the user message (up to the section).
 fn web_block(message: &str) -> &str {
     let start = message.find(BLOCK_TITLE).unwrap_or_else(|| panic!("kein Block der Webseiten: {message}"));
     let rest = &message[start..];
@@ -137,7 +137,7 @@ fn web_block(message: &str) -> &str {
     &rest[..end]
 }
 
-// ---- Schalter und Personas ----------------------------------------------------------------------------
+// ---- Switch and personas -----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn with_the_switch_off_belege_sends_not_a_single_request_and_other_personas_never_search() {
@@ -163,7 +163,7 @@ async fn with_the_switch_off_belege_sends_not_a_single_request_and_other_persona
 
     switch_on(&h).await;
     ask(&h, "@lektor").await;
-    // Begründung: Vertrag §4 – die Websuche läuft nur für @belege; der Lektor (und jede andere Persona) nie.
+    // Reason: contract §4 – the web search runs only for @belege; never for the lector (or any other persona).
     assert!(h.mcp.requests().is_empty(), "@lektor sucht nie im Web, auch mit Schalter an: {:?}", h.mcp.requests());
     let proposed =
         ok(&h.server, "persona.propose", json!({ "work": h.work, "key": h.key, "persona": "@belege" })).await;
@@ -178,7 +178,7 @@ async fn with_the_switch_off_belege_sends_not_a_single_request_and_other_persona
 #[tokio::test]
 async fn an_unreachable_multigpt_gives_an_honest_note_and_the_order_still_runs() {
     let h = house([Step::words("Kurz.")]).await;
-    // Ein freier Port auf 127.0.0.1, auf dem niemand lauscht (Begründung: ausgefallene Gegenstelle ohne Netz).
+    // A free port on 127.0.0.1 on which nobody listens (reason: failed peer without network).
     let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
     let url = format!("http://{closed}/mcp");
     ok(&h.server, "connection.set", json!({ "kind": "multigpt", "config": { "url": url } })).await;
@@ -195,7 +195,7 @@ async fn an_unreachable_multigpt_gives_an_honest_note_and_the_order_still_runs()
     assert!(h.mcp.requests().is_empty(), "der Nachbau ist nicht mehr eingetragen und bekommt nichts");
 }
 
-// ---- Bevorzugte Quellen ---------------------------------------------------------------------------------
+// ---- Preferred sources ---------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn preferred_sources_are_searched_first_by_site_and_marked_by_host() {
@@ -245,7 +245,7 @@ async fn preferred_sources_are_searched_first_by_site_and_marked_by_host() {
     assert!(!block.contains("[W3]"), "nur abgerufene Seiten bekommen eine Nummer: {block}");
 }
 
-// ---- Grenzen ----------------------------------------------------------------------------------------------
+// ---- Limits ----------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn only_fetched_pages_reach_the_block_and_big_or_slow_pages_become_notes() {
@@ -297,7 +297,7 @@ async fn the_whole_web_search_ends_after_thirty_seconds_and_the_order_continues(
     add_source(&h, "Archiv", "https://archiv.example/").await;
     add_source(&h, "Gäste", "https://gaeste.example/").await;
     h.mcp.set_results(vec![hit("Licht", LIGHT)]);
-    // Jeder Suchaufruf hängt 20 s: drei Aufrufe brechen nach je 10 s ab, dann greift die Grenze von 30 s.
+    // Every search call hangs for 20 s: three calls abort after 10 s each, then the limit of 30 s takes effect.
     h.mcp.configure(|b| b.search_delay = Duration::from_secs(20));
     switch_on(&h).await;
     let started = Instant::now();
@@ -316,7 +316,7 @@ async fn the_whole_web_search_ends_after_thirty_seconds_and_the_order_continues(
     assert!(h.mcp.tool_calls("fetch_url").is_empty(), "nach dem Zeitlimit wird nichts mehr abgerufen");
 }
 
-// ---- Prompt-Injektion -----------------------------------------------------------------------------------
+// ---- Prompt injection ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_page_with_a_prompt_injection_cannot_leave_its_block_and_the_rule_is_in_the_system_prompt() {
@@ -340,7 +340,7 @@ async fn a_page_with_a_prompt_injection_cannot_leave_its_block_and_the_rule_is_i
     );
 }
 
-// ---- Prüfung im Code und Belege ---------------------------------------------------------------------------
+// ---- Check in code and evidence --------------------------------------------------------------------------
 
 const CHECKED_ANSWER: &str = "Das Feuer dreht sich laut [W1] „alle zwölf Sekunden einmal um sich selbst“.\n\
 Der Wärter sprach von „dem schlafenden Auge der Küste“ [W1].\n\
@@ -398,7 +398,7 @@ async fn quotes_are_checked_against_the_fetched_page_and_the_code_writes_the_sou
     let stored = h.server.state.store.post_get(h.work, post).await.unwrap();
     assert_eq!(stored.sources, vec!["Web: 2 Belege".to_owned()], "der Beitrag trägt die Quelle „Web:“");
 
-    // Zweiter Auftrag ohne genannte Seite: Angabe prüfen.
+    // Second job without a named page: check the statement.
     let again = ask(&h, "@belege").await;
     let body = again["post"]["body"].as_str().unwrap();
     assert!(
@@ -414,11 +414,11 @@ async fn quotes_are_checked_against_the_fetched_page_and_the_code_writes_the_sou
     );
 }
 
-// ---- Belegseite und Bibliothek ------------------------------------------------------------------------------
+// ---- Evidence page and library -----------------------------------------------------------------------------
 
 const DIMENSION: usize = 4;
 
-/// Einbetter mit festem Vektorraum; merkt sich jeden eingebetteten Text.
+/// Embedder with a fixed vector space; remembers every embedded text.
 #[derive(Clone, Default)]
 struct Seen(Arc<Mutex<Vec<String>>>);
 
@@ -478,7 +478,7 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     baruch_server::rag::catch_up(&h.server.state).await;
     baruch_server::rag::wait_idle(&h.server.state).await;
 
-    // Die Arbeitsseite verlinkt den Beitrag auf seine Belegseite.
+    // The work page links the post to its evidence page.
     let (status, workspace) = h.server.get(&format!("/?work={}&key={}", h.work, h.key)).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsseite: {workspace}");
     let link = format!("/websuche/belege?work={}&amp;key={}&amp;post={post}", h.work, h.key);
@@ -487,7 +487,8 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     let page_uri = format!("/websuche/belege?work={}&key={}&post={post}", h.work, h.key);
     let (status, page) = h.server.get(&page_uri).await;
     assert_eq!(status, StatusCode::OK, "Belegseite: {page}");
-    assert_eq!(page.matches("<header class=\"band\"").count(), 1, "Seite mit der gemeinsamen Kopfzeile: {page}"); // Runde 33: der Kopf ist das Menüband (header.band statt header.topbar)
+    // Round 33: the header is the ribbon (header.band instead of header.topbar)
+    assert_eq!(page.matches("<header class=\"band\"").count(), 1, "Seite mit der gemeinsamen Kopfzeile: {page}");
     assert!(
         page.contains(&format!("<a href=\"{}\" rel=\"noopener noreferrer\" target=\"_blank\">", esc(LIGHT))),
         "Link auf die Seite, maskiert, ohne Zugriff auf Baruch: {page}"
@@ -500,7 +501,7 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     assert_eq!(page.matches("value=\"adopt\"").count(), 1, "nur der belegte Beleg hat den Knopf: {page}");
     assert!(page.contains(&format!("name=\"evidence\" value=\"{proven}\"")), "Knopf am belegten Beleg: {page}");
 
-    // Nicht belegt: über RPC -32602, über das Formular eine Meldung; nichts angelegt.
+    // Not evidenced: through RPC -32602, through the form a message; nothing created.
     let before = library_count(&h).await;
     let refused = h.server.rpc("websearch.adopt", json!({ "evidence": unproven })).await;
     assert_eq!(error_code(&refused), -32602, "nur belegte Zitate: {refused}");
@@ -513,7 +514,7 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     assert!(shown.contains("Nur belegte Zitate kommen in die Bibliothek"), "Meldung auf der Seite: {shown}");
     assert_eq!(library_count(&h).await, before, "nicht belegt: kein Titel, kein Zitat, keine Hervorhebung");
 
-    // Belegt: Titel (web, URL, Notiz mit Abrufdatum), Zitat, Hervorhebung vom Menschen; Index nachgezogen.
+    // Evidenced: title (web, URL, note with fetch date), quotation, highlight by the human; index caught up.
     seen.0.lock().unwrap().clear();
     let (status, location) =
         h.server.post_form("/websuche/act", &format!("action=adopt&evidence={proven}&work={}", h.work)).await;
@@ -567,7 +568,7 @@ async fn the_evidence_page_adopts_only_proven_quotes_into_the_library_without_ja
     assert_eq!(library_count(&h).await, after, "unverändert nach dem zweiten Versuch");
 }
 
-// ---- Schalter: RPC, Formular, Seite -----------------------------------------------------------------------
+// ---- Switch: RPC, form, page -----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_switch_works_over_rpc_and_the_form_and_sits_in_the_tab_of_belege() {
@@ -625,8 +626,8 @@ async fn mcp_offers_no_tool_for_the_web_search() {
     let names: Vec<&str> =
         list["result"]["tools"].as_array().unwrap().iter().filter_map(|t| t["name"].as_str()).collect();
     assert!(!names.is_empty(), "es gibt Werkzeuge: {list}");
-    // Begründung (docs/Architektur.md): Die Websuche hat ihren Wert in der Prüfung innerhalb von @belege; ein
-    // MCP-Durchgang ins Internet vergrößerte die Angriffsfläche, und MCP-Clients haben eigene Websuchen.
+    // Reason (docs/Architektur.md): the web search has its value in the check within @belege; an MCP passage into the
+    // internet would enlarge the attack surface, and MCP clients have web searches of their own.
     for name in &names {
         assert!(
             !name.contains("web") && !name.contains("fetch") && !name.contains("evidence"),
@@ -635,9 +636,9 @@ async fn mcp_offers_no_tool_for_the_web_search() {
     }
 }
 
-// ---- Kein Durchgang über MCP -----------------------------------------------------------------------------
+// ---- No passage through MCP -----------------------------------------------------------------------------
 
-/// Ein MCP-Aufruf von Loopback (wie ein lokaler Client ohne Token).
+/// An MCP call from loopback (like a local client without token).
 async fn mcp_call(server: &common::Server, name: &str, arguments: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/call",
         "params": { "name": name, "arguments": arguments } });
@@ -669,8 +670,8 @@ async fn mcp_ask_persona_and_chat_with_belege_never_search_the_web_even_with_the
     )
     .await;
     assert_eq!(chatted["result"]["isError"], false, "der Chat läuft: {chatted}");
-    // Begründung: docs/Bedienung.md „Websuche für @belege“ – kein Durchgang ins Internet über MCP; sonst ginge
-    // die frei gewählte Frage eines (auch entfernten) MCP-Clients als Suchanfrage an MultiGPT/SearXNG.
+    // Reason: docs/Bedienung.md „Websuche für @belege“ – no passage into the internet through MCP; otherwise the freely
+    // chosen question of an (even remote) MCP client would go to MultiGPT/SearXNG as a search query.
     assert!(h.mcp.requests().is_empty(), "keine einzige Anfrage an MultiGPT über MCP: {:?}", h.mcp.requests());
     let calls = h.model.calls();
     assert_eq!(calls.len(), 2, "zwei Modellaufrufe (ask und chat)");
@@ -678,7 +679,7 @@ async fn mcp_ask_persona_and_chat_with_belege_never_search_the_web_even_with_the
         assert!(!user(call).contains(BLOCK_TITLE), "kein Block der Webseiten: {}", user(call));
         assert!(!system(call).contains(SYSTEM_RULE), "keine Web-Regel über MCP");
     }
-    // Gegenprobe: Dieselbe Frage aus der Oberfläche sucht (der Schalter ist wirklich an).
+    // Counter-check: the same question from the user interface searches (the switch really is on).
     let h2 = house([Step::words("Antwort aus der Oberfläche.")]).await;
     h2.mcp.set_results(vec![hit("Lichtkunde", LIGHT)]);
     switch_on(&h2).await;

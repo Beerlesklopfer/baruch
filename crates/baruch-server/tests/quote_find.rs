@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachbesserung Runde 17: Zuordnung Zitat → Satzbild im Widget „scripture-check“ (`web/src/quote_find.ts`). Die
-//! übersetzten reinen Funktionen laufen unter Node (Node braucht der Bau ohnehin für `tsc`); geprüft wird die
-//! ausgelieferte Fassung aus `baruch_server::SCRIPTS`.
+//! Follow-up fix Round 17: mapping quotation → typeset view in the widget „scripture-check“ (`web/src/quote_find.ts`).
+//! The compiled pure functions run under Node (the build needs Node for `tsc` anyway); what is checked is the delivered
+//! version from `baruch_server::SCRIPTS`.
 
 use std::process::Command;
 
 use serde_json::{Value, json};
 
-/// Ruft `placeQuotes(haystack, marks)` bzw. `findAll`/`plainQuote` in Node auf und liefert das Ergebnis als JSON.
+/// Calls `placeQuotes(haystack, marks)` or `findAll`/`plainQuote` in Node and returns the result as JSON.
 fn run(expr: &str, input: Value) -> Value {
     let (_, module) = baruch_server::SCRIPTS
         .iter()
@@ -24,7 +24,7 @@ fn run(expr: &str, input: Value) -> Value {
     serde_json::from_slice(&out.stdout).unwrap()
 }
 
-/// Text an den Fundstellen.
+/// Text at the places found.
 fn texts(haystack: &str, places: &Value) -> Vec<Option<String>> {
     let chars: Vec<u16> = haystack.encode_utf16().collect();
     places
@@ -70,8 +70,8 @@ fn typst_markup_is_removed_before_searching() {
 
 #[test]
 fn the_same_wording_twice_goes_to_its_own_place_in_order_of_the_source() {
-    // Zweimal derselbe Wortlaut, einmal richtig, einmal falsch belegt: Jede Stelle bekommt genau ihre Fundstelle
-    // (Reihenfolge von quote_span), nicht beide Farben an beiden Stellen.
+    // Twice the same wording, once rightly, once wrongly referenced: every passage gets exactly its place found (order
+    // of quote_span), not both colours at both places.
     let h = "Zuerst „Fürchtet euch nicht“ (Lk 2,10), später „Fürchtet euch nicht“ (Joh 99,1). Fürchtet euch nicht.";
     let marks = json!([
         { "quote": "Fürchtet euch nicht", "quote_span": [90, 110] },

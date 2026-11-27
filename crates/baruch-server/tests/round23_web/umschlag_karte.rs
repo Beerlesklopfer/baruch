@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a: Umschlag-Reste aus Runde 27 (eigene Fehlerart für ungültige Blöcke, Zeitgrenze der Mess-Sätze,
-//! Pixelgrenze und Zwischenspeicher der Kontrastprüfung) und Gedankenkarte (veralteter Gruppenvorschlag, Obergrenze
-//! der Nähe). Werke, Bilder und Einfälle frei erfunden.
+//! Round 23a: cover leftovers from Round 27 (own error kind for invalid blocks, time limit of the measuring
+//! typesettings, pixel limit and cache of the contrast check) and thought map (outdated group proposal, upper limit of
+//! the nearness). Works, images and ideas freely invented.
 
 use std::io::Cursor;
 use std::time::Duration;
@@ -25,7 +25,7 @@ fn png(width: u32, height: u32, rgb: [u8; 3]) -> Vec<u8> {
     out.into_inner()
 }
 
-// ---- Umschlag ------------------------------------------------------------------------------------------------------
+// ---- Cover --------------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_invalid_cover_block_is_invalid_params_with_the_same_words_as_before() {
@@ -83,8 +83,8 @@ async fn the_measuring_compile_has_the_time_limit_of_the_typesetter() {
         .expect("eine kurze Quelle wird in der Zeit fertig");
     assert!(!rendered.has_errors(), "gesetzt ohne Fehler");
 
-    // Eine Quelle, die rechnet (eine Schleife; Funktionsaufrufe merkt sich Typst und wäre sofort fertig): mit einer
-    // Grenze von einer Millisekunde wird sie nicht fertig.
+    // A source that computes (a loop; Typst memoises function calls and would be done at once): with a limit of one
+    // millisecond it does not finish.
     let slow = baruch_render::Source {
         main: "#{\n  let s = 0\n  for i in range(1500000) { s += i }\n  s\n}\n".into(),
         files: vec![],
@@ -95,7 +95,7 @@ async fn the_measuring_compile_has_the_time_limit_of_the_typesetter() {
 
 #[tokio::test]
 async fn the_contrast_check_refuses_oversized_images_and_decodes_a_cover_only_once() {
-    // Pixelgrenze: ein Bild mit mehr als 20 000 Pixel an einer Seite wird nicht entpackt.
+    // Pixel limit: an image with more than 20 000 pixels on one side is not unpacked.
     assert_eq!(MAX_CONTRAST_SIDE_PX, 20_000, "Grenze wie bei den Vorschaubildern");
     let wide = png(MAX_CONTRAST_SIDE_PX + 1, 2, [10, 10, 10]);
     assert!(decode_for_contrast(&wide).is_none(), "20 001 Pixel breit: nicht entpackt, also „nicht gemessen“");
@@ -104,11 +104,11 @@ async fn the_contrast_check_refuses_oversized_images_and_decodes_a_cover_only_on
     assert_eq!((decoded.width(), decoded.height()), (64, 48), "mit seinen Maßen");
     assert!(decode_for_contrast(b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>").is_none(), "SVG hat keine Pixel");
 
-    // Zwischenspeicher: dieselbe Druckprüfung zweimal entpackt das Umschlagbild einmal.
+    // Cache: the same print check twice unpacks the cover image once.
     let _serial = common::PDF_SERIAL.lock().await;
     let server = common::open().await;
     let work = server.import_garden().await.work;
-    // Einmalige Farbe, damit kein anderer Test dasselbe Bild (dieselbe Prüfsumme) entpackt.
+    // One-off colour, so that no other test unpacks the same image (the same checksum).
     let cover = png(300, 420, [37, 91, 143]);
     let sum = baruch_render::sha256_hex(&cover);
     let added = server
@@ -137,7 +137,7 @@ async fn the_contrast_check_refuses_oversized_images_and_decodes_a_cover_only_on
     );
 }
 
-// ---- Gedankenkarte -------------------------------------------------------------------------------------------------
+// ---- Thought map --------------------------------------------------------------------------------------------------
 
 async fn idea(server: &common::Server, work: i64, words: &[&str], note: &str) -> i64 {
     let created = server.rpc("idea.create", json!({ "work": work, "words": words, "note": note })).await;
@@ -161,7 +161,7 @@ async fn accepting_a_stale_group_proposal_is_refused_and_changes_no_idea() {
         groups["groups"][0]["ideas"].as_array().unwrap().iter().map(|i| i.as_i64().unwrap()).collect();
     assert_eq!(members, [a, b, c], "Testvoraussetzung: die drei Einfälle hängen über gleiche Schlagwörter zusammen");
 
-    // Ein Vorschlag aus der Zeit, als die Gruppe nur zwei Einfälle hatte (jetzt hat sie drei).
+    // A proposal from the time when the group had only two ideas (now it has three).
     let stale = Proposal {
         name: "Feuerstelle".into(),
         persona: "@lektor".into(),
@@ -187,11 +187,11 @@ async fn accepting_a_stale_group_proposal_is_refused_and_changes_no_idea() {
     let after = [words_of(&server, a).await, words_of(&server, b).await, words_of(&server, c).await];
     assert_eq!(after, before, "kein Einfall hat ein Schlagwort bekommen (vorher: die zwei aus dem alten Vorschlag)");
 
-    // Der veraltete Vorschlag ist weg; ohne Namen gibt es nichts mehr zu übernehmen.
+    // The outdated proposal is gone; without a name there is nothing to adopt any more.
     let again = server.rpc("idea.map_group_accept", json!({ "work": work, "group": group })).await;
     assert_eq!(again["error"]["code"], -32602, "ohne Vorschlag und ohne Namen: -32602 wie bisher: {again}");
 
-    // Mit eigenem Namen gilt die Gruppe, wie die Karte sie jetzt zeigt (alle drei).
+    // With a name of its own the group holds as the map shows it now (all three).
     let taken = server.rpc("idea.map_group_accept", json!({ "work": work, "group": group, "name": "Herdfeuer" })).await;
     assert_eq!(ok(&taken)["changed"], json!([a, b, c]), "alle drei Einfälle der jetzigen Gruppe: {taken}");
     for id in [a, b, c] {
@@ -204,7 +204,7 @@ async fn a_full_idea_stops_the_whole_acceptance_before_the_first_change() {
     let server = common::open().await;
     let work = server.import("= Am Wehr\n\nDas Wasser staut sich.\n", "wehr-23.typ").await.work;
     let a = idea(&server, work, &["Schleuse"], "").await;
-    // Der zweite Einfall hat schon die Höchstzahl an Schlagwörtern.
+    // The second idea already has the maximum number of tags.
     let mut many: Vec<String> = (1..baruch_store::MAX_IDEA_WORDS).map(|n| format!("Wort{n}")).collect();
     many.push("Schleuse".into());
     let many_refs: Vec<&str> = many.iter().map(String::as_str).collect();
@@ -226,9 +226,9 @@ async fn the_near_computation_is_capped_and_says_so() {
     let server = common::open().await;
     let work = server.import("= Im Archiv\n\nRegale bis zur Decke.\n", "archiv-23.typ").await.work;
     let origin = baruch_store::IdeaOrigin::Human { name: "Ida".into() };
-    // Über der Obergrenze: direkt im Speicher angelegt (ohne Spiegel), damit der Test schnell bleibt.
+    // Above the upper limit: created directly in the store (without mirror), so that the test stays fast.
     for n in 0..MAX_NEAR_IDEAS + 3 {
-        // Jeder Einfall hat ein eigenes Schlagwort; die ersten zwei und die letzten zwei teilen dazu „Kartei“.
+        // Every idea has a tag of its own; the first two and the last two additionally share „Kartei“.
         let mut words = vec![format!("Zettel{n}")];
         if !(2..=MAX_NEAR_IDEAS).contains(&n) {
             words.push("Kartei".to_owned());

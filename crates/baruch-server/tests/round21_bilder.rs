@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21c (bilder): Bilder (Typwechsel beim Ersetzen, Pfadkonflikte im Altbestand, Kontingent für MCP, Aufräumen
-//! entschiedener Anträge), EPUB-Cover als Rasterbild der Vorderseite. Tests schreibt der Besitzer (Vertrag R21, S1 legt
-//! nur die Datei an).
+//! Round 21c (bilder): images (type change on replacing, path conflicts in the legacy stock, quota for MCP, clearing
+//! away decided requests), EPUB cover as a raster image of the front. Tests are written by the owner (contract R21, S1
+//! only creates the file).
 //!
-//! Dazu: Maskierung auf den Seiten „Bilder“ und „Bild“, SVG mit Skript über `/werke/{id}/bilder/pfad`, Kopfzeilen der
-//! Antragsdatei, Bilder in der Literatur, `LibraryView::images`, Bild einfügen in einer mehrzeiligen Fußnote und die
-//! Meldung von `pdfinfo` bei allen PDFs von Baruch. Echter Datenordner im Temp-Ordner, Router über `oneshot`; kein
-//! Eliezer, kein Netz. Werke und Bilder frei erfunden und im Test erzeugt; PDFs und Typst-Satz unter
+//! In addition: escaping on the pages „Bilder“ and „Bild“, SVG with script through `/werke/{id}/bilder/pfad`, headers
+//! of the request file, images in the literature, `LibraryView::images`, inserting an image in a multi-line footnote
+//! and the message of `pdfinfo` for all PDFs of Baruch. Real data folder in the temp folder, router through `oneshot`;
+//! no Eliezer, no network. Works and images freely invented and created in the test; PDFs and Typst typesetting under
 //! `common::PDF_SERIAL`.
 
 use crate::common;
@@ -20,7 +20,7 @@ use axum::http::{HeaderMap, Request, StatusCode, header};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
-/// Frei erfundenes Buch mit einem Bild unter `bilder/haus.svg` und festem Seitenformat (120 × 180 mm).
+/// Freely invented book with an image under `bilder/haus.svg` and a fixed page format (120 × 180 mm).
 const BOOK: &str = "#set document(title: \"Das Haus am Hang\")\n#set page(width: 120mm, height: 180mm)\n\
 #set text(lang: \"de\")\n\n= Das Haus\nDas Dach ist neu gedeckt.\n\n\
 #figure(image(\"bilder/haus.svg\", width: 40mm), caption: [Das Haus])\n\n= Der Garten\nDie Bohnen ranken.\n";
@@ -35,7 +35,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Eine SVG-Grafik mit eigener Farbe (verschiedene Inhalte für verschiedene Anträge).
+/// An SVG graphic with a colour of its own (different contents for different requests).
 fn svg(n: usize) -> String {
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"4\"><rect width=\"8\" height=\"4\" \
@@ -54,7 +54,7 @@ fn commits(server: &common::Server, slug: &str) -> usize {
     common::git(&server.mirror_dir_of(slug), &["rev-list", "--count", "HEAD"]).map_or(0, |n| n.trim().parse().unwrap())
 }
 
-/// Werk „Haus am Hang“ mit dem Bild `haus.svg` unter `bilder/haus.svg`: (id, slug).
+/// Work „Haus am Hang“ with the image `haus.svg` under `bilder/haus.svg`: (id, slug).
 async fn house(server: &common::Server) -> (i64, String) {
     let report = server.import(BOOK, "haus.typ").await;
     let added = server
@@ -68,7 +68,7 @@ async fn house(server: &common::Server) -> (i64, String) {
     (report.work, report.slug)
 }
 
-/// `multipart/form-data` an `/werke/bilder/hochladen` mit Textfeldern und einer Datei.
+/// `multipart/form-data` to `/werke/bilder/hochladen` with text fields and a file.
 fn upload(fields: &[(&str, &str)], file_name: &str, content: &[u8]) -> Request<Body> {
     let mut body = Vec::new();
     for (name, value) in fields {
@@ -91,7 +91,8 @@ fn upload(fields: &[(&str, &str)], file_name: &str, content: &[u8]) -> Request<B
         .unwrap()
 }
 
-/// Größen (Breite, Höhe) der Rasterbilder in einem PDF laut `pdfimages -list`; `None`, wenn es das Programm nicht gibt.
+/// Sizes (width, height) of the raster images in a PDF according to `pdfimages -list`; `None` if the program does not
+/// exist.
 fn pdf_images(pdf: &[u8]) -> Option<Vec<(u32, u32)>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("satz.pdf");
@@ -99,7 +100,7 @@ fn pdf_images(pdf: &[u8]) -> Option<Vec<(u32, u32)>> {
     let output = std::process::Command::new("pdfimages").arg("-list").arg(&path).output().ok()?;
     assert!(output.status.success(), "pdfimages: {}", String::from_utf8_lossy(&output.stderr));
     let text = String::from_utf8_lossy(&output.stdout).into_owned();
-    // Kopf zwei Zeilen; Spalten: page num type width height …
+    // Header two lines; columns: page num type width height …
     Some(
         text.lines()
             .skip(2)
@@ -119,7 +120,7 @@ async fn book_pdf(server: &common::Server, work: i64) -> Vec<u8> {
     bytes
 }
 
-// ---- Typwechsel beim Ersetzen ----------------------------------------------------------------------
+// ---- Type change on replacing ---------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_png_replaces_an_svg_only_with_rename_and_the_old_path_shows_the_new_picture() {
@@ -183,8 +184,8 @@ async fn a_png_replaces_an_svg_only_with_rename_and_the_old_path_shows_the_new_p
     let body = common::git(&server.mirror_dir_of(&slug), &["log", "-1", "--format=%B"]).unwrap();
     assert!(body.contains("haus.svg → haus.png"), "der Commit nennt die Umbenennung: {body}");
 
-    // Gemessen im PDF-Satz: Vorher ist das Bild eine SVG-Grafik (Vektoren, kein Rasterbild), danach steht am alten
-    // Pfad ein Rasterbild mit den Maßen des neuen PNG.
+    // Measured in the PDF typesetting: before, the image is an SVG graphic (vectors, no raster image), afterwards there
+    // is a raster image with the dimensions of the new PNG at the old path.
     let after_pdf = book_pdf(&server, work).await;
     match (pdf_images(&before_pdf), pdf_images(&after_pdf)) {
         (Some(before), Some(after)) => {
@@ -268,7 +269,7 @@ async fn mcp_asset_replace_with_rename_only_files_a_request_and_confirming_renam
     assert_eq!(commits(&server, &slug), commits_before + 1, "ein Commit beim Bestätigen");
 }
 
-// ---- Altbestand: /x.png und x.png ------------------------------------------------------------------
+// ---- Legacy: /x.png and x.png ---------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_legacy_path_collision_is_shown_and_resolved_by_the_human_in_one_commit() {
@@ -284,7 +285,8 @@ async fn a_legacy_path_collision_is_shown_and_resolved_by_the_human_in_one_commi
         }
         result(&server.rpc("asset.add", params).await);
     }
-    // Altbestand nachbauen: Seit Runde 7 lehnt der Store so etwas beim Anlegen ab, darum direkt in SQLite.
+    // Reproduce the legacy stock: since Round 7 the store rejects something like this on creation, therefore directly
+    // in SQLite.
     sqlx::query(
         "INSERT INTO asset_path (work_id, path, asset_id) SELECT ?, 'x.png', id FROM asset WHERE work_id = ? AND \
          name = 'blau.png'",
@@ -335,7 +337,7 @@ async fn a_legacy_path_collision_is_shown_and_resolved_by_the_human_in_one_commi
     assert!(!page.contains("Pfade mit zwei Bildern"), "der Hinweis ist verschwunden");
 }
 
-// ---- Kontingent für MCP ----------------------------------------------------------------------------
+// ---- Quota for MCP --------------------------------------------------------------------------------
 
 async fn post_mcp(server: &common::Server, session: Option<&str>, message: Value) -> (HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -422,8 +424,8 @@ async fn the_31st_writing_call_of_a_client_is_refused_and_another_name_without_t
     assert!(text.contains("Quota"), "auch asset_replace zählt zu den schreibenden Aufrufen: {text}");
     assert!(server.state.store.asset_requests(work, true).await.unwrap().is_empty(), "kein Antrag angelegt");
 
-    // Runde 23: Clients ohne Token teilen je Werk EIN Kontingent – ein neuer Name hebt die Grenze nicht mehr auf
-    // (ein Token hat sein eigenes: round23_mcp_namen::clients_without_token_share_one_asset_quota_and_a_token_has_its_own).
+    // Round 23: clients without token share ONE quota per work – a new name no longer lifts the limit (a token has its
+    // own: round23_mcp_namen::clients_without_token_share_one_asset_quota_and_a_token_has_its_own).
     let other = initialize(&server, "Andere Hilfe").await;
     let text = refused(
         &server,
@@ -455,8 +457,8 @@ async fn more_than_64_mib_in_a_day_are_refused_and_nothing_is_stored() {
             .await,
     );
     let heavy = initialize(&server, "Schwere Hilfe").await;
-    // Acht Anträge zu je 8 MiB (größte Bilddatei) = genau 64 MiB: noch erlaubt. Der Inhalt beginnt mit der
-    // PNG-Kennung (Baruch erkennt den Typ an den ersten Bytes) und unterscheidet sich je Antrag.
+    // Eight requests of 8 MiB each (largest image file) = exactly 64 MiB: still allowed. The content begins with the
+    // PNG signature (Baruch recognises the type by the first bytes) and differs per request.
     let eight = baruch_store::MAX_ASSET_BYTES;
     for n in 0..8u8 {
         let mut bytes = vec![n; eight];
@@ -498,7 +500,7 @@ async fn more_than_64_mib_in_a_day_are_refused_and_nothing_is_stored() {
     );
     assert!(!server.state.store.asset_list(work).await.unwrap().iter().any(|a| a.name == "klein.png"), "kein Bild");
 
-    // Runde 23: Auch ein anderer Name ohne Token bleibt im gemeinsamen Kontingent des Werks.
+    // Round 23: another name without token stays in the shared quota of the work too.
     let light = initialize(&server, "Leichte Hilfe").await;
     let text = refused(
         &server,
@@ -556,7 +558,7 @@ async fn the_11th_open_replace_request_is_refused_until_the_human_decides() {
     .await;
 }
 
-// ---- Aufräumen entschiedener Anträge und Kopfzeilen der Antragsdatei ------------------------------
+// ---- Clearing away decided requests and headers of the request file --------------------------------
 
 #[tokio::test]
 async fn decided_requests_lose_their_content_after_30_days_and_the_file_answers_410() {
@@ -584,7 +586,7 @@ async fn decided_requests_lose_their_content_after_30_days_and_the_file_answers_
         .as_i64()
         .unwrap();
 
-    // Kopfzeilen der Antragsdatei (vorgeschlagener Inhalt): MIME, CSP mit sandbox, nosniff.
+    // Headers of the request file (proposed content): MIME, CSP with sandbox, nosniff.
     let (status, headers, bytes) = get_bytes(&server, &format!("/werke/{work}/bilder/antraege/{old}/datei")).await;
     assert_eq!(status, StatusCode::OK, "offener Antrag: Datei lesbar");
     assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml", "MIME des Inhalts");
@@ -596,7 +598,7 @@ async fn decided_requests_lose_their_content_after_30_days_and_the_file_answers_
     for id in [old, young] {
         result(&server.rpc("asset.request_decide", json!({ "work": work, "id": id, "decision": "reject" })).await);
     }
-    // Entscheidung 31 bzw. 29 Tage zurückdatieren (asset_request hat keinen Schutz-Trigger auf decided).
+    // Backdate the decision by 31 or 29 days (asset_request has no protective trigger on decided).
     for (id, days) in [(old, 31), (young, 29)] {
         sqlx::query("UPDATE asset_request SET decided = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) WHERE id = ?")
             .bind(format!("-{days} days"))
@@ -628,7 +630,7 @@ async fn decided_requests_lose_their_content_after_30_days_and_the_file_answers_
     assert_eq!(status, StatusCode::OK, "der jüngere Antrag behält seine Datei");
 }
 
-// ---- Maskierung und SVG mit Skript -----------------------------------------------------------------
+// ---- Escaping and SVG with script -----------------------------------------------------------------
 
 #[tokio::test]
 async fn alt_caption_note_and_path_are_escaped_on_the_pictures_pages() {
@@ -685,7 +687,7 @@ async fn an_svg_with_a_script_is_served_by_path_only_inside_a_sandbox() {
     assert_eq!(bytes, evil.as_bytes(), "der Inhalt bleibt unverändert (Schutz über die Kopfzeilen)");
 }
 
-// ---- Literatur, LibraryView, Bild einfügen ---------------------------------------------------------
+// ---- Literature, LibraryView, inserting an image --------------------------------------------------
 
 #[tokio::test]
 async fn the_literature_shows_matching_pictures_with_thumbnail_and_link_without_javascript() {
@@ -752,7 +754,7 @@ fn a_figure_at_an_offset_inside_a_multiline_footnote_goes_behind_the_construct()
     assert!(!out.contains("eins\n\n#figure"), "nie mitten in die Fußnote");
 }
 
-// ---- EPUB-Cover als Rasterbild ---------------------------------------------------------------------
+// ---- EPUB cover as a raster image -----------------------------------------------------------------
 
 fn zip_entry(zip_bytes: &[u8], name: &str) -> Option<Vec<u8>> {
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip_bytes)).expect("gültiges ZIP");
@@ -774,7 +776,7 @@ fn block(kind: &str, y_mm: f64, size_pt: f64) -> Value {
             "leading_em": 0.65, "color": "light", "font": null, "style": "bold", "backdrop": "none", "visible": true })
 }
 
-/// Bildpunkte im Rechteck (mm) der Seite (120 × 180 mm), die zwischen `a` und `b` deutlich abweichen.
+/// Pixels in the rectangle (mm) of the page (120 × 180 mm) that differ clearly between `a` and `b`.
 fn differing(a: &image::RgbaImage, b: &image::RgbaImage, x_mm: (f64, f64), y_mm: (f64, f64)) -> usize {
     let scale = f64::from(a.width()) / 120.0;
     let mut count = 0;
@@ -830,8 +832,8 @@ async fn the_epub_cover_is_a_png_of_the_front_with_title_subtitle_and_author() {
     let ratio = f64::from(picture.width()) / f64::from(picture.height());
     assert!((ratio / (120.0 / 180.0) - 1.0).abs() < 0.01, "Seitenverhältnis der Vorderseite ± 1 %: {ratio}");
 
-    // Derselbe Umschlag ohne Text, gerastert wie das Cover: In den Blockrahmen von Titel und Autor weichen die Pixel
-    // ab (dort steht Schrift), dazwischen nicht (nur das Bild).
+    // The same cover without text, rasterised like the cover: in the block frames of title and author the pixels differ
+    // (there is type there), in between they do not (only the image).
     let plain = baruch_render::Source {
         main: "#set page(width: 120mm, height: 180mm, margin: 0pt)\n\
                #place(top + left, image(\"u.png\", width: 100%, height: 100%, fit: \"cover\"))\n"
@@ -864,7 +866,7 @@ async fn without_a_cover_picture_the_epub_still_gets_a_cover_with_the_title() {
     assert_eq!(answer["files"][0]["kind"], "cover", "Cover vorn in der Lesereihenfolge: {answer}");
     let cover = zip_entry(&epub, "OEBPS/images/cover.png").expect("Cover-Bild auch ohne Umschlagbild");
     let picture = image::load_from_memory(&cover).unwrap().to_rgba8();
-    // Dunkle Fläche (#1f2a33), heller Titel im Titelbereich oben: helle Bildpunkte im oberen Drittel.
+    // Dark surface (#1f2a33), light title in the title area at the top: light pixels in the upper third.
     let bright = (0..picture.height() / 3)
         .flat_map(|y| (0..picture.width()).map(move |x| (x, y)))
         .filter(|&(x, y)| picture.get_pixel(x, y).0[..3].iter().all(|&c| c > 200))
@@ -877,8 +879,8 @@ async fn without_a_cover_picture_the_epub_still_gets_a_cover_with_the_title() {
 #[tokio::test]
 async fn a_raster_failure_falls_back_to_the_raw_picture_with_a_warning() {
     let server = common::open().await;
-    // Werkvorlage mit einem Fehler (unbekannte Variable): Das Seitenformat lässt sich nicht setzen, also auch die
-    // Vorderseite nicht. Das EPUB entsteht trotzdem, mit der rohen Bilddatei und einer Warnung.
+    // Work template with an error (unknown variable): the page format cannot be typeset, hence not the front either.
+    // The EPUB is created nevertheless, with the raw image file and a warning.
     let book = "#set text(lang: \"de\")\n#let breite = nicht-da\n\n= Kapitel\nText.\n";
     let report = server.import(book, "kaputt.typ").await;
     let raw = baruch_epub::sample::png(5, 8, [200, 200, 0]);
@@ -901,9 +903,9 @@ async fn a_raster_failure_falls_back_to_the_raw_picture_with_a_warning() {
     assert_eq!(cover, raw, "Rohbild unverändert");
 }
 
-// ---- pdfinfo bei allen PDFs von Baruch -------------------------------------------------------------
+// ---- pdfinfo for all PDFs of Baruch ---------------------------------------------------------------
 
-/// Meldungen von `pdfinfo` auf stderr; `None`, wenn es das Programm nicht gibt.
+/// Messages of `pdfinfo` on stderr; `None` if the program does not exist.
 fn pdfinfo_errors(pdf: &[u8]) -> Option<Vec<String>> {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("probe.pdf");
@@ -944,16 +946,16 @@ async fn pdfinfo_only_complains_about_the_suspects_flag_that_typst_writes_into_e
             return;
         };
         assert!(errors.iter().all(|e| e == SUSPECTS), "{kind}: pdfinfo meldet nur die Suspects-Zeile: {errors:?}");
-        // Ursache belegt: krilla (PDF-Schreiber von typst-pdf) setzt im getaggten PDF `/MarkInfo << /Marked true
-        // /Suspects false >>` (PDF/UA verlangt Suspects = false). poppler meldet jeden Wert außer `true` als
-        // „wrong type (boolean)“, obwohl `false` ein gültiger boolescher Wert ist. Ohne das Feld schweigt pdfinfo.
+        // Cause evidenced: krilla (PDF writer of typst-pdf) sets `/MarkInfo << /Marked true /Suspects false >>` in the
+        // tagged PDF (PDF/UA demands Suspects = false). poppler reports every value except `true` as
+        // „wrong type (boolean)“, although `false` is a valid boolean value. Without the field pdfinfo is silent.
         let at = pdf.windows(15).position(|w| w == b"/Suspects false");
         eprintln!("pdfinfo {kind}: Meldungen {errors:?}, „/Suspects false“ an Byte {at:?}");
         match at {
             Some(at) => {
                 assert!(!errors.is_empty(), "{kind}: mit /Suspects false meldet poppler die Zeile");
                 let mut patched = pdf.clone();
-                patched[at..at + 15].copy_from_slice(b"/Xuspects false"); // gleiche Länge: Querverweise stimmen
+                patched[at..at + 15].copy_from_slice(b"/Xuspects false"); // same length: cross-references are right
                 let after = pdfinfo_errors(&patched).unwrap();
                 assert!(after.is_empty(), "{kind}: ohne /Suspects keine Meldung mehr – die Ursache: {after:?}");
             }

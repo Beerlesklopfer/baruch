@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Nachbesserung Runde 15 (Befunde der Begutachtung): gestückelter Kontext gemessen statt nur geschätzt,
-//! Kontextlänge von Ollama nie der Höchstwert des Modells, keine Einbettung über ein als extern markiertes Eliezer,
-//! Lage „lokal/extern“ nach der Adresse mit Warnung, kein Einrahmen (Clickjacking).
+//! Follow-up fix Round 15 (findings of the review): chunked context measured instead of only estimated, context length
+//! of Ollama never the maximum of the model, no embedding through an Eliezer marked as external, location
+//! "local/external" by the address with a warning, no framing (clickjacking).
 //!
-//! Kein Netz, kein Eliezer: eigene Nachbauten (`Recorder` unten, `baruch_llm::mock::MockEliezer` auf 127.0.0.1:0).
-//! Adressen wie `api.example.com` werden nur gespeichert und angezeigt, nie aufgerufen. Alle Texte frei erfunden
-//! (ein kleines Buch über Leuchttürme).
+//! No network, no Eliezer: own mocks (`Recorder` below, `baruch_llm::mock::MockEliezer` on 127.0.0.1:0). Addresses such
+//! as `api.example.com` are only stored and displayed, never called. All texts freely invented (a small book about
+//! lighthouses).
 
 use crate::common;
 
@@ -24,8 +24,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Nachbau eines Modells, der jeden Aufruf aufzeichnet: Zusammenfassungen bekommen einen kurzen Text, Prüfungen
-/// einen Befund.
+/// Mock of a model that records every call: summaries get a short text, checks a finding.
 #[derive(Clone, Default)]
 struct Recorder {
     calls: Arc<Mutex<Vec<ModelCall>>>,
@@ -70,7 +69,7 @@ impl ModelPort for Recorder {
     }
 }
 
-/// Werk mit einem Kapitel aus `sections` Abschnitten zu je etwa `chars` Zeichen (erfundener Text).
+/// Work with one chapter of `sections` sections of about `chars` characters each (invented text).
 fn lighthouse(sections: usize, chars: usize) -> String {
     let mut text = String::from(
         "#set document(title: \"Die Leuchttürme\", author: \"Mara Klippe\")\n#set heading(numbering: \"1.1\")\n\n\
@@ -119,25 +118,25 @@ fn chapter_review(work: i64, key: i64) -> Order {
     }
 }
 
-/// Eingabe eines Aufrufs in Zeichen und das Budget nach derselben Formel wie `context::prepare`
-/// ((Kontextlänge − max_tokens − Rücklage 256) · 3 Zeichen).
+/// Input of a call in characters and the budget by the same formula as `context::prepare` ((context length − max_tokens
+/// − reserve 256) · 3 characters).
 fn size_and_budget(call: &ModelCall, context: u32) -> (usize, usize) {
     let size = call.messages.iter().map(|m| m.content.chars().count()).sum();
     (size, (context.saturating_sub(call.max_tokens).saturating_sub(256) * 3) as usize)
 }
 
-// ---- Gestückelter Kontext: gemessen, nie über die Kontextlänge -----------------------------------------------
+// ---- Chunked context: measured, never over the context length -----------------------------------------------
 
 #[tokio::test]
 async fn a_chapter_with_many_parts_never_sends_a_call_over_the_context_length() {
-    // Nachrechnung des Befunds: ganzes Kapitel prüfen, 10 Abschnitte zu je 3000 Zeichen → 20 überlappende Teile.
-    // Vorher ging bei 4096 Tokens ein Stück mit ≈ 5655 statt höchstens ≈ 4400 Zeichen Umfeld und Kern hinaus.
-    // Seit Runde 18b teilen sich aufeinanderfolgende ausgelassene Teile eine Zeile; bei 4096 Tokens passt der Fall
-    // jetzt gestückelt (gemessen in `round18_lektor::omitted_parts_in_one_line_…`). Hier darum ein kleinerer Kontext
-    // (CONTEXT), bei dem auch die verdichtete Untergrenze nicht passt: Der Fall bleibt eine ehrliche Ablehnung. Bei
-    // 2600 Tokens reicht der Platz schon für Rollen-Prompt und Auftrag nicht (andere Meldung), bei 4096 passt es.
-    // Runde 30b: Die Lösungspflicht verlängert jeden Vorgabe-Prompt (≈ 150 Tokens); 3000 Tokens fallen darum schon
-    // unter die Grenze für Rollen-Prompt und Auftrag, 3200 liegen wieder im gemeinten Bereich.
+    // Recalculation of the finding: check the whole chapter, 10 sections of 3000 characters each → 20 overlapping
+    // parts. Before, at 4096 tokens one piece went out with ≈ 5655 instead of at most ≈ 4400 characters of surroundings
+    // and core. Since Round 18b consecutive omitted parts share one line; at 4096 tokens the case now fits chunked
+    // (measured in `round18_lektor::omitted_parts_in_one_line_…`). Hence a smaller context here (CONTEXT) at which even
+    // the condensed lower bound does not fit: the case stays an honest rejection. At 2600 tokens the room is not even
+    // enough for role prompt and job (different message), at 4096 it fits. Round 30b: the solution obligation lengthens
+    // every default prompt (≈ 150 tokens); 3000 tokens therefore already fall below the limit for role prompt and job,
+    // 3200 lie in the intended range again.
     const CONTEXT: u32 = 3200;
     let recorder = Recorder::default();
     let (server, work, keys) = coast(recorder.clone(), 10, 3000).await;
@@ -145,8 +144,8 @@ async fn a_chapter_with_many_parts_never_sends_a_call_over_the_context_length() 
     let posts_before = server.state.store.load_work(work).await.unwrap().nodes[0].posts.len();
     let result = baruch_server::assist::run(&server.state, &chapter_review(work, keys[0]), None).await;
 
-    // Selbst mit allen übrigen Teilen nur als Titel (bzw. leerer Zusammenfassung) sprengt jedes Stück den Platz:
-    // Die Untergrenze steht vor jedem Modellaufruf fest, also ehrlich ablehnen – ohne Zusammenfassungen umsonst.
+    // Even with all other parts only as titles (or an empty summary) every piece bursts the room: the lower bound is
+    // known before every model call, so reject honestly – without summaries for nothing.
     let e = result.expect_err("20 Teile passen bei so kleinem Kontext auch komprimiert nicht");
     assert_eq!(e.code, -32000, "ehrlicher Fehler: {e:?}");
     assert!(
@@ -166,8 +165,9 @@ async fn a_chapter_with_many_parts_never_sends_a_call_over_the_context_length() 
 
 #[tokio::test]
 async fn a_chapter_that_fits_compressed_keeps_every_piece_and_summary_inside_the_budget() {
-    // Mittlerer Fall: genug Kontext für Stücke mit Umfeld. Jeder Aufruf – auch Kopf „Stück k von n (…)“, Zusatz im
-    // Auftrag und die Zeilen „wird geprüft, steht unten“ – passt gemessen ins Budget, und geprüft wird alles.
+    // Middle case: enough context for pieces with surroundings. Every call – also the head „Stück k von n (…)“, the
+    // addition in the job and the lines „wird geprüft, steht unten“ – fits, measured, into the budget, and everything
+    // is checked.
     let recorder = Recorder::default();
     let (server, work, keys) = coast(recorder.clone(), 6, 2500).await;
     ok(&server, "persona.update", json!({ "handle": "@lektor", "context_length": 6144 })).await;
@@ -191,7 +191,7 @@ async fn a_chapter_that_fits_compressed_keeps_every_piece_and_summary_inside_the
     }
 }
 
-// ---- Ollama: wirksame Kontextlänge statt Höchstwert -----------------------------------------------------------
+// ---- Ollama: effective context length instead of maximum -----------------------------------------------------
 
 #[tokio::test]
 async fn ollama_without_num_ctx_reports_its_default_and_not_the_model_maximum() {
@@ -210,8 +210,8 @@ async fn ollama_without_num_ctx_reports_its_default_and_not_the_model_maximum() 
     let ollama = MockEliezer::start().await;
     ollama.set_flavor(Flavor::Ollama);
     ollama.set_models(&["moewe:8b"]);
-    // Kein num_ctx gesetzt: Der Nachbau meldet in model_info den Höchstwert 131072 und unter /api/ps kein
-    // geladenes Modell – wie ein frisches Ollama ohne Modelfile-Parameter.
+    // No num_ctx set: the mock reports the maximum 131072 in model_info and no loaded model under /api/ps – like a
+    // fresh Ollama without Modelfile parameters.
     let made = ok(
         &server,
         "model.connection_set",
@@ -237,7 +237,7 @@ async fn ollama_without_num_ctx_reports_its_default_and_not_the_model_maximum() 
     assert!(ollama.chat_bodies().is_empty(), "nur gelesen, kein Chat");
 }
 
-// ---- Einbetten über ein als extern markiertes Eliezer ----------------------------------------------------------
+// ---- Embedding through an Eliezer marked as external ----------------------------------------------------------
 
 #[tokio::test]
 async fn an_eliezer_marked_external_receives_no_book_text_for_embeddings() {
@@ -272,7 +272,7 @@ async fn an_eliezer_marked_external_receives_no_book_text_for_embeddings() {
     assert!(eliezer.paths().iter().any(|p| p.ends_with("/embeddings")), "jetzt geht die Einbettung hinaus");
 }
 
-// ---- Lage nach der Adresse ------------------------------------------------------------------------------------
+// ---- Location by the address ---------------------------------------------------------------------------------
 
 #[test]
 fn only_loopback_private_and_local_names_look_local() {
@@ -373,7 +373,7 @@ async fn no_page_may_be_framed_by_another_site() {
         let csp = headers.get(header::CONTENT_SECURITY_POLICY).and_then(|v| v.to_str().ok()).unwrap_or("");
         assert!(csp.contains("frame-ancestors 'none'"), "{uri}: CSP frame-ancestors (heutige Browser): {csp}");
     }
-    // Auch eine abgelehnte Anfrage (fremde Herkunft) trägt die Kopfzeilen.
+    // A rejected request (foreign origin) carries the headers too.
     let request = Request::post("/gliederung/act")
         .header(header::ORIGIN, "http://boese.example")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")

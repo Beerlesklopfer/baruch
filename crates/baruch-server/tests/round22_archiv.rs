@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Archiv, Besitz befund-rueckfrage): archivierte Werke auflisten und wiederherstellen, Spiegel der Einfälle ohne Werk.
+//! Round 22 (archive, ownership befund-rueckfrage): listing and restoring archived works, mirror of the ideas without a
+//! work.
 //!
-//! Echter Datenordner im Temp-Verzeichnis (SQLite, Git-Spiegel), kein Modell. Das „Inselbuch“ ist frei erfunden.
+//! Real data folder in the temp directory (SQLite, Git mirror), no model. The „Inselbuch“ is freely invented.
 
 use axum::http::StatusCode;
 use baruch_server::works::TRASH_DIR;
@@ -27,7 +28,7 @@ async fn current_texts(server: &common::Server, work: i64) -> Vec<String> {
     loaded.nodes.iter().map(|n| n.current_index().map(|i| n.revisions[i].body.clone()).unwrap_or_default()).collect()
 }
 
-/// Inselbuch anlegen, einen Abschnitt ändern (über RPC wie der Editor) und löschen. Gibt Server, slug, Texte zurück.
+/// Create the Inselbuch, change a section (through RPC like the editor) and delete. Returns server, slug, texts.
 async fn deleted_island() -> (common::Server, String, Vec<String>) {
     let server = common::open().await;
     let report = server.import(ISLAND, "inselbuch.typ").await;
@@ -169,7 +170,7 @@ async fn the_start_catches_up_the_ideas_without_work_and_makes_no_empty_commit()
         bible: "",
         origin: IdeaOrigin::Human { name: "Autor".into() },
     };
-    // Direkt in der Datenbank (ohne Spiegel), wie nach einem Absturz zwischen Datenbank und Spiegel.
+    // Directly in the database (without mirror), as after a crash between database and mirror.
     server.state.store.idea_create(&new).await.unwrap();
     let dir = server.path().join("einfaelle");
     assert!(!dir.join("einfaelle.md").exists(), "der Spiegel kennt den Einfall noch nicht");

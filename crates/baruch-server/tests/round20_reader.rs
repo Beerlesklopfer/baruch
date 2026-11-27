@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 20b (reader, Besitz „reader“): EPUB-Vorschau je Reader, `epub.readers`, `epub.preview`, Reader-Dateien mit
-//! eigener CSP (Ausnahme in `guard::no_framing`) und Reader-CSS. Alle Testtexte frei erfunden („Das Vogelhaus“).
+//! Round 20b (reader, ownership „reader“): EPUB preview per reader, `epub.readers`, `epub.preview`, reader files with a
+//! CSP of their own (exception in `guard::no_framing`) and reader CSS. All test texts freely invented
+//! („Das Vogelhaus“).
 
 use crate::common;
 
@@ -11,7 +12,7 @@ use baruch_epub::{EpubItem, ItemKind};
 use baruch_server::epub_preview::{NIGHT_MARK, reader_css, reader_file};
 use serde_json::{Value, json};
 
-/// Frei erfundenes Werk mit Vorwort, zwei Teilen, drei Kapiteln (eines mit Unterabschnitt) und einer Fußnote.
+/// Freely invented work with preface, two parts, three chapters (one with a subsection) and a footnote.
 fn birdhouse() -> String {
     format!(
         "#set text(lang: \"de\")\n\n\
@@ -33,7 +34,7 @@ struct Book {
     files: Vec<Value>,
 }
 
-/// Werk anlegen und die Dateien mit Text (Lesereihenfolge) über `work.epub` holen.
+/// Create the work and fetch the files with text (reading order) through `work.epub`.
 async fn book() -> Book {
     let server = common::open().await;
     let work = server.import(&birdhouse(), "vogelhaus.typ").await.work;
@@ -46,7 +47,7 @@ async fn book() -> Book {
 fn href_of<'a>(files: &'a [Value], title: &str) -> &'a str {
     files
         .iter()
-        // Seit R20a tragen Titel die Nummer aus dem Gliederungsschema („2 Das Holz“, „I Bauen“).
+        // Since R20a titles carry the number from the outline scheme („2 Das Holz“, „I Bauen“).
         .find(|f| f["title"] == title || f["title"].as_str().is_some_and(|t| t.ends_with(&format!(" {title}"))))
         .and_then(|f| f["href"].as_str())
         .unwrap_or_else(|| panic!("{title} fehlt in {files:?}"))
@@ -73,7 +74,7 @@ async fn the_preview_without_parameters_shows_the_required_readers_the_chapter_b
     let Book { server, work, files } = book().await;
     let (status, html) = server.get(&format!("/werke/{work}/epub/vorschau")).await;
     assert_eq!(status, StatusCode::OK, "Vorschau lädt: {html}");
-    // Das Vorwort ist ein Kapitel (Ebene 1) vor dem ersten Teil: die erste Kapiteldatei.
+    // The preface is a chapter (level 1) before the first part: the first chapter file.
     let first_part = href_of(&files, "Vorwort");
     for p in PROFILES {
         let figure = format!("<figure class=\"epub-frame\" data-reader=\"{}\">", p.slug);
@@ -89,7 +90,7 @@ async fn the_preview_without_parameters_shows_the_required_readers_the_chapter_b
         }
     }
     assert!(html.contains("Send to Kindle nimmt EPUB an"), "Hinweis nach Vertrag §0.4: {html}");
-    // Kapitelgrenzen-Liste: jede Datei mit Text, Titel aus EpubBook.items, Teil/Kapitel markiert.
+    // List of chapter boundaries: every file with text, title from EpubBook.items, part/chapter marked.
     let list = &html[html.find("data-epub-files").expect("Dateiliste")..];
     let list = &list[..list.find("</ol>").unwrap()];
     for f in &files {
@@ -116,7 +117,7 @@ async fn the_preview_without_parameters_shows_the_required_readers_the_chapter_b
         )),
         "jede andere Datei ist ein gewöhnlicher Link mit der Profilwahl (ohne JavaScript): {list}"
     );
-    // Formular-GET: alle Profile als Häkchen, Pflicht-Profile vorgewählt.
+    // Form GET: all profiles as checkboxes, mandatory profiles preselected.
     assert!(
         html.contains(&format!("<form class=\"epub-preview-form\" method=\"get\" action=\"/werke/{work}/epub/vorschau\" data-widget=\"epub-preview\">")),
         "Profilwahl als gewöhnliches GET-Formular: {html}"
@@ -161,7 +162,7 @@ async fn leser_and_datei_choose_readers_and_file_by_form_get() {
     );
     assert!(html.contains("Über Send to Kindle (EPUB wird umgewandelt)."), "Kindle-Rahmen nennt die Umwandlung");
     assert!(html.contains("Fußnoten als Sprung statt Popup"), "Kobo nennt seine Eigenheit: {html}");
-    // Fußnoten als Anmerkungen: die Rahmen und der Download tragen die Wahl weiter.
+    // Footnotes as annotations: the frames and the download carry the choice on.
     let (_, html) = server.get(&format!("/werke/{work}/epub/vorschau?leser=thorium&fussnoten=endnoten")).await;
     assert!(
         html.contains(&format!("/werke/{work}/epub/leser/thorium/")) && html.contains("?fussnoten=endnoten\""),
@@ -220,10 +221,10 @@ async fn a_reader_file_is_xhtml_with_the_reader_css_its_own_csp_and_nosniff() {
     assert!(body.contains("Bookerly"), "Kindle-Vorgabeschrift im eingefügten CSS");
     assert!(!body.contains(NIGHT_MARK), "ohne nacht=1 kein Nachtteil");
     assert!(body.contains("Fichte ist weich"), "der Text des Kapitels");
-    // Nachtmodus: der Teil nach der Marke kommt dazu.
+    // Night mode: the part after the mark is added.
     let (_, _, night) = get_with(&server, &format!("/werke/{work}/epub/leser/kindle/{chapter}?nacht=1"), &[]).await;
     assert!(night.contains(NIGHT_MARK), "mit nacht=1 der Nachtteil des Profils");
-    // Wohlgeformt (xmllint; fehlt er, übersprungen – quick-xml ist keine Abhängigkeit des Servers).
+    // Well-formed (xmllint; if it is missing, skipped – quick-xml is no dependency of the server).
     let lint = std::path::Path::new("/usr/bin/xmllint");
     if lint.exists() {
         let dir = tempfile::tempdir().unwrap();
@@ -238,7 +239,7 @@ async fn a_reader_file_is_xhtml_with_the_reader_css_its_own_csp_and_nosniff() {
     } else {
         println!("ÜBERSPRUNGEN: xmllint fehlt, Wohlgeformtheit nicht geprüft");
     }
-    // style/book.css unverändert mit eigenem Typ.
+    // style/book.css unchanged with a type of its own.
     let (status, headers, css) =
         get_with(&server, &format!("/werke/{work}/epub/leser/kindle/style/book.css"), &[]).await;
     assert_eq!(status, StatusCode::OK, "Stildatei lädt");
@@ -275,7 +276,7 @@ async fn bad_paths_unknown_files_and_foreign_sites_are_refused() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "ein fremder Referer öffnet nichts");
-    // Unteranfragen aus dem eigenen, wegen sandbox herkunftslosen Rahmen (Bild, book.css) kommen als cross-site.
+    // Sub-requests from the own frame, which has no origin because of sandbox (image, book.css), arrive as cross-site.
     let referer = format!("http://127.0.0.1:8765/werke/{work}/epub/leser/kindle/{chapter}");
     let (status, _, _) = get_with(
         &server,
@@ -284,8 +285,8 @@ async fn bad_paths_unknown_files_and_foreign_sites_are_refused() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "Unteranfrage aus dem eigenen Rahmen desselben Werks wird beantwortet");
-    // Integrator R20 (Sichtprüfung mit Firefox): Unteranfragen aus dem sandbox-Rahmen tragen nur die Herkunft als
-    // Referer; Bilder und book.css müssen trotzdem laden, eine fremde Herkunft nicht.
+    // Integrator R20 (visual check with Firefox): sub-requests from the sandbox frame carry only the origin as Referer;
+    // images and book.css must load nevertheless, a foreign origin must not.
     for (referer, expected, why) in [
         ("http://127.0.0.1:8765/", StatusCode::OK, "gekürzter Referer desselben Hosts"),
         ("http://evil.example/", StatusCode::FORBIDDEN, "gekürzter Referer einer fremden Seite"),
@@ -302,8 +303,8 @@ async fn bad_paths_unknown_files_and_foreign_sites_are_refused() {
 
 #[tokio::test]
 async fn images_keep_their_bytes_and_media_type() {
-    // reader_file arbeitet auf dem Manifest; ein eigenes Bild von Hand dazu (eigener Pfad, denn seit R20a bringt das
-    // Testwerk selbst Bilder unter images/bilder/ mit).
+    // reader_file works on the manifest; an own image added by hand (own path, because since R20a the test work itself
+    // brings images under images/bilder/).
     let mut book = baruch_epub::build(&baruch_epub::sample::input()).unwrap();
     let png = baruch_epub::sample::png(2, 2, [10, 20, 30]);
     book.items.push(EpubItem {

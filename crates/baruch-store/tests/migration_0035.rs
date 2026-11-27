@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0035 (Nutzerfrage 12: Antrag „Teil anlegen“ mit der Art `add`) auf einer nachgebauten
-//! Datenbank im Stand von development davor (alle Store-Migrationen unter 0035 und die Bibliothek), mit
-//! frei erfundenem Werk, Kapiteln und drei Anträgen (offen, bestätigt, abgelehnt); der Antrag mit der
-//! höchsten id ist vor der Migration gelöscht (prüft, dass die AUTOINCREMENT-Zählung mitwandert).
+//! Migration 0035 (user question 12: request "create part" with the kind `add`) on a reproduced database in the state
+//! of development before it (all store migrations below 0035 and the library), with a freely invented work, chapters
+//! and three requests (open, confirmed, declined); the request with the highest id is deleted before the migration
+//! (checks that the AUTOINCREMENT counter moves along).
 //!
-//! Nach einem Migrator bis 0035: Jede Zeile jeder Tabelle bleibt (samt id), das Schema jeder anderen
-//! Tabelle und jedes anderen Index bleibt, `outline_request` unterscheidet sich nur in der Prüfung von
-//! `op` (jetzt mit `add`), der Index `outline_request_open` ist wieder da, keine Verstöße gegen
-//! Fremdschlüssel. Vorher lehnt die Datenbank `op = 'add'` ab, danach nimmt sie es an; die nächste id
-//! liegt über der gelöschten. Danach `Store::open` ohne Änderung, Export byte-gleich, und ein Antrag
-//! über `outline_add_by_assistant` lässt sich stellen.
+//! After a migrator up to 0035: every row of every table stays (including id), the schema of every other table and
+//! every other index stays, `outline_request` differs only in the check of `op` (now with `add`), the index
+//! `outline_request_open` is back, no foreign key violations. Before, the database rejects `op = 'add'`, afterwards it
+//! accepts it; the next id lies above the deleted one. Afterwards `Store::open` without a change, export
+//! byte-identical, and a request through `outline_add_by_assistant` can be filed.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -39,7 +38,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0035 (development vor dieser Runde endet bei 0034) und die ganze Bibliothek.
+/// Store below 0035 (development before this round ends at 0034) and the whole library.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 35), "die neue Migration ist 0035");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 34), "Stand davor hat 0034");
@@ -50,7 +49,7 @@ async fn migrate_before(pool: &SqlitePool) {
     library.run(pool).await.unwrap();
 }
 
-/// Werk mit drei Kapiteln und drei Anträgen; der jüngste Antrag wird danach gelöscht.
+/// Work with three chapters and three requests; the youngest request is deleted afterwards.
 async fn insert_rows(pool: &SqlitePool) -> (WorkId, Vec<i64>) {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: WorkId = sqlx::query_scalar(
@@ -123,7 +122,7 @@ async fn insert_rows(pool: &SqlitePool) -> (WorkId, Vec<i64>) {
         .await
         .unwrap();
     }
-    // Der jüngste Antrag (id 4) verschwindet: seine id darf danach nicht neu vergeben werden.
+    // The youngest request (id 4) vanishes: its id must not be assigned anew afterwards.
     sqlx::query("DELETE FROM outline_request WHERE id = 4").execute(pool).await.unwrap();
     (work, keys)
 }
@@ -190,7 +189,7 @@ async fn migration_0035_keeps_every_request_and_only_allows_the_add_kind() {
     let before = contents(&pool, &layout).await;
     assert_eq!(before["outline_request"].len(), 3, "drei Anträge vor der Migration (ein vierter ist gelöscht)");
     {
-        // Gegenprobe in einer zurückgerollten Transaktion: Vor 0035 kennt die Prüfung `add` nicht.
+        // Counter-check in a rolled-back transaction: before 0035 the check does not know `add`.
         let mut tx = pool.begin().await.unwrap();
         let refused = sqlx::query("INSERT INTO outline_request (work_id, op, params, origin_kind, origin_name) VALUES (?, 'add', '{}', 'mcp', 'x')")
             .bind(work)
@@ -247,7 +246,7 @@ async fn migration_0035_keeps_every_request_and_only_allows_the_add_kind() {
     let listed = store.outline_requests(work, false).await.unwrap();
     assert_eq!(listed.len(), 3, "die alten Anträge lassen sich lesen: {listed:?}");
 
-    // Danach: Ein Teil vor „Der Stein“ übernähme zwei Kapitel → Antrag der Art add, nichts angelegt.
+    // Afterwards: a part before „Der Stein“ would take over two chapters → request of kind add, nothing created.
     let origin = IdeaOrigin::Mcp { handle: "@mcp:probe".into() };
     let point = NewPoint { title: "Vom Mahlen".into(), level: Some(0) };
     let outcome =

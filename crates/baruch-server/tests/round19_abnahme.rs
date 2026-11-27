@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 19 (Abnahme): Ende-zu-Ende über den Server mit Nachbauten (Index, Präfixe, schwache Treffer, Gruppen
-//! benennen, Trennrest-Modul).
+//! Round 19 (acceptance): end to end through the server with mocks (index, prefixes, weak hits, naming groups, module
+//! with hyphenation leftovers).
 //!
-//! Ein frei erfundenes Werk („Die Laternen am Kai“) mit Abschnitten, Einfällen und Bibelzitaten läuft durch alle
-//! drei Teile der Runde:
-//! - **index:** Aufgaben-Präfixe in LanceDB (über `connection.set` wie das Formular), ehrlicher Status mit
-//!   liegengebliebenen Aufträgen auf der Seite „Verbindungen“, Suchen ohne neuen Versuchszyklus, „Index neu aufbauen“
-//!   ohne Warten auf die Sperre, Einfälle eines gelöschten Werks sofort im gemeinsamen Bereich.
-//! - **pgvector:** eigener Wegwerf-Container (`pgvector_support`): Felder in SQL gekürzt, Schema mit
-//!   Anführungszeichen sicher gequotet, Anfrage mit eigenem Präfix, `weak` über `rag.search`; Gedankenkarte:
-//!   Assistent schlägt Gruppennamen vor (`ScriptedModel`), der Mensch übernimmt per Formular; MCP `idea_map` mit
+//! A freely invented work („Die Laternen am Kai“) with sections, ideas and Bible quotations runs through all three
+//! parts of the round:
+//! - **index:** task prefixes in LanceDB (through `connection.set` like the form), honest status with jobs left lying
+//!   on the page „Verbindungen“, searches without a new retry cycle, „Index neu aufbauen“ without waiting for the lock,
+//!   ideas of a deleted work at once in the shared area.
+//! - **pgvector:** own throwaway container (`pgvector_support`): fields shortened in SQL, schema with quotation marks
+//!   safely quoted, query with a prefix of its own, `weak` through `rag.search`; thought map: the assistant proposes
+//!   group names (`ScriptedModel`), the human adopts through the form; MCP `idea_map` with
 //!   `near_limit`/`near_threshold`.
-//! - **treffer:** „schwach“ in Literatur, Einfällen und im Belegblock; erfundenes SWORD-Modul mit Trennresten
-//!   („Wortlaut stimmt (Leerraum im Modul)“, Hinweis zum Modul); „Joh 3,16 Mal 3,20“ ergibt beide Stellen.
+//! - **treffer:** „schwach“ in literature, ideas and in the evidence block; invented SWORD module with hyphenation
+//!   leftovers („Wortlaut stimmt (Leerraum im Modul)“, hint about the module); „Joh 3,16 Mal 3,20“ yields both
+//!   passages.
 //!
-//! Kein Netz außer Nachbauten: Einbettungen über einen eigenen Vektorraum ([`Space`]), Modell über `ScriptedModel`,
-//! pgvector nur im eigenen Container, Bibelmodule schreibt der Test selbst in einen Temp-Ordner.
+//! No network except mocks: embeddings through a vector space of its own ([`Space`]), model through `ScriptedModel`,
+//! pgvector only in the own container, Bible modules are written by the test itself into a temp folder.
 
 use crate::common;
 use crate::pgvector_support;
@@ -38,7 +39,7 @@ use baruch_server::rag;
 use baruch_sword::fixture::{Block, Fixture, Layout, hyphen_remnants, write};
 use serde_json::{Value, json};
 
-// ---- Werk und Hilfen -----------------------------------------------------------------------------------------------
+// ---- Work and helpers ---------------------------------------------------------------------------------------------
 
 const BOOK: &str = "// Abnahmebuch Runde 19 (frei erfunden).
 #set document(title: \"Die Laternen am Kai\", author: \"Ida Reling\")
@@ -77,7 +78,7 @@ async fn with_model(model: &ScriptedModel) -> common::Server {
     common::Server { app: baruch_server::router(state.clone()), state, data }
 }
 
-/// Wie `rag::wait_idle`, mit Obergrenze (ein hängender Test soll scheitern, nicht ewig warten).
+/// Like `rag::wait_idle`, with an upper limit (a hanging test is to fail, not wait forever).
 async fn idle(server: &common::Server) {
     tokio::time::timeout(Duration::from_secs(90), rag::wait_idle(&server.state))
         .await
@@ -93,7 +94,7 @@ fn url_escape(text: &str) -> String {
         .collect()
 }
 
-/// HTML-Maskierung wie minijinja (auch `/`).
+/// HTML escaping like minijinja (also `/`).
 fn esc(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -103,7 +104,7 @@ fn esc(text: &str) -> String {
         .replace('/', "&#x2f;")
 }
 
-/// Teil von `html` ab `start` bis zum nächsten `end` (Panik mit Text, wenn es fehlt).
+/// Part of `html` from `start` to the next `end` (panic with text if it is missing).
 fn between<'a>(html: &'a str, start: &str, end: &str) -> &'a str {
     let from = html.find(start).unwrap_or_else(|| panic!("„{start}“ fehlt: {html}"));
     let rest = &html[from..];
@@ -114,7 +115,7 @@ fn way<'a>(answer: &'a Value, name: &str) -> &'a Value {
     answer["ways"].as_array().unwrap().iter().find(|w| w["way"] == name).unwrap_or_else(|| panic!("{name}: {answer}"))
 }
 
-/// MCP-Aufruf vom eigenen Rechner (ohne Token).
+/// MCP call from the own machine (without token).
 async fn mcp_post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(id) = session {
@@ -150,9 +151,9 @@ async fn mcp_tool(server: &common::Server, session: &str, name: &str, arguments:
     .1
 }
 
-// ---- Nachbau-Vektorraum mit Aufzeichnung ---------------------------------------------------------------------------
+// ---- Mock vector space with recording -----------------------------------------------------------------------------
 
-/// Begriffsachsen: Wörter derselben Achse sind „bedeutungsgleich“, verschiedene Achsen stehen senkrecht.
+/// Concept axes: words of the same axis are "equal in meaning", different axes are perpendicular.
 const AXES: [&[&str]; 3] = [
     &["meer", "wellen", "wogen", "gischt", "küste", "flut", "kutter", "hafen", "segel", "möwen"],
     &["garten", "beet", "samen", "wurzel", "erde", "pflanze", "blüte"],
@@ -182,11 +183,11 @@ fn space_vector(text: &str) -> Vec<f32> {
 enum Mode {
     Ok,
     Fail(RagError),
-    /// Hängt, bis wieder `Ok` gilt (höchstens 30 s).
+    /// Hangs until `Ok` holds again (at most 30 s).
     Hang,
 }
 
-/// Einbetter-Nachbau: fester Vektorraum, zeichnet jeden Text auf, lässt sich auf Fehler oder Hängen stellen.
+/// Embedder mock: fixed vector space, records every text, can be set to error or hanging.
 #[derive(Clone)]
 struct Space {
     calls: Arc<Mutex<Vec<Vec<String>>>>,
@@ -207,7 +208,7 @@ impl Space {
         self.calls.lock().unwrap().iter().flatten().cloned().collect()
     }
 
-    /// Einbettungen für den Index (alles außer Anfragen, die auf `query` enden).
+    /// Embeddings for the index (everything except queries, which end in `query`).
     fn index_calls(&self, query: &str) -> usize {
         self.calls.lock().unwrap().iter().filter(|texts| !(texts.len() == 1 && texts[0].ends_with(query))).count()
     }
@@ -250,14 +251,14 @@ impl EmbedderFactory for Space {
     }
 }
 
-// ---- index + treffer: Präfixe, schwach auf allen Seiten ------------------------------------------------------------
+// ---- index + treffer: prefixes, weak on all pages -----------------------------------------------------------------
 
 #[tokio::test]
 async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_every_page() {
     let _turn = common::model_queue(module_path!()).await;
     let model = ScriptedModel::new();
     let server = with_model(&model).await;
-    // Präfixe wie über das Formular (connection.set kennt die Felder seit pgvector).
+    // Prefixes as through the form (connection.set has known the fields since pgvector).
     ok(
         &server,
         "connection.set",
@@ -294,7 +295,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
     );
     assert!(status["index"]["problem"].is_null(), "Begründung: kein Problem gemeldet: {status}");
 
-    // rag.search: Anfrage mit Anfrage-Präfix, weak genau unter der Schwelle.
+    // rag.search: query with query prefix, weak exactly below the threshold.
     let found = ok(&server, "rag.search", json!({ "work": work, "query": QUERY, "limit": 10 })).await;
     assert_eq!(
         space.texts().last().map(String::as_str),
@@ -311,7 +312,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
         "Begründung: Meer-Treffer stark, Garten und Laterne (senkrechte Achsen) schwach: {found}"
     );
 
-    // Literatur (Seite): schwache Treffer zugeklappt mit „schwach“.
+    // Literature (page): weak hits collapsed with „schwach“.
     let q = url_escape(QUERY);
     let (status_code, html) = server.get(&format!("/literatur?work={work}&lq={q}&lmode=rag")).await;
     assert_eq!(status_code, StatusCode::OK, "Literatur im Modus Bedeutung");
@@ -322,7 +323,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
     );
     assert!(html.find("Am Meer").unwrap() < html.find("data-weak-hits").unwrap(), "Begründung: starke zuerst");
 
-    // Einfälle (Seite und RPC).
+    // Ideas (page and RPC).
     let (_, html) = server.get(&format!("/einfaelle?work={work}&q={q}&mode=rag")).await;
     let folded = between(&html, "<details class=\"weak-hits\" data-weak-hits>", "</details>");
     assert!(
@@ -338,7 +339,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
         .collect();
     assert_eq!(order, [(sea, false), (garden, true)], "Begründung: idea.search mit weak, schwache zuletzt: {ideas}");
 
-    // Belegblock (@belege prüft den Meer-Abschnitt; der eigene Abschnitt ist kein Beleg, Garten/Laterne schwach).
+    // Evidence block (@belege checks the sea section; the own section is no evidence, garden/lantern weak).
     server.state.store.set_persona_rag("@belege", true).await.unwrap();
     model.push(Step::words("Keine Einwände."));
     let key = server.state.store.load_work(work).await.unwrap().nodes[0].key;
@@ -352,7 +353,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
     );
 }
 
-// ---- index: ehrlicher Status, kein Versuchszyklus, Neuaufbau ohne Sperre, gelöschtes Werk --------------------------
+// ---- index: honest status, no retry cycle, rebuild without lock, deleted work -------------------------------------
 
 #[tokio::test]
 async fn a_failing_embedder_leaves_honest_stale_jobs_and_reindex_and_deletion_act_at_once() {
@@ -387,7 +388,7 @@ async fn a_failing_embedder_leaves_honest_stale_jobs_and_reindex_and_deletion_ac
     let still = ok(&server, "rag.status", json!({ "work": work })).await;
     assert!(still["index"]["problem"].is_string(), "Begründung: das Problem bleibt bis zum Neuaufbau: {still}");
 
-    // Neuaufbau, während eine Einbettung hängt: sofortige Antwort mit deferred.
+    // Rebuild while an embedding hangs: immediate response with deferred.
     space.set(Mode::Hang);
     let before = space.started.load(Ordering::SeqCst);
     let queued = ok(&server, "rag.reindex", json!({ "work": work, "confirm": true })).await;
@@ -413,7 +414,7 @@ async fn a_failing_embedder_leaves_honest_stale_jobs_and_reindex_and_deletion_ac
     let (_, page) = server.get(&format!("/einstellungen/verbindungen?work={work}")).await;
     assert!(!page.contains("data-index-stale="), "Begründung: ohne liegengebliebene Aufträge kein Hinweis");
 
-    // Gelöschtes Werk: sein Einfall ist sofort im gemeinsamen Bereich (ohne Suche dazwischen).
+    // Deleted work: its idea is at once in the shared area (without a search in between).
     let other = server.import("= Möwen\n\nDie Möwen kreisen über dem Hafen.\n", "moewen.typ").await.work;
     let idea = ok(&server, "idea.create", json!({ "work": other, "words": "Möwen", "note": "Möwen am Hafen." })).await
         ["idea"]["id"]
@@ -431,9 +432,9 @@ async fn a_failing_embedder_leaves_honest_stale_jobs_and_reindex_and_deletion_ac
     assert!(hit["meta"]["work"].is_null(), "Begründung: er gehört zu keinem Werk mehr: {hit}");
 }
 
-// ---- pgvector im Container -----------------------------------------------------------------------------------------
+// ---- pgvector in the container ------------------------------------------------------------------------------------
 
-/// Schema mit Anführungszeichen und angehängtem SQL (frei erfunden; die Tabelle `opfer` muss bleiben).
+/// Schema with quotation marks and appended SQL (freely invented; the table `opfer` must stay).
 const EVIL_SCHEMA: &str = "kai\"; DROP TABLE public.opfer; --";
 
 #[tokio::test]
@@ -510,7 +511,7 @@ ALTER DATABASE {} SET search_path TO \"{evil}\", public;",
     assert_eq!(victim, 1, "Begründung: der Schemaname wurde nie als SQL ausgeführt (sicher gequotet)");
 }
 
-// ---- pgvector: Gruppen der Gedankenkarte ---------------------------------------------------------------------------
+// ---- pgvector: groups of the thought map --------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_assistant_proposes_group_names_and_only_the_human_takes_one_over_without_javascript() {
@@ -558,7 +559,7 @@ async fn the_assistant_proposes_group_names_and_only_the_human_takes_one_over_wi
     let words = server.state.store.idea_get(ids[0]).await.unwrap().words;
     assert!(!words.iter().any(|w| w == "Licht am Kai"), "Begründung: vor der Übernahme kein Schlagwort: {words:?}");
 
-    // MCP: Karte mit near_limit/near_threshold, aber kein Weg zum Übernehmen.
+    // MCP: map with near_limit/near_threshold, but no way to adopt.
     let s = mcp_session(&server, "abnahme19").await;
     let map = mcp_tool(&server, &s, "idea_map", json!({ "work": work, "near_limit": 1, "near_threshold": 0.5 })).await;
     assert_eq!(map["result"]["isError"], false, "Begründung: zulässige Werte gehen: {map}");
@@ -571,7 +572,7 @@ async fn the_assistant_proposes_group_names_and_only_the_human_takes_one_over_wi
         "Begründung: Übernehmen gibt es über MCP nicht: {taken}"
     );
 
-    // Der Mensch übernimmt per Formular.
+    // The human adopts through the form.
     let (status, location) = server.post_form(&act, &format!("method=idea.map_group_accept&group={light}&back=")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Übernehmen per Formular → 303");
     assert!(location.as_deref().is_some_and(|l| l.contains("ok=uebernommen")), "{location:?}");
@@ -587,7 +588,7 @@ async fn the_assistant_proposes_group_names_and_only_the_human_takes_one_over_wi
     assert_eq!(listed["groups"][1]["proposal"]["name"], "Graues Meer", "der andere Vorschlag bleibt: {listed}");
 }
 
-// ---- treffer: Trennrest-Modul und „Mal“ ----------------------------------------------------------------------------
+// ---- treffer: module with hyphenation leftovers and „Mal“ ---------------------------------------------------------
 
 fn remnant_bible() -> Fixture {
     let base = [

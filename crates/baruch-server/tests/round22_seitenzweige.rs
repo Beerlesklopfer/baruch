@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Seitenzweige, Besitz fassungen): übrige Fassungen, offene Vorschläge und Varianten als Refs
-//! `refs/revisions/<key>/<n>` im Spiegel – angelegt nach jedem Revisions-Commit, nachgeführt beim Verwerfen und beim
-//! Start (`sync_work`), entfernt beim Löschen der Fassung. Gelesen wird über `baruch_gitmirror` (ohne git-Programm) und,
-//! wo vorhanden, gegengeprüft mit `git` im Testordner. Frei erfundenes Werk, kein Modell, kein Netz.
+//! Round 22 (side branches, ownership fassungen): remaining revisions, open proposals and variants as refs
+//! `refs/revisions/<key>/<n>` in the mirror – created after every revision commit, updated on rejecting and at start
+//! (`sync_work`), removed on deleting the revision. Reading is done through `baruch_gitmirror` (without a git program)
+//! and, where present, cross-checked with `git` in the test folder. Freely invented work, no model, no network.
 
 use crate::common;
 
@@ -82,7 +82,7 @@ async fn other_versions_become_side_refs_with_the_section_in_that_version_and_he
         assert_eq!(status, "", "Arbeitsordner sauber (Seitenzweige berühren ihn nicht)");
     }
 
-    // Ein weiterer Speicher-Commit ohne Änderung an Fassung 1: der Seitenzweig bleibt derselbe Commit.
+    // A further save commit without a change to revision 1: the side branch stays the same commit.
     let before = side_refs(&server, work).await;
     let amended = second.replacen("Pegel", "alten Pegel", 1);
     server
@@ -102,7 +102,7 @@ async fn proposals_and_rejections_are_tracked_and_deleting_a_version_removes_its
         .add_proposal(work, 0, &first.replacen("Wärter", "müde Wärter", 1), "@lektor", "mock", "kürzer")
         .await
         .unwrap();
-    // Ein Vorschlag ist kein Commit; der nächste Revisions-Commit (hier: neue Fassung im Abschnitt 1) holt ihn nach.
+    // A proposal is no commit; the next revision commit (here: new revision in section 1) catches it up.
     let other = server.rpc("node.get", json!({ "work": work, "node": 1 })).await;
     let other_key = result(&other)["key"].as_i64().unwrap();
     let body = result(&other)["revisions"][0]["body"].as_str().unwrap().replacen("still", "ganz still", 1);
@@ -117,7 +117,7 @@ async fn proposals_and_rejections_are_tracked_and_deleting_a_version_removes_its
         assert!(message.contains("Baruch-Side: proposed") && message.contains("Persona: @lektor"), "{message}");
     }
 
-    // Verwerfen: kein Commit, aber der Seitenzweig trägt danach den Status.
+    // Rejecting: no commit, but the side branch carries the status afterwards.
     let before = refs[&name].clone();
     result(&server.rpc("revision.reject", json!({ "work": work, "key": key, "rev": proposal })).await);
     let refs = side_refs(&server, work).await;
@@ -126,7 +126,7 @@ async fn proposals_and_rejections_are_tracked_and_deleting_a_version_removes_its
         assert!(message.contains("Baruch-Side: rejected"), "verworfen: {message}");
     }
 
-    // Löschen der Fassung entfernt den Seitenzweig.
+    // Deleting the revision removes the side branch.
     let deleted =
         server.rpc("revision.delete", json!({ "work": work, "key": key, "rev": proposal, "confirm": true })).await;
     result(&deleted);
@@ -147,7 +147,7 @@ async fn the_start_brings_missing_side_refs_back() {
     let name = format!("{PREFIX}{key}/1");
     let mirror = server.state.mirror(work).await.unwrap();
     assert!(mirror.side_refs(PREFIX).unwrap().contains_key(&name), "Seitenzweig nach dem Speichern");
-    // Seitenzweige von außen fort (z. B. ein älterer Spiegel ohne sie): der Start holt sie nach (sync_work).
+    // Side branches gone from outside (e.g. an older mirror without them): the start catches them up (sync_work).
     mirror.sync_side_refs(PREFIX, &[], &[]).unwrap();
     assert!(mirror.side_refs(PREFIX).unwrap().is_empty(), "entfernt");
     drop(mirror);
@@ -156,8 +156,8 @@ async fn the_start_brings_missing_side_refs_back() {
     assert!(refs.contains_key(&name), "beim Start nachgeführt: {refs:?}");
 }
 
-/// PM-Abschluss R22 (Gutachten): Im Seitenzweig stehen relative Bildpfade ab der Wurzel wie im HEAD, damit sich
-/// `main.typ` samt `abschnitte/` auch aus einem Seitenzweig setzen lässt.
+/// PM close R22 (review): in the side branch relative image paths are from the root as in HEAD, so that `main.typ`
+/// including `abschnitte/` can be typeset from a side branch too.
 #[tokio::test]
 async fn side_refs_write_image_paths_from_the_root_like_head() {
     let server = common::open().await;

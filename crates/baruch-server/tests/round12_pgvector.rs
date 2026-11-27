@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 12, Aufgabe „pgvector“: pgvector direkt gegen ein **eigenes** PostgreSQL (podman-Container mit
-//! pgvector, sonst initdb-Cluster ohne pgvector, sonst ehrlich übersprungen; `pgvector_support`). Frei
-//! erfundene Daten („Das Jahr am Leuchtturm“, „Senfkornbuch“), Nachbau-Einbetter mit festen Vektoren – kein
-//! Eliezer, kein pgvector des Nutzers.
+//! Round 12, task „pgvector“: pgvector directly against an **own** PostgreSQL (podman container with pgvector,
+//! otherwise initdb cluster without pgvector, otherwise honestly skipped; `pgvector_support`). Freely invented data
+//! („Das Jahr am Leuchtturm“, „Senfkornbuch“), mock embedder with fixed vectors – no Eliezer, no pgvector of the user.
 //!
-//! Geprüft: „Verbindung prüfen“ zeigt Sammlungen mit Zahl, Dimension und Modelle; falsche Spalte/Tabelle →
-//! `ok: false` mit dem Namen; die Suche liefert nur Treffer der gewählten Sammlungen in Kosinus-Reihenfolge
-//! mit `score = 1 − Abstand`; Modell oder Dimension passen nicht → `ModelMismatch` ohne Abfrage; die
-//! Transaktion ist READ ONLY und hat ein Zeitlimit; SQL-Sonderzeichen gehen nur als Parameter hinein.
+//! Checked: „Verbindung prüfen“ shows collections with count, dimension and models; wrong column/table → `ok: false`
+//! with the name; the search delivers only hits of the chosen collections in cosine order with `score = 1 − distance`;
+//! model or dimension do not fit → `ModelMismatch` without a query; the transaction is READ ONLY and has a time limit;
+//! SQL special characters go in only as parameters.
 
 use crate::common;
 use crate::pgvector_support;
@@ -35,7 +34,7 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     answer["result"].clone()
 }
 
-/// Erfundene Abschnitte in drei Sammlungen; Vektoren der Dimension 3.
+/// Invented sections in three collections; vectors of dimension 3.
 const FIXTURE: &str = "
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE chunks (
@@ -54,8 +53,8 @@ CREATE TABLE lose (id serial PRIMARY KEY, collection text, document text, conten
 INSERT INTO lose (collection, document, content, embedding) VALUES ('leuchtturm', 'zettel', 'Ein Zettel.', '[0,0,1]');
 ";
 
-/// Einstellungen mit der ganzen Zuordnung zur Tabelle `chunks` (alle Felder, damit nichts von einer
-/// früheren Einstellung stehen bleibt), `extra` darüber.
+/// Settings with the whole mapping to the table `chunks` (all fields, so that nothing of an earlier setting remains),
+/// `extra` on top.
 fn mapped(pg: &Pg, extra: Value) -> Value {
     let mut config = pg.config();
     for (k, v) in [
@@ -77,7 +76,7 @@ fn mapped(pg: &Pg, extra: Value) -> Value {
     config
 }
 
-/// Einstellungen speichern, dann das Passwort für genau dieses Ziel hinterlegen.
+/// Save the settings, then store the password for exactly this target.
 async fn configure(server: &common::Server, config: Value) {
     ok(server, "connection.set", json!({ "kind": "pgvector", "config": config })).await;
     ok(server, "connection.set_secret", json!({ "kind": "pgvector", "secret": PASSWORD })).await;
@@ -106,7 +105,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     let Some(pg) = pgvector_support::start("pgvector").await else { return };
     eprintln!("eigenes PostgreSQL: {} auf 127.0.0.1:{}", pg.origin, pg.port);
 
-    // READ ONLY und Zeitlimit gelten unabhängig von pgvector (auch im initdb-Cluster).
+    // READ ONLY and time limit hold independently of pgvector (in the initdb cluster too).
     pg.exec("CREATE TABLE probe_schreiben (x int)").await;
     let mut conn = pg.connect().await;
     let mut tx = begin_read_only(&mut conn, TIMEOUT).await.expect("Transaktion READ ONLY");
@@ -147,7 +146,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     }
     pg.exec(FIXTURE).await;
 
-    // ---- Verbindung prüfen -----------------------------------------------------------------------
+    // ---- Checking the connection ----------------------------------------------------------------
     configure(&server, mapped(&pg, json!({}))).await;
     let result = ok(&server, "connection.check", json!({ "kind": "pgvector" })).await;
     assert_eq!(result["ok"], true, "verbunden, vector da, Tabelle und Spalten passen, Dimension bekannt: {result}");
@@ -179,7 +178,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     assert!(got["available_at"].is_string(), "Zeit der Prüfung: {got}");
     assert_eq!(got["collections"], json!([]), "noch keine gewählt");
 
-    // Ohne feste Dimension: die erste Zeile zählt.
+    // Without a fixed dimension: the first row counts.
     configure(
         &server,
         json!({ "table": "lose", "section_column": "", "title_column": "", "url_column": "", "model_column": "" }),
@@ -192,7 +191,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
         "vector ohne (n): {loose}"
     );
 
-    // Falsche Spalte bzw. Tabelle: ok false mit dem Namen.
+    // Wrong column or table: ok false with the name.
     configure(&server, mapped(&pg, json!({ "text_column": "inhalt" }))).await;
     let wrong = ok(&server, "connection.check", json!({ "kind": "pgvector" })).await;
     assert_eq!(wrong["ok"], false, "fehlende Spalte: {wrong}");
@@ -208,7 +207,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
         "Textspalte als Vektor abgelehnt: {wrong}"
     );
 
-    // ---- Suche -----------------------------------------------------------------------------------
+    // ---- Search ---------------------------------------------------------------------------------
     configure(&server, mapped(&pg, json!({}))).await;
     let embedders = factory();
     let way = pgvector::open_way(&server.state, embedders.clone()).await.expect("Weg pgvector offen");
@@ -242,7 +241,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     let limited = way.search(&Query { limit: 1, ..query("Möwen", &["leuchtturm"]) }).await.unwrap();
     assert_eq!(limited.len(), 1, "höchstens limit Treffer");
 
-    // SQL-Sonderzeichen gehen nur als Parameter hinein.
+    // SQL special characters go in only as parameters.
     let evil = way
         .search(&query("'; DROP TABLE chunks; --", &["leuchtturm", "x'); DROP TABLE chunks; --"]))
         .await
@@ -250,7 +249,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     assert_eq!(evil.len(), 3, "die erfundene Sammlung mit SQL im Namen gibt es nicht; leuchtturm trifft weiter");
     assert_eq!(count_chunks(&pg).await, 5, "Tabelle unversehrt: die Anfrage wurde nur gebunden, nie eingesetzt");
 
-    // ---- Modell und Dimension --------------------------------------------------------------------
+    // ---- Model and dimension --------------------------------------------------------------------
     let calls_before = embedders.calls();
     let foreign = way.search(&query("Möwen", &["fremd"])).await;
     assert!(
@@ -281,7 +280,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     let none = way.search(&query("Möwen", &[])).await;
     assert!(matches!(none, Err(RagError::NotConfigured(_))), "ohne Sammlung wird pgvector nicht gefragt: {none:?}");
 
-    // Falsche Zuordnung bei der Suche: ehrlicher Schema-Fehler.
+    // Wrong mapping in the search: honest schema error.
     configure(&server, mapped(&pg, json!({ "document_column": "dokument" }))).await;
     let broken =
         pgvector::open_way(&server.state, factory()).await.unwrap().search(&query("Möwen", &["leuchtturm"])).await;
@@ -290,7 +289,7 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
         "fehlende Spalte bei der Suche: {broken:?}"
     );
 
-    // Falsches Passwort: Denied, ohne das Passwort zu nennen.
+    // Wrong password: Denied, without naming the password.
     configure(&server, mapped(&pg, json!({}))).await;
     server.state.secrets.set("pgvector", "falsch-und-geheim").unwrap();
     let denied =

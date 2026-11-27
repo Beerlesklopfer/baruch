@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder über MCP (Vertrag Runde 6, Abschnitt 4f): lesend (`list_assets`, `read_asset`); seit Runde 11
-//! dazu `asset_add` (sofort) und die Anträge `asset_replace`, `asset_set_cover`, `asset_delete`,
-//! `asset_requests` (Ende-zu-Ende in `round11_mcp_assets.rs`). Die Namen der Runde 6 für schreibende
-//! Werkzeuge gibt es weiterhin nicht. Anfragen als Loopback-Client mit `ConnectInfo`.
+//! Images through MCP (contract Round 6, section 4f): reading (`list_assets`, `read_asset`); since Round 11 in addition
+//! `asset_add` (at once) and the requests `asset_replace`, `asset_set_cover`, `asset_delete`, `asset_requests` (end to
+//! end in `round11_mcp_assets.rs`). The names of Round 6 for writing tools still do not exist. Requests as a loopback
+//! client with `ConnectInfo`.
 
 use crate::common;
 
@@ -28,7 +28,7 @@ async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     serde_json::from_str(&body).unwrap()
 }
 
-/// Erfolgreicher Werkzeugaufruf: `structuredContent`.
+/// Successful tool call: `structuredContent`.
 async fn tool(server: &common::Server, name: &str, arguments: Value) -> Value {
     let answer = mcp(server, "tools/call", json!({ "name": name, "arguments": arguments })).await;
     assert_eq!(answer["result"]["isError"], false, "{name} sollte gelingen: {answer}");

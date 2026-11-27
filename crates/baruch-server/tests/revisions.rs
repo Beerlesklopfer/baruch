@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Revisionsbaum über RPC, `/act` und Oberfläche (Vertrag Runde 3, Abschnitte 3 und 4): Umschalten,
-//! Ändern, Löschen, Baum und Speichern auf einer Basis; jede Umschaltung, Änderung und Löschung als
-//! genau ein Commit im Git-Spiegel; Lücken in der Nummernfolge; Baumansicht und Vorschau mit `pick`.
-//! Echter Datenordner (SQLite, Bibliothek, Git-Spiegel) im Temp-Ordner.
+//! Revision tree through RPC, `/act` and user interface (contract Round 3, sections 3 and 4): switching, changing,
+//! deleting, tree and saving on a base; every switch, change and deletion as exactly one commit in the Git mirror; gaps
+//! in the number sequence; tree view and preview with `pick`. Real data folder (SQLite, library, Git mirror) in the
+//! temp folder.
 
 use crate::common;
 
@@ -15,7 +15,7 @@ use axum::http::{Request, StatusCode, header};
 use baruch_server::rpc;
 use serde_json::{Value, json};
 
-/// Spiegeldatei eines Abschnitts (`abschnitte/NNN-…`).
+/// Mirror file of a section (`abschnitte/NNN-…`).
 fn section_file(dir: &Path, seq: usize) -> PathBuf {
     let prefix = format!("{seq:03}-");
     std::fs::read_dir(dir.join("abschnitte"))
@@ -29,7 +29,7 @@ fn commit_count(dir: &Path) -> Option<u32> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|n| n.trim().parse().unwrap())
 }
 
-/// Betreff, Autor, Committer, Rumpf und Trailer des letzten Commits.
+/// Subject, author, committer, body and trailers of the last commit.
 struct LastCommit {
     subject: String,
     author: String,
@@ -74,11 +74,11 @@ async fn node(server: &common::Server, id: usize) -> Value {
     server.rpc("node.get", json!({ "node": id })).await["result"].clone()
 }
 
-/// Einleitung (Abschnitt 2) im Beispielwerk: 1 ersetzt, 2 aktuell, 3 Vorschlag von @lektor.
+/// Introduction (section 2) in the sample work: 1 superseded, 2 current, 3 proposal by @lektor.
 const INTRO_V1_LINE: &str = "Es richtet sich an Betroffene und an Gemeinden.";
 const INTRO_V2_LINE: &str = "Es richtet sich an Betroffene, an Seelsorger und an Gemeinden.";
 
-// ---- Umschalten -----------------------------------------------------------------------------------
+// ---- Switching -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn switching_to_an_older_version_makes_exactly_one_commit_with_trailers() {
@@ -156,7 +156,7 @@ async fn a_broken_mirror_is_reported_and_the_switch_stays() {
     assert_eq!(node(&server, 2).await["revisions"][0]["status"], "current", "die Datenbank ist die Quelle");
 }
 
-// ---- Ändern ---------------------------------------------------------------------------------------
+// ---- Changing ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn updating_an_older_version_logs_an_empty_commit_with_the_diff() {
@@ -181,7 +181,7 @@ async fn updating_an_older_version_logs_an_empty_commit_with_the_diff() {
         "Spiegeldatei unverändert"
     );
 
-    // Volltextsuche (Migration 0104): der neue Text, nicht mehr der alte.
+    // Full-text search (migration 0104): the new text, no longer the old one.
     let hits = server.rpc("library.search", json!({ "query": "Quittenbaum", "all_revisions": true })).await;
     let hits = hits["result"]["hits"].as_array().unwrap().clone();
     assert!(hits.iter().any(|h| h["node"] == 2 && h["rev"] == 1), "neuer Text im Index: {hits:?}");
@@ -238,7 +238,7 @@ async fn updating_the_current_version_changes_the_mirror_file() {
     assert_eq!(empty["error"]["message"], "Eine Fassung braucht Text.", "leerer Text wird abgelehnt");
 }
 
-// ---- Löschen --------------------------------------------------------------------------------------
+// ---- Deleting ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn deleting_a_middle_version_reparents_and_logs_the_full_text() {
@@ -351,7 +351,7 @@ async fn deleting_over_act_needs_the_checked_box() {
 #[tokio::test]
 async fn an_unknown_number_after_a_deletion_lists_the_existing_ones() {
     let server = common::open().await;
-    // Einleitung: 1, 2 (aktuell), 3; Fassung 4 speichern, 3 löschen → 1, 2, 4.
+    // Introduction: 1, 2 (current), 3; save revision 4, delete 3 → 1, 2, 4.
     server.rpc("revision.save", json!({ "node": 2, "body": "= Einleitung\n\nVierte.\n" })).await;
     let deleted = server.rpc("revision.delete", json!({ "node": 2, "rev": 3, "confirm": true })).await;
     assert_eq!(deleted["result"]["deleted"], 3, "Fassung 3 gelöscht: {deleted}");
@@ -378,7 +378,7 @@ fn the_workspace_script_confirms_deleting_and_leaves_alt_shift_to_the_outline() 
 
 #[test]
 fn outline_changes_and_other_forms_ask_before_dropping_unsaved_editor_text() {
-    // Ohne Browser nur am Quelltext prüfbar: jeder Weg, der die Bereiche neu zeichnet, fragt vorher.
+    // Without a browser only checkable on the source text: every way that redraws the areas asks first.
     let workspace = include_str!("../web/src/workspace.ts");
     assert!(
         workspace.contains("if (detail?.asked === true || leaveEditor()) void navigate(url);"),
@@ -401,7 +401,7 @@ fn outline_changes_and_other_forms_ask_before_dropping_unsaved_editor_text() {
     );
 }
 
-// ---- Baum und Speichern auf einer Basis ---------------------------------------------------------
+// ---- Tree and saving on a base -------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_tree_answers_for_a_section_a_chapter_and_the_whole_work() {
@@ -446,7 +446,7 @@ async fn saving_on_a_shown_version_takes_it_as_parent() {
     assert_eq!(unknown["error"]["code"], rpc::INVALID_PARAMS, "unbekannte Basis: {unknown}");
 }
 
-// ---- Ohne JavaScript über /act -------------------------------------------------------------------
+// ---- Without JavaScript through /act -------------------------------------------------------------
 
 #[tokio::test]
 async fn the_same_actions_work_without_javascript_and_redirect() {
@@ -482,7 +482,7 @@ async fn the_same_actions_work_without_javascript_and_redirect() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "aktuelle Fassung über /act nicht löschbar");
 }
 
-// ---- Oberfläche -----------------------------------------------------------------------------------
+// ---- User interface ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_switcher_highlights_the_current_version_and_offers_the_buttons() {
@@ -520,11 +520,11 @@ async fn the_switcher_highlights_the_current_version_and_offers_the_buttons() {
 #[tokio::test]
 async fn a_stale_proposal_is_diffed_against_its_base() {
     let server = common::open().await;
-    // Der Mensch speichert auf 2 eine Fassung 4; Vorschlag 3 beruht weiter auf 2.
+    // The human saves a revision 4 on 2; proposal 3 is still based on 2.
     server.rpc("revision.save", json!({ "node": 2, "body": "= Einleitung\n\nGanz neu.\n" })).await;
     let ui = server.rpc("ui.render", json!({ "node": 2, "rev": 3 })).await;
     let editor = ui["result"]["editor"].as_str().unwrap();
-    // Runde 7: Der Vorschlag steht als Variante im Lesefluss (fragments/proposals.html), der Kopf nennt die Basis.
+    // Round 7: the proposal is a variant in the reading flow (fragments/proposals.html), the head names the base.
     assert!(
         editor.contains("Unterschied zu Fassung 2 · gezeigt</span>"),
         "Basis ist 2, nicht die aktuelle 4 (ohne „(aktuell)“): {editor}"
@@ -535,7 +535,7 @@ async fn a_stale_proposal_is_diffed_against_its_base() {
 #[tokio::test]
 async fn after_deleting_a_middle_version_numbers_not_positions_are_used() {
     let server = common::open().await;
-    // Einleitung: 1, 2 (aktuell), 3 → auf 3 umschalten, 2 löschen: 1, 3.
+    // Introduction: 1, 2 (current), 3 → switch to 3, delete 2: 1, 3.
     server.rpc("revision.set_current", json!({ "node": 2, "rev": 3 })).await;
     server.rpc("revision.delete", json!({ "node": 2, "rev": 2, "confirm": true })).await;
 
@@ -546,7 +546,7 @@ async fn after_deleting_a_middle_version_numbers_not_positions_are_used() {
     assert!(editor.contains(">2/2</span>"), "Stelle 2 von 2: {editor}");
     assert!(editor.contains("<span class=\"counter is-current\""), "3 ist aktuell und hervorgehoben");
     assert!(editor.contains("&rev=1\" title=\"Vorige Fassung"), "zurück blättert auf Nummer 1, nicht 2: {editor}");
-    // Die Formulare der Fassung (Umschalten, Ändern, Löschen) stehen im Akkordeon „Fassungen“ rechts.
+    // The forms of the revision (switching, changing, deleting) are in the accordion „Fassungen“ on the right.
     let assistants = ui["result"]["assistants"].as_str().unwrap();
     assert!(assistants.contains("<input type=\"hidden\" name=\"rev\" value=\"3\">"), "Formulare tragen die Nummer");
 
@@ -565,7 +565,7 @@ async fn after_deleting_a_middle_version_numbers_not_positions_are_used() {
         "gelöschte Nummer führt auf die aktuelle Fassung"
     );
 
-    // shown_current: unveränderter Text antwortet mit der Nummer der aktuellen Fassung (3), nicht Stelle + 1.
+    // shown_current: unchanged text answers with the number of the current revision (3), not position + 1.
     let body = node(&server, 2).await["revisions"][1]["body"].as_str().unwrap().to_owned();
     let same = server.rpc("revision.save", json!({ "node": 2, "body": body })).await;
     assert_eq!(same["result"]["rev"], 3, "{same}");
@@ -580,15 +580,15 @@ async fn the_tree_view_indents_by_parent_and_escapes_authors() {
     store.add_proposal(1, 2, "= Einleitung\n\nZweiter Ast.\n", "@x<b>", "m&<i>", "").await.unwrap();
     store.save_human_on(1, 2, "= Einleitung\n\nAuf der Wurzel.\n", "Autor", 1).await.unwrap().unwrap();
     let ui = server.rpc("ui.render", json!({ "node": 2, "rev": 5 })).await;
-    // Die Baumansicht steht im Akkordeon „Fassungen“ der rechten Spalte (Wunsch 2026-11-06).
+    // The tree view is in the accordion „Fassungen“ of the right column (wish 2026-11-06).
     let editor = ui["result"]["assistants"].as_str().unwrap();
     let section = editor.split("revtree-chapter").next().unwrap();
-    // Baum: 1 (Wurzel) → 2 → 3, 4 (beide auf 2); 1 → 5 (aktuell).
+    // Tree: 1 (root) → 2 → 3, 4 (both on 2); 1 → 5 (current).
     for (rev, depth) in [(1, 0), (2, 1), (3, 2), (4, 2), (5, 1)] {
         let needle = format!("style=\"--depth:{depth}\" data-rev=\"{rev}\"");
         assert!(section.contains(&needle), "Fassung {rev} mit Tiefe {depth} fehlt: {section}");
     }
-    // Nur die Baumliste: Davor stehen die Formulare der gezeigten Fassung.
+    // Only the tree list: before it are the forms of the revision shown.
     let list = &section[section.find("revtree-list").expect("Baumliste im Akkordeon")..];
     let order: Vec<usize> = [1, 2, 3, 4, 5]
         .iter()
@@ -656,9 +656,9 @@ async fn mcp_offers_no_switching_editing_or_deleting() {
     let list: Value = serde_json::from_str(&body).unwrap();
     let names: Vec<&str> =
         list["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    // Einfälle (idea_*, Runde 7) und Beiträge (post_*, Runde 8) sind keine Fassungen; `idea_update`,
-    // `idea_delete` und `post_delete` zählen nicht. Bilder (asset_*, Runde 11) sind keine Fassungen
-    // von Abschnitten; `asset_delete` stellt nur einen Antrag.
+    // Ideas (idea_*, Round 7) and posts (post_*, Round 8) are no revisions; `idea_update`, `idea_delete` and
+    // `post_delete` do not count. Images (asset_*, Round 11) are no revisions of sections; `asset_delete` only files a
+    // request.
     for forbidden in ["set_current", "update", "delete", "switch", "accept", "reject", "save"] {
         assert!(
             !names.iter().any(|n| !n.starts_with("idea_")
@@ -676,7 +676,7 @@ async fn mcp_offers_no_switching_editing_or_deleting() {
     let answer: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(answer["error"]["code"], rpc::INVALID_PARAMS, "unbekanntes Werkzeug: {answer}");
 
-    // Der feste Schlüssel statt der Stelle (ab Runde 5 lehnt MCP `node` ab).
+    // The fixed key instead of the position (from Round 5 on MCP rejects `node`).
     let key = node(&server, 2).await["key"].clone();
     assert!(key.is_i64(), "node.get nennt den festen Schlüssel: {key}");
     let (_, _, body) = server
@@ -691,8 +691,8 @@ async fn mcp_offers_no_switching_editing_or_deleting() {
     assert_eq!(common::currents(&n), 1, "die Markierung bleibt");
 }
 
-/// Fester Schlüssel (`Node::key`) des Abschnitts an Stelle `seq`: Erzeugte Adressen tragen ihn statt
-/// der Stelle (`/?work=W&key=K`, Vertrag Runde 8).
+/// Fixed key (`Node::key`) of the section at position `seq`: generated addresses carry it instead of the position
+/// (`/?work=W&key=K`, contract Round 8).
 async fn key_at(server: &common::Server, work: i64, seq: i64) -> i64 {
     sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
         .bind(work)

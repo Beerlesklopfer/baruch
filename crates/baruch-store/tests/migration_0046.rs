@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0046 (Befunde, Befundverlauf, alte Beitragsfassungen; Runde 28) auf einer nachgebauten Datenbank im Stand
-//! von development vor Runde 28 (Store bis 0045, Bibliothek vollständig) mit frei erfundenen Zeilen: Werk mit
-//! Kapiteln, Beiträgen samt Verweis, Faden mit Beiträgen, Bild, Einfällen samt Verbindung und Lage, Umschlag-Block und
-//! Grabsteinen aller dreizehn Arten.
+//! Migration 0046 (findings, finding history, old post versions; Round 28) on a reproduced database in the state of
+//! development before Round 28 (store up to 0045, library complete) with freely invented rows: work with chapters,
+//! posts including reference, thread with posts, image, ideas including link and position, cover block and tombstones
+//! of all thirteen kinds.
 //!
-//! Belegt: 0046 steht nicht in `FOREIGN_KEYS_OFF`, und auf die umgebaute Tabelle `uuid_tombstone` zeigt kein
-//! Fremdschlüssel (darum löst das implizite DELETE von DROP TABLE keine Aktion aus); jede Zeile jeder alten Tabelle
-//! bleibt byte-gleich samt ids, auch alle Grabsteine; `post` und `chat_thread_post` haben `edited` als letzte Spalte,
-//! überall NULL; im Schema ändern sich nur der CHECK von `uuid_tombstone` und die Spalten von `post` und
-//! `chat_thread_post`, die dreizehn Grabstein-Trigger stehen wörtlich wieder da; neu sind genau die Objekte von
-//! `finding`, `finding_status` und `post_version`; die CHECKs lehnen ab, was der Vertrag verbietet; Fülltrigger und
-//! Grabsteine (mit Werk-uuid) feuern beim Einzellöschen, beim Löschen eines Beitrags bzw. Fadenbeitrags samt alter
-//! Fassung und beim Löschen des Werks.
+//! Evidenced: 0046 is not in `FOREIGN_KEYS_OFF`, and no foreign key points to the rebuilt table `uuid_tombstone`
+//! (therefore the implicit DELETE of DROP TABLE triggers no action); every row of every old table stays byte-identical
+//! including ids, also all tombstones; `post` and `chat_thread_post` have `edited` as the last column, NULL everywhere;
+//! in the schema only the CHECK of `uuid_tombstone` and the columns of `post` and `chat_thread_post` change, the
+//! thirteen tombstone triggers are there again literally; new are exactly the objects of `finding`, `finding_status`
+//! and `post_version`; the CHECKs reject what the contract forbids; fill triggers and tombstones (with work uuid) fire
+//! on single deletion, on deleting a post or thread post including old version and on deleting the work.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,7 +25,7 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Die Laterne am Kanal\", author: \"Mira Docht\")\n\n\
 = Abend\n\nDas Wasser trägt das letzte Licht.\n\n= Nacht\n\nDie Laterne brennt bis zum Morgen.\n";
 
-/// Die dreizehn Grabstein-Arten vor 0046 (Wert in `uuid_tombstone.kind`) und der Name ihres Grabstein-Triggers.
+/// The thirteen tombstone kinds before 0046 (value in `uuid_tombstone.kind`) and the name of their tombstone trigger.
 const KINDS: [(&str, &str); 13] = [
     ("work", "work_uuid_tombstone"),
     ("node", "node_uuid_tombstone"),
@@ -43,11 +42,11 @@ const KINDS: [(&str, &str); 13] = [
     ("cover_block", "cover_block_uuid_tombstone"),
 ];
 
-/// Zusätze, um die sich das Schema der alten Tabellen nach 0046 unterscheiden darf.
+/// Additions by which the schema of the old tables may differ after 0046.
 const TOMBSTONE_KINDS: &str = ",\n                                          'finding','finding_status','post_version'";
 const EDITED_COLUMN: &str = ", edited TEXT";
 
-/// Objekte, die 0046 neu anlegt.
+/// Objects that 0046 newly creates.
 const NEW_OBJECTS: [&str; 22] = [
     "finding",
     "finding_uuid",
@@ -99,8 +98,8 @@ async fn text(pool: &SqlitePool, sql: &str) -> String {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Store bis 0045 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
-/// der Stand von development vor Runde 28.
+/// Store up to 0045 (0040 as in `baruch_store::migrate` with foreign keys switched off) and the library: the state of
+/// development before Round 28.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 46), "die neue Migration ist 0046");
     assert!(
@@ -123,7 +122,7 @@ async fn migrate_before(pool: &SqlitePool) {
     assert_eq!(highest, 45, "Stand davor: Store bis 0045");
 }
 
-/// Ids der Testdaten.
+/// Ids of the test data.
 struct Rows {
     work: i64,
     nodes: Vec<i64>,
@@ -131,7 +130,7 @@ struct Rows {
     thread_posts: Vec<i64>,
 }
 
-/// Werk mit Inhalten in allen Tabellen mit uuid und Grabsteinen aller dreizehn Arten direkt in SQLite.
+/// Work with contents in all tables with uuid and tombstones of all thirteen kinds directly in SQLite.
 async fn insert_rows(pool: &SqlitePool) -> Rows {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let doc = baruch_typst::parse(BOOK).unwrap();
@@ -270,7 +269,7 @@ async fn insert_rows(pool: &SqlitePool) -> Rows {
     .await;
     exec(pool, &format!("INSERT INTO idea_map_pos (work_id, idea_id, x, y) VALUES ({work}, {}, 4, 2.5)", ideas[1]))
         .await;
-    // Grabsteine aller dreizehn Arten (wie nach früheren Löschungen; erfundene uuids).
+    // Tombstones of all thirteen kinds (as after earlier deletions; invented uuids).
     for (n, (kind, _)) in KINDS.iter().enumerate() {
         exec(
             pool,
@@ -305,14 +304,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values through `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -331,7 +330,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
 const FINDING_COLUMNS: &str = "work_id, node_id, post_id, thread_post_id, position, persona, kind, body, status, \
      reason, adopted_revision, deferred_node, deferred_idea, summary_of";
 
-/// Ein gültiger, offener Befund zum Lektor-Beitrag an Stelle `position` als SQL-Werte in [`FINDING_COLUMNS`].
+/// A valid, open finding on the lector post at position `position` as SQL values in [`FINDING_COLUMNS`].
 fn finding_values(rows: &Rows, position: u32) -> String {
     format!(
         "{}, {}, {}, NULL, {position}, '@lektor', 'critical', '„letzte Licht“ ist matt.', 'open', '', NULL, NULL, \
@@ -355,7 +354,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     assert_eq!(scalar(&pool, "SELECT count(DISTINCT kind) FROM uuid_tombstone").await, 13, "alle dreizehn Arten");
     let refused = sqlx::query("INSERT INTO uuid_tombstone (uuid, kind) VALUES ('x', 'finding')").execute(&pool).await;
     assert!(refused.is_err(), "vor 0046 kennt der CHECK die neuen Arten nicht (sonst prüfte dieser Test nichts)");
-    // Auf die umgebaute Tabelle zeigt kein Fremdschlüssel: Begründung, warum 0046 ohne FOREIGN_KEYS_OFF auskommt.
+    // No foreign key points to the rebuilt table: reason why 0046 gets by without FOREIGN_KEYS_OFF.
     let pointing = scalar(
         &pool,
         "SELECT count(*) FROM sqlite_master m, pragma_foreign_key_list(m.name) f \
@@ -364,10 +363,10 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     .await;
     assert_eq!(pointing, 0, "kein Fremdschlüssel auf uuid_tombstone");
 
-    // Nur 0046, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0046, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 46).run(&pool).await.expect("0046 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder alten Tabelle in den alten Spalten byte-gleich (ids, Grabsteine, Beiträge).
+    // Data: every row of every old table byte-identical in the old columns (ids, tombstones, posts).
     let after = contents(&pool, &layout).await;
     for (table, old) in &before {
         if table != "_sqlx_migrations" {
@@ -390,7 +389,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
         "vorhandene Beiträge gelten als nie bearbeitet (edited NULL)"
     );
 
-    // Schema: alte Objekte wörtlich bis auf die erlaubten Zusätze, neu genau die Objekte der drei Tabellen.
+    // Schema: old objects literal except for the allowed additions, new exactly the objects of the three tables.
     let schema_after = schema(&pool).await;
     let added: BTreeSet<String> = schema_after.keys().filter(|k| !schema_before.contains_key(*k)).cloned().collect();
     let expected: BTreeSet<String> = NEW_OBJECTS.iter().map(|s| s.to_string()).collect();
@@ -414,7 +413,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
             }
             None => now,
         };
-        // Auch die dreizehn Grabstein-Trigger: wörtlich wie vorher.
+        // The thirteen tombstone triggers too: literally as before.
         assert_eq!(Some(now), sql.clone().or(Some(String::new())), "Schema von {name} unverändert");
     }
     for (_, trigger) in KINDS {
@@ -422,7 +421,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     }
     assert!(schema_after.contains_key("uuid_tombstone_work"), "Index der Grabsteine neu angelegt");
 
-    // CHECK von uuid_tombstone: neue Arten erlaubt, Erfundenes weiter nicht.
+    // CHECK of uuid_tombstone: new kinds allowed, invented ones still not.
     for kind in ["finding", "finding_status", "post_version"] {
         exec(&pool, &format!("INSERT INTO uuid_tombstone (uuid, kind) VALUES ('probe-{kind}', '{kind}')")).await;
     }
@@ -431,7 +430,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     assert!(invented.is_err(), "CHECK von uuid_tombstone lehnt eine erfundene Art weiter ab");
     exec(&pool, "DELETE FROM uuid_tombstone WHERE uuid LIKE 'probe-%'").await;
 
-    // finding: gültige Befunde gehen, jede verbotene Abweichung nicht.
+    // finding: valid findings work, every forbidden deviation does not.
     let revision_uuid = text(&pool, &format!("SELECT uuid FROM revision WHERE node_id = {}", rows.nodes[0])).await;
     let node_uuid = text(&pool, &format!("SELECT uuid FROM node WHERE id = {}", rows.nodes[1])).await;
     let idea_uuid = text(&pool, "SELECT uuid FROM idea ORDER BY id LIMIT 1").await;
@@ -508,7 +507,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
             .unwrap();
     assert_eq!(defaults, (String::new(), String::new(), "open".into()), "Vorgaben: kein Zitat, kein Vermerk, offen");
 
-    // finding_status: Mensch setzt, Assistent schlägt vor; jede verbotene Abweichung nicht.
+    // finding_status: the human sets, the assistant proposes; every forbidden deviation does not work.
     let first: i64 = scalar(&pool, "SELECT id FROM finding WHERE position = 0 AND post_id IS NOT NULL").await;
     let human = format!("{first}, 'done', '', NULL, NULL, NULL, 'human', 'Autor', 0, NULL, NULL");
     let proposal = format!("{first}, 'done', '', NULL, NULL, NULL, 'persona', '@lektor', 1, NULL, NULL");
@@ -550,7 +549,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
         assert!(result.is_err(), "finding_status lehnt ab: {why}");
     }
 
-    // post_version: genau ein Beitrag oder Fadenbeitrag.
+    // post_version: exactly one post or thread post.
     for (post, thread_post) in
         [(rows.posts[0].to_string(), "NULL".to_owned()), ("NULL".to_owned(), rows.thread_posts[0].to_string())]
     {
@@ -579,7 +578,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     let replaced: String = text(&pool, "SELECT replaced FROM post_version ORDER BY id LIMIT 1").await;
     assert!(replaced.ends_with('Z') && replaced.len() == 24, "replaced bekommt die Zeit des Ersetzens: {replaced}");
 
-    // Grabsteine beim Einzellöschen, jeweils mit Werk-uuid.
+    // Tombstones on single deletion, each with the work uuid.
     let work_uuid = text(&pool, &format!("SELECT uuid FROM work WHERE id = {}", rows.work)).await;
     let grave = |uuid: String| {
         let pool = pool.clone();
@@ -597,7 +596,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     let thread_finding_uuid = text(&pool, "SELECT uuid FROM finding WHERE thread_post_id IS NOT NULL").await;
     exec(&pool, "DELETE FROM finding WHERE thread_post_id IS NOT NULL").await;
     assert_eq!(grave(thread_finding_uuid).await, Some(("finding".into(), Some(work_uuid.clone()))), "Befund");
-    // Ein Befund mit Verlauf nimmt den Verlauf mit (BEFORE-DELETE-Trigger, Grabsteine mit Werk-uuid).
+    // A finding with history takes the history along (BEFORE DELETE trigger, tombstones with work uuid).
     let history: Vec<String> = sqlx::query_scalar("SELECT uuid FROM finding_status WHERE finding_id = ?")
         .bind(first)
         .fetch_all(&pool)
@@ -608,7 +607,8 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     for uuid in history {
         assert_eq!(grave(uuid).await, Some(("finding_status".into(), Some(work_uuid.clone()))), "Verlauf mit Befund");
     }
-    // Beitrag löschen nimmt seine alte Fassung mit (Grabstein mit Werk-uuid); der Befund daran verliert nur den Bezug.
+    // Deleting a post takes its old version along (tombstone with work uuid); the finding on it only loses the
+    // reference.
     let version_uuid = text(&pool, &format!("SELECT uuid FROM post_version WHERE post_id = {}", rows.posts[0])).await;
     exec(&pool, &format!("DELETE FROM post WHERE id = {}", rows.posts[0])).await;
     assert_eq!(grave(version_uuid).await, Some(("post_version".into(), Some(work_uuid.clone()))), "Beitragsfassung");
@@ -632,8 +632,8 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     assert_eq!(integrity, "ok", "integrity_check");
     pool.close().await;
 
-    // Store::open danach; Löschen des Werks schreibt die Grabsteine der Befunde, ihres Verlaufs und der alten
-    // Fassungen (mit Werk-uuid), und die alten Trigger schreiben weiter.
+    // Store::open afterwards; deleting the work writes the tombstones of the findings, of their history and of the old
+    // versions (with work uuid), and the old triggers keep writing.
     let store = Store::open(dir.path()).await.expect("Store::open nach 0046");
     let pool = store.pool();
     let finding: i64 = scalar(pool, "SELECT min(id) FROM finding").await;
@@ -663,7 +663,7 @@ async fn migration_0046_keeps_every_row_and_adds_findings_and_post_versions() {
     .into_iter()
     .collect();
     assert!(mine.len() >= 7, "Befunde, Verlauf und Fassung vor dem Löschen des Werks: {mine:?}");
-    exec(pool, "DELETE FROM idea WHERE note = 'Spiegelung im Wasser'").await; // Arten idea und idea_link (nur im Test)
+    exec(pool, "DELETE FROM idea WHERE note = 'Spiegelung im Wasser'").await; // kinds idea, idea_link (test only)
     store.delete_work(rows.work, "Die Laterne am Kanal").await.expect("Werk löschen schreibt Grabsteine");
     for table in ["finding", "finding_status", "post_version"] {
         assert_eq!(scalar(pool, &format!("SELECT count(*) FROM {table}")).await, 0, "{table} geht mit dem Werk");

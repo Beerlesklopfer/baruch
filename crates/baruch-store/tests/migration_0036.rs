@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0036 (Modell-Verbindungen und Verbindung je Persona, Runde 15b „anbieter“) auf einer nachgebauten
-//! Datenbank im Stand von development (alle Store-Migrationen bis 0035, Bibliothek 0101–0105), mit frei
-//! erfundenem Werk, Personas und einer gespeicherten Verbindung `eliezer` samt Bindung des Schlüssels an ein
-//! früheres Ziel (Migration 0014).
+//! Migration 0036 (model connections and connection per persona, Round 15b „anbieter“) on a reproduced database in the
+//! state of development (all store migrations up to 0035, library 0101–0105), with a freely invented work, personas and
+//! a stored connection `eliezer` including the binding of the key to a former target (migration 0014).
 //!
-//! Nach einem Migrator bis 0036: Das Schema jeder alten Tabelle bleibt, neu sind genau `model_connection`,
-//! `persona_backend` und der Trigger, der Eliezer vor dem Löschen schützt; es gibt genau eine Verbindung
-//! „Eliezer“ ohne eigene Adresse (sie bleibt in `connection`) mit dem Konto `eliezer`, und keine Persona hat eine
-//! Zeile in `persona_backend` (= Eliezer, nicht freigegeben). Danach `Store::open`: jede alte Zeile unverändert,
-//! die Store-Methoden arbeiten auf den neuen Tabellen.
+//! After a migrator up to 0036: the schema of every old table stays, new are exactly `model_connection`,
+//! `persona_backend` and the trigger that protects Eliezer from deletion; there is exactly one connection „Eliezer“
+//! without an address of its own (it stays in `connection`) with the account `eliezer`, and no persona has a row in
+//! `persona_backend` (= Eliezer, not cleared). Afterwards `Store::open`: every old row unchanged, the store methods
+//! work on the new tables.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -38,7 +37,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store bis 0035 (Stand von development zu Beginn von Runde 15) und Bibliothek 0101–0105.
+/// Store up to 0035 (state of development at the beginning of Round 15) and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 36), "die neue Migration ist 0036");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 35), "Stand davor hat 0035 (development, ca04c58)");
@@ -54,7 +53,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Werk mit zwei Kapiteln, Personas, Verbindung `eliezer` mit Adresse, Prüfung und gebundenem Schlüssel.
+/// Work with two chapters, personas, connection `eliezer` with address, check and bound key.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -213,7 +212,7 @@ async fn migration_0036_adds_the_eliezer_connection_without_touching_old_rows() 
         "Adresse und Bindung des Schlüssels der Verbindung eliezer bleiben nutzbar (Embeddings, Personas)"
     );
 
-    // Store-Methoden auf den neuen Tabellen.
+    // Store methods on the new tables.
     let backend = store.persona_backend("@lektor").await.unwrap();
     assert_eq!(
         (backend.connection, backend.external_allowed, backend.explicit),
@@ -253,7 +252,7 @@ async fn migration_0036_adds_the_eliezer_connection_without_touching_old_rows() 
         sqlx::query_scalar("SELECT count(*) FROM pragma_foreign_key_check").fetch_one(store.pool()).await.unwrap();
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
     drop(store);
@@ -261,8 +260,8 @@ async fn migration_0036_adds_the_eliezer_connection_without_touching_old_rows() 
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

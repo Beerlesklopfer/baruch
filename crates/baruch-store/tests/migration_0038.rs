@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0038 (Fäden ohne Abschnitt, Runde 15 „auftraege“) auf einer nachgebauten Datenbank im Stand davor
-//! (alle Store-Migrationen unter 0038 – im Stand von development bis 0035, nach dem Zusammenführen auch 0036 und
-//! 0037 – und Bibliothek 0101–0106), mit frei erfundenem Werk, Beiträgen samt Quelle, Personas und Einstellungen.
+//! Migration 0038 (threads without section, Round 15 „auftraege“) on a reproduced database in the state before it (all
+//! store migrations below 0038 – in the state of development up to 0035, after the merge also 0036 and 0037 – and
+//! library 0101–0106), with a freely invented work, posts including source, personas and settings.
 //!
-//! Nach einem Migrator bis 0038: Das Schema jeder alten Tabelle bleibt, neu sind genau `chat_thread`,
-//! `chat_thread_post` und der Index `chat_thread_work`, beide Tabellen sind leer. Danach `Store::open`: jede
-//! Zeile jeder alten Tabelle unverändert; ein Faden lässt sich anlegen und fortsetzen, ein Faden eines anderen
-//! Werks gilt als unbekannt, das Löschen des Werks nimmt seine Fäden mit, ein zweites Öffnen ändert nichts.
+//! After a migrator up to 0038: the schema of every old table stays, new are exactly `chat_thread`, `chat_thread_post`
+//! and the index `chat_thread_work`, both tables are empty. Afterwards `Store::open`: every row of every old table
+//! unchanged; a thread can be created and continued, a thread of another work counts as unknown, deleting the work
+//! takes its threads along, a second opening changes nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -36,7 +36,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0038 und Bibliothek bis 0106.
+/// Store below 0038 and library up to 0106.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 38), "die neue Migration ist 0038");
     assert!(
@@ -55,7 +55,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Werk mit zwei Kapiteln, zwei Beiträgen (einer mit Quelle), Personas, Einstellungen.
+/// Work with two chapters, two posts (one with source), personas, settings.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     let doc = baruch_typst::parse(SOURCE).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -214,7 +214,7 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
         "Export byte-gleich wie vor der Migration"
     );
 
-    // Faden anlegen und fortsetzen.
+    // Create and continue a thread.
     let (thread, first) = store.thread_create(work, "@mcp:probe", "Wie endet die Überfahrt?").await.unwrap();
     assert_eq!(first.position, 0, "der erste Beitrag steht an Stelle 0");
     assert_eq!(thread.title, "Wie endet die Überfahrt?", "Titel aus der ersten Nachricht");
@@ -227,7 +227,7 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
     let posts: i64 = sqlx::query_scalar("SELECT count(*) FROM post").fetch_one(store.pool()).await.unwrap();
     assert_eq!(posts, 2, "Fadenbeiträge stehen nicht im Abschnitts-Chat (Tabelle post unverändert)");
 
-    // Ein Faden eines anderen Werks ist unbekannt.
+    // A thread of another work is unknown.
     let new = baruch_store::NewWork {
         title: "Ein anderes Ufer",
         author: "Ivo Brand",
@@ -244,7 +244,7 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
         "id aus fremdem Werk wird nicht gefunden: {foreign:?}"
     );
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -253,7 +253,7 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
     assert_eq!(schema(store.pool()).await, schema_once, "zweites Öffnen: Schema gleich");
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 
-    // Werk löschen nimmt seine Fäden mit (ON DELETE CASCADE).
+    // Deleting the work takes its threads along (ON DELETE CASCADE).
     store.delete_work(work, "Die Fähre im Schilf").await.expect("Werk löschen");
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM chat_thread_post").fetch_one(store.pool()).await.unwrap();
     assert_eq!(left, 0, "mit dem Werk sind seine Fadenbeiträge fort");
@@ -262,8 +262,8 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

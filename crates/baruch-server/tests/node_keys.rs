@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Feste Schlüssel der Gliederungspunkte (`key`): Jede Gliederungsänderung vergibt die Stellen
-//! (`node`, seq) neu. Ein veralteter Tab schickt die alte Stelle, aber auch den Schlüssel; der
-//! Schlüssel geht vor, damit nichts in einem fremden Abschnitt landet oder der falsche Punkt
-//! gelöscht wird. Echter Datenordner im Temp-Ordner, Gartenbuch: Frühling (0), Aussaat (1),
-//! Tiefe (2), Sommer (3).
+//! Fixed keys of the outline items (`key`): every outline change reassigns the positions (`node`, seq). An outdated tab
+//! sends the old position, but also the key; the key takes precedence so that nothing lands in a foreign section or the
+//! wrong item is deleted. Real data folder in the temp folder, Gartenbuch: Frühling (0), Aussaat (1), Tiefe (2), Sommer
+//! (3).
 
 use crate::common;
 
@@ -28,7 +27,7 @@ fn current_body(node: &Value) -> &str {
     node["revisions"].as_array().unwrap().iter().find(|r| r["status"] == "current").unwrap()["body"].as_str().unwrap()
 }
 
-/// Gartenbuch; dazu die Schlüssel in der Reihenfolge vorher.
+/// Gartenbuch; plus the keys in the order before.
 async fn garden() -> (common::Server, i64, Vec<i64>) {
     let server = common::open().await;
     let work = server.import_garden().await.work;
@@ -40,10 +39,10 @@ async fn garden() -> (common::Server, i64, Vec<i64>) {
 async fn a_stale_tab_saves_into_the_section_it_showed_after_another_tab_moved_it() {
     let (server, work, keys) = garden().await;
     let summer = keys[3];
-    // Tab B schiebt „Sommer“ nach vorn; „Tiefe“ steht danach an der alten Stelle 3.
+    // Tab B moves „Sommer“ to the front; „Tiefe“ is then at the old position 3.
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     assert_eq!(result(&moved)["node"], 0, "Sommer steht jetzt vorn: {moved}");
-    // Tab A kennt noch Stelle 3, schickt aber den Schlüssel von „Sommer“ mit.
+    // Tab A still knows position 3, but sends the key of „Sommer“ along.
     let saved = server
         .rpc(
             "outline.save",
@@ -64,7 +63,7 @@ async fn a_stale_delete_form_deletes_the_point_it_named_or_nothing() {
     let (server, work, keys) = garden().await;
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 3, "target": 0, "place": "before" })).await;
     result(&moved);
-    // Ohne JavaScript: Formular aus dem alten Stand mit Stelle 3 (jetzt „Tiefe“) und dem Schlüssel von „Sommer“.
+    // Without JavaScript: form from the old state with position 3 (now „Tiefe“) and the key of „Sommer“.
     let (status, location) = server
         .post_form(
             "/gliederung/act",
@@ -75,7 +74,7 @@ async fn a_stale_delete_form_deletes_the_point_it_named_or_nothing() {
     assert!(location.is_some_and(|l| l.starts_with("/gliederung?")), "zurück zum Gliederungsmanager");
     let after = nodes(&server, work).await;
     assert_eq!(titles(&after), ["Frühling", "Aussaat", "Tiefe"], "gelöscht ist „Sommer“, nicht „Tiefe“ an Stelle 3");
-    // Noch einmal derselbe Schlüssel: den Punkt gibt es nicht mehr, nichts anderes wird gelöscht.
+    // The same key once more: the item no longer exists, nothing else is deleted.
     let again = server.rpc("outline.delete", json!({ "work": work, "node": 2, "key": keys[3], "confirm": true })).await;
     assert_eq!(again["error"]["code"], -32000, "gelöschter Schlüssel → abgelehnt: {again}");
     assert!(
@@ -88,10 +87,10 @@ async fn a_stale_delete_form_deletes_the_point_it_named_or_nothing() {
 #[tokio::test]
 async fn revision_forms_and_move_targets_follow_the_key_without_javascript() {
     let (server, work, keys) = garden().await;
-    // „Frühling“ ans Ende: alle Stellen verschieben sich um eins.
+    // „Frühling“ to the end: all positions shift by one.
     let moved = server.rpc("outline.move", json!({ "work": work, "node": 0, "target": 3, "place": "after" })).await;
     assert_eq!(titles(&nodes(&server, work).await), ["Sommer", "Frühling", "Aussaat", "Tiefe"], "{moved}");
-    // Veralteter Beitrag an „Sommer“ (früher Stelle 3, jetzt 0) über /act.
+    // Outdated post at „Sommer“ (formerly position 3, now 0) through /act.
     let (status, location) = server
         .post_form("/act", &format!("method=post.add&work={work}&node=3&key={}&body=Wann+gie%C3%9Fen%3F", keys[3]))
         .await;
@@ -104,8 +103,8 @@ async fn revision_forms_and_move_targets_follow_the_key_without_javascript() {
     let after = nodes(&server, work).await;
     assert_eq!(after[0]["posts"].as_array().unwrap().len(), 1, "der Beitrag steht bei „Sommer“");
     assert!(after[3]["posts"].as_array().unwrap().is_empty(), "„Tiefe“ an Stelle 3 bekommt keinen Beitrag");
-    // Ziel über target_key: „Frühling“ (Schlüssel) wieder vor „Sommer“ (beide Kapitel, die Ebene bleibt);
-    // die mitgeschickten Stellen 0 und 0 („Sommer vor Sommer“) wären ungültig.
+    // Target through target_key: „Frühling“ (key) before „Sommer“ again (both chapters, the level stays); the positions
+    // 0 and 0 sent along („Sommer vor Sommer“) would be invalid.
     let reordered = server
         .post_form(
             "/gliederung/act",
@@ -134,11 +133,11 @@ async fn pages_carry_the_key_in_every_form_that_names_a_section() {
         !html.contains("<input type=\"hidden\" name=\"key\" value=\"\">"),
         "kein Formular schickt einen leeren Schlüssel (node.key steht im Kontext): {html}"
     );
-    // Das Editor-Formular selbst (nicht nur die linke Spalte) trägt den Schlüssel.
+    // The editor form itself (not only the left column) carries the key.
     let editor = html.split("data-outline-save>").nth(1).expect("Editor-Formular vorhanden");
     let editor = &editor[..editor.find("</form>").unwrap()];
     assert!(editor.contains(&key), "das Editor-Formular nennt „Sommer“ über seinen Schlüssel: {editor}");
-    // Runde 10: Die Chat-Eingabe geht an /assistenten/act (method persona.chat, Personas antworten).
+    // Round 10: the chat input goes to /assistenten/act (method persona.chat, personas answer).
     let chat = html.split("value=\"persona.chat\"").nth(1).expect("Chatformular vorhanden");
     let chat = &chat[..chat.find("</form>").unwrap()];
     assert!(chat.contains(&key), "das Chatformular nennt „Sommer“ über seinen Schlüssel: {chat}");

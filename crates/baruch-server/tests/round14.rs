@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 14 „Teile und Gliederung“, Ende-zu-Ende (Integrator, Vertrag Abschnitt 9): Teil-Markierung
-//! (R14a), Teile in Gliederung, MCP und Anträgen (R14b) und Nummerierung je Ebene samt „ohne Nummer“
-//! im Typst-Text (R14c) zusammen – über RPC, MCP und Formulare ohne JavaScript, mit Export, Re-Import,
-//! Spiegel und Satz. Alle Werke und Texte frei erfunden.
+//! Round 14 „Teile und Gliederung“, end to end (integrator, contract section 9): part marking (R14a), parts in outline,
+//! MCP and requests (R14b) and numbering per level including „ohne Nummer“ in the Typst text (R14c) together – through
+//! RPC, MCP and forms without JavaScript, with export, re-import, mirror and typesetting. All works and texts freely
+//! invented.
 
 use crate::common;
 
@@ -19,9 +19,9 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Werk mit Werkvorlage (Nummerierung „1.1“, kleine Seiten). Jedes Kapitel prüft im Satz selbst, wie
-/// Typst zählt (`#context assert.eq`); die erwarteten Werte sind die Nummern, die Baruch zeigen soll,
-/// sobald das Vorwort ohne Nummer zählt und ein Teil davor steht.
+/// Work with work template (numbering „1.1“, small pages). Every chapter checks in the typesetting itself how Typst
+/// counts (`#context assert.eq`); the expected values are the numbers that Baruch is to show as soon as the preface
+/// counts without a number and a part precedes it.
 fn lighthouse(title: &str) -> String {
     format!(
         "#set document(title: \"{title}\", author: \"Hanne Erdacht\")\n#set page(width: 10cm, height: 14cm)\n\
@@ -37,7 +37,7 @@ fn lighthouse(title: &str) -> String {
     )
 }
 
-/// Baumzeilen: (Art, Ebene, Titel, Nummer, numbered) in Baumreihenfolge, direkt aus Store und SQLite.
+/// Tree rows: (kind, level, title, number, numbered) in tree order, directly from store and SQLite.
 async fn outline(server: &common::Server, work: i64) -> Vec<(NodeKind, u8, String, String, bool)> {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let flags: Vec<(i64, i64)> = sqlx::query_as("SELECT id, numbered FROM node WHERE work_id = ? ORDER BY seq")
@@ -68,7 +68,7 @@ async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
     loaded.nodes.iter().find(|n| n.title == title).unwrap_or_else(|| panic!("kein Punkt „{title}“")).key
 }
 
-/// Aktuelle Fassung (Text, Autor) des Punkts mit dem Schlüssel `key`.
+/// Current revision (text, author) of the item with the key `key`.
 async fn current_of(server: &common::Server, work: i64, key: i64) -> (String, Author) {
     let loaded = server.state.store.load_work(work).await.unwrap();
     let node = loaded.nodes.iter().find(|n| n.key == key).expect("Punkt mit diesem Schlüssel");
@@ -80,7 +80,7 @@ fn last_commit(server: &common::Server, slug: &str) -> Option<String> {
     common::git(&server.mirror_dir_of(slug), &["log", "-1", "--format=%an%n%B"])
 }
 
-// ---- MCP (wie outline_mcp.rs) -----------------------------------------------------------------------
+// ---- MCP (as in outline_mcp.rs) --------------------------------------------------------------------
 
 async fn mcp_post(server: &common::Server, session: Option<&str>, message: Value) -> (axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
@@ -115,7 +115,7 @@ async fn mcp_ok(server: &common::Server, session: &str, tool: &str, arguments: V
     answer["result"]["structuredContent"].clone()
 }
 
-// ---- Vertrag Abschnitt 9: Teil + „Vorwort“ ohne Nummer → Export → Re-Import → Satz/PDF ----------------
+// ---- Contract section 9: part + „Vorwort“ without number → export → re-import → typesetting/PDF ------
 
 #[tokio::test]
 async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_pdf() {
@@ -128,7 +128,7 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
     let storm = key_of(&server, work, "Der Sturm").await;
     let preface_text = current_of(&server, work, preface).await.0;
 
-    // Der Mensch: Teil vor das erste Kapitel (auch mit Werkvorlage), Vorwort ohne Nummer.
+    // The human: part before the first chapter (also with a work template), preface without number.
     let added = server
         .rpc(
             "outline.add",
@@ -138,7 +138,7 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
     let added = result(&added);
     assert_eq!(added["adopted"], json!([preface, arrival, storm]), "alle drei Kapitel stehen jetzt unter dem Teil");
     let part = added["key"].as_i64().unwrap();
-    // Gegenprobe: Solange das Vorwort mitzählt, scheitern die Zählprüfungen im Text – sie sind wirksam.
+    // Counter-check: as long as the preface is counted, the counting checks in the text fail – they are effective.
     let counted_preface = baruch_server::typeset::typeset(&server.state, work).await.unwrap();
     assert!(
         counted_preface.diagnostics().iter().any(|d| d.severity == "error"),
@@ -153,11 +153,11 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
         (NodeKind::Section, 2, "Das Logbuch".to_owned(), "1.1".to_owned(), true),
         (NodeKind::Chapter, 1, "Der Sturm".to_owned(), "2".to_owned(), true),
     ];
-    // Diese Nummern stehen auch in den `assert.eq` im Text: gleicht der Satz unten fehlerfrei, zählt Typst
-    // genau wie Baruch.
+    // These numbers are also in the `assert.eq` in the text: if the typesetting below reconciles without errors, Typst
+    // counts exactly like Baruch.
     assert_eq!(outline(&server, work).await, expected, "Baum: Teil I, Vorwort ohne Nummer, Kapitel 1 und 2");
 
-    // Export: beide Markierungen; der gespeicherte Text des Vorworts bleibt (nur projiziert).
+    // Export: both markings; the stored text of the preface stays (only projected).
     let exported =
         baruch_typst::xref::strip_key_labels(&server.state.store.export_typst(work).await.unwrap()).into_owned();
     assert!(
@@ -171,7 +171,7 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
     assert!(!exported.contains("Überschriften ohne Nummer"), "keine Show-Regel mehr nötig");
     assert_eq!(current_of(&server, work, preface).await.0, preface_text, "die DB behält „= Vorwort“ (Vertrag §4)");
 
-    // Re-Import: dieselbe Gliederung (Arten, Ebenen, Titel, Nummern, numbered), Export byte-gleich.
+    // Re-import: the same outline (kinds, levels, titles, numbers, numbered), export byte-identical.
     let again_source = exported.replace("Turmjahr", "Turmjahr wieder");
     let again = server.import(&again_source, "wieder.typ").await.work;
     assert_eq!(outline(&server, again).await, expected, "Re-Import ergibt dieselbe Gliederung");
@@ -181,7 +181,7 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
         "Export → Import → Export byte-gleich"
     );
 
-    // Satz: die Zähler-Prüfungen im Text gelten (Typst-Nummern = Baruch-Nummern), Teil auf rechter Seite.
+    // Typesetting: the counter checks in the text hold (Typst numbers = Baruch numbers), part on a right-hand page.
     let typeset = baruch_server::typeset::typeset(&server.state, work).await.unwrap();
     let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
     assert!(errors.is_empty(), "Typst zählt wie Baruch (assert.eq im Text): {errors:?}");
@@ -195,14 +195,14 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
         "counted_headings = Kapitel, die Typst zählt (ohne Teil und Vorwort): Kapitelbild und Seitenzahl folgen"
     );
 
-    // Buch als PDF: dieselbe Quelle wie der Satz, also dieselben Seiten samt Teil-Seite.
+    // Book as PDF: the same source as the typesetting, hence the same pages including the part page.
     let pdf = server.rpc("work.pdf", json!({ "work": work })).await;
     assert_eq!(
         result(&pdf)["pages"].as_u64().unwrap() as usize,
         typeset.page_count(),
         "PDF hat die Seiten des Satzes (mit Teil-Seite)"
     );
-    // PDF-Antworten sind Bytes (SKILLS.md): `oneshot` + `to_bytes` statt `Server::send`.
+    // PDF responses are bytes (SKILLS.md): `oneshot` + `to_bytes` instead of `Server::send`.
     let response = tower::ServiceExt::oneshot(
         server.app.clone(),
         Request::get(format!("/werke/{work}/pdf")).body(Body::empty()).unwrap(),
@@ -215,12 +215,12 @@ async fn a_part_and_an_unnumbered_preface_survive_export_reimport_and_the_book_p
     assert!(bytes.starts_with(b"%PDF-"), "ein PDF");
 }
 
-// ---- Assistent legt einen Teil an, der Mensch benennt ohne JavaScript um und schaltet zurück -----------
+// ---- An assistant creates a part, the human renames without JavaScript and switches back -------------
 
 #[tokio::test]
 async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_outline_together() {
     let server = common::open().await;
-    // Ohne Werkvorlage (keine Präambel).
+    // Without a work template (no preamble).
     let report = server.import("= Muschelsand\n\nAm Strand.\n\n= Treibholz\n\nAm Ufer.\n", "kueste.typ").await;
     let (work, slug) = (report.work, report.slug);
     let first = key_of(&server, work, "Muschelsand").await;
@@ -232,7 +232,7 @@ async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_ou
         json!({ "work": work, "key": first, "place": "before", "title": "Vom Meer", "level": 0 }),
     )
     .await;
-    // Nutzerfrage 12 (2026-11-07): Der Teil übernähme beide Kapitel → Antrag, dem der Mensch zustimmt.
+    // User question 12 (2026-11-07): the part would take over both chapters → request to which the human agrees.
     assert_eq!(answer["action"], "requested", "Teil mit Folgekapiteln wird ein Antrag: {answer}");
     assert_eq!(answer["adopted"].as_array().unwrap().len(), 2, "beide Kapitel würden wandern: {answer}");
     let id = answer["request"]["id"].as_i64().unwrap();
@@ -249,7 +249,7 @@ async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_ou
         assert!(commit.contains("Baruch-Confirmed-By: Autor"), "und die Zustimmung: {commit}");
     }
 
-    // Umbenennen nur der Mensch – hier über das Formular ohne JavaScript.
+    // Renaming only by the human – here through the form without JavaScript.
     let form = format!("method=outline.rename&work={work}&key={part}&title=Von+der+See&view=gliederung");
     let (status, _) = server.post_form("/gliederung/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "ohne JavaScript: 303");
@@ -269,7 +269,7 @@ async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_ou
         .expect("Teil-Datei im Spiegel");
     assert_eq!(mirrored, body, "Spiegel-Datei = aktuelle Fassung des Teils");
 
-    // Zurückschalten auf Fassung 1: der Titel folgt der Markierung (Text der Fassung unverändert).
+    // Switching back to revision 1: the title follows the marking (text of the revision unchanged).
     result(&server.rpc("revision.set_current", json!({ "work": work, "key": part, "rev": 1 })).await);
     assert_eq!(outline(&server, work).await[0].2, "Vom Meer", "Umschalten benennt über die Markierung zurück");
     assert_eq!(
@@ -277,7 +277,7 @@ async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_ou
         format!("{}\n", baruch_typst::part_line("Vom Meer")),
         "Fassung 1 des Teils ist wieder aktuell: ihr Text ist die Markierungszeile mit dem alten Titel"
     );
-    // Export und Re-Import auch ohne Werkvorlage.
+    // Export and re-import without a work template too.
     let exported =
         baruch_typst::xref::strip_key_labels(&server.state.store.export_typst(work).await.unwrap()).into_owned();
     let again = server.import(&exported, "kueste-wieder.typ").await.work;
@@ -289,7 +289,7 @@ async fn an_assistant_creates_a_part_and_renaming_or_switching_keeps_text_and_ou
     );
 }
 
-// ---- Gliederungs-Vorschlag eines Assistenten: Vorschau → Antrag → Bestätigung ------------------------
+// ---- Outline proposal of an assistant: preview → request → confirmation ------------------------------
 
 #[tokio::test]
 async fn an_assistant_request_on_a_part_shows_a_preview_and_the_human_confirms_without_javascript() {
@@ -305,7 +305,7 @@ async fn an_assistant_request_on_a_part_shows_a_preview_and_the_human_confirms_w
         .await;
     let part = result(&added)["key"].as_i64().unwrap();
     let session = mcp_session(&server).await;
-    // Umbenennen eines Teils über MCP ist ein Antrag (AGENTS.md: nur nach Bestätigung).
+    // Renaming a part through MCP is a request (AGENTS.md: only after confirmation).
     let request =
         mcp_ok(&server, &session, "outline_rename", json!({ "work": work, "key": part, "title": "Ankunft am Turm" }))
             .await;
@@ -342,7 +342,7 @@ async fn an_assistant_request_on_a_part_shows_a_preview_and_the_human_confirms_w
     }
 }
 
-// ---- idea.process atomar (Teil eines Werks mit Teilen) ---------------------------------------------------
+// ---- idea.process atomic (part of a work with parts) ----------------------------------------------------
 
 #[tokio::test]
 async fn idea_process_as_outline_adds_the_point_and_closes_the_idea_together() {
@@ -354,7 +354,7 @@ async fn idea_process_as_outline_adds_the_point_and_closes_the_idea_together() {
         server.rpc("idea.create", json!({ "work": work, "key": storm, "words": ["Nebelhorn"], "note": "" })).await;
     let id = result(&created)["idea"]["id"].as_i64().unwrap();
     let before = outline(&server, work).await;
-    // Scheitert der zweite Schritt (Einfall schließen), darf auch der Punkt nicht bleiben.
+    // If the second step fails (closing the idea), the item must not stay either.
     sqlx::query("CREATE TRIGGER r14_idea_fails BEFORE UPDATE ON idea BEGIN SELECT RAISE(ABORT, 'Probe'); END")
         .execute(server.state.store.pool())
         .await
@@ -373,7 +373,7 @@ async fn idea_process_as_outline_adds_the_point_and_closes_the_idea_together() {
     );
 }
 
-// ---- Nummerierung je Ebene: Baum = Vorschau = Re-Import (Juristisch, Predigt) -------------------------
+// ---- Numbering per level: tree = preview = re-import (Juristisch, Predigt) ---------------------------
 
 #[tokio::test]
 async fn numbering_per_level_is_the_same_in_tree_preview_and_reimport() {
@@ -418,8 +418,8 @@ async fn numbering_per_level_is_the_same_in_tree_preview_and_reimport() {
         );
         let typeset = baruch_server::typeset::typeset(&server.state, again).await.unwrap();
         let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
-        // Die Prüfungen im Text lesen `counter(heading).get()` – die Zählung, nicht die Darstellung: Auch
-        // unter diesem Schema zählen Teil und Vorwort (Markierungen) in Typst nicht mit.
+        // The checks in the text read `counter(heading).get()` – the counting, not the presentation: under this scheme
+        // too, part and preface (markings) are not counted in Typst.
         assert!(errors.is_empty(), "{scheme}: Re-Import setzt fehlerfrei, Zählung wie Baruch: {errors:?}");
     }
 }

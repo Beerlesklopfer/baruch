@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Fassungen, Besitz fassungen): Fortschreiben im Editor, neue Fassung mit Grund, Verlauf, Rückgängig,
-//! Einstellung „Fassungen“, Alternativen im Lesefluss und MCP `revision_amends` – über RPC, Formulare ohne JavaScript,
-//! ausgelieferte Seiten und `/mcp`, mit echtem Datenordner (SQLite, Git-Spiegel) und einem frei erfundenen Werk. Kein
-//! Modell, kein Netz.
+//! Round 22 (revisions, ownership fassungen): amending in the editor, new revision with reason, history, undo, setting
+//! „Fassungen“, alternatives in the reading flow and MCP `revision_amends` – through RPC, forms without JavaScript,
+//! delivered pages and `/mcp`, with a real data folder (SQLite, Git mirror) and a freely invented work. No model, no
+//! network.
 
 use crate::common;
 
@@ -29,7 +29,7 @@ fn error(answer: &Value) -> (i64, String) {
     (e["code"].as_i64().unwrap(), e["message"].as_str().unwrap().to_owned())
 }
 
-/// Werk anlegen; Rückgabe: (Werk, Schlüssel des ersten Abschnitts, Spiegelordner).
+/// Create the work; return value: (work, key of the first section, mirror folder).
 async fn setup(server: &common::Server) -> (i64, i64, std::path::PathBuf) {
     let report = server.import(BOOK, "leuchtturm.typ").await;
     let node = server.rpc("node.get", json!({ "work": report.work, "node": 0 })).await;
@@ -49,7 +49,7 @@ async fn revisions_of(server: &common::Server, work: i64, key: i64) -> usize {
     result(&node)["revisions"].as_array().unwrap().len()
 }
 
-/// Kleiner Zusatz (ein Wort vor „Leuchtturm“), weit unter 20 %.
+/// Small addition (one word before „Leuchtturm“), far below 20 %.
 fn touched(body: &str, word: &str) -> String {
     let changed = body.replacen("Leuchtturm", &format!("{word} Leuchtturm"), 1);
     assert_ne!(changed, body, "Testtext enthält „Leuchtturm“");
@@ -76,7 +76,7 @@ async fn save(server: &common::Server, work: i64, key: i64, body: &str, based_on
     server.rpc("outline.save", params).await
 }
 
-/// Seite mit aufgelösten Maskierungen in Adressen (minijinja maskiert `/` als `&#x2f;`, `&` als `&amp;`).
+/// Page with resolved escapes in addresses (minijinja escapes `/` as `&#x2f;`, `&` as `&amp;`).
 fn readable(page: &str) -> String {
     page.replace("&#x2f;", "/").replace("&amp;", "&")
 }
@@ -135,11 +135,11 @@ async fn editor_saves_in_auto_mode_amend_the_version_with_one_mirror_commit_each
         "revision.tree trägt amend_seq: {tree}"
     );
 
-    // Ohne mode: wie bisher neue Fassung (alte Clients).
+    // Without mode: new revision as before (old clients).
     let r = save(&server, work, key, &touched(&second, "hohe"), 1, None).await;
     assert_eq!((result(&r)["saved"].as_str(), result(&r)["rev"].as_u64()), (Some("new"), Some(2)), "fehlt = new");
     assert!(result(&r).get("reason").is_none(), "ohne Modus auto kein Grund");
-    // Unbekannter Modus: -32602.
+    // Unknown mode: -32602.
     let (code, message) = error(&save(&server, work, key, "x", 2, Some("immer")).await);
     assert_eq!(code, -32602, "unbekannter Modus ist ein Parameterfehler: {message}");
     assert!(message.contains("„auto“"), "Meldung nennt die erlaubten Werte: {message}");
@@ -151,7 +151,7 @@ async fn a_new_version_in_auto_mode_names_its_reason_and_revision_save_takes_the
     let (work, key, _dir) = setup(&server).await;
     let original = body_of(&server, work, key).await;
 
-    // revision.save mit mode auto schreibt ebenfalls fort.
+    // revision.save with mode auto amends as well.
     let r = server
         .rpc("revision.save", json!({ "work": work, "key": key, "body": touched(&original, "alte"), "mode": "auto" }))
         .await;
@@ -161,7 +161,7 @@ async fn a_new_version_in_auto_mode_names_its_reason_and_revision_save_takes_the
         "revision.save mit mode auto schreibt fort"
     );
 
-    // Übernommener Vorschlag einer Persona: das nächste Speichern ist eine neue Fassung (not_own).
+    // Accepted proposal of a persona: the next save is a new revision (not_own).
     let proposal =
         server.state.store.add_proposal(work, 0, &touched(&original, "fremde"), "@lektor", "mock", "").await.unwrap();
     let r = server.rpc("revision.accept", json!({ "work": work, "key": key, "rev": proposal })).await;
@@ -172,7 +172,7 @@ async fn a_new_version_in_auto_mode_names_its_reason_and_revision_save_takes_the
     assert_eq!((r["saved"].as_str(), r["reason"].as_str()), (Some("new"), Some("not_own")), "Grund not_own: {r}");
     assert_eq!(r["reason_label"].as_str(), Some("aktuelle Fassung stammt nicht vom Menschen"), "deutscher Grund");
 
-    // Auf einer anderen Fassung bearbeitet: not_on_current (auch über revision.save).
+    // Edited on another revision: not_on_current (also through revision.save).
     let r = server
         .rpc(
             "revision.save",
@@ -231,7 +231,7 @@ async fn history_and_undo_over_rpc_record_one_commit_and_keep_every_step() {
     let (code, _) = error(&server.rpc("revision.amends", json!({ "work": work, "key": key, "rev": 77 })).await);
     assert_ne!(code, 0, "unbekannte Fassung abgelehnt");
 
-    // Nicht über /act: dort sind die neuen Methoden unbekannt.
+    // Not through /act: there the new methods are unknown.
     for method in ["revision.amend_undo", "revision.policy_set"] {
         let form = format!("method={method}&work={work}&key={key}&rev=1&seq=1&amend=0");
         let (status, _) = server.post_form("/act", &form).await;
@@ -309,12 +309,12 @@ async fn without_javascript_the_editor_amends_or_saves_anew_and_reports_it_in_th
     );
     let (_, location) = server.post_form("/gliederung/act", &form).await;
     let location = location.unwrap();
-    // as_new=1 → Modus „new“ (geht vor dem versteckten mode=auto); einen Grund gibt es nur im Modus „auto“ (§4).
+    // as_new=1 → mode „new“ (takes precedence over the hidden mode=auto); a reason exists only in mode „auto“ (§4).
     assert!(location.ends_with("&saved=new-2"), "as_new=1 → neue Fassung 2 ohne Grund: {location}");
     let (_, page) = server.get(&location).await;
     assert!(page.contains("Gespeichert: neue Fassung 2."), "Rückmeldung nennt die neue Nummer");
 
-    // Neue Fassung im Modus „auto“ mit Grund: Überschrift geändert.
+    // New revision in mode „auto“ with reason: heading changed.
     let body = body_of(&server, work, key).await.replacen("= Die Ankunft", "= Die späte Ankunft", 1);
     let form = format!("method=outline.save&work={work}&key={key}&based_on=2&mode=auto&body={}", form_escape(&body));
     let (_, location) = server.post_form("/gliederung/act", &form).await;
@@ -351,7 +351,7 @@ async fn the_history_page_shows_each_step_and_takes_back_without_javascript() {
     let (_, page) = server.get(&format!("{url}&ok=1")).await;
     assert!(page.contains("Zurückgenommen:") && page.contains("Rücknahme"), "Hinweis und neuer Schritt sichtbar");
 
-    // Auf einer nicht aktuellen Fassung: Meldung auf der Seite, kein Formular.
+    // On a revision that is not current: message on the page, no form.
     save(&server, work, key, &touched(&original, "neue"), 1, Some("new")).await;
     let (status, page) = server.post_form("/werke/fassungen/act", &form).await;
     assert_eq!(status, StatusCode::CONFLICT, "abgelehnt mit 409: {page:?}");
@@ -432,7 +432,7 @@ async fn a_section_with_other_versions_shows_them_in_the_reading_flow_and_switch
     let (_, preview) = server.get(&format!("/?work={work}&key={key}&view=preview")).await;
     assert!(preview.contains("weitere Fassung: 1</a>"), "Hinweis auch im Lesefluss der Vorschau");
 
-    // Ein offener Vorschlag zählt nicht als weitere Fassung.
+    // An open proposal does not count as a further revision.
     server.state.store.add_proposal(work, 0, &touched(&original, "fremde"), "@lektor", "mock", "").await.unwrap();
     let (_, page) = server.get(&format!("/?work={work}&key={key}")).await;
     assert!(page.contains("weitere Fassung: 1"), "Vorschläge zählen nicht mit");
@@ -460,8 +460,8 @@ async fn proposals_show_the_amend_state_of_their_base() {
     assert!(page.contains("beruht auf Fassung 1, Stand 2") || page.contains("beruht auf Stand 2"), "Fassungsbaum");
 }
 
-/// PM-Abschluss R22 (Gutachten): Ein Vorschlag auf Stand 0, dessen Basis danach fortgeschrieben wurde, heißt
-/// „veraltet“ – sonst sähe er aus, als beruhe er auf dem aktuellen Text.
+/// PM close R22 (review): a proposal on state 0 whose base was amended afterwards is called „veraltet“ – otherwise it
+/// would look as if it were based on the current text.
 #[tokio::test]
 async fn a_proposal_on_an_older_amend_state_is_marked_as_outdated() {
     let server = common::open().await;
@@ -480,7 +480,7 @@ async fn a_proposal_on_an_older_amend_state_is_marked_as_outdated() {
     );
 }
 
-/// MCP-Anfrage vom eigenen Rechner (ohne Token nur Loopback).
+/// MCP request from the own machine (without token only loopback).
 async fn mcp(server: &common::Server, method: &str, params: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 1, "method": method, "params": params });
     let mut request = Request::post("/mcp")
@@ -522,7 +522,7 @@ async fn mcp_reads_the_amend_history_only() {
     let data: Value = serde_json::from_str(&text).unwrap_or_else(|_| answer["result"]["structuredContent"].clone());
     assert_eq!(data["amend_seq"].as_u64(), Some(1), "Stand 1: {data}");
     assert_eq!(data["steps"][0]["body_before"].as_str(), Some(original.as_str()), "Text vorher geliefert");
-    // Über MCP gibt es kein Zurücknehmen.
+    // Through MCP there is no undoing.
     assert!(
         !tools.to_string().contains("amend_undo") && !tools.to_string().contains("policy_set"),
         "kein schreibendes Werkzeug für Fortschreibungen"
@@ -531,9 +531,9 @@ async fn mcp_reads_the_amend_history_only() {
 
 #[tokio::test]
 async fn a_stale_editor_tab_saves_a_new_version_instead_of_overwriting_an_amend_without_javascript_and_over_rpc() {
-    // Befund (Nachbesserung R22): Zwei Reiter öffnen Fassung 1 (Stand 0). A speichert (Stand 1), danach B auf seinem
-    // alten Text. Das Formular trägt den geladenen Stand (`based_on_amend`); B wird eine neue Fassung mit Grund
-    // „nicht auf der aktuellen Fassung bearbeitet“, und der Text von A bleibt als Fassung 1 erhalten.
+    // Finding (follow-up fix R22): two tabs open revision 1 (state 0). A saves (state 1), then B on its old text. The
+    // form carries the loaded state (`based_on_amend`); B becomes a new revision with reason
+    // „nicht auf der aktuellen Fassung bearbeitet“, and the text of A is preserved as revision 1.
     let server = common::open().await;
     let (work, key, _dir) = setup(&server).await;
     let (_, page) = server.get(&format!("/?work={work}&key={key}")).await;
@@ -565,7 +565,7 @@ async fn a_stale_editor_tab_saves_a_new_version_instead_of_overwriting_an_amend_
     let first = result(&node)["revisions"].as_array().unwrap().iter().find(|r| r["number"] == 1).cloned().unwrap();
     assert_eq!(first["body"].as_str(), Some(tab_a.as_str()), "der Text von A ist nicht verschwunden");
 
-    // Über RPC (revision.save) ebenso: veralteter Stand → neue Fassung.
+    // Through RPC (revision.save) likewise: outdated state → new revision.
     let answer = server
         .rpc(
             "revision.save",

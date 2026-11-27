@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23 „Härtung“ (Besitz mcp-namen): Handle-Regeln und Eigentum der MCP-Clients, Kontingent und Obergrenzen, Ausgabefelder von `ask_persona`, `index_propose` bei `node`, `StoreError::Stale` bei veralteten Anträgen.
+//! Round 23 „Härtung“ (ownership mcp-namen): handle rules and ownership of the MCP clients, quota and upper limits,
+//! output fields of `ask_persona`, `index_propose` with `node`, `StoreError::Stale` for outdated requests.
 //!
-//! Werke frei erfunden (ein kleines „Mühlenbuch“); kein Eliezer, kein Netz: Modelle nur über den Nachbau
-//! `assist::mock::ScriptedModel`, der jeden Aufruf aufzeichnet. Jede Zusicherung mit Begründung. Die Tests zu Chat und
-//! Wiederholen liegen in `tests/round23_mcp_namen/chat.rs` (eingebunden mit `#[path]`, `tests/main.rs` bleibt
-//! unverändert).
+//! Works freely invented (a small „Mühlenbuch“); no Eliezer, no network: models only through the mock
+//! `assist::mock::ScriptedModel`, which records every call. Every assertion with a reason. The tests on chat and
+//! repeating lie in `tests/round23_mcp_namen/chat.rs` (included with `#[path]`, `tests/main.rs` stays unchanged).
 
 use crate::common;
 
@@ -35,7 +35,7 @@ pub(crate) struct Mill {
     pub model: ScriptedModel,
     pub work: i64,
     pub slug: String,
-    /// Schlüssel von Wehr, Mahlgang, Speicher.
+    /// Keys of Wehr, Mahlgang, Speicher.
     pub keys: Vec<i64>,
 }
 
@@ -56,7 +56,7 @@ pub(crate) async fn mill(steps: impl IntoIterator<Item = Step>) -> Mill {
     Mill { server, model, work: report.work, slug: report.slug, keys }
 }
 
-/// Wer eine MCP-Anfrage stellt: Gegenstelle, Token, Sitzung.
+/// Who makes an MCP request: peer, token, session.
 #[derive(Clone, Default)]
 pub(crate) struct Caller {
     pub foreign: bool,
@@ -64,7 +64,7 @@ pub(crate) struct Caller {
     pub session: Option<String>,
 }
 
-/// Eine MCP-Nachricht über den Router (`oneshot`), Gegenstelle als `ConnectInfo` wie im echten Dienst.
+/// An MCP message through the router (`oneshot`), peer as `ConnectInfo` as in the real service.
 pub(crate) async fn mcp(m: &Mill, caller: &Caller, message: Value) -> (StatusCode, axum::http::HeaderMap, Value) {
     let mut request = Request::post("/mcp").header(header::CONTENT_TYPE, "application/json");
     if let Some(token) = &caller.token {
@@ -86,7 +86,7 @@ fn initialize(name: &str) -> Value {
                         "clientInfo": { "name": name, "version": "1.0" } } })
 }
 
-/// Client ohne Token vom eigenen Rechner mit dem Namen `name`.
+/// Client without token from the own machine with the name `name`.
 pub(crate) async fn local(m: &Mill, name: &str) -> Caller {
     let mut caller = Caller::default();
     let (status, headers, answer) = mcp(m, &caller, initialize(name)).await;
@@ -95,7 +95,7 @@ pub(crate) async fn local(m: &Mill, name: &str) -> Caller {
     caller
 }
 
-/// Client mit Token von einem anderen Rechner.
+/// Client with token from another machine.
 pub(crate) async fn remote(m: &Mill, token: &str) -> Caller {
     let mut caller = Caller { foreign: true, token: Some(token.to_owned()), session: None };
     let (status, headers, answer) = mcp(m, &caller, initialize("irgendein-name")).await;
@@ -104,7 +104,7 @@ pub(crate) async fn remote(m: &Mill, token: &str) -> Caller {
     caller
 }
 
-/// `tools/call`: die ganze JSON-RPC-Antwort (mit `result` oder `error`).
+/// `tools/call`: the whole JSON-RPC response (with `result` or `error`).
 pub(crate) async fn call(m: &Mill, caller: &Caller, name: &str, arguments: Value) -> Value {
     let message = json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": { "name": name, "arguments": arguments } });
     let (status, _, answer) = mcp(m, caller, message).await;
@@ -112,14 +112,14 @@ pub(crate) async fn call(m: &Mill, caller: &Caller, name: &str, arguments: Value
     answer
 }
 
-/// Gelungener Werkzeugaufruf: `structuredContent`.
+/// Successful tool call: `structuredContent`.
 pub(crate) async fn ok(m: &Mill, caller: &Caller, name: &str, arguments: Value) -> Value {
     let answer = call(m, caller, name, arguments).await;
     assert_eq!(answer["result"]["isError"], false, "{name} gelingt: {answer}");
     answer["result"]["structuredContent"].clone()
 }
 
-/// Abgelehnter Werkzeugaufruf (`isError`): der Text der Meldung.
+/// Rejected tool call (`isError`): the text of the message.
 pub(crate) async fn refused(m: &Mill, caller: &Caller, name: &str, arguments: Value) -> String {
     let answer = call(m, caller, name, arguments).await;
     assert_eq!(answer["result"]["isError"], true, "{name} wird als Werkzeugfehler abgelehnt: {answer}");
@@ -188,7 +188,7 @@ async fn token_names(m: &Mill) -> Vec<String> {
     m.server.state.store.mcp_token_list().await.unwrap().into_iter().map(|t| t.name).collect()
 }
 
-// ---- Tokens: eindeutig im Handle -----------------------------------------------------------------------------------
+// ---- Tokens: unique in the handle ---------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_token_whose_handle_is_taken_reserved_or_revoked_is_refused_over_rpc_and_form() {
@@ -213,7 +213,7 @@ async fn a_token_whose_handle_is_taken_reserved_or_revoked_is_refused_over_rpc_a
     );
     assert_eq!(token_names(&m).await, ["Laptop Küche"], "nach fünf Ablehnungen gibt es weiter genau einen Token");
 
-    // Formular: derselbe Weg, 422 mit Meldung, kein Token.
+    // Form: the same way, 422 with message, no token.
     let request = Request::post("/einstellungen/mcp/act")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(Body::from("action=create&name=laptop+kueche"))
@@ -224,7 +224,7 @@ async fn a_token_whose_handle_is_taken_reserved_or_revoked_is_refused_over_rpc_a
     assert!(!html.contains("nur jetzt sichtbar"), "kein neuer Token auf der Seite");
     assert_eq!(token_names(&m).await.len(), 1, "auch das Formular hat nichts angelegt");
 
-    // Widerrufen gibt den Handle nicht frei: die Beiträge des alten Tokens tragen ihn weiter.
+    // Revoking does not free the handle: the posts of the old token keep carrying it.
     result(&m.server.rpc("mcp_token.revoke", json!({ "id": id, "confirm": true })).await);
     let again = create_token(&m, "Laptop Küche").await;
     assert_eq!(error_code(&again), -32000, "der Name eines widerrufenen Tokens ist nicht wieder frei: {again}");
@@ -233,7 +233,7 @@ async fn a_token_whose_handle_is_taken_reserved_or_revoked_is_refused_over_rpc_a
         "die Meldung nennt den Grund: {again}"
     );
 
-    // Alles nach 32 Zeichen zählt nicht; ein wirklich anderer Name geht.
+    // Everything after 32 characters does not count; a really different name works.
     let long = "x".repeat(32);
     result(&create_token(&m, &format!("{long}-eins")).await);
     let cut = create_token(&m, &format!("{long}-zwei")).await;
@@ -252,7 +252,7 @@ async fn concurrent_requests_with_the_same_handle_create_exactly_one_token() {
         ["Werkstatt Süd", "werkstatt sued", "WERKSTATT-SUED", "Werkstatt_Süd ", "werkstatt süd", "Werkstatt Sued"];
     let mut tasks = Vec::new();
     for name in names {
-        // „Werkstatt_Süd“ hat einen eigenen Handle (Unterstrich bleibt); die übrigen fünf fallen zusammen.
+        // „Werkstatt_Süd“ has a handle of its own (the underscore stays); the other five coincide.
         let app = m.server.app.clone();
         tasks.push(tokio::spawn(async move { common::rpc(app, "mcp_token.create", json!({ "name": name })).await }));
     }
@@ -280,12 +280,12 @@ async fn concurrent_requests_with_the_same_handle_create_exactly_one_token() {
     );
 }
 
-// ---- Eigentum: Alt-Handle des Tokens, kein anderer erlangt es ----------------------------------------------------------
+// ---- Ownership: legacy handle of the token, nobody else obtains it --------------------------------------------------
 
 #[tokio::test]
 async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_them() {
     let m = mill([]).await;
-    // Bestand vor Runde 23: Token ohne Handle-Prüfung angelegt, Beitrag unter dem alten Handle (ü → '-').
+    // Stock before Round 23: token created without handle check, post under the old handle (ü → '-').
     let (_, secret) = m.server.state.store.mcp_token_create("Laptop Küche").await.unwrap();
     let (_, other_secret) = m.server.state.store.mcp_token_create("Zweitgerät").await.unwrap();
     let old = add_post(&m, 0, "@mcp:laptop-k-che", "Alter Beitrag vom Laptop.").await;
@@ -294,7 +294,7 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
     let fresh = ok(&m, &owner, "add_post", json!({ "work": m.work, "key": m.keys[0], "body": "Neuer Beitrag." })).await;
     assert_eq!(fresh["author"], "@mcp:laptop-kueche", "neue Beiträge tragen den Handle der neuen Regel: {fresh}");
 
-    // Niemand sonst: anderer Token, Client ohne Token mit dem Alt-Handle bzw. mit dem Namen des Tokens.
+    // Nobody else: another token, a client without token with the legacy handle or with the name of the token.
     let other = remote(&m, &other_secret).await;
     let text = refused(&m, &other, "post_edit", json!({ "work": m.work, "id": old, "body": "gekapert" })).await;
     assert!(text.contains("Nur eigene"), "ein anderer Token besitzt den Beitrag nicht: {text}");
@@ -325,7 +325,7 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
     let stolen = create_token(&m, "laptop-k-che").await;
     assert_eq!(error_code(&stolen), -32000, "auch ein neuer Token bekommt den Alt-Handle nicht: {stolen}");
 
-    // Der Token selbst: bearbeiten, verschieben, löschen – über den Alt-Handle.
+    // The token itself: editing, moving, deleting – through the legacy handle.
     let edited =
         ok(&m, &owner, "post_edit", json!({ "work": m.work, "id": old, "body": "Vom Laptop, bearbeitet." })).await;
     assert_eq!(edited["versions"].as_array().unwrap().len(), 1, "die alte Fassung bleibt als Verlauf: {edited}");
@@ -335,12 +335,12 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
     assert!(m.server.state.store.post_get(m.work, old).await.is_err(), "gelöscht vom eigenen Token");
 }
 
-// ---- Bestand: zwei Tokens, die erst die Regel seit Runde 23 zusammenlegte ---------------------------------------------
+// ---- Stock: two tokens that only the rule since Round 23 merged -----------------------------------------------------
 
 #[tokio::test]
 async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
     let m = mill([]).await;
-    // Bestand vor Runde 23 (ohne Handle-Prüfung angelegt): „Büro“ schrieb als @mcp:b-ro, „buero“ als @mcp:buero.
+    // Stock before Round 23 (created without handle check): „Büro“ wrote as @mcp:b-ro, „buero“ as @mcp:buero.
     let (_, umlaut_secret) = m.server.state.store.mcp_token_create("Büro").await.unwrap();
     let (_, plain_secret) = m.server.state.store.mcp_token_create("buero").await.unwrap();
     let of_umlaut = add_post(&m, 0, "@mcp:b-ro", "Alter Beitrag aus dem Büro.").await;
@@ -358,7 +358,7 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
         ok(&m, &plain, "add_post", json!({ "work": m.work, "key": m.keys[1], "body": "Neu vom zweiten." })).await;
     assert_eq!(other["author"], "@mcp:buero", "„buero“ behält seinen Autor: {other}");
 
-    // Keiner bearbeitet, verschiebt, löscht oder wandelt die Beiträge des anderen.
+    // Neither edits, moves, deletes or converts the posts of the other.
     for (who, caller, foreign_post) in [("Büro", &umlaut, of_plain), ("buero", &plain, of_umlaut)] {
         for (tool, extra) in [
             ("post_edit", json!({ "body": "gekapert" })),
@@ -384,14 +384,14 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
         );
     }
 
-    // Jeder verwaltet weiter seine eigenen alten Beiträge.
+    // Each keeps managing its own old posts.
     let edited =
         ok(&m, &umlaut, "post_edit", json!({ "work": m.work, "id": of_umlaut, "body": "Büro, bearbeitet." })).await;
     assert_eq!(edited["versions"].as_array().unwrap().len(), 1, "„Büro“ bearbeitet seinen alten Beitrag: {edited}");
     ok(&m, &plain, "post_delete", json!({ "work": m.work, "id": of_plain })).await;
     assert!(m.server.state.store.post_get(m.work, of_plain).await.is_err(), "„buero“ löscht seinen alten Beitrag");
 
-    // Ein Client ohne Token bekommt weder den einen noch den anderen Autor.
+    // A client without token gets neither the one nor the other author.
     for name in ["Büro", "buero", "b-ro"] {
         let intruder = local(&m, name).await;
         let mine =
@@ -400,7 +400,7 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
         assert!(author.starts_with("@mcp:lokal-"), "{name:?} ohne Token bleibt bei der Vorsilbe lokal-: {author}");
     }
 
-    // Die Einstellungsseite nennt den Autor, unter dem der Token wirklich schreibt, und den Grund.
+    // The settings page names the author under which the token really writes, and the reason.
     let (_, page) = m.server.get("/einstellungen/mcp").await;
     let row = page.split("<tr>").find(|r| r.starts_with("<td>Büro</td>")).expect("Zeile des Tokens „Büro“");
     assert!(row.contains("<code>@mcp:b-ro</code>"), "Autor des Tokens „Büro“ ist der alte: {row}");
@@ -412,7 +412,7 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
     assert!(row.contains("<code>@mcp:buero</code>") && !row.contains("gehört einem anderen"), "ohne Hinweis: {row}");
 }
 
-// ---- Clients ohne Token: wechselnde Namen öffnen kein neues Kontingent --------------------------------------------------
+// ---- Clients without token: changing names open no new quota --------------------------------------------------------
 
 #[tokio::test]
 async fn clients_without_token_share_the_model_slots_whatever_they_call_themselves() {
@@ -421,7 +421,7 @@ async fn clients_without_token_share_the_model_slots_whatever_they_call_themselv
     let (_, secret) = m.server.state.store.mcp_token_create("Werkbank").await.unwrap();
     let mut running = Vec::new();
     for n in 0..quota::MAX_WITHOUT_TOKEN {
-        // Jeder Auftrag unter einem neuen Namen: je Name wäre nur einer von zwei Plätzen belegt.
+        // Every job under a new name: per name only one of two places would be taken.
         let caller = local(&m, &format!("Wechsler {n}")).await;
         let app = m.server.app.clone();
         let (work, key) = (m.work, m.keys[0]);
@@ -476,9 +476,9 @@ async fn clients_without_token_share_the_model_slots_whatever_they_call_themselv
     }
 }
 
-// ---- Client ohne Token mit dem Namen eines Tokens: echter Server auf 127.0.0.1:0 -----------------------------------------
+// ---- Client without token with the name of a token: real server on 127.0.0.1:0 --------------------------------------
 
-/// Eigener Server auf `127.0.0.1:0` (echte Verbindungen, `ConnectInfo` wie im Dienst); gibt die Adresse zurück.
+/// Own server on `127.0.0.1:0` (real connections, `ConnectInfo` as in the service); returns the address.
 async fn listen(m: &Mill) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
@@ -563,7 +563,7 @@ async fn a_client_without_token_named_like_a_token_writes_as_lokal_and_owns_noth
     let edited = twin.tool("post_edit", json!({ "work": m.work, "id": own, "body": "Vom Zwilling, besser." })).await;
     assert_eq!(edited["isError"], false, "seinen eigenen Beitrag darf er bearbeiten: {edited}");
 
-    // Auch der Name eines widerrufenen Tokens bleibt geschützt; ein freier Name bleibt, wie er ist.
+    // The name of a revoked token stays protected too; a free name stays as it is.
     let ghost = Wire::open(&address, "altgeraet", None).await;
     let post = ghost.tool("add_post", json!({ "work": m.work, "key": m.keys[1], "body": "Vom Geist." })).await;
     assert_eq!(post["structuredContent"]["author"], "@mcp:lokal-altgeraet", "widerrufen zählt wie vorhanden: {post}");
@@ -571,14 +571,14 @@ async fn a_client_without_token_named_like_a_token_writes_as_lokal_and_owns_noth
     let post = free.tool("add_post", json!({ "work": m.work, "key": m.keys[1], "body": "Frei." })).await;
     assert_eq!(post["structuredContent"]["author"], "@mcp:notizbuch", "ohne gleichnamigen Token keine Vorsilbe");
 
-    // „Bei jeder Anfrage“: Entsteht der Token erst später, gilt die Vorsilbe für die laufende Sitzung sofort.
+    // "On every request": if the token is created only later, the prefix holds for the running session at once.
     result(&create_token(&m, "Notizbuch").await);
     let post = free.tool("add_post", json!({ "work": m.work, "key": m.keys[1], "body": "Danach." })).await;
     assert_eq!(post["structuredContent"]["author"], "@mcp:lokal-notizbuch", "die Sitzung wird neu abgegrenzt: {post}");
     task.abort();
 }
 
-// ---- Bildkontingent ---------------------------------------------------------------------------------------------------
+// ---- Image quota ----------------------------------------------------------------------------------------------------
 
 fn svg(n: usize) -> String {
     format!(
@@ -594,7 +594,7 @@ async fn clients_without_token_share_one_asset_quota_and_a_token_has_its_own() {
     let secret = result(&create_token(&m, "Atelier").await)["secret"].as_str().unwrap().to_owned();
     let (first, second) = (local(&m, "Maler Eins").await, local(&m, "Maler Zwei").await);
     for n in 0..MAX_MCP_ASSET_WRITES_PER_DAY {
-        // Abwechselnd zwei Namen, jedes dritte Bild zusätzlich als Persona: alles dasselbe Kontingent.
+        // Alternating two names, every third image additionally as a persona: all the same quota.
         let caller = if n % 2 == 0 { &first } else { &second };
         let mut arguments =
             json!({ "work": m.work, "file_name": format!("m{n}.svg"), "content": svg(n), "encoding": "svg" });
@@ -642,7 +642,7 @@ async fn clients_without_token_share_one_asset_quota_and_a_token_has_its_own() {
     assert_eq!(own.writes, 1, "und der Token zählt nur sein eigenes");
 }
 
-// ---- index_propose, Titelregel, Grenzen ---------------------------------------------------------------------------------
+// ---- index_propose, title rule, limits ------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn index_propose_refuses_node_as_an_argument_error_and_stops_at_its_limits() {
@@ -668,7 +668,7 @@ async fn index_propose_refuses_node_as_an_argument_error_and_stops_at_its_limits
             .await
             .unwrap()
     };
-    // Bis zur Grenze je Herkunft (200) auffüllen: Kopien des echten Vorschlags.
+    // Fill up to the limit per origin (200): copies of the real proposal.
     let fill = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?) \
                 INSERT INTO index_proposal (work_id, node_id, based_on, word, occurrence, mark, reason, origin, status) \
                 SELECT p.work_id, p.node_id, p.based_on, p.word, p.occurrence, p.mark, p.reason, ?, 'open' \
@@ -683,7 +683,7 @@ async fn index_propose_refuses_node_as_an_argument_error_and_stops_at_its_limits
     let other = local(&m, "Zweite Hilfe").await;
     ok(&m, &other, "index_propose", json!({ "work": m.work, "key": m.keys[1], "word": "Stein" })).await;
 
-    // Grenze je Werk (2000): mit fremden Herkünften auffüllen.
+    // Limit per work (2000): fill up with foreign origins.
     sqlx::query(fill).bind(1799).bind("@mcp:viele").bind(m.work).execute(pool).await.unwrap();
     assert_eq!(count().await, 2000, "2000 offene Vorschläge im Werk (MAX_OPEN_INDEX_PROPOSALS_PER_WORK)");
     let text = refused(&m, &other, "index_propose", json!({ "work": m.work, "key": m.keys[2], "word": "Korn" })).await;
@@ -723,7 +723,7 @@ async fn a_stale_preview_is_reported_as_stale_and_open_requests_per_origin_are_b
     let made =
         ok(&m, &client, "outline_rename", json!({ "work": m.work, "key": m.keys[1], "title": "Das Mahlwerk" })).await;
     let id = made["request"]["id"].as_i64().unwrap();
-    // Der Mensch benennt inzwischen selbst um: der Antrag ist veraltet.
+    // The human meanwhile renames himself: the request is outdated.
     result(&m.server.rpc("outline.rename", json!({ "work": m.work, "key": m.keys[1], "title": "Der Läufer" })).await);
     let error = m.server.state.store.outline_request_preview(m.work, id).await.unwrap_err();
     match &error {
@@ -741,7 +741,7 @@ async fn a_stale_preview_is_reported_as_stale_and_open_requests_per_origin_are_b
     let shown = result(&listed)["requests"][0]["preview_error"].as_str().unwrap().to_owned();
     assert_eq!(shown, rpc.message, "RPC, MCP und Seite zeigen denselben Text: {shown}");
 
-    // Obergrenze: 50 offene Anträge je Herkunft und Werk (Kopien des offenen Antrags füllen auf).
+    // Upper limit: 50 open requests per origin and work (copies of the open request fill up).
     let pool = m.server.state.store.pool();
     sqlx::query(
         "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 49) \
@@ -762,7 +762,7 @@ async fn a_stale_preview_is_reported_as_stale_and_open_requests_per_origin_are_b
     ok(&m, &other, "outline_rename", json!({ "work": m.work, "key": m.keys[2], "title": "Der Boden" })).await;
 }
 
-// ---- Codereview ki-1 und ki-2: Grenzen der schreibenden Werkzeuge ----------------------------------------------------------
+// ---- Code review ki-1 and ki-2: limits of the writing tools ---------------------------------------------------------
 
 #[tokio::test]
 async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
@@ -787,7 +787,7 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     assert!(text.contains("The proposal") && text.contains("bytes"), "zu großer Vorschlag: {text}");
     assert_eq!(posts(&m, 0).await.len(), 1, "nur der eine erlaubte Beitrag ist gespeichert");
 
-    // Tageskontingent der Beiträge und Grenze offener Vorschläge: Bestand per SQL auffüllen.
+    // Daily quota of the posts and limit of open proposals: fill up the stock by SQL.
     let pool = m.server.state.store.pool();
     sqlx::query(
         "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < ?) \
@@ -800,7 +800,7 @@ async fn add_post_and_propose_revision_have_size_limits_and_quotas() {
     .unwrap();
     let text = refused(&m, &client, "add_post", json!({ "work": m.work, "key": key, "body": "einer zu viel" })).await;
     assert!(text.contains("Quota") && text.contains("300"), "301. Beitrag in 24 Stunden abgelehnt: {text}");
-    // Nachbesserung Runde 23: Ein neuer Name ohne Token öffnet kein neues Kontingent, ein Token hat sein eigenes.
+    // Follow-up fix Round 23: a new name without token opens no new quota, a token has its own.
     let renamed = local(&m, "Wenigschreiber").await;
     let text = refused(&m, &renamed, "add_post", json!({ "work": m.work, "key": key, "body": "neuer Name" })).await;
     assert!(
@@ -859,7 +859,7 @@ async fn a_batch_is_bounded_and_source_read_bounds_its_query() {
     assert!(text.starts_with("q: at most 500 characters"), "zu lang: {text}");
 }
 
-// ---- Befunde ziehen beim Verschieben mit --------------------------------------------------------------------------------
+// ---- Findings move along on moving ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn moving_a_post_takes_its_findings_along_except_adopted_ones() {

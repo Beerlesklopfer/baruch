@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16c, Gliederungsanträge:
-//! - Nutzerentscheidung 2026-11-08: Ablehnen und „veraltet“ stehen für **jede** Antragsart (rename, move,
-//!   set_level, set_numbered, delete, add) als genau ein leerer Spiegel-Commit „Gliederung: Antrag N
-//!   abgelehnt“ bzw. „… veraltet“ mit `Baruch-Decision` und `Baruch-Requested-By` – über RPC, über das
-//!   Formular ohne JavaScript und über den Zustimmungsdialog. „Später entscheiden“ bleibt unverändert.
-//! - Vorschau des Antrags „neuer Teil“: je Punkt Art und Nummer eindeutig („Teil …“, „Kapitel …“) und
-//!   vorher → nachher für übernommene Kapitel, auf `/gliederung` (ohne JavaScript) und im Dialog.
-//! - Zeiten auf `/gliederung`: Spalte „Dauer“ mit Zeitmarke, oben Gesamt-/Zielzeit mit Warnung – nur bei
-//!   Predigten oder gesetzter Zielzeit.
+//! Round 16c, outline requests:
+//! - User decision 2026-11-08: declining and „veraltet“ are recorded for **every** kind of request (rename, move,
+//!   set_level, set_numbered, delete, add) as exactly one empty mirror commit „Gliederung: Antrag N abgelehnt“ or
+//!   „… veraltet“ with `Baruch-Decision` and `Baruch-Requested-By` – through RPC, through the form without JavaScript
+//!   and through the consent dialog. „Später entscheiden“ stays unchanged.
+//! - Preview of the request "new part": per item kind and number unambiguous („Teil …“, „Kapitel …“) and before → after
+//!   for chapters taken over, on `/gliederung` (without JavaScript) and in the dialog.
+//! - Times on `/gliederung`: column „Dauer“ with time mark, at the top total/target time with a warning – only for
+//!   sermons or a set target time.
 //!
-//! Alle Werke und Texte frei erfunden; Anträge entstehen direkt im Store (wie über MCP, Herkunft
+//! All works and texts freely invented; requests are created directly in the store (as through MCP, origin
 //! `@mcp:pruefer`).
 
 use crate::common;
@@ -59,7 +59,7 @@ impl Coast {
         loaded.nodes.iter().map(|n| n.title.clone()).collect()
     }
 
-    /// Betreffzeilen im Spiegel (neueste zuerst); `None` ohne git-Programm.
+    /// Subject lines in the mirror (newest first); `None` without a git program.
     fn subjects(&self) -> Option<Vec<String>> {
         common::git(&self.server.mirror_dir_of(&self.slug), &["log", "--format=%s"])
             .map(|text| text.lines().map(str::to_owned).collect())
@@ -73,7 +73,7 @@ impl Coast {
         common::git(&self.server.mirror_dir_of(&self.slug), &["show", "--stat", "--format=", "HEAD"])
     }
 
-    /// Antrag der Art `kind` stellen (wie über MCP); id des Antrags.
+    /// File a request of kind `kind` (as through MCP); id of the request.
     async fn request(&self, kind: &str) -> i64 {
         let store = &self.server.state.store;
         let (ebb, flood, surf) = (self.key("Ebbe").await, self.key("Flut").await, self.key("Brandung").await);
@@ -108,7 +108,7 @@ impl Coast {
         store.outline_request(self.work, op, &origin(), "zur Probe").await.unwrap().id
     }
 
-    /// Der Punkt, den der Antrag `kind` betrifft (sein Titel macht ihn beim Umbenennen veraltet).
+    /// The item that the request `kind` concerns (its title makes it outdated on renaming).
     fn subject_of(kind: &str) -> &'static str {
         match kind {
             "rename" | "add" => "Flut",
@@ -120,7 +120,7 @@ impl Coast {
 
 const KINDS: [&str; 6] = ["rename", "move", "set_level", "set_numbered", "delete", "add"];
 
-/// Prüft: genau ein neuer Commit mit Betreff, Entscheidung und Antragsteller, ohne geänderte Datei.
+/// Checks: exactly one new commit with subject, decision and requester, without a changed file.
 fn assert_one_protocol_commit(c: &Coast, before: Option<Vec<String>>, kind: &str, id: i64, word: &str, code: &str) {
     let (Some(before), Some(after)) = (before, c.subjects()) else { return };
     let mut expected = vec![format!("Gliederung: Antrag {id} {word}")];
@@ -159,7 +159,7 @@ async fn a_stale_request_of_any_kind_writes_exactly_one_empty_commit() {
     for kind in KINDS {
         let c = coast().await;
         let id = c.request(kind).await;
-        // Inzwischen benennt der Mensch den betroffenen Punkt um: der Antrag ist veraltet.
+        // Meanwhile the human renames the item concerned: the request is outdated.
         let subject = Coast::subject_of(kind);
         let key = c.key(subject).await;
         let renamed = c.server.rpc("outline.rename", json!({ "work": c.work, "key": key, "title": "Umbenannt" })).await;
@@ -208,7 +208,7 @@ async fn rejecting_in_the_consent_dialog_writes_the_protocol_commit_and_later_st
         dialog.contains("<form class=\"consent-later\" method=\"dialog\"><button class=\"btn\" type=\"submit\">Später entscheiden</button></form>"),
         "„Später entscheiden“ schließt nur den Dialog, unverändert: {dialog}"
     );
-    // Die Knöpfe des Dialogs sind gewöhnliche Formulare an /gliederung/act; genau diese Felder schickt er.
+    // The buttons of the dialog are ordinary forms to /gliederung/act; it sends exactly these fields.
     for field in [
         "name=\"method\" value=\"outline.request_decide\"".to_owned(),
         format!("name=\"work\" value=\"{}\"", c.work),
@@ -227,9 +227,9 @@ async fn rejecting_in_the_consent_dialog_writes_the_protocol_commit_and_later_st
     assert!(!script.1.contains("setTimeout"), "kein Zeitablauf: Schließen bleibt Schließen");
 }
 
-// ---- Vorschau „neuer Teil“ -----------------------------------------------------------------------
+// ---- Preview "new part" -------------------------------------------------------------------------
 
-/// Die Vorschau-Liste eines Antrags aus dem HTML (zwischen `<ol class="request-preview-list` und `</ol>`).
+/// The preview list of a request from the HTML (between `<ol class="request-preview-list` and `</ol>`).
 fn preview_list<'a>(html: &'a str, from: &str) -> &'a str {
     let start = html.find(from).unwrap_or_else(|| panic!("{from} fehlt: {html}"));
     let list = &html[start..];
@@ -264,7 +264,7 @@ async fn the_new_part_preview_names_kind_and_number_and_before_after_for_adopted
     let part = preview.iter().find(|p| p["title"] == "Vom Wasser").unwrap();
     assert!(part["before_label"].is_null(), "der neue Teil hat kein Vorher: {part}");
 
-    // Ohne JavaScript auf /gliederung (in <details>) …
+    // Without JavaScript on /gliederung (in <details>) …
     let (status, page) = c.server.get(&format!("/gliederung?work={}", c.work)).await;
     assert_eq!(status, StatusCode::OK, "die Gliederungsseite lädt");
     let list = preview_list(&page, &format!("id=\"antrag-{id}\""));
@@ -279,7 +279,7 @@ async fn the_new_part_preview_names_kind_and_number_and_before_after_for_adopted
         list.contains(&format!("(vorher {flood_before} → nachher {flood_after})")),
         "vorher → nachher für das übernommene Kapitel: {list}"
     );
-    // … und im Dialog auf jeder Seite.
+    // … and in the dialog on every page.
     let (_, works) = c.server.get("/werke").await;
     let dialog = preview_list(&works, "<dialog class=\"consent-dialog\"");
     assert!(dialog.contains(&format!("{part_label}</span> Vom Wasser")), "Dialog mit Art und Nummer: {dialog}");
@@ -289,10 +289,10 @@ async fn the_new_part_preview_names_kind_and_number_and_before_after_for_adopted
     );
 }
 
-// ---- Zeiten auf /gliederung -----------------------------------------------------------------------
+// ---- Times on /gliederung ------------------------------------------------------------------------
 
-/// Erfundene Predigt; „Das Suchen“ ist lang genug (über 60 Wörter), um bei 60 Wörtern je Minute eine
-/// Zielzeit von einer Minute zu überschreiten.
+/// Invented sermon; „Das Suchen“ is long enough (over 60 words) to exceed a target time of one minute at 60 words per
+/// minute.
 fn sermon() -> String {
     let long = "Er lässt die neunundneunzig stehen und geht dem einen nach, durch Dornen und Geröll. ".repeat(6);
     format!(
@@ -329,7 +329,7 @@ async fn the_outline_page_shows_durations_and_the_target_warning_for_sermons() {
     }
     assert!(!page.contains("Zielzeit"), "ohne Zielzeit keine Zielzeit-Angabe");
 
-    // Zielzeit 1 Minute bei 60 Wörtern je Minute: über 60 Wörter überschreiten sie.
+    // Target time 1 minute at 60 words per minute: over 60 words exceed it.
     let slow = TimingSettings { words_per_minute: 60, target_seconds: Some(60) };
     server.state.store.set_timing_settings(work, slow).await.unwrap();
     let timing =

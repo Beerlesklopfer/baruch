@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21a (pdf-import): PDF/EPUB-Import mit Vorschau der Gliederung (RPC `source_import.*`, Seiten unter
-//! `/werke/import/quelle`, CLI), MultiGPT nur über den Nachbau. Tests schreibt der Besitzer (Vertrag R21, S1 legt nur
-//! die Datei an).
+//! Round 21a (pdf-import): PDF/EPUB import with preview of the outline (RPC `source_import.*`, pages under
+//! `/werke/import/quelle`, CLI), MultiGPT only through the mock. Tests are written by the owner (contract R21, S1 only
+//! creates the file).
 //!
-//! Alle Dokumente sind frei erfunden und entstehen im Test: PDF aus Typst über `baruch_render::compile_pdf` (unter
-//! `common::PDF_SERIAL`), EPUB von Hand gezippt, PNG über `baruch_epub::sample::png`. MultiGPT ist der Nachbau
-//! `connections::multigpt::mock::MockMultigpt` mit `full_tools()` auf 127.0.0.1:0; nie Eliezer, nie Internet.
-//! Der lokale PDF-Weg braucht Poppler (`pdftotext`, `pdfinfo`); fehlt es auf dem Rechner, melden die betroffenen
-//! Tests „ÜBERSPRUNGEN“ (die Meldung ohne pdftotext prüft ein eigener Test mit nicht vorhandenem Programm).
+//! All documents are freely invented and are created in the test: PDF from Typst through `baruch_render::compile_pdf`
+//! (under `common::PDF_SERIAL`), EPUB zipped by hand, PNG through `baruch_epub::sample::png`. MultiGPT is the mock
+//! `connections::multigpt::mock::MockMultigpt` with `full_tools()` on 127.0.0.1:0; never Eliezer, never the internet.
+//! The local PDF way needs Poppler (`pdftotext`, `pdfinfo`); if it is missing on the machine, the tests concerned
+//! report „ÜBERSPRUNGEN“ (the message without pdftotext is checked by a test of its own with a non-existent program).
 
 use std::io::Write;
 
@@ -21,7 +21,7 @@ use zip::{CompressionMethod, ZipWriter};
 
 use crate::common;
 
-// ---- Hilfen ------------------------------------------------------------------------------------------------------
+// ---- Helpers ----------------------------------------------------------------------------------------------------
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
     let answer = server.rpc(method, params).await;
@@ -43,7 +43,7 @@ async fn titles(server: &common::Server) -> usize {
     baruch_library::list_titles(server.state.store.pool()).await.unwrap().len()
 }
 
-/// Ist Poppler da? Sonst überspringen die Tests des lokalen PDF-Wegs (mit Meldung).
+/// Is Poppler there? Otherwise the tests of the local PDF way skip (with a message).
 fn poppler() -> bool {
     let found = ["pdftotext", "pdfinfo"].iter().all(|p| {
         std::process::Command::new(p).arg("-v").output().is_ok_and(|o| o.status.success() || !o.stderr.is_empty())
@@ -54,7 +54,7 @@ fn poppler() -> bool {
     found
 }
 
-/// Frei erfundenes Buch mit drei Kapiteln und Unterabschnitten (Typst-Vorgabe: Ebene 1 größer als Ebene 2).
+/// Freely invented book with three chapters and subsections (Typst default: level 1 larger than level 2).
 const KLIFF: &str = "#set document(title: \"Das Leuchtfeuer am Kliff\", author: \"Hanne Sturm\")
 #set text(lang: \"de\")
 
@@ -81,7 +81,7 @@ Danach liegt Treibholz am Strand, und die Möwen streiten sich um das, was die W
 Als der Herbst kommt, packt sie den Koffer wieder. Der Leuchtturm bleibt, die Fähre wartet, und das Licht dreht sich weiter über dem dunklen Wasser.
 ";
 
-/// PDF aus Typst (unter PDF_SERIAL, wie jedes PDF der Server-Tests).
+/// PDF from Typst (under PDF_SERIAL, like every PDF of the server tests).
 async fn pdf_of(typst: &str) -> Vec<u8> {
     let _serial = common::PDF_SERIAL.lock().await;
     let source = baruch_render::Source { main: typst.to_owned(), files: Vec::new() };
@@ -89,7 +89,7 @@ async fn pdf_of(typst: &str) -> Vec<u8> {
     pdf.bytes.unwrap_or_else(|| panic!("Test-PDF lässt sich nicht setzen: {:?}", pdf.diagnostics))
 }
 
-/// Überschriften (Ebene, Titel) eines Werks über den Export.
+/// Headings (level, title) of a work through the export.
 async fn outline_of(server: &common::Server, work: i64) -> Vec<(u8, String)> {
     let typst = server.state.store.export_typst(work).await.unwrap();
     baruch_typst::parse(&typst).unwrap().headings.into_iter().map(|h| (h.level, h.title)).collect()
@@ -109,8 +109,8 @@ fn xml_escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// Frei erfundenes EPUB 3: nav.xhtml mit zwei Kapiteln (das erste mit Unterabschnitt), Fußnote, Hervorhebungen,
-/// PNG-Bild mit Unterschrift, Zeichen, die Typst maskieren muss.
+/// Freely invented EPUB 3: nav.xhtml with two chapters (the first with a subsection), footnote, emphasis, PNG image
+/// with caption, characters that Typst must escape.
 fn epub_entries(title: &str) -> Vec<(&'static str, Vec<u8>)> {
     let container = r#"<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#;
     let opf = format!(
@@ -152,7 +152,7 @@ fn outline_pairs(preview: &Value) -> Vec<(u64, String)> {
         .collect()
 }
 
-/// multipart/form-data mit Textfeldern und höchstens einer Datei.
+/// multipart/form-data with text fields and at most one file.
 fn multipart(fields: &[(&str, &str)], file: Option<(&str, &[u8])>) -> (String, Vec<u8>) {
     let boundary = "----baruch-r21a-grenze".to_owned();
     let mut body = Vec::new();
@@ -200,7 +200,7 @@ async fn post_form(
     server.send(request).await
 }
 
-// ---- PDF lokal ---------------------------------------------------------------------------------------------------
+// ---- PDF locally ------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_local_pdf_preview_proposes_three_chapters_in_order_and_creates_nothing_before_apply() {
@@ -246,7 +246,7 @@ async fn a_local_pdf_preview_proposes_three_chapters_in_order_and_creates_nothin
     let again = ok(&server, "source_import.get", json!({ "draft": shown["draft"] })).await;
     assert_eq!(again["outline"], shown["outline"], "Begründung: get zeigt denselben Entwurf");
 
-    // Bestätigen mit bearbeiteter Gliederung: umbenannt, Ebene geändert, „Nach dem Sturm“ gestrichen.
+    // Confirm with an edited outline: renamed, level changed, „Nach dem Sturm“ struck out.
     let outline: Vec<Value> = shown["outline"]
         .as_array()
         .unwrap()
@@ -289,9 +289,9 @@ async fn a_local_pdf_preview_proposes_three_chapters_in_order_and_creates_nothin
     assert_eq!(gone["code"], -32602, "Begründung: ein übernommener Entwurf ist unbekannt: {gone}");
 }
 
-// ---- PDF über MultiGPT -------------------------------------------------------------------------------------------
+// ---- PDF through MultiGPT ---------------------------------------------------------------------------------------
 
-/// Nachbau mit allen Werkzeugen; das hochgeladene Dokument hat zwölf Seiten und ein Inhaltsverzeichnis.
+/// Mock with all tools; the uploaded document has twelve pages and a table of contents.
 async fn multigpt(server: &common::Server) -> MockMultigpt {
     let mock = MockMultigpt::start().await;
     mock.set_tools(full_tools());
@@ -366,7 +366,7 @@ async fn the_multigpt_way_uploads_once_reads_page_ranges_and_takes_the_outline_f
     assert_eq!(pdf_import::local_pdf_reads(&server.state), 0, "Begründung: über MultiGPT läuft kein pdftotext");
     assert_eq!(works(&server).await, works_before, "Begründung: vor apply kein Werk");
 
-    // Beides: Werk und Quelle mit Verknüpfung.
+    // Both: work and source with link.
     let applied = ok(&server, "source_import.apply", json!({ "draft": shown["draft"], "target": "both" })).await;
     let id = applied["library_title"].as_i64().unwrap_or_else(|| panic!("Titel angelegt: {applied}"));
     let pool = server.state.store.pool();
@@ -415,7 +415,7 @@ async fn a_multigpt_failure_is_reported_with_an_offer_to_read_locally_and_never_
     );
     assert_eq!(works(&server).await, works_before, "Begründung: nichts angelegt");
 
-    // Formular: 422 mit Meldung und „Lokal lesen“, die Datei liegt bereit.
+    // Form: 422 with message and „Lokal lesen“, the file lies ready.
     let (status, _, page) = post_multipart(
         &server,
         "/werke/import/quelle/vorschau",
@@ -556,7 +556,7 @@ async fn unsafe_or_oversized_epubs_are_refused_without_creating_anything() {
     assert_eq!(pdf_import::draft_count(&server.state), 0, "Begründung: auch kein Entwurf");
 }
 
-// ---- Entwürfe, Titel ---------------------------------------------------------------------------------------------
+// ---- Drafts, titles ---------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn discard_removes_a_draft_and_old_or_surplus_drafts_are_cleaned_on_the_next_preview() {
@@ -577,7 +577,7 @@ async fn discard_removes_a_draft_and_old_or_surplus_drafts_are_cleaned_on_the_ne
     let error = fails(&server, "source_import.apply", json!({ "draft": shown["draft"] })).await;
     assert_eq!(error["code"], -32602, "Begründung: ein verworfener Entwurf lässt sich nicht übernehmen: {error}");
 
-    // Alt (25 h) und zu viele: beim nächsten preview aufgeräumt.
+    // Old (25 h) and too many: cleared away at the next preview.
     let root = server.path().join("import-drafts");
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
     let old = format!("{:032x}", 1);
@@ -651,7 +651,7 @@ async fn parts_are_created_only_when_the_human_confirms_them() {
     assert!(headings[1..].iter().all(|(l, _)| *l > 0), "Begründung: sonst keine Teile: {headings:?}");
 }
 
-// ---- Bibliothek ------------------------------------------------------------------------------------------------
+// ---- Library --------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_local_source_lands_in_the_library_with_metadata_and_a_checkable_fulltext() {
@@ -704,7 +704,7 @@ async fn a_local_source_lands_in_the_library_with_metadata_and_a_checkable_fullt
             .await;
     assert_eq!(wrong["check"]["result"], "not_found", "Begründung: falscher Text an der Stelle fällt auf: {wrong}");
 
-    // Dieselbe Datei noch einmal in die Bibliothek: abgelehnt, nichts angelegt.
+    // The same file into the library once more: rejected, nothing created.
     let titles_before = titles(&server).await;
     let shown = ok(
         &server,
@@ -722,7 +722,7 @@ async fn a_local_source_lands_in_the_library_with_metadata_and_a_checkable_fullt
     );
 }
 
-/// Datenbank im Stand von development (alle Store-Migrationen, Bibliothek bis 0107) mit erfundenen Zeilen.
+/// Database in the state of development (all store migrations, library up to 0107) with invented rows.
 #[tokio::test]
 async fn migration_0108_keeps_a_development_database_intact() {
     use sqlx::migrate::Migrator;
@@ -773,7 +773,7 @@ async fn migration_0108_keeps_a_development_database_intact() {
     assert_eq!(new, ["library_title_text"], "Begründung: genau eine neue Tabelle");
 }
 
-// ---- Seiten ohne JavaScript --------------------------------------------------------------------------------------
+// ---- Pages without JavaScript -----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_import_pages_work_without_javascript_with_status_codes_and_masking() {
@@ -817,7 +817,7 @@ async fn the_import_pages_work_without_javascript_with_status_codes_and_masking(
     );
     let draft = page.split("data-draft=\"").nth(1).and_then(|r| r.split('"').next()).unwrap().to_owned();
 
-    // Fehler beim Übernehmen: 422, Eingaben bleiben.
+    // Error on adopting: 422, inputs stay.
     let (status, _, page) = post_form(
         &server,
         "/werke/import/quelle/uebernehmen",
@@ -842,7 +842,7 @@ async fn the_import_pages_work_without_javascript_with_status_codes_and_masking(
         "Begründung: Titel/Autor bleiben, maskiert: {page}"
     );
 
-    // Übernehmen: 303 auf das Werk.
+    // Adopting: 303 to the work.
     let (status, headers, _) = post_form(
         &server,
         "/werke/import/quelle/uebernehmen",
@@ -871,7 +871,7 @@ async fn the_import_pages_work_without_javascript_with_status_codes_and_masking(
     let meta = server.state.store.work_meta(work).await.unwrap();
     assert_eq!(meta.title, tricky, "Begründung: Sonderzeichen im Titel bleiben wörtlich");
 
-    // Nur Bibliothek: 303 auf die Quelle; Verwerfen: 303 mit Hinweis.
+    // Library only: 303 to the source; discarding: 303 with a hint.
     let (_, _, page) = post_multipart(
         &server,
         "/werke/import/quelle/vorschau",
@@ -912,7 +912,7 @@ async fn the_import_pages_work_without_javascript_with_status_codes_and_masking(
     let (_, page) = server.get("/werke/import/quelle?verworfen=1").await;
     assert!(page.contains("Entwurf verworfen"), "Hinweis nach dem Verwerfen");
 
-    // Falsche Datei → 422 mit Formular; zu groß → 413.
+    // Wrong file → 422 with form; too large → 413.
     let (status, _, page) =
         post_multipart(&server, "/werke/import/quelle/vorschau", &[("title", "Bleibt")], Some(("notiz.txt", b"Text")))
             .await;
@@ -930,7 +930,7 @@ async fn the_import_pages_work_without_javascript_with_status_codes_and_masking(
         "Begründung: Meldung mit Formular: {page}"
     );
 
-    // Formulare hinter same_origin.
+    // Forms behind same_origin.
     let (content_type, body) = multipart(&[], Some(("kai.epub", &epub("Fremd"))));
     let request = Request::post("/werke/import/quelle/vorschau")
         .header(header::CONTENT_TYPE, content_type)
@@ -977,7 +977,7 @@ async fn the_cli_previews_without_writing_and_creates_work_or_source_only_when_a
     assert_eq!(titles(&server).await, titles_before + 1, "Begründung: --bibliothek legt die Quelle an");
     assert_eq!(works(&server).await, works_before + 1, "Begründung: nur --bibliothek legt kein Werk an");
 
-    // PDF ohne pdftotext: ehrliche Meldung, nichts angelegt.
+    // PDF without pdftotext: honest message, nothing created.
     let pdf_file = dir.path().join("kliff.pdf");
     std::fs::write(&pdf_file, pdf_of(KLIFF).await).unwrap();
     let missing =

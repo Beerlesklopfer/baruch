@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 17a „verszaehlung“, Lektor-Reste: Zitatprüfung nur gegen den gezeigten Text und Baruchs Belege (L1),
-//! falsche Stellenaussagen in „Kritisch:“-Befunden (L2), Fäden ohne Abschnitt (L3), wirksame Kontextlänge ohne
-//! Netzabfrage beim Seitenladen (L4), gerahmtes Gedächtnis (L5).
+//! Round 17a „verszaehlung“, lector leftovers: quotation check only against the text shown and Baruch's evidence (L1),
+//! wrong passage statements in „Kritisch:“ findings (L2), threads without section (L3), effective context length
+//! without network query on page load (L4), framed memory (L5).
 //!
-//! Kein Netz außer eigenen Nachbauten auf 127.0.0.1:0, kein Eliezer: `ScriptedModel`, ein eigener `ModelPort`
-//! (Zusammenfassungen) und `MockEliezer`. Alle Texte sind frei erfunden.
+//! No network except own mocks on 127.0.0.1:0, no Eliezer: `ScriptedModel`, an own `ModelPort` (summaries) and
+//! `MockEliezer`. All texts are freely invented.
 
 use crate::common;
 
@@ -21,7 +21,7 @@ use baruch_server::bible_research::{NoteKind, Research, ScriptureNote};
 use baruch_server::threads::ThreadOrder;
 use serde_json::{Value, json};
 
-/// Ein frei erfundenes Buch mit einem Kapitel und zwei Abschnitten.
+/// A freely invented book with one chapter and two sections.
 const BOOK: &str = "#set document(title: \"Das Mühlenjahr\", author: \"Pia Rad\")\n#set heading(numbering: \"1.1\")\n\n\
 = Frühling\n\nDas Mühlrad dreht sich wieder.\n\n\
 == Schleuse\n\nDer Müller öffnet morgens die Schleuse und lauscht dem Wasser. Vgl. Joh 3,16.\n\n\
@@ -77,7 +77,7 @@ async fn keys_of(server: &common::Server, work: i64) -> Vec<i64> {
     server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect()
 }
 
-/// Beitrag direkt anlegen (wie ein früherer Befund bzw. Chat-Beitrag).
+/// Create a post directly (like an earlier finding or chat post).
 async fn add_post(server: &common::Server, work: i64, key: i64, author: &str, body: &str) {
     let seq = server.state.store.node_seq(work, key).await.unwrap();
     let post =
@@ -85,7 +85,7 @@ async fn add_post(server: &common::Server, work: i64, key: i64, author: &str, bo
     server.state.store.add_post(work, seq, &post).await.unwrap();
 }
 
-/// Zeilen eines gespeicherten Beitrags der Persona (der letzte von ihr).
+/// Lines of a stored post of the persona (the last one by it).
 async fn last_post(server: &common::Server, work: i64, key: i64, author: &str) -> String {
     let w = server.state.store.load_work(work).await.unwrap();
     let node = w.nodes.iter().find(|n| n.key == key).unwrap();
@@ -110,7 +110,7 @@ fn research() -> Research {
     }
 }
 
-// ---- L1 und L5: Korpus der Zitatprüfung, Gedächtnis gerahmt ------------------------------------------------
+// ---- L1 and L5: corpus of the quotation check, memory framed ----------------------------------------------
 
 #[tokio::test]
 async fn quotes_from_foreign_findings_and_ideas_do_not_back_a_finding_but_the_sword_block_and_the_text_do() {
@@ -232,17 +232,17 @@ async fn a_quote_from_an_earlier_chat_post_is_unbacked_but_the_own_message_and_t
     );
 }
 
-/// Nachbau: Zusammenfassungen bekommen „Kurz gefasst: Wasser holen am Morgen.“; eine Prüfung zitiert eine Tränke aus
-/// dem Abschnitt „Wasser“, deren Wortlaut im Aufruf **nicht** stand (gesucht im Aufruf selbst), dazu die
-/// Zusammenfassung und den geprüften Abschnitt.
+/// Mock: summaries get „Kurz gefasst: Wasser holen am Morgen.“; a check quotes a watering place from the section
+/// „Wasser“ whose wording was **not** in the call (searched in the call itself), plus the summary and the checked
+/// section.
 #[derive(Clone, Default)]
 struct Summarizer {
     calls: Arc<Mutex<Vec<ModelCall>>>,
-    /// Nummer der zitierten Tränke, die der Aufruf nicht im Wortlaut zeigte.
+    /// Number of the quoted watering place that the call did not show verbatim.
     hidden: Arc<Mutex<Option<usize>>>,
 }
 
-/// Satz `i` des langen Abschnitts „Wasser“.
+/// Sentence `i` of the long section „Wasser“.
 fn trough(i: usize) -> String {
     format!("Tränke {i} am Bach")
 }
@@ -288,7 +288,7 @@ impl ModelPort for Summarizer {
     }
 }
 
-/// So viele verschiedene Sätze hat der lange Abschnitt „Wasser“.
+/// This many different sentences the long section „Wasser“ has.
 const TROUGHS: usize = 160;
 
 const HIVE: &str = "#set document(title: \"Das Wabenjahr\", author: \"Ida Korb\")\n#set heading(numbering: \"1.1\")\n\n\
@@ -328,9 +328,9 @@ async fn with_a_compressed_context_only_the_shown_summary_backs_a_quote() {
     );
 }
 
-// ---- L2 und L3: Stellenaussagen, Fäden ohne Abschnitt -----------------------------------------------------
+// ---- L2 and L3: passage statements, threads without section ----------------------------------------------
 
-/// Predigt mit dem Predigttext Lk 15,4–6 (frei nacherzählt) und einem Hauptpunkt.
+/// Sermon with the sermon text Luke 15:4–6 (freely retold) and one main point.
 async fn sermon(server: &common::Server) -> (i64, Vec<i64>) {
     let created =
         ok(server, "work.create", json!({ "title": "Vom Suchen", "kind": "sermon", "audience": "Gemeinde" })).await;
@@ -439,7 +439,7 @@ async fn a_thread_checks_critical_quotes_and_references_against_its_shown_text()
     );
 }
 
-// ---- L4: wirksame Kontextlänge, keine Netzabfrage beim Seitenladen ----------------------------------------
+// ---- L4: effective context length, no network query on page load -----------------------------------------
 
 #[tokio::test]
 async fn loading_pages_with_the_automatic_lector_asks_the_backend_nothing_and_shows_the_effective_context() {
@@ -460,7 +460,7 @@ async fn loading_pages_with_the_automatic_lector_asks_the_backend_nothing_and_sh
     let keys = keys_of(&server, work).await;
     ok(&server, "persona.set_lector", json!({ "mode": "auto" })).await;
     let list = ok(&server, "persona.list", json!({})).await;
-    // Jedes Modell der Personas meldet 4096 Tokens – erst ein Modellaufruf darf das erfragen.
+    // Every model of the personas reports 4096 tokens – only a model call may ask for that.
     for p in list["personas"].as_array().unwrap() {
         eliezer.set_context_length(p["model"].as_str().unwrap(), 4096);
     }
@@ -490,7 +490,7 @@ async fn loading_pages_with_the_automatic_lector_asks_the_backend_nothing_and_sh
     assert!(settings.contains(&format!("wirksam {setting} Tokens")), "Einstellungen zeigen die wirksame Länge");
     assert!(page.contains("Lektor") || page.contains(&lector), "Arbeitsseite geladen");
 
-    // Erst der Modellaufruf fragt die Gegenstelle; danach kennt der Zwischenspeicher die gemeldete Länge.
+    // Only the model call asks the peer; afterwards the cache knows the reported length.
     eliezer.push(Reply::text(&["Kritisch: „lauscht dem Wasser“ ist zu leise.\n- Schritt: prüfen."]));
     let o = Order { persona: lector.clone(), ..order(work, keys[1], &lector, Mode::Ask) };
     baruch_server::assist::run(&server.state, &o, None).await.unwrap();
@@ -499,8 +499,8 @@ async fn loading_pages_with_the_automatic_lector_asks_the_backend_nothing_and_sh
     let list = ok(&server, "persona.list", json!({})).await;
     let (_, settings) = server.get("/einstellungen/assistenten").await;
     assert_eq!(eliezer.requests().len(), after, "auch jetzt kein Netz beim Seitenladen");
-    // Der Nachbau kennt nur das Modell von @lektor (meldet 4096); die übrigen Modelle melden nichts und behalten
-    // ihre Einstellung. Seiten rechnen jetzt mit der gemeldeten Länge aus dem Zwischenspeicher.
+    // The mock knows only the model of @lektor (reports 4096); the other models report nothing and keep their setting.
+    // Pages now calculate with the reported length from the cache.
     let row =
         |handle: &str| list["personas"].as_array().unwrap().iter().find(|p| p["handle"] == handle).unwrap().clone();
     assert_eq!(row("@lektor")["context"]["reported"], 4096, "gemeldete Länge aus dem Zwischenspeicher: {list}");

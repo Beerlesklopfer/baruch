@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0031 (Sammlungen je Werk für pgvector und MultiGPT, Runde 12) auf einer nachgebauten Datenbank
-//! im Stand von development davor (alle Store-Migrationen bis 0030 und Bibliothek 0101–0105), mit frei
-//! erfundenen Werken, Vorschlag, Beitrag, Personas, Lektor-Wahl, Verbindungen samt Prüfergebnis, RAG-Wegen
-//! je Werk, bevorzugter Quelle, Modulordnern und Bibel je Werk.
+//! Migration 0031 (collections per work for pgvector and MultiGPT, Round 12) on a reproduced database in the state of
+//! development before it (all store migrations up to 0030 and library 0101–0105), with freely invented works, proposal,
+//! post, personas, lector choice, connections including check result, RAG ways per work, preferred source, module
+//! folders and Bible per work.
 //!
-//! Nach einem Migrator bis 0031: Das Schema jeder alten Tabelle bleibt, neu ist genau `work_rag_collection`,
-//! leer. Danach `Store::open`: jede Zeile jeder alten Tabelle unverändert, kein Werk hat Sammlungen;
-//! Wählen geht, Löschen des Werks nimmt seine Sammlungen mit (die des anderen Werks bleiben), ein zweites
-//! Öffnen ändert nichts.
+//! After a migrator up to 0031: the schema of every old table stays, new is exactly `work_rag_collection`, empty.
+//! Afterwards `Store::open`: every row of every old table unchanged, no work has collections; choosing works, deleting
+//! the work takes its collections along (those of the other work stay), a second opening changes nothing.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -39,7 +38,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Stand von development vor Runde 12: Store bis 0030 und Bibliothek 0101–0105.
+/// State of development before Round 12: store up to 0030 and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 31), "die neue Migration ist 0031");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 30), "Stand davor hat 0030 (Bibeln)");
@@ -55,7 +54,7 @@ async fn exec(pool: &SqlitePool, sql: &str) {
     sqlx::query(sqlx::AssertSqlSafe(sql)).execute(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"));
 }
 
-/// Ein Werk aus Typst-Quelltext mit aktuellen Fassungen; Rückgabe: Werk-id und die Knoten-ids.
+/// A work from Typst source text with current revisions; return value: work id and the node ids.
 async fn insert_work(pool: &SqlitePool, slug: &str, title: &str, source: &str) -> (i64, Vec<i64>) {
     let doc = baruch_typst::parse(source).unwrap();
     let work: i64 = sqlx::query_scalar(
@@ -103,7 +102,7 @@ async fn insert_work(pool: &SqlitePool, slug: &str, title: &str, source: &str) -
     (work, ids)
 }
 
-/// Inhalt im Stand vor 0031; Rückgabe: (Leuchtturm, Senfkorn).
+/// Content in the state before 0031; return value: (Leuchtturm, Senfkorn).
 async fn insert_rows(pool: &SqlitePool) -> (i64, i64) {
     let (lighthouse, ids) = insert_work(pool, "das-jahr-am-leuchtturm", "Das Jahr am Leuchtturm", LIGHTHOUSE).await;
     let (mustard, _) = insert_work(pool, "senfkornbuch", "Senfkornbuch", MUSTARD).await;
@@ -261,7 +260,7 @@ async fn migration_0031_keeps_every_row_and_only_adds_the_collection_table() {
         sqlx::query_scalar("SELECT count(*) FROM pragma_foreign_key_check").fetch_one(store.pool()).await.unwrap();
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -270,7 +269,7 @@ async fn migration_0031_keeps_every_row_and_only_adds_the_collection_table() {
     assert_eq!(schema(store.pool()).await, schema_once, "zweites Öffnen: Schema gleich");
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 
-    // Löschen eines Werks nimmt seine Sammlungen mit, die des anderen bleiben.
+    // Deleting a work takes its collections along, those of the other stay.
     store.delete_work(lighthouse, "Das Jahr am Leuchtturm").await.unwrap();
     assert_eq!(collection_rows(&store).await, 1, "ON DELETE CASCADE: nur die Sammlung des Senfkornbuchs bleibt");
     assert_eq!(
@@ -280,8 +279,8 @@ async fn migration_0031_keeps_every_row_and_only_adds_the_collection_table() {
     );
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

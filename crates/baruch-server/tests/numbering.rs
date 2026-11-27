@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederungsschemata über RPC und die Seite `/werke/{id}/nummerierung` (Vertrag Runde 6,
-//! Abschnitt 2e): echter Datenordner im Temp-Ordner (SQLite, Bibliothek, Git-Spiegel), Gartenbuch
-//! aus `tests/data` (Frühling, Aussaat, Tiefe, Sommer).
+//! Outline schemes through RPC and the page `/werke/{id}/nummerierung` (contract Round 6, section 2e): real data folder
+//! in the temp folder (SQLite, library, Git mirror), Gartenbuch from `tests/data` (Frühling, Aussaat, Tiefe, Sommer).
 
 use crate::common;
 
@@ -164,7 +163,7 @@ async fn outline_set_numbering_stays_compatible_and_sets_the_custom_scheme() {
     assert_eq!(bad["error"]["code"], -32602, "ungültiges Muster → -32602: {bad}");
     assert!(bad["error"]["message"].as_str().unwrap().starts_with("Nummerierung: "), "deutsche Meldung: {bad}");
     let (_, html) = server.get(&format!("/?work={work}&node=0")).await;
-    // Runde 7: Das eigene Muster „I|1“ entspricht „Nur Kapitel römisch“; roh steht es nur im title.
+    // Round 7: the own pattern „I|1“ corresponds to „Nur Kapitel römisch“; raw it is only in the title.
     assert!(html.contains("Nummern: Nur Kapitel römisch</summary>"), "Kopf nennt das passende Schema: {html}");
     assert!(!html.contains("Nummern: I|1"), "das rohe Muster steht nicht mehr im Kopf");
     assert!(html.contains("Gliederungsschema: Eigenes Muster, Muster I|1)"), "das Muster steht im title");
@@ -204,7 +203,7 @@ async fn the_numbering_page_shows_every_scheme_with_a_preview_without_javascript
     assert!(html.contains("Mustersprache"), "Hinweis zur Mustersprache");
     assert!(!html.contains("{{") && !html.contains("{%") && !html.contains("}}"), "keine Platzhalterreste");
 
-    // Vorschau eines eigenen Musters per GET (so schickt es der Knopf „Vorschau“).
+    // Preview of an own pattern by GET (this is how the button „Vorschau“ sends it).
     let (status, html) =
         server.get(&format!("/werke/{work}/nummerierung?scheme=custom&custom=A.%3B1.%3Ba)&work={work}")).await;
     assert_eq!(status, StatusCode::OK, "{html}");
@@ -269,7 +268,7 @@ async fn the_numbering_form_posts_redirects_and_reports_errors() {
     assert_eq!(numbers(&server, work).await[0], "Erstes Kapitel", "nichts geändert");
 }
 
-/// Schlüssel des Punkts mit dem Titel `title`.
+/// Key of the item with the title `title`.
 async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
     let loaded = server.state.store.load_work(work).await.unwrap();
     loaded.nodes.iter().find(|n| n.title == title).unwrap_or_else(|| panic!("kein Punkt „{title}“")).key
@@ -277,9 +276,8 @@ async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
 
 #[tokio::test]
 async fn the_book_scheme_switches_to_sermon_and_back_keeping_chapter_numbers() {
-    // Schema „Buch“: Kapitel wie „Predigt“ (Einleitung · I. · Schluss), Teile „Erster Teil“ … . Umschalten
-    // Buch → Predigt → Buch: Kapitelnummern bleiben, Teile verlieren bzw. bekommen ihre Nummer, je ein
-    // Commit im Spiegel.
+    // Scheme „Buch“: chapters like „Predigt“ (Einleitung · I. · Schluss), parts „Erster Teil“ … . Switching Buch →
+    // Predigt → Buch: chapter numbers stay, parts lose or get their number, one commit in the mirror each.
     let (server, work, dir) = garden().await;
     let spring = key_of(&server, work, "Frühling").await;
     let summer = key_of(&server, work, "Sommer").await;
@@ -314,7 +312,7 @@ async fn the_book_scheme_switches_to_sermon_and_back_keeping_chapter_numbers() {
         assert_eq!(result(&schemes)["current"]["scheme"], scheme, "{scheme}: aktuelles Schema");
     }
 
-    // Export trägt Kommentar und eigene Regel; der Satz zeigt „Erster Teil“ auf der Teil-Seite.
+    // The export carries comment and own rule; the typesetting shows „Erster Teil“ on the part page.
     let export = server.rpc("work.export", json!({ "work": work })).await;
     let typst = result(&export)["typst"].as_str().unwrap().to_owned();
     assert!(typst.contains("// Baruch: Gliederungsschema „Buch“\n#set heading(numbering: (..n) =>"), "{typst}");
@@ -328,7 +326,7 @@ async fn the_book_scheme_switches_to_sermon_and_back_keeping_chapter_numbers() {
     let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
     assert!(errors.is_empty(), "Buch setzt fehlerfrei: {errors:?}");
 
-    // Re-Import des Buch-Stands: wieder die Nummerierung „Buch“ (samt Teilen), Export byte-gleich.
+    // Re-import of the Buch state: again the numbering „Buch“ (including parts), export byte-identical.
     let copy = typst.replace("Das Gartenbuch", "Das Gartenbuch, zweiter Druck");
     let again = server.import(&copy, "gartenbuch-buch.typ").await.work;
     assert_eq!(numbers(&server, again).await, book, "Re-Import: dieselben Nummern wie Buch, Teile als Wörter");

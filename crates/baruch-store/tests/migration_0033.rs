@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0033 (Abgleich Baruch ↔ MultiGPT, Runde 13 „abgleich“) auf einer nachgebauten Datenbank im
-//! Stand von development (alle Store-Migrationen unter 0033, also bis 0032, und Bibliothek 0101–0105), mit
-//! frei erfundenem Werk, Revisionen (aktuelle Fassungen und ein Vorschlag), Beitrag, Personas, Bibel des
-//! Werks und Verbindung.
+//! Migration 0033 (sync Baruch ↔ MultiGPT, Round 13 „abgleich“) on a reproduced database in the state of development
+//! (all store migrations below 0033, that is up to 0032, and library 0101–0105), with a freely invented work, revisions
+//! (current revisions and a proposal), post, personas, Bible of the work and connection.
 //!
-//! Nach einem Migrator bis 0033: Das Schema jeder alten Tabelle bleibt, neu sind genau `sync_work`,
-//! `sync_collection`, `sync_state`, `sync_document` und `sync_run` mit den Spalten des Vertrags, alle leer.
-//! Danach `Store::open`: jede Zeile jeder alten Tabelle unverändert; der Schalter ist für jedes Werk aus;
-//! Löschen des Werks nimmt seine `sync_work`-Zeile mit, `sync_state` (ohne Fremdschlüssel) bleibt für den
-//! nächsten Abgleich stehen.
+//! After a migrator up to 0033: the schema of every old table stays, new are exactly `sync_work`, `sync_collection`,
+//! `sync_state`, `sync_document` and `sync_run` with the columns of the contract, all empty. Afterwards `Store::open`:
+//! every row of every old table unchanged; the switch is off for every work; deleting the work takes its `sync_work`
+//! row along, `sync_state` (without foreign key) stays for the next sync.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -38,7 +36,7 @@ async fn migrate_where(pool: &SqlitePool, keep: impl Fn(i64) -> bool) {
     migrator.run(pool).await.unwrap();
 }
 
-/// Store unter 0033 (Stand von development: bis 0032) und Bibliothek 0101–0105.
+/// Store below 0033 (state of development: up to 0032) and library 0101–0105.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 33), "die neue Migration ist 0033");
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 32), "Stand davor hat 0032 (development)");
@@ -172,7 +170,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     out
 }
 
-/// Spalten der neuen Tabellen, wörtlich nach Vertrag §3.
+/// Columns of the new tables, literally according to contract §3.
 fn expected_columns() -> BTreeMap<&'static str, Vec<&'static str>> {
     BTreeMap::from([
         ("sync_work", vec!["work_id", "upload", "collection", "confirmed", "updated"]),
@@ -274,7 +272,7 @@ async fn migration_0033_keeps_every_row_and_only_adds_the_five_sync_tables() {
         .await;
     assert!(fine.is_ok(), "200 Umlaute gehen: {fine:?}");
     exec(&pool, "DELETE FROM sync_collection").await;
-    // Ohne Fremdschlüssel: ein Stand darf ein (gelöschtes) Werk nennen, das es nicht gibt.
+    // Without foreign key: a state may name a (deleted) work that does not exist.
     exec(
         &pool,
         "INSERT INTO sync_state (side, collection, item, work_id, hash) VALUES ('baruch', 'c', 'work:99999/key:1', \
@@ -302,7 +300,7 @@ async fn migration_0033_keeps_every_row_and_only_adds_the_five_sync_tables() {
     assert!(store.sync_run_last().await.unwrap().is_none(), "noch kein Lauf");
     assert!(store.sync_collections().await.unwrap().is_empty(), "keine Sammlung gewählt");
 
-    // Einschalten hält die Sammlung fest; ein zweites Einschalten mit anderem Namen behält sie.
+    // Switching on fixes the collection; a second switching on with a different name keeps it.
     let on = store.sync_set_upload(work, true, "Baruch: Das Jahr am Leuchtturm").await.unwrap();
     assert!(on.upload && on.confirmed.is_some(), "eingeschaltet mit Zeitpunkt der Bestätigung: {on:?}");
     assert_eq!(on.collection, "Baruch: Das Jahr am Leuchtturm", "Sammlung festgehalten");
@@ -353,7 +351,7 @@ async fn migration_0033_keeps_every_row_and_only_adds_the_five_sync_tables() {
         .await
         .unwrap();
 
-    // Zweites Öffnen ändert nichts.
+    // A second opening changes nothing.
     let layout_now = tables(store.pool()).await;
     let schema_once = schema(store.pool()).await;
     let once = contents(store.pool(), &layout_now).await;
@@ -362,8 +360,8 @@ async fn migration_0033_keeps_every_row_and_only_adds_the_five_sync_tables() {
     assert_eq!(schema(store.pool()).await, schema_once, "zweites Öffnen: Schema gleich");
     assert_eq!(contents(store.pool(), &layout_now).await, once, "zweites Öffnen: alle Zeilen gleich");
 
-    // Löschen des Werks nimmt seine sync_work-Zeile mit (ON DELETE CASCADE); sync_state bleibt für den
-    // nächsten Abgleich (der räumt die Dokumente des gelöschten Werks bei MultiGPT auf).
+    // Deleting the work takes its sync_work row along (ON DELETE CASCADE); sync_state stays for the next sync (which
+    // clears away the documents of the deleted work at MultiGPT).
     store.delete_work(work, "Das Jahr am Leuchtturm").await.expect("Werk gelöscht");
     let left: i64 = sqlx::query_scalar("SELECT count(*) FROM sync_work").fetch_one(store.pool()).await.unwrap();
     assert_eq!(left, 0, "die sync_work-Zeile ist mit dem Werk gegangen");
@@ -374,8 +372,8 @@ async fn migration_0033_keeps_every_row_and_only_adds_the_five_sync_tables() {
     assert_eq!(broken, 0, "keine Verstöße gegen Fremdschlüssel");
 }
 
-/// Migration 0041 (Runde 26) trägt beim Start die Instanzkennung als neue Zeile in `store_meta` ein; das ergänzt
-/// eine Zeile und ändert keine alte. Der Vergleich der alten Zeilen nimmt genau diese eine Zeile heraus.
+/// Migration 0041 (Round 26) enters the instance identifier as a new row in `store_meta` at start; that adds one row
+/// and changes no old one. The comparison of the old rows takes out exactly this one row.
 fn without_instance_row(mut contents: BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     if let Some(meta) = contents.get_mut("store_meta") {
         let count = meta.len();

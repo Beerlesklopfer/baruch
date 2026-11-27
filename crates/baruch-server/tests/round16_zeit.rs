@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 16b „Zeitwächter“: Sprechdauer je Gliederungspunkt und gesamt (RPC `work.timing`, `work.timing_set`,
-//! `timing.count`, MCP `work_timing`), Formular „Predigtzeit“ ohne JavaScript, Anzeige in Gliederung und
-//! Editorkopf (nur bei Predigt oder Zielzeit) und die Kennzeichnung lokal/extern der Personas im Akkordeon
+//! Round 16b „Zeitwächter“: speaking time per outline item and in total (RPC `work.timing`, `work.timing_set`,
+//! `timing.count`, MCP `work_timing`), form „Predigtzeit“ without JavaScript, display in outline and editor header
+//! (only for a sermon or a target time) and the labelling local/external of the personas in the accordion
 //! „Assistenten“.
 //!
-//! Alle Texte sind frei erfunden. Kein Modellaufruf, keine Netzanfrage: Die externe Verbindung im Test zeigt
-//! auf den geschlossenen Port 127.0.0.1:9 und wird nur angezeigt, nie angefragt.
+//! All texts are freely invented. No model call, no network request: the external connection in the test points to the
+//! closed port 127.0.0.1:9 and is only displayed, never queried.
 
 use crate::common;
 
@@ -17,14 +17,14 @@ use axum::http::{Request, StatusCode, header};
 use baruch_typst::timing::spoken_words;
 use serde_json::{Value, json};
 
-/// Erfundene Wörter für Abschnitte mit bekannter Wortzahl.
+/// Invented words for sections with a known word count.
 fn words(n: usize) -> String {
     const POOL: [&str; 6] = ["Licht", "Weg", "Brot", "Wasser", "Stein", "Frieden"];
     (0..n).map(|i| POOL[i % POOL.len()]).collect::<Vec<_>>().join(" ")
 }
 
-/// Predigt mit vier Punkten: Einleitung (30 Wörter), Erster Gedanke (20) mit Vertiefung (25), Schluss (15).
-/// In der Einleitung stehen zusätzlich Markup, Fußnote und Kommentar, die nicht zählen.
+/// Sermon with four items: Einleitung (30 words), Erster Gedanke (20) with Vertiefung (25), Schluss (15). The
+/// introduction additionally contains markup, footnote and comment, which do not count.
 fn sermon_source() -> String {
     format!(
         "= Einleitung\n\n{} #footnote[Quelle: erfunden] // Notiz am Rand\n\n= Erster Gedanke\n\n*{}*\n\n\
@@ -48,8 +48,8 @@ async fn err(server: &common::Server, method: &str, params: Value) -> Value {
     answer["error"].clone()
 }
 
-/// Importiert die Predigt und macht sie zur Werkart Predigt (`work.kind = 'sermon'`, wie `WorkKind::Sermon`);
-/// so hängt der Test nicht vom Formular „Neues Werk“ ab.
+/// Imports the sermon and makes it the work kind sermon (`work.kind = 'sermon'`, like `WorkKind::Sermon`); so the test
+/// does not depend on the form „Neues Werk“.
 async fn sermon(server: &common::Server) -> i64 {
     let report = server.import(&sermon_source(), "zeitpredigt.typ").await;
     let work = report.work;
@@ -61,7 +61,7 @@ async fn sermon(server: &common::Server) -> i64 {
     work
 }
 
-/// Text ohne Tags und mit zusammengefasstem Leerraum (für Zusicherungen über sichtbaren Text).
+/// Text without tags and with collapsed whitespace (for assertions about visible text).
 fn visible(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut inside = false;
@@ -80,7 +80,7 @@ fn visible(html: &str) -> String {
 async fn work_timing_reports_every_point_with_its_own_words_marks_and_subtree() {
     let server = common::open().await;
     let work = sermon(&server).await;
-    // 60 Wörter je Minute: Sekunden = Wörter, so lassen sich die Zeiten direkt aus den Wortzahlen ablesen.
+    // 60 words per minute: seconds = words, so the times can be read directly from the word counts.
     let set = ok(&server, "work.timing_set", json!({ "work": work, "words_per_minute": 60 })).await;
     assert_eq!(set["words_per_minute"], 60, "die neue Geschwindigkeit wird zurückgemeldet: {set}");
     assert_eq!(set["target_seconds"], Value::Null, "ohne target_minutes bleibt es bei keiner Zielzeit: {set}");
@@ -289,7 +289,7 @@ async fn the_tree_and_the_editor_head_show_durations_and_the_overrun_without_jav
     assert!(page.contains("data-widget=\"timing\""), "das Widget hängt sich für die Live-Zählung an");
     assert!(page.contains("data-rest=\"60\""), "Summe ohne die Einleitung (90 − 30) für die Live-Rechnung");
 
-    // Dasselbe kommt beim Neuzeichnen über ui.render (mit JavaScript).
+    // The same comes on redrawing through ui.render (with JavaScript).
     let panes = ok(&server, "ui.render", json!({ "work": work, "key": key })).await;
     assert!(panes["editor"].as_str().unwrap().contains("editor-timing"), "ui.render liefert den Editorkopf mit Zeit");
     assert!(panes["tree"].as_str().unwrap().contains("outline-timing"), "ui.render liefert den Baum mit Zeit");
@@ -318,7 +318,7 @@ async fn a_book_shows_no_times_until_it_gets_a_target_but_rpc_and_mcp_always_rep
     assert_eq!(mcp["result"]["structuredContent"], rpc, "MCP work_timing liefert dasselbe wie RPC work.timing");
 }
 
-/// MCP-Werkzeug vom eigenen Rechner aufrufen (ohne Sitzung).
+/// Call an MCP tool from the own machine (without a session).
 async fn mcp_tool(server: &common::Server, tool: &str, arguments: Value) -> Value {
     let body = json!({ "jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": { "name": tool, "arguments": arguments } });
     let mut request = Request::post("/mcp")

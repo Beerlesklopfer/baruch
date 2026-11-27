@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a: Befunde – Sammelbefunde zählen nicht in „k offen“ und heißen „veraltet“, sobald alle Ursprünge
-//! entschieden sind; die Liste „Offen, älter als n Tage“ nennt ihre Kappung; Zellen der Matrix ohne Link tragen
-//! ihre Worte als verborgenen Text. Werk und Befunde frei erfunden.
+//! Round 23a: findings – collective findings do not count in „k offen“ and are called „veraltet“ as soon as all origins
+//! are decided; the list „Offen, älter als n Tage“ names its cap; cells of the matrix without a link carry their words
+//! as hidden text. Work and findings freely invented.
 
 use axum::http::StatusCode;
 use baruch_store::{FindingKind, NewFinding, StatusChange};
@@ -103,7 +103,7 @@ async fn the_list_of_old_open_findings_says_when_it_is_capped() {
     for n in 0..limit + 3 {
         finding(&server, work, key, &format!("Hinweis {n}: Wort {n} prüfen."), &[]).await;
     }
-    // Alle Befunde eine Woche alt machen (ohne zu schlafen).
+    // Make all findings one week old (without sleeping).
     sqlx::query("UPDATE finding SET created = strftime('%Y-%m-%dT%H:%M:%fZ','now','-7 days') WHERE work_id = ?")
         .bind(work)
         .execute(server.state.store.pool())
@@ -120,7 +120,7 @@ async fn the_list_of_old_open_findings_says_when_it_is_capped() {
         "über der Grenze nennt die Liste ihre Kappung mit beiden Zahlen (vorher still)"
     );
 
-    // Unter der Grenze steht kein Hinweis.
+    // Below the limit there is no hint.
     let other = common::open().await;
     let (work, key) = mill(&other).await;
     finding(&other, work, key, "Hinweis: Nur einer.", &[]).await;

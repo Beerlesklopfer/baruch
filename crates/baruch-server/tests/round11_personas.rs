@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 11 („images“): Einstellungen → Assistenten mit einem Tab je Persona (ohne JavaScript Links
-//! `?persona=<handle>`), ein Formular mit genau einem „Speichern“ je Persona (`action=save`), „Vorgabe
-//! wiederherstellen“ mit Rückfrage, `persona.update` mit Name; dazu die Vervollständigung von „@…“ im
-//! Abschnitts-Chat (`<datalist>` ohne JavaScript, Widget `mention`). Echter Datenordner im Temp-Ordner,
-//! kein Modell-Backend (`AppState::open` hat `NoModel`), kein Netz.
+//! Round 11 („images“): Einstellungen → Assistenten with one tab per persona (without JavaScript links
+//! `?persona=<handle>`), one form with exactly one „Speichern“ per persona (`action=save`), „Vorgabe wiederherstellen“
+//! with a confirmation prompt, `persona.update` with name; plus the completion of „@…“ in the section chat
+//! (`<datalist>` without JavaScript, widget `mention`). Real data folder in the temp folder, no model backend
+//! (`AppState::open` has `NoModel`), no network.
 
 use crate::common;
 
@@ -16,7 +16,7 @@ fn result(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-/// Formular wie ein Browser (urlencoded); Antwort mit Status, Weiterleitung und Seite.
+/// Form like a browser (urlencoded); response with status, redirect and page.
 async fn form(server: &common::Server, body: &str) -> (StatusCode, Option<String>, String) {
     let request = Request::post("/einstellungen/personas/act")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -27,7 +27,7 @@ async fn form(server: &common::Server, body: &str) -> (StatusCode, Option<String
     (status, location, page)
 }
 
-/// Die Tafel (`role="tabpanel"`) einer Persona als Ausschnitt bis zur nächsten Tafel.
+/// The panel (`role="tabpanel"`) of a persona as an excerpt up to the next panel.
 fn panel<'a>(page: &'a str, anchor: &str) -> &'a str {
     let start = page.find(&format!("role=\"tabpanel\" id=\"persona-{anchor}\"")).unwrap_or_else(|| {
         panic!("Tafel persona-{anchor} fehlt: {page}");
@@ -37,7 +37,7 @@ fn panel<'a>(page: &'a str, anchor: &str) -> &'a str {
     &rest[..end]
 }
 
-/// Ganzer öffnender Tag des Elements, in dem `marker` steht.
+/// Whole opening tag of the element in which `marker` is.
 fn tag_with<'a>(html: &'a str, marker: &str) -> &'a str {
     let at = html.find(marker).unwrap_or_else(|| panic!("{marker} fehlt: {html}"));
     let start = html[..at].rfind('<').unwrap();
@@ -235,7 +235,7 @@ async fn restoring_the_default_prompt_asks_first_and_works_only_with_confirm() {
     assert_eq!(reset["custom"], false, "wieder die Vorgabe");
 }
 
-/// Nachbesserung Runde 11 (Gutachten „plan“): Seit den Tabs gab es keinen Weg zurück zur Farbe der Palette.
+/// Follow-up fix Round 11 (review „plan“): since the tabs there was no way back to the colour of the palette.
 #[tokio::test]
 async fn the_tab_resets_a_chosen_color_to_the_palette() {
     let server = common::open().await;

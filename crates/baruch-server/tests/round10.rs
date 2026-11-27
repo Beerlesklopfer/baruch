@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 10 (B2), Ende-zu-Ende nach dem Zusammenführen: Personas sprechen über den Adapter
-//! `assist::eliezer::EliezerPort` und `crate::models` mit einem **nachgebauten** Eliezer
-//! (`baruch_llm::mock::MockEliezer` auf 127.0.0.1:0, Adresse per `connection.set`). Kein Test nennt
-//! oder erreicht den echten Modell-Server; Geheimnisse liegen nur in `MemorySecrets`.
+//! Round 10 (B2), end to end after the merge: personas talk through the adapter `assist::eliezer::EliezerPort` and
+//! `crate::models` to a **mocked** Eliezer (`baruch_llm::mock::MockEliezer` on 127.0.0.1:0, address through
+//! `connection.set`). No test names or reaches the real model server; secrets lie only in `MemorySecrets`.
 //!
-//! Abgedeckt: Lektor fest @lektor per Formular, @schrift mit Faktenblock und „Wortlaut: ungeprüft“,
-//! Vorschlag nur `proposed`, bereinigte Einleitung „Als Assistent …“, Strom Wort für Wort, Modellauswahl
-//! aus `/v1/models`, MCP mit Token von einem anderen Rechner (`ask_persona`, `scripture_check`) und
-//! genau eine Anfrage zur Zeit beim Nachbau. Alle Texte sind frei erfunden (ein kleines Brotbuch).
+//! Covered: lector fixed @lektor through the form, @schrift with fact block and „Wortlaut: ungeprüft“, proposal only
+//! `proposed`, cleaned introduction „Als Assistent …“, stream word by word, model selection from `/v1/models`, MCP with
+//! a token from another machine (`ask_persona`, `scripture_check`) and exactly one request at a time at the mock. All
+//! texts are freely invented (a small bread book).
 
 use crate::common;
 
@@ -32,11 +31,11 @@ struct Bakery {
     server: common::Server,
     mock: MockEliezer,
     work: i64,
-    /// Schlüssel von Sauerteig, Anstellgut, Backen.
+    /// Keys of Sauerteig, Anstellgut, Backen.
     keys: Vec<i64>,
 }
 
-/// Server mit dem echten Adapter (EliezerPort) und einem eigenen Nachbau von Eliezer.
+/// Server with the real adapter (EliezerPort) and an own mock of Eliezer.
 async fn bakery() -> Bakery {
     let data = tempfile::tempdir().unwrap();
     let state =
@@ -64,7 +63,7 @@ async fn posts(b: &Bakery, node: usize) -> Vec<baruch_core::Post> {
     b.server.state.store.load_work(b.work).await.unwrap().nodes[node].posts.clone()
 }
 
-/// Inhalt der Nachricht mit Rolle `role` im n-ten Chat-Aufruf beim Nachbau.
+/// Content of the message with role `role` in the n-th chat call at the mock.
 fn message(body: &Value, role: &str) -> String {
     body["messages"]
         .as_array()
@@ -92,7 +91,7 @@ async fn the_fixed_lector_answers_a_form_through_eliezer_and_the_answer_becomes_
         (Some("fixed"), Some("@lektor")),
         "Versuch seit 2026-11-06: ohne Einstellung ist der Lektor fest @lektor: {lector}"
     );
-    // Formular „Prüfen“ ohne JavaScript und ohne Persona: der feste Lektor antwortet.
+    // Form „Prüfen“ without JavaScript and without persona: the fixed lector answers.
     let form = format!("method=persona.review&work={}&key={}", b.work, b.keys[0]);
     let (status, location) = b.server.post_form("/assistenten/act", &form).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "nach dem Modellaufruf 303 (ohne JavaScript bedienbar)");
@@ -153,7 +152,7 @@ async fn scripture_gets_the_fact_block_and_its_post_says_the_wording_is_unchecke
     assert!(system.contains("150 Kapitel"), "ungültige Stelle mit Maximum gemeldet: {system}");
     assert!(system.contains("Bestätige keinen Wortlaut."), "Schlusssatz zum Wortlaut: {system}");
 
-    // Andere Personas bekommen keinen Faktenblock, aber den Hinweis, wenn sie eine Stelle nennen.
+    // Other personas get no fact block, but the hint if they name a passage.
     b.mock.push(Reply::text(&["Kritisch: Joh 3,16 passt hier nicht zum Brot.\n- Schritt: Stelle streichen."]));
     let answer = b
         .server
@@ -190,7 +189,7 @@ async fn a_proposal_through_eliezer_is_only_proposed_and_a_forbidden_opening_is_
     );
     assert!(!added.body.contains("```"), "Codeblock entfernt: {:?}", added.body);
 
-    // „Als Assistent …“ zweimal: genau ein zweiter Aufruf, dann fällt der erste Satz weg.
+    // „Als Assistent …“ twice: exactly one second call, then the first sentence is dropped.
     b.mock.push(Reply::text(&[
         "Als Assistent ",
         "finde ich das gut. ",
@@ -245,14 +244,14 @@ async fn the_models_come_from_eliezer_in_rpc_and_on_the_settings_page() {
         "Liste aus GET /v1/models über /rpc (Dispatch des Integrators): {listed}"
     );
     let status = result(&b.server.rpc("model.status", json!({})).await).clone();
-    // Die Warteschlange gilt prozessweit (andere Tests dieser Datei laufen gleichzeitig): nur die Form prüfen.
+    // The queue holds process-wide (other tests of this file run at the same time): check only the shape.
     assert!(status["waiting"].as_u64().is_some_and(|w| w <= 8), "Zahl der Wartenden, höchstens acht: {status}");
     let (code, page) = b.server.get("/einstellungen/assistenten").await;
     assert_eq!(code, StatusCode::OK, "Einstellungsseite Assistenten lädt mit der Modellliste des Nachbaus");
     assert!(page.contains("<datalist id=\"baruch-models\">"), "Modellauswahl als datalist");
     assert!(page.contains("<option value=\"qwen3-4b-q4-k-m\">"), "Modelle des Nachbaus in der Auswahl");
     assert!(page.contains("unbekannt bei Eliezer"), "@nathan (gpt-4.1-mini) ist beim Nachbau unbekannt");
-    // Nur Mensch: über /act gibt es model.* nicht.
+    // Human only: through /act there is no model.*.
     let (status, _) = b.server.post_form("/act", "method=model.probe&model=google%2Fgemma-4-26b-a4b").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "model.probe nicht über /act");
 }
@@ -301,7 +300,7 @@ async fn a_token_from_another_host_asks_a_persona_and_checks_scripture_over_mcp(
     assert_eq!(statuses, ["valid", "no_such_chapter"], "gültig und ungültig erkannt: {refs:?}");
     assert!(refs.iter().all(|r| r["wording"] == "ungeprüft"), "Wortlaut bleibt ungeprüft: {refs:?}");
 
-    // Von einem anderen Rechner gibt es nur /mcp.
+    // From another machine there is only /mcp.
     let mut page = Request::get("/rpc").body(Body::empty()).unwrap();
     page.extensions_mut().insert(ConnectInfo(SocketAddr::from(([192, 0, 2, 44], 50_001))));
     let (status, ..) = b.server.send(page).await;

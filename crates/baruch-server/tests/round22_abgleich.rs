@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 22 (Abgleich, Besitz spiegel-entwurf, Vertrag §2.10/§2.11/§2.14/§2.15): Austauschformat Unterversion 8 über
-//! zwei Instanzen (Fortschreibungen, Stände, Entwurf), neuer Teil als Antrag mit Kennung und Fassungen (Zustimmung,
-//! Spiegel-Commit, erneuter Abgleich), `<kN>`-Show-Regel im Export und der Spiegel (`main.typ` mit `#include`) mit
-//! Typst gesetzt.
+//! Round 22 (sync, ownership spiegel-entwurf, contract §2.10/§2.11/§2.14/§2.15): exchange format sub-version 8 across
+//! two instances (amendments, states, draft), new part as a request with identifier and revisions (consent, mirror
+//! commit, renewed sync), `<kN>` show rule in the export and the mirror (`main.typ` with `#include`) typeset with
+//! Typst.
 //!
-//! Werke frei erfunden (`baruch_exchange::sample`, eigene Texte). PDFs/Satz unter `common::PDF_SERIAL`; jede
-//! Zusicherung mit Begründung.
+//! Works freely invented (`baruch_exchange::sample`, own texts). PDFs/typesetting under `common::PDF_SERIAL`; every
+//! assertion with a reason.
 
 use baruch_exchange::sample::{sample_document, sample_document_u8, sample_uuid};
 use baruch_exchange::write::{ImageMode, write_xml};
@@ -51,7 +51,7 @@ fn xmllint_u8(xml: &str) {
     }
 }
 
-/// Ausgabe ohne `<ausgabe …/>` und ohne die Schlüssel der Instanz (`schluessel`, gelten nur dort).
+/// Output without `<ausgabe …/>` and without the keys of the instance (`schluessel`, hold only there).
 fn comparable(xml: &str) -> String {
     let re = regex::Regex::new(r#" schluessel="\d+""#).unwrap();
     let no_keys = re.replace_all(xml, "");
@@ -83,7 +83,7 @@ async fn two_instances_carry_amends_stands_draft_and_adopted_amend_byte_for_byte
     assert_eq!(typeset["placement"], "footer", "der Entwurf kommt in den Satz-Einstellungen an: {typeset}");
 }
 
-/// Werk mit zwei Kapiteln (Datei der einen Seite) und dieselbe Datei mit einem Teil darum (andere Seite).
+/// Work with two chapters (file of the one side) and the same file with a part around it (other side).
 fn part_files() -> (String, String) {
     let mut doc = sample_document();
     let water = doc.work.outline.remove(0);
@@ -138,7 +138,7 @@ async fn agreeing_to_a_new_part_from_the_exchange_keeps_its_uuid_and_revisions_a
         "Vorschau nennt Kennung und Fassungen: {deviation}"
     );
     let id = merged["requests"][0].as_i64().unwrap();
-    // Zustimmung ohne JavaScript: Hinweisleiste (consent) und /gliederung nennen den Antrag mit Kennung.
+    // Consent without JavaScript: notice bar (consent) and /gliederung name the request with identifier.
     let (_, page) = server.get(&format!("/gliederung?work={work}")).await;
     assert!(page.contains("mit Kennung und 2 Fassungen"), "die Gliederung nennt „mit Kennung und 2 Fassungen“");
     assert!(page.contains("name=\"method\" value=\"outline.request_decide\""), "Formular zum Zustimmen");
@@ -188,7 +188,7 @@ async fn a_title_with_code_shared_with_a_numbered_node_gets_its_show_rule_over_t
     let rule = format!("#show <k{key}>: set heading(numbering: none)");
     assert!(export.contains(&rule), "Show-Regel über die Sprungmarke im Export: {export}");
     assert!(!export.contains("body: [#emph[Rast]]"), "keine Regel über den Titel (träfe beide): {export}");
-    // Typst zählt den Abschnitt nicht mit: Der zweite „Rast“ ist 2., nicht 3.
+    // Typst does not count the section: the second „Rast“ is 2., not 3.
     let source = baruch_render::Source { main: export, files: Vec::new() };
     let text: String = baruch_render::page_texts(&source).unwrap().into_iter().flatten().map(|t| t.text).collect();
     assert!(text.contains("2.") && !text.contains("3."), "Zählung 1., (ohne), 2.: {text}");
@@ -217,7 +217,7 @@ async fn the_mirror_main_typ_with_its_includes_sets_like_the_export() {
             )
             .await,
     );
-    // Ein Teil vor dem ersten Kapitel (wie in der Oberfläche über „Neuer Teil davor“).
+    // A part before the first chapter (as in the user interface through „Neuer Teil davor“).
     let loaded = server.state.store.load_work(work).await.unwrap();
     let first = &loaded.nodes[0];
     result(
@@ -244,7 +244,7 @@ async fn the_mirror_main_typ_with_its_includes_sets_like_the_export() {
     assert!(main.contains("#include \"abschnitte/"), "main.typ bindet die Abschnitte ein: {main}");
     let section = files.iter().find(|f| f.contents.contains("Am Hang")).unwrap();
     assert!(section.contents.contains("image(\"/bilder/haus.svg\""), "Bildpfad ab der Wurzel: {}", section.contents);
-    // Rasterbilder liegen im Spiegel als Base64-Text (`.b64`, dokumentierte Abweichung); hier nur ein SVG, roh.
+    // Raster images lie in the mirror as Base64 text (`.b64`, documented deviation); here only an SVG, raw.
     let mirror_files: Vec<(String, Vec<u8>)> = files
         .iter()
         .filter(|f| f.path != "main.typ" && !f.path.ends_with(".b64"))

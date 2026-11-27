@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gleichzeitige RPC-Aufrufe `revision.set_current`, `revision.update` und `revision.delete` auf
-//! denselben Abschnitt (Befund aus dem Gutachten Runde 3). Echter Datenordner (SQLite, Bibliothek,
-//! Git-Spiegel) im Temp-Ordner, Anfragen parallel über den Router. Erwartet: genau eine aktuelle
-//! Fassung, keine verlorene Änderung, die aktuelle Fassung nie gelöscht und je erfolgreicher Änderung
-//! genau ein Commit im Spiegel.
+//! Concurrent RPC calls `revision.set_current`, `revision.update` and `revision.delete` on the same section (finding
+//! from the review of Round 3). Real data folder (SQLite, library, Git mirror) in the temp folder, requests in parallel
+//! through the router. Expected: exactly one current revision, no lost change, the current revision never deleted and
+//! exactly one commit in the mirror per successful change.
 
 use crate::common;
 
@@ -11,13 +10,13 @@ use std::collections::BTreeSet;
 
 use serde_json::{Value, json};
 
-const SEQ: usize = 2; // Einleitung im Beispielwerk: 1 ersetzt, 2 aktuell, 3 Vorschlag
+const SEQ: usize = 2; // Introduction in the sample work: 1 superseded, 2 current, 3 proposal
 
 fn commit_count(dir: &std::path::Path) -> Option<u32> {
     common::git(dir, &["rev-list", "--count", "HEAD"]).map(|n| n.trim().parse().unwrap())
 }
 
-/// Anzahl der Commits mit dem Trailer `Baruch-Action: <action>`.
+/// Number of commits with the trailer `Baruch-Action: <action>`.
 fn action_count(dir: &std::path::Path, action: &str) -> Option<usize> {
     let log = common::git(dir, &["log", "--format=%(trailers:key=Baruch-Action,valueonly)"])?;
     Some(log.lines().filter(|l| l.trim() == action).count())
@@ -36,7 +35,7 @@ async fn parallel_rpc_changes_on_one_section_keep_one_current_and_one_commit_eac
     let commits_before = commit_count(&dir);
     let switched_before = action_count(&dir, "switched");
 
-    // Umschalten auf 1–12 (dreimal), Ändern von 1–6 (je einmal), Löschen von 7–11.
+    // Switching to 1–12 (three times), changing 1–6 (once each), deleting 7–11.
     let mut tasks = Vec::new();
     for _ in 0..3 {
         for rev in 1..=12u32 {
@@ -73,7 +72,7 @@ async fn parallel_rpc_changes_on_one_section_keep_one_current_and_one_commit_eac
     let mut updated = Vec::new();
     for (method, rev, answer) in &results {
         if let Some(error) = answer.get("error") {
-            // Abgelehnt sind nur fachliche Fälle: schon aktuell, gerade aktuell (Löschen) oder gelöscht.
+            // Only domain cases are rejected: already current, currently current (deleting) or deleted.
             let code = error["code"].as_i64().unwrap();
             assert!(code == -32000 || code == -32602, "{method} {rev}: nur fachliche Ablehnung erlaubt: {answer}");
             assert_ne!(*method, "update", "Ändern von {rev} darf nicht scheitern: {answer}");
@@ -112,8 +111,8 @@ async fn parallel_rpc_changes_on_one_section_keep_one_current_and_one_commit_eac
 
     let (Some(before), Some(after)) = (commits_before, commit_count(&dir)) else { return };
     assert_eq!(after - before, succeeded as u32, "je erfolgreicher Änderung genau ein Commit");
-    // Das erste gelungene Umschalten auf den Vorschlag 3 ist ein Übernehmen (ohne Trailer), jedes
-    // weitere ein gewöhnliches Umschalten.
+    // The first successful switch to proposal 3 is an acceptance (without trailer), every further one an ordinary
+    // switch.
     let accepted =
         usize::from(results.iter().any(|(m, r, a)| *m == "set_current" && *r == 3 && a.get("result").is_some()));
     assert_eq!(

@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23a: Verhaltenstests der Widgets im Node-Nachbau (ohne Browser). Der DOM-Nachbau kommt aus
-//! `round18_satzbild.rs` (`run_harness`), die Szenen stehen in `widgets.mjs`. Geprüft wird Verhalten der
-//! ausgelieferten, übersetzten Skripte (`baruch_server::SCRIPTS`): Einstellungen (Alt+, und
-//! `baruch:settings-changed` nur nach Erfolg), Editor (Knopf-Weitergabe über `requestSubmit(submitter)`, Sperre
-//! während des Speicherns, Hinweis danach), Befunde, Dialog „Verweis“ (Runde 30a), `sameMarkBehind`, `markdownTitle`
-//! im Gleichlauf mit dem Server, EPUB-Vorschau und Zitat-Werkzeug. Fehlt `node`, meldet jeder Test „ÜBERSPRUNGEN“.
-//! Alle Texte frei erfunden.
+//! Round 23a: behaviour tests of the widgets in the Node mock (without browser). The DOM mock comes from
+//! `round18_satzbild.rs` (`run_harness`), the scenes are in `widgets.mjs`. What is checked is behaviour of the
+//! delivered, compiled scripts (`baruch_server::SCRIPTS`): settings (Alt+, and `baruch:settings-changed` only after
+//! success), editor (button passing through `requestSubmit(submitter)`, lock while saving, hint afterwards), findings,
+//! dialog „Verweis“ (Round 30a), `sameMarkBehind`, `markdownTitle` in step with the server, EPUB preview and quotation
+//! tool. If `node` is missing, every test reports „ÜBERSPRUNGEN“. All texts freely invented.
 
 use serde_json::{Value, json};
 
@@ -14,7 +13,7 @@ use crate::round18_satzbild::run_harness;
 
 const SCENES: &str = include_str!("widgets.mjs");
 
-/// Szene ausführen; `None` (mit Meldung), wenn `node` fehlt.
+/// Run a scene; `None` (with a message) if `node` is missing.
 fn scene(name: &str, scenario: Value) -> Option<Value> {
     let Some(seen) = run_harness(SCENES, &scenario) else {
         eprintln!("ÜBERSPRUNGEN: node fehlt – Verhaltenstest „{name}“ nicht gelaufen.");
@@ -29,7 +28,7 @@ fn ok(answer: &Value) -> &Value {
     &answer["result"]
 }
 
-// ---- Einstellungen -------------------------------------------------------------------------------------------------
+// ---- Settings -----------------------------------------------------------------------------------------------------
 
 #[test]
 fn the_settings_popup_opens_with_alt_comma_and_reports_a_change_only_after_success() {
@@ -43,14 +42,14 @@ fn the_settings_popup_opens_with_alt_comma_and_reports_a_change_only_after_succe
     let scenario = json!({
         "scene": "settings", "submits": 3,
         "pages": [
-            // Öffnen mit Alt+, lädt den Rahmen der Seite.
+            // Opening with Alt+, loads the frame of the page.
             { "status": 200, "body": frame("") },
-            // 1. Speichern mit Erfolg (303 gefolgt, Adresse mit ok-Code).
+            // 1. Saving with success (303 followed, address with ok code).
             { "status": 200, "url": "http://127.0.0.1:8765/einstellungen/darstellung?ok=gespeichert", "body": frame("") },
-            // 2. Abgelehnt: 303 auf eine Adresse mit Fehlercode (Status 200 nach der Weiterleitung).
+            // 2. Rejected: 303 to an address with error code (status 200 after the redirect).
             { "status": 200, "url": "http://127.0.0.1:8765/einstellungen/verbindungen?fehler=name",
               "body": frame("<p role=\"alert\">Der Name ist schon vergeben.</p>") },
-            // 3. Abgelehnt: 422 mit der Meldung auf der Seite.
+            // 3. Rejected: 422 with the message on the page.
             { "status": 422, "body": frame("<p role=\"alert\">Sicherung bitte bestätigen.</p>") },
         ],
     });
@@ -118,7 +117,7 @@ async fn the_editor_forwards_the_pressed_button_locks_while_saving_and_shows_the
     let server = common::open().await;
     let work = server.import(TOEPFEREI, "toepferei-23.typ").await.work;
     let key = server.state.store.load_work(work).await.unwrap().nodes[0].key;
-    // Echte Bereiche des Servers; das Textfeld (Quelltext) ist der Weg, den auch das Satzbild beim Speichern nimmt.
+    // Real areas of the server; the text field (source text) is the way that the typeset view takes on saving too.
     let rendered = server.rpc("ui.render", json!({ "work": work, "key": key })).await;
     let panes = ok(&rendered).clone();
     let fresh = json!({ "result": { "tree": "<p>Baum nach dem Speichern</p>", "editor": "<p>Editor nach dem Speichern</p>",
@@ -129,7 +128,7 @@ async fn the_editor_forwards_the_pressed_button_locks_while_saving_and_shows_the
         "tree": panes["tree"], "editor": panes["editor"], "assistants": panes["assistants"],
     });
 
-    // „Als neue Fassung speichern“: der Knopf geht über requestSubmit(submitter) mit (as_new → mode: "new").
+    // „Als neue Fassung speichern“: the button goes along through requestSubmit(submitter) (as_new → mode: "new").
     let mut scenario = base.clone();
     scenario["button"] = json!("as_new");
     scenario["rpc"] = json!({
@@ -178,7 +177,7 @@ async fn the_editor_forwards_the_pressed_button_locks_while_saving_and_shows_the
     assert_eq!(seen["editorAfter"], "<p>Editor nach dem Speichern</p>", "der Bereich ist neu gezeichnet: {seen}");
     assert_eq!(seen["pushed"][0]["how"], "push", "die Adresse wandert in den Verlauf: {seen}");
 
-    // „Speichern“ ohne Namen: Modus auto bleibt, Rückmeldung „fortgeschrieben (Stand k)“.
+    // „Speichern“ without name: mode auto stays, feedback „fortgeschrieben (Stand k)“.
     let mut scenario = base.clone();
     scenario["button"] = json!("save");
     scenario["rpc"] = json!({
@@ -194,7 +193,7 @@ async fn the_editor_forwards_the_pressed_button_locks_while_saving_and_shows_the
         "Hinweis nach dem Fortschreiben: {seen}"
     );
 
-    // Abgelehnt (ungültige Überschriften): kein Speichern, der Text bleibt, die Sperre geht wieder auf.
+    // Rejected (invalid headings): no saving, the text stays, the lock opens again.
     let mut scenario = base;
     scenario["button"] = json!("save");
     scenario["rpc"] = json!({
@@ -212,7 +211,7 @@ async fn the_editor_forwards_the_pressed_button_locks_while_saving_and_shows_the
     assert_eq!(seen["notices"], json!([]), "kein „Gespeichert“: {seen}");
 }
 
-// ---- Befunde -------------------------------------------------------------------------------------------------------
+// ---- Findings -----------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_finding_status_form_goes_over_rpc_and_shows_errors_at_the_form() {
@@ -254,7 +253,7 @@ async fn a_finding_status_form_goes_over_rpc_and_shows_errors_at_the_form() {
     let scenario = json!({
         "scene": "findings", "url": url, "assistants": assistants, "status": "rejected",
         "reason": "Ist im Vorwort schon belegt.",
-        // Erster Versuch scheitert am Server, der zweite gelingt.
+        // The first attempt fails at the server, the second succeeds.
         "rpc": { "finding.set_status": [
             { "error": { "code": -32000, "message": "Der Befund ist inzwischen entschieden." } },
             { "result": { "finding": { "id": finding.id } } },
@@ -288,7 +287,7 @@ async fn a_finding_status_form_goes_over_rpc_and_shows_errors_at_the_form() {
     );
 }
 
-// ---- Dialog „Verweis“ (Runde 30a) ----------------------------------------------------------------------------------
+// ---- Dialog „Verweis“ (Round 30a) ---------------------------------------------------------------------------------
 
 #[test]
 fn the_xref_dialog_searches_picks_and_inserts_at_the_caret_in_the_source() {
@@ -331,7 +330,7 @@ fn the_xref_dialog_searches_picks_and_inserts_at_the_caret_in_the_source() {
     assert_eq!(seen["dialogGone"], true, "der Dialog ist danach entfernt: {seen}");
 }
 
-// ---- Registermarke -------------------------------------------------------------------------------------------------
+// ---- Index mark ---------------------------------------------------------------------------------------------------
 
 #[test]
 fn same_mark_behind_sees_the_chain_of_marks_directly_at_the_caret() {
@@ -339,7 +338,7 @@ fn same_mark_behind_sees_the_chain_of_marks_directly_at_the_caret() {
     let paul = json!({ "register": "personen", "term": "Paulus" });
     let scenario = json!({
         "scene": "marks",
-        // Im Absatz: „Die Gnade“ ‹Marke Gnade› ‹leerer Text› ‹Marke Paulus› „ trägt.“
+        // In the paragraph: „Die Gnade“ ‹mark Gnade› ‹empty text› ‹mark Paulus› „ trägt.“
         "present": [grace, paul],
         "asked": [
             ["end-of-text", grace], ["end-of-text", paul], ["end-of-text", { "register": "stichwort", "term": "Huld" }],
@@ -356,7 +355,7 @@ fn same_mark_behind_sees_the_chain_of_marks_directly_at_the_caret() {
     );
 }
 
-// ---- markdownTitle im Gleichlauf mit dem Server --------------------------------------------------------------------
+// ---- markdownTitle in step with the server ------------------------------------------------------------------------
 
 #[test]
 fn markdown_title_agrees_with_the_server_side_converter() {
@@ -392,7 +391,7 @@ fn markdown_title_agrees_with_the_server_side_converter() {
     assert_eq!(seen["values"][6], "Zweiter", "Gegenprobe: bei zwei Titeln gilt in beiden der letzte");
 }
 
-// ---- EPUB-Vorschau -------------------------------------------------------------------------------------------------
+// ---- EPUB preview -------------------------------------------------------------------------------------------------
 
 #[test]
 fn the_epub_preview_does_not_reload_on_arrow_keys_in_a_select() {
@@ -411,7 +410,7 @@ fn the_epub_preview_does_not_reload_on_arrow_keys_in_a_select() {
     );
 }
 
-// ---- Menüband ------------------------------------------------------------------------------------------------------
+// ---- Ribbon -------------------------------------------------------------------------------------------------------
 
 #[test]
 fn arrow_keys_move_through_the_toolbar_with_wrap_around() {
@@ -432,7 +431,7 @@ fn arrow_keys_move_through_the_toolbar_with_wrap_around() {
     );
 }
 
-// ---- Zitat-Werkzeug ------------------------------------------------------------------------------------------------
+// ---- Quotation tool -----------------------------------------------------------------------------------------------
 
 #[test]
 fn the_quote_button_inserts_the_block_with_one_blank_line_around_and_a_line_for_the_reference() {
@@ -452,7 +451,7 @@ fn the_quote_button_inserts_the_block_with_one_blank_line_around_and_a_line_for_
     });
     let Some(seen) = scene("Zitat", scenario) else { return };
     let values = seen["values"].as_array().unwrap();
-    // Runde 36: ohne Folgezeile „– “ (sie blieb ungefüllt als einzelner Gedankenstrich im Buch stehen).
+    // Round 36: without the following line „– “ (unfilled, it stayed in the book as a single dash).
     let block = "#quote(block: true)[]";
     assert_eq!(
         values[0],
@@ -472,7 +471,7 @@ fn the_quote_button_inserts_the_block_with_one_blank_line_around_and_a_line_for_
     );
     assert_eq!(values[5], "#quote(block: true)[".len(), "der Cursor steht im Rumpf, nicht in der Zeile der Angabe");
 
-    // Was der Knopf einfügt, liest das Satzbild als Zitatblock und eigenen Absatz – keine Insel.
+    // What the button inserts the typeset view reads as a quotation block and a paragraph of its own – no island.
     let inserted = format!("Der Satz davor.{}Der Satz danach.\n", values[0]["text"].as_str().unwrap());
     let doc = baruch_wysiwyg::parse(&inserted);
     assert!(

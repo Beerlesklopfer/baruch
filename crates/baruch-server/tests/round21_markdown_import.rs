@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 21b (markdown-import): Markdown- und Archiv-Import über Formular (`POST /werke/import`), RPC (`work.import`,
-//! `work.import_archive`) und CLI, Warnungen statt stillem Verwerfen; dazu die Reste des Imports: `export --out` prüft
-//! vorab, Buchende nur schneiden, wenn erzeugt, erste Erwähnung ohne Glossarseite, Regelblock „// Baruch: Satz“ und
-//! „Nummer aus“ über Export → Import. Alle Texte und Bilder sind frei erfunden und im Test erzeugt.
+//! Round 21b (markdown-import): Markdown and archive import through form (`POST /werke/import`), RPC (`work.import`,
+//! `work.import_archive`) and CLI, warnings instead of silent discarding; plus the leftovers of the import:
+//! `export --out` checks in advance, cut the end of the book only if generated, first mention without glossary page,
+//! rule block „// Baruch: Satz“ and „Nummer aus“ across export → import. All texts and images are freely invented and
+//! created in the test.
 
 use crate::common;
 
@@ -19,9 +20,9 @@ use serde_json::{Value, json};
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 
-// ---- Hilfen ------------------------------------------------------------------------------------------------------
+// ---- Helpers ----------------------------------------------------------------------------------------------------
 
-/// CRC-32 (PNG), bitweise.
+/// CRC-32 (PNG), bitwise.
 fn crc32(data: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &byte in data {
@@ -33,7 +34,7 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Gültiges PNG mit einem grauen Pixel, im Test erzeugt (keine Binärdatei im Repo).
+/// Valid PNG with one grey pixel, created in the test (no binary file in the repo).
 fn tiny_png(gray: u8) -> Vec<u8> {
     fn chunk(out: &mut Vec<u8>, kind: &[u8], data: &[u8]) {
         out.extend_from_slice(&(data.len() as u32).to_be_bytes());
@@ -58,11 +59,11 @@ fn tiny_png(gray: u8) -> Vec<u8> {
     out
 }
 
-/// Frei erfundenes SVG.
+/// Freely invented SVG.
 const ROOF: &str =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"8\" height=\"8\"><path d=\"M0 8 L4 0 L8 8 Z\"/></svg>\n";
 
-/// ZIP aus (Name, Inhalt), DEFLATE.
+/// ZIP from (name, content), DEFLATE.
 fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
     let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -75,7 +76,7 @@ fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
 
 const BOUNDARY: &str = "baruch-r21b-grenze";
 
-/// Multipart-Anfrage wie ein Browserformular: Feld `title`, dann je Datei ein Teil `field` mit Dateinamen.
+/// Multipart request like a browser form: field `title`, then per file one part `field` with file name.
 fn upload(field: &str, files: &[(&str, &[u8])], title: &str) -> Request<Body> {
     let mut body = Vec::new();
     body.extend_from_slice(
@@ -142,7 +143,7 @@ async fn key_of(server: &common::Server, work: i64, title: &str) -> i64 {
         .unwrap()
 }
 
-/// Programm `baruch-server` mit Datenordner `data` aufrufen: (Exit-Code, stdout, stderr).
+/// Call the program `baruch-server` with data folder `data`: (exit code, stdout, stderr).
 fn cli(data: &std::path::Path, args: &[&str]) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_baruch-server"))
         .args(args)
@@ -158,8 +159,8 @@ fn cli(data: &std::path::Path, args: &[&str]) -> (i32, String, String) {
     )
 }
 
-/// Erfundenes Markdown mit allen Formen der Abnahme: vier Überschriftsebenen, Hervorhebung, verschachtelte Liste,
-/// Aufzählung, Zitat, Codeblock, Link, Fußnote, Bild und eine Zeile voller Typst-Sonderzeichen.
+/// Invented Markdown with all forms of the acceptance: four heading levels, emphasis, nested list, bullet list,
+/// quotation, code block, link, footnote, image and a line full of Typst special characters.
 const LIGHTHOUSE: &str = "# Der Leuchtturm\n\
 \n\
 Am Kap steht ein *alter* Turm mit **rotem** Dach und `Lampe 3`.[^wind]\n\
@@ -191,7 +192,7 @@ Preis #3 kostet $5 *und* _mehr_ @wärter 1<2 \\` \\\\ Ende\n\
 \n\
 [^wind]: Der Wind kommt von Westen.\n";
 
-// ---- Markdown mit allen Formen -----------------------------------------------------------------------------------
+// ---- Markdown with all forms ------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn an_invented_markdown_with_every_form_becomes_a_work_that_typesets() {
@@ -236,7 +237,8 @@ async fn an_invented_markdown_with_every_form_becomes_a_work_that_typesets() {
     let asset = server.state.store.asset_by_path(work, "bilder/turm.png").await.unwrap();
     assert!(asset.is_some(), "das Bild gehört unter seinem Pfad zum Werk (Satz und Satzbild finden es)");
 
-    // Setzen mit dem eingebetteten Typst (wie Satz-Vorschau und PDF); PDF_SERIAL, weil Satz-Läufe prozessweit sind.
+    // Typesetting with the embedded Typst (like typesetting preview and PDF); PDF_SERIAL, because typesetting runs are
+    // process-wide.
     let _serial = common::PDF_SERIAL.lock().await;
     let typeset = baruch_server::typeset::typeset(&server.state, work).await.unwrap();
     let errors: Vec<_> = typeset.diagnostics().into_iter().filter(|d| d.severity == "error").collect();
@@ -244,22 +246,22 @@ async fn an_invented_markdown_with_every_form_becomes_a_work_that_typesets() {
     let source = typeset.prepared.source.clone();
     let pages = tokio::task::spawn_blocking(move || baruch_render::page_texts(&source)).await.unwrap();
     let text: String = pages.expect("Seiten").iter().flatten().map(|t| t.text.as_str()).collect();
-    // Jedes Sonderzeichen muss als Zeichen im Satz stehen: wäre es Typst-Markup geblieben, verschwände es (#, $, @, <,
-    // `, \ als Code, Mathe, Verweis, Label, Raw, Escape) bzw. würde Auszeichnung (*, _) oder Überschrift (=).
+    // Every special character must be in the typesetting as a character: had it stayed Typst markup, it would vanish
+    // (#, $, @, <, `, \ as code, maths, reference, label, raw, escape) or become markup (*, _) or heading (=).
     for c in ['#', '$', '@', '<', '`', '\\', '='] {
         assert!(text.contains(c), "„{c}“ steht wörtlich im Satz: {text}");
     }
     assert!(text.contains("kein Kapitel"), "die =-Zeile ist Fließtext geblieben: {text}");
 }
 
-// ---- Hochladen ohne JavaScript ---------------------------------------------------------------------------------
+// ---- Upload without JavaScript --------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_zip_upload_reports_missing_large_non_images_and_escapes_with_a_reason() {
     let server = common::open().await;
     let md = "# Die Mühle\n\nDas Rad.\n\n![Rad](bilder/rad.png)\n![fehlt](bilder/fehlt.png)\n![Notiz](bilder/notiz.png)\n\
               ![weg](../draussen.png)\n![groß](bilder/gross.png)\n";
-    // Kaum packbar (Pseudozufall), sonst hielte der Archivleser es für eine Zip-Bombe.
+    // Hardly compressible (pseudo-random), otherwise the archive reader would take it for a zip bomb.
     let mut seed = 0x2545_f491u32;
     let big: Vec<u8> = (0..8 * 1024 * 1024 + 1)
         .map(|_| {
@@ -286,7 +288,7 @@ async fn a_zip_upload_reports_missing_large_non_images_and_escapes_with_a_reason
         ("../draussen.png", "&#x27;..&#x27; ist nicht erlaubt"),
         ("bilder/gross.png", "größer als 8 MiB"),
     ] {
-        // minijinja schreibt „/“ als `&#x2f;` (SKILLS.md); der Browser zeigt den Pfad wie geschrieben.
+        // minijinja writes „/“ as `&#x2f;` (SKILLS.md); the browser shows the path as written.
         let row = html.lines().find(|l| l.contains(&format!("<code>{}</code>", path.replace('/', "&#x2f;"))));
         assert!(
             row.is_some_and(|r| r.contains(reason)),
@@ -338,7 +340,7 @@ async fn a_folder_upload_with_relative_paths_brings_its_images() {
     let typst = export(&server, work).await;
     assert!(typst.contains("#image(\"bilder/beet.png\", alt: \"Ein Beet\")"), "Bild im Text: {typst}");
 
-    // Datei und Ordner zugleich: nicht raten, welches gemeint ist.
+    // File and folder at once: do not guess which is meant.
     let mut request = upload("files", &[("x/a.md", b"# A\n")], "");
     let both = {
         let mut body = Vec::new();
@@ -364,12 +366,12 @@ async fn a_folder_upload_with_relative_paths_brings_its_images() {
 async fn unsafe_archives_and_folders_are_refused_and_nothing_is_created() {
     let server = common::open().await;
     let before = work_count(&server).await;
-    // Pfadflucht im Archiv.
+    // Path traversal in the archive.
     let escape = zip_of(&[("../flucht.md", b"# Flucht\n")]);
     let (status, _, html) = server.send(upload("file", &[("flucht.zip", &escape)], "")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "../ im Archiv → 422: {html}");
     assert!(html.contains("unsicherer Eintrag"), "Meldung des Archivlesers: {html}");
-    // Verknüpfung im Archiv.
+    // Link in the archive.
     let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
     writer.start_file("buch.md", SimpleFileOptions::default()).unwrap();
     writer.write_all(b"# Buch\n\n![x](bild.png)\n").unwrap();
@@ -378,19 +380,19 @@ async fn unsafe_archives_and_folders_are_refused_and_nothing_is_created() {
     let (status, _, html) = server.send(upload("file", &[("link.zip", &link)], "")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Verknüpfung im Archiv → 422: {html}");
     assert!(html.contains("Verknüpfung"), "Meldung nennt die Verknüpfung: {html}");
-    // Zip-Bombe: 4 MiB Nullen packen auf wenige KiB (Verhältnis weit über 200).
+    // Zip bomb: 4 MiB of zeros pack to a few KiB (ratio far above 200).
     let bomb = zip_of(&[("buch.md", b"# Buch\n"), ("null.bin", &vec![0u8; 4 * 1024 * 1024])]);
     assert!(bomb.len() < 64 * 1024, "Testvoraussetzung: stark gepackt ({} Bytes)", bomb.len());
     let (status, _, html) = server.send(upload("file", &[("bombe.zip", &bomb)], "")).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "Zip-Bombe → 413: {html}");
-    // Ordner mit Pfadflucht im Dateinamen (ein Browser schickt das nie, ein Skript schon).
+    // Folder with path traversal in the file name (a browser never sends that, a script does).
     let (status, _, html) = server.send(upload("files", &[("../a.md", b"# A\n")], "")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "../ im Ordner-Upload → 422: {html}");
-    // Kein ZIP.
+    // No ZIP.
     let (status, _, html) = server.send(upload("file", &[("kaputt.zip", b"kein Archiv")], "")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "kein ZIP → 422: {html}");
     assert!(html.contains("kein ZIP-Archiv"), "Meldung: {html}");
-    // Archiv ohne Haupt-Datei bzw. mit zwei möglichen.
+    // Archive without a main file or with two possible ones.
     let none = zip_of(&[("bild.png", &tiny_png(1))]);
     let (status, _, html) = server.send(upload("file", &[("leer.zip", &none)], "")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ohne Haupt-Datei → 422: {html}");
@@ -416,12 +418,12 @@ async fn the_upload_limit_is_80_mib_only_at_the_import_route() {
     );
     let server = common::open().await;
     let before = work_count(&server).await;
-    // Eine Datei über 16 MiB im Ordner: Grenze je Eintrag (IMPORT_LIMITS) → 413.
+    // A file over 16 MiB in the folder: limit per entry (IMPORT_LIMITS) → 413.
     let big = vec![b'x'; 16 * 1024 * 1024 + 1];
     let (status, _, html) = server.send(upload("files", &[("r/a.md", b"# A\n"), ("r/gross.bin", &big)], "")).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "Eintrag über 16 MiB → 413: {html}");
     assert!(html.contains("größer als 16 MiB"), "Meldung nennt die Grenze: {html}");
-    // Die ganze Anfrage über 80 MiB + 64 KiB: axum lehnt beim Lesen ab → 413 mit Formular.
+    // The whole request over 80 MiB + 64 KiB: axum rejects on reading → 413 with form.
     let huge = vec![b'y'; 80 * 1024 * 1024 + 64 * 1024];
     let (status, _, html) = server.send(upload("files", &[("r/a.md", b"# A\n"), ("r/riesig.bin", &huge)], "")).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "Anfrage über der Grenze → 413");
@@ -429,7 +431,7 @@ async fn the_upload_limit_is_80_mib_only_at_the_import_route() {
     assert_eq!(work_count(&server).await, before, "nichts angelegt");
 }
 
-// ---- RPC und CLI ---------------------------------------------------------------------------------------------------
+// ---- RPC and CLI --------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn rpc_imports_markdown_and_archives_with_warnings_and_refuses_wrong_endings_and_taken_titles() {
@@ -498,9 +500,9 @@ fn the_cli_imports_markdown_and_zip_and_prints_report_and_hints() {
     assert_eq!(code, 2, "PDF-Flags gelten nicht für ZIP (Weiche aus S1): {err}");
 }
 
-// ---- export --out prüft vorab --------------------------------------------------------------------------------------
+// ---- export --out checks in advance -------------------------------------------------------------------------------
 
-/// Alle Dateien unter `dir` (relativ, sortiert), Verknüpfungen nicht verfolgt.
+/// All files under `dir` (relative, sorted), links not followed.
 fn files_under(dir: &std::path::Path) -> Vec<String> {
     let mut out = Vec::new();
     let mut stack = vec![dir.to_path_buf()];
@@ -543,7 +545,7 @@ async fn export_out_refuses_a_symlinked_folder_and_a_file_folder_clash_before_wr
         "auch die Typst-Datei ist nicht geschrieben (nur der Link)"
     );
 
-    // a.png und a.png/b.svg: eine Datei und ein Ordner gleichen Namens.
+    // a.png and a.png/b.svg: a file and a folder of the same name.
     let clash = "#set document(title: \"Das Doppelheft\")\n= Doppel\n\n#image(\"a.png\")\n#image(\"a.png/b.svg\")\n";
     let archive =
         zip_of(&[("doppel.typ", clash.as_bytes()), ("a.png", &tiny_png(70)), ("a.png/b.svg", ROOF.as_bytes())]);
@@ -553,13 +555,13 @@ async fn export_out_refuses_a_symlinked_folder_and_a_file_folder_clash_before_wr
     assert!(error.contains("zugleich Datei und Ordner"), "Kollision erkannt: {error}");
     assert!(!target.exists(), "nicht einmal der Zielordner ist angelegt: vorab geprüft");
 
-    // Gegenprobe: ohne Hindernis schreibt export --out alles.
+    // Counter-check: without an obstacle export --out writes everything.
     let clean = tmp.path().join("sauber");
     let written = baruch_server::import::export_to_dir(&server.state.store, keller, &clean).await.unwrap();
     assert_eq!(written.len(), 2, "Typst-Datei und Bild: {written:?}");
 }
 
-/// Archiv über RPC importieren, Werk-id zurück.
+/// Import an archive through RPC, returns the work id.
 async fn markdown_work(server: &common::Server, archive: &[u8], name: &str) -> i64 {
     let answer = server
         .rpc("work.import_archive", json!({ "file_name": name, "content": baruch_store::encode_base64(archive) }))
@@ -567,9 +569,9 @@ async fn markdown_work(server: &common::Server, archive: &[u8], name: &str) -> i
     result(&answer)["work"].as_i64().unwrap()
 }
 
-// ---- Buchende, erste Erwähnung, Satz-Regeln, „Nummer aus“ -----------------------------------------------------------
+// ---- End of the book, first mention, typesetting rules, „Nummer aus“ ------------------------------------------------
 
-/// Erfundenes Werk für die Rundreisen.
+/// Invented work for the round trips.
 const HARBOUR: &str = "#set document(title: \"Das Hafenbuch\")\n= Ankunft\n\nDas Leuchtfeuer brennt am Kai.\n\n\
                        = Abfahrt\n\nWieder das Leuchtfeuer.\n";
 
@@ -635,7 +637,7 @@ async fn a_first_mention_without_glossary_page_survives_export_and_import() {
         "der Eingriff steht im Bericht: {report}"
     );
     let copy = export(&server, report["work"].as_i64().unwrap()).await;
-    // Das neue Werk hat weder Glossar noch die Einstellung: sein Export muss der Text vor der Projektion sein.
+    // The new work has neither glossary nor the setting: its export must be the text before the projection.
     server.state.store.reset_work_typeset(work, "Autor").await.unwrap();
     assert_eq!(
         unkeyed(&copy),
@@ -680,7 +682,7 @@ async fn the_typeset_rules_block_returns_into_the_typeset_settings_of_the_new_wo
     );
     assert_eq!(unkeyed(&export(&server, copy).await), unkeyed(&exported), "der neue Export ist textgleich");
 
-    // Von Hand geändert: nicht raten, in der Vorlage lassen und melden.
+    // Changed by hand: do not guess, leave it in the template and report.
     let edited = exported.replace("#set par(justify: true)\n", "#set par(justify: true)\n#set text(fill: blue)\n");
     let answer = server
         .rpc("work.import", json!({ "file_name": "hafen-hand.typ", "source": edited, "title": "Handdruck" }))
@@ -711,7 +713,7 @@ async fn number_off_with_its_own_label_and_under_no_numbering_survives_export_an
     assert!(!template.contains("Überschriften ohne Nummer"), "die Regel ist Merker, nicht Vorlage: {template}");
     assert_eq!(unkeyed(&export(&server, copy).await), unkeyed(&exported), "und der Export bleibt textgleich");
 
-    // „Ohne Nummern“: die Textform bleibt (= Zeile), der Merker reist als Show-Regel mit.
+    // „Ohne Nummern“: the text form stays (= line), the flag travels along as a show rule.
     let epilogue = key_of(&server, work, "Nachwort").await;
     result(&server.rpc("outline.set_numbered", json!({ "work": work, "key": epilogue, "numbered": false })).await);
     server.state.store.set_numbering_scheme(work, "none", None).await.unwrap();

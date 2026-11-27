@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! RPC `library.list` und `library.search`, das Werkzeug des Lektors, auf der echten Datenbank
-//! (Kernmigration aus baruch-store, danach Bibliothek).
+//! RPC `library.list` and `library.search`, the tool of the lector, on the real database (core migration from
+//! baruch-store, then the library).
 
 use crate::common;
 
@@ -23,7 +23,7 @@ async fn library_search_finds_langmuetig_in_work_and_library() {
     let quote = hits.iter().find(|h| h["kind"] == "quote").unwrap_or_else(|| panic!("kein Zitat-Treffer: {answer}"));
     assert!(quote["key"].as_str().is_some_and(|k| !k.is_empty()), "Zitierschlüssel fehlt: {quote}");
 
-    // Ohne Umlaut und nur Bibliothek.
+    // Without umlaut and library only.
     let folded = server.rpc("library.search", json!({ "query": "langmutig", "kinds": ["quote"] })).await;
     let folded = folded["result"]["hits"].as_array().unwrap();
     assert!(

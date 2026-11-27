@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Gliederung und Überschriftszeilen bleiben gleich, auch außerhalb des Editors: „Fassung ändern“ und
-//! `revision.save` nehmen nur Texte mit genau einer Überschrift der Ebene des Punkts (ein neuer Titel
-//! derselben Ebene benennt um). Umschalten und Übernehmen (Runde 5) lassen die Gliederung der Fassung
-//! folgen, auch in der Ebene; Fassungen ohne oder mit weiteren Überschriften lehnen sie ab. Sonst ergäbe
-//! ein Export und erneuter Import eine andere Gliederung. Gartenbuch: Frühling (0), Aussaat (1), Tiefe
-//! (2), Sommer (3).
+//! Outline and heading lines stay the same, also outside the editor: „Fassung ändern“ and `revision.save` take only
+//! texts with exactly one heading of the level of the item (a new title of the same level renames). Switching and
+//! accepting (Round 5) let the outline follow the revision, also in the level; they reject revisions without or with
+//! further headings. Otherwise an export and a renewed import would yield a different outline. Gartenbuch: Frühling
+//! (0), Aussaat (1), Tiefe (2), Sommer (3).
 
 use crate::common;
 
@@ -15,18 +14,18 @@ fn titles(loaded: &Value) -> Vec<String> {
     loaded["result"]["work"]["nodes"].as_array().unwrap().iter().map(|n| n["title"].as_str().unwrap().into()).collect()
 }
 
-/// Exportieren und als neues Werk wieder einlesen: dieselben Titel in derselben Reihenfolge?
+/// Export and read in again as a new work: the same titles in the same order?
 async fn reimported_titles(server: &common::Server, work: i64) -> Vec<String> {
     let export = server.rpc("work.export", json!({ "work": work })).await;
     let typst = export["result"]["typst"].as_str().unwrap().to_owned();
-    // Anderer Werktitel, damit der zweite Import weder als Doppel noch als gleicher Titel scheitert.
+    // Different work title, so that the second import fails neither as a duplicate nor as the same title.
     let renamed = typst.replacen("title: \"Das Gartenbuch\"", "title: \"Gartenbuch, wieder eingelesen\"", 1);
     assert_ne!(renamed, typst, "der Export trägt den Werktitel in der Vorlage");
     let again = server.import(&renamed, "wieder.typ").await;
     titles(&server.rpc("work.get", json!({ "work": again.work })).await)
 }
 
-/// Ebene je Knoten aus `work.get` (Teil 0, Kapitel 1, Abschnitt 2, unter einem Abschnitt 3).
+/// Level per node from `work.get` (part 0, chapter 1, section 2, below a section 3).
 fn levels(loaded: &Value) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::new();
     for node in loaded["result"]["work"]["nodes"].as_array().unwrap() {
@@ -46,7 +45,8 @@ async fn switching_back_to_a_version_with_another_level_moves_the_outline_along(
     let server = common::open().await;
     let report = server.import_garden().await;
     let work = report.work;
-    // Aussaat wird Kapitel: neue Fassung 2 „= Aussaat“, Tiefe dabei Abschnitt; Fassung 1 trägt „== Aussaat“.
+    // Aussaat becomes a chapter: new revision 2 „= Aussaat“, Tiefe becomes a section with it; revision 1 carries
+    // „== Aussaat“.
     let level = server.rpc("outline.set_level", json!({ "work": work, "node": 1, "level": 1 })).await;
     assert!(level.get("error").is_none(), "{level}");
     let dir = server.mirror_dir_of(&report.slug);
@@ -57,7 +57,7 @@ async fn switching_back_to_a_version_with_another_level_moves_the_outline_along(
     let old =
         server.rpc("node.get", json!({ "work": work, "node": 1 })).await["result"]["revisions"][0]["body"].clone();
 
-    // Nutzerentscheidung „Nein“: Die Fassung wird nicht angepasst, die Gliederung folgt ihr.
+    // User decision „Nein“: the revision is not adapted, the outline follows it.
     let back = server.rpc("revision.set_current", json!({ "work": work, "node": 1, "rev": 1 })).await;
     assert!(back.get("error").is_none(), "Umschalten auf die alte Ebene ist erlaubt: {back}");
     assert_eq!(back["result"]["rev"], 1, "Fassung 1 ist aktuell: {back}");
@@ -76,8 +76,8 @@ async fn switching_back_to_a_version_with_another_level_moves_the_outline_along(
         "Export und Import ergeben dieselbe Gliederung"
     );
 
-    // Spiegel: genau ein Commit für Umschalten und Mitstufen.
-    let (Some(before), Some(after)) = (before, commits(&dir)) else { return }; // kein git-Programm
+    // Mirror: exactly one commit for switching and the level change that goes with it.
+    let (Some(before), Some(after)) = (before, commits(&dir)) else { return }; // no git program
     assert_eq!(after, before + 1, "Umschalten mit anderer Ebene ist genau ein Commit");
     let log = common::git(&dir, &["log", "-1", "--format=%s%n%b"]).unwrap();
     assert!(log.contains(": auf Fassung 1 umgeschaltet · Ebene 1 → 2"), "Betreff mit Ebene: {log}");
@@ -103,7 +103,7 @@ async fn the_raw_ways_refuse_texts_that_would_split_merge_or_change_the_level() 
         update["error"]["code"], -32000,
         "„Fassung ändern“ der aktuellen Fassung auf Ebene 2 abgelehnt: {update}"
     );
-    // Ohne JavaScript: dasselbe Formular an /act wird mit 422 und Meldung abgelehnt.
+    // Without JavaScript: the same form to /act is rejected with 422 and a message.
     let (status, _) = server
         .post_form(
             "/act",
@@ -129,12 +129,12 @@ async fn editing_an_older_version_is_not_blocked_by_the_heading_rule() {
     let work = server.import_garden().await.work;
     let saved = server.rpc("revision.save", json!({ "work": work, "node": 3, "body": "= Sommer\n\nNeu.\n" })).await;
     assert_eq!(saved["result"]["rev"], 2, "{saved}");
-    // Fassung 1 ist nicht mehr aktuell: ihr Text bestimmt die Gliederung nicht, Notizen und Text gehen.
+    // Revision 1 is no longer current: its text does not determine the outline, notes and text pass.
     let update = server
         .rpc("revision.update", json!({ "work": work, "node": 3, "rev": 1, "body": "Entwurf ohne Überschrift.\n" }))
         .await;
     assert_eq!(update["result"]["changed"], true, "eine ältere Fassung lässt sich frei ändern: {update}");
-    // Zurückschalten auf sie geht dann aber nicht.
+    // Switching back to it, however, is then not possible.
     let back = server.rpc("revision.set_current", json!({ "work": work, "node": 3, "rev": 1 })).await;
     assert_eq!(back["error"]["code"], -32000, "Fassung ohne Überschrift wird nicht aktuell: {back}");
 }

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Personas wirklich (Runde 10, „personas“): Aufträge an Personas über RPC, Formular (ohne JavaScript),
-//! Strom (SSE) und MCP, Kontextaufbau, Rollen-Prompts, Lektor-Wahl und Einfall an eine Persona.
+//! Personas for real (Round 10, „personas“): jobs for personas through RPC, form (without JavaScript), stream (SSE) and
+//! MCP, context building, role prompts, lector choice and idea to a persona.
 //!
-//! Alle Tests nutzen `baruch_server::assist::mock::ScriptedModel` hinter `AppState::open_with` – kein
-//! Netz, keine GPU, kein echter Modell-Server. Die Texte sind frei erfunden (ein kleines Bienenbuch).
+//! All tests use `baruch_server::assist::mock::ScriptedModel` behind `AppState::open_with` – no network, no GPU, no
+//! real model server. The texts are freely invented (a small bee book).
 
 use crate::common;
 
@@ -30,7 +30,7 @@ struct Bees {
     server: common::Server,
     model: ScriptedModel,
     work: i64,
-    /// Schlüssel von Frühjahr, Ausflug, Pollen, Sommer.
+    /// Keys of Frühjahr, Ausflug, Pollen, Sommer.
     keys: Vec<i64>,
 }
 
@@ -117,7 +117,7 @@ async fn the_context_has_the_shown_version_the_chapter_and_ideas_only_for_the_le
     let b =
         bees([Step::words("Kritisch: eins.\n- Schritt: prüfen."), Step::words("Kritisch: zwei.\n- Schritt: prüfen.")])
             .await;
-    // Zweite Fassung von „Pollen“, dann die erste zeigen (rev 1).
+    // Second revision of „Pollen“, then show the first (rev 1).
     let saved = b
         .server
         .rpc(
@@ -147,14 +147,14 @@ async fn the_context_has_the_shown_version_the_chapter_and_ideas_only_for_the_le
     assert!(!first.contains("Bienenbrot im Wabenrand"), "die aktuelle Fassung 2 steht nicht drin: {first}");
     assert!(first.contains("(Fassung 1)"), "Nummer der gezeigten Fassung: {first}");
     assert!(first.contains("Kapitel: 1 Frühjahr"), "Kapitelumfeld: Kapitel: {first}");
-    // Seit Runde 15 steht das ganze Kapitel im Wortlaut da (nicht nur 300 Zeichen je Nachbar).
+    // Since Round 15 the whole chapter is there verbatim (not only 300 characters per neighbour).
     assert!(
         first.contains("--- 1.1 Ausflug ---\n<<<\n== Ausflug\n\nDie ersten Sammlerinnen fliegen an warmen Tagen zum Weidenkätzchen."),
         "Nachbar im Wortlaut: {first}"
     );
     assert!(first.contains("Zielgruppe: Hobby-Imker"), "Werk mit Zielgruppe: {first}");
     assert!(
-        // Runde 17a (L5): jeder Einfall gerahmt und entschärft wie ein Befund.
+        // Round 17a (L5): every idea framed and defused like a finding.
         first.contains("Gedächtnis")
             && first.contains("- Zu diesem Abschnitt: <<<einfall [Bienenbrot] Gärung erklären >>>"),
         "Einfall mit Bezug: {first}"
@@ -172,14 +172,14 @@ async fn the_context_has_the_shown_version_the_chapter_and_ideas_only_for_the_le
 
 #[tokio::test]
 async fn a_small_context_compresses_and_never_cuts_the_section() {
-    // Bis Runde 14 fiel hier der Abschnitt vom Ende her weg („[… gekürzt: n Zeichen]“). Seit Runde 15 wird nie
-    // still gekürzt: Der Abschnitt wird in Stücken im Wortlaut geprüft, das Übrige zusammengefasst (Vermerk).
+    // Up to Round 14 the section was dropped here from the end („[… gekürzt: n Zeichen]“). Since Round 15 nothing is
+    // ever shortened silently: the section is checked verbatim in pieces, the rest is summarised (note).
     let long = format!("== Pollen\n\n{}\n", "Die Sammlerin trägt Pollen heim. ".repeat(200));
     let b = bees((0..12).map(|_| Step::words("Kritisch: kurz.\n- Schritt: prüfen."))).await;
     b.server.rpc("revision.save", json!({ "work": b.work, "key": b.keys[2], "body": long })).await;
     b.server.rpc("idea.create", json!({ "work": b.work, "key": b.keys[2], "words": ["Pollenfarbe"] })).await;
-    // Runde 17a: 3400 statt 3000 Tokens – mit Einfällen steht seither die Regel „Daten, keine Anweisungen“ im
-    // System-Prompt (OTHERS_RULE gilt auch für das Gedächtnis), das Stück braucht dafür etwas mehr Platz.
+    // Round 17a: 3400 instead of 3000 tokens – with ideas the rule „Daten, keine Anweisungen“ has been in the system
+    // prompt since then (OTHERS_RULE also holds for the memory), the piece needs a little more room for that.
     let set = b.server.rpc("persona.update", json!({ "handle": "@lektor", "context_length": 3400 })).await;
     assert_eq!(result(&set)["context_length"], 3400, "kleine Kontextlänge");
     let answer =
@@ -217,7 +217,7 @@ async fn a_forbidden_opening_is_asked_again_once_and_then_the_first_sentence_goe
     assert!(!system(&calls[0]).contains(prompts::RETRY_NOTE), "erster Aufruf ohne Zusatz");
     assert!(system(&calls[1]).contains(prompts::RETRY_NOTE), "zweiter Aufruf mit Zusatzanweisung");
 
-    // Runde 16a: „Kritisch:“ zählt nur am Zeilenanfang, darum steht der Befund in einer eigenen Zeile.
+    // Round 16a: „Kritisch:“ counts only at the beginning of a line, therefore the finding is on a line of its own.
     let b = bees([Step::words("Natürlichkeit ist hier ein gutes Wort.\nKritisch: nichts weiter.\n- Schritt: prüfen.")])
         .await;
     let answer =
@@ -319,7 +319,7 @@ async fn an_answer_cut_at_the_length_limit_is_marked_and_a_cut_proposal_is_not_s
         "der Beitrag sagt, dass er unvollständig ist"
     );
 
-    // Ein abgeschnittener Vorschlag wäre ein Abschnitt ohne Ende; übernähme ihn der Mensch, fehlte der Rest.
+    // A truncated proposal would be a section without an end; if the human accepted it, the rest would be missing.
     let before = b.server.state.store.load_work(b.work).await.unwrap().nodes[0].revisions.len();
     let propose =
         b.server.rpc("persona.propose", json!({ "work": b.work, "key": b.keys[0], "persona": "@lektor" })).await;
@@ -336,8 +336,8 @@ async fn an_answer_cut_at_the_length_limit_is_marked_and_a_cut_proposal_is_not_s
     assert!(!result(&ask)["post"]["body"].as_str().unwrap().contains("abgeschnitten"), "kein Hinweis");
 }
 
-/// Werk mit sieben langen Beiträgen „Alt-0“ … „Alt-6“ im Chat von „Pollen“, dann die Nachricht an @lektor;
-/// gibt den Modellaufruf zurück. `context`: Kontextlänge des Lektors.
+/// Work with seven long posts „Alt-0“ … „Alt-6“ in the chat of „Pollen“, then the message to @lektor; returns the model
+/// call. `context`: context length of the lector.
 async fn chat_after_long_history(context: Option<u32>) -> (baruch_server::assist::ModelCall, Value) {
     let b = bees([Step::words("Kritisch: kurz.\n- Schritt: prüfen.")]).await;
     for n in 0..7 {
@@ -360,15 +360,16 @@ async fn chat_after_long_history(context: Option<u32>) -> (baruch_server::assist
 
 #[tokio::test]
 async fn a_short_context_drops_the_oldest_chat_posts_and_keeps_the_newest() {
-    // Erst mit großem Kontext messen, wie lang die Eingabe ungekürzt ist, dann denselben Verlauf mit einer
-    // Kontextlänge, der rund 1500 Zeichen fehlen: Das Kapitelumfeld (~100 Zeichen) reicht nicht, also fallen
-    // Chatbeiträge (je ~600 Zeichen) – drei, und zwar die ältesten.
+    // First measure with a large context how long the input is unshortened, then the same history with a context length
+    // that lacks about 1500 characters: the chapter surroundings (~100 characters) are not enough, so chat posts (~600
+    // characters each) are dropped – three, namely the oldest.
     let (full, _) = chat_after_long_history(None).await;
     let text = user(&full);
     assert!(text.contains("Alt-0 ") && text.contains("Neueste Frage"), "ungekürzt ist alles drin: {text}");
     let total: usize = full.messages.iter().map(|m| m.content.chars().count()).sum();
-    // Runde 30b: Mit großem Kontext stehen zusätzlich die Gliederung mit Schlüsseln und die Regel für Sprungmarken
-    // im Aufruf – aber nur, solange Platz ist; beim knappen Kontext fallen sie zuerst weg. Gemessen wird darum ohne sie.
+    // Round 30b: with a large context the outline with keys and the rule for jump marks are additionally in the call –
+    // but only as long as there is room; with the tight context they are dropped first. Therefore the measurement is
+    // done without them.
     let outline_start = text.find("\n\nGliederung (").expect("bei großem Kontext steht die Gliederung da");
     let outline_end = text[outline_start + 2..].find("\n\n").map_or(text.len(), |n| outline_start + 2 + n);
     let outline_len = text[outline_start..outline_end].chars().count();
@@ -478,7 +479,7 @@ async fn idea_process_as_persona_asks_the_lector_and_marks_the_idea_done() {
     assert!(user(&b.model.calls()[0]).contains("Bienenbrot erwähnen?"), "der Einfall ist die Frage");
 }
 
-// ---- Formular und Strom ------------------------------------------------------------------------
+// ---- Form and stream ----------------------------------------------------------------------------
 
 #[tokio::test]
 async fn the_forms_work_without_javascript_and_redirect_to_the_key_address() {
@@ -513,7 +514,7 @@ async fn the_forms_work_without_javascript_and_redirect_to_the_key_address() {
             &format!("method=persona.ask&work={}&key={}&persona=%40lektor&question=x", b.work, b.keys[3]),
         )
         .await;
-    // Runde 15: statt 422 die Hinweisseite (200) mit der Meldung und dem Link zurück (tests/round15_auftraege.rs).
+    // Round 15: instead of 422 the notice page (200) with the message and the link back (tests/round15_auftraege.rs).
     assert_eq!(status, StatusCode::OK, "Skript zu Ende → ehrliche Hinweisseite statt 422");
     let (status, _) = b.server.post_form("/assistenten/act", "method=persona.set_prompt").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "nur Aufträge über dieses Formular");
@@ -527,7 +528,7 @@ async fn the_forms_work_without_javascript_and_redirect_to_the_key_address() {
     assert_eq!(status, StatusCode::FORBIDDEN, "fremder Origin → 403");
 }
 
-/// Ereignisse aus einem SSE-Text: (Name, Daten).
+/// Events from an SSE text: (name, data).
 fn events(text: &str) -> Vec<(String, Value)> {
     text.split("\n\n")
         .filter_map(|block| {
@@ -734,8 +735,8 @@ async fn mcp_chat_calls_at_most_three_mentioned_personas_and_never_relays() {
         3,
         "@nathan in einer Antwort ruft keine weitere Persona (Relay-Grenze: drei Antworten erreicht)"
     );
-    // Runde 15: ohne key ein Faden ohne Abschnitt (kein Stub mehr); das Skript ist aufgebraucht, darum scheitert
-    // die Antwort ehrlich, der Beitrag des Clients steht im Faden.
+    // Round 15: without key a thread without a section (no longer a stub); the script is used up, therefore the answer
+    // fails honestly, the post of the client is in the thread.
     let thread = tool(&b, &s, "chat", json!({ "work": b.work, "message": "@lektor ohne Abschnitt" })).await;
     assert_eq!(thread["isError"], false, "ohne key: Faden ohne Abschnitt statt Stub: {thread}");
     assert!(thread["structuredContent"]["thread"].is_number(), "die Antwort nennt den Faden: {thread}");
@@ -755,7 +756,7 @@ async fn mcp_chat_calls_at_most_three_mentioned_personas_and_never_relays() {
     assert_eq!(status, StatusCode::FORBIDDEN, "fremder Origin → 403");
 }
 
-// ---- Rollen-Prompts und Lektor -------------------------------------------------------------------
+// ---- Role prompts and lector ---------------------------------------------------------------------
 
 #[tokio::test]
 async fn every_default_prompt_carries_the_hard_rules_with_a_counter_example() {
@@ -790,8 +791,8 @@ async fn every_default_prompt_carries_the_hard_rules_with_a_counter_example() {
         .as_str()
         .unwrap()
         .to_owned();
-    // Der Kontext enthält nur Abschnitt, Kapitelumfeld und Einfälle: Der Prompt darf keine Verweise auf
-    // Stellen verlangen, die das Modell nie sieht (sonst lädt er zum Erfinden ein).
+    // The context contains only section, chapter surroundings and ideas: the prompt must not demand references to
+    // passages that the model never sees (otherwise it invites invention).
     assert!(
         lektor.contains("not the whole work") && !lektor.contains("You know the whole work"),
         "Lektor-Prompt sagt, was er sieht: {lektor}"
@@ -932,7 +933,7 @@ async fn the_settings_page_offers_the_model_list_and_warns_about_unknown_alias_a
         .with_models(&["google/gemma-4-26b-a4b", "qwen3-4b-q4-k-m"])
         .with_alias("qwen3:4b", "qwen3-4b-q4-k-m");
     let b = with_model(model).await;
-    // Runde 17a (L4): Beim bloßen Laden fragt die Seite keine Gegenstelle; die Liste kommt mit „Modellliste abfragen“.
+    // Round 17a (L4): on mere loading the page asks no peer; the list comes with „Modellliste abfragen“.
     let (_, plain) = b.server.get("/einstellungen/assistenten").await;
     assert!(plain.contains("data-models-pending"), "ohne Abfrage nur der Hinweis „noch nicht abgefragt“: {plain}");
     let (status, page) = b.server.get("/einstellungen/assistenten?modelle=abfragen").await;
@@ -949,7 +950,7 @@ async fn the_settings_page_offers_the_model_list_and_warns_about_unknown_alias_a
         page.contains("name=\"method\" value=\"persona.set_lector\"") && page.contains("Versuch: fest @lektor"),
         "Lektor-Wahl als Versuch"
     );
-    // Runde 11: ein Formular je Persona (action=save) mit dem Rollen-Prompt als großem Textfeld.
+    // Round 11: one form per persona (action=save) with the role prompt as a large text field.
     assert!(
         page.contains("<textarea class=\"persona-prompt-text\" name=\"prompt\"")
             && page.contains("Vorgabe wiederherstellen"),

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Migration 0045 (Umschlag-Anordnung, Anschriften, Antrag „Anordnung“; Runde 27) auf einer nachgebauten Datenbank
-//! im Stand von development vor Runde 27 (Store bis 0044, Bibliothek vollständig) mit frei erfundenen Zeilen: Werk
-//! mit Kapiteln, Vorlagenfassung, Beitrag, Faden, Bild, Einfällen samt Verbindung und Lage, Buchangaben, Bildanträgen
-//! aller drei Arten (offen und entschieden, der jüngste Antrag gelöscht) und Grabsteinen aller zwölf Arten.
+//! Migration 0045 (cover layout, addresses, request „Anordnung“; Round 27) on a reproduced database in the state of
+//! development before Round 27 (store up to 0044, library complete) with freely invented rows: work with chapters,
+//! template revision, post, thread, image, ideas including link and position, book details, image requests of all three
+//! kinds (open and decided, the youngest request deleted) and tombstones of all twelve kinds.
 //!
-//! Belegt: 0045 steht nicht in `FOREIGN_KEYS_OFF`, und auf die umgebauten Tabellen `uuid_tombstone` und
-//! `asset_request` zeigt kein Fremdschlüssel (darum löst das implizite DELETE von DROP TABLE keine Aktion aus); jede
-//! Zeile jeder alten Tabelle bleibt byte-gleich samt ids, auch alle Grabsteine; der Folgezähler von `asset_request`
-//! bleibt beim Höchstwert; `work_book` hat die zwei Anschriften als letzte Spalten, leer; im Schema ändern sich nur
-//! die CHECKs von `uuid_tombstone` und `asset_request` und die Spalten von `work_book`, die zwölf Grabstein-Trigger
-//! stehen wörtlich wieder da; neu sind genau die Objekte von `cover_block`; die CHECKs lehnen ab, was der Vertrag
-//! verbietet; Fülltrigger, Grabstein beim Löschen eines Blocks und beim Löschen eines Werks mit Blöcken feuern.
+//! Evidenced: 0045 is not in `FOREIGN_KEYS_OFF`, and no foreign key points to the rebuilt tables `uuid_tombstone` and
+//! `asset_request` (therefore the implicit DELETE of DROP TABLE triggers no action); every row of every old table stays
+//! byte-identical including ids, also all tombstones; the sequence counter of `asset_request` stays at the maximum;
+//! `work_book` has the two addresses as last columns, empty; in the schema only the CHECKs of `uuid_tombstone` and
+//! `asset_request` and the columns of `work_book` change, the twelve tombstone triggers are there again literally; new
+//! are exactly the objects of `cover_block`; the CHECKs reject what the contract forbids; fill trigger, tombstone on
+//! deleting a block and on deleting a work with blocks fire.
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
@@ -25,7 +25,7 @@ use sqlx::{Row, SqlitePool};
 const BOOK: &str = "#set document(title: \"Der Bienengarten\", author: \"Emma Wabe\")\n\n\
 = Waben\n\nSechs Ecken hat jede Zelle.\n\n= Honig\n\nIm August wird geschleudert.\n";
 
-/// Die zwölf Grabstein-Arten vor 0045 (Wert in `uuid_tombstone.kind`) und der Name ihres Grabstein-Triggers.
+/// The twelve tombstone kinds before 0045 (value in `uuid_tombstone.kind`) and the name of their tombstone trigger.
 const KINDS: [(&str, &str); 12] = [
     ("work", "work_uuid_tombstone"),
     ("node", "node_uuid_tombstone"),
@@ -41,7 +41,7 @@ const KINDS: [(&str, &str); 12] = [
     ("idea_map_pos", "idea_map_pos_uuid_tombstone"),
 ];
 
-/// Zusätze, um die sich das Schema der alten Tabellen nach 0045 unterscheiden darf.
+/// Additions by which the schema of the old tables may differ after 0045.
 const TOMBSTONE_KIND: &str = ",\n                                          'cover_block'";
 const OP_COVER_LAYOUT: &str = ",'cover_layout'";
 const ADDRESS_COLUMNS: &str = ", publisher_address TEXT NOT NULL DEFAULT '', printer_address TEXT NOT NULL DEFAULT ''";
@@ -68,8 +68,8 @@ async fn scalar(pool: &SqlitePool, sql: &str) -> i64 {
     sqlx::query_scalar(sqlx::AssertSqlSafe(sql)).fetch_one(pool).await.unwrap_or_else(|e| panic!("{sql}: {e}"))
 }
 
-/// Store bis 0044 (0040 wie in `baruch_store::migrate` mit ausgeschalteten Fremdschlüsseln) und die Bibliothek:
-/// der Stand von development vor Runde 27.
+/// Store up to 0044 (0040 as in `baruch_store::migrate` with foreign keys switched off) and the library: the state of
+/// development before Round 27.
 async fn migrate_before(pool: &SqlitePool) {
     assert!(baruch_store::MIGRATOR.iter().any(|m| m.version == 45), "die neue Migration ist 0045");
     assert!(
@@ -92,8 +92,8 @@ async fn migrate_before(pool: &SqlitePool) {
     assert_eq!(highest, 44, "Stand davor: Store bis 0044");
 }
 
-/// Werk mit Inhalten in allen zwölf Tabellen mit uuid, Buchangaben, Bildanträgen und Grabsteinen aller zwölf Arten
-/// direkt in SQLite. Gibt die Werk-id zurück.
+/// Work with contents in all twelve tables with uuid, book details, image requests and tombstones of all twelve kinds
+/// directly in SQLite. Returns the work id.
 async fn insert_rows(pool: &SqlitePool) -> i64 {
     exec(pool, "INSERT INTO store_meta (key, value) VALUES ('seeded', '1') ON CONFLICT DO NOTHING").await;
     let doc = baruch_typst::parse(BOOK).unwrap();
@@ -204,8 +204,8 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
     .await;
     exec(pool, &format!("INSERT INTO idea_map_pos (work_id, idea_id, x, y) VALUES ({work}, {}, 12.5, -3)", ideas[1]))
         .await;
-    // Bildanträge aller drei Arten, offen und entschieden; der jüngste wird wieder gelöscht, damit der Zähler über
-    // der größten vorhandenen id steht.
+    // Image requests of all three kinds, open and decided; the youngest is deleted again, so that the counter is above
+    // the largest existing id.
     for (op, name, params, decided) in [
         (
             "replace",
@@ -235,7 +235,7 @@ async fn insert_rows(pool: &SqlitePool) -> i64 {
         .await;
     }
     exec(pool, "DELETE FROM asset_request WHERE id = (SELECT max(id) FROM asset_request)").await;
-    // Grabsteine aller zwölf Arten (wie nach früheren Löschungen; erfundene uuids).
+    // Tombstones of all twelve kinds (as after earlier deletions; invented uuids).
     for (n, (kind, _)) in KINDS.iter().enumerate() {
         exec(
             pool,
@@ -270,14 +270,14 @@ async fn tables(pool: &SqlitePool) -> BTreeMap<String, Vec<String>> {
     out
 }
 
-/// Alle Schemaobjekte: Name → (Typ, Tabelle, SQL).
+/// All schema objects: name → (type, table, SQL).
 async fn schema(pool: &SqlitePool) -> BTreeMap<String, (String, String, Option<String>)> {
     let rows =
         sqlx::query("SELECT name, type, tbl_name, sql FROM sqlite_master ORDER BY name").fetch_all(pool).await.unwrap();
     rows.into_iter().map(|r| (r.get(0), (r.get(1), r.get(2), r.get(3)))).collect()
 }
 
-/// Inhalt jeder Tabelle in den Spalten aus `layout`, Werte per `quote()` (Typ und Bytes sichtbar).
+/// Content of every table in the columns from `layout`, values through `quote()` (type and bytes visible).
 async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
     for (table, cols) in layout {
@@ -293,7 +293,7 @@ async fn contents(pool: &SqlitePool, layout: &BTreeMap<String, Vec<String>>) -> 
     out
 }
 
-/// Objekte, die 0045 neu anlegt.
+/// Objects that 0045 newly creates.
 fn new_objects() -> BTreeSet<String> {
     let mut names: BTreeSet<String> =
         ["", "_uuid", "_uuid_fill", "_uuid_tombstone"].iter().map(|s| format!("cover_block{s}")).collect();
@@ -302,7 +302,7 @@ fn new_objects() -> BTreeSet<String> {
     names
 }
 
-/// Ein gültiger Block der Art `kind` (Rücken mit Laufrichtung) als SQL-Werte nach `work_id`.
+/// A valid block of kind `kind` (spine with reading direction) as SQL values after `work_id`.
 fn block_values(work: i64, kind: &str) -> String {
     let direction = if kind.starts_with("spine_") { "'down'" } else { "NULL" };
     format!("{work}, '{kind}', 10, 20, 100, 'center', 24, 0.65, 'light', NULL, 'bold', 'shadow', 1, {direction}, NULL")
@@ -327,7 +327,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     let refused =
         sqlx::query("INSERT INTO uuid_tombstone (uuid, kind) VALUES ('x', 'cover_block')").execute(&pool).await;
     assert!(refused.is_err(), "vor 0045 kennt der CHECK die neue Art nicht (sonst prüfte dieser Test nichts)");
-    // Auf die umgebauten Tabellen zeigt kein Fremdschlüssel: Begründung, warum 0045 ohne FOREIGN_KEYS_OFF auskommt.
+    // No foreign key points to the rebuilt tables: reason why 0045 gets by without FOREIGN_KEYS_OFF.
     let pointing = scalar(
         &pool,
         "SELECT count(*) FROM sqlite_master m, pragma_foreign_key_list(m.name) f \
@@ -336,10 +336,10 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     .await;
     assert_eq!(pointing, 0, "kein Fremdschlüssel auf uuid_tombstone oder asset_request");
 
-    // Nur 0045, wie `baruch_store::migrate` sie ausführt (nicht in FOREIGN_KEYS_OFF: Fremdschlüssel bleiben an).
+    // Only 0045, as `baruch_store::migrate` runs it (not in FOREIGN_KEYS_OFF: foreign keys stay on).
     store_migrator(|v| v == 45).run(&pool).await.expect("0045 läuft auf dem Stand von development");
 
-    // Daten: jede Zeile jeder alten Tabelle in den alten Spalten byte-gleich (ids, Grabsteine, Anträge).
+    // Data: every row of every old table byte-identical in the old columns (ids, tombstones, requests).
     let after = contents(&pool, &layout).await;
     for (table, rows) in &before {
         if table != "_sqlx_migrations" {
@@ -368,7 +368,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
             .unwrap();
     assert_eq!(addresses, (String::new(), String::new()), "vorhandene Buchangaben bekommen leere Anschriften");
 
-    // Schema: alte Objekte wörtlich bis auf die drei erlaubten Zusätze, neu genau die Objekte von cover_block.
+    // Schema: old objects literal except for the three allowed additions, new exactly the objects of cover_block.
     let schema_after = schema(&pool).await;
     let added: BTreeSet<String> = schema_after.keys().filter(|k| !schema_before.contains_key(*k)).cloned().collect();
     assert_eq!(added, new_objects(), "neu sind genau Tabelle, Indizes und Trigger von cover_block");
@@ -389,7 +389,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
             }
             None => now,
         };
-        // Auch die zwölf Grabstein-Trigger und der Index asset_request_open: wörtlich wie vorher.
+        // The twelve tombstone triggers and the index asset_request_open too: literally as before.
         assert_eq!(Some(now), sql.clone().or(Some(String::new())), "Schema von {name} unverändert");
     }
     for (_, trigger) in KINDS {
@@ -398,7 +398,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     assert!(schema_after.contains_key("asset_request_open"), "Index der offenen Anträge neu angelegt");
     assert!(schema_after.contains_key("uuid_tombstone_work"), "Index der Grabsteine neu angelegt");
 
-    // CHECKs: neue Art und neue Antragsart erlaubt, Erfundenes weiter nicht.
+    // CHECKs: new kind and new request kind allowed, invented ones still not.
     exec(&pool, "INSERT INTO uuid_tombstone (uuid, kind) VALUES ('probe-cover', 'cover_block')").await;
     let invented =
         sqlx::query("INSERT INTO uuid_tombstone (uuid, kind) VALUES ('probe-x', 'umschlag')").execute(&pool).await;
@@ -415,7 +415,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     assert!(bad_op.is_err(), "CHECK von asset_request lehnt eine erfundene Art weiter ab");
     exec(&pool, &format!("DELETE FROM asset_request WHERE id = {new_id}")).await;
 
-    // cover_block: ein gültiger Block je Fläche geht, jede verbotene Abweichung nicht.
+    // cover_block: one valid block per surface works, every forbidden deviation does not.
     for kind in ["front_title", "spine_title", "back_free"] {
         exec(&pool, &format!("INSERT INTO cover_block ({BLOCK_COLUMNS}) VALUES ({})", block_values(work, kind))).await;
     }
@@ -459,7 +459,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
         assert!(uuid.len() == 36 && uuid.as_bytes()[14] == b'4', "kanonische v4-uuid: {uuid}");
     }
 
-    // Grabstein beim Löschen eines Blocks, mit der Werk-uuid.
+    // Tombstone on deleting a block, with the work uuid.
     let work_uuid: String =
         sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?").bind(work).fetch_one(&pool).await.unwrap();
     let back_uuid: String =
@@ -477,8 +477,8 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
     assert_eq!(integrity, "ok", "integrity_check");
     pool.close().await;
 
-    // Store::open danach; Löschen des Werks mit Blöcken schreibt deren Grabsteine (mit Werk-uuid) und die alten
-    // Trigger schreiben weiter.
+    // Store::open afterwards; deleting the work with blocks writes their tombstones (with work uuid) and the old
+    // triggers keep writing.
     let store = Store::open(dir.path()).await.expect("Store::open nach 0045");
     let pool = store.pool();
     let block_uuids: BTreeSet<String> = sqlx::query_scalar("SELECT uuid FROM cover_block WHERE work_id = ?")
@@ -489,7 +489,7 @@ async fn migration_0045_keeps_every_row_and_adds_cover_blocks() {
         .into_iter()
         .collect();
     assert_eq!(block_uuids.len(), 3, "drei Blöcke vor dem Löschen des Werks");
-    exec(pool, "DELETE FROM idea WHERE note = 'Tanz der Bienen'").await; // Arten idea und idea_link (hart, nur im Test)
+    exec(pool, "DELETE FROM idea WHERE note = 'Tanz der Bienen'").await; // kinds idea, idea_link (hard, test only)
     store.delete_work(work, "Der Bienengarten").await.expect("Werk löschen schreibt Grabsteine");
     assert_eq!(scalar(pool, "SELECT count(*) FROM cover_block").await, 0, "Blöcke gehen mit dem Werk");
     let fresh: Vec<(String, String, Option<String>)> = sqlx::query_as(

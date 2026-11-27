@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runde 23 (mcp-namen), Chat und Assistenten: Rückmeldungen „erledigt“ in `persona.chat` und MCP `ask_persona`,
-//! eigene Befunde nach dem Kürzen, ein Relay-Weg, ↻ Wiederholen mit Relay-Rahmen und Herkunft, Zitatzeilen,
-//! `[B<id>]` nur aus der Nachricht.
+//! Round 23 (mcp-namen), chat and assistants: feedback „erledigt“ in `persona.chat` and MCP `ask_persona`, own findings
+//! after shortening, one relay way, ↻ Wiederholen with relay frame and origin, quotation lines, `[B<id>]` only from the
+//! message.
 //!
-//! Modell: `ScriptedModel` (Nachbau, zeichnet jeden Aufruf auf) – kein Eliezer, kein Netz. Texte frei erfunden.
+//! Model: `ScriptedModel` (mock, records every call) – no Eliezer, no network. Texts freely invented.
 
 use super::*;
 
@@ -69,7 +69,7 @@ async fn ask_persona_reports_done_claims_like_the_rpc_method() {
     let pending = m.server.state.store.finding_get(m.work, own).await.unwrap().pending.expect("Rückfrage am Befund");
     assert_eq!(pending.status, FindingStatus::Done, "vorgeschlagen ist „erledigt“; entscheiden kann nur der Mensch");
 
-    // Ohne Rückmeldung fehlen die drei Felder ganz (nur gesetzt, wenn nicht leer bzw. true).
+    // Without feedback the three fields are missing entirely (only set if not empty or true).
     m.model.push(Step::words("Kritisch: „alten Wehr“ bleibt blass.\n- Schritt: ein Bild ergänzen."));
     let plain = ok(
         &m,
@@ -91,7 +91,7 @@ async fn persona_chat_reports_done_claims_of_an_rfc() {
     let (others, lector) = baruch_server::assist::chat::rfc_personas(&m.server.state).await.unwrap();
     assert!(others.contains(&"@nathan".to_owned()), "@nathan ist aktiv und antwortet beim RFC: {others:?}");
     for handle in &others {
-        // Beim RFC prüft jede Persona erneut und sieht ihre eigenen offenen Befunde.
+        // On an RFC every persona checks again and sees its own open findings.
         m.model.push(Step::words(&if handle == "@nathan" {
             format!("Erledigt: Befund {own} (Stelle „alten Wehr“)\n\n{}", prompts::ALL_DONE_SENTENCE)
         } else {
@@ -114,7 +114,7 @@ async fn persona_chat_reports_done_claims_of_an_rfc() {
     }
 }
 
-// ---- own_findings nach dem Kürzen -------------------------------------------------------------------------------------
+// ---- own_findings after shortening ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn own_findings_shed_by_the_budget_are_no_longer_counted_as_in_the_order() {
@@ -130,7 +130,7 @@ async fn own_findings_shed_by_the_budget_are_no_longer_counted_as_in_the_order()
     let full = context::prepare(&m.server.state, &review, &persona).await.unwrap();
     assert_eq!(full.own_findings, ids, "mit reichlich Kontext stehen alle zwanzig eigenen Befunde im Auftrag");
 
-    // Kontext schrittweise verkleinern, bis ein Teil der eigenen Befunde fällt (unabhängig von den festen Größen).
+    // Shrink the context step by step until a part of the own findings drops (independent of the fixed sizes).
     let mut cut = None;
     while persona.context_length > 600 {
         persona.context_length -= 200;
@@ -158,12 +158,13 @@ async fn own_findings_shed_by_the_budget_are_no_longer_counted_as_in_the_order()
     }
 }
 
-// ---- ein Relay-Weg ------------------------------------------------------------------------------------------------------
+// ---- one relay way --------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn mcp_and_the_surface_share_one_relay_stage() {
     let _turn = common::model_queue(module_path!()).await;
-    // Oberfläche: nur die Anrede am Zeilenanfang ruft; eine Erwähnung mitten im Satz nicht.
+    // User interface: only the address at the beginning of a line calls; a mention in the middle of a sentence does
+    // not.
     let m = mill([
         Step::words("Das trägt. Vielleicht weiß @exeget mehr dazu.\n@schrift: Stimmt Ps 23,1 hier?"),
         Step::words("Die Stelle stimmt."),
@@ -173,7 +174,7 @@ async fn mcp_and_the_surface_share_one_relay_stage() {
     let called: Vec<String> = m.model.calls().iter().map(|c| c.persona.clone()).collect();
     assert_eq!(called, ["@lektor", "@schrift"], "Oberfläche: Anrede ruft, bloße Erwähnung nicht");
 
-    // MCP `chat`: dieselbe Stufe, dazu jede Erwähnung – Anrede zuerst, alle gerahmt, eine Stufe.
+    // MCP `chat`: the same stage, plus every mention – address first, all framed, one stage.
     let m = mill([
         Step::words("Das trägt. Vielleicht weiß @exeget mehr dazu.\n@schrift: Stimmt Ps 23,1 hier?"),
         Step::words("Die Stelle stimmt. @nathan, was sagst du?"),
@@ -248,7 +249,7 @@ async fn repeating_a_relay_post_sends_the_frame_again_and_old_posts_repeat_as_be
     assert_eq!((first.web, second.web), (Some(true), Some(true)), "aus der Oberfläche war die Websuche zugelassen");
     assert!(second.relay.is_some(), "der Rahmen ist wieder gespeichert (eine zweite Wiederholung trägt ihn auch)");
 
-    // Ein Beitrag aus der Zeit vor Runde 23: ohne die drei Felder wiederholt er wie bisher.
+    // A post from the time before Round 23: without the three fields it repeats as before.
     sqlx::query("UPDATE post SET request = json_remove(request, '$.relay', '$.asker', '$.web') WHERE id = ?")
         .bind(relay_post)
         .execute(m.server.state.store.pool())
@@ -287,7 +288,7 @@ async fn repeating_an_answer_to_an_mcp_client_keeps_its_origin_and_never_searche
     );
 }
 
-// ---- Zitatzeilen ----------------------------------------------------------------------------------------------------------
+// ---- Quotation lines ------------------------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn quoted_lines_call_nobody_and_make_no_rfc() {
@@ -309,7 +310,7 @@ async fn quoted_lines_call_nobody_and_make_no_rfc() {
     );
 }
 
-// ---- [B<id>] nur aus der Nachricht ---------------------------------------------------------------------------------------
+// ---- [B<id>] only from the message ----------------------------------------------------------------------------------
 
 #[tokio::test]
 async fn a_write_order_proposes_status_only_for_findings_named_in_the_message() {
