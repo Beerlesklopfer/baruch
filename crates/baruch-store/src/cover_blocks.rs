@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Umschlag-Anordnung je Werk (Migration `0045_cover_block.sql`, Vertrag Runde 27, Aufgabe umschlag-daten).
+//! Cover layout per work (migration `0045_cover_block.sql`, contract Round 27, task umschlag-daten).
 //!
-//! - Je Werk und Art ([`CoverBlockKind`]) höchstens eine Zeile in `cover_block`; ohne Zeile gilt der Vorgabeblock
-//!   (`baruch_typst::cover_layout::default_blocks`). Keine Zeile im ganzen Werk = keine eigene Anordnung.
-//! - [`check_cover_block`] prüft einen Block nach den Grenzen aus `baruch_typst::cover_layout` (gleich den CHECKs
-//!   der Migration) und bringt ihn in Normalform; [`Store::set_cover_blocks`] ersetzt je genannte Art den ganzen
-//!   Block, [`Store::reset_cover_blocks`] löscht die Zeilen der genannten Flächen (Grabsteine) und setzt auf Wunsch
-//!   den Titelbereich in derselben Transaktion.
-//! - Ein geänderter Block behält seine Zeile und damit seine uuid (`INSERT … ON CONFLICT (work_id, kind) DO
-//!   UPDATE`); nur Zurücksetzen löscht Zeilen und hinterlässt Grabsteine `cover_block` (Austauschformat:
-//!   `umschlag-block`).
-//! - Normalform: Farbe klein (`light`, `dark` oder `#rrggbb`), Schrift getrimmt (leer = `None` = Schrift der
-//!   Werkvorlage), Rücken ohne Laufrichtung → `down`, eigener Text mit `\n` statt `\r\n` (Arten mit eigenem Text
-//!   ohne Text → `""`, andere Arten mit leerem Text → `None`).
-//! - Verstoß → [`StoreError::CoverBlock`] (RPC -32602) mit deutscher Meldung, die Art und Feld nennt, z. B.
-//!   „Umschlag-Block „Titel (Vorderseite)“ (front_title), Feld x_mm: …“; nichts geändert.
-//! - Fingerabdruck einer Anordnung ([`Store::cover_layout_fingerprint`]): SHA-256 (hex, klein) über das JSON der
-//!   Blöcke in [`CoverBlockKind::ALL`]-Reihenfolge. Ein Antrag (`asset_request` op `cover_layout`) merkt ihn sich als
-//!   `expected_layout`; passt er beim Bestätigen nicht mehr, wird der Antrag `stale`.
-//! - Ändern nur der Mensch (bzw. der Server beim Bestätigen eines Antrags); Assistenten stellen Anträge über
+//! - Per work and kind ([`CoverBlockKind`]) at most one row in `cover_block`; without a row the default block applies
+//!   (`baruch_typst::cover_layout::default_blocks`). No row in the whole work = no layout of its own.
+//! - [`check_cover_block`] checks a block against the limits from `baruch_typst::cover_layout` (equal to the CHECKs of
+//!   the migration) and brings it into normal form; [`Store::set_cover_blocks`] replaces the whole block per named
+//!   kind, [`Store::reset_cover_blocks`] deletes the rows of the named faces (tombstones) and on request sets the title
+//!   area in the same transaction.
+//! - A changed block keeps its row and with it its uuid (`INSERT … ON CONFLICT (work_id, kind) DO UPDATE`); only a
+//!   reset deletes rows and leaves tombstones `cover_block` (exchange format: `umschlag-block`).
+//! - Normal form: colour in lower case (`light`, `dark` or `#rrggbb`), font trimmed (empty = `None` = font of the work
+//!   template), spine without a reading direction → `down`, custom text with `\n` instead of `\r\n` (kinds with custom
+//!   text without a text → `""`, other kinds with an empty text → `None`).
+//! - Violation → [`StoreError::CoverBlock`] (RPC -32602) with a German message that names kind and field, for example
+//!   „Umschlag-Block „Titel (Vorderseite)“ (front_title), Feld x_mm: …“; nothing changed.
+//! - Fingerprint of a layout ([`Store::cover_layout_fingerprint`]): SHA-256 (hex, lower case) over the JSON of the
+//!   blocks in [`CoverBlockKind::ALL`] order. A request (`asset_request` op `cover_layout`) remembers it as
+//!   `expected_layout`; if it no longer matches on confirmation, the request becomes `stale`.
+//! - Only the human changes it (or the server when confirming a request); assistants file requests through
 //!   `asset_request` (op `cover_layout`).
 
 use serde::Serialize;
@@ -31,8 +30,8 @@ use baruch_typst::cover_layout::{
 
 use crate::{CoverBlock, CoverBlockKind, CoverFace, CoverLayout, Store, StoreError, TitleArea, WorkId, broken};
 
-/// Ergebnis von [`Store::set_cover_blocks`] und [`Store::reset_cover_blocks`]: geänderte Arten und die gespeicherte
-/// Anordnung vorher und nachher (für den Spiegel-Commit).
+/// Result of [`Store::set_cover_blocks`] and [`Store::reset_cover_blocks`]: changed kinds and the stored layout before
+/// and after (for the mirror commit).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CoverLayoutChange {
     pub changed: Vec<CoverBlockKind>,
@@ -53,7 +52,7 @@ fn field_error(kind: CoverBlockKind, field: &str, message: impl std::fmt::Displa
     ))
 }
 
-/// Zahl endlich und in `[range.0, range.1]`.
+/// Number finite and in `[range.0, range.1]`.
 fn check_number(
     kind: CoverBlockKind,
     field: &str,
@@ -73,14 +72,14 @@ fn check_number(
     }
 }
 
-/// Ein Familienname nach der Regel der Satzbild-Schriften (`sheet::check_font`): Buchstaben, Ziffern, Leerzeichen,
-/// `-`, `_`, `.`; nicht leer. So kann kein Zeichen eine Typst-Zeichenkette, eine CSS-Regel oder ein HTML-Attribut
-/// verlassen (kein `;`, `{`, `}`, `<`, `>`, `\`, `"`, keine Steuerzeichen).
+/// A family name after the rule of the typeset view fonts (`sheet::check_font`): letters, digits, spaces, `-`, `_`,
+/// `.`; not empty. That way no character can leave a Typst string, a CSS rule or an HTML attribute (no `;`, `{`, `}`,
+/// `<`, `>`, `\`, `"`, no control characters).
 fn family_name(name: &str) -> bool {
     !name.trim().is_empty() && name.chars().all(|c| c.is_alphanumeric() || " -_.".contains(c))
 }
 
-/// Farbe: `light`, `dark` oder `#rrggbb` (auch groß) → klein geschrieben.
+/// Colour: `light`, `dark` or `#rrggbb` (also upper case) → written in lower case.
 fn check_color(kind: CoverBlockKind, value: &str) -> Result<String, StoreError> {
     let lower = value.trim().to_ascii_lowercase();
     let hex = lower.strip_prefix('#').filter(|h| h.len() == 6 && h.chars().all(|c| c.is_ascii_hexdigit()));
@@ -91,8 +90,8 @@ fn check_color(kind: CoverBlockKind, value: &str) -> Result<String, StoreError> 
     }
 }
 
-/// Block prüfen und in Normalform bringen; Verstoß → [`StoreError::CoverBlock`] mit deutscher Meldung, die Art und Feld
-/// nennt (Grenzen aus `baruch_typst::cover_layout`, gleich den CHECKs der Migration 0045).
+/// Check a block and bring it into normal form; violation → [`StoreError::CoverBlock`] with a German message that names
+/// kind and field (limits from `baruch_typst::cover_layout`, equal to the CHECKs of migration 0045).
 pub fn check_cover_block(block: &CoverBlock) -> Result<CoverBlock, StoreError> {
     let kind = block.kind;
     let mut out = block.clone();
@@ -213,7 +212,7 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Gespeicherte Blöcke des Werks in [`CoverBlockKind::ALL`]-Reihenfolge (Werk muss es geben).
+/// Stored blocks of the work in [`CoverBlockKind::ALL`] order (the work must exist).
 pub(crate) async fn read_layout(conn: &mut SqliteConnection, work: WorkId) -> Result<CoverLayout, StoreError> {
     work_exists(conn, work).await?;
     let rows: Vec<BlockRow> =
@@ -226,7 +225,7 @@ pub(crate) async fn read_layout(conn: &mut SqliteConnection, work: WorkId) -> Re
     Ok(CoverLayout { blocks })
 }
 
-/// Block schreiben (anlegen oder die Zeile der Art ersetzen; die uuid der Zeile bleibt).
+/// Write a block (create it or replace the row of the kind; the uuid of the row stays).
 async fn upsert(conn: &mut SqliteConnection, work: WorkId, block: &CoverBlock) -> Result<(), StoreError> {
     sqlx::query(sqlx::AssertSqlSafe(format!(
         "INSERT INTO cover_block (work_id, {COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) \
@@ -256,7 +255,7 @@ async fn upsert(conn: &mut SqliteConnection, work: WorkId, block: &CoverBlock) -
     Ok(())
 }
 
-/// Alle Blöcke prüfen (Normalform) und doppelte Arten ablehnen.
+/// Check all blocks (normal form) and reject duplicate kinds.
 pub(crate) fn check_blocks(blocks: &[CoverBlock]) -> Result<Vec<CoverBlock>, StoreError> {
     let mut out: Vec<CoverBlock> = Vec::with_capacity(blocks.len());
     for block in blocks {
@@ -268,7 +267,7 @@ pub(crate) fn check_blocks(blocks: &[CoverBlock]) -> Result<Vec<CoverBlock>, Sto
     Ok(out)
 }
 
-/// Fingerabdruck einer Anordnung (siehe Moduldoku).
+/// Fingerprint of a layout (see the module documentation).
 fn fingerprint(layout: &CoverLayout) -> String {
     use sha2::{Digest, Sha256};
     let mut blocks: Vec<&CoverBlock> = layout.blocks.iter().collect();
@@ -278,22 +277,22 @@ fn fingerprint(layout: &CoverLayout) -> String {
 }
 
 impl Store {
-    /// Gespeicherte Anordnung des Werks (Blöcke in [`CoverBlockKind::ALL`]-Reihenfolge); ohne Zeilen leer.
-    /// Unbekanntes Werk → `UnknownWork`.
+    /// Stored layout of the work (blocks in [`CoverBlockKind::ALL`] order); empty without rows. Unknown work →
+    /// `UnknownWork`.
     pub async fn cover_layout(&self, work: WorkId) -> Result<CoverLayout, StoreError> {
         let mut conn = self.pool.acquire().await?;
         read_layout(&mut conn, work).await
     }
 
-    /// Fingerabdruck einer Anordnung: SHA-256 (hex, klein) über das JSON der Blöcke in
-    /// [`CoverBlockKind::ALL`]-Reihenfolge (`expected_layout` der Anträge).
+    /// Fingerprint of a layout: SHA-256 (hex, lower case) over the JSON of the blocks in [`CoverBlockKind::ALL`] order
+    /// (`expected_layout` of the requests).
     pub fn cover_layout_fingerprint(layout: &CoverLayout) -> String {
         fingerprint(layout)
     }
 
-    /// Jeder genannte Block ersetzt seine Art ganz, ungenannte Arten bleiben (atomar, nur der Mensch bzw. ein
-    /// bestätigter Antrag). Ungültig → `Asset` mit Art und Feld, nichts geändert. Unveränderte Blöcke zählen nicht
-    /// als Änderung (`changed` leer, wenn nichts anders ist).
+    /// Every named block replaces its kind completely, unnamed kinds stay (atomic, only the human or a confirmed
+    /// request). Invalid → `Asset` with kind and field, nothing changed. Unchanged blocks do not count as a change
+    /// (`changed` empty if nothing differs).
     pub async fn set_cover_blocks(&self, work: WorkId, blocks: &[CoverBlock]) -> Result<CoverLayoutChange, StoreError> {
         let blocks = check_blocks(blocks)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -314,8 +313,8 @@ impl Store {
         Ok(CoverLayoutChange { changed, before, after })
     }
 
-    /// Zeilen der Flächen `faces` löschen (leer = alle Flächen; Grabsteine `cover_block`) und mit `area` den
-    /// Titelbereich setzen, in einer Transaktion. `changed` nennt die gelöschten Arten.
+    /// Delete the rows of the faces `faces` (empty = all faces; tombstones `cover_block`) and set the title area with
+    /// `area`, in one transaction. `changed` names the deleted kinds.
     pub async fn reset_cover_blocks(
         &self,
         work: WorkId,

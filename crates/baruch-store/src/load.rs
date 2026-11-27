@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werk aus der Datenbank lesen und dabei die Regeln prüfen (seq lückenlos, Revisionsnummern ab 1
-//! eindeutig und steigend – nach einem Löschen mit Lücken –, genau eine `current` je Abschnitt mit
-//! Revisionen).
+//! Read a work from the database and check the rules while doing so (seq without gaps, revision numbers from 1 unique
+//! and ascending – with gaps after a deletion –, exactly one `current` per section with revisions).
 //!
-//! Die Nummern (`Node.number`) berechnet das Laden aus der Gliederung (Vertrag Runde 4, Abschnitt 2,
-//! und Runde 6, Abschnitt 2, [`numbers`]): Schema `work.numbering_scheme` (Migration 0008) mit
-//! eigenem Muster `work.numbering` bzw. `#set heading(numbering: …)` der Werkvorlage, sonst „1.1“
-//! ([`work_numbering`]; die Vorlage liest seit Runde 14 `Numbering::from_template` so, wie Typst sie
-//! setzt – dieselbe Quelle wie Export und Satz). Teile zählen eigen (römisch, „Teil I“, „Erster Teil“ oder gar nicht),
-//! Kapitel über Teile hinweg fortlaufend, Unterzähler je Elternteil; Knoten mit `numbered = 0` zählen
-//! nicht und haben keine Nummer.
+//! The numbers (`Node.number`) are computed by the loading from the outline (contract Round 4, section 2, and Round 6,
+//! section 2, [`numbers`]): scheme `work.numbering_scheme` (migration 0008) with the custom pattern `work.numbering` or
+//! `#set heading(numbering: …)` of the work template, otherwise "1.1" ([`work_numbering`]; since Round 14
+//! `Numbering::from_template` reads the template the way Typst sets it – the same source as export and typesetting).
+//! Parts count on their own (Roman, „Teil I“, „Erster Teil“ or not at all), chapters continuously across parts,
+//! sub-counters per parent; nodes with `numbered = 0` do not count and have no number.
 
 use std::collections::HashMap;
 
@@ -27,9 +25,9 @@ type RefRow = (i64, i64, i64, String);
 type PersonaRow = (String, String, String, String, i64, i64);
 type WorkRow = (String, String, String, String, Option<String>, String);
 
-/// Nummerierung eines Werks aus Schema (`work.numbering_scheme`), eigenem Muster (`work.numbering`)
-/// und Werkvorlage. Scheitert nie: Ein unbekanntes Schema gilt als „aus der Werkvorlage“, ein
-/// unlesbares eigenes Muster wie bisher als Typst-Muster für alle Ebenen.
+/// Numbering of a work from the scheme (`work.numbering_scheme`), the custom pattern (`work.numbering`) and the work
+/// template. Never fails: an unknown scheme counts as "from the work template", an unreadable custom pattern as before
+/// as a Typst pattern for all levels.
 pub(crate) fn work_numbering(scheme: &str, numbering: Option<&str>, template: &str) -> Numbering {
     let scheme = Scheme::from_id(scheme).unwrap_or(Scheme::Template);
     match scheme {
@@ -38,7 +36,7 @@ pub(crate) fn work_numbering(scheme: &str, numbering: Option<&str>, template: &s
     }
 }
 
-/// Ebene eines Knotens: Teil 0, Kapitel 1, Abschnitt 2, Abschnitt unter Abschnitt 3 (höchstens).
+/// Level of a node: part 0, chapter 1, section 2, section below a section 3 (at most).
 pub(crate) fn level_of(kind: NodeKind, parent_level: Option<u8>) -> u8 {
     match kind {
         NodeKind::Part => 0,
@@ -47,8 +45,8 @@ pub(crate) fn level_of(kind: NodeKind, parent_level: Option<u8>) -> u8 {
     }
 }
 
-/// Ein Knoten für die Nummernberechnung, in Baumreihenfolge: Art, Elternteil (Stelle in derselben
-/// Liste) und ob er mitzählt.
+/// A node for the computation of the numbers, in tree order: kind, parent (position in the same list) and whether it
+/// counts.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Numbered {
     pub kind: NodeKind,
@@ -56,17 +54,16 @@ pub(crate) struct Numbered {
     pub numbered: bool,
 }
 
-/// Nummern aller Knoten (gleiche Reihenfolge wie `nodes`). Teile: eigener Zähler
-/// ([`Numbering::part`]), Kapitel fortlaufend über Teile hinweg, Abschnitte je Elternteil; die
-/// Nummerierung formt Kapitel und Abschnitte aus den Zählerständen `[kapitel, abschnitt, …]`
-/// ([`Numbering::heading`], die Zahl aller nummerierten Kapitel für „Schluss“ der Predigt).
+/// Numbers of all nodes (same order as `nodes`). Parts: their own counter ([`Numbering::part`]), chapters continuously
+/// across parts, sections per parent; the numbering forms chapters and sections from the counter values `[chapter,
+/// section, …]` ([`Numbering::heading`], the number of all numbered chapters for „Schluss“ of the sermon).
 pub(crate) fn numbers(numbering: &Numbering, nodes: &[Numbered]) -> Vec<String> {
     let mut parts = 0usize;
     let mut chapters = 0usize;
     let mut children: HashMap<usize, usize> = HashMap::new();
     let mut paths: Vec<Vec<usize>> = Vec::with_capacity(nodes.len());
     for (index, node) in nodes.iter().enumerate() {
-        // Elternteil nur, wenn er vorher steht (Baumreihenfolge); sonst wie ohne Elternteil.
+        // Parent only if it comes earlier (tree order); otherwise as without a parent.
         let parent = node.parent.filter(|&p| p < index);
         let path = match node.kind {
             NodeKind::Part => {
@@ -156,7 +153,7 @@ pub(crate) async fn work(conn: &mut SqliteConnection, work: WorkId) -> Result<Wo
     for (seq, number, body, author_kind, author_name, model, status, note) in revisions {
         let node = &mut nodes[to_usize(seq, "seq")?];
         let number = to_u32(number, "Revisionsnummer")?;
-        // Eindeutig und steigend (Lücken nach dem Löschen sind erlaubt).
+        // Unique and ascending (gaps after a deletion are allowed).
         if number == 0 || node.revisions.last().is_some_and(|last| last.number >= number) {
             return Err(broken(format!("Abschnitt {}: Revision {number} außer der Reihe", node.id)));
         }
@@ -232,7 +229,7 @@ pub(crate) async fn work(conn: &mut SqliteConnection, work: WorkId) -> Result<Wo
     Ok(Work { kind: words::parse_work_kind(&kind)?, title, author, nodes, personas, lector_choice })
 }
 
-/// Ein Abschnitt mit Revisionen hat genau eine `current`.
+/// A section with revisions has exactly one `current`.
 fn check_one_current(node: &Node) -> Result<(), StoreError> {
     let currents = node.revisions.iter().filter(|r| r.status == RevisionStatus::Current).count();
     if node.revisions.is_empty() || currents == 1 {

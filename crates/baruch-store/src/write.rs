@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Änderungen. Jede Funktion läuft innerhalb der Transaktion, die `Store` mit
-//! `BEGIN IMMEDIATE` geöffnet hat; ein `Err` führt dort zum Zurückrollen (die Transaktion wird
-//! ohne `commit` verworfen).
+//! Changes. Every function runs inside the transaction that `Store` opened with `BEGIN IMMEDIATE`; an `Err` leads to a
+//! rollback there (the transaction is dropped without `commit`).
 //!
-//! Revisionen werden über ihre Nummer angesprochen. Nummern sind je Abschnitt eindeutig und
-//! steigend, nach einem Löschen gibt es Lücken; die nächste Nummer ist `node.last_rev + 1`
-//! (Migration 0004, Trigger `revision_number_fresh`/`revision_number_bump`).
+//! Revisions are addressed through their number. Numbers are unique and ascending per section, after a deletion there
+//! are gaps; the next number is `node.last_rev + 1` (migration 0004, triggers
+//! `revision_number_fresh`/`revision_number_bump`).
 
 use baruch_core::Author;
 use sqlx::SqliteConnection;
@@ -13,7 +12,7 @@ use sqlx::SqliteConnection;
 use crate::seed::insert_post;
 use crate::{Change, ChangeKind, StoreError, WorkId, broken, parse_author, to_u32};
 
-/// Datenbank-id des Abschnitts `seq` im Werk; unterscheidet unbekanntes Werk und unbekannten Abschnitt.
+/// Database id of the section `seq` in the work; distinguishes an unknown work from an unknown section.
 pub(crate) async fn node_id(conn: &mut SqliteConnection, work: WorkId, node: usize) -> Result<i64, StoreError> {
     if let Ok(seq) = i64::try_from(node) {
         let id: Option<i64> = sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND seq = ?")
@@ -33,7 +32,7 @@ pub(crate) async fn node_id(conn: &mut SqliteConnection, work: WorkId, node: usi
     }
 }
 
-/// Vorhandene Revisionsnummern nach Größe (leer ohne Revisionen); für die Meldung bei unbekannter Nummer.
+/// Existing revision numbers in ascending order (empty without revisions); for the message on an unknown number.
 async fn existing_numbers(conn: &mut SqliteConnection, node_id: i64) -> Result<Vec<u32>, StoreError> {
     let numbers: Vec<i64> = sqlx::query_scalar("SELECT number FROM revision WHERE node_id = ? ORDER BY number")
         .bind(node_id)
@@ -42,7 +41,7 @@ async fn existing_numbers(conn: &mut SqliteConnection, node_id: i64) -> Result<V
     numbers.into_iter().map(|n| to_u32(n, "Revisionsnummer")).collect()
 }
 
-/// Nummern für die Meldung von [`StoreError::UnknownRevision`]: „1, 2, 4“, leer „keine“.
+/// Numbers for the message of [`StoreError::UnknownRevision`]: "1, 2, 4", empty „keine“.
 pub(crate) fn number_list(numbers: &[u32]) -> String {
     if numbers.is_empty() {
         return "keine".to_owned();
@@ -50,14 +49,14 @@ pub(crate) fn number_list(numbers: &[u32]) -> String {
     numbers.iter().map(u32::to_string).collect::<Vec<_>>().join(", ")
 }
 
-/// Nächste freie Nummer: `node.last_rev + 1` (auch nach dem Löschen der höchsten Fassung nie eine alte).
+/// Next free number: `node.last_rev + 1` (never an old one, even after the highest revision was deleted).
 async fn next_number(conn: &mut SqliteConnection, node_id: i64) -> Result<u32, StoreError> {
     let last: i64 =
         sqlx::query_scalar("SELECT last_rev FROM node WHERE id = ?").bind(node_id).fetch_one(&mut *conn).await?;
     Ok(to_u32(last, "last_rev")? + 1)
 }
 
-/// Eine Revision mit allem, was Ändern, Löschen und Spiegel brauchen.
+/// A revision with everything that changing, deleting and the mirror need.
 pub(crate) struct Row {
     pub id: i64,
     pub number: u32,
@@ -70,7 +69,7 @@ pub(crate) struct Row {
 
 type RowTuple = (i64, i64, String, String, String, Option<i64>, String, String, Option<String>);
 
-/// Revision `rev` des Abschnitts; unbekannte Nummer → `UnknownRevision` (mit den vorhandenen Nummern).
+/// Revision `rev` of the section; unknown number → `UnknownRevision` (with the existing numbers).
 pub(crate) async fn row(conn: &mut SqliteConnection, node_id: i64, node: usize, rev: u32) -> Result<Row, StoreError> {
     let found: Option<RowTuple> = sqlx::query_as(
         "SELECT id, number, body, note, status, based_on, author_kind, author_name, model \
@@ -95,7 +94,7 @@ pub(crate) async fn row(conn: &mut SqliteConnection, node_id: i64, node: usize, 
     })
 }
 
-/// Die aktuelle Revision `(number, body, author)`; `None` nur bei einem Abschnitt ohne Revisionen.
+/// The current revision `(number, body, author)`; `None` only for a section without revisions.
 pub(crate) async fn current(
     conn: &mut SqliteConnection,
     node_id: i64,
@@ -120,7 +119,7 @@ pub(crate) async fn current(
     }
 }
 
-/// Bisherige `current` → `superseded`; genau eine Zeile muss sich ändern.
+/// Previous `current` → `superseded`; exactly one row must change.
 async fn supersede_current(conn: &mut SqliteConnection, node_id: i64) -> Result<(), StoreError> {
     let done = sqlx::query("UPDATE revision SET status = 'superseded' WHERE node_id = ? AND status = 'current'")
         .bind(node_id)
@@ -135,7 +134,7 @@ async fn supersede_current(conn: &mut SqliteConnection, node_id: i64) -> Result<
     Ok(())
 }
 
-/// Markierung „aktuell“ auf `rev` setzen (der Aufrufer hat geprüft, dass `rev` nicht schon aktuell ist).
+/// Set the "current" marker to `rev` (the caller has checked that `rev` is not already current).
 async fn switch(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -176,7 +175,7 @@ pub(crate) async fn accept(
     switch(conn, work, node, node_id, rev, ChangeKind::Accepted).await
 }
 
-/// Auf jede nicht aktuelle Fassung umschalten; ein Vorschlag gilt dabei als übernommen (`Accepted`).
+/// Switch to any revision that is not current; a proposal counts as accepted in the process (`Accepted`).
 pub(crate) async fn set_current(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -216,7 +215,7 @@ pub(crate) async fn reject(
     Ok(now)
 }
 
-/// Neue Revision am Ende eines Abschnitts.
+/// New revision at the end of a section.
 struct NewRevision<'a> {
     number: u32,
     body: &'a str,
@@ -247,9 +246,9 @@ async fn append(conn: &mut SqliteConnection, node_id: i64, revision: NewRevision
     Ok(())
 }
 
-/// Eigene Fassung speichern, sofort aktuell. `based_on`: die Fassung, auf der sie beruht (gezeigte
-/// Fassung); `None` = die aktuelle (Wurzel bei leerem Abschnitt). Gleicher Text wie die Basis oder die
-/// aktuelle Fassung → `Ok(None)`. Unbekannte Basis → `UnknownRevision`.
+/// Save one's own revision, current at once. `based_on`: the revision it is based on (the revision shown); `None` = the
+/// current one (a root for an empty section). Same text as the base or the current revision → `Ok(None)`. Unknown base
+/// → `UnknownRevision`.
 pub(crate) async fn save_human(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -292,8 +291,8 @@ pub(crate) async fn save_human(
     }
 }
 
-/// Runde 22 (Vertrag §2.5): Stand der Basis (`revision.amend_seq`) am Vorschlag `number` merken
-/// (`based_on_amend`), damit die Anzeige „beruht auf Fassung n, Stand k“ auch nach weiteren Fortschreibungen stimmt.
+/// Round 22 (contract §2.5): remember the state of the base (`revision.amend_seq`) at the proposal `number`
+/// (`based_on_amend`), so that the display „beruht auf Fassung n, Stand k“ stays right even after further amendments.
 async fn remember_base_amend(
     conn: &mut SqliteConnection,
     node_id: i64,
@@ -337,11 +336,11 @@ pub(crate) async fn add_proposal(
     Ok(number)
 }
 
-/// Vorschlag eines Assistenten auf der Basis `based_on` (Runde 30, Schnittstelle R30-S1): wie [`add_proposal`], aber
-/// mit dem Elternteil `based_on` statt der aktuellen Fassung (Varianten sind Geschwister mit gleicher Basis, Lösungen
-/// beruhen auf der geprüften Fassung). Unbekannte Basis → `UnknownRevision`; ein Abschnitt ohne aktuelle Revision
-/// nimmt keine Vorschläge an (`Refused`). `variant` füllt die Spalten `variant_*` (Gruppe und Etikett immer
-/// zusammen, Migration 0047); `None` lässt sie leer.
+/// Proposal of an assistant on the base `based_on` (Round 30, interface R30-S1): like [`add_proposal`], but with the
+/// parent `based_on` instead of the current revision (variants are siblings with the same base, solutions are based on
+/// the reviewed revision). Unknown base → `UnknownRevision`; a section without a current revision takes no proposals
+/// (`Refused`). `variant` fills the columns `variant_*` (group and label always together, migration 0047); `None`
+/// leaves them empty.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn add_proposal_on(
     conn: &mut SqliteConnection,
@@ -358,7 +357,7 @@ pub(crate) async fn add_proposal_on(
     if current(conn, node_id).await?.is_none() {
         return Err(StoreError::Refused("Vorschläge brauchen eine aktuelle Revision."));
     }
-    // Die Basis muss es geben (sonst `UnknownRevision` mit den vorhandenen Nummern).
+    // The base must exist (otherwise `UnknownRevision` with the existing numbers).
     row(conn, node_id, node, based_on).await?;
     let number = next_number(conn, node_id).await?;
     let author = Author::Assistant { persona: persona.to_owned(), model: model.to_owned() };

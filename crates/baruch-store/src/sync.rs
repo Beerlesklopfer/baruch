@@ -1,47 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Abgleich Baruch ↔ MultiGPT (Migration 0033, Runde 13 „abgleich“): der Schalter „nach MultiGPT
-//! hochladen“ je Werk (`sync_work`, Vorgabe aus), die gewählten Sammlungen zum Holen (`sync_collection`),
-//! der zuletzt abgeglichene Stand je Kapitel bzw. Dokument (`sync_state`), die lokalen Kopien geholter
-//! Dokumente (`sync_document`) und das Protokoll der Läufe (`sync_run`).
+//! Sync Baruch ↔ MultiGPT (migration 0033, Round 13 "abgleich"): the switch „nach MultiGPT hochladen“ (upload to
+//! MultiGPT) per work (`sync_work`, default off), the collections chosen for fetching (`sync_collection`), the state
+//! synced last per chapter or document (`sync_state`), the local copies of fetched documents (`sync_document`) and the
+//! log of the runs (`sync_run`).
 //!
-//! Der Store hält nur die Werte; wer was darf (nur der Mensch schaltet und löst aus), prüft der Server.
-//! Kein Buchtext, darum kein Commit im Spiegel. Hashes über [`sync_hash`] (SHA-256, hex).
+//! The store only holds the values; who may do what (only the human switches and triggers) is checked by the server.
+//! Not book text, therefore no commit in the mirror. Hashes through [`sync_hash`] (SHA-256, hex).
 
 use sha2::{Digest, Sha256};
 use sqlx::Row;
 
 use crate::{Store, StoreError, WorkId};
 
-/// Höchstens so viele Zeichen hat der Name einer Sammlung.
+/// The name of a collection has at most this many characters.
 pub const SYNC_COLLECTION_CHARS: usize = 200;
-/// Höchstens so viele Sammlungen lassen sich zum Holen wählen.
+/// At most this many collections can be chosen for fetching.
 pub const SYNC_MAX_COLLECTIONS: usize = 100;
 
-/// SHA-256 eines Texts als Hex (64 Zeichen): Inhalts-Hash des Abgleichs.
+/// SHA-256 of a text as hex (64 characters): content hash of the sync.
 pub fn sync_hash(text: &str) -> String {
     Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Schalter eines Werks (fehlt die Zeile: aus, ohne Sammlung).
+/// Switch of a work (if the row is missing: off, without a collection).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SyncWork {
     pub work: WorkId,
     pub title: String,
     pub upload: bool,
-    /// Beim Einschalten festgehaltene Sammlung („Baruch: <Werktitel>“), sonst leer.
+    /// Collection recorded when switching on („Baruch: <Werktitel>“), otherwise empty.
     pub collection: String,
-    /// Zeitpunkt der Bestätigung beim (letzten) Einschalten.
+    /// Point in time of the confirmation at the (last) switching on.
     pub confirmed: Option<String>,
     pub updated: Option<String>,
 }
 
-/// Seite eines Eintrags in `sync_state`.
+/// Side of an entry in `sync_state`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SyncSide {
-    /// Kapitel eines Werks (item `work:<W>/key:<K>`).
+    /// Chapter of a work (item `work:<W>/key:<K>`).
     Baruch,
-    /// Dokument einer gewählten Sammlung (item = Dokument-ID).
+    /// Document of a chosen collection (item = document ID).
     Multigpt,
 }
 
@@ -62,7 +62,7 @@ impl SyncSide {
     }
 }
 
-/// Zuletzt abgeglichener Stand eines Kapitels bzw. Dokuments.
+/// State of a chapter or document synced last.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SyncState {
     pub side: SyncSide,
@@ -70,17 +70,17 @@ pub struct SyncState {
     pub item: String,
     pub work: Option<WorkId>,
     pub node_key: Option<i64>,
-    /// Dokument-ID bei MultiGPT (Seite `baruch`: das hochgeladene Dokument).
+    /// Document ID at MultiGPT (side `baruch`: the uploaded document).
     pub remote_id: String,
     pub title: String,
     pub hash: String,
-    /// Änderungszeit bzw. Hash, wie MultiGPT ihn in `list_documents` meldet (leer = nicht gemeldet).
+    /// Modification time or hash as MultiGPT reports it in `list_documents` (empty = not reported).
     pub remote_stamp: String,
-    /// Beim Schreiben setzt der Store die Zeit selbst.
+    /// When writing, the store sets the time itself.
     pub synced: String,
 }
 
-/// Lokale Kopie eines geholten Dokuments.
+/// Local copy of a fetched document.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SyncDocument {
     pub id: i64,
@@ -93,7 +93,7 @@ pub struct SyncDocument {
     pub fetched: String,
 }
 
-/// Zahlen eines Laufs.
+/// Counts of a run.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
 pub struct SyncCounts {
     pub uploaded: i64,
@@ -104,7 +104,7 @@ pub struct SyncCounts {
     pub failed: i64,
 }
 
-/// Ein Lauf (`finished`/`ok` fehlen, solange er läuft oder wenn er abbrach).
+/// A run (`finished`/`ok` are missing as long as it runs or if it aborted).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SyncRun {
     pub id: i64,
@@ -116,14 +116,14 @@ pub struct SyncRun {
     pub counts: SyncCounts,
 }
 
-/// Zahl und letzter Abgleich (Kapitel eines Werks bzw. Dokumente einer Sammlung).
+/// Count and last sync (chapters of a work or documents of a collection).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SyncTally {
     pub documents: i64,
     pub synced: Option<String>,
 }
 
-/// Name einer Sammlung: beschnitten, 1..=200 Zeichen in einer Zeile.
+/// Name of a collection: trimmed, 1..=200 characters on one line.
 fn clean_collection(name: &str) -> Result<String, StoreError> {
     let name = name.trim();
     let chars = name.chars().count();
@@ -200,7 +200,7 @@ const STATE_COLUMNS: &str = "side, collection, item, work_id, node_key, remote_i
 const DOCUMENT_COLUMNS: &str = "id, collection, document_id, title, url, text, hash, fetched";
 
 impl Store {
-    /// Schalter eines Werks; unbekanntes Werk → `UnknownWork`.
+    /// Switch of a work; unknown work → `UnknownWork`.
     pub async fn sync_work(&self, work: WorkId) -> Result<SyncWork, StoreError> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!("{WORK_SELECT} WHERE w.id = ?")))
             .bind(work)
@@ -210,17 +210,17 @@ impl Store {
         work_of(&row)
     }
 
-    /// Schalter aller Werke (nach id).
+    /// Switches of all works (by id).
     pub async fn sync_works(&self) -> Result<Vec<SyncWork>, StoreError> {
         let rows =
             sqlx::query(sqlx::AssertSqlSafe(format!("{WORK_SELECT} ORDER BY w.id"))).fetch_all(&self.pool).await?;
         rows.iter().map(work_of).collect()
     }
 
-    /// Schalter „nach MultiGPT hochladen“ setzen (eine Transaktion). Beim Einschalten wird die Sammlung
-    /// festgehalten: eine schon festgehaltene bleibt (sonst verlören hochgeladene Dokumente ihren Ort),
-    /// sonst gilt `collection` (1..=200 Zeichen, eine Zeile); `confirmed` = jetzt. Ausschalten behält die
-    /// Sammlung. Unbekanntes Werk → `UnknownWork`, ungültige Sammlung → `Refused` (nichts geändert).
+    /// Set the switch „nach MultiGPT hochladen“ (one transaction). When switching on, the collection is recorded: one
+    /// already recorded stays (otherwise uploaded documents would lose their place), otherwise `collection` applies
+    /// (1..=200 characters, one line); `confirmed` = now. Switching off keeps the collection. Unknown work →
+    /// `UnknownWork`, invalid collection → `Refused` (nothing changed).
     pub async fn sync_set_upload(&self, work: WorkId, on: bool, collection: &str) -> Result<SyncWork, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let found: Option<i64> =
@@ -257,15 +257,15 @@ impl Store {
         self.sync_work(work).await
     }
 
-    /// Zum Holen gewählte Sammlungen in ihrer Reihenfolge.
+    /// Collections chosen for fetching, in their order.
     pub async fn sync_collections(&self) -> Result<Vec<String>, StoreError> {
         Ok(sqlx::query_scalar("SELECT collection FROM sync_collection ORDER BY position, collection")
             .fetch_all(&self.pool)
             .await?)
     }
 
-    /// Gewählte Sammlungen ersetzen: beschnitten, Doppelte entfernt (die erste gewinnt), je 1..=200
-    /// Zeichen in einer Zeile, höchstens 100; sonst `Refused` und nichts geändert. Liefert die Liste.
+    /// Replace the chosen collections: trimmed, duplicates removed (the first one wins), each 1..=200 characters on one
+    /// line, at most 100; otherwise `Refused` and nothing changed. Returns the list.
     pub async fn sync_set_collections(&self, collections: &[String]) -> Result<Vec<String>, StoreError> {
         let mut list: Vec<String> = Vec::new();
         for name in collections {
@@ -282,7 +282,7 @@ impl Store {
             sqlx::query_as("SELECT collection, added FROM sync_collection").fetch_all(&mut *tx).await?;
         sqlx::query("DELETE FROM sync_collection").execute(&mut *tx).await?;
         for (index, name) in list.iter().enumerate() {
-            // Eine schon gewählte Sammlung behält ihren Zeitpunkt.
+            // A collection that is already chosen keeps its point in time.
             let added = before.iter().find(|(c, _)| c == name).map(|(_, a)| a.clone());
             sqlx::query(
                 "INSERT INTO sync_collection (collection, position, added) VALUES (?, ?, \
@@ -298,7 +298,7 @@ impl Store {
         Ok(list)
     }
 
-    /// Stände einer Seite, wahlweise nur einer Sammlung (nach Sammlung und item).
+    /// States of a side, optionally of one collection only (by collection and item).
     pub async fn sync_states(&self, side: SyncSide, collection: Option<&str>) -> Result<Vec<SyncState>, StoreError> {
         let rows = match collection {
             Some(collection) => {
@@ -322,7 +322,7 @@ impl Store {
         rows.iter().map(state_of).collect()
     }
 
-    /// Stand schreiben (ersetzt einen vorhandenen; `synced` = jetzt).
+    /// Write a state (replaces an existing one; `synced` = now).
     pub async fn sync_state_put(&self, state: &SyncState) -> Result<(), StoreError> {
         sqlx::query(
             "INSERT INTO sync_state (side, collection, item, work_id, node_key, remote_id, title, hash, remote_stamp) \
@@ -345,7 +345,7 @@ impl Store {
         Ok(())
     }
 
-    /// Stand entfernen (fehlt er, geschieht nichts).
+    /// Remove a state (if it is missing, nothing happens).
     pub async fn sync_state_delete(&self, side: SyncSide, collection: &str, item: &str) -> Result<(), StoreError> {
         sqlx::query("DELETE FROM sync_state WHERE side = ? AND collection = ? AND item = ?")
             .bind(side.as_str())
@@ -356,7 +356,7 @@ impl Store {
         Ok(())
     }
 
-    /// Lokale Kopie eines Dokuments.
+    /// Local copy of a document.
     pub async fn sync_document(&self, collection: &str, document_id: &str) -> Result<Option<SyncDocument>, StoreError> {
         let row = sqlx::query(sqlx::AssertSqlSafe(format!(
             "SELECT {DOCUMENT_COLUMNS} FROM sync_document WHERE collection = ? AND document_id = ?"
@@ -368,7 +368,7 @@ impl Store {
         row.as_ref().map(document_of).transpose()
     }
 
-    /// Alle lokalen Kopien (nach id), für den lokalen Index.
+    /// All local copies (by id), for the local index.
     pub async fn sync_documents(&self) -> Result<Vec<SyncDocument>, StoreError> {
         let rows =
             sqlx::query(sqlx::AssertSqlSafe(format!("SELECT {DOCUMENT_COLUMNS} FROM sync_document ORDER BY id")))
@@ -377,15 +377,15 @@ impl Store {
         rows.iter().map(document_of).collect()
     }
 
-    /// Sammlungen mit lokalen Kopien, je mit den Dokument-IDs.
+    /// Collections with local copies, each with the document IDs.
     pub async fn sync_document_ids(&self) -> Result<Vec<(String, String)>, StoreError> {
         Ok(sqlx::query_as("SELECT collection, document_id FROM sync_document ORDER BY collection, document_id")
             .fetch_all(&self.pool)
             .await?)
     }
 
-    /// Lokale Kopie schreiben. Gleicher Hash wie gespeichert → nichts ändert sich (`false`); sonst neuer
-    /// Text, Titel, Adresse und Abrufzeit bei gleicher id (`true`). Liefert (id, geändert).
+    /// Write a local copy. Same hash as stored → nothing changes (`false`); otherwise new text, title, address and
+    /// fetch time under the same id (`true`). Returns (id, changed).
     pub async fn sync_document_put(
         &self,
         collection: &str,
@@ -438,7 +438,7 @@ impl Store {
         Ok(outcome)
     }
 
-    /// Lokale Kopie entfernen (fehlt sie, geschieht nichts).
+    /// Remove a local copy (if it is missing, nothing happens).
     pub async fn sync_document_delete(&self, collection: &str, document_id: &str) -> Result<(), StoreError> {
         sqlx::query("DELETE FROM sync_document WHERE collection = ? AND document_id = ?")
             .bind(collection)
@@ -448,7 +448,7 @@ impl Store {
         Ok(())
     }
 
-    /// Zahl der hochgeladenen Kapitel und letzter Abgleich eines Werks.
+    /// Number of uploaded chapters and last sync of a work.
     pub async fn sync_work_tally(&self, work: WorkId) -> Result<SyncTally, StoreError> {
         let (documents, synced): (i64, Option<String>) =
             sqlx::query_as("SELECT count(*), max(synced) FROM sync_state WHERE side = 'baruch' AND work_id = ?")
@@ -458,7 +458,7 @@ impl Store {
         Ok(SyncTally { documents, synced })
     }
 
-    /// Zahl der lokalen Kopien und letzter Abruf einer Sammlung.
+    /// Number of local copies and last fetch of a collection.
     pub async fn sync_collection_tally(&self, collection: &str) -> Result<SyncTally, StoreError> {
         let (documents, synced): (i64, Option<String>) =
             sqlx::query_as("SELECT count(*), max(fetched) FROM sync_document WHERE collection = ?")
@@ -468,7 +468,7 @@ impl Store {
         Ok(SyncTally { documents, synced })
     }
 
-    /// Neuer Lauf (Beginn = jetzt); liefert die id.
+    /// New run (start = now); returns the id.
     pub async fn sync_run_start(&self) -> Result<i64, StoreError> {
         Ok(sqlx::query_scalar(
             "INSERT INTO sync_run (started) VALUES (strftime('%Y-%m-%dT%H:%M:%fZ','now')) RETURNING id",
@@ -477,7 +477,7 @@ impl Store {
         .await?)
     }
 
-    /// Lauf abschließen (Ende = jetzt).
+    /// Finish a run (end = now).
     pub async fn sync_run_finish(
         &self,
         id: i64,
@@ -503,7 +503,7 @@ impl Store {
         Ok(())
     }
 
-    /// Jüngster Lauf.
+    /// Most recent run.
     pub async fn sync_run_last(&self) -> Result<Option<SyncRun>, StoreError> {
         let row = sqlx::query(
             "SELECT id, started, finished, ok, message, uploaded, replaced, removed, downloaded, unchanged, failed \

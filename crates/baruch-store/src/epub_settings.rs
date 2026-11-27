@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Einstellung für EPUBCheck (Runde 20, Besitz „epub-pruefung“): Pfad zu einem epubcheck.jar in `store_meta`
-//! (Schlüssel [`EPUBCHECK_JAR`]), global, ohne Migration. Kein Buchtext und darum kein Commit im Spiegel. Prüfungen
-//! des Pfads (absolut, `.jar`, vorhandene Datei, Länge) macht der Server.
+//! Setting for EPUBCheck (Round 20, ownership "epub-pruefung"): path to an epubcheck.jar in `store_meta` (key
+//! [`EPUBCHECK_JAR`]), global, without a migration. Not book text and therefore no commit in the mirror. The checks of
+//! the path (absolute, `.jar`, existing file, length) are done by the server.
 
 use crate::{Store, StoreError};
 
-/// Schlüssel in `store_meta`: Pfad zum epubcheck.jar.
+/// Key in `store_meta`: path to the epubcheck.jar.
 const EPUBCHECK_JAR: &str = "epubcheck_jar";
 
 impl Store {
-    /// Eingestellter Pfad zum epubcheck.jar; `None`, wenn keiner gesetzt ist.
+    /// Configured path to the epubcheck.jar; `None` if none is set.
     pub async fn epubcheck_jar(&self) -> Result<Option<String>, StoreError> {
         Ok(sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
             .bind(EPUBCHECK_JAR)
@@ -17,7 +17,7 @@ impl Store {
             .await?)
     }
 
-    /// Pfad setzen (`Some`) oder entfernen (`None`).
+    /// Set the path (`Some`) or remove it (`None`).
     pub async fn set_epubcheck_jar(&self, path: Option<&str>) -> Result<(), StoreError> {
         match path {
             Some(path) => {

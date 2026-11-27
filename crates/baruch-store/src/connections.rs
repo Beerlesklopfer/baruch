@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Verbindungen, RAG-Wege je Werk und bevorzugte Quellen (Migration `0013_connections.sql`, Runde 9,
-//! Aufgabe „connections“).
+//! Connections, RAG ways per work and preferred sources (migration `0013_connections.sql`, Round 9, task
+//! "connections").
 //!
-//! - `connection`: je Art ([`ConnectionKind`]) die Einstellungen als JSON-Objekt und das Ergebnis der
-//!   letzten Prüfung. Eine fehlende Zeile ist die Vorgabe ([`ConnectionKind::default_config`]).
-//!   **Geheimnisse stehen nie hier**, sie liegen im Schlüsselbund (Server, `connections::secrets`);
-//!   welche Schlüssel eine Einstellung haben darf, prüft der Server.
-//! - `work_rag`: je Werk die RAG-Wege ([`RagWay`]); fehlt die Zeile, gilt `["lancedb"]`, eine leere
-//!   Liste heißt „nur Volltext“. Ein gelöschtes Werk nimmt seine Zeile mit (`ON DELETE CASCADE`).
-//! - `preferred_source`: Lesezeichen (Titel, Adresse, Notiz) in einer lückenlosen Reihenfolge
-//!   `1..n`, die der Store bei Anlegen, Verschieben und Löschen in derselben Transaktion pflegt.
+//! - `connection`: per kind ([`ConnectionKind`]) the settings as a JSON object and the result of the last check. A
+//!   missing row is the default ([`ConnectionKind::default_config`]). **Secrets are never stored here**, they lie in
+//!   the keyring (server, `connections::secrets`); which keys a setting may have is checked by the server.
+//! - `work_rag`: per work the RAG ways ([`RagWay`]); if the row is missing, `["lancedb"]` applies, an empty list means
+//!   "full text only". A deleted work takes its row along (`ON DELETE CASCADE`).
+//! - `preferred_source`: bookmarks (title, address, note) in an order `1..n` without gaps, which the store maintains in
+//!   the same transaction when creating, moving and deleting.
 //!
-//! Alles ist global (nicht je Werk außer `work_rag`), kein Buchtext und darum kein Commit im
-//! Git-Spiegel. Jede Änderung ist eine Transaktion (`BEGIN IMMEDIATE`). Eingaben prüft der Server
-//! genauer (Adressen, Felder); der Store hält nur die Grenzen der Tabellen und lehnt mit
-//! [`StoreError::Refused`] ab.
+//! Everything is global (not per work except `work_rag`), not book text and therefore no commit in the Git mirror.
+//! Every change is one transaction (`BEGIN IMMEDIATE`). The server checks inputs more closely (addresses, fields); the
+//! store only keeps the limits of the tables and rejects with [`StoreError::Refused`].
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -22,26 +20,26 @@ use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId};
 
-/// Art einer Verbindung (Spalte `connection.kind`).
+/// Kind of a connection (column `connection.kind`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ConnectionKind {
-    /// Modell-Backend Eliezer (OpenAI-artige Schnittstelle, `/v1/models`).
+    /// Model backend Eliezer (OpenAI-like interface, `/v1/models`).
     Eliezer,
-    /// MultiGPT als MCP-Server.
+    /// MultiGPT as an MCP server.
     Multigpt,
-    /// PostgreSQL mit der Erweiterung `vector`.
+    /// PostgreSQL with the extension `vector`.
     Pgvector,
-    /// LanceDB im Datenordner (lokal, ohne Geheimnis).
+    /// LanceDB in the data folder (local, without a secret).
     Lancedb,
 }
 
 impl ConnectionKind {
-    /// Alle Arten in der Reihenfolge der Einstellungsseite.
+    /// All kinds in the order of the settings page.
     pub const ALL: [ConnectionKind; 4] =
         [ConnectionKind::Eliezer, ConnectionKind::Multigpt, ConnectionKind::Pgvector, ConnectionKind::Lancedb];
 
-    /// Wert in der Tabelle (`eliezer`, `multigpt`, `pgvector`, `lancedb`).
+    /// Value in the table (`eliezer`, `multigpt`, `pgvector`, `lancedb`).
     pub fn as_str(self) -> &'static str {
         match self {
             ConnectionKind::Eliezer => "eliezer",
@@ -51,15 +49,15 @@ impl ConnectionKind {
         }
     }
 
-    /// Vorgabe der Einstellungen, solange keine Zeile gespeichert ist.
+    /// Default of the settings as long as no row is stored.
     pub fn default_config(self) -> Value {
         match self {
             ConnectionKind::Eliezer => json!({ "url": "http://127.0.0.1:1234" }),
-            // Runde 24: keine Adresse als Vorgabe (bis Runde 23 stand hier eine Intranet-Adresse). Eine
-            // gespeicherte Zeile bleibt unverändert; ohne Zeile ist MultiGPT „nicht eingerichtet“.
+            // Round 24: no address as the default (up to Round 23 an intranet address stood here). A stored row stays
+            // unchanged; without a row MultiGPT is "not set up".
             ConnectionKind::Multigpt => json!({ "url": "" }),
-            // Runde 12 (pgvector): Zuordnung von Tabelle und Spalten der Einbettungen und das Modell, mit
-            // dem die Daten eingebettet sind; leere Spaltennamen = Spalte nicht vorhanden.
+            // Round 12 (pgvector): mapping of table and columns of the embeddings and the model with which the data are
+            // embedded; empty column names = column not present.
             ConnectionKind::Pgvector => json!({
                 "host": "", "port": 5432, "database": "", "user": "", "tls": "prefer",
                 "table": "chunks", "text_column": "content", "vector_column": "embedding",
@@ -80,7 +78,7 @@ impl std::fmt::Display for ConnectionKind {
 impl std::str::FromStr for ConnectionKind {
     type Err = StoreError;
 
-    /// Tabellenwert → Art; alles andere → `Refused`.
+    /// Table value → kind; everything else → `Refused`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         ConnectionKind::ALL
             .into_iter()
@@ -89,32 +87,32 @@ impl std::str::FromStr for ConnectionKind {
     }
 }
 
-/// Ergebnis der letzten Prüfung einer Verbindung.
+/// Result of the last check of a connection.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ConnectionCheck {
-    /// Zeitpunkt (UTC, `YYYY-MM-DDTHH:MM:SS.sssZ`).
+    /// Point in time (UTC, `YYYY-MM-DDTHH:MM:SS.sssZ`).
     pub at: String,
     pub ok: bool,
     pub message: String,
-    /// Angaben der Gegenstelle (Modelle, Werkzeuge, Versionen); nie Geheimnisse.
+    /// Details of the remote side (models, tools, versions); never secrets.
     pub details: Value,
 }
 
-/// Eine Verbindung mit Einstellungen und letzter Prüfung.
+/// A connection with settings and last check.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ConnectionRow {
     pub kind: ConnectionKind,
-    /// Gespeicherte Einstellungen bzw. [`ConnectionKind::default_config`].
+    /// Stored settings or [`ConnectionKind::default_config`].
     pub config: Value,
-    /// Letzte Änderung; `None` = nie gespeichert (Vorgabe).
+    /// Last change; `None` = never stored (default).
     pub updated: Option<String>,
     pub check: Option<ConnectionCheck>,
-    /// Ziel, für das das Geheimnis hinterlegt wurde, wenn die Einstellungen seitdem auf ein anderes
-    /// zeigen (Migration 0014); `None` = das Geheimnis gilt für das jetzige Ziel. Nie ein Geheimnis.
+    /// Target for which the secret was stored, if the settings have pointed to another one since (migration 0014);
+    /// `None` = the secret applies to the present target. Never a secret.
     pub secret_target: Option<String>,
 }
 
-/// Ein RAG-Weg eines Werks (Teilmenge in `work_rag.ways`).
+/// A RAG way of a work (subset in `work_rag.ways`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RagWay {
@@ -124,7 +122,7 @@ pub enum RagWay {
 }
 
 impl RagWay {
-    /// Alle Wege in fester Reihenfolge (so werden sie gespeichert).
+    /// All ways in a fixed order (that is how they are stored).
     pub const ALL: [RagWay; 3] = [RagWay::Lancedb, RagWay::Pgvector, RagWay::Multigpt];
 
     pub fn as_str(self) -> &'static str {
@@ -153,20 +151,20 @@ impl std::str::FromStr for RagWay {
     }
 }
 
-/// Ein Lesezeichen der Liste bevorzugter Quellen.
+/// A bookmark of the list of preferred sources.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PreferredSource {
     pub id: i64,
     pub title: String,
     pub url: String,
     pub note: String,
-    /// Stelle in der Liste, 1..n lückenlos.
+    /// Position in the list, 1..n without gaps.
     pub position: i64,
     pub created: String,
     pub updated: String,
 }
 
-/// Neue Quelle; der Titel wird am Rand beschnitten.
+/// New source; the title is trimmed at the edges.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NewSource {
     pub title: String,
@@ -174,7 +172,7 @@ pub struct NewSource {
     pub note: String,
 }
 
-/// Änderung einer Quelle; `None` = unverändert.
+/// Change of a source; `None` = unchanged.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SourceEdit {
     pub title: Option<String>,
@@ -185,7 +183,7 @@ pub struct SourceEdit {
 const MAX_SOURCE_TITLE: usize = 200;
 const MAX_SOURCE_URL: usize = 2000;
 
-/// Titel getrimmt, 1–200 Zeichen, eine Zeile.
+/// Title trimmed, 1–200 characters, one line.
 fn source_title(title: &str) -> Result<String, StoreError> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > MAX_SOURCE_TITLE || title.contains(['\n', '\r']) {
@@ -194,7 +192,7 @@ fn source_title(title: &str) -> Result<String, StoreError> {
     Ok(title.to_owned())
 }
 
-/// Adresse getrimmt, `http://` oder `https://`, höchstens 2000 Zeichen, ohne Leerraum.
+/// Address trimmed, `http://` or `https://`, at most 2000 characters, without whitespace.
 fn source_url(url: &str) -> Result<String, StoreError> {
     let url = url.trim();
     let lower = url.to_ascii_lowercase();
@@ -231,7 +229,7 @@ async fn source(conn: &mut SqliteConnection, id: i64) -> Result<PreferredSource,
     row.map(source_of).ok_or(StoreError::Refused("Diese Quelle gibt es nicht (mehr)."))
 }
 
-/// Stellen `1..n` in der Reihenfolge `ids` vergeben (nur geänderte Zeilen werden geschrieben).
+/// Assign the positions `1..n` in the order `ids` (only changed rows are written).
 async fn renumber(conn: &mut SqliteConnection, ids: &[i64]) -> Result<(), StoreError> {
     for (index, id) in ids.iter().enumerate() {
         sqlx::query("UPDATE preferred_source SET position = ? WHERE id = ? AND position <> ?")
@@ -286,26 +284,26 @@ fn row_of(kind: ConnectionKind, row: ConnectionTuple) -> Result<ConnectionRow, S
     Ok(ConnectionRow { kind, config, updated: Some(updated), check, secret_target })
 }
 
-/// Werk vorhanden? Sonst `UnknownWork`.
+/// Work present? Otherwise `UnknownWork`.
 async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Wege in fester Reihenfolge ([`RagWay::ALL`]), ohne Doppel.
+/// Ways in a fixed order ([`RagWay::ALL`]), without duplicates.
 fn canonical(ways: &[RagWay]) -> Vec<RagWay> {
     RagWay::ALL.into_iter().filter(|w| ways.contains(w)).collect()
 }
 
 impl Store {
-    /// Eine Verbindung; ohne gespeicherte Zeile die Vorgabe (`updated` und `check` sind dann `None`).
+    /// A connection; without a stored row the default (`updated` and `check` are then `None`).
     pub async fn connection_get(&self, kind: ConnectionKind) -> Result<ConnectionRow, StoreError> {
         let mut conn = self.pool.acquire().await?;
         connection_row(&mut conn, kind).await
     }
 
-    /// Alle vier Verbindungen in der Reihenfolge [`ConnectionKind::ALL`].
+    /// All four connections in the order [`ConnectionKind::ALL`].
     pub async fn connection_list(&self) -> Result<Vec<ConnectionRow>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let mut rows = Vec::with_capacity(ConnectionKind::ALL.len());
@@ -315,9 +313,9 @@ impl Store {
         Ok(rows)
     }
 
-    /// Einstellungen speichern (ganz ersetzen; der Server füllt fehlende Felder vorher auf). `config`
-    /// muss ein JSON-Objekt sein, sonst `Refused`. Ändern sich die Einstellungen, gilt die letzte
-    /// Prüfung nicht mehr und wird geleert (sie galt der alten Adresse).
+    /// Store the settings (replace completely; the server fills in missing fields beforehand). `config` must be a JSON
+    /// object, otherwise `Refused`. If the settings change, the last check no longer applies and is cleared (it applied
+    /// to the old address).
     pub async fn connection_set(&self, kind: ConnectionKind, config: &Value) -> Result<ConnectionRow, StoreError> {
         if !config.is_object() {
             return Err(StoreError::Refused("Einstellungen einer Verbindung sind ein JSON-Objekt."));
@@ -342,10 +340,10 @@ impl Store {
         Ok(row)
     }
 
-    /// Ziel festhalten, für das das Geheimnis hinterlegt ist (`None` = „gilt für das jetzige Ziel“).
-    /// Ohne gespeicherte Zeile und mit `Some` wird sie mit der Vorgabe angelegt; ohne Zeile und mit
-    /// `None` ändert sich nichts (keine Zeile heißt schon „jetziges Ziel“). Der Server ruft das vor
-    /// [`Store::connection_set`], wenn sich das Ziel ändert, und nach dem Hinterlegen eines Geheimnisses.
+    /// Record the target for which the secret is stored (`None` = "applies to the present target"). Without a stored
+    /// row and with `Some` the row is created with the default; without a row and with `None` nothing changes (no row
+    /// already means "present target"). The server calls this before [`Store::connection_set`] when the target changes,
+    /// and after storing a secret.
     pub async fn connection_bind_secret(&self, kind: ConnectionKind, target: Option<&str>) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         if target.is_some() {
@@ -364,8 +362,8 @@ impl Store {
         Ok(())
     }
 
-    /// Ergebnis einer Prüfung festhalten (Zeitpunkt jetzt). Ohne gespeicherte Zeile wird sie mit der
-    /// Vorgabe angelegt, damit die Prüfung der Vorgabe-Adresse sichtbar bleibt.
+    /// Record the result of a check (point in time now). Without a stored row it is created with the default, so that
+    /// the check of the default address stays visible.
     pub async fn connection_record_check(
         &self,
         kind: ConnectionKind,
@@ -394,8 +392,7 @@ impl Store {
         Ok(row)
     }
 
-    /// RAG-Wege eines Werks und ob es die Vorgabe (`["lancedb"]`, keine Zeile) ist. Unbekanntes Werk →
-    /// `UnknownWork`.
+    /// RAG ways of a work and whether it is the default (`["lancedb"]`, no row). Unknown work → `UnknownWork`.
     pub async fn work_rag(&self, work: WorkId) -> Result<(Vec<RagWay>, bool), StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -412,7 +409,7 @@ impl Store {
         Ok((canonical(&parsed), false))
     }
 
-    /// RAG-Wege eines Werks setzen (leer = nur Volltext); gespeichert in fester Reihenfolge ohne Doppel.
+    /// Set the RAG ways of a work (empty = full text only); stored in a fixed order without duplicates.
     pub async fn set_work_rag(&self, work: WorkId, ways: &[RagWay]) -> Result<Vec<RagWay>, StoreError> {
         let ways = canonical(ways);
         let names: Vec<&str> = ways.iter().map(|w| w.as_str()).collect();
@@ -430,13 +427,13 @@ impl Store {
         Ok(ways)
     }
 
-    /// Alle Quellen in ihrer Reihenfolge.
+    /// All sources in their order.
     pub async fn sources_list(&self) -> Result<Vec<PreferredSource>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         sources(&mut conn).await
     }
 
-    /// Neue Quelle am Ende der Liste.
+    /// New source at the end of the list.
     pub async fn source_create(&self, new: &NewSource) -> Result<PreferredSource, StoreError> {
         let title = source_title(&new.title)?;
         let url = source_url(&new.url)?;
@@ -458,7 +455,7 @@ impl Store {
         Ok(created)
     }
 
-    /// Titel, Adresse und/oder Notiz einer Quelle ändern; unbekannte id → `Refused`.
+    /// Change title, address and/or note of a source; unknown id → `Refused`.
     pub async fn source_update(&self, id: i64, edit: &SourceEdit) -> Result<PreferredSource, StoreError> {
         let title = edit.title.as_deref().map(source_title).transpose()?;
         let url = edit.url.as_deref().map(source_url).transpose()?;
@@ -484,8 +481,8 @@ impl Store {
         Ok(after)
     }
 
-    /// Quelle an die Stelle `position` (1..n, außerhalb an den Rand) setzen; die übrigen rücken nach.
-    /// Liefert die ganze Liste.
+    /// Put a source at the position `position` (1..n, outside of it to the edge); the others move up. Returns the whole
+    /// list.
     pub async fn source_move(&self, id: i64, position: i64) -> Result<Vec<PreferredSource>, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         source(&mut tx, id).await?;
@@ -498,8 +495,7 @@ impl Store {
         Ok(list)
     }
 
-    /// Quelle löschen (die Bestätigung prüft der Server); die übrigen rücken zusammen. Liefert die
-    /// gelöschte Quelle.
+    /// Delete a source (the server checks the confirmation); the others close ranks. Returns the deleted source.
     pub async fn source_delete(&self, id: i64) -> Result<PreferredSource, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let gone = source(&mut tx, id).await?;

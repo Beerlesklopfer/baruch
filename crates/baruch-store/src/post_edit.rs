@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Beiträge bearbeiten (Runde 28, Migration 0046; Schnittstelle S1, danach gehört das Modul chat-auftrag).
+//! Editing posts (Round 28, migration 0046; interface S1, afterwards the module belongs to chat-auftrag).
 //!
-//! - Bearbeiten legt die alte Fassung als `post_version` ab (Text, seit wann sie galt, wer ersetzt hat) und setzt
-//!   `post.edited` bzw. `chat_thread_post.edited` auf die Zeit der Änderung (NULL = nie bearbeitet).
-//! - Wer bearbeiten darf (nur Beiträge des Menschen bzw. über MCP nur eigene), prüft der Server, nicht der Store.
-//! - Ein Beitrag wird über seine id **und** sein Werk angesprochen; eine id aus einem anderen Werk ist unbekannt.
-//! - Der neue Text wird getrimmt; leer, länger als [`MAX_POST_CHARS`] oder unverändert → [`StoreError::PostEdit`]
-//!   (nichts geändert, keine leere Fassung im Verlauf).
-//! - Jede Änderung ist genau eine Transaktion (`BEGIN IMMEDIATE`): alte Fassung ablegen und Text samt `edited`
-//!   setzen geschehen zusammen oder gar nicht. Den Volltextindex hält der Trigger `post_fts_edit` (Bibliothek 0107)
-//!   aktuell; Fadenbeiträge stehen nicht im Index.
+//! - Editing stores the old version as `post_version` (text, since when it applied, who replaced it) and sets
+//!   `post.edited` or `chat_thread_post.edited` to the time of the change (NULL = never edited).
+//! - Who may edit (only posts of the human, or through MCP only one's own) is checked by the server, not the store.
+//! - A post is addressed through its id **and** its work; an id from another work is unknown.
+//! - The new text is trimmed; empty, longer than [`MAX_POST_CHARS`] or unchanged → [`StoreError::PostEdit`] (nothing
+//!   changed, no empty version in the history).
+//! - Every change is exactly one transaction (`BEGIN IMMEDIATE`): storing the old version and setting the text together
+//!   with `edited` happen together or not at all. The full-text index is kept up to date by the trigger `post_fts_edit`
+//!   (library 0107); thread posts are not in the index.
 
 use std::collections::HashMap;
 
@@ -18,10 +18,10 @@ use sqlx::SqliteConnection;
 use crate::threads::UNKNOWN_THREAD;
 use crate::{PostInfo, Store, StoreError, ThreadPost, WorkId};
 
-/// Längster Beitragstext nach dem Bearbeiten (Zeichen; wie eine Chat-Nachricht).
+/// Longest post text after editing (characters; like a chat message).
 pub const MAX_POST_CHARS: usize = 4000;
 
-/// Neuen Text prüfen: getrimmt, nicht leer, höchstens [`MAX_POST_CHARS`] Zeichen, anders als bisher.
+/// Check the new text: trimmed, not empty, at most [`MAX_POST_CHARS`] characters, different from before.
 fn checked_body<'a>(body: &'a str, before: &str) -> Result<&'a str, StoreError> {
     let body = body.trim();
     if body.is_empty() {
@@ -38,7 +38,7 @@ fn checked_body<'a>(body: &'a str, before: &str) -> Result<&'a str, StoreError> 
     Ok(body)
 }
 
-/// Alte Fassung ablegen (in der Transaktion des Aufrufers); `post` bzw. `thread_post` ist genau einer gesetzt.
+/// Store the old version (in the transaction of the caller); exactly one of `post` and `thread_post` is set.
 async fn archive(
     conn: &mut SqliteConnection,
     post: Option<i64>,
@@ -58,21 +58,21 @@ async fn archive(
     .bind(by)
     .fetch_one(&mut *conn)
     .await?;
-    // Die uuid setzt der Fülltrigger nach dem Einfügen; RETURNING sieht sie noch nicht.
+    // The fill trigger sets the uuid after the insert; RETURNING does not see it yet.
     let uuid: Option<String> =
         sqlx::query_scalar("SELECT uuid FROM post_version WHERE id = ?").bind(row.0).fetch_one(&mut *conn).await?;
     Ok(version((row.0, uuid, row.2, row.3, row.4, row.5)))
 }
 
-/// Eine alte Fassung eines Beitrags.
+/// An old version of a post.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct PostVersion {
     pub id: i64,
     pub uuid: String,
     pub body: String,
-    /// Seit wann diese Fassung galt (Anlage bzw. vorige Änderung).
+    /// Since when this version applied (creation or previous change).
     pub valid_from: String,
-    /// Wann sie ersetzt wurde.
+    /// When it was replaced.
     pub replaced: String,
     pub edited_by: String,
 }
@@ -83,7 +83,7 @@ fn version((id, uuid, body, valid_from, replaced, edited_by): VersionRow) -> Pos
     PostVersion { id, uuid: uuid.unwrap_or_default(), body, valid_from, replaced, edited_by }
 }
 
-/// Gibt es den Beitrag `id` im Werk `work`? Sonst `UnknownPost` bzw. `UnknownWork`.
+/// Does the post `id` exist in the work `work`? Otherwise `UnknownPost` or `UnknownWork`.
 async fn check_post(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT p.id FROM post p JOIN node n ON n.id = p.node_id WHERE p.id = ? AND n.work_id = ?")
@@ -102,8 +102,8 @@ async fn check_post(conn: &mut SqliteConnection, work: WorkId, id: i64) -> Resul
     })
 }
 
-/// Gibt es den Fadenbeitrag `id` im Faden `thread` des Werks `work`? Unbekannter Faden → `Refused(UNKNOWN_THREAD)`,
-/// unbekannter Beitrag im Faden → `UnknownPost`, unbekanntes Werk → `UnknownWork`.
+/// Does the thread post `id` exist in the thread `thread` of the work `work`? Unknown thread →
+/// `Refused(UNKNOWN_THREAD)`, unknown post in the thread → `UnknownPost`, unknown work → `UnknownWork`.
 async fn check_thread_post(conn: &mut SqliteConnection, work: WorkId, thread: i64, id: i64) -> Result<(), StoreError> {
     let exists: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
@@ -123,8 +123,8 @@ async fn check_thread_post(conn: &mut SqliteConnection, work: WorkId, thread: i6
 }
 
 impl Store {
-    /// Beitrag `id` im Abschnitts-Chat bearbeiten: alte Fassung als `post_version`, neuer Text, `edited` = jetzt;
-    /// eine Transaktion. Gibt den Beitrag nach der Änderung und die abgelegte alte Fassung zurück.
+    /// Edit the post `id` in the section chat: old version as `post_version`, new text, `edited` = now; one
+    /// transaction. Returns the post after the change and the old version that was stored.
     pub async fn post_edit(
         &self,
         work: WorkId,
@@ -148,7 +148,7 @@ impl Store {
         Ok((after, old))
     }
 
-    /// Alte Fassungen des Beitrags `id`, älteste zuerst (leer, wenn nie bearbeitet).
+    /// Old versions of the post `id`, oldest first (empty if never edited).
     pub async fn post_versions(&self, work: WorkId, id: i64) -> Result<Vec<PostVersion>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         check_post(&mut conn, work, id).await?;
@@ -161,8 +161,8 @@ impl Store {
         Ok(rows.into_iter().map(version).collect())
     }
 
-    /// Fadenbeitrag `id` im Faden `thread` bearbeiten (wie [`Store::post_edit`]; Fadenbeiträge stehen nie im
-    /// Spiegel).
+    /// Edit the thread post `id` in the thread `thread` (like [`Store::post_edit`]; thread posts are never in the
+    /// mirror).
     pub async fn thread_post_edit(
         &self,
         work: WorkId,
@@ -188,7 +188,7 @@ impl Store {
         Ok((after, old))
     }
 
-    /// Alte Fassungen des Fadenbeitrags `id`, älteste zuerst.
+    /// Old versions of the thread post `id`, oldest first.
     pub async fn thread_post_versions(
         &self,
         work: WorkId,
@@ -207,7 +207,7 @@ impl Store {
         Ok(rows.into_iter().map(version).collect())
     }
 
-    /// Bearbeitete Beiträge des Werks im Abschnitts-Chat: `post.id` → Zeit der letzten Änderung.
+    /// Edited posts of the work in the section chat: `post.id` → time of the last change.
     pub async fn post_edited_map(&self, work: WorkId) -> Result<HashMap<i64, String>, StoreError> {
         let rows: Vec<(i64, String)> = sqlx::query_as(
             "SELECT p.id, p.edited FROM post p JOIN node n ON n.id = p.node_id \

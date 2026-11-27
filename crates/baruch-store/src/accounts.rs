@@ -1,43 +1,43 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Konten (Runde 35, Vertrag §S1.3 und §1; Migration `0053_accounts.sql`): wer sich an Baruch anmelden darf.
+//! Accounts (Round 35, contract §S1.3 and §1; migration `0053_accounts.sql`): who may sign in to Baruch.
 //!
-//! Instanzdaten: Konten stehen nicht im Austauschformat und nicht im Spiegel. Der Store hasht nie selbst und sieht
-//! nie ein Klartext-Passwort – der Server übergibt den fertigen Argon2id-PHC-Text ([`NewAccount::password_phc`]);
-//! [`Account`] trägt keinen Hash. Ohne Konten (Tabelle leer, [`Store::account_count`] = 0) bleibt Baruch offen wie
-//! vor Runde 35.
+//! Instance data: accounts are not in the exchange format and not in the mirror. The store never hashes itself and
+//! never sees a plain-text password – the server passes the finished Argon2id PHC text ([`NewAccount::password_phc`]);
+//! [`Account`] carries no hash. Without accounts (table empty, [`Store::account_count`] = 0) Baruch stays open as
+//! before Round 35.
 //!
-//! Dazu gehören die Sitzungen (`account_session`: nur der SHA-256 des Tokens, nie das Token), die Sperre gegen
-//! Durchprobieren (`login_attempt`) und der Schalter „Am eigenen Rechner ohne Anmeldung“ (`store_meta`, Schlüssel
-//! `auth.local_open`). Alle Zeitpunkte rechnet SQLite (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`), damit sie sich als
-//! Text vergleichen lassen. Konten werden nie gelöscht: Der Slug (Handle `@lektorat:<slug>`) bleibt vergeben.
+//! This includes the sessions (`account_session`: only the SHA-256 of the token, never the token), the lock against
+//! trying out passwords (`login_attempt`) and the switch „Am eigenen Rechner ohne Anmeldung“ (`store_meta`, key
+//! `auth.local_open`). All points in time are computed by SQLite (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`), so that they
+//! can be compared as text. Accounts are never deleted: the slug (handle `@lektorat:<slug>`) stays taken.
 //!
-//! Diese Methoden ruft nur das Modul `auth` des Servers. Weil `lib.rs` aus diesem Modul nur [`Account`],
-//! [`NewAccount`] und [`LoginAttempt`] herausreicht, hängen auch Hilfen und Meldungen als zugehörige Funktionen und Konstanten an
-//! [`Store`] ([`Store::account_name_key`], [`Store::session_token_hash`], [`Store::ACCOUNT_TAKEN`] …).
+//! Only the module `auth` of the server calls these methods. Because `lib.rs` hands out only [`Account`],
+//! [`NewAccount`] and [`LoginAttempt`] from this module, helpers and messages also hang on [`Store`] as associated
+//! functions and constants ([`Store::account_name_key`], [`Store::session_token_hash`], [`Store::ACCOUNT_TAKEN`] …).
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use crate::{Store, StoreError};
 
-/// Spalten von [`Account`] (ohne Hash).
+/// Columns of [`Account`] (without the hash).
 const COLUMNS: &str = "id, name, slug, display, kind, active, created, last_login";
-/// Schlüssel in `store_meta`: `'1'` = am eigenen Rechner ohne Anmeldung (Vorgabe: nicht gesetzt = aus).
+/// Key in `store_meta`: `'1'` = on one's own machine without signing in (default: not set = off).
 const LOCAL_OPEN: &str = "auth.local_open";
-/// Bereich der Sperre, wenn `login_attempt` voll ist.
+/// Scope of the lock when `login_attempt` is full.
 const ALL_SCOPE: &str = "alle";
 
-/// Ausgang von [`Store::login_reserve`].
+/// Outcome of [`Store::login_reserve`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LoginAttempt {
-    /// Ein Bereich ist gesperrt: verbleibende Wartezeit in Sekunden. Nichts wurde gezählt, nichts wird geprüft.
+    /// A scope is locked: remaining waiting time in seconds. Nothing was counted, nothing is checked.
     Blocked(u64),
-    /// Der Versuch ist gezählt und darf geprüft werden. Die Zahl ist die Wartezeit in Sekunden, die gilt, wenn er
-    /// fehlschlägt (0 = keine).
+    /// The attempt is counted and may be checked. The number is the waiting time in seconds that applies if it fails (0
+    /// = none).
     Reserved(u64),
 }
 
-/// Rumpf von [`Store::login_wait`] auf einer Verbindung (auch innerhalb einer Transaktion).
+/// Body of [`Store::login_wait`] on a connection (also inside a transaction).
 async fn wait_in(conn: &mut sqlx::SqliteConnection, scopes: &[&str]) -> Result<Option<u64>, StoreError> {
     let mut longest: Option<u64> = None;
     for scope in scopes.iter().copied().chain([ALL_SCOPE]) {
@@ -50,8 +50,8 @@ async fn wait_in(conn: &mut sqlx::SqliteConnection, scopes: &[&str]) -> Result<O
         .fetch_optional(&mut *conn)
         .await?;
         if let Some(left) = left {
-            // Zeitpunkte stehen auf Millisekunden gerundet in der Tabelle: Ohne die kleine Toleranz würden aus
-            // frisch gesetzten 2 Sekunden beim Aufrunden 3.
+            // Points in time are in the table rounded to milliseconds: without the small tolerance, freshly set 2
+            // seconds would become 3 when rounding up.
             let seconds = ((left - 0.002).ceil() as u64).max(1);
             longest = Some(longest.map_or(seconds, |known| known.max(seconds)));
         }
@@ -59,7 +59,7 @@ async fn wait_in(conn: &mut sqlx::SqliteConnection, scopes: &[&str]) -> Result<O
     Ok(longest)
 }
 
-/// Rumpf von [`Store::login_failure`] auf einer Verbindung; die Transaktion gehört dem Aufrufer.
+/// Body of [`Store::login_failure`] on a connection; the transaction belongs to the caller.
 async fn failure_in(conn: &mut sqlx::SqliteConnection, scope: &str, wait: fn(i64) -> u64) -> Result<u64, StoreError> {
     sqlx::query("DELETE FROM login_attempt WHERE last <= strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')")
         .execute(&mut *conn)
@@ -91,8 +91,8 @@ async fn failure_in(conn: &mut sqlx::SqliteConnection, scope: &str, wait: fn(i64
     Ok(seconds)
 }
 
-/// Ein Konto ohne Geheimnis (kein Hash, kein Klartext). `kind` ist `author` oder `lektor`; `slug` ist der Teil des
-/// Handles nach `@lektorat:` (eindeutig, bleibt auch einem gesperrten Konto).
+/// An account without the secret (no hash, no plain text). `kind` is `author` or `lektor`; `slug` is the part of the
+/// handle after `@lektorat:` (unique, a locked account keeps it as well).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct Account {
     pub id: i64,
@@ -105,8 +105,8 @@ pub struct Account {
     pub last_login: Option<String>,
 }
 
-/// Neues Konto. `password_phc` ist der fertige Argon2id-PHC-Text (`$argon2id$…`), nie ein Klartext-Passwort – darum
-/// bewusst ohne `Debug`.
+/// New account. `password_phc` is the finished Argon2id PHC text (`$argon2id$…`), never a plain-text password –
+/// therefore deliberately without `Debug`.
 pub struct NewAccount<'a> {
     pub name: &'a str,
     pub slug: &'a str,
@@ -115,7 +115,7 @@ pub struct NewAccount<'a> {
     pub password_phc: &'a str,
 }
 
-/// Verletzte Eindeutigkeit (Name oder Slug) als fachliche Ablehnung.
+/// Violated uniqueness (name or slug) as a domain rejection.
 fn unique(e: sqlx::Error) -> StoreError {
     match &e {
         sqlx::Error::Database(db) if db.is_unique_violation() => StoreError::Refused(Store::ACCOUNT_TAKEN),
@@ -124,32 +124,32 @@ fn unique(e: sqlx::Error) -> StoreError {
 }
 
 impl Store {
-    /// Meldung: Name oder Handle (Slug) gehört schon einem Konto.
+    /// Message: the name or handle (slug) already belongs to an account.
     pub const ACCOUNT_TAKEN: &'static str = "Diesen Namen gibt es schon.";
-    /// Meldung von [`Store::account_create_first`]: Es gibt schon ein Konto.
+    /// Message of [`Store::account_create_first`]: there already is an account.
     pub const ACCOUNT_NOT_FIRST: &'static str = "Es gibt schon ein Konto.";
-    /// Meldung von [`Store::account_create`]: ohne Autor-Konto kein Lektor.
+    /// Message of [`Store::account_create`]: no Lektor without an author account.
     pub const ACCOUNT_NEEDS_AUTHOR: &'static str = "Das erste Konto gehört dem Autor (Einrichten).";
-    /// Meldung von [`Store::account_set_active`]: Das letzte aktive Autor-Konto bleibt.
+    /// Message of [`Store::account_set_active`]: the last active author account stays.
     pub const ACCOUNT_LAST_AUTHOR: &'static str = "Das letzte aktive Autor-Konto lässt sich nicht sperren.";
-    /// Höchstzahl der Zeilen in `login_attempt` (samt dem Bereich `alle`).
+    /// Maximum number of rows in `login_attempt` (including the scope `alle`).
     pub const LOGIN_ATTEMPT_ROWS: i64 = 1000;
-    /// Wartezeit in Sekunden für alle, solange `login_attempt` voll ist.
+    /// Waiting time in seconds for everyone as long as `login_attempt` is full.
     pub const LOGIN_FULL_WAIT: u64 = 2;
 
-    /// Anzahl der Konten (auch gesperrte). 0 heißt: Baruch läuft ohne Anmeldung.
+    /// Number of accounts (also locked ones). 0 means: Baruch runs without signing in.
     pub async fn account_count(&self) -> Result<i64, StoreError> {
         Ok(sqlx::query_scalar("SELECT count(*) FROM account").fetch_one(self.pool()).await?)
     }
 
-    /// Alle Konten nach id.
+    /// All accounts by id.
     pub async fn account_list(&self) -> Result<Vec<Account>, StoreError> {
         Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM account ORDER BY id")))
             .fetch_all(self.pool())
             .await?)
     }
 
-    /// Ein Konto; `None`, wenn es die id nicht gibt.
+    /// An account; `None` if the id does not exist.
     pub async fn account_get(&self, id: i64) -> Result<Option<Account>, StoreError> {
         Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM account WHERE id = ?")))
             .bind(id)
@@ -157,9 +157,9 @@ impl Store {
             .await?)
     }
 
-    /// Konto anlegen (Name und Handle eindeutig, sonst [`Store::ACCOUNT_TAKEN`]). Ein Lektor-Konto entsteht nur,
-    /// wenn es schon ein Autor-Konto gibt ([`Store::ACCOUNT_NEEDS_AUTHOR`]) – sonst gäbe es Konten, aber niemanden
-    /// mit vollen Rechten. Das erste Konto legt [`Store::account_create_first`] an.
+    /// Create an account (name and handle unique, otherwise [`Store::ACCOUNT_TAKEN`]). A Lektor account is only created
+    /// if there already is an author account ([`Store::ACCOUNT_NEEDS_AUTHOR`]) – otherwise there would be accounts but
+    /// nobody with full rights. The first account is created by [`Store::account_create_first`].
     pub async fn account_create(&self, new: &NewAccount<'_>) -> Result<Account, StoreError> {
         let created: Option<Account> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "INSERT INTO account (name, name_key, slug, display, kind, password) SELECT ?1, ?2, ?3, ?4, ?5, ?6 \
@@ -177,8 +177,8 @@ impl Store {
         created.ok_or(StoreError::Refused(Self::ACCOUNT_NEEDS_AUTHOR))
     }
 
-    /// Das erste Konto anlegen: nur wenn die Tabelle leer ist, sonst [`Store::ACCOUNT_NOT_FIRST`]. Prüfung und
-    /// Einfügen sind eine Anweisung (eine Transaktion): Von zwei gleichzeitigen Aufrufen gewinnt genau einer.
+    /// Create the first account: only if the table is empty, otherwise [`Store::ACCOUNT_NOT_FIRST`]. Check and insert
+    /// are one statement (one transaction): of two simultaneous calls exactly one wins.
     pub async fn account_create_first(&self, new: &NewAccount<'_>) -> Result<Account, StoreError> {
         let created: Option<Account> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "INSERT INTO account (name, name_key, slug, display, kind, password) SELECT ?, ?, ?, ?, ?, ? \
@@ -196,18 +196,19 @@ impl Store {
         created.ok_or(StoreError::Refused(Self::ACCOUNT_NOT_FIRST))
     }
 
-    /// Vergleichsschlüssel eines Kontonamens: ohne Rand, Leerraum zusammengezogen, klein. Zwei Namen mit demselben
-    /// Schlüssel sind derselbe Name („Erika“ = „ erika “).
+    /// Comparison key of an account name: without edges, whitespace collapsed, lower case. Two names with the same key
+    /// are the same name ("Erika" = " erika ").
     pub fn account_name_key(name: &str) -> String {
         name.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
     }
 
-    /// SHA-256 (hex, 64 Zeichen) eines Sitzungs-Tokens: Nur das steht in der Datenbank.
+    /// SHA-256 (hex, 64 characters) of a session token: only that is in the database.
     pub fn session_token_hash(token: &str) -> String {
         Sha256::digest(token.as_bytes()).iter().map(|byte| format!("{byte:02x}")).collect()
     }
 
-    /// Konto zum Namen samt Argon2id-PHC-Text – nur für die Prüfung beim Anmelden (auch gesperrte Konten).
+    /// Account for the name together with the Argon2id PHC text – only for the check when signing in (also locked
+    /// accounts).
     pub async fn account_for_login(&self, name: &str) -> Result<Option<(Account, String)>, StoreError> {
         let found: Option<(i64, String)> = sqlx::query_as("SELECT id, password FROM account WHERE name_key = ?")
             .bind(Self::account_name_key(name))
@@ -217,13 +218,14 @@ impl Store {
         Ok(self.account_get(id).await?.map(|account| (account, phc)))
     }
 
-    /// Argon2id-PHC-Text eines Kontos (Prüfung des bisherigen Passworts); `None`, wenn es die id nicht gibt.
+    /// Argon2id PHC text of an account (check of the previous password); `None` if the id does not exist.
     pub async fn account_password(&self, id: i64) -> Result<Option<String>, StoreError> {
         Ok(sqlx::query_scalar("SELECT password FROM account WHERE id = ?").bind(id).fetch_optional(self.pool()).await?)
     }
 
-    /// Neues Passwort (fertiger PHC-Text) setzen und in derselben Transaktion alle Sitzungen des Kontos löschen –
-    /// außer der mit dem Token-Hash `keep` (die Sitzung, die das Passwort gerade ändert). `false`: unbekanntes Konto.
+    /// Set a new password (finished PHC text) and delete all sessions of the account in the same transaction – except
+    /// the one with the token hash `keep` (the session that is changing the password right now). `false`: unknown
+    /// account.
     pub async fn account_set_password(&self, id: i64, phc: &str, keep: Option<&str>) -> Result<bool, StoreError> {
         let mut tx = self.pool().begin().await?;
         let changed = sqlx::query(
@@ -246,9 +248,9 @@ impl Store {
         Ok(true)
     }
 
-    /// Konto sperren (`active = false`, löscht alle seine Sitzungen) oder entsperren. `Ok(false)`: unbekanntes
-    /// Konto. Das letzte aktive Autor-Konto lässt sich nicht sperren ([`Store::ACCOUNT_LAST_AUTHOR`]) – Prüfung und
-    /// Änderung sind eine Anweisung.
+    /// Lock an account (`active = false`, deletes all its sessions) or unlock it. `Ok(false)`: unknown account. The
+    /// last active author account cannot be locked ([`Store::ACCOUNT_LAST_AUTHOR`]) – check and change are one
+    /// statement.
     pub async fn account_set_active(&self, id: i64, active: bool) -> Result<bool, StoreError> {
         let mut tx = self.pool().begin().await?;
         let changed = sqlx::query(
@@ -275,8 +277,8 @@ impl Store {
         Ok(true)
     }
 
-    /// Neue Sitzung: nur der Hash des Tokens ([`Store::session_token_hash`]). Merkt die Anmeldung am Konto
-    /// (`last_login`) und räumt abgelaufene Sitzungen aller Konten weg.
+    /// New session: only the hash of the token ([`Store::session_token_hash`]). Records the sign-in on the account
+    /// (`last_login`) and clears away expired sessions of all accounts.
     pub async fn session_create(&self, token_hash: &str, account: i64) -> Result<(), StoreError> {
         let mut tx = self.pool().begin().await?;
         sqlx::query(
@@ -298,9 +300,9 @@ impl Store {
         Ok(())
     }
 
-    /// Konto zur Sitzung, wenn sie gilt: aktives Konto, in den letzten 30 Tagen benutzt, höchstens 90 Tage alt.
-    /// Schreibt `last_seen` höchstens einmal je Minute. Dazu die Sekunden seit der vorigen Benutzung (der Server
-    /// erneuert danach das Cookie).
+    /// Account for the session if it is valid: active account, used in the last 30 days, at most 90 days old. Writes
+    /// `last_seen` at most once per minute. In addition the seconds since the previous use (the server renews the
+    /// cookie after that).
     pub async fn session_account(&self, token_hash: &str) -> Result<Option<(Account, i64)>, StoreError> {
         let found: Option<(i64, i64)> = sqlx::query_as(
             "SELECT s.account_id, CAST((julianday('now') - julianday(s.last_seen)) * 86400 AS INTEGER) \
@@ -324,7 +326,7 @@ impl Store {
         Ok(self.account_get(account).await?.map(|account| (account, idle)))
     }
 
-    /// Eine Sitzung löschen (Abmelden). `true`, wenn es sie gab.
+    /// Delete a session (sign out). `true` if it existed.
     pub async fn session_delete(&self, token_hash: &str) -> Result<bool, StoreError> {
         let gone = sqlx::query("DELETE FROM account_session WHERE token_hash = ?")
             .bind(token_hash)
@@ -334,7 +336,7 @@ impl Store {
         Ok(gone > 0)
     }
 
-    /// Alle Sitzungen eines Kontos löschen, außer der mit dem Token-Hash `keep`. Liefert die Anzahl.
+    /// Delete all sessions of an account, except the one with the token hash `keep`. Returns the number.
     pub async fn session_delete_all(&self, account: i64, keep: Option<&str>) -> Result<u64, StoreError> {
         Ok(sqlx::query("DELETE FROM account_session WHERE account_id = ? AND token_hash <> ?")
             .bind(account)
@@ -344,33 +346,33 @@ impl Store {
             .rows_affected())
     }
 
-    /// Längste verbleibende Wartezeit (aufgerundete Sekunden) der genannten Bereiche und des Bereichs `alle`;
-    /// `None`, wenn keiner gesperrt ist.
+    /// Longest remaining waiting time (seconds rounded up) of the named scopes and of the scope `alle`; `None` if none
+    /// is locked.
     pub async fn login_wait(&self, scopes: &[&str]) -> Result<Option<u64>, StoreError> {
         let mut conn = self.pool().acquire().await?;
         wait_in(&mut conn, scopes).await
     }
 
-    /// Einen Fehlversuch im Bereich zählen und die Wartezeit setzen, die `wait` aus der neuen Zahl der Fehlversuche
-    /// berechnet (0 = keine). Vorher fallen Einträge weg, die älter als 24 Stunden sind. Ist die Tabelle voll
-    /// ([`Store::LOGIN_ATTEMPT_ROWS`]) und der Bereich neu, entsteht keine Zeile für ihn; stattdessen wartet der
-    /// Bereich `alle` [`Store::LOGIN_FULL_WAIT`] Sekunden. Liefert die Wartezeit in Sekunden.
+    /// Count a failed attempt in the scope and set the waiting time that `wait` computes from the new number of failed
+    /// attempts (0 = none). Before that, entries older than 24 hours are dropped. If the table is full
+    /// ([`Store::LOGIN_ATTEMPT_ROWS`]) and the scope is new, no row is created for it; instead the scope `alle` waits
+    /// [`Store::LOGIN_FULL_WAIT`] seconds. Returns the waiting time in seconds.
     pub async fn login_failure(&self, scope: &str, wait: fn(i64) -> u64) -> Result<u64, StoreError> {
-        // `BEGIN IMMEDIATE`: Lesen und Zählen sind ein Schritt; eine aufgeschobene Transaktion, die erst liest und
-        // dann schreibt, scheitert unter gleichzeitigen Schreibern sofort (veralteter Lesestand).
+        // `BEGIN IMMEDIATE`: reading and counting are one step; a deferred transaction that first reads and then writes
+        // fails at once under concurrent writers (stale read state).
         let mut tx = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         let seconds = failure_in(&mut tx, scope, wait).await?;
         tx.commit().await?;
         Ok(seconds)
     }
 
-    /// Einen Anmeldeversuch **vor** der Prüfung des Passworts reservieren – Prüfung der Sperre und Zählen in
-    /// **einer** Transaktion (`BEGIN IMMEDIATE`): Ist einer der Bereiche (oder `alle`) gesperrt, ändert sich nichts
-    /// ([`LoginAttempt::Blocked`]); sonst zählt der Versuch sofort in jedem Bereich als Fehlversuch
-    /// ([`LoginAttempt::Reserved`] mit der längsten Wartezeit, die daraus folgt; Regeln wie
-    /// [`Store::login_failure`]). Stimmt das Passwort, nimmt [`Store::login_reset`] die Zählung zurück. So kommen
-    /// von beliebig vielen gleichzeitigen Versuchen nur so viele bis zur Prüfung wie nacheinander – wer erst nach
-    /// der Prüfung zählt, lässt eine ganze Salve durch, bevor der erste Fehlversuch eingetragen ist.
+    /// Reserve a sign-in attempt **before** the check of the password – check of the lock and counting in **one**
+    /// transaction (`BEGIN IMMEDIATE`): if one of the scopes (or `alle`) is locked, nothing changes
+    /// ([`LoginAttempt::Blocked`]); otherwise the attempt counts at once as a failed attempt in every scope
+    /// ([`LoginAttempt::Reserved`] with the longest waiting time that follows from it; rules as in
+    /// [`Store::login_failure`]). If the password is right, [`Store::login_reset`] takes the counting back. That way,
+    /// of any number of simultaneous attempts only as many get to the check as would one after another – whoever counts
+    /// only after the check lets a whole volley through before the first failed attempt is entered.
     pub async fn login_reserve(&self, scopes: &[&str], wait: fn(i64) -> u64) -> Result<LoginAttempt, StoreError> {
         let mut tx = self.pool().begin_with("BEGIN IMMEDIATE").await?;
         if let Some(left) = wait_in(&mut tx, scopes).await? {
@@ -384,13 +386,13 @@ impl Store {
         Ok(LoginAttempt::Reserved(longest))
     }
 
-    /// Bereich nach einer erfolgreichen Anmeldung zurücksetzen.
+    /// Reset a scope after a successful sign-in.
     pub async fn login_reset(&self, scope: &str) -> Result<(), StoreError> {
         sqlx::query("DELETE FROM login_attempt WHERE scope = ?").bind(scope).execute(self.pool()).await?;
         Ok(())
     }
 
-    /// Schalter „Am eigenen Rechner ohne Anmeldung“ (`store_meta` `auth.local_open` = `'1'`); Vorgabe aus.
+    /// Switch „Am eigenen Rechner ohne Anmeldung“ (`store_meta` `auth.local_open` = `'1'`); default off.
     pub async fn auth_local_open(&self) -> Result<bool, StoreError> {
         let value: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
             .bind(LOCAL_OPEN)
@@ -399,7 +401,7 @@ impl Store {
         Ok(value.as_deref() == Some("1"))
     }
 
-    /// Schalter setzen; „aus“ löscht den Schlüssel (Vorgabe).
+    /// Set the switch; "off" deletes the key (default).
     pub async fn set_auth_local_open(&self, open: bool) -> Result<(), StoreError> {
         if open {
             sqlx::query(

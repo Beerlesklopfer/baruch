@@ -1,58 +1,58 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Spiegel (Vertrag B1, Abschnitt 6): `abschnitte/{seq:03}-{slug(title)}.typ` je Knoten mit
-//! aktueller Revision und `main.typ` mit `#include` in Baumreihenfolge (Tiefensuche, Geschwister
-//! nach position).
+//! Typst mirror (contract B1, section 6): `abschnitte/{seq:03}-{slug(title)}.typ` per node with a current revision and
+//! `main.typ` with `#include` in tree order (depth-first search, siblings by position).
 //!
-//! Hat das Werk eine Werkvorlage (Import, Entscheidung 2026-11-05):
-//! - `vorlage.typ` enthält die Vorlage;
-//! - `main.typ` beginnt mit der Vorlage (Set- und Show-Regeln gelten so für alles Eingebundene) und
-//!   bindet danach die Abschnitte ein;
-//! - jede Abschnittsdatei beginnt mit der Zeile [`TEMPLATE_IMPORT`], damit `#let`-Funktionen der
-//!   Vorlage (z. B. `#szene`) auch dort gelten.
+//! If the work has a work template (import, decision 2026-11-05):
+//! - `vorlage.typ` contains the template;
+//! - `main.typ` begins with the template (set and show rules thus apply to everything included) and includes the
+//!   sections after it;
+//! - every section file begins with the line [`TEMPLATE_IMPORT`], so that `#let` functions of the template (for example
+//!   `#szene`) apply there as well.
 //!
-//! Gliederungsschema (Vertrag Runde 6, Abschnitt 2d): Ist ein anderes Schema als „aus der
-//! Werkvorlage“ gewählt, folgt der Vorlage in `main.typ` und im Export eine Kommentarzeile und eine
-//! `#set heading(numbering: …)`-Regel ([`baruch_typst::scheme::export_template`]); ohne Vorlage steht
-//! sie hinter `// Baruch: <Titel>`. `vorlage.typ` bleibt die gespeicherte Vorlage.
+//! Outline scheme (contract Round 6, section 2d): if a scheme other than "from the work template" is chosen, the
+//! template is followed in `main.typ` and in the export by a comment line and a `#set heading(numbering: …)` rule
+//! ([`baruch_typst::scheme::export_template`]); without a template it stands behind `// Baruch: <title>`. `vorlage.typ`
+//! stays the stored template.
 //!
-//! Nummer an/aus (Vertrag Runde 14, Abschnitt 4, [`project`]): Ist die wirksame Nummerierung nicht
-//! „aus“, stellen Export, Export-Karte, Spiegel und Satz die erste Überschriftszeile jedes Knotens
-//! (außer Teilen), dessen `numbered` nicht zur Textform passt, mit
-//! [`baruch_typst::set_numbered_line`] um: `numbered = 0` → Markierung „ohne Nummer“
-//! (`#heading(level: N, numbering: none)[…] <baruch-unnumbered>`), `numbered = 1` → `=`-Zeile. Nur
-//! eine Überschrift mit eigenem Label lässt sich nicht markieren; für sie bleibt hinter der Vorlage
-//! (auch bei „aus der Werkvorlage“) die Show-Regel `numbering: none` von Runde 6 (`fallback_rules`).
-//! Ein frisch importiertes Werk (Import setzt `numbered` aus der Textform) bleibt byte-gleich.
+//! Number on/off (contract Round 14, section 4, [`project`]): if the effective numbering is not "off", export, export
+//! map, mirror and typesetting convert the first heading line of every node (except parts) whose `numbered` does not
+//! fit the text form with [`baruch_typst::set_numbered_line`]: `numbered = 0` → marker "without number"
+//! (`#heading(level: N, numbering: none)[…] <baruch-unnumbered>`), `numbered = 1` → `=` line. Only a heading with a
+//! label of its own cannot be marked; for it the show rule `numbering: none` of Round 6 stays behind the template (also
+//! with "from the work template") (`fallback_rules`). A freshly imported work (the import sets `numbered` from the text
+//! form) stays byte-identical.
 //!
-//! Sprungmarken (Runde 30a, Vertrag §3.3): Export, Export-Karte, Spiegel und Satz tragen an der ersten
-//! Überschrift jedes Abschnitts die feste Sprungmarke `<k{key}>` ([`baruch_typst::xref::label_section`]: ` <kN>` am
-//! Zeilenende bzw. bei eigenem Label die Ankerzeile `#metadata("baruch-key") <kN>` darunter). Ein Import entfernt sie
-//! wieder (`import.rs`). Ein frisch importiertes Werk ergibt darum den Export „bis auf die Sprungmarken“ byte-gleich
+//! Jump labels (Round 30a, contract §3.3): export, export map, mirror and typesetting carry the fixed jump label
+//! `<k{key}>` at the first heading of every section ([`baruch_typst::xref::label_section`]: ` <kN>` at the end of the
+//! line or, with a label of its own, the anchor line `#metadata("baruch-key") <kN>` below it). An import removes them
+//! again (`import.rs`). A freshly imported work therefore yields the export byte-identical "apart from the jump labels"
 //! (`baruch_typst::xref::strip_key_labels`).
 //!
-//! Register und Glossar (Runde 31, Vertrag §2.6): Export, Export-Karte und Spiegel lassen jeden Abschnitt nach der
-//! Sprungmarke durch [`baruch_typst::index::Projector::project`] laufen (Bibelstellen-Marken, erste Erwähnung) und hängen
-//! das Buchende ([`baruch_typst::index::back_matter`]: Registerseiten, Glossarseite) hinter den letzten Abschnitt bzw.
-//! hinter die `#include`-Zeilen von `main.typ`; der Spiegel bekommt dazu `glossar.md`. Ohne R31-Einstellungen
-//! ([`baruch_typst::index::BackMatter::is_active`]) ist das die Identität und das Buchende leer – byte-gleich.
+//! Index and glossary (Round 31, contract §2.6): export, export map and mirror let every section run through
+//! [`baruch_typst::index::Projector::project`] after the jump label (Bible reference marks, first mention) and append
+//! the end of the book ([`baruch_typst::index::back_matter`]: index pages, glossary page) behind the last section or
+//! behind the `#include` lines of `main.typ`; the mirror additionally gets `glossar.md`. Without R31 settings
+//! ([`baruch_typst::index::BackMatter::is_active`]) that is the identity and the end of the book is empty –
+//! byte-identical.
 //!
-//! Show-Regel über die Sprungmarke (Runde 22, R21b-Rest): Trägt ein Knoten mit `numbered = 0`, dessen Überschrift sich
-//! nicht markieren lässt (etwa ein Titel mit Code wie `#emph[…]`), dieselbe Überschrift wie ein nummerierter Knoten,
-//! träfe die Show-Regel über Ebene und Titel beide. Dann zielt die Regel auf seine Sprungmarke:
-//! `#show <kN>: set heading(numbering: none)` unter `// Baruch: Überschriften ohne Nummer über die Sprungmarke`
-//! ([`label_rules`], vor dem Block des Rückfalls, damit `import::split_fallback` diesen weiter am Ende findet). Das geht
-//! nur, wenn die Sprungmarke an der Überschrift selbst steht (kein eigenes Label); sonst bleibt es bei der Grenze von
-//! Runde 14. Ein Import liest den Block mit [`split_label_fallback`] zurück (`import.rs`).
+//! Show rule through the jump label (Round 22, remainder of R21b): if a node with `numbered = 0` whose heading cannot
+//! be marked (such as a title with code like `#emph[…]`) carries the same heading as a numbered node, the show rule
+//! through level and title would hit both. Then the rule targets its jump label: `#show <kN>: set heading(numbering:
+//! none)` under `// Baruch: Überschriften ohne Nummer über die Sprungmarke` ([`label_rules`], before the block of the
+//! fallback, so that `import::split_fallback` keeps finding the latter at the end). That only works if the jump label
+//! is at the heading itself (no label of its own); otherwise the limit of Round 14 remains. An import reads the block
+//! back with [`split_label_fallback`] (`import.rs`).
 //!
-//! Bilder im Spiegel (Runde 22, „Spiegel setzen“): Die Abschnittsdateien liegen in `abschnitte/`; Typst löst einen
-//! relativen Pfad in `image("bilder/x.svg")` gegen den Ordner der Datei auf, die ihn nennt. Darum schreibt der Spiegel
-//! relative Bildpfade in Abschnittsdateien als Pfade ab der Wurzel (`image("/bilder/x.svg")`, [`root_image_paths`]);
-//! so lässt sich `main.typ` samt `abschnitte/` mit Typst setzen. Rasterbilder liegen im Spiegel als Base64-Text
-//! (`bilder/<name>.b64`, `assets::mirror_files`) – sie muss man vor dem Setzen zurückwandeln (dokumentierte Abweichung).
+//! Images in the mirror (Round 22, „Spiegel setzen“): the section files lie in `abschnitte/`; Typst resolves a relative
+//! path in `image("bilder/x.svg")` against the folder of the file that names it. Therefore the mirror writes relative
+//! image paths in section files as paths from the root (`image("/bilder/x.svg")`, [`root_image_paths`]); that way
+//! `main.typ` together with `abschnitte/` can be typeset with Typst. Raster images lie in the mirror as Base64 text
+//! (`bilder/<name>.b64`, `assets::mirror_files`) – they have to be converted back before typesetting (documented
+//! deviation).
 //!
-//! Der Spiegel ist eine Projektion: Die Revisionen in SQLite bleiben ohne die Import-Zeile und ohne
-//! die Umstellung der Überschrift, und [`export`] setzt die Datei ohne die Import-Zeile zusammen. Ohne
-//! Werkvorlage (Beispielwerk) gibt es weder `vorlage.typ` noch die Import-Zeile.
+//! The mirror is a projection: the revisions in SQLite stay without the import line and without the conversion of the
+//! heading, and [`export`] assembles the file without the import line. Without a work template (sample work) there is
+//! neither `vorlage.typ` nor the import line.
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -63,17 +63,16 @@ use baruch_typst::scheme::{Numbering, Scheme, export_template};
 
 use crate::{MirrorFile, StoreError, WorkId, broken, load, slug, to_usize};
 
-/// Aktuelle Fassung eines Abschnitts in Baumreihenfolge ([`ordered_currents`]).
+/// Current revision of a section in tree order ([`ordered_currents`]).
 pub(crate) struct Current {
     pub(crate) seq: usize,
-    /// Fester Schlüssel (`node.id`).
+    /// Fixed key (`node.id`).
     pub(crate) key: i64,
     pub(crate) title: String,
     pub(crate) body: String,
 }
 
-/// Aktuelle Revisionen in Baumreihenfolge. Knoten ohne aktuelle Revision fehlen. Unbekanntes Werk
-/// → `UnknownWork`.
+/// Current revisions in tree order. Nodes without a current revision are missing. Unknown work → `UnknownWork`.
 pub(crate) async fn ordered_currents(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<Current>, StoreError> {
     let exists: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
@@ -100,7 +99,7 @@ pub(crate) async fn ordered_currents(conn: &mut SqliteConnection, work: WorkId) 
         }
     }
 
-    // Kinder je Elternteil, nach (position, seq).
+    // Children per parent, by (position, seq).
     let mut children: HashMap<Option<usize>, Vec<(i64, usize)>> = HashMap::new();
     let mut titles: HashMap<usize, String> = HashMap::new();
     for (seq, parent, position, node_title) in rows {
@@ -119,14 +118,14 @@ pub(crate) async fn ordered_currents(conn: &mut SqliteConnection, work: WorkId) 
     let mut seen = std::collections::HashSet::new();
     while let Some(seq) = stack.pop() {
         if !seen.insert(seq) {
-            continue; // Schleife in parent_seq: nicht zweimal aufnehmen
+            continue; // loop in parent_seq: do not take it twice
         }
         order.push(seq);
         if let Some(list) = children.get(&Some(seq)) {
             stack.extend(list.iter().rev().map(|&(_, s)| s));
         }
     }
-    // Knoten, deren Elternteil fehlt, gehen nicht verloren: hinten, nach seq.
+    // Nodes whose parent is missing are not lost: at the end, by seq.
     let mut rest: Vec<usize> = titles.keys().copied().filter(|s| !seen.contains(s)).collect();
     rest.sort_unstable();
     order.extend(rest);
@@ -140,9 +139,9 @@ pub(crate) async fn ordered_currents(conn: &mut SqliteConnection, work: WorkId) 
     Ok(out)
 }
 
-/// Kopf des Werks: gespeicherte Vorlage, Titel, die Vorlage für Export und `main.typ` (mit der Regel
-/// des Gliederungsschemas, bei „aus der Werkvorlage“ unverändert, dahinter die Show-Regeln des
-/// Rückfalls) und die umgestellten Texte je Schlüssel ([`project`]).
+/// Head of the work: stored template, title, the template for export and `main.typ` (with the rule of the outline
+/// scheme, unchanged for "from the work template", behind it the show rules of the fallback) and the converted texts
+/// per key ([`project`]).
 struct Head {
     template: String,
     title: String,
@@ -150,7 +149,7 @@ struct Head {
     bodies: HashMap<i64, String>,
 }
 
-/// Werkzeile für Kopf und Projektion: Vorlage, Titel, eigenes Muster, Schema-id.
+/// Work row for head and projection: template, title, custom pattern, scheme id.
 type WorkHead = (String, String, Option<String>, String);
 
 async fn work_head(conn: &mut SqliteConnection, work: WorkId) -> Result<WorkHead, StoreError> {
@@ -167,7 +166,7 @@ async fn head(conn: &mut SqliteConnection, work: WorkId) -> Result<Head, StoreEr
     let scheme = Scheme::from_id(&scheme).unwrap_or(Scheme::Template);
     let mut exported = export_template(&template, scheme, &numbering);
     let projection = project(&heading_rows(conn, work).await?, &numbering);
-    // Runde 22: Show-Regeln über die Sprungmarke (vor dem Block des Rückfalls, siehe Modulkopf).
+    // Round 22: show rules through the jump label (before the block of the fallback, see the module header).
     let labelled = label_rules(&projection.by_label);
     if !labelled.is_empty() {
         if !exported.is_empty() && !exported.ends_with('\n') {
@@ -182,8 +181,9 @@ async fn head(conn: &mut SqliteConnection, work: WorkId) -> Result<Head, StoreEr
         }
         exported.push_str(&rules);
     }
-    // Runde 29: Satz-Einstellungen als Typst-Regeln hinter Werkvorlage, Schema- und Rückfall-Regeln – der eine Ort für
-    // Export, Export-Karte, Spiegel (main.typ), Satz-Vorschau, PDF und Umschlag. Ohne Einstellungen "" (byte-gleich).
+    // Round 29: typesetting settings as Typst rules behind the work template, the scheme rules and the fallback rules –
+    // the one place for export, export map, mirror (main.typ), typesetting preview, PDF and cover. Without settings ""
+    // (byte-identical).
     let typeset = crate::typeset::typeset_in(conn, work).await?;
     let satz = baruch_typst::typeset::rules(&typeset);
     if !satz.is_empty() {
@@ -195,13 +195,12 @@ async fn head(conn: &mut SqliteConnection, work: WorkId) -> Result<Head, StoreEr
     Ok(Head { template, title, exported, bodies: projection.bodies })
 }
 
-/// Show-Regeln (Rückfall seit Runde 14) für Überschriften der Knoten mit `numbered = 0`, die sich
-/// nicht als „ohne Nummer“ markieren lassen (eigenes Label): Baruch zählt sie nicht
-/// ([`load::numbers`]), Typst würde sie sonst mitnummerieren und alle folgenden Nummern verschieben.
-/// Eine Überschrift mit `numbering: none` zählt in Typst nicht mit (auch nicht in
-/// `counter(heading).final()`, das „Predigt“ für „Schluss“ liest). Erkannt wird sie an Ebene und Titel
-/// (`heading.where(level: …, body: […])`, Titel wörtlich aus der Überschriftszeile, ohne Label und
-/// Kommentar). Ohne solche Knoten: leer.
+/// Show rules (fallback since Round 14) for headings of the nodes with `numbered = 0` that cannot be marked as "without
+/// number" (label of their own): Baruch does not count them ([`load::numbers`]), Typst would otherwise number them
+/// along and shift all following numbers. A heading with `numbering: none` does not count in Typst (not in
+/// `counter(heading).final()` either, which „Predigt“ reads for „Schluss“). It is recognised by level and title
+/// (`heading.where(level: …, body: […])`, title verbatim from the heading line, without label and comment). Without
+/// such nodes: empty.
 fn fallback_rules(keys: &[(u8, String)]) -> String {
     let rules: String = keys
         .iter()
@@ -215,11 +214,11 @@ fn fallback_rules(keys: &[(u8, String)]) -> String {
     format!("// Baruch: Überschriften ohne Nummer\n{rules}")
 }
 
-/// Kennzeile der Show-Regeln über die Sprungmarke (Runde 22).
+/// Marker line of the show rules through the jump label (Round 22).
 pub(crate) const LABEL_FALLBACK_MARK: &str = "// Baruch: Überschriften ohne Nummer über die Sprungmarke";
 
-/// Show-Regeln über die Sprungmarke `<kN>` (Runde 22) für Knoten mit `numbered = 0`, deren Überschrift dieselbe ist wie
-/// die eines nummerierten Knotens (die Regel über Ebene und Titel träfe beide). Ohne solche Knoten: leer.
+/// Show rules through the jump label `<kN>` (Round 22) for nodes with `numbered = 0` whose heading is the same as that
+/// of a numbered node (the rule through level and title would hit both). Without such nodes: empty.
 fn label_rules(keys: &[i64]) -> String {
     if keys.is_empty() {
         return String::new();
@@ -228,10 +227,10 @@ fn label_rules(keys: &[i64]) -> String {
     format!("{LABEL_FALLBACK_MARK}\n{rules}")
 }
 
-/// Gegenstück zu [`label_rules`] beim Import (Runde 22): Steht der Block [`LABEL_FALLBACK_MARK`] in der Vorlage eines
-/// Exports und besteht er nur aus Regeln `#show <kN>: set heading(numbering: none)`, kommt er aus der Vorlage heraus;
-/// zurück kommen die alten Schlüssel `N` (ihre Überschriften sind „ohne Nummer“). Steht der Block des Rückfalls
-/// dahinter, bleibt dieser stehen. Eine Zeile anderer Form → Vorlage unverändert, keine Schlüssel.
+/// Counterpart of [`label_rules`] in the import (Round 22): if the block [`LABEL_FALLBACK_MARK`] is in the template of
+/// an export and consists only of rules `#show <kN>: set heading(numbering: none)`, it comes out of the template; what
+/// comes back are the old keys `N` (their headings are "without number"). If the block of the fallback stands behind
+/// it, that one stays. A line of another form → template unchanged, no keys.
 pub(crate) fn split_label_fallback(template: &str) -> (String, Vec<i64>) {
     let Some(at) = template.find(&format!("{LABEL_FALLBACK_MARK}\n")) else { return (template.to_owned(), Vec::new()) };
     if at > 0 && !template[..at].ends_with('\n') {
@@ -258,9 +257,9 @@ pub(crate) fn split_label_fallback(template: &str) -> (String, Vec<i64>) {
     (format!("{}{}", &template[..at], &template[end..]), keys)
 }
 
-/// Relative Bildpfade einer Abschnittsdatei des Spiegels ab der Wurzel (Runde 22, siehe Modulkopf): `image("p")` mit
-/// einem Pfad ohne führendes `/`, ohne `..` am Anfang, ohne Schema und ohne `"`/`\\` wird `image("/p")`. Andere
-/// Aufrufe (etwa über eine Funktion der Werkvorlage) bleiben, wie sie sind.
+/// Relative image paths of a section file of the mirror from the root (Round 22, see the module header): `image("p")`
+/// with a path without a leading `/`, without `..` at the beginning, without a scheme and without `"`/`\\` becomes
+/// `image("/p")`. Other calls (for instance through a function of the work template) stay as they are.
 pub(crate) fn root_image_paths(body: &str) -> Cow<'_, str> {
     let mut out = Cow::Borrowed(body);
     for path in baruch_typst::images::image_paths(body) {
@@ -280,8 +279,8 @@ pub(crate) fn root_image_paths(body: &str) -> Cow<'_, str> {
     out
 }
 
-/// Je Knoten außer Teilen (Baumreihenfolge, nur mit aktueller Fassung): Schlüssel, `numbered` und
-/// der Text der aktuellen Fassung.
+/// Per node except parts (tree order, only with a current revision): key, `numbered` and the text of the current
+/// revision.
 type HeadingRow = (i64, bool, String);
 
 async fn heading_rows(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<HeadingRow>, StoreError> {
@@ -295,36 +294,35 @@ async fn heading_rows(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<H
     Ok(rows.into_iter().map(|(key, flag, body)| (key, flag != 0, body)).collect())
 }
 
-/// Ergebnis von [`project`].
+/// Result of [`project`].
 struct Projection {
-    /// Umgestellte Texte je Schlüssel (nur die geänderten).
+    /// Converted texts per key (only the changed ones).
     bodies: HashMap<i64, String>,
-    /// Überschriften `(Ebene, Titel wörtlich)` für die Show-Regeln des Rückfalls ([`fallback_rules`]).
+    /// Headings `(level, title verbatim)` for the show rules of the fallback ([`fallback_rules`]).
     fallback: Vec<(u8, String)>,
-    /// Runde 22: Schlüssel der Knoten mit Show-Regel über ihre Sprungmarke ([`label_rules`]).
+    /// Round 22: keys of the nodes with a show rule through their jump label ([`label_rules`]).
     by_label: Vec<i64>,
-    /// Schlüssel der Knoten, deren erste Überschrift (Ebene 1) Typst nach der Projektion zählt
-    /// (nummerierte Textform, keine Show-Regel).
+    /// Keys of the nodes whose first heading (level 1) Typst counts after the projection (numbered text form, no show
+    /// rule).
     counted: Vec<i64>,
 }
 
-/// Projektion „Nummer an/aus“ (Vertrag Runde 14, Abschnitt 4): Ist `numbering` nicht aus, wird die erste
-/// Überschriftszeile jedes Knotens, dessen `numbered` nicht zur Textform passt, mit [`baruch_typst::set_numbered_line`]
-/// umgestellt. Lässt sie sich für
-/// `numbered = 0` nicht markieren (eigenes Label, Überschrift nicht am Anfang), bekommt sie eine Show-Regel – außer ein
-/// Knoten mit Nummer trägt dieselbe Überschrift (die Regel träfe beide) oder der Titel ist leer.
+/// Projection "number on/off" (contract Round 14, section 4): if `numbering` is not off, the first heading line of
+/// every node whose `numbered` does not fit the text form is converted with [`baruch_typst::set_numbered_line`]. If it
+/// cannot be marked for `numbered = 0` (label of its own, heading not at the beginning), it gets a show rule – unless a
+/// node with a number carries the same heading (the rule would hit both) or the title is empty.
 ///
-/// Ist die Nummerierung aus („Ohne Nummern“ bzw. `numbering: none`), bleibt die Textform (Text wie gespeichert); seit
-/// Runde 21b bekommen Knoten mit `numbered = 0` dann aber die Show-Regel des Rückfalls. Im Satz ändert sie nichts (es
-/// gibt ohnehin keine Nummern), doch der Merker „Nummer aus“ übersteht so Export → Import (`import::split_fallback`);
-/// vorher kam ein solcher Abschnitt als nummeriert zurück.
+/// If the numbering is off („Ohne Nummern“ or `numbering: none`), the text form stays (text as stored); since Round
+/// 21b, however, nodes with `numbered = 0` then get the show rule of the fallback. In the typesetting it changes
+/// nothing (there are no numbers anyway), but that way the flag "number off" survives export → import
+/// (`import::split_fallback`); before, such a section came back as numbered.
 fn project(rows: &[HeadingRow], numbering: &Numbering) -> Projection {
-    // Je Zeile: Schlüssel, `numbered`, erste Überschrift (Ebene, Titel wörtlich) und ob Typst sie nach
-    // der Projektion nummeriert.
+    // Per row: key, `numbered`, first heading (level, title verbatim) and whether Typst numbers it after the
+    // projection.
     type Shown = (i64, bool, Option<(u8, String)>, bool);
     let mut shown: Vec<Shown> = Vec::with_capacity(rows.len());
     let mut bodies = HashMap::new();
-    // Runde 22: Steht die Sprungmarke an der Überschrift selbst (` <kN>` am Ende der Zeile)?
+    // Round 22: is the jump label at the heading itself (` <kN>` at the end of the line)?
     let mut on_heading: std::collections::HashSet<i64> = std::collections::HashSet::new();
     for (key, flag, body) in rows {
         let marker = format!("<k{key}>");
@@ -349,7 +347,7 @@ fn project(rows: &[HeadingRow], numbering: &Numbering) -> Projection {
         }
         shown.push((*key, *flag, Some((heading.level, heading.raw_title)), form));
     }
-    // Rückfall: nummerierte Textform, aber `numbered = 0` (seit Runde 21b auch bei ausgeschalteter Nummerierung).
+    // Fallback: numbered text form, but `numbered = 0` (since Round 21b also with the numbering switched off).
     let mut fallback: Vec<(u8, String)> = Vec::new();
     let mut taken = std::collections::HashSet::new();
     for (_, flag, heading, form) in &shown {
@@ -360,8 +358,8 @@ fn project(rows: &[HeadingRow], numbering: &Numbering) -> Projection {
             fallback.push(heading.clone());
         }
     }
-    // Runde 22: Die Regel über Ebene und Titel träfe auch einen nummerierten Knoten gleicher Überschrift (oder der Titel
-    // ist leer) → Regel über die Sprungmarke, wenn sie an der Überschrift steht.
+    // Round 22: the rule through level and title would also hit a numbered node with the same heading (or the title is
+    // empty) → rule through the jump label, if it is at the heading.
     let by_label: Vec<i64> = shown
         .iter()
         .filter(|(key, flag, heading, form)| {
@@ -383,12 +381,11 @@ fn project(rows: &[HeadingRow], numbering: &Numbering) -> Projection {
     Projection { bodies, fallback, by_label, counted }
 }
 
-/// Schlüssel der Knoten (Baumreihenfolge), deren Überschrift Typst in `counter(heading).get().first()`
-/// zählt: Überschriften der ersten Ebene, die nach der Projektion ([`project`]) nummeriert sind
-/// (Typst zählt nur nummerierte Überschriften; Markierungen „ohne Nummer“ und Überschriften mit
-/// Show-Regel zählen nicht). Bei „aus der Werkvorlage“ ohne Nummern in der Vorlage (`none` oder ohne
-/// jede Regel) keine; ist ihre Regel nicht sicher lesbar, `None` (nicht raten). Bei „Ohne Nummern“
-/// keine.
+/// Keys of the nodes (tree order) whose heading Typst counts in `counter(heading).get().first()`: headings of the first
+/// level that are numbered after the projection ([`project`]) (Typst counts only numbered headings; markers "without
+/// number" and headings with a show rule do not count). With "from the work template" without numbers in the template
+/// (`none` or without any rule) none; if its rule cannot be read reliably, `None` (do not guess). With „Ohne Nummern“
+/// none.
 pub(crate) async fn counted_headings(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -400,25 +397,25 @@ pub(crate) async fn counted_headings(
         Scheme::Template => match baruch_typst::heading_numbering(&template) {
             Some(pattern) if pattern.is_empty() => Some(Vec::new()),
             Some(_) => Some(counted),
-            // Keine lesbare Regel: ohne jede Erwähnung nummeriert die Vorlage nicht, sonst unklar.
+            // No readable rule: without any mention the template does not number, otherwise unclear.
             None if template.contains("numbering") => None,
             None => Some(Vec::new()),
         },
         Scheme::None => Some(Vec::new()),
-        // Ein eigenes Muster ohne Zählzeichen-Ebenen (leer) nummeriert nichts.
+        // A custom pattern without counting-symbol levels (empty) numbers nothing.
         _ if numbering.is_off() => Some(Vec::new()),
         _ => Some(counted),
     })
 }
 
-/// Name der Vorlagendatei im Spiegel (nur bei Werken mit Werkvorlage).
+/// Name of the template file in the mirror (only for works with a work template).
 pub(crate) const TEMPLATE_FILE: &str = "vorlage.typ";
 
-/// Erste Zeile jeder Abschnittsdatei eines Werks mit Werkvorlage (Abschnitte liegen in `abschnitte/`).
+/// First line of every section file of a work with a work template (sections lie in `abschnitte/`).
 pub(crate) const TEMPLATE_IMPORT: &str = "#import \"../vorlage.typ\": *\n";
 
-/// Dateien des Spiegels: `main.typ`, bei Werkvorlage `vorlage.typ`, dann die Abschnitte. Mit
-/// Werkvorlage beginnt `main.typ` mit ihr, sonst mit `// Baruch: <Titel>`.
+/// Files of the mirror: `main.typ`, with a work template `vorlage.typ`, then the sections. With a work template
+/// `main.typ` begins with it, otherwise with `// Baruch: <title>`.
 pub(crate) async fn files(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
     let Head { template, title, exported, mut bodies } = head(conn, work).await?;
     let has_template = !template.is_empty();
@@ -433,19 +430,19 @@ pub(crate) async fn files(conn: &mut SqliteConnection, work: WorkId) -> Result<V
     let mut sections = Vec::new();
     for Current { seq, key, title: node_title, body } in currents {
         let body = bodies.remove(&key).unwrap_or(body);
-        // Sprungmarke `<kN>` (Runde 30a, [`baruch_typst::xref::label_section`]): nur in der Projektion.
+        // Jump label `<kN>` (Round 30a, [`baruch_typst::xref::label_section`]): only in the projection.
         let body = baruch_typst::xref::label_section(&body, key).into_owned();
-        // Register und Glossar (Runde 31): nur in der Projektion.
+        // Index and glossary (Round 31): only in the projection.
         let body = projector.project(&body).into_owned();
         let path = format!("abschnitte/{seq:03}-{}.typ", slug(&node_title));
         main.push_str(&format!("#include \"{path}\"\n"));
         projected.push(body.clone());
-        // Runde 22: relative Bildpfade ab der Wurzel, damit Typst sie aus `abschnitte/` findet.
+        // Round 22: relative image paths from the root, so that Typst finds them from `abschnitte/`.
         let body = root_image_paths(&body).into_owned();
         let contents = if has_template { format!("{TEMPLATE_IMPORT}{body}") } else { body };
         sections.push(MirrorFile { path, contents });
     }
-    // Buchende (Runde 31) hinter den `#include`-Zeilen; inaktiv "".
+    // End of the book (Round 31) behind the `#include` lines; inactive "".
     let tail = baruch_typst::index::back_matter(&back, &projected.iter().map(String::as_str).collect::<Vec<_>>());
     append_tail(&mut main, &tail);
     let mut files = vec![MirrorFile { path: "main.typ".into(), contents: main }];
@@ -460,9 +457,9 @@ pub(crate) async fn files(conn: &mut SqliteConnection, work: WorkId) -> Result<V
     Ok(files)
 }
 
-/// Das Werk als eine Typst-Datei: Werkvorlage und aktuelle Texte in Baumreihenfolge. Endet ein Text
-/// (außer dem letzten) nicht mit einem Zeilenende, kommt eins dazu, damit die nächste Überschrift am
-/// Zeilenanfang steht. Ein frisch importiertes Werk ergibt so Byte für Byte die Eingabe.
+/// The work as one Typst file: work template and current texts in tree order. If a text (except the last one) does not
+/// end with a line ending, one is added, so that the next heading stands at the start of a line. A freshly imported
+/// work thus yields the input byte for byte.
 pub(crate) async fn export(conn: &mut SqliteConnection, work: WorkId) -> Result<String, StoreError> {
     let (template, sections, tail) = export_parts(conn, work).await?;
     let mut out = baruch_typst::join(&template, sections.iter().map(|s| s.body.as_str()));
@@ -470,9 +467,9 @@ pub(crate) async fn export(conn: &mut SqliteConnection, work: WorkId) -> Result<
     Ok(out)
 }
 
-/// Hängt das Buchende (Runde 31, [`baruch_typst::index::back_matter`]) an: leer → nichts (byte-gleich), sonst erst ein
-/// Zeilenende, falls der Text davor (nicht leer) keins hat, damit `// Baruch: Register und Glossar` eine eigene Zeile
-/// ist. Export und Export-Karte nehmen beide diese Funktion (Invariante: Karte byte-gleich zum Export).
+/// Appends the end of the book (Round 31, [`baruch_typst::index::back_matter`]): empty → nothing (byte-identical),
+/// otherwise first a line ending if the text before it (not empty) has none, so that `// Baruch: Register und Glossar`
+/// is a line of its own. Export and export map both use this function (invariant: map byte-identical to the export).
 pub(crate) fn append_tail(out: &mut String, tail: &str) {
     if tail.is_empty() {
         return;
@@ -483,8 +480,8 @@ pub(crate) fn append_tail(out: &mut String, tail: &str) {
     out.push_str(tail);
 }
 
-/// Was Projektion und Buchende eines Werks brauchen (Runde 31, Vertrag §2.6): Satz-Einstellungen, eingebaute und eigene
-/// Register, angenommene Glossarbegriffe.
+/// What projection and end of the book of a work need (Round 31, contract §2.6): typesetting settings, built-in and
+/// custom indexes, accepted glossary terms.
 pub(crate) async fn back_matter_in(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -496,11 +493,11 @@ pub(crate) async fn back_matter_in(
     Ok(baruch_typst::index::BackMatter { settings, registers, glossary })
 }
 
-/// Eine nicht leere Vorlage, auf die noch etwas folgt, endet auf ein Zeilenende: sonst hinge die erste
-/// Überschrift (bzw. `#include`) an ihrer letzten Zeile – `= Titel` würde Fließtext, und ein Fehler in
-/// der letzten Vorlagenzeile gälte in der Vorschau als Fehler des ersten Abschnitts. Die gespeicherte
-/// Vorlage (und `vorlage.typ`) bleibt, wie der Mensch sie geschrieben hat. Ein bloßer Byte-Order-Mark
-/// (Import einer Datei, die mit BOM und Überschrift beginnt) ist keine Zeile und bleibt ohne.
+/// A non-empty template that is still followed by something ends in a line ending: otherwise the first heading (or
+/// `#include`) would hang on its last line – `= Titel` would become running text, and an error in the last template
+/// line would count in the preview as an error of the first section. The stored template (and `vorlage.typ`) stays as
+/// the human wrote it. A mere byte-order mark (import of a file that begins with a BOM and a heading) is not a line and
+/// stays without one.
 fn end_line(template: &mut String) {
     let content = template.strip_prefix('\u{feff}').unwrap_or(template);
     if !content.is_empty() && !content.ends_with(baruch_typst::is_newline) {
@@ -508,12 +505,11 @@ fn end_line(template: &mut String) {
     }
 }
 
-/// Teile von [`export`]: die exportierte Vorlage (folgt ein Text, mit Zeilenende am Schluss, siehe
-/// [`end_line`]) und die Abschnitte in Baumreihenfolge, deren Texte
-/// schon mit dem ergänzten Zeilenende. [`export`] verkettet sie; `export_map` (Typst-Vorschau,
-/// Runde 8) verkettet sie mit Bytebereichen ([`baruch_typst::join_with_offsets`]) – beide also aus
-/// derselben Quelle, damit die Karte byte-gleich zum Export bleibt. Drittes Teil (Runde 31): das Buchende (Register-
-/// und Glossarseiten, inaktiv ""), das beide mit [`append_tail`] hinter den letzten Abschnitt hängen.
+/// Parts of [`export`]: the exported template (if a text follows, with a line ending at the end, see [`end_line`]) and
+/// the sections in tree order, their texts already with the added line ending. [`export`] concatenates them;
+/// `export_map` (Typst preview, Round 8) concatenates them with byte ranges ([`baruch_typst::join_with_offsets`]) – so
+/// both from the same source, so that the map stays byte-identical to the export. Third part (Round 31): the end of the
+/// book (index and glossary pages, inactive ""), which both append behind the last section with [`append_tail`].
 pub(crate) async fn export_parts(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -522,16 +518,16 @@ pub(crate) async fn export_parts(
     let mut sections = ordered_currents(conn, work).await?;
     let back = back_matter_in(conn, work).await?;
     let mut projector = baruch_typst::index::Projector::new(&back);
-    // Projektion „Nummer an/aus“ ([`project`]); die Texte in SQLite bleiben, wie sie sind.
+    // Projection "number on/off" ([`project`]); the texts in SQLite stay as they are.
     for section in &mut sections {
         if let Some(projected) = bodies.remove(&section.key) {
             section.body = projected;
         }
-        // Sprungmarke `<kN>` an der Überschrift (Runde 30a): Export, Karte und Satz tragen sie, SQLite nicht.
+        // Jump label `<kN>` at the heading (Round 30a): export, map and typesetting carry it, SQLite does not.
         if let Cow::Owned(labelled) = baruch_typst::xref::label_section(&section.body, section.key) {
             section.body = labelled;
         }
-        // Register und Glossar (Runde 31): Bibelstellen-Marken, erste Erwähnung; nur in der Projektion.
+        // Index and glossary (Round 31): Bible reference marks, first mention; only in the projection.
         if let Cow::Owned(projected) = projector.project(&section.body) {
             section.body = projected;
         }
@@ -559,8 +555,8 @@ mod tests {
 
     #[test]
     fn a_title_with_code_shared_with_a_numbered_node_gets_a_rule_over_its_jump_label() {
-        // R21b-Rest: Knoten 2 („ohne Nummer“, Titel mit Code, lässt sich nicht markieren) hat dieselbe Überschrift wie
-        // der nummerierte Knoten 3. Die Regel über Ebene und Titel träfe beide – also eine Regel über <k2>.
+        // Remainder of R21b: node 2 ("without number", title with code, cannot be marked) has the same heading as the
+        // numbered node 3. The rule through level and title would hit both – so a rule through <k2>.
         let rows = vec![
             (1, true, "= Anfang\n\nText.\n".to_owned()),
             (2, false, "= #emph[Rast]\n\nPause.\n".to_owned()),
@@ -575,7 +571,7 @@ mod tests {
             format!("{LABEL_FALLBACK_MARK}\n#show <k2>: set heading(numbering: none)\n"),
             "eine Regel je Knoten unter der Kennzeile"
         );
-        // Ohne Doppelung bleibt es bei der Regel über Ebene und Titel (Exportform unverändert).
+        // Without the duplication the rule through level and title remains (export form unchanged).
         let single = project(&rows[..2], &numbering());
         assert!(single.by_label.is_empty() && single.fallback.len() == 1, "Rückfall wie bisher");
     }

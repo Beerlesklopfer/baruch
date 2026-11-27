@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Typst-Import (Vertrag B1.5, Abschnitt 3): eine Datei wird ein neues Werk.
+//! Typst import (contract B1.5, section 3): a file becomes a new work.
 //!
-//! Läuft innerhalb der Transaktion, die [`crate::Store::import_typst_titled`] mit `BEGIN IMMEDIATE`
-//! öffnet. Präambel → `work.template` (und Fassung 1 der Werkvorlage); `=` → Kapitel, `==`/`===` →
-//! Abschnitt (Unterabschnitt = Abschnitt unter Abschnitt); Text je Überschrift → Revision 1 vom
-//! Menschen, sofort aktuell. Der Titel muss frei sein (Vertrag Runde 4, `title_key`).
+//! Runs inside the transaction that [`crate::Store::import_typst_titled`] opens with `BEGIN IMMEDIATE`. Preamble →
+//! `work.template` (and revision 1 of the work template); `=` → chapter, `==`/`===` → section (subsection = section
+//! below a section); text per heading → revision 1 by the human, current at once. The title must be free (contract
+//! Round 4, `title_key`).
 //!
-//! Runde 14 (Vertrag Abschnitt 2): Die Teil-Markierung (`Heading.level` 0) wird ein Teil
-//! (`kind = 'part'`, oberste Ebene, die folgenden Kapitel darunter), die Markierung „ohne Nummer“
-//! setzt `node.numbered = 0`. Die Nummern (`node.number`) rechnet [`crate::load::numbers`] mit der
-//! Nummerierung der Werkvorlage, wie beim Laden.
+//! Round 14 (contract section 2): the part marker (`Heading.level` 0) becomes a part (`kind = 'part'`, top level, the
+//! following chapters below it), the marker "without number" sets `node.numbered = 0`. The numbers (`node.number`) are
+//! computed by [`crate::load::numbers`] with the numbering of the work template, as when loading.
 //!
-//! Runde 30a (Vertrag §3.3): Sprungmarken eines Exports (`= Titel <k5>`, Ankerzeile `#metadata("baruch-key") <k5>`)
-//! entfernt [`baruch_typst::xref::strip_section`] je Überschrift; die alten Schlüssel ergeben eine Zuordnung alt → neu
-//! (`node.id`), und [`baruch_typst::xref::remap_keys`] setzt die Verweise `#link(<kN>)[…]` in allen Texten um. Die
-//! Prüfsumme gegen doppelten Import bleibt die der Datei, wie sie kam.
+//! Round 30a (contract §3.3): jump labels of an export (`= Titel <k5>`, anchor line `#metadata("baruch-key") <k5>`) are
+//! removed by [`baruch_typst::xref::strip_section`] per heading; the old keys yield a mapping old → new (`node.id`),
+//! and [`baruch_typst::xref::remap_keys`] converts the references `#link(<kN>)[…]` in all texts. The checksum against a
+//! duplicate import stays that of the file as it came.
 
 use std::path::Path;
 
@@ -24,15 +23,14 @@ use sqlx::SqliteConnection;
 use crate::works::{insert_template_revision, title_free, title_key};
 use crate::{Imported, StoreError, WorkId, load, slug, words};
 
-/// SHA-256 als Kleinbuchstaben-Hex.
+/// SHA-256 as lower-case hex.
 pub(crate) fn sha256_hex(text: &str) -> String {
     Sha256::digest(text.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Freier Ordnername: `base`, sonst `base-2`, `base-3` … Frei heißt: kein lebendes Werk und kein
-/// gelöschtes (`work_retired`, Migration 0007) trägt ihn. slugs gelöschter Werke bleiben dauerhaft
-/// reserviert, weil ihr Spiegel unter `works/.geloescht/` liegt und die Datenbank den Archivordner
-/// nicht kennt (Entscheidung Runde 5).
+/// Free folder name: `base`, otherwise `base-2`, `base-3` … Free means: no living work and no deleted one
+/// (`work_retired`, migration 0007) carries it. Slugs of deleted works stay reserved permanently, because their mirror
+/// lies under `works/.geloescht/` and the database does not know the archive folder (decision Round 5).
 pub(crate) async fn free_slug(conn: &mut SqliteConnection, base: &str) -> Result<String, StoreError> {
     let mut candidate = base.to_owned();
     let mut n = 2;
@@ -51,7 +49,7 @@ pub(crate) async fn free_slug(conn: &mut SqliteConnection, base: &str) -> Result
     }
 }
 
-/// Titel aus dem Dateinamen: ohne Ordner und Endung; leer → der ganze Name, dann „Werk“.
+/// Title from the file name: without folder and extension; empty → the whole name, then „Werk“.
 fn title_from_file(file_name: &str) -> String {
     let path = Path::new(file_name);
     let stem = path.file_stem().and_then(|s| s.to_str()).map(str::trim).unwrap_or("");
@@ -62,7 +60,7 @@ fn title_from_file(file_name: &str) -> String {
     if name.is_empty() { "Werk".to_owned() } else { name.to_owned() }
 }
 
-/// Anfang der letzten Zeile von `text`, die genau `line` lautet.
+/// Start of the last line of `text` that reads exactly `line`.
 fn last_line_start(text: &str, line: &str) -> Option<usize> {
     let mut found = None;
     let mut start = 0;
@@ -75,12 +73,12 @@ fn last_line_start(text: &str, line: &str) -> Option<usize> {
     found
 }
 
-/// Kennzeile der Show-Regeln des Rückfalls „ohne Nummer“ (`snapshot::fallback_rules`).
+/// Marker line of the show rules of the fallback "without number" (`snapshot::fallback_rules`).
 pub(crate) const FALLBACK_MARK: &str = "// Baruch: Überschriften ohne Nummer";
 
-/// Regelblock „// Baruch: Satz“ am Ende der Vorlage eines Exports → Satz-Einstellungen (Runde 21b). Nur wenn der Block
-/// bis zum Ende reicht, sich genau zurücklesen lässt ([`baruch_typst::typeset::settings_from_rules`]) und gültig ist;
-/// sonst bleibt die Vorlage, wie sie ist.
+/// Rule block „// Baruch: Satz“ at the end of the template of an export → typesetting settings (Round 21b). Only if the
+/// block reaches to the end, can be read back exactly ([`baruch_typst::typeset::settings_from_rules`]) and is valid;
+/// otherwise the template stays as it is.
 pub(crate) fn split_typeset(template: &str) -> (String, Option<baruch_typst::typeset::TypesetSettings>) {
     let Some(at) = last_line_start(template, baruch_typst::typeset::RULES_MARK) else {
         return (template.to_owned(), None);
@@ -92,9 +90,9 @@ pub(crate) fn split_typeset(template: &str) -> (String, Option<baruch_typst::typ
     }
 }
 
-/// Show-Regeln des Rückfalls am Ende der Vorlage eines Exports (`#show heading.where(level: N, body: [Titel]): set
-/// heading(numbering: none)` unter [`FALLBACK_MARK`]) → (Ebene, Titel wörtlich) der Überschriften ohne Nummer
-/// (Runde 21b; Gegenstück zu `snapshot::fallback_rules`). Eine Zeile anderer Form → Vorlage unverändert, keine Merker.
+/// Show rules of the fallback at the end of the template of an export (`#show heading.where(level: N, body: [Titel]):
+/// set heading(numbering: none)` under [`FALLBACK_MARK`]) → (level, title verbatim) of the headings without a number
+/// (Round 21b; counterpart of `snapshot::fallback_rules`). A line of another form → template unchanged, no markers.
 pub(crate) fn split_fallback(template: &str) -> (String, Vec<(u8, String)>) {
     let Some(at) = last_line_start(template, FALLBACK_MARK) else { return (template.to_owned(), Vec::new()) };
     let mut keys = Vec::new();
@@ -134,18 +132,18 @@ pub(crate) async fn import_typst(
         return Err(StoreError::AlreadyImported { work, slug, title });
     }
     let mut doc = baruch_typst::parse(&source).map_err(|e| StoreError::Import(e.to_string()))?;
-    // Runde 21b: Regelblöcke, die nur ein Export hinter die Werkvorlage schreibt, kommen zurück in Einstellungen bzw.
-    // Merker statt in die Werkvorlage – „// Baruch: Satz“ in die Satz-Einstellungen, „// Baruch: Überschriften ohne
-    // Nummer“ (Show-Regeln des Rückfalls) in `node.numbered = 0`. Ein Block, der sich nicht genau so zurücklesen lässt,
-    // bleibt in der Vorlage (der Server meldet das).
+    // Round 21b: rule blocks that only an export writes behind the work template come back into settings or markers
+    // instead of into the work template – „// Baruch: Satz“ into the typesetting settings, „// Baruch: Überschriften
+    // ohne Nummer“ (show rules of the fallback) into `node.numbered = 0`. A block that cannot be read back exactly like
+    // that stays in the template (the server reports it).
     let (template, typeset) = split_typeset(&doc.template);
     let (template, unnumbered) = split_fallback(&template);
-    // Runde 22: Show-Regeln über die Sprungmarke `<kN>` (Titel mit Code an einem gleichlautenden nummerierten Knoten)
-    // kommen ebenso aus der Vorlage heraus; die alten Schlüssel nennen die Überschriften „ohne Nummer“.
+    // Round 22: show rules through the jump label `<kN>` (title with code on a numbered node of the same wording) come
+    // out of the template in the same way; the old keys name the headings "without number".
     let (template, by_label) = crate::snapshot::split_label_fallback(&template);
     doc.template = template;
-    // Runde 30a: Sprungmarken aus einem Export (`<kN>` an der Überschrift, Ankerzeile darunter) entfernen; die alten
-    // Schlüssel je Überschrift merken, um Verweise danach auf die neuen umzusetzen.
+    // Round 30a: remove jump labels from an export (`<kN>` on the heading, anchor line below it); remember the old keys
+    // per heading in order to convert references to the new ones afterwards.
     let old_keys: Vec<Option<i64>> = doc
         .headings
         .iter_mut()
@@ -168,7 +166,7 @@ pub(crate) async fn import_typst(
         })
         .collect();
 
-    // Eigener Titel (leer zählt wie keiner), sonst aus #set document, sonst aus dem Dateinamen.
+    // Custom title (empty counts like none), otherwise from #set document, otherwise from the file name.
     let title = match title.map(str::trim).filter(|t| !t.is_empty()) {
         Some(title) => title.to_owned(),
         None => doc.title.clone().unwrap_or_else(|| title_from_file(file_name)),
@@ -196,8 +194,8 @@ pub(crate) async fn import_typst(
         crate::typeset::write(conn, work, baruch_typst::typeset::TypesetSettings::default(), settings, human).await?;
     }
 
-    // Ahnenkette: (Ebene, seq, Anzahl der Kinder bisher). Elternteil ist die nächste vorige
-    // Überschrift mit kleinerer Ebene (ein Teil hat Ebene 0, Kapitel stehen also unter ihm).
+    // Chain of ancestors: (level, seq, number of children so far). The parent is the nearest previous heading with a
+    // smaller level (a part has level 0, so chapters stand below it).
     let mut stack: Vec<(u8, usize, usize)> = Vec::new();
     let mut roots = 0usize;
     let mut placed: Vec<(Option<usize>, usize, baruch_core::NodeKind)> = Vec::with_capacity(doc.headings.len());
@@ -248,9 +246,9 @@ pub(crate) async fn import_typst(
         .bind(i64::from(numbered[seq]))
         .fetch_one(&mut *conn)
         .await?;
-        // Der Trigger `node_numbered_default` (Migration 0006) setzt bei leerer Nummer `numbered = 0` – bei
-        // Schemata, die Ebenen ohne Nummer anzeigen (Predigt: Abschnitte „“), wäre das falsch und der Export
-        // projizierte sie als „ohne Nummer“. Maßgeblich ist allein die Textform (Vertrag Runde 14, §2/§4).
+        // The trigger `node_numbered_default` (migration 0006) sets `numbered = 0` for an empty number – with schemes
+        // that display levels without a number (sermon: sections "") that would be wrong and the export would project
+        // them as "without number". The text form alone is decisive (contract Round 14, §2/§4).
         if number.trim().is_empty() {
             sqlx::query("UPDATE node SET numbered = ? WHERE id = ?")
                 .bind(i64::from(numbered[seq]))
@@ -260,8 +258,8 @@ pub(crate) async fn import_typst(
         }
         node_ids.push(node_id);
     }
-    // Verweise `#link(<k-alt>)` auf die neuen Schlüssel (`node.id`) umsetzen (Runde 30a); Schlüssel ohne Sprungmarke
-    // in dieser Datei bleiben stehen (die Druckprüfung meldet sie als kaputt).
+    // Convert references `#link(<k-old>)` to the new keys (`node.id`) (Round 30a); keys without a jump label in this
+    // file stay as they are (the print check reports them as broken).
     let map: std::collections::HashMap<i64, i64> =
         old_keys.iter().zip(&node_ids).filter_map(|(old, new)| old.map(|old| (old, *new))).collect();
     for (heading, node_id) in doc.headings.iter().zip(&node_ids) {

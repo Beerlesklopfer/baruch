@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Fortschreiben der aktuellen Fassung (Runde 22, Vertrag §2.1–2.4, Migration 0050).
+//! Amending the current revision (Round 22, contract §2.1–2.4, migration 0050).
 //!
-//! - Speichert der Mensch im Editor im Modus [`SaveMode::Auto`] und gilt keine Regel für eine neue Fassung
-//!   (`baruch_core::revision_policy::decide`), wird die aktuelle Fassung fortgeschrieben: neuer Text,
-//!   `revision.amend_seq` + 1 und eine Zeile in `revision_amend` (Art 'amend', Text vorher und nachher).
-//!   Nummer, Herkunft, Status, `based_on` und `edited` bleiben (`edited` setzt nur das Ändern über den Baum).
-//! - [`Store::amend_undo`] nimmt über den Verlauf zurück – als neuer Schritt (Art 'undo'), nie durch Löschen.
-//! - Einstellung je Werk: Tabelle `work_revision_policy`, fehlt die Zeile → [`RevisionPolicy::default`].
-//! - Nur das Speichern aus dem Editor (`outline_save_mode`, `save_human_mode` im Modus `Auto`) schreibt fort; alle
-//!   anderen Schreibwege (Bild einfügen, Registermarken, Verweise, Ersetzen, Gliederung) legen weiter neue Fassungen
-//!   an (Vertrag §2.7).
+//! - If the human saves in the editor in the mode [`SaveMode::Auto`] and no rule for a new revision applies
+//!   (`baruch_core::revision_policy::decide`), the current revision is amended: new text, `revision.amend_seq` + 1 and
+//!   a row in `revision_amend` (kind 'amend', text before and after). Number, origin, status, `based_on` and `edited`
+//!   stay (`edited` is only set by changing through the tree).
+//! - [`Store::amend_undo`] takes back through the history – as a new step (kind 'undo'), never by deleting.
+//! - Setting per work: table `work_revision_policy`, if the row is missing → [`RevisionPolicy::default`].
+//! - Only saving from the editor (`outline_save_mode`, `save_human_mode` in the mode `Auto`) amends; all other write
+//!   paths (inserting an image, index marks, references, replacing, outline) keep creating new revisions (contract
+//!   §2.7).
 
 use baruch_core::Author;
 use baruch_core::revision_policy::{NewReason, SaveFacts, change_percent, decide};
@@ -20,7 +20,7 @@ use crate::{
     Change, ChangeKind, OutlineSave, Restructure, RevisionPolicy, SaveMode, Store, StoreError, WorkId, broken, to_u32,
 };
 
-/// Art eines Schritts im Verlauf der Fortschreibungen.
+/// Kind of a step in the history of the amendments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AmendKind {
@@ -29,7 +29,7 @@ pub enum AmendKind {
 }
 
 impl AmendKind {
-    /// Wert der Spalte `revision_amend.kind`.
+    /// Value of the column `revision_amend.kind`.
     pub fn as_db(self) -> &'static str {
         match self {
             AmendKind::Amend => "amend",
@@ -37,7 +37,7 @@ impl AmendKind {
         }
     }
 
-    /// Aus der Spalte `revision_amend.kind`; Unbekanntes → `None`.
+    /// From the column `revision_amend.kind`; anything unknown → `None`.
     pub fn from_db(s: &str) -> Option<AmendKind> {
         match s {
             "amend" => Some(AmendKind::Amend),
@@ -47,7 +47,7 @@ impl AmendKind {
     }
 }
 
-/// Ein Schritt im Verlauf einer Fassung (Zeile aus `revision_amend`).
+/// A step in the history of a revision (row from `revision_amend`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct AmendStep {
     pub uuid: String,
@@ -60,17 +60,17 @@ pub struct AmendStep {
     pub body_after: String,
 }
 
-/// Ergebnis von [`Store::set_revision_policy`].
+/// Result of [`Store::set_revision_policy`].
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RevisionPolicyChange {
     pub work: WorkId,
     pub before: RevisionPolicy,
     pub after: RevisionPolicy,
-    /// Geänderte Felder: `amend`, `max_change_percent`, `new_after_minutes`.
+    /// Changed fields: `amend`, `max_change_percent`, `new_after_minutes`.
     pub changed: Vec<&'static str>,
 }
 
-/// Die aktuelle Fassung eines Abschnitts mit allem, was [`decide`] und das Fortschreiben brauchen.
+/// The current revision of a section with everything that [`decide`] and the amending need.
 #[derive(Debug, Clone)]
 pub(crate) struct CurrentState {
     pub id: i64,
@@ -78,13 +78,13 @@ pub(crate) struct CurrentState {
     pub body: String,
     pub by_human: bool,
     pub amend_seq: u32,
-    /// Minuten seit dem letzten Schreiben: max(Anlage der Fassung, letzte Fortschreibung bzw. Rücknahme).
+    /// Minutes since the last write: max(creation of the revision, last amendment or undo).
     pub minutes: u64,
 }
 
 type StateRow = (i64, i64, String, String, i64, Option<f64>);
 
-/// Aktuelle Fassung des Abschnitts (`None` ohne aktuelle Fassung).
+/// Current revision of the section (`None` without a current revision).
 pub(crate) async fn current_state(
     conn: &mut SqliteConnection,
     node_id: i64,
@@ -109,7 +109,7 @@ pub(crate) async fn current_state(
                 body,
                 by_human: kind == "human",
                 amend_seq: to_u32(amend_seq, "amend_seq")?,
-                // Unlesbare Zeit (NULL) oder zurückgestellte Uhr (negativ): als „eben geschrieben“ zählen.
+                // Unreadable time (NULL) or a clock set back (negative): count as "just written".
                 minutes: minutes.filter(|m| m.is_finite() && *m > 0.0).map_or(0, |m| m.floor() as u64),
             }))
         }
@@ -117,7 +117,7 @@ pub(crate) async fn current_state(
     }
 }
 
-/// Einstellung „Fassungen“ in der Transaktion des Aufrufers (fehlt die Zeile → Vorgabe).
+/// Setting „Fassungen“ in the transaction of the caller (if the row is missing → default).
 pub(crate) async fn policy_in(conn: &mut SqliteConnection, work: WorkId) -> Result<RevisionPolicy, StoreError> {
     let exists: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
@@ -140,22 +140,22 @@ pub(crate) async fn policy_in(conn: &mut SqliteConnection, work: WorkId) -> Resu
     })
 }
 
-/// Ergebnis der Prüfung vor dem Speichern im Modus `Auto`.
+/// Result of the check before saving in the mode `Auto`.
 pub(crate) enum Verdict {
-    /// Fortschreiben (die aktuelle Fassung des Menschen).
+    /// Amend (the current revision of the human).
     Amend(CurrentState),
-    /// Neue Fassung mit Grund.
+    /// New revision with a reason.
     New(NewReason),
-    /// Gleicher Text wie die aktuelle Fassung: nichts zu tun (der alte Weg meldet `None`).
+    /// Same text as the current revision: nothing to do (the old path reports `None`).
     Unchanged,
 }
 
-/// Regeln aus Vertrag §2.2 für einen Text `stored` (so, wie er gespeichert würde) auf der Basis `based_on`.
+/// Rules from contract §2.2 for a text `stored` (the way it would be saved) on the base `based_on`.
 ///
-/// `based_on_amend` ist der Stand der Basis, den der Editor geladen hatte (Nachbesserung R22): Ist die aktuelle
-/// Fassung seither fortgeschrieben worden (anderer Stand), gilt die Basis als nicht aktuell (`NotOnCurrent`) – sonst
-/// überschriebe ein veralteter Reiter die zwischenzeitliche Fortschreibung still. Fehlt der Stand (alte Clients,
-/// RPC ohne `based_on_amend`), zählt wie bisher nur die Fassungsnummer.
+/// `based_on_amend` is the state of the base that the editor had loaded (follow-up fix R22): if the current revision
+/// has been amended since (another state), the base counts as not current (`NotOnCurrent`) – otherwise an outdated tab
+/// would silently overwrite the amendment made in the meantime. If the state is missing (old clients, RPC without
+/// `based_on_amend`), only the revision number counts as before.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn verdict(
     conn: &mut SqliteConnection,
@@ -174,8 +174,8 @@ pub(crate) async fn verdict(
     let facts = SaveFacts {
         has_current: current.is_some(),
         current_by_human: current.as_ref().is_some_and(|c| c.by_human),
-        // Runde 23a (Codereview store-3): Der Stand zählt auch, wenn ein Client nur `based_on_amend` schickt (ohne
-        // `based_on`): Er bezieht sich dann auf die aktuelle Fassung. Vorher wurde er in dem Fall übergangen.
+        // Round 23a (code review store-3): the state also counts if a client sends only `based_on_amend` (without
+        // `based_on`): it then refers to the current revision. Before, it was skipped in that case.
         base_is_current: match (&current, based_on) {
             (Some(c), Some(base)) => c.number == base && based_on_amend.is_none_or(|seq| seq == c.amend_seq),
             (Some(c), None) => based_on_amend.is_none_or(|seq| seq == c.amend_seq),
@@ -188,13 +188,13 @@ pub(crate) async fn verdict(
     Ok(match (decide(&policy, SaveMode::Auto, &facts), current) {
         (None, Some(current)) => Verdict::Amend(current),
         (Some(reason), _) => Verdict::New(reason),
-        // Von `decide` ausgeschlossen (ohne aktuelle Fassung gilt `NoCurrent`), zur Sicherheit.
+        // Excluded by `decide` (without a current revision `NoCurrent` applies), for safety.
         (None, None) => Verdict::New(NewReason::NoCurrent),
     })
 }
 
-/// Einen Schritt schreiben: Text ersetzen, `amend_seq` + 1, Zeile in `revision_amend` (Art `kind`). `edited` bleibt
-/// (das setzt nur das Ändern über den Baum). Ergebnis: die Änderung mit dem neuen Stand.
+/// Write a step: replace the text, `amend_seq` + 1, row in `revision_amend` (kind `kind`). `edited` stays (only
+/// changing through the tree sets that). Result: the change with the new state.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn write_step(
     conn: &mut SqliteConnection,
@@ -248,7 +248,7 @@ pub(crate) async fn write_step(
     })
 }
 
-/// Erste Überschrift (Ebene, Titel) eines Texts; ohne Überschrift am Anfang `None`.
+/// First heading (level, title) of a text; without a heading at the beginning `None`.
 pub(crate) fn heading_key(body: &str) -> Option<(u8, String)> {
     let doc = baruch_typst::parse(body).ok()?;
     if !doc.template.trim().is_empty() {
@@ -325,7 +325,7 @@ async fn undo(
     if before == current.body {
         return Err(StoreError::Refused("Der Text steht schon auf diesem Stand; nichts zurückzunehmen."));
     }
-    // Eine Fortschreibung ändert nie die Überschrift; ein Stand davor hat also dieselbe. Zur Sicherheit geprüft.
+    // An amendment never changes the heading; so a state before it has the same one. Checked for safety.
     if heading_key(&before) != heading_key(&current.body) {
         return Err(StoreError::Refused(
             "Der Stand vor diesem Schritt hat eine andere Überschrift; bitte als neue Fassung speichern.",
@@ -334,8 +334,8 @@ async fn undo(
     write_step(conn, work, node, &current, &before, human, AmendKind::Undo, Some(seq)).await
 }
 
-/// Speichern des Menschen im Modus `Auto` ohne Gliederungslogik (RPC `revision.save`): fortschreiben oder neue
-/// Fassung wie [`write::save_human`], mit Grund.
+/// Saving by the human in the mode `Auto` without outline logic (RPC `revision.save`): amend or new revision like
+/// [`write::save_human`], with a reason.
 async fn save_auto(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -348,7 +348,7 @@ async fn save_auto(
     let node_id = write::node_id(conn, work, node).await?;
     let body = body.replace("\r\n", "\n");
     if let Some(base) = based_on {
-        write::row(conn, node_id, node, base).await?; // unbekannte Basis → UnknownRevision
+        write::row(conn, node_id, node, base).await?; // unknown base → UnknownRevision
     }
     let current_body = write::current(conn, node_id).await?.map(|(_, b, _)| b);
     let heading_changed = current_body.as_deref().is_some_and(|old| heading_key(old) != heading_key(&body));
@@ -367,16 +367,16 @@ async fn save_auto(
 }
 
 impl Store {
-    /// Verlauf der Fortschreibungen der Fassung `rev` im Abschnitt `node` (seq), nach `seq`. Unbekannte Fassung →
-    /// `UnknownRevision`; eine nie fortgeschriebene Fassung hat einen leeren Verlauf.
+    /// History of the amendments of the revision `rev` in the section `node` (seq), by `seq`. Unknown revision →
+    /// `UnknownRevision`; a revision that was never amended has an empty history.
     pub async fn amend_history(&self, work: WorkId, node: usize, rev: u32) -> Result<Vec<AmendStep>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         history(&mut conn, work, node, rev).await
     }
 
-    /// Setzt den Text der aktuellen Fassung des Menschen auf den Stand vor Schritt `seq` – als neuer Schritt
-    /// (Art 'undo', `undo_of = seq`); Verlaufszeilen werden nie gelöscht. Nur auf der aktuellen Fassung und nur auf
-    /// einer Fassung des Menschen, sonst `Refused` mit deutscher Meldung.
+    /// Sets the text of the current revision of the human to the state before step `seq` – as a new step (kind 'undo',
+    /// `undo_of = seq`); history rows are never deleted. Only on the current revision and only on a revision of the
+    /// human, otherwise `Refused` with a German message.
     pub async fn amend_undo(
         &self,
         work: WorkId,
@@ -392,15 +392,14 @@ impl Store {
         Ok(change)
     }
 
-    /// Einstellung „Fassungen“ des Werks (fehlt die Zeile → Vorgabe). Unbekanntes Werk → `UnknownWork`.
+    /// Setting „Fassungen“ of the work (if the row is missing → default). Unknown work → `UnknownWork`.
     pub async fn revision_policy(&self, work: WorkId) -> Result<RevisionPolicy, StoreError> {
         let mut conn = self.pool.acquire().await?;
         policy_in(&mut conn, work).await
     }
 
-    /// Einstellung „Fassungen“ des Werks setzen (nur Mensch). Grenzen nach [`RevisionPolicy::validate`]
-    /// (`Refused` mit den Grenzen); `changed` nennt die geänderten Felder (leer = nichts geändert, dann wird auch
-    /// nichts geschrieben).
+    /// Set the setting „Fassungen“ of the work (human only). Limits after [`RevisionPolicy::validate`] (`Refused` with
+    /// the limits); `changed` names the changed fields (empty = nothing changed, then nothing is written either).
     pub async fn set_revision_policy(
         &self,
         work: WorkId,
@@ -446,8 +445,8 @@ impl Store {
         Ok(RevisionPolicyChange { work, before, after: *policy, changed })
     }
 
-    /// Speichern des Menschen mit Modus: `Auto` schreibt fort, wenn die Regeln es erlauben, `New` legt wie
-    /// [`Store::save_human`] bzw. [`Store::save_human_on`] eine neue Fassung an.
+    /// Saving by the human with a mode: `Auto` amends if the rules allow it, `New` creates a new revision like
+    /// [`Store::save_human`] or [`Store::save_human_on`].
     pub async fn save_human_mode(
         &self,
         work: WorkId,
@@ -460,7 +459,7 @@ impl Store {
         self.save_human_with_reason(work, node, body, author, based_on, mode).await.map(|(change, _)| change)
     }
 
-    /// Wie [`Store::save_human_mode`], dazu der Grund einer neuen Fassung (nur im Modus `Auto`, sonst `None`).
+    /// Like [`Store::save_human_mode`], plus the reason for a new revision (only in the mode `Auto`, otherwise `None`).
     pub async fn save_human_with_reason(
         &self,
         work: WorkId,
@@ -473,9 +472,9 @@ impl Store {
         self.save_human_at(work, node, body, author, based_on, None, mode).await
     }
 
-    /// Wie [`Store::save_human_with_reason`] mit dem Stand der Basis (`based_on_amend`), den der Client geladen
-    /// hatte: Ist die aktuelle Fassung seither fortgeschrieben, entsteht im Modus `Auto` eine neue Fassung
-    /// (`NotOnCurrent`) statt einer stillen Fortschreibung über den zwischenzeitlichen Text.
+    /// Like [`Store::save_human_with_reason`] with the state of the base (`based_on_amend`) that the client had loaded:
+    /// if the current revision has been amended since, the mode `Auto` creates a new revision (`NotOnCurrent`) instead
+    /// of a silent amendment over the text of the meantime.
     #[allow(clippy::too_many_arguments)]
     pub async fn save_human_at(
         &self,
@@ -503,8 +502,8 @@ impl Store {
         Ok(done)
     }
 
-    /// Speichern aus dem Editor mit Modus (wie [`Store::outline_save`], im Modus `Auto` mit Fortschreiben;
-    /// `OutlineSave::new_reason` nennt dann den Grund einer neuen Fassung).
+    /// Saving from the editor with a mode (like [`Store::outline_save`], in the mode `Auto` with amending;
+    /// `OutlineSave::new_reason` then names the reason for a new revision).
     #[allow(clippy::too_many_arguments)]
     pub async fn outline_save_mode(
         &self,
@@ -519,9 +518,9 @@ impl Store {
         self.outline_save_at(work, node, body, based_on, None, allow, human, mode).await
     }
 
-    /// Wie [`Store::outline_save_mode`] mit dem Stand der Basis (`based_on_amend`), den der Editor geladen hatte
-    /// (Formularfeld `based_on_amend`): Ist die aktuelle Fassung seither fortgeschrieben, entsteht im Modus `Auto`
-    /// eine neue Fassung (`NotOnCurrent`), beide Texte bleiben als Fassungen sichtbar.
+    /// Like [`Store::outline_save_mode`] with the state of the base (`based_on_amend`) that the editor had loaded (form
+    /// field `based_on_amend`): if the current revision has been amended since, the mode `Auto` creates a new revision
+    /// (`NotOnCurrent`), both texts stay visible as revisions.
     #[allow(clippy::too_many_arguments)]
     pub async fn outline_save_at(
         &self,

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Metadaten von Beiträgen (Runde 30, Migration 0047; Schnittstelle R30-S1, danach gehört das Modul chat-bedienung).
+//! Metadata of posts (Round 30, migration 0047; interface R30-S1, afterwards the module belongs to chat-bedienung).
 //!
-//! Je Beitrag im Abschnitts-Chat (`post`) bzw. im Faden (`chat_thread_post`): geprüfte Fassung (`basis_rev`,
-//! `basis_label`), Antwort auf (`reply_to`), Wiederholung von (`repeat_of`), Relay von (`relay_from`) und der Auftrag
-//! (`request`, JSON [`PostRequest`], lokal, nicht im Austauschformat). Verweise zeigen nur auf Beiträge desselben
-//! Werks (bzw. desselben Fadens); ein Löschen des Ziels setzt sie auf NULL (ON DELETE SET NULL).
+//! Per post in the section chat (`post`) or in the thread (`chat_thread_post`): reviewed revision (`basis_rev`,
+//! `basis_label`), reply to (`reply_to`), repetition of (`repeat_of`), relay from (`relay_from`) and the job
+//! (`request`, JSON [`PostRequest`], local, not in the exchange format). References point only to posts of the same
+//! work (or of the same thread); deleting the target sets them to NULL (ON DELETE SET NULL).
 //!
-//! Runde 30c (chat-bedienung): Fadenbeiträge mit Metadaten in einer Transaktion ([`Store::thread_add_post_meta`]);
-//! `request.scope` ist im Faden `thread`.
+//! Round 30c (chat-bedienung): thread posts with metadata in one transaction ([`Store::thread_add_post_meta`]);
+//! `request.scope` is `thread` in the thread.
 
 use std::collections::HashMap;
 
@@ -15,12 +15,12 @@ use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId, to_u32};
 
-/// Höchstens so viele Zeichen hat `basis_label` (CHECK der Migration 0047).
+/// `basis_label` has at most this many characters (CHECK of migration 0047).
 const MAX_BASIS_LABEL_CHARS: usize = 300;
-/// Höchstens so viele Zeichen hat `relay_from` (CHECK der Migration 0047).
+/// `relay_from` has at most this many characters (CHECK of migration 0047).
 const MAX_RELAY_FROM_CHARS: usize = 200;
 
-/// Der Auftrag, aus dem ein Persona-Beitrag entstand (für „wiederholen“, Runde 30c).
+/// The job from which a persona post arose (for "repeat", Round 30c).
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct PostRequest {
     pub persona: String,
@@ -30,21 +30,21 @@ pub struct PostRequest {
     pub scope: String,
     pub text: String,
     pub rev: Option<u32>,
-    /// Runde 23: Websuche war zugelassen ([`web`](Self::web) = `Order::web`); `None` = Beitrag aus der Zeit davor
-    /// (↻ Wiederholen verhält sich dann wie bisher: Websuche zugelassen).
+    /// Round 23: web search was allowed ([`web`](Self::web) = `Order::web`); `None` = post from the time before (↻
+    /// Wiederholen then behaves as before: web search allowed).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub web: Option<bool>,
-    /// Runde 23: wer fragte (`Order::asker`, z. B. `@mcp:<Client>` oder beim Relay die anredende Persona); `None` =
-    /// der Mensch bzw. ein Beitrag aus der Zeit davor.
+    /// Round 23: who asked (`Order::asker`, for example `@mcp:<Client>` or, in a relay, the addressing persona); `None`
+    /// = the human or a post from the time before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub asker: Option<String>,
-    /// Runde 23: Relay-Rahmen des Auftrags als JSON `{persona, post, text, findings}` (die anredende Antwort, die der
-    /// Auftrag gerahmt als Daten trug); `None` = kein Relay bzw. ein Beitrag aus der Zeit davor.
+    /// Round 23: relay frame of the job as JSON `{persona, post, text, findings}` (the addressing answer, which the job
+    /// carried framed as data); `None` = no relay or a post from the time before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relay: Option<String>,
 }
 
-/// Metadaten eines Beitrags (leer = alles `None` bzw. leer).
+/// Metadata of a post (empty = everything `None` or empty).
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct PostMeta {
     pub basis_rev: Option<u32>,
@@ -56,13 +56,13 @@ pub struct PostMeta {
 }
 
 impl PostMeta {
-    /// Keine Metadaten gesetzt.
+    /// No metadata set.
     pub fn is_empty(&self) -> bool {
         self == &PostMeta::default()
     }
 }
 
-/// Spalten einer Zeile: id, basis_rev, basis_label, reply_to, repeat_of, relay_from, request.
+/// Columns of a row: id, basis_rev, basis_label, reply_to, repeat_of, relay_from, request.
 type MetaRow = (i64, Option<i64>, String, Option<i64>, Option<i64>, Option<String>, Option<String>);
 
 const META_COLUMNS: &str = "p.id, p.basis_rev, p.basis_label, p.reply_to, p.repeat_of, p.relay_from, p.request";
@@ -87,7 +87,7 @@ fn meta_of(
     Ok((id, meta))
 }
 
-/// Grenzen der Migration 0047 als ehrliche Meldung statt eines CHECK-Fehlers.
+/// Limits of migration 0047 as an honest message instead of a CHECK error.
 fn check(meta: &PostMeta) -> Result<(), StoreError> {
     if meta.basis_rev == Some(0) {
         return Err(StoreError::PostEdit("Die geprüfte Fassung beginnt bei 1.".into()));
@@ -110,7 +110,7 @@ fn request_json(meta: &PostMeta) -> Option<String> {
     meta.request.as_ref().map(|r| serde_json::to_string(r).expect("Auftrag ist immer JSON"))
 }
 
-/// Gehört der Beitrag `post` zum Werk? Sonst `UnknownPost`.
+/// Does the post `post` belong to the work? Otherwise `UnknownPost`.
 async fn check_post(conn: &mut SqliteConnection, work: WorkId, post: i64) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT p.id FROM post p JOIN node n ON n.id = p.node_id WHERE p.id = ? AND n.work_id = ?")
@@ -121,7 +121,7 @@ async fn check_post(conn: &mut SqliteConnection, work: WorkId, post: i64) -> Res
     found.map(|_| ()).ok_or(StoreError::UnknownPost { work, post })
 }
 
-/// Gehört der Fadenbeitrag `post` zum Werk? Sonst `UnknownPost`.
+/// Does the thread post `post` belong to the work? Otherwise `UnknownPost`.
 async fn check_thread_post(conn: &mut SqliteConnection, work: WorkId, post: i64) -> Result<(), StoreError> {
     let found: Option<i64> = sqlx::query_scalar(
         "SELECT p.id FROM chat_thread_post p JOIN chat_thread t ON t.id = p.thread_id WHERE p.id = ? AND t.work_id = ?",
@@ -133,8 +133,8 @@ async fn check_thread_post(conn: &mut SqliteConnection, work: WorkId, post: i64)
     found.map(|_| ()).ok_or(StoreError::UnknownPost { work, post })
 }
 
-/// Metadaten eines Beitrags im Abschnitts-Chat schreiben (in der Transaktion des Aufrufers); Verweise nur auf Beiträge
-/// desselben Werks.
+/// Write the metadata of a post in the section chat (in the transaction of the caller); references only to posts of the
+/// same work.
 async fn write_post_meta(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -162,8 +162,7 @@ async fn write_post_meta(
     Ok(())
 }
 
-/// Metadaten eines Fadenbeitrags schreiben (in der Transaktion des Aufrufers); Verweise nur auf Beiträge desselben
-/// Fadens.
+/// Write the metadata of a thread post (in the transaction of the caller); references only to posts of the same thread.
 async fn write_thread_post_meta(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -199,14 +198,14 @@ async fn write_thread_post_meta(
     Ok(())
 }
 
-/// Ids als Platzhalterliste „?, ?, ?“.
+/// Ids as a placeholder list "?, ?, ?".
 fn placeholders(n: usize) -> String {
     vec!["?"; n].join(", ")
 }
 
 impl Store {
-    /// Beitrag wie `add_post`, dazu die Metadaten (eine Transaktion). Verweise (`reply_to`, `repeat_of`) auf Beiträge
-    /// eines anderen Werks → `UnknownPost`, nichts angelegt.
+    /// A post like `add_post`, plus the metadata (one transaction). References (`reply_to`, `repeat_of`) to posts of
+    /// another work → `UnknownPost`, nothing created.
     pub async fn add_post_meta(
         &self,
         work: WorkId,
@@ -224,7 +223,7 @@ impl Store {
         Ok(id)
     }
 
-    /// Metadaten des Beitrags `post` ersetzen (eine Transaktion). Fremder oder unbekannter Beitrag → `UnknownPost`.
+    /// Replace the metadata of the post `post` (one transaction). Foreign or unknown post → `UnknownPost`.
     pub async fn post_meta_set(&self, work: WorkId, post: i64, meta: &PostMeta) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         write_post_meta(&mut tx, work, post, meta).await?;
@@ -232,8 +231,8 @@ impl Store {
         Ok(())
     }
 
-    /// Metadaten der Beiträge `ids` des Werks (fremde und unbekannte ids fehlen in der Antwort, leere Metadaten auch
-    /// nicht: jede gefundene id steht darin).
+    /// Metadata of the posts `ids` of the work (foreign and unknown ids are missing from the answer, empty metadata are
+    /// not: every id found is in it).
     pub async fn post_meta(&self, work: WorkId, ids: &[i64]) -> Result<HashMap<i64, PostMeta>, StoreError> {
         if ids.is_empty() {
             return Ok(HashMap::new());
@@ -249,7 +248,7 @@ impl Store {
         query.fetch_all(&self.pool).await?.into_iter().map(meta_of).collect()
     }
 
-    /// Alle Beiträge des Werks mit nicht leeren Metadaten.
+    /// All posts of the work with non-empty metadata.
     pub async fn work_post_meta(&self, work: WorkId) -> Result<HashMap<i64, PostMeta>, StoreError> {
         let sql = format!(
             "SELECT {META_COLUMNS} FROM post p JOIN node n ON n.id = p.node_id WHERE n.work_id = ? AND \
@@ -261,8 +260,8 @@ impl Store {
         rows.into_iter().map(meta_of).collect()
     }
 
-    /// Metadaten des Fadenbeitrags `thread_post` ersetzen (eine Transaktion). Verweise nur auf Beiträge desselben
-    /// Fadens; fremder oder unbekannter Beitrag → `UnknownPost`.
+    /// Replace the metadata of the thread post `thread_post` (one transaction). References only to posts of the same
+    /// thread; foreign or unknown post → `UnknownPost`.
     pub async fn thread_post_meta_set(
         &self,
         work: WorkId,
@@ -276,8 +275,8 @@ impl Store {
         Ok(())
     }
 
-    /// Runde 30c: Beitrag an den Faden `thread` anhängen wie `thread_add_post`, dazu die Metadaten (eine
-    /// Transaktion). Verweise auf Beiträge eines anderen Fadens → `UnknownPost`, nichts angelegt.
+    /// Round 30c: append a post to the thread `thread` like `thread_add_post`, plus the metadata (one transaction).
+    /// References to posts of another thread → `UnknownPost`, nothing created.
     pub async fn thread_add_post_meta(
         &self,
         work: WorkId,
@@ -300,7 +299,7 @@ impl Store {
         Ok(post)
     }
 
-    /// Metadaten der Fadenbeiträge `ids` des Werks (fremde und unbekannte ids fehlen).
+    /// Metadata of the thread posts `ids` of the work (foreign and unknown ids are missing).
     pub async fn thread_post_meta(&self, work: WorkId, ids: &[i64]) -> Result<HashMap<i64, PostMeta>, StoreError> {
         if ids.is_empty() {
             return Ok(HashMap::new());

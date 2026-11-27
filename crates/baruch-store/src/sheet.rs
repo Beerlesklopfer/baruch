@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satzbild-Einstellungen je Werk (Runde 18c, Migration `0044_work_sheet.sql`).
+//! Typeset view settings per work (Round 18c, migration `0044_work_sheet.sql`).
 //!
-//! - Die Einstellungen überschreiben die aus der Werkvorlage abgeleitete Darstellung des HTML-Satzbilds,
-//!   nie Typst, Export oder PDF.
-//! - `work_sheet`: höchstens eine Zeile je Werk; `NULL` = aus der Vorlage. Ohne Zeile gilt alles aus der
-//!   Vorlage ([`SheetSettings::default`]). Ein gelöschtes Werk nimmt seine Zeile mit (`ON DELETE CASCADE`).
-//! - Kein Buchtext, kein Commit im Spiegel (wie `work_timing`), keine uuid, nicht im Austauschformat.
-//! - Prüfung vor dem Schreiben ([`SheetSettings::normalized`]): Schriftlisten höchstens
-//!   [`MAX_SHEET_FONT_CHARS`] Zeichen, Familien durch Kommas getrennt, je ein Name aus Buchstaben, Ziffern,
-//!   Leerzeichen, `-`, `_`, `.` (auch in `"…"` oder `'…'`) – also nie Steuerzeichen, `<`, `>`, `;`, `{`, `}`
-//!   oder `\`, nichts, was eine CSS-Regel oder das `<style>`-Element verlassen könnte. Längen als Zahl mit
-//!   Einheit `pt`, `mm`, `cm` oder `em` in Grenzen (Schriftgröße 6–48 pt, Satzbreite 6–60 cm; `em` zählt
-//!   als 12 pt), Farben `#rrggbb` (klein geschrieben gespeichert).
+//! - The settings override the presentation of the HTML typeset view derived from the work template, never Typst,
+//!   export or PDF.
+//! - `work_sheet`: at most one row per work; `NULL` = from the template. Without a row everything comes from the
+//!   template ([`SheetSettings::default`]). A deleted work takes its row along (`ON DELETE CASCADE`).
+//! - Not book text, no commit in the mirror (like `work_timing`), no uuid, not in the exchange format.
+//! - Check before writing ([`SheetSettings::normalized`]): font lists at most [`MAX_SHEET_FONT_CHARS`] characters,
+//!   families separated by commas, each a name of letters, digits, spaces, `-`, `_`, `.` (also in `"…"` or `'…'`) – so
+//!   never control characters, `<`, `>`, `;`, `{`, `}` or `\`, nothing that could leave a CSS rule or the `<style>`
+//!   element. Lengths as a number with the unit `pt`, `mm`, `cm` or `em` within limits (font size 6–48 pt, text width
+//!   6–60 cm; `em` counts as 12 pt), colours `#rrggbb` (stored in lower case).
 
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId};
 
-/// Längste Schriftliste (Zeichen) für `font`/`heading_font`.
+/// Longest font list (characters) for `font`/`heading_font`.
 pub const MAX_SHEET_FONT_CHARS: usize = 200;
 
-/// Satzbild-Einstellungen eines Werks (Runde 18c, Migration 0044 `work_sheet`): überschreiben die aus der
-/// Werkvorlage abgeleitete Darstellung des Satzbilds (nur HTML-Satzbild, nie Typst/Export/PDF). `None` = aus
-/// der Vorlage. Längen als CSS-Länge mit Einheit pt|mm|cm|em (z. B. "11pt", "16cm"), Farben als `#rrggbb`.
+/// Typeset view settings of a work (Round 18c, migration 0044 `work_sheet`): they override the presentation of the
+/// typeset view derived from the work template (HTML typeset view only, never Typst/export/PDF). `None` = from the
+/// template. Lengths as a CSS length with the unit pt|mm|cm|em (for example "11pt", "16cm"), colours as `#rrggbb`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SheetSettings {
     pub font: Option<String>,
@@ -34,19 +33,19 @@ pub struct SheetSettings {
     pub width: Option<String>,
 }
 
-/// Grenzen der Schriftgröße in pt.
+/// Limits of the font size in pt.
 const SIZE_PT: (f64, f64) = (6.0, 48.0);
-/// Grenzen der Satzbreite in pt (6 cm bis 60 cm).
+/// Limits of the text width in pt (6 cm to 60 cm).
 const WIDTH_PT: (f64, f64) = (6.0 * 72.0 / 2.54, 60.0 * 72.0 / 2.54);
 
 impl SheetSettings {
-    /// Alle Felder `None`.
+    /// All fields `None`.
     pub fn is_empty(&self) -> bool {
         *self == SheetSettings::default()
     }
 
-    /// Geprüfte, vereinheitlichte Fassung (Leerraum außen weg, leere Felder `None`, Farben klein, Einheit
-    /// klein). Ungültige Werte → `Refused` mit deutscher Meldung, die das Feld nennt.
+    /// Checked, normalised version (outer whitespace removed, empty fields `None`, colours lower case, unit lower
+    /// case). Invalid values → `Refused` with a German message that names the field.
     pub fn normalized(&self) -> Result<SheetSettings, StoreError> {
         let text = |v: &Option<String>| v.as_deref().map(str::trim).filter(|v| !v.is_empty()).map(str::to_owned);
         let font = |v: &Option<String>, message: &'static str| -> Result<Option<String>, StoreError> {
@@ -89,14 +88,13 @@ impl SheetSettings {
     }
 }
 
-/// Ein Familienname: Buchstaben, Ziffern, Leerzeichen, `-`, `_`, `.`; nicht leer.
+/// A family name: letters, digits, spaces, `-`, `_`, `.`; not empty.
 fn family_name(name: &str) -> bool {
     !name.trim().is_empty() && name.chars().all(|c| c.is_alphanumeric() || " -_.".contains(c))
 }
 
-/// Schriftliste: höchstens [`MAX_SHEET_FONT_CHARS`] Zeichen, Familien durch Kommas getrennt, je ein Name
-/// ([`family_name`]) oder ein Name in `"…"` bzw. `'…'`. So bleiben Anführungszeichen paarig, und kein
-/// Zeichen kann die CSS-Regel verlassen.
+/// Font list: at most [`MAX_SHEET_FONT_CHARS`] characters, families separated by commas, each a name ([`family_name`])
+/// or a name in `"…"` or `'…'`. That way quotation marks stay paired, and no character can leave the CSS rule.
 fn check_font(list: &str) -> bool {
     if list.chars().count() > MAX_SHEET_FONT_CHARS {
         return false;
@@ -114,14 +112,14 @@ fn check_font(list: &str) -> bool {
     })
 }
 
-/// `#rrggbb` (auch groß) → klein geschrieben.
+/// `#rrggbb` (also upper case) → written in lower case.
 fn check_color(value: &str) -> Option<String> {
     let hex = value.strip_prefix('#')?;
     (hex.len() == 6 && hex.chars().all(|c| c.is_ascii_hexdigit())).then(|| format!("#{}", hex.to_ascii_lowercase()))
 }
 
-/// Länge `<Zahl><Einheit>` mit Einheit pt|mm|cm|em (Zahl: Ziffern, höchstens ein Punkt mit bis zu drei
-/// Nachkommastellen), umgerechnet in pt innerhalb `range` (`em` = 12 pt). Ergebnis ohne Leerraum, Einheit klein.
+/// Length `<number><unit>` with the unit pt|mm|cm|em (number: digits, at most one dot with up to three decimal places),
+/// converted to pt within `range` (`em` = 12 pt). Result without whitespace, unit in lower case.
 fn check_length(value: &str, range: (f64, f64)) -> Option<String> {
     let lower = value.trim().to_ascii_lowercase();
     let (unit, factor) = [("pt", 1.0), ("mm", 72.0 / 25.4), ("cm", 72.0 / 2.54), ("em", 12.0)]
@@ -137,7 +135,7 @@ fn check_length(value: &str, range: (f64, f64)) -> Option<String> {
         return None;
     }
     let pt = number.parse::<f64>().ok()? * factor;
-    // Kleine Toleranz für Rundung (z. B. 60cm genau an der Grenze).
+    // Small tolerance for rounding (for example 60cm exactly at the limit).
     (pt >= range.0 - 1e-6 && pt <= range.1 + 1e-6).then(|| format!("{number}{unit}"))
 }
 
@@ -151,7 +149,7 @@ type Row =
     (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>);
 
 impl Store {
-    /// Einstellungen des Werks; ohne Zeile `SheetSettings::default()`. Unbekanntes Werk → `UnknownWork`.
+    /// Settings of the work; without a row `SheetSettings::default()`. Unknown work → `UnknownWork`.
     pub async fn sheet_settings(&self, work: WorkId) -> Result<SheetSettings, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -174,8 +172,8 @@ impl Store {
             .unwrap_or_default())
     }
 
-    /// Setzen (ganze Zeile; alles `None` = Zeile löschen). Ungültige Werte → `Refused` mit deutscher
-    /// Meldung, nichts geändert; unbekanntes Werk → `UnknownWork`. Kein Spiegel-Commit (wie `work_timing`).
+    /// Set (whole row; everything `None` = delete the row). Invalid values → `Refused` with a German message, nothing
+    /// changed; unknown work → `UnknownWork`. No mirror commit (like `work_timing`).
     pub async fn set_sheet_settings(&self, work: WorkId, settings: &SheetSettings) -> Result<(), StoreError> {
         let settings = settings.normalized()?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;

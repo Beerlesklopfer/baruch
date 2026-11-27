@@ -1,42 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Farbe je Persona (Migration `0010_persona_color.sql`, Vertrag Runde 7, „proposals“).
+//! Colour per persona (migration `0010_persona_color.sql`, contract Round 7, "proposals").
 //!
-//! Die Spalte `persona.color` ist `NULL` (Vorgabe) oder `#rrggbb` in Kleinbuchstaben (CHECK). Die
-//! Vorgabe kommt aus [`PERSONA_PALETTE`] nach der Reihenfolge der Personas (`position`, `id`), die
-//! n-te Persona bekommt die Farbe `n mod 8`. Autoren ohne Persona-Eintrag (z. B. `@mcp:…`) zeigt die
-//! Oberfläche in [`FALLBACK_COLOR`]. Personas sind global und kein Buchtext: Eine Farbänderung ist
-//! eine Transaktion (`BEGIN IMMEDIATE`), aber kein Commit im Git-Spiegel.
+//! The column `persona.color` is `NULL` (default) or `#rrggbb` in lower-case letters (CHECK). The default comes from
+//! [`PERSONA_PALETTE`] after the order of the personas (`position`, `id`), the n-th persona gets the colour `n mod 8`.
+//! Authors without a persona entry (for example `@mcp:…`) are shown by the user interface in [`FALLBACK_COLOR`].
+//! Personas are global and not book text: a colour change is one transaction (`BEGIN IMMEDIATE`), but no commit in the
+//! Git mirror.
 //!
-//! Runde 10 (personas): eigener Rollen-Prompt je Persona (`persona.prompt`, Migration 0015; `NULL` =
-//! Vorgabe aus dem Code des Servers) und die Wahl des Lektors in `store_meta` (Schlüssel
-//! [`LECTOR_META_KEY`], Wert `auto` oder ein Handle; fehlt die Zeile, gilt fest `@lektor`).
+//! Round 10 (personas): a custom role prompt per persona (`persona.prompt`, migration 0015; `NULL` = default from the
+//! code of the server) and the choice of the lector in `store_meta` (key [`LECTOR_META_KEY`], value `auto` or a handle;
+//! if the row is missing, `@lektor` applies as fixed).
 
 use baruch_core::LectorChoice;
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError};
 
-/// Vorgabefarben in Reihenfolge der Personas: gut unterscheidbar (Blau, Orange, Grün, Violett,
-/// Magenta, Petrol, Ocker, Braun), kleingeschrieben `#rrggbb`.
+/// Default colours in the order of the personas: easy to tell apart (blue, orange, green, violet, magenta, teal, ochre,
+/// brown), lower-case `#rrggbb`.
 pub const PERSONA_PALETTE: [&str; 8] =
     ["#1c7ed6", "#e8590c", "#2f9e44", "#7048e8", "#c2255c", "#0c8599", "#e0a800", "#8b5a2b"];
 
-/// Farbe für Autoren ohne Persona-Eintrag (z. B. MCP-Aufrufer `@mcp:<client>`): Grau.
+/// Colour for authors without a persona entry (for example MCP callers `@mcp:<client>`): grey.
 pub const FALLBACK_COLOR: &str = "#868e96";
 
-/// Wirksame Farbe einer Persona.
+/// Effective colour of a persona.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct PersonaColor {
     pub handle: String,
     pub name: String,
-    /// Wirksame Farbe `#rrggbb` (gewählt oder Vorgabe aus der Palette).
+    /// Effective colour `#rrggbb` (chosen or default from the palette).
     pub color: String,
-    /// `true`: vom Menschen gewählt; `false`: Vorgabe aus [`PERSONA_PALETTE`].
+    /// `true`: chosen by the human; `false`: default from [`PERSONA_PALETTE`].
     pub chosen: bool,
 }
 
-/// `#rgb` oder `#rrggbb` (Groß- oder Kleinbuchstaben, Rand-Leerraum erlaubt) → `#rrggbb` klein;
-/// alles andere → `None`.
+/// `#rgb` or `#rrggbb` (upper- or lower-case letters, whitespace at the edges allowed) → `#rrggbb` in lower case;
+/// everything else → `None`.
 pub fn valid_color(input: &str) -> Option<String> {
     let hex = input.trim().strip_prefix('#')?;
     if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -50,7 +50,7 @@ pub fn valid_color(input: &str) -> Option<String> {
     Some(format!("#{}", full.to_ascii_lowercase()))
 }
 
-/// Alle Personas mit wirksamer Farbe, nach `position`, `id`.
+/// All personas with their effective colour, by `position`, `id`.
 async fn colors(conn: &mut SqliteConnection) -> Result<Vec<PersonaColor>, StoreError> {
     let rows: Vec<(String, String, Option<String>)> =
         sqlx::query_as("SELECT handle, name, color FROM persona ORDER BY position, id").fetch_all(&mut *conn).await?;
@@ -58,7 +58,7 @@ async fn colors(conn: &mut SqliteConnection) -> Result<Vec<PersonaColor>, StoreE
         .into_iter()
         .enumerate()
         .map(|(index, (handle, name, color))| {
-            // Die Spalte prüft das Format (CHECK); valid_color ist die zweite Wache.
+            // The column checks the format (CHECK); valid_color is the second guard.
             let chosen = color.as_deref().and_then(valid_color);
             PersonaColor {
                 handle,
@@ -70,22 +70,22 @@ async fn colors(conn: &mut SqliteConnection) -> Result<Vec<PersonaColor>, StoreE
         .collect())
 }
 
-/// Längste Rolle bzw. längstes Modell in Zeichen (nach dem Trimmen, Runde 9).
+/// Longest role or longest model in characters (after trimming, Round 9).
 pub const MAX_PERSONA_TEXT: usize = 200;
-/// Größte Kontextlänge in Tokens (Runde 9); die kleinste ist 1.
+/// Largest context length in tokens (Round 9); the smallest is 1.
 pub const MAX_CONTEXT_LENGTH: u32 = 10_000_000;
 
-/// Längster eigener Rollen-Prompt in Zeichen (nach dem Trimmen, Runde 10; CHECK in Migration 0015).
+/// Longest custom role prompt in characters (after trimming, Round 10; CHECK in migration 0015).
 pub const MAX_PROMPT_CHARS: usize = 8000;
 
-/// Schlüssel der Lektor-Wahl in `store_meta` (Runde 10): Wert `auto` oder ein Handle.
+/// Key of the lector choice in `store_meta` (Round 10): value `auto` or a handle.
 pub const LECTOR_META_KEY: &str = "lector";
 
-/// Schlüssel der Einstellung „Chat nur Abschnitt“ in `store_meta` (Runde 16a): `chapter` oder `section`.
+/// Key of the setting „Chat nur Abschnitt“ in `store_meta` (Round 16a): `chapter` or `section`.
 pub const CHAT_SCOPE_META_KEY: &str = "chat_scope";
 
-/// Was der Chat einer Persona zum gezeigten Abschnitt mitgibt (Runde 16a): das ganze Kapitel (Vorgabe, wie
-/// bisher) oder nur den Abschnitt selbst (dazu Titel und Gliederung des Werks).
+/// What the chat of a persona passes along for the section shown (Round 16a): the whole chapter (default, as before) or
+/// only the section itself (plus title and outline of the work).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatScope {
@@ -103,7 +103,7 @@ impl ChatScope {
         }
     }
 
-    /// Aus `chapter` | `section` (getrimmt); sonst `None`.
+    /// From `chapter` | `section` (trimmed); otherwise `None`.
     pub fn parse(value: &str) -> Option<ChatScope> {
         match value.trim() {
             "chapter" => Some(ChatScope::Chapter),
@@ -113,27 +113,27 @@ impl ChatScope {
     }
 }
 
-/// Eine Persona mit allen Feldern aus der Tabelle `persona` (Runde 9, Einstellungen „Assistenten“).
-/// Personas sind global (für alle Werke); `color`/`chosen` wie [`PersonaColor`].
+/// A persona with all fields from the table `persona` (Round 9, settings „Assistenten“). Personas are global (for all
+/// works); `color`/`chosen` like [`PersonaColor`].
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct PersonaRow {
     pub handle: String,
     pub name: String,
     pub role: String,
     pub model: String,
-    /// Kontextlänge in Tokens.
+    /// Context length in tokens.
     pub context_length: u32,
     pub active: bool,
-    /// Wirksame Farbe `#rrggbb` (gewählt oder Vorgabe aus der Palette).
+    /// Effective colour `#rrggbb` (chosen or default from the palette).
     pub color: String,
-    /// `true`: vom Menschen gewählt.
+    /// `true`: chosen by the human.
     pub chosen: bool,
-    /// Eigener Rollen-Prompt (Runde 10); `None` = Vorgabe aus dem Code.
+    /// Custom role prompt (Round 10); `None` = default from the code.
     pub prompt: Option<String>,
 }
 
-/// Änderung einer Persona ([`Store::update_persona`]); `None` = bleibt. Rolle und Modell werden
-/// getrimmt und müssen 1–[`MAX_PERSONA_TEXT`] Zeichen haben, die Kontextlänge 1–[`MAX_CONTEXT_LENGTH`].
+/// Change of a persona ([`Store::update_persona`]); `None` = stays. Role and model are trimmed and must have
+/// 1–[`MAX_PERSONA_TEXT`] characters, the context length 1–[`MAX_CONTEXT_LENGTH`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PersonaEdit {
     pub role: Option<String>,
@@ -142,12 +142,12 @@ pub struct PersonaEdit {
     pub active: Option<bool>,
 }
 
-/// Längster Name einer Persona in Zeichen (nach dem Trimmen, Runde 11).
+/// Longest name of a persona in characters (after trimming, Round 11).
 const MAX_PERSONA_NAME: usize = 80;
 
 impl PersonaEdit {
-    /// Name einer Persona prüfen (Runde 11, Einstellungen → Assistenten): getrimmt 1–80 Zeichen, in
-    /// einer Zeile. `Ok` = der getrimmte Name, `Err` = deutsche Meldung.
+    /// Check the name of a persona (Round 11, Einstellungen → Assistenten): trimmed 1–80 characters, on one line. `Ok`
+    /// = the trimmed name, `Err` = German message.
     pub fn check_name(name: &str) -> Result<String, &'static str> {
         let name = name.trim();
         if name.is_empty() {
@@ -162,8 +162,8 @@ impl PersonaEdit {
         Ok(name.to_owned())
     }
 
-    /// Prüft die Grenzen; `Err` nennt das erste Problem auf Deutsch (die Server-Schicht meldet es als
-    /// -32602 bzw. 422, der Store lehnt dasselbe als zweite Wache mit `Refused` ab).
+    /// Checks the limits; `Err` names the first problem in German (the server layer reports it as -32602 or 422, the
+    /// store rejects the same as the second guard with `Refused`).
     pub fn check(&self) -> Result<(), &'static str> {
         for (value, empty, long) in [
             (&self.role, "Die Rolle darf nicht leer sein.", "Die Rolle darf höchstens 200 Zeichen haben."),
@@ -190,7 +190,7 @@ impl PersonaEdit {
 
 type RawPersona = (String, String, String, String, i64, i64, Option<String>, Option<String>);
 
-/// Alle Personas mit allen Feldern, nach `position`, `id`.
+/// All personas with all fields, by `position`, `id`.
 async fn rows(conn: &mut SqliteConnection) -> Result<Vec<PersonaRow>, StoreError> {
     let raw: Vec<RawPersona> = sqlx::query_as(
         "SELECT handle, name, role, model, context_length, active, color, prompt FROM persona ORDER BY position, id",
@@ -218,8 +218,8 @@ async fn rows(conn: &mut SqliteConnection) -> Result<Vec<PersonaRow>, StoreError
         .collect()
 }
 
-/// Eigener Rollen-Prompt geprüft: `None` = Vorgabe; sonst getrimmt 1–[`MAX_PROMPT_CHARS`] Zeichen
-/// mit `\n` als Zeilenende.
+/// Custom role prompt checked: `None` = default; otherwise trimmed 1–[`MAX_PROMPT_CHARS`] characters with `\n` as the
+/// line ending.
 fn prompt_value(prompt: Option<&str>) -> Result<Option<String>, StoreError> {
     match prompt.map(str::trim) {
         None => Ok(None),
@@ -231,8 +231,8 @@ fn prompt_value(prompt: Option<&str>) -> Result<Option<String>, StoreError> {
     }
 }
 
-/// Lektor-Wahl aus `store_meta` lesen: `auto` → [`LectorChoice::Auto`], ein anderer Wert → fest diese
-/// Persona, keine Zeile → Vorgabe (fest `@lektor`).
+/// Read the lector choice from `store_meta`: `auto` → [`LectorChoice::Auto`], another value → fixed to this persona, no
+/// row → default (fixed `@lektor`).
 pub(crate) async fn read_lector_choice(conn: &mut SqliteConnection) -> Result<LectorChoice, StoreError> {
     let value: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
         .bind(LECTOR_META_KEY)
@@ -245,7 +245,7 @@ pub(crate) async fn read_lector_choice(conn: &mut SqliteConnection) -> Result<Le
     })
 }
 
-/// Handle in der Tabelle: wie eingegeben oder mit vorangestelltem `@`.
+/// Handle in the table: as entered or with a leading `@`.
 async fn find_handle(conn: &mut SqliteConnection, handle: &str) -> Result<Option<String>, StoreError> {
     let wanted = handle.trim();
     let mut candidates = vec![wanted.to_owned()];
@@ -265,17 +265,16 @@ async fn find_handle(conn: &mut SqliteConnection, handle: &str) -> Result<Option
 }
 
 impl Store {
-    /// Alle Personas mit allen Feldern (Rolle, Modell, Kontext, aktiv, Farbe) in der Reihenfolge
-    /// `position`, `id` – ohne Werk (Personas sind global, Runde 9).
+    /// All personas with all fields (role, model, context, active, colour) in the order `position`, `id` – without a
+    /// work (personas are global, Round 9).
     pub async fn persona_list(&self) -> Result<Vec<PersonaRow>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         rows(&mut conn).await
     }
 
-    /// Rolle, Modell, Kontextlänge und aktiv einer Persona ändern, atomar (`BEGIN IMMEDIATE`).
-    /// Unbekannte Persona → `UnknownPersona` (Handle auch ohne `@`); Grenzen verletzt
-    /// ([`PersonaEdit::check`]) → `Refused`; in beiden Fällen bleibt alles, wie es ist. Kein Commit im
-    /// Spiegel (Personas sind kein Buchtext).
+    /// Change role, model, context length and active of a persona, atomically (`BEGIN IMMEDIATE`). Unknown persona →
+    /// `UnknownPersona` (handle also without `@`); limits violated ([`PersonaEdit::check`]) → `Refused`; in both cases
+    /// everything stays as it is. No commit in the mirror (personas are not book text).
     pub async fn update_persona(&self, handle: &str, edit: &PersonaEdit) -> Result<PersonaRow, StoreError> {
         edit.check().map_err(StoreError::Refused)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -300,12 +299,11 @@ impl Store {
             .ok_or_else(|| crate::broken(format!("Persona {handle} nach dem Ändern verschwunden")))
     }
 
-    /// Alles einer Persona auf einmal speichern (Runde 11, ein Knopf „Speichern“ je Persona): Name
-    /// (`Some`, [`PersonaEdit::check_name`]), Rolle, Modell, Kontext und aktiv ([`PersonaEdit`]), Farbe
-    /// (`Some(Some(..))` setzen, `Some(None)` Vorgabe) und Rollen-Prompt (`Some(Some(..))` eigener,
-    /// `Some(None)` Vorgabe); `None` = bleibt. Erst wird alles geprüft, dann in **einer** Transaktion
-    /// geschrieben: Ein ungültiger Wert ändert nichts. Unbekannte Persona → `UnknownPersona`, ungültige
-    /// Farbe → `Color`, sonst `Refused` mit deutscher Meldung. Kein Commit im Spiegel.
+    /// Save everything of a persona at once (Round 11, one button „Speichern“ per persona): name (`Some`,
+    /// [`PersonaEdit::check_name`]), role, model, context and active ([`PersonaEdit`]), colour (`Some(Some(..))` set,
+    /// `Some(None)` default) and role prompt (`Some(Some(..))` custom, `Some(None)` default); `None` = stays. First
+    /// everything is checked, then written in **one** transaction: an invalid value changes nothing. Unknown persona →
+    /// `UnknownPersona`, invalid colour → `Color`, otherwise `Refused` with a German message. No commit in the mirror.
     pub async fn save_persona(
         &self,
         handle: &str,
@@ -361,15 +359,15 @@ impl Store {
             .ok_or_else(|| crate::broken(format!("Persona {handle} nach dem Speichern verschwunden")))
     }
 
-    /// Wahl des Lektors (Runde 10): `store_meta.lector`, ohne Zeile fest `@lektor`.
+    /// Choice of the lector (Round 10): `store_meta.lector`, without a row fixed `@lektor`.
     pub async fn lector_choice(&self) -> Result<LectorChoice, StoreError> {
         let mut conn = self.pool.acquire().await?;
         read_lector_choice(&mut conn).await
     }
 
-    /// Wahl des Lektors setzen, atomar. `Fixed`: Handle mit oder ohne `@`, die Persona muss es geben
-    /// (sonst `UnknownPersona`, nichts geändert); gespeichert wird der Handle aus der Tabelle. Ob sie
-    /// aktiv ist, zählt erst beim Bestimmen des Lektors ([`LectorChoice::pick`]). Kein Commit im Spiegel.
+    /// Set the choice of the lector, atomically. `Fixed`: handle with or without `@`, the persona must exist (otherwise
+    /// `UnknownPersona`, nothing changed); the handle from the table is stored. Whether it is active counts only when
+    /// the lector is determined ([`LectorChoice::pick`]). No commit in the mirror.
     pub async fn set_lector_choice(&self, choice: &LectorChoice) -> Result<LectorChoice, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let (value, stored) = match choice {
@@ -392,8 +390,8 @@ impl Store {
         Ok(stored)
     }
 
-    /// Umfang des Chats (Runde 16a, `store_meta.chat_scope`): ohne Zeile oder mit unbekanntem Wert
-    /// [`ChatScope::Chapter`] (wie bisher: das Kapitel des Abschnitts).
+    /// Scope of the chat (Round 16a, `store_meta.chat_scope`): without a row or with an unknown value
+    /// [`ChatScope::Chapter`] (as before: the chapter of the section).
     pub async fn chat_scope(&self) -> Result<ChatScope, StoreError> {
         let value: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
             .bind(CHAT_SCOPE_META_KEY)
@@ -402,7 +400,7 @@ impl Store {
         Ok(value.as_deref().and_then(ChatScope::parse).unwrap_or_default())
     }
 
-    /// Umfang des Chats setzen (nur der Mensch; kein Commit im Spiegel, steht nur in SQLite).
+    /// Set the scope of the chat (only the human; no commit in the mirror, it is only in SQLite).
     pub async fn set_chat_scope(&self, scope: ChatScope) -> Result<ChatScope, StoreError> {
         sqlx::query(
             "INSERT INTO store_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -414,7 +412,7 @@ impl Store {
         Ok(scope)
     }
 
-    /// Eigener Rollen-Prompt einer Persona (`None` = Vorgabe aus dem Code); unbekannt → `UnknownPersona`.
+    /// Custom role prompt of a persona (`None` = default from the code); unknown → `UnknownPersona`.
     pub async fn persona_prompt(&self, handle: &str) -> Result<Option<String>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let Some(found) = find_handle(&mut conn, handle).await? else {
@@ -423,9 +421,9 @@ impl Store {
         Ok(sqlx::query_scalar("SELECT prompt FROM persona WHERE handle = ?").bind(found).fetch_one(&mut *conn).await?)
     }
 
-    /// Eigenen Rollen-Prompt setzen (`Some`, getrimmt 1–[`MAX_PROMPT_CHARS`] Zeichen, sonst `Refused`)
-    /// oder auf die Vorgabe zurücksetzen (`None`), atomar; unbekannte Persona → `UnknownPersona`. In
-    /// jedem Fehlerfall bleibt alles, wie es ist. Kein Commit im Spiegel (kein Buchtext).
+    /// Set a custom role prompt (`Some`, trimmed 1–[`MAX_PROMPT_CHARS`] characters, otherwise `Refused`) or reset to
+    /// the default (`None`), atomically; unknown persona → `UnknownPersona`. In every error case everything stays as it
+    /// is. No commit in the mirror (not book text).
     pub async fn set_persona_prompt(&self, handle: &str, prompt: Option<&str>) -> Result<PersonaRow, StoreError> {
         let value = prompt_value(prompt)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -444,15 +442,15 @@ impl Store {
             .ok_or_else(|| crate::broken(format!("Persona {handle} nach dem Setzen des Prompts verschwunden")))
     }
 
-    /// Alle Personas mit ihrer wirksamen Farbe in der Reihenfolge `position`, `id`.
+    /// All personas with their effective colour in the order `position`, `id`.
     pub async fn persona_colors(&self) -> Result<Vec<PersonaColor>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         colors(&mut conn).await
     }
 
-    /// Farbe einer Persona setzen (`Some`, `#rgb`/`#rrggbb`) oder auf die Vorgabe zurücksetzen
-    /// (`None`), atomar. Unbekannte Persona → `UnknownPersona` (der Handle darf ohne `@` kommen),
-    /// ungültige Farbe → `Color`; in beiden Fällen bleibt alles, wie es ist.
+    /// Set the colour of a persona (`Some`, `#rgb`/`#rrggbb`) or reset it to the default (`None`), atomically. Unknown
+    /// persona → `UnknownPersona` (the handle may come without `@`), invalid colour → `Color`; in both cases everything
+    /// stays as it is.
     pub async fn set_persona_color(&self, handle: &str, color: Option<&str>) -> Result<PersonaColor, StoreError> {
         let value = match color {
             Some(input) => {

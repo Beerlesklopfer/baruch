@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Modell-Verbindungen und Verbindung je Persona (Migration `0036_model_connections.sql`, Runde 15b).
+//! Model connections and the connection per persona (migration `0036_model_connections.sql`, Round 15b).
 //!
-//! - `model_connection`: Verbindungen zu Modell-Backends der Art `eliezer`, `openai` (OpenAI-kompatibel)
-//!   oder `ollama`, mit Name, Adresse, „extern“ (verlässt den Rechner bzw. das eigene Netz), Konto im
-//!   Schlüsselbund, Bindung des Schlüssels an sein Ziel (`secret_target`, wie bei `connection`), letztem
-//!   Kurztest und letzter Prüfung (je JSON) und Reihenfolge. Die Verbindung **Eliezer** (id
-//!   [`ELIEZER_CONNECTION`]) gibt es immer: Ihre Adresse und die Bindung ihres Schlüssels stehen weiter in
-//!   der Verbindung `eliezer` (Tabelle `connection`, Runde 9; `url` ist hier `NULL`, damit sie nicht doppelt
-//!   geführt wird), ihr Schlüssel im Konto `eliezer`. Sie lässt sich nicht löschen (Trigger).
-//! - `persona_backend`: je Persona die Verbindung und die Freigabe für externe Verbindungen
-//!   (`external_allowed`, Vorgabe 0). Keine Zeile = Verbindung Eliezer, nicht freigegeben. Wird eine
-//!   Verbindung gelöscht, fallen ihre Zuordnungen weg (also zurück auf Eliezer).
+//! - `model_connection`: connections to model backends of the kind `eliezer`, `openai` (OpenAI-compatible) or `ollama`,
+//!   with name, address, "external" (leaves the machine or the own network), account in the keyring, binding of the key
+//!   to its target (`secret_target`, as with `connection`), last quick test and last check (JSON each) and order. The
+//!   connection **Eliezer** (id [`ELIEZER_CONNECTION`]) always exists: its address and the binding of its key remain in
+//!   the connection `eliezer` (table `connection`, Round 9; `url` is `NULL` here, so that it is not kept twice), its
+//!   key in the account `eliezer`. It cannot be deleted (trigger).
+//! - `persona_backend`: per persona the connection and the approval for external connections (`external_allowed`,
+//!   default 0). No row = connection Eliezer, not approved. If a connection is deleted, its assignments are dropped
+//!   (that is, back to Eliezer).
 //!
-//! Geheimnisse stehen nie hier. Kein Buchtext, kein Commit im Spiegel; jede Änderung eine Transaktion
-//! (`BEGIN IMMEDIATE`). Adressen und Namen prüft der Server genauer; der Store hält die Grenzen der Tabelle.
+//! Secrets are never stored here. Not book text, no commit in the mirror; every change is one transaction (`BEGIN
+//! IMMEDIATE`). Addresses and names are checked more closely by the server; the store keeps the limits of the table.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -21,57 +20,57 @@ use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError};
 
-/// id der Verbindung Eliezer (aus der Migration; nie löschbar).
+/// id of the connection Eliezer (from the migration; can never be deleted).
 pub const ELIEZER_CONNECTION: i64 = 1;
-/// Längster Name einer Verbindung (Zeichen).
+/// Longest name of a connection (characters).
 pub const MAX_CONNECTION_NAME: usize = 80;
-/// Längste Adresse (Zeichen).
+/// Longest address (characters).
 pub const MAX_CONNECTION_URL: usize = 2000;
-/// Schlüssel in `store_meta`: zuletzt vergebene id einer Modell-Verbindung (ids werden nie wiederverwendet).
+/// Key in `store_meta`: the id of a model connection assigned last (ids are never reused).
 const LAST_ID: &str = "model_connection_last";
-/// Arten einer Modell-Verbindung (Spalte `kind`).
+/// Kinds of a model connection (column `kind`).
 pub const MODEL_CONNECTION_KINDS: [&str; 3] = ["eliezer", "openai", "ollama"];
 
-/// Eine Modell-Verbindung.
+/// A model connection.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ModelConnection {
     pub id: i64,
     pub name: String,
-    /// `eliezer`, `openai` oder `ollama`.
+    /// `eliezer`, `openai` or `ollama`.
     pub kind: String,
-    /// Grundadresse; `None` nur bei der Verbindung Eliezer (Adresse aus der Verbindung `eliezer`).
+    /// Base address; `None` only for the connection Eliezer (address from the connection `eliezer`).
     pub url: Option<String>,
-    /// Verlässt den Rechner bzw. das eigene Netz: Buchtext nur mit Freigabe je Persona.
+    /// Leaves the machine or the own network: book text only with an approval per persona.
     pub external: bool,
-    /// Konto im Schlüsselbund (Dienst „baruch“): `eliezer` bzw. `model-<id>`.
+    /// Account in the keyring (service "baruch"): `eliezer` or `model-<id>`.
     pub account: String,
-    /// Ziel, für das der Schlüssel hinterlegt wurde, wenn die Adresse seitdem anderswohin zeigt; `None` =
-    /// gilt für das jetzige Ziel. Bei Eliezer immer `None` (die Bindung steht in `connection`).
+    /// Target for which the key was stored, if the address has pointed elsewhere since; `None` = applies to the present
+    /// target. Always `None` for Eliezer (the binding is in `connection`).
     pub secret_target: Option<String>,
-    /// Letzter Kurztest (JSON, wie `model.probe` ihn liefert).
+    /// Last quick test (JSON, as `model.probe` returns it).
     pub probe: Option<Value>,
-    /// Letzte Prüfung (JSON, wie `model.connection_check` sie liefert).
+    /// Last check (JSON, as `model.connection_check` returns it).
     pub check: Option<Value>,
     pub position: i64,
     pub updated: String,
 }
 
-/// Neue bzw. geänderte Verbindung (Name und Adresse getrimmt).
+/// New or changed connection (name and address trimmed).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelConnectionEdit {
     pub name: String,
     pub kind: String,
-    /// Bei der Verbindung Eliezer ignoriert (Adresse über die Verbindung `eliezer`).
+    /// Ignored for the connection Eliezer (address through the connection `eliezer`).
     pub url: String,
     pub external: bool,
 }
 
-/// Verbindung einer Persona.
+/// Connection of a persona.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct PersonaBackend {
     pub connection: i64,
     pub external_allowed: bool,
-    /// `false`: keine Zeile, Vorgabe (Eliezer, nicht freigegeben).
+    /// `false`: no row, default (Eliezer, not approved).
     pub explicit: bool,
 }
 
@@ -117,7 +116,7 @@ async fn one(conn: &mut SqliteConnection, id: i64) -> Result<ModelConnection, St
     of(row.ok_or(StoreError::Refused("Diese Modell-Verbindung gibt es nicht (mehr)."))?)
 }
 
-/// Name und Art prüfen; Adresse nur für andere Verbindungen als Eliezer.
+/// Check name and kind; the address only for connections other than Eliezer.
 fn check(edit: &ModelConnectionEdit, eliezer: bool) -> Result<(String, String, Option<String>), StoreError> {
     let name = edit.name.trim();
     if name.is_empty() || name.chars().count() > MAX_CONNECTION_NAME || name.chars().any(char::is_control) {
@@ -141,7 +140,7 @@ fn check(edit: &ModelConnectionEdit, eliezer: bool) -> Result<(String, String, O
     Ok((name.to_owned(), kind, Some(url.to_owned())))
 }
 
-/// id der Persona (Handle mit oder ohne `@`).
+/// id of the persona (handle with or without `@`).
 async fn persona_id(conn: &mut SqliteConnection, handle: &str) -> Result<i64, StoreError> {
     let wanted = handle.trim();
     let bare = wanted.trim_start_matches('@');
@@ -165,7 +164,7 @@ fn unique_violation(e: &sqlx::Error) -> bool {
 }
 
 impl Store {
-    /// Alle Modell-Verbindungen in ihrer Reihenfolge (Eliezer zuerst, solange nicht verschoben).
+    /// All model connections in their order (Eliezer first, as long as it is not moved).
     pub async fn model_connection_list(&self) -> Result<Vec<ModelConnection>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let rows: Vec<Tuple> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
@@ -176,21 +175,21 @@ impl Store {
         rows.into_iter().map(of).collect()
     }
 
-    /// Eine Modell-Verbindung; unbekannt → `Refused`.
+    /// A model connection; unknown → `Refused`.
     pub async fn model_connection_get(&self, id: i64) -> Result<ModelConnection, StoreError> {
         let mut conn = self.pool.acquire().await?;
         one(&mut conn, id).await
     }
 
-    /// Neue Verbindung (Konto `model-<id>`, ans Ende der Liste). Doppelter Name → `Refused`.
+    /// New connection (account `model-<id>`, at the end of the list). Duplicate name → `Refused`.
     pub async fn model_connection_create(&self, edit: &ModelConnectionEdit) -> Result<ModelConnection, StoreError> {
         let (name, kind, url) = check(edit, false)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let position: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(position), 0) + 1 FROM model_connection")
             .fetch_one(&mut *tx)
             .await?;
-        // ids nie doppelt (sonst erbte eine neue Verbindung das Konto `model-<id>` einer gelöschten): größer als
-        // jede vorhandene und als die zuletzt vergebene (`store_meta`).
+        // ids never twice (otherwise a new connection would inherit the account `model-<id>` of a deleted one): larger
+        // than every existing one and than the one assigned last (`store_meta`).
         let last: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = ?")
             .bind(LAST_ID)
             .fetch_optional(&mut *tx)
@@ -229,8 +228,8 @@ impl Store {
         Ok(row)
     }
 
-    /// Verbindung ändern. Ändert sich Art oder Adresse, gelten letzter Kurztest und letzte Prüfung nicht mehr
-    /// (geleert). Die Bindung des Schlüssels setzt der Server vorher mit [`Store::model_connection_bind_secret`].
+    /// Change a connection. If kind or address changes, the last quick test and the last check no longer apply
+    /// (cleared). The server sets the binding of the key beforehand with [`Store::model_connection_bind_secret`].
     pub async fn model_connection_update(
         &self,
         id: i64,
@@ -269,8 +268,8 @@ impl Store {
         Ok(row)
     }
 
-    /// Verbindung löschen (nicht Eliezer); Personas, die sie nutzten, fallen auf Eliezer zurück (nicht
-    /// freigegeben). Liefert die Handles dieser Personas.
+    /// Delete a connection (not Eliezer); personas that used it fall back to Eliezer (not approved). Returns the
+    /// handles of these personas.
     pub async fn model_connection_delete(&self, id: i64) -> Result<Vec<String>, StoreError> {
         if id == ELIEZER_CONNECTION {
             return Err(StoreError::Refused("Die Verbindung Eliezer lässt sich nicht löschen."));
@@ -286,7 +285,7 @@ impl Store {
         .await?;
         sqlx::query("DELETE FROM persona_backend WHERE connection_id = ?").bind(id).execute(&mut *tx).await?;
         sqlx::query("DELETE FROM model_connection WHERE id = ?").bind(id).execute(&mut *tx).await?;
-        // Lückenlose Reihenfolge.
+        // Order without gaps.
         let ids: Vec<i64> =
             sqlx::query_scalar("SELECT id FROM model_connection ORDER BY position, id").fetch_all(&mut *tx).await?;
         for (index, other) in ids.iter().enumerate() {
@@ -300,8 +299,8 @@ impl Store {
         Ok(handles)
     }
 
-    /// Ziel, an das der Schlüssel gebunden ist (`None` = gilt für das jetzige). Bei Eliezer nichts (die
-    /// Bindung steht in `connection`).
+    /// Target to which the key is bound (`None` = applies to the present one). Nothing for Eliezer (the binding is in
+    /// `connection`).
     pub async fn model_connection_bind_secret(&self, id: i64, target: Option<&str>) -> Result<(), StoreError> {
         if id == ELIEZER_CONNECTION {
             return Ok(());
@@ -317,7 +316,7 @@ impl Store {
         Ok(())
     }
 
-    /// Letzten Kurztest speichern (überlebt einen Neustart).
+    /// Store the last quick test (survives a restart).
     pub async fn model_connection_record_probe(&self, id: i64, probe: &Value) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         one(&mut tx, id).await?;
@@ -330,7 +329,7 @@ impl Store {
         Ok(())
     }
 
-    /// Letzte Prüfung speichern.
+    /// Store the last check.
     pub async fn model_connection_record_check(&self, id: i64, check: &Value) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         one(&mut tx, id).await?;
@@ -343,7 +342,7 @@ impl Store {
         Ok(())
     }
 
-    /// Verbindung und Freigabe einer Persona; keine Zeile = Vorgabe. Unbekannte Persona → `UnknownPersona`.
+    /// Connection and approval of a persona; no row = default. Unknown persona → `UnknownPersona`.
     pub async fn persona_backend(&self, handle: &str) -> Result<PersonaBackend, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let id = persona_id(&mut conn, handle).await?;
@@ -359,7 +358,7 @@ impl Store {
         }))
     }
 
-    /// Verbindungen aller Personas (Handle → Zuordnung), Personas ohne Zeile mit der Vorgabe.
+    /// Connections of all personas (handle → assignment), personas without a row with the default.
     pub async fn persona_backends(&self) -> Result<Vec<(String, PersonaBackend)>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let rows: Vec<(String, Option<i64>, Option<i64>)> = sqlx::query_as(
@@ -382,7 +381,7 @@ impl Store {
             .collect())
     }
 
-    /// Verbindung und Freigabe einer Persona setzen; unbekannte Verbindung → `Refused`.
+    /// Set connection and approval of a persona; unknown connection → `Refused`.
     pub async fn set_persona_backend(
         &self,
         handle: &str,

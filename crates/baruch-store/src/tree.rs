@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Revisionsbaum (Vertrag Runde 3, Abschnitte 2 und 3): Umschalten der Markierung „aktuell“, eigene
-//! Fassung auf einer gewählten Basis, Ändern und Löschen durch den Menschen, Baum aller Fassungen.
+//! Revision tree (contract Round 3, sections 2 and 3): switching the "current" marker, a revision of one's own on a
+//! chosen base, changing and deleting by the human, tree of all revisions.
 //!
-//! Regeln (Migration `0004_revision_tree.sql`): Jede Revision hat ein Elternteil `based_on` (eine
-//! kleinere Nummer desselben Abschnitts) oder ist eine Wurzel. Je Abschnitt genau eine `current`.
-//! Umschalten ändert keinen Text der Fassung; die Gliederung folgt ihrer Überschriftszeile
-//! ([`Store::switch_to`], Vertrag Runde 5). Ändern betrifft nur Text und Notiz (Herkunft unveränderlich) und
-//! setzt `edited`. Löschen hängt die Kinder an das Elternteil der gelöschten Fassung; die aktuelle
-//! Fassung lässt sich nicht löschen. Nummern werden nie wiederverwendet.
+//! Rules (migration `0004_revision_tree.sql`): every revision has a parent `based_on` (a smaller number of the same
+//! section) or is a root. Per section exactly one `current`. Switching changes no text of the revision; the outline
+//! follows its heading line ([`Store::switch_to`], contract Round 5). Changing concerns only text and note (the origin
+//! is immutable) and sets `edited`. Deleting hangs the children on the parent of the deleted revision; the current
+//! revision cannot be deleted. Numbers are never reused.
 
 use baruch_core::{Author, RevisionStatus};
 use sqlx::SqliteConnection;
@@ -15,37 +14,37 @@ use sqlx::SqliteConnection;
 use crate::write::{self, Row};
 use crate::{Change, ChangeKind, OutlineChange, Store, StoreError, WorkId, parse_author, to_u32, to_usize, words};
 
-/// Eine Fassung im Baum (ohne Text).
+/// A revision in the tree (without text).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RevisionInfo {
     pub number: u32,
-    /// Elternteil; `None` = Wurzel.
+    /// Parent; `None` = root.
     pub based_on: Option<u32>,
     pub status: RevisionStatus,
     pub author: Author,
     pub note: String,
     pub created: String,
-    /// Letzte Änderung durch den Menschen; `None` = nie geändert.
+    /// Last change by the human; `None` = never changed.
     pub edited: Option<String>,
-    /// Runde 30b: Kennzeichen einer Variante (Gruppe, Etikett A/B/C, Zeile, Befunde); `None` = keine Variante.
+    /// Round 30b: marks of a variant (group, label A/B/C, line, findings); `None` = not a variant.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub variant: Option<crate::VariantInfo>,
-    /// Runde 22: Stand der Fassung (`revision.amend_seq`, 0 = nie fortgeschrieben).
+    /// Round 22: state of the revision (`revision.amend_seq`, 0 = never amended).
     pub amend_seq: u32,
-    /// Runde 22 (Vertrag §2.5): Stand der Basis, auf dem ein Vorschlag beruht (`revision.based_on_amend`);
-    /// `None` = ohne bzw. vor Runde 22 angelegt.
+    /// Round 22 (contract §2.5): state of the base on which a proposal is based (`revision.based_on_amend`); `None` =
+    /// without one or created before Round 22.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub based_on_amend: Option<u32>,
 }
 
-/// Alle Fassungen eines Abschnitts (seq), nach Nummer.
+/// All revisions of a section (seq), by number.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct NodeRevisions {
     pub node: usize,
     pub revisions: Vec<RevisionInfo>,
 }
 
-/// Vollständiger Stand einer Revision, z. B. vor dem Ändern oder Löschen (für das Protokoll im Spiegel).
+/// Complete state of a revision, for example before changing or deleting (for the log in the mirror).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RevisionRecord {
     pub number: u32,
@@ -56,18 +55,18 @@ pub struct RevisionRecord {
     pub author: Author,
 }
 
-/// Ergebnis von [`Store::switch_to`]: die Umschaltung und, wenn die Fassung eine andere Ebene
-/// mitbringt, die Gliederungsänderung (`action: Level`, mitgestufte Unterpunkte mit neuen Fassungen).
+/// Result of [`Store::switch_to`]: the switch and, if the revision brings another level, the outline change (`action:
+/// Level`, sub-items moved along with new revisions).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Switch {
     pub change: Change,
     pub outline: Option<OutlineChange>,
 }
 
-/// Name des Menschen für die Hüllen [`Store::set_current`] und [`Store::accept`] (wie im Server).
+/// Name of the human for the wrappers [`Store::set_current`] and [`Store::accept`] (as in the server).
 pub(crate) const HUMAN: &str = "Autor";
 
-/// Was [`Store::update_revision`] ändern soll; `None` = bleibt.
+/// What [`Store::update_revision`] is to change; `None` = stays.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RevisionEdit<'a> {
     pub body: Option<&'a str>,
@@ -85,15 +84,15 @@ fn record(row: &Row) -> Result<RevisionRecord, StoreError> {
     })
 }
 
-/// Ändern über den Baum. Runde 23a (Backlog „Nach Runde 22 offen“, Codereview store-1/web-3):
+/// Changing through the tree. Round 23a (backlog „Nach Runde 22 offen“, code review store-1/web-3):
 ///
-/// - Ändert sich der **Text** der aktuellen Fassung oder einer schon fortgeschriebenen (Stand > 0), entsteht ein
-///   Schritt im Verlauf (`revision_amend`, Art 'amend', Text vorher und nachher) und der Stand (`amend_seq`) steigt um
-///   eins. So bleibt die Kette der Schritte lückenlos (Vorspulen beim Abgleich, Austausch), und ein Editor, der noch
-///   den alten Stand geladen hat, schreibt nicht still darüber hinweg (`NotOnCurrent` in [`crate::amend`]). Eine nie
-///   fortgeschriebene, nicht aktuelle Fassung (etwa ein Vorschlag) bekommt wie bisher keinen Verlauf.
-/// - `expected_amend`: Stand, den der Aufrufer geladen hatte. Weicht er vom gespeicherten ab, wird nichts geändert
-///   (`StoreError::Stale`); `None` prüft nichts (alte Clients).
+/// - If the **text** of the current revision or of one already amended (state > 0) changes, a step in the history
+///   arises (`revision_amend`, kind 'amend', text before and after) and the state (`amend_seq`) rises by one. That way
+///   the chain of steps stays without gaps (fast-forwarding in the sync, exchange), and an editor that has still loaded
+///   the old state does not silently write over it (`NotOnCurrent` in [`crate::amend`]). A revision that was never
+///   amended and is not current (such as a proposal) gets no history, as before.
+/// - `expected_amend`: state that the caller had loaded. If it differs from the stored one, nothing is changed
+///   (`StoreError::Stale`); `None` checks nothing (old clients).
 async fn update(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -183,7 +182,7 @@ async fn delete(
             .fetch_all(&mut *conn)
             .await?;
     let reparented = children.into_iter().map(|n| to_u32(n, "Revisionsnummer")).collect::<Result<Vec<_>, _>>()?;
-    // Der Trigger `revision_reparent` hängt die Kinder um.
+    // The trigger `revision_reparent` re-hangs the children.
     sqlx::query("DELETE FROM revision WHERE id = ?").bind(row.id).execute(&mut *conn).await?;
     Ok(Change {
         work,
@@ -255,7 +254,7 @@ async fn tree(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<NodeRevis
         if out.last().is_none_or(|n| n.node != seq) {
             out.push(NodeRevisions { node: seq, revisions: Vec::new() });
         }
-        let Some(number) = number else { continue }; // Abschnitt ohne Revisionen
+        let Some(number) = number else { continue }; // section without revisions
         let entry = out.last_mut().expect("eben angelegt");
         entry.revisions.push(RevisionInfo {
             number: to_u32(number, "Revisionsnummer")?,
@@ -278,10 +277,10 @@ async fn tree(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<NodeRevis
     Ok(out)
 }
 
-/// Nicht aktuelle Fassungen für die Seitenzweige im Spiegel (Runde 22, Vertrag §2.12): je Fassung der feste
-/// Schlüssel, die Angaben aus dem Baum und die Abschnittsdatei, wie der Spiegel sie mit dieser Fassung trüge (Pfad
-/// wie [`crate::snapshot::files`], Inhalt mit Import-Zeile der Werkvorlage und Sprungmarke `<kN>`; ohne die Umstellung
-/// „Nummer an/aus“ und ohne die Register-Projektion, die nur für die aktuelle Fassung im Zusammenhang gelten).
+/// Revisions that are not current, for the side branches in the mirror (Round 22, contract §2.12): per revision the
+/// fixed key, the details from the tree and the section file as the mirror would carry it with this revision (path like
+/// [`crate::snapshot::files`], content with the import line of the work template and the jump label `<kN>`; without the
+/// conversion "number on/off" and without the index projection, which only apply to the current revision in context).
 async fn side(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -308,7 +307,7 @@ async fn side(
         };
         let path = format!("abschnitte/{seq:03}-{}.typ", crate::slug(&title));
         let body = baruch_typst::xref::label_section(&body, key).into_owned();
-        // Wie im HEAD des Spiegels (Runde 22, „Spiegel setzen“): relative Bildpfade ab der Wurzel (Gutachten R22).
+        // As in the HEAD of the mirror (Round 22, „Spiegel setzen“): relative image paths from the root (review R22).
         let body = crate::snapshot::root_image_paths(&body).into_owned();
         let contents = if has_template { format!("{}{body}", crate::snapshot::TEMPLATE_IMPORT) } else { body };
         out.push((key, info, crate::MirrorFile { path, contents }));
@@ -317,9 +316,9 @@ async fn side(
 }
 
 impl Store {
-    /// Seitenzweige des Spiegels (Runde 22, Vertrag §2.12): alle nicht aktuellen Fassungen (ersetzt, verworfen,
-    /// offene Vorschläge samt Varianten) mit festem Schlüssel, Baumangaben und der Abschnittsdatei, wie der Spiegel
-    /// sie mit dieser Fassung trüge. Unbekanntes Werk → `UnknownWork`.
+    /// Side branches of the mirror (Round 22, contract §2.12): all revisions that are not current (superseded,
+    /// rejected, open proposals together with variants) with fixed key, tree details and the section file as the mirror
+    /// would carry it with this revision. Unknown work → `UnknownWork`.
     pub async fn side_revisions(
         &self,
         work: WorkId,
@@ -328,18 +327,17 @@ impl Store {
         side(&mut conn, work).await
     }
 
-    /// Markierung „aktuell“ umschalten (atomar, eine Transaktion): bisherige `current` → `superseded`,
-    /// `rev` → `current`; der Text der Fassung ändert sich nie. Mit `only_proposal` nur für Vorschläge
-    /// (Übernehmen, sonst `Refused("Nur Vorschläge lassen sich übernehmen.")`), ohne für jede nicht
-    /// aktuelle Fassung (schon aktuell → `Refused("Diese Fassung ist schon aktuell.")`). War `rev` ein
-    /// Vorschlag, ist `change.kind` = `Accepted`, sonst `Switched`.
+    /// Switch the "current" marker (atomic, one transaction): previous `current` → `superseded`, `rev` → `current`; the
+    /// text of the revision never changes. With `only_proposal` only for proposals (accepting, otherwise `Refused("Nur
+    /// Vorschläge lassen sich übernehmen.")`), without it for every revision that is not current (already current →
+    /// `Refused("Diese Fassung ist schon aktuell.")`). If `rev` was a proposal, `change.kind` = `Accepted`, otherwise
+    /// `Switched`.
     ///
-    /// Die Gliederung folgt der Überschriftszeile der Fassung (Vertrag Runde 5): gleicher Ebene nur der
-    /// Titel; bei anderer Ebene Ebene und Titel, die Unterpunkte wandern um dieselbe Differenz mit
-    /// (höchstens Ebene 3) und bekommen neue Fassungen von `human`, die sich nur in der
-    /// Überschriftszeile unterscheiden (`outline` mit `action: Level`). Keine oder weitere
-    /// Überschriften, Text davor oder eine hier ungültige Ebene → `Heading`, nichts geändert. Teile:
-    /// eine Fassung mit Teil-Markierung gleicht den Titel ab (Runde 14), eine ohne schaltet ohne Abgleich um.
+    /// The outline follows the heading line of the revision (contract Round 5): at the same level only the title; at
+    /// another level, level and title, the sub-items move along by the same difference (at most level 3) and get new
+    /// revisions by `human` that differ only in the heading line (`outline` with `action: Level`). No heading or
+    /// further headings, text before it or a level that is invalid here → `Heading`, nothing changed. Parts: a revision
+    /// with the part marker aligns the title (Round 14), one without it switches without aligning.
     pub async fn switch_to(
         &self,
         work: WorkId,
@@ -359,15 +357,15 @@ impl Store {
         Ok(Switch { change, outline })
     }
 
-    /// Umschalten auf jede nicht aktuelle Fassung: [`Store::switch_to`] ohne `only_proposal`, als
-    /// Mensch „Autor“; nur die Änderung der Markierung.
+    /// Switch to any revision that is not current: [`Store::switch_to`] without `only_proposal`, as the human „Autor“;
+    /// only the change of the marker.
     pub async fn set_current(&self, work: WorkId, node: usize, rev: u32) -> Result<Change, StoreError> {
         self.switch_to(work, node, rev, false, HUMAN).await.map(|s| s.change)
     }
 
-    /// Eigene Fassung auf der Basis `based_on` speichern (atomar): neue Revision vom Menschen, sofort
-    /// `current`, Elternteil = `based_on`. CRLF wird zu LF. Gleicher Text wie die Basis oder wie die
-    /// aktuelle Fassung → `Ok(None)`. Unbekannte Basis → `UnknownRevision`.
+    /// Save a revision of one's own on the base `based_on` (atomic): new revision by the human, `current` at once,
+    /// parent = `based_on`. CRLF becomes LF. Same text as the base or as the current revision → `Ok(None)`. Unknown
+    /// base → `UnknownRevision`.
     pub async fn save_human_on(
         &self,
         work: WorkId,
@@ -385,9 +383,9 @@ impl Store {
         Ok(change)
     }
 
-    /// Text und/oder Notiz einer Revision ändern (atomar, nur für den Menschen `human`) und `edited`
-    /// setzen. Status und Herkunft bleiben. CRLF wird zu LF. Keine Änderung → `Ok(None)`; leerer
-    /// Text → `Refused("Eine Fassung braucht Text.")`. `Change.before` trägt den Stand vorher.
+    /// Change text and/or note of a revision (atomic, only for the human `human`) and set `edited`. Status and origin
+    /// stay. CRLF becomes LF. No change → `Ok(None)`; empty text → `Refused("Eine Fassung braucht Text.")`.
+    /// `Change.before` carries the state before.
     pub async fn update_revision(
         &self,
         work: WorkId,
@@ -399,10 +397,10 @@ impl Store {
         self.update_revision_at(work, node, rev, edit, human, None).await
     }
 
-    /// Wie [`Store::update_revision`], mit dem Stand (`amend_seq`), den der Aufrufer geladen hatte (Runde 23a): Steht
-    /// die Fassung inzwischen auf einem anderen Stand, wird nichts geändert (`StoreError::Stale` „Veraltet: …“).
-    /// Ändert sich der Text der aktuellen oder einer schon fortgeschriebenen Fassung, entsteht ein Schritt im Verlauf
-    /// (Art 'amend') und der Stand steigt (`Change.amend_seq` nennt ihn).
+    /// Like [`Store::update_revision`], with the state (`amend_seq`) that the caller had loaded (Round 23a): if the
+    /// revision is on another state by now, nothing is changed (`StoreError::Stale` „Veraltet: …“). If the text of the
+    /// current revision or of one already amended changes, a step in the history arises (kind 'amend') and the state
+    /// rises (`Change.amend_seq` names it).
     pub async fn update_revision_at(
         &self,
         work: WorkId,
@@ -415,8 +413,8 @@ impl Store {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let change = update(&mut tx, work, node, rev, edit, human, expected_amend).await?;
         if let Some(done) = &change {
-            // Nur die aktuelle Fassung bestimmt Titel und Gliederung; eine andere Fassung zu ändern
-            // prüft nichts (sonst sperrte eine schon abweichende aktuelle Fassung jede Änderung).
+            // Only the current revision determines title and outline; changing another revision checks nothing
+            // (otherwise a current revision that already deviates would block every change).
             if done.before.as_ref().is_some_and(|b| b.status == baruch_core::RevisionStatus::Current) {
                 crate::outline::check_current_heading(&mut tx, work, node).await?;
             }
@@ -425,10 +423,10 @@ impl Store {
         Ok(change)
     }
 
-    /// Revision löschen (atomar, nur für den Menschen `human`). Die aktuelle Fassung →
-    /// `Refused("Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.")`.
-    /// Kinder hängen danach am Elternteil der gelöschten Fassung (`Change.reparented`), die Nummer
-    /// wird nie neu vergeben. `Change.before` trägt den vollständigen gelöschten Stand.
+    /// Delete a revision (atomic, only for the human `human`). The current revision → `Refused("Die aktuelle Fassung
+    /// lässt sich nicht löschen; erst auf eine andere umschalten.")`. Afterwards children hang on the parent of the
+    /// deleted revision (`Change.reparented`), the number is never assigned again. `Change.before` carries the complete
+    /// deleted state.
     pub async fn delete_revision(
         &self,
         work: WorkId,
@@ -442,8 +440,8 @@ impl Store {
         Ok(change)
     }
 
-    /// Baum aller Fassungen (ohne Text): alle Abschnitte nach seq, je Abschnitt die Revisionen nach
-    /// Nummer. Unbekanntes Werk → `UnknownWork`.
+    /// Tree of all revisions (without text): all sections by seq, per section the revisions by number. Unknown work →
+    /// `UnknownWork`.
     pub async fn revision_tree(&self, work: WorkId) -> Result<Vec<NodeRevisions>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         tree(&mut conn, work).await

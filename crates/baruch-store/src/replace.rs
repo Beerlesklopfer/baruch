@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werkweites Ersetzen und Rückgängig (Runde 30a, Migration 0047).
+//! Work-wide replacing and undo (Round 30a, migration 0047).
 //!
-//! Ein Ersetzen legt je Abschnitt eine neue Fassung vom Menschen an (nur wenn die aktuelle Fassung noch die Basis
-//! ist) und protokolliert alles in einer Zeile `replace_batch` (lokal: keine uuid, nicht im Austauschformat).
-//! „Rückgängig“ schaltet je Abschnitt zurück, solange die neue Fassung noch aktuell ist, und setzt `undone`.
+//! A replacement creates a new revision by the human per section (only if the current revision is still the base) and
+//! logs everything in one row `replace_batch` (local: no uuid, not in the exchange format). „Rückgängig“ (undo)
+//! switches back per section as long as the new revision is still current, and sets `undone`.
 //!
-//! Den neuen Text je Abschnitt rechnet der Server (`search/`); der Store prüft nur Basis, Überschrift und Grenzen.
-//! Jeder Abschnitt läuft unter einem eigenen Sicherungspunkt: Passt seine Überschrift nicht mehr, wird nur er
-//! zurückgerollt und mit Grund übersprungen, alles andere bleibt in derselben Transaktion.
+//! The new text per section is computed by the server (`search/`); the store only checks base, heading and limits.
+//! Every section runs under a savepoint of its own: if its heading no longer fits, only it is rolled back and skipped
+//! with a reason, everything else stays in the same transaction.
 
 use sqlx::SqliteConnection;
 
 use crate::{Change, Store, StoreError, WorkId, write};
 
-/// Ein Abschnitt eines Ersetzens: fester Schlüssel, Fassung vorher, neue Fassung.
+/// A section of a replacement: fixed key, revision before, new revision.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ReplaceItem {
     pub key: i64,
@@ -21,7 +21,7 @@ pub struct ReplaceItem {
     pub new_rev: u32,
 }
 
-/// Ein protokolliertes Ersetzen (`replace_batch`).
+/// A logged replacement (`replace_batch`).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ReplaceBatch {
     pub id: i64,
@@ -30,18 +30,18 @@ pub struct ReplaceBatch {
     pub query: String,
     pub replacement: String,
     pub items: Vec<ReplaceItem>,
-    /// Zeitpunkt des Rückgängigmachens; `None` = noch gültig.
+    /// Point in time of the undo; `None` = still valid.
     pub undone: Option<String>,
 }
 
-/// Ein übersprungener Abschnitt mit Grund (deutsch).
+/// A skipped section with its reason (German).
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ReplaceSkip {
     pub key: i64,
     pub reason: String,
 }
 
-/// Neuer Text eines Abschnitts auf der Basis `base_rev`.
+/// New text of a section on the base `base_rev`.
 #[derive(Debug, Clone, Copy)]
 pub struct ReplaceEdit<'a> {
     pub key: i64,
@@ -49,21 +49,21 @@ pub struct ReplaceEdit<'a> {
     pub body: &'a str,
 }
 
-/// Höchstens so viele Abschnitte je Ersetzen (Vertrag §3.1).
+/// At most this many sections per replacement (contract §3.1).
 pub const MAX_REPLACE_SECTIONS: usize = 500;
-/// Höchstlänge des Suchtexts in Zeichen (Vertrag §3.1, CHECK in Migration 0047).
+/// Maximum length of the search text in characters (contract §3.1, CHECK in migration 0047).
 pub const MAX_QUERY_CHARS: usize = 500;
-/// Höchstlänge des Ersatztexts in Zeichen.
+/// Maximum length of the replacement text in characters.
 pub const MAX_REPLACEMENT_CHARS: usize = 2000;
 
-/// Unbekanntes Werk → `UnknownWork`.
+/// Unknown work → `UnknownWork`.
 async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Abschnitt (seq) zum festen Schlüssel `key` im Werk; `None` = gibt es nicht (mehr).
+/// Section (seq) for the fixed key `key` in the work; `None` = does not exist (any longer).
 async fn seq_of(conn: &mut SqliteConnection, work: WorkId, key: i64) -> Result<Option<usize>, StoreError> {
     let seq: Option<i64> = sqlx::query_scalar("SELECT seq FROM node WHERE id = ? AND work_id = ?")
         .bind(key)
@@ -73,19 +73,19 @@ async fn seq_of(conn: &mut SqliteConnection, work: WorkId, key: i64) -> Result<O
     seq.map(|s| crate::to_usize(s, "seq")).transpose()
 }
 
-/// Nummer der aktuellen Fassung des Abschnitts `node`; `None` ohne Revisionen.
+/// Number of the current revision of the section `node`; `None` without revisions.
 async fn current_number(conn: &mut SqliteConnection, work: WorkId, node: usize) -> Result<Option<u32>, StoreError> {
     let node_id = write::node_id(conn, work, node).await?;
     Ok(write::current(conn, node_id).await?.map(|(number, _, _)| number))
 }
 
-/// Sicherungspunkt für einen Abschnitt setzen.
+/// Set a savepoint for a section.
 async fn savepoint(conn: &mut SqliteConnection) -> Result<(), StoreError> {
     sqlx::query("SAVEPOINT replace_step").execute(&mut *conn).await?;
     Ok(())
 }
 
-/// Sicherungspunkt lösen; ohne `keep` vorher alles seit ihm zurückrollen.
+/// Release the savepoint; without `keep` roll back everything since it first.
 async fn release(conn: &mut SqliteConnection, keep: bool) -> Result<(), StoreError> {
     if !keep {
         sqlx::query("ROLLBACK TO replace_step").execute(&mut *conn).await?;
@@ -94,8 +94,8 @@ async fn release(conn: &mut SqliteConnection, keep: bool) -> Result<(), StoreErr
     Ok(())
 }
 
-/// Grund für einen Fehler, der nur diesen Abschnitt überspringt (Überschrift passt nicht, Titelregeln, Fassung weg);
-/// andere Fehler (Datenbank, kaputte Daten) brechen alles ab.
+/// Reason for an error that only skips this section (heading does not fit, title rules, revision gone); other errors
+/// (database, broken data) abort everything.
 fn skip_reason(error: &StoreError) -> Option<String> {
     match error {
         StoreError::Heading(m) => Some(m.clone()),
@@ -105,15 +105,14 @@ fn skip_reason(error: &StoreError) -> Option<String> {
 }
 
 impl Store {
-    /// Eine Transaktion: je Abschnitt eine neue Fassung vom Menschen `human` auf `base_rev` (nur wenn die aktuelle
-    /// Fassung noch `base_rev` ist, sonst `ReplaceSkip`), Überschriften wie beim Speichern, ein `replace_batch`.
+    /// One transaction: per section a new revision by the human `human` on `base_rev` (only if the current revision is
+    /// still `base_rev`, otherwise `ReplaceSkip`), headings as when saving, one `replace_batch`.
     ///
-    /// Übersprungen (mit deutschem Grund) werden: unbekannte Schlüssel, Abschnitte, deren aktuelle Fassung nicht mehr
-    /// `base_rev` ist, unveränderte Texte und Texte, deren Überschrift nicht mehr zum Gliederungspunkt passt (andere
-    /// Ebene, keine oder weitere Überschriften – die Prüfung von [`Store::save_human_on`]); ein geänderter Titel
-    /// derselben Ebene benennt den Punkt um. `query` 1–500 Zeichen, `replacement` höchstens 2000, höchstens 500
-    /// Abschnitte, jeder höchstens einmal → sonst `Replace` ohne Änderung. Auch wenn alles übersprungen wird, entsteht
-    /// eine (leere) Zeile `replace_batch`.
+    /// Skipped (with a German reason) are: unknown keys, sections whose current revision is no longer `base_rev`,
+    /// unchanged texts and texts whose heading no longer fits the outline item (another level, no heading or further
+    /// headings – the check of [`Store::save_human_on`]); a changed title of the same level renames the item. `query`
+    /// 1–500 characters, `replacement` at most 2000, at most 500 sections, each at most once → otherwise `Replace`
+    /// without a change. Even if everything is skipped, an (empty) row `replace_batch` is created.
     pub async fn replace_apply(
         &self,
         work: WorkId,
@@ -218,12 +217,11 @@ impl Store {
         Ok((batch, changes, skipped))
     }
 
-    /// Eine Transaktion: je Eintrag zurück auf `prev_rev`, nur wenn `new_rev` noch aktuell ist; setzt `undone`.
+    /// One transaction: per entry back to `prev_rev`, only if `new_rev` is still current; sets `undone`.
     ///
-    /// Zurück heißt Umschalten der Markierung „aktuell“ (wie `revision.set_current`); die Gliederung folgt der
-    /// Überschrift der vorigen Fassung. Übersprungen (mit Grund) werden Abschnitte, die es nicht mehr gibt, deren
-    /// aktuelle Fassung nicht mehr `new_rev` ist oder deren vorige Fassung nicht mehr passt. Schon rückgängig gemacht
-    /// → `Replace` ohne Änderung.
+    /// Back means switching the "current" marker (like `revision.set_current`); the outline follows the heading of the
+    /// previous revision. Skipped (with a reason) are sections that no longer exist, whose current revision is no
+    /// longer `new_rev` or whose previous revision no longer fits. Already undone → `Replace` without a change.
     pub async fn replace_undo(
         &self,
         work: WorkId,
@@ -279,7 +277,7 @@ impl Store {
         Ok((ReplaceBatch { undone: Some(undone), ..found }, skipped))
     }
 
-    /// Das Ersetzen `batch` des Werks; fremdes Werk oder unbekannt → `Replace` mit Meldung, unbekanntes Werk →
+    /// The replacement `batch` of the work; foreign work or unknown → `Replace` with a message, unknown work →
     /// `UnknownWork`.
     pub async fn replace_batch(&self, work: WorkId, batch: i64) -> Result<ReplaceBatch, StoreError> {
         type BatchRow = (i64, i64, String, String, String, String, Option<String>);
@@ -300,7 +298,7 @@ impl Store {
         Ok(ReplaceBatch { id, work, created, query, replacement, items, undone })
     }
 
-    /// Das jüngste Ersetzen des Werks, das noch nicht rückgängig gemacht ist (für „Rückgängig“ auf `/suche`).
+    /// The most recent replacement of the work that is not yet undone (for „Rückgängig“ on `/suche`).
     pub async fn replace_latest(&self, work: WorkId) -> Result<Option<ReplaceBatch>, StoreError> {
         let id: Option<i64> = sqlx::query_scalar(
             "SELECT id FROM replace_batch WHERE work_id = ? AND undone IS NULL ORDER BY id DESC LIMIT 1",

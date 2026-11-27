@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Treffer der Bedeutungssuche als Belege je Persona (Migration 0032, Vertrag Runde 12 §4): eine Zeile in
-//! `persona_rag` mit `enabled` 0/1, keine Zeile = aus. Wer den Schalter nutzen darf (nur `@belege` und der
-//! Lektor), prüft der Server; der Store hält nur den Wert. Kein Buchtext, darum kein Commit im Spiegel.
-//! `PersonaRow` bleibt unverändert. Handles wie bei den übrigen Personen-Funktionen mit oder ohne `@`.
+//! Hits of the semantic search as evidence per persona (migration 0032, contract Round 12 §4): one row in `persona_rag`
+//! with `enabled` 0/1, no row = off. Who may use the switch (only `@belege` and the lector) is checked by the server;
+//! the store only holds the value. Not book text, therefore no commit in the mirror. `PersonaRow` stays unchanged.
+//! Handles as in the other persona functions, with or without `@`.
 
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError};
 
-/// Meldung bei unbekannter Persona.
+/// Message for an unknown persona.
 const UNKNOWN: &str = "Diese Persona gibt es nicht.";
 
-/// id der Persona (Handle wie eingegeben oder mit vorangestelltem `@`).
+/// id of the persona (handle as entered or with a leading `@`).
 async fn persona_id(conn: &mut SqliteConnection, handle: &str) -> Result<Option<i64>, StoreError> {
     let wanted = handle.trim();
     let mut candidates = vec![wanted.to_owned()];
@@ -31,8 +31,7 @@ async fn persona_id(conn: &mut SqliteConnection, handle: &str) -> Result<Option<
 }
 
 impl Store {
-    /// Bekommt die Persona Treffer der Bedeutungssuche als Belege? Keine Zeile = `false`; unbekannte
-    /// Persona → `Refused`.
+    /// Does the persona get hits of the semantic search as evidence? No row = `false`; unknown persona → `Refused`.
     pub async fn persona_rag(&self, handle: &str) -> Result<bool, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let id = persona_id(&mut conn, handle).await?.ok_or(StoreError::Refused(UNKNOWN))?;
@@ -43,8 +42,8 @@ impl Store {
         Ok(enabled == Some(1))
     }
 
-    /// Schalter setzen (eine Transaktion, `BEGIN IMMEDIATE`) und den neuen Wert zurückgeben; unbekannte
-    /// Persona → `Refused`, dann bleibt alles, wie es ist.
+    /// Set the switch (one transaction, `BEGIN IMMEDIATE`) and return the new value; unknown persona → `Refused`, then
+    /// everything stays as it is.
     pub async fn set_persona_rag(&self, handle: &str, on: bool) -> Result<bool, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let id = persona_id(&mut tx, handle).await?.ok_or(StoreError::Refused(UNKNOWN))?;

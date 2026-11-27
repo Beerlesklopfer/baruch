@@ -1,30 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Weltweit eindeutige Kennungen (Runde 26, Migration 0041; Schnittstelle S1, danach gehört das Modul ids).
+//! Globally unique identifiers (Round 26, migration 0041; interface S1, afterwards the module belongs to ids).
 //!
-//! - Werk, Gliederungspunkt, Fassung, Vorlagenfassung, Beitrag, Einfall, Faden, Fadenbeitrag, Bild und
-//!   Bildfassung tragen eine Spalte `uuid` (kanonisch klein 8-4-4-4-12). Neue Zeilen bekommen sie über den
-//!   Trigger `<T>_uuid_fill` als v4; Zahlen-ids bleiben intern.
-//!   Seit Runde 25 (Migration 0043) ebenso Verbindungen (`idea_link`) und Lagen (`idea_map_pos`) der
-//!   Gedankenkarte.
-//! - Gelöschte Zeilen hinterlassen einen Grabstein in `uuid_tombstone` (Arten aus 0041 und `idea_link`,
-//!   `idea_map_pos` aus 0043).
-//! - Instanz: `store_meta.instance_uuid` (aus der Migration) und `store_meta.instance_name` (Vorgabe leer).
-//! - Neue Zeilen bekommen ihre uuid nur über die Trigger; kein Schreibweg des Stores nennt die Spalte.
-//! - Nur `exchange_apply` setzt eine uuid selbst, und nur auf einer Zeile, die es in derselben Transaktion
-//!   angelegt hat.
+//! - Work, outline item, revision, template revision, post, idea, thread, thread post, image and image version carry a
+//!   column `uuid` (canonical lower case 8-4-4-4-12). New rows get it through the trigger `<T>_uuid_fill` as v4;
+//!   numeric ids stay internal. Since Round 25 (migration 0043) likewise links (`idea_link`) and positions
+//!   (`idea_map_pos`) of the mind map.
+//! - Deleted rows leave a tombstone in `uuid_tombstone` (kinds from 0041 and `idea_link`, `idea_map_pos` from 0043).
+//! - Instance: `store_meta.instance_uuid` (from the migration) and `store_meta.instance_name` (default empty).
+//! - New rows get their uuid only through the triggers; no write path of the store names the column.
+//! - Only `exchange_apply` sets a uuid itself, and only on a row that it created in the same transaction.
 
 use crate::{Store, StoreError, WorkId};
 
-/// Kennung und Name dieser Instanz.
+/// Identifier and name of this instance.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Instance {
     pub uuid: String,
-    /// Leer = ohne Namen (angezeigt als „ohne Namen (<erste 8 Zeichen>)“).
+    /// Empty = without a name (displayed as „ohne Namen (<first 8 characters>)“).
     pub name: String,
 }
 
 impl Instance {
-    /// Anzeigename: der Name, ohne Namen „ohne Namen (<erste 8 Zeichen der UUID>)“.
+    /// Display name: the name, without a name „ohne Namen (<first 8 characters of the UUID>)“.
     pub fn label(&self) -> String {
         if self.name.is_empty() {
             format!("ohne Namen ({})", self.uuid.chars().take(8).collect::<String>())
@@ -34,8 +31,8 @@ impl Instance {
     }
 }
 
-/// Instanzname prüfen: getrimmt, höchstens [`MAX_INSTANCE_NAME_CHARS`] Zeichen, keine Steuerzeichen (auch
-/// keine Zeilenumbrüche oder Tabs im Namen). Leer bleibt leer (= zurücksetzen).
+/// Check the instance name: trimmed, at most [`MAX_INSTANCE_NAME_CHARS`] characters, no control characters (no line
+/// breaks or tabs in the name either). Empty stays empty (= reset).
 pub(crate) fn check_instance_name(name: &str) -> Result<String, StoreError> {
     let name = name.trim();
     let chars = name.chars().count();
@@ -53,10 +50,10 @@ pub(crate) fn check_instance_name(name: &str) -> Result<String, StoreError> {
     Ok(name.to_owned())
 }
 
-/// Höchstlänge des Instanznamens in Zeichen.
+/// Maximum length of the instance name in characters.
 pub const MAX_INSTANCE_NAME_CHARS: usize = baruch_exchange::MAX_INSTANCE_NAME_CHARS;
 
-/// Neue zufällige UUID Version 4 (Variante 10) in kanonischer Kleinschreibung.
+/// New random UUID version 4 (variant 10) in canonical lower case.
 pub fn new_uuid() -> String {
     let mut bytes = [0u8; 16];
     getrandom::getrandom(&mut bytes).expect("Kein Zufall vom Betriebssystem für eine UUID");
@@ -67,7 +64,7 @@ pub fn new_uuid() -> String {
 }
 
 impl Store {
-    /// Kennung und Name dieser Instanz.
+    /// Identifier and name of this instance.
     pub async fn instance(&self) -> Result<Instance, StoreError> {
         let uuid: Option<String> = sqlx::query_scalar("SELECT value FROM store_meta WHERE key = 'instance_uuid'")
             .fetch_optional(&self.pool)
@@ -79,9 +76,9 @@ impl Store {
         Ok(Instance { uuid, name: name.unwrap_or_default() })
     }
 
-    /// Namen der Instanz setzen (getrimmt, höchstens [`MAX_INSTANCE_NAME_CHARS`] Zeichen, keine Steuerzeichen,
-    /// leer = zurücksetzen).
-    /// Ungültig → `StoreError::Exchange` mit deutscher Meldung (RPC: `INVALID_PARAMS`), nichts gespeichert.
+    /// Set the name of the instance (trimmed, at most [`MAX_INSTANCE_NAME_CHARS`] characters, no control characters,
+    /// empty = reset).
+    /// Invalid → `StoreError::Exchange` with a German message (RPC: `INVALID_PARAMS`), nothing stored.
     pub async fn set_instance_name(&self, name: &str) -> Result<Instance, StoreError> {
         let name = check_instance_name(name)?;
         if name.is_empty() {
@@ -98,7 +95,7 @@ impl Store {
         self.instance().await
     }
 
-    /// UUID eines Werks; unbekannt → `UnknownWork`.
+    /// UUID of a work; unknown → `UnknownWork`.
     pub async fn work_uuid(&self, work: WorkId) -> Result<String, StoreError> {
         sqlx::query_scalar("SELECT uuid FROM work WHERE id = ?")
             .bind(work)
@@ -107,12 +104,12 @@ impl Store {
             .ok_or(StoreError::UnknownWork(work))
     }
 
-    /// Werk zur UUID, falls es hier eines gibt.
+    /// Work for the UUID, if there is one here.
     pub async fn work_by_uuid(&self, uuid: &str) -> Result<Option<WorkId>, StoreError> {
         Ok(sqlx::query_scalar("SELECT id FROM work WHERE uuid = ?").bind(uuid).fetch_optional(&self.pool).await?)
     }
 
-    /// Fester Schlüssel (`key` = `node.id`) des Gliederungspunkts mit dieser UUID im Werk.
+    /// Fixed key (`key` = `node.id`) of the outline item with this UUID in the work.
     pub async fn node_key_by_uuid(&self, work: WorkId, uuid: &str) -> Result<Option<i64>, StoreError> {
         Ok(sqlx::query_scalar("SELECT id FROM node WHERE work_id = ? AND uuid = ?")
             .bind(work)
@@ -121,7 +118,7 @@ impl Store {
             .await?)
     }
 
-    /// UUID des Gliederungspunkts mit dem festen Schlüssel `key`; nicht (mehr) im Werk → `GoneNode`.
+    /// UUID of the outline item with the fixed key `key`; not (any longer) in the work → `GoneNode`.
     pub async fn node_uuid(&self, work: WorkId, key: i64) -> Result<String, StoreError> {
         sqlx::query_scalar("SELECT uuid FROM node WHERE work_id = ? AND id = ?")
             .bind(work)
@@ -140,19 +137,19 @@ mod tests {
     fn new_uuids_are_canonical_v4() {
         let a = new_uuid();
         let b = new_uuid();
-        // Kanonisch klein 8-4-4-4-12, sonst lehnte der CHECK der Spalte bzw. der Leser sie ab.
+        // Canonical lower case 8-4-4-4-12, otherwise the CHECK of the column or the reader would reject it.
         assert!(baruch_exchange::is_uuid(&a), "kanonisch: {a}");
-        // Version 4 an Stelle 14, Variante 10 (8, 9, a oder b) an Stelle 19 (RFC 9562).
+        // Version 4 at position 14, variant 10 (8, 9, a or b) at position 19 (RFC 9562).
         assert_eq!(&a[14..15], "4", "Version 4: {a}");
         assert!(matches!(&a[19..20], "8" | "9" | "a" | "b"), "Variante 10: {a}");
-        // Zufall: zwei Aufrufe ergeben verschiedene Kennungen.
+        // Randomness: two calls yield different identifiers.
         assert_ne!(a, b, "zwei neue Kennungen sind verschieden");
     }
 
     #[tokio::test]
     async fn migration_0041_fills_uuids_and_leaves_tombstones() {
         let data = tempfile::tempdir().unwrap();
-        // Neue Datenbank: Saat mit dem Beispielwerk, danach laufen die Trigger `<T>_uuid_fill` für jede Zeile.
+        // New database: seeding with the sample work, afterwards the triggers `<T>_uuid_fill` run for every row.
         let store = Store::open(data.path()).await.unwrap();
         let instance = store.instance().await.unwrap();
         assert!(baruch_exchange::is_uuid(&instance.uuid), "Instanzkennung aus der Migration: {}", instance.uuid);
@@ -162,7 +159,7 @@ mod tests {
         let uuid = store.work_uuid(work).await.unwrap();
         assert!(baruch_exchange::is_uuid(&uuid), "Werk-UUID kanonisch: {uuid}");
         assert_eq!(store.work_by_uuid(&uuid).await.unwrap(), Some(work), "Werk über seine UUID");
-        // Jede Zeile jeder Tabelle mit Werkinhalt hat eine UUID (Fülltrigger).
+        // Every row of every table with work content has a UUID (fill trigger).
         for table in ["work", "node", "revision", "work_template_revision", "post"] {
             let missing: i64 =
                 sqlx::query_scalar(sqlx::AssertSqlSafe(format!("SELECT count(*) FROM {table} WHERE uuid IS NULL")))
@@ -182,7 +179,7 @@ mod tests {
             matches!(store.node_uuid(work, -1).await, Err(StoreError::GoneNode { .. })),
             "unbekannter Schlüssel → GoneNode"
         );
-        // Löschen des ganzen Werks hinterlässt Grabsteine für Werk und Punkte (Trigger `<T>_uuid_tombstone`).
+        // Deleting the whole work leaves tombstones for work and items (trigger `<T>_uuid_tombstone`).
         store.delete_work(work, &title).await.unwrap();
         let kinds: Vec<(String, Option<String>)> =
             sqlx::query_as("SELECT kind, work_uuid FROM uuid_tombstone WHERE uuid IN (?, ?) ORDER BY kind")

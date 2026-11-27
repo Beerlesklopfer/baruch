@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Sammlungen je Werk und Remote-Weg (Migration `0031_rag_collections.sql`, Runde 12, Aufgabe „pgvector“):
-//! welche Sammlungen von pgvector bzw. MultiGPT die Bedeutungssuche eines Werks durchsucht. Keine Zeile =
-//! keine Sammlung gewählt, der Weg bleibt „aus“. LanceDB hat keine Sammlungen (→ [`StoreError::Refused`]).
+//! Collections per work and remote way (migration `0031_rag_collections.sql`, Round 12, task "pgvector"): which
+//! collections of pgvector or MultiGPT the semantic search of a work searches. No row = no collection chosen, the way
+//! stays "off". LanceDB has no collections (→ [`StoreError::Refused`]).
 //!
-//! Reihenfolge: `position` 1..n lückenlos je (Werk, Weg); [`Store::set_work_collections`] ersetzt die ganze
-//! Liste in einer Transaktion (`BEGIN IMMEDIATE`). Kein Buchtext, darum kein Commit im Spiegel.
+//! Order: `position` 1..n without gaps per (work, way); [`Store::set_work_collections`] replaces the whole list in one
+//! transaction (`BEGIN IMMEDIATE`). Not book text, therefore no commit in the mirror.
 
 use crate::{RagWay, Store, StoreError, WorkId};
 
-/// Höchstens so viele Sammlungen je Werk und Weg.
+/// At most this many collections per work and way.
 const MAX_COLLECTIONS: usize = 100;
-/// Längster Name einer Sammlung (Zeichen).
+/// Longest name of a collection (characters).
 const MAX_COLLECTION_CHARS: usize = 200;
 
-/// Nur die Remote-Wege haben Sammlungen.
+/// Only the remote ways have collections.
 fn remote(way: RagWay) -> Result<&'static str, StoreError> {
     match way {
         RagWay::Lancedb => Err(StoreError::Refused("LanceDB hat keine Sammlungen (nur pgvector und MultiGPT).")),
@@ -21,8 +21,8 @@ fn remote(way: RagWay) -> Result<&'static str, StoreError> {
     }
 }
 
-/// Namen beschneiden, Doppelte entfernen (der erste gewinnt); jeder 1..=200 Zeichen in einer Zeile,
-/// höchstens 100 Namen, sonst `Refused`.
+/// Trim the names, remove duplicates (the first one wins); each 1..=200 characters on one line, at most 100 names,
+/// otherwise `Refused`.
 fn clean_collections(collections: &[String]) -> Result<Vec<String>, StoreError> {
     let mut out: Vec<String> = Vec::new();
     for name in collections {
@@ -42,8 +42,8 @@ fn clean_collections(collections: &[String]) -> Result<Vec<String>, StoreError> 
 }
 
 impl Store {
-    /// Gewählte Sammlungen eines Werks für einen Remote-Weg, in ihrer Reihenfolge (leer = keine gewählt).
-    /// `RagWay::Lancedb` → `Refused`; unbekanntes Werk → `UnknownWork`.
+    /// Chosen collections of a work for a remote way, in their order (empty = none chosen). `RagWay::Lancedb` →
+    /// `Refused`; unknown work → `UnknownWork`.
     pub async fn work_collections(&self, work: WorkId, way: RagWay) -> Result<Vec<String>, StoreError> {
         let way = remote(way)?;
         let mut conn = self.pool.acquire().await?;
@@ -59,9 +59,8 @@ impl Store {
         .await?)
     }
 
-    /// Sammlungen eines Werks für einen Remote-Weg ersetzen ([`clean_collections`]; leer = keine). Liefert
-    /// die gespeicherte Liste. `RagWay::Lancedb` oder ungültige Namen → `Refused` (nichts geändert);
-    /// unbekanntes Werk → `UnknownWork`.
+    /// Replace the collections of a work for a remote way ([`clean_collections`]; empty = none). Returns the stored
+    /// list. `RagWay::Lancedb` or invalid names → `Refused` (nothing changed); unknown work → `UnknownWork`.
     pub async fn set_work_collections(
         &self,
         work: WorkId,

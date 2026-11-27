@@ -1,30 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Anträge zu Bildern (Migration 0018, Vertrag Runde 11; Muster [`crate::OutlineRequest`]).
+//! Requests concerning images (migration 0018, contract Round 11; pattern [`crate::OutlineRequest`]).
 //!
-//! Assistenten und MCP-Clients legen Bilder sofort an (MCP `asset_add`), aber **Ersetzen**, **als
-//! Umschlag setzen bzw. Umschlag entfernen**, **Löschen** und seit Runde 27 **die Umschlag-Anordnung ändern**
-//! (MCP `cover_layout_set`, op `cover_layout`) ändern nichts sofort:
-//! [`Store::asset_request`] legt einen Antrag an. Der Mensch bestätigt oder lehnt ab; ausgeführt wird
-//! ein bestätigter Antrag im Server (Bild über die Funktionen des Stores, Umschlag über
-//! `work.set_cover`), danach hält [`Store::asset_request_decide`] die Entscheidung fest.
+//! Assistants and MCP clients create images at once (MCP `asset_add`), but **replacing**, **setting as cover or
+//! removing the cover**, **deleting** and, since Round 27, **changing the cover layout** (MCP `cover_layout_set`, op
+//! `cover_layout`) change nothing at once: [`Store::asset_request`] creates a request. The human confirms or rejects; a
+//! confirmed request is executed in the server (image through the functions of the store, cover through
+//! `work.set_cover`), afterwards [`Store::asset_request_decide`] records the decision.
 //!
-//! Regeln:
-//! - Beim Antrag wird geprüft, was jetzt schon nicht ginge (unbekanntes Bild, kaputter oder zu großer
-//!   Inhalt, anderer Bildtyp, unverändertes Bild, aktuelle Fassung löschen); dann gibt es keinen Antrag.
-//! - Der Antrag merkt sich den Stand: `expected_sha256` (SHA-256 der aktuellen bzw. der genannten
-//!   Fassung; leer übergeben = der Store trägt ihn ein) bzw. `expected_cover` (Umschlag beim Antrag) bzw.
-//!   `expected_layout` (Fingerabdruck der gespeicherten Anordnung, [`Store::cover_layout_fingerprint`]; leer
-//!   übergeben = der Store trägt ihn ein). Ein Antrag zur Anordnung prüft jeden Block wie
-//!   [`crate::check_cover_block`] (gespeichert in Normalform) und wird abgelehnt, wenn er nichts ändern würde.
-//!   Passt er beim Bestätigen nicht mehr, schließt der Server den Antrag als `stale` mit Grund.
-//! - Ein gleicher offener Antrag wird nicht doppelt angelegt; über einen Antrag wird genau einmal
-//!   entschieden. Herkunft ist immer eine Persona oder ein MCP-Client (der Mensch ändert direkt).
-//! - **Runde 21c:** Ein Antrag zum Ersetzen darf das Format wechseln, wenn er es ausdrücklich sagt (`rename`,
-//!   [`Store::asset_request_with`]); beim Bestätigen bekommt das Bild dann die neue Endung
-//!   ([`Store::replace_asset_renaming`]). Der Inhalt entschiedener Anträge zum Ersetzen wird nach
-//!   [`ASSET_REQUEST_PURGE_DAYS`] Tagen entfernt ([`Store::purge_decided_asset_requests`], `purged`; Größe bleibt).
-//!   [`Store::asset_mcp_usage`] zählt aus den vorhandenen Zeilen, was ein Antragsteller in den letzten 24 Stunden
-//!   geschrieben hat (Kontingent der MCP-Werkzeuge, Grenzen im Server).
+//! Rules:
+//! - On the request it is checked what would not work even now (unknown image, broken or too large content, another
+//!   image type, unchanged image, deleting the current version); then there is no request.
+//! - The request remembers the state: `expected_sha256` (SHA-256 of the current or of the named version; passed empty =
+//!   the store enters it) or `expected_cover` (cover at the time of the request) or `expected_layout` (fingerprint of
+//!   the stored layout, [`Store::cover_layout_fingerprint`]; passed empty = the store enters it). A request concerning
+//!   the layout checks every block like [`crate::check_cover_block`] (stored in normal form) and is rejected if it
+//!   would change nothing. If it no longer matches on confirmation, the server closes the request as `stale` with a
+//!   reason.
+//! - An identical open request is not created twice; a request is decided exactly once. The origin is always a persona
+//!   or an MCP client (the human changes directly).
+//! - **Round 21c:** a request to replace may change the format if it says so explicitly (`rename`,
+//!   [`Store::asset_request_with`]); on confirmation the image then gets the new extension
+//!   ([`Store::replace_asset_renaming`]). The content of decided requests to replace is removed after
+//!   [`ASSET_REQUEST_PURGE_DAYS`] days ([`Store::purge_decided_asset_requests`], `purged`; the size stays).
+//!   [`Store::asset_mcp_usage`] counts from the existing rows what a requester has written in the last 24 hours (quota
+//!   of the MCP tools, limits in the server).
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
@@ -34,36 +33,36 @@ use crate::{
     detect_mime,
 };
 
-/// Was ein Antrag zu einem Bild will.
+/// What a request concerning an image wants.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum AssetOp {
-    /// Bild `name` durch neuen Inhalt ersetzen (neue Fassung, beim Bestätigen sofort aktuell).
+    /// Replace the image `name` with new content (new version, current at once on confirmation).
     Replace {
         name: String,
-        /// MIME-Typ des neuen Inhalts (leer übergeben = erkannt).
+        /// MIME type of the new content (passed empty = detected).
         mime: String,
         encoding: AssetEncoding,
-        /// Base64 bzw. SVG-Text; in Antworten weggelassen (bis 8 MiB), dort steht `bytes`.
+        /// Base64 or SVG text; left out in answers (up to 8 MiB), `bytes` stands there.
         #[serde(skip_serializing)]
         content: String,
-        /// Größe entschlüsselt (vom Store eingetragen).
+        /// Size decoded (entered by the store).
         bytes: u64,
         caption: Option<String>,
         alt: Option<String>,
         expected_sha256: String,
     },
-    /// Bild `name` als Umschlag setzen (`None` = Umschlag entfernen).
+    /// Set the image `name` as the cover (`None` = remove the cover).
     SetCover { name: Option<String>, expected_cover: Option<String> },
-    /// Bild `name` ganz (`rev` = `None`) bzw. eine nicht aktuelle Fassung löschen.
+    /// Delete the image `name` completely (`rev` = `None`) or a version that is not current.
     Delete { name: String, rev: Option<u32>, expected_sha256: String },
-    /// Umschlag-Anordnung ändern (Runde 27): jeder Block ersetzt seine Art ganz. `expected_layout` ist der
-    /// Fingerabdruck der gespeicherten Anordnung beim Antrag (Bildung: umschlag-daten).
+    /// Change the cover layout (Round 27): every block replaces its kind completely. `expected_layout` is the
+    /// fingerprint of the stored layout at the time of the request (how it is formed: umschlag-daten).
     CoverLayout { blocks: Vec<CoverBlock>, expected_layout: String },
 }
 
 impl AssetOp {
-    /// Wert der Spalte `op`.
+    /// Value of the column `op`.
     pub fn name(&self) -> &'static str {
         match self {
             AssetOp::Replace { .. } => "replace",
@@ -73,7 +72,7 @@ impl AssetOp {
         }
     }
 
-    /// Wert der Spalte `asset_name` (bei „Umschlag entfernen“ leer).
+    /// Value of the column `asset_name` (empty for "remove the cover").
     pub fn asset_name(&self) -> &str {
         match self {
             AssetOp::Replace { name, .. } | AssetOp::Delete { name, .. } => name,
@@ -83,53 +82,53 @@ impl AssetOp {
     }
 }
 
-/// Tage nach der Entscheidung, nach denen der Inhalt eines Antrags zum Ersetzen entfernt wird (Runde 21c).
+/// Days after the decision after which the content of a request to replace is removed (Round 21c).
 pub const ASSET_REQUEST_PURGE_DAYS: u32 = 30;
 
-/// Was ein Antragsteller (Persona bzw. MCP-Client, `origin_name`) in einem Werk in den letzten 24 Stunden über
-/// MCP geschrieben hat ([`Store::asset_mcp_usage`], Runde 21c), gezählt aus vorhandenen Zeilen.
+/// What a requester (persona or MCP client, `origin_name`) has written in a work through MCP in the last 24 hours
+/// ([`Store::asset_mcp_usage`], Round 21c), counted from existing rows.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct AssetUsage {
-    /// Angelegte Bildfassungen mit diesem Autor (`asset_add`) plus Anträge zum Ersetzen (`asset_replace`).
+    /// Image versions created with this author (`asset_add`) plus requests to replace (`asset_replace`).
     pub writes: usize,
-    /// Entschlüsselte Bytes dieser Fassungen und Anträge.
+    /// Decoded bytes of these versions and requests.
     pub bytes: u64,
-    /// Offene Anträge zum Ersetzen dieses Antragstellers (gleich wie alt).
+    /// Open requests to replace by this requester (no matter how old).
     pub open_replace: usize,
 }
 
-/// Ein Antrag zu einem Bild.
+/// A request concerning an image.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct AssetRequest {
     pub id: i64,
     pub work: WorkId,
     #[serde(flatten)]
     pub op: AssetOp,
-    /// Antragsteller (Persona oder MCP-Client).
+    /// Requester (persona or MCP client).
     pub origin: IdeaOrigin,
     pub note: String,
     pub created: String,
-    /// `None` = offen.
+    /// `None` = open.
     pub decided: Option<String>,
     pub decision: Option<Decision>,
     pub decided_by: Option<String>,
     pub message: Option<String>,
-    /// Deutsch für Liste und Commit, z. B. „„haus.png“ durch eine neue Fassung ersetzen (PNG, 3,2 KiB)“.
+    /// German for list and commit, for example „„haus.png“ durch eine neue Fassung ersetzen (PNG, 3,2 KiB)“.
     pub summary: String,
-    /// Runde 21c: Ersetzen mit Typwechsel (das Bild bekommt beim Bestätigen die neue Endung).
+    /// Round 21c: replacing with a change of type (the image gets the new extension on confirmation).
     pub rename: bool,
-    /// Runde 21c: Inhalt eines entschiedenen Antrags zum Ersetzen nach [`ASSET_REQUEST_PURGE_DAYS`] Tagen entfernt.
+    /// Round 21c: content of a decided request to replace removed after [`ASSET_REQUEST_PURGE_DAYS`] days.
     pub purged: bool,
 }
 
 impl AssetRequest {
-    /// Noch nicht entschieden?
+    /// Not decided yet?
     pub fn is_open(&self) -> bool {
         self.decision.is_none()
     }
 }
 
-// ---- Gespeicherte Form in `params` (Vertrag §1) -------------------------------------------------
+// ---- Stored form in `params` (contract §1) ------------------------------------------------------
 
 #[derive(Serialize, Deserialize)]
 struct ReplaceParams {
@@ -141,10 +140,10 @@ struct ReplaceParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     alt: Option<String>,
     expected_sha256: String,
-    /// Runde 21c: Typwechsel erlaubt (fehlt in älteren Zeilen = nein).
+    /// Round 21c: change of type allowed (missing in older rows = no).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     rename: bool,
-    /// Runde 21c: Inhalt entfernt (dann `content` leer und `bytes` die Größe vorher).
+    /// Round 21c: content removed (then `content` is empty and `bytes` the size before).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     purged: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -163,7 +162,7 @@ struct CoverParams {
     expected_cover: Option<String>,
 }
 
-/// Gespeicherte Form eines Antrags zur Umschlag-Anordnung (Runde 27).
+/// Stored form of a request concerning the cover layout (Round 27).
 #[derive(Serialize, Deserialize)]
 struct LayoutParams {
     blocks: Vec<CoverBlock>,
@@ -182,7 +181,8 @@ fn params_of(op: &AssetOp, rename: bool) -> Result<String, StoreError> {
                 expected_sha256: expected_sha256.clone(),
                 rename,
                 purged: false,
-                // Runde 21c: Größe gleich mitschreiben (Kontingent ohne den Inhalt zu lesen, bleibt beim Aufräumen).
+                // Round 21c: write the size along right away (quota without reading the content, stays when cleaning
+                // up).
                 bytes: Some(*bytes),
             })
         }
@@ -199,7 +199,7 @@ fn params_of(op: &AssetOp, rename: bool) -> Result<String, StoreError> {
     text.map_err(|e| broken(format!("Bildantrag: {e}")))
 }
 
-/// `(rename, purged)` aus den gespeicherten Parametern (nur bei `replace` gesetzt).
+/// `(rename, purged)` from the stored parameters (only set for `replace`).
 fn replace_flags(op: &str, params: &str) -> (bool, bool) {
     if op != "replace" {
         return (false, false);
@@ -243,7 +243,7 @@ fn op_of(id: i64, op: &str, name: String, params: &str) -> Result<AssetOp, Store
     }
 }
 
-/// Bytes des Inhalts (Base64 entschlüsselt bzw. SVG-Text).
+/// Bytes of the content (Base64 decoded or SVG text).
 fn content_bytes(content: &str, encoding: AssetEncoding) -> Result<Vec<u8>, StoreError> {
     match encoding {
         AssetEncoding::Base64 => decode_base64(content),
@@ -262,7 +262,7 @@ fn type_word(mime: &str) -> &'static str {
     }
 }
 
-/// „512 Bytes“, „3,2 KiB“, „1,5 MiB“.
+/// "512 Bytes", "3,2 KiB", "1,5 MiB".
 fn size_text(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} Bytes")
@@ -273,7 +273,7 @@ fn size_text(bytes: u64) -> String {
     }
 }
 
-/// Zusammenfassung auf Deutsch.
+/// Summary in German.
 pub(crate) fn summary(op: &AssetOp) -> String {
     match op {
         AssetOp::Replace { name, mime, bytes, .. } => {
@@ -373,7 +373,7 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Fassungen eines Bilds (über die öffentliche Abfrage des Stores, in derselben Verbindung).
+/// Versions of an image (through the public query of the store, in the same connection).
 async fn revisions(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -399,7 +399,7 @@ async fn revisions(
         .collect()
 }
 
-/// Erwarteten Stand prüfen bzw. eintragen.
+/// Check or enter the expected state.
 fn expect(expected: &mut String, actual: &str, name: &str) -> Result<(), StoreError> {
     if expected.trim().is_empty() {
         *expected = actual.to_owned();
@@ -414,7 +414,7 @@ fn expect(expected: &mut String, actual: &str, name: &str) -> Result<(), StoreEr
     Ok(())
 }
 
-/// Antrag prüfen und vervollständigen (MIME, Größe, erwarteter Stand). Fehler = kein Antrag.
+/// Check and complete a request (MIME, size, expected state). Error = no request.
 async fn checked(conn: &mut SqliteConnection, work: WorkId, op: &AssetOp, rename: bool) -> Result<AssetOp, StoreError> {
     let mut op = op.clone();
     match &mut op {
@@ -511,17 +511,16 @@ async fn checked(conn: &mut SqliteConnection, work: WorkId, op: &AssetOp, rename
     Ok(op)
 }
 
-/// SHA-256 (hex, klein) wie in `asset_revision.sha256`.
+/// SHA-256 (hex, lower case) as in `asset_revision.sha256`.
 fn content_sha256(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
 impl Store {
-    /// Antrag zu einem Bild anlegen (atomar); Herkunft Persona oder MCP-Client (der Mensch → `Refused`).
-    /// Prüft, was jetzt schon nicht ginge (siehe Moduldoku), und trägt `bytes`, `mime` und
-    /// `expected_sha256` ein; ein gleicher offener Antrag → `Refused`. Ändert an den Bildern nichts.
-    /// Ergebnis: die id des Antrags.
+    /// Create a request concerning an image (atomic); origin persona or MCP client (the human → `Refused`). Checks what
+    /// would not work even now (see the module documentation) and enters `bytes`, `mime` and `expected_sha256`; an
+    /// identical open request → `Refused`. Changes nothing about the images. Result: the id of the request.
     pub async fn asset_request(
         &self,
         work: WorkId,
@@ -532,8 +531,8 @@ impl Store {
         self.asset_request_with(work, op, origin, note, false).await
     }
 
-    /// Wie [`Store::asset_request`]; `rename` (nur bei `Replace`, Runde 21c) erlaubt einen Typwechsel, der beim
-    /// Bestätigen den Namen auf die neue Endung umstellt.
+    /// Like [`Store::asset_request`]; `rename` (only for `Replace`, Round 21c) allows a change of type, which on
+    /// confirmation switches the name to the new extension.
     pub async fn asset_request_with(
         &self,
         work: WorkId,
@@ -582,13 +581,13 @@ impl Store {
         Ok(id)
     }
 
-    /// Ein Antrag (offen oder entschieden). Unbekannt → `UnknownRequest`.
+    /// A request (open or decided). Unknown → `UnknownRequest`.
     pub async fn asset_request_get(&self, work: WorkId, id: i64) -> Result<AssetRequest, StoreError> {
         let mut conn = self.pool.acquire().await?;
         fetch(&mut conn, work, id).await
     }
 
-    /// Anträge eines Werks nach id; `open_only` nur die offenen.
+    /// Requests of a work by id; `open_only` only the open ones.
     pub async fn asset_requests(&self, work: WorkId, open_only: bool) -> Result<Vec<AssetRequest>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -602,10 +601,10 @@ impl Store {
         rows.into_iter().map(from_row).collect()
     }
 
-    /// Inhalt entschiedener Anträge zum Ersetzen entfernen, deren Entscheidung länger als `days` Tage zurückliegt
-    /// (Runde 21c, Vorgabe [`ASSET_REQUEST_PURGE_DAYS`]): `content` wird leer, `purged` wahr, `bytes` hält die
-    /// Größe vorher; alles andere (Entscheidung, Herkunft, Begründung) bleibt. Der Server ruft das beim Listen und
-    /// Entscheiden auf. Ergebnis: Zahl der bereinigten Anträge.
+    /// Remove the content of decided requests to replace whose decision lies more than `days` days back (Round 21c,
+    /// default [`ASSET_REQUEST_PURGE_DAYS`]): `content` becomes empty, `purged` true, `bytes` keeps the size before;
+    /// everything else (decision, origin, reasoning) stays. The server calls this when listing and deciding. Result:
+    /// number of requests cleaned.
     pub async fn purge_decided_asset_requests(&self, work: WorkId, days: u32) -> Result<usize, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let rows: Vec<(i64, String)> = sqlx::query_as(
@@ -638,21 +637,21 @@ impl Store {
         Ok(purged)
     }
 
-    /// Was `origin_name` (Persona-Handle bzw. `@mcp:<Client>`) im Werk in den letzten 24 Stunden geschrieben hat
-    /// (Runde 21c, Kontingent der MCP-Bildwerkzeuge), gezählt aus vorhandenen Zeilen: Bildfassungen mit diesem
-    /// Autor (`asset_add`; bestätigte Ersetzungen schreibt der Mensch) und Anträge zum Ersetzen (gleich welche
-    /// Entscheidung). Gelöschte Bilder zählen nicht mehr mit. Dazu die offenen Anträge zum Ersetzen.
+    /// What `origin_name` (persona handle or `@mcp:<Client>`) has written in the work in the last 24 hours (Round 21c,
+    /// quota of the MCP image tools), counted from existing rows: image versions with this author (`asset_add`;
+    /// confirmed replacements are written by the human) and requests to replace (whatever the decision). Deleted images
+    /// no longer count. In addition the open requests to replace.
     pub async fn asset_mcp_usage(&self, work: WorkId, origin_name: &str) -> Result<AssetUsage, StoreError> {
         let names = serde_json::to_string(&[origin_name]).map_err(|e| broken(e.to_string()))?;
         let own = |column: &str| format!("{column} IN (SELECT value FROM json_each(?))");
         self.asset_usage(work, &own("r.author_name"), &own("origin_name"), &names).await
     }
 
-    /// Runde 23: gemeinsames Kontingent **aller MCP-Clients ohne Token** in einem Werk. Zählt wie
-    /// [`Store::asset_mcp_usage`], aber über alle Antragsteller außer dem Menschen (Bildfassungen, deren Autor mit `@`
-    /// beginnt – Personas und `@mcp:<Client>` –, und Anträge von Personas bzw. MCP-Clients) **ohne** die Namen in
-    /// `token_handles` (Handles und Alt-Handles der Tokens, auch widerrufener: die haben je Token ein eigenes
-    /// Kontingent). Ein neuer `clientInfo.name` oder ein anderes `persona` öffnet so kein neues Kontingent.
+    /// Round 23: shared quota of **all MCP clients without a token** in a work. Counts like [`Store::asset_mcp_usage`],
+    /// but across all requesters except the human (image versions whose author begins with `@` – personas and
+    /// `@mcp:<Client>` –, and requests by personas or MCP clients) **without** the names in `token_handles` (handles
+    /// and legacy handles of the tokens, also revoked ones: those have a quota of their own per token). That way a new
+    /// `clientInfo.name` or another `persona` opens no new quota.
     pub async fn asset_mcp_usage_without_token(
         &self,
         work: WorkId,
@@ -669,8 +668,8 @@ impl Store {
         .await
     }
 
-    /// Zählt für das Kontingent: `authors` schränkt die Bildfassungen ein (Alias `r`), `origins` die Anträge; beide
-    /// Bedingungen binden genau einen Parameter, die JSON-Liste `names`.
+    /// Counts for the quota: `authors` restricts the image versions (alias `r`), `origins` the requests; both
+    /// conditions bind exactly one parameter, the JSON list `names`.
     async fn asset_usage(
         &self,
         work: WorkId,
@@ -689,8 +688,8 @@ impl Store {
         .bind(names)
         .fetch_one(&mut *conn)
         .await?;
-        // Größe aus `params.bytes` (seit Runde 21c immer geschrieben); nur ältere Zeilen ohne `bytes` liefern den
-        // ganzen Inhalt zum Nachrechnen.
+        // Size from `params.bytes` (always written since Round 21c); only older rows without `bytes` return the whole
+        // content for recomputing.
         let requests: Vec<(Option<i64>, Option<String>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT json_extract(params, '$.bytes'), CASE WHEN json_extract(params, '$.bytes') IS NULL THEN params END \
              FROM asset_request WHERE work_id = ? AND op = 'replace' AND {origins} AND created >= {since}"
@@ -724,7 +723,7 @@ impl Store {
         })
     }
 
-    /// Zahl der offenen Anträge zu Bildern (Hinweise in der Oberfläche).
+    /// Number of open requests concerning images (hints in the user interface).
     pub async fn open_asset_requests(&self, work: WorkId) -> Result<usize, StoreError> {
         let count: i64 = sqlx::query_scalar("SELECT count(*) FROM asset_request WHERE work_id = ? AND decided IS NULL")
             .bind(work)
@@ -733,9 +732,9 @@ impl Store {
         crate::to_usize(count, "Bildanträge")
     }
 
-    /// Entscheidung über einen offenen Antrag festhalten (nur der Mensch `human`; ausgeführt hat ihn
-    /// bei `Confirmed` schon der Server). `message` ist bei `Stale` der Grund. Schon entschieden →
-    /// `Refused`, unbekannt → `UnknownRequest`. Ergebnis: der Antrag danach.
+    /// Record the decision on an open request (only the human `human`; with `Confirmed` the server has already executed
+    /// it). `message` is the reason for `Stale`. Already decided → `Refused`, unknown → `UnknownRequest`. Result: the
+    /// request afterwards.
     pub async fn asset_request_decide(
         &self,
         work: WorkId,

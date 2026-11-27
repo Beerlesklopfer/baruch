@@ -1,5 +1,5 @@
-//! `sqlx::migrate!` bettet `migrations/` beim Übersetzen ein; damit eine neue Migration auch ohne
-//! Änderung an `src/` ankommt, baut cargo neu, sobald sich der Ordner ändert.
+//! `sqlx::migrate!` embeds `migrations/` at compile time; so that a new migration arrives even without a change to
+//! `src/`, cargo rebuilds as soon as the folder changes.
 
 fn main() {
     println!("cargo:rerun-if-changed=migrations");

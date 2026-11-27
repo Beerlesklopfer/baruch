@@ -1,25 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Satz-Einstellungen je Werk (Runde 29, Vertrag §4; Schnittstelle R29-S1, Körper satz-daten).
+//! Typesetting settings per work (Round 29, contract §4; interface R29-S1, bodies satz-daten).
 //!
-//! - Tabelle `work_typeset` (Migration 0048): höchstens eine Zeile je Werk, `settings` als kanonisches JSON
-//!   ([`TypesetSettings::to_json`] der normalisierten Einstellungen); keine Zeile = keine Satz-Einstellungen (alles
-//!   aus der Werkvorlage). Spalte `uuid` über den Fülltrigger; ein Ändern behält die Zeile und damit die uuid,
-//!   Zurücksetzen löscht sie (Grabstein der Art `work_typeset` mit der Werk-uuid, auch beim Löschen des Werks).
-//! - Ändern nur durch den Menschen (Formular bzw. RPC aus der Oberfläche); MCP liest nur. Jede Änderung ist im Server
-//!   ein Spiegel-Commit (`typeset_settings`, `mirror::record_typeset`).
-//! - Schreiben: erst [`TypesetSettings::normalized`], dann [`TypesetSettings::validate`]; ungültig →
-//!   [`StoreError::Typeset`] mit allen Meldungen („Rand innen: 5 bis 80 mm; …“), nichts geändert. Gleiche Werte →
-//!   `changed` leer, nichts geschrieben. Leere Einstellungen = Zurücksetzen.
-//! - [`Store::adopt_typeset_rule`]: Einstellungen und neue Fassung der Werkvorlage in einer Transaktion.
-//! - Die Regeln daraus ([`baruch_typst::typeset::rules`]) setzt `snapshot::head` hinter Werkvorlage, Schema- und
-//!   Rückfall-Regeln ([`typeset_in`]); ein Werk ohne Einstellungen exportiert byte-gleich wie vor Runde 29.
+//! - Table `work_typeset` (migration 0048): at most one row per work, `settings` as canonical JSON
+//!   ([`TypesetSettings::to_json`] of the normalised settings); no row = no typesetting settings (everything from the
+//!   work template). Column `uuid` through the fill trigger; a change keeps the row and with it the uuid, a reset
+//!   deletes it (tombstone of the kind `work_typeset` with the work uuid, also when the work is deleted).
+//! - Only the human changes them (form, or RPC from the user interface); MCP only reads. Every change is a mirror
+//!   commit in the server (`typeset_settings`, `mirror::record_typeset`).
+//! - Writing: first [`TypesetSettings::normalized`], then [`TypesetSettings::validate`]; invalid →
+//!   [`StoreError::Typeset`] with all messages („Rand innen: 5 bis 80 mm; …“), nothing changed. Same values → `changed`
+//!   empty, nothing written. Empty settings = reset.
+//! - [`Store::adopt_typeset_rule`]: settings and a new revision of the work template in one transaction.
+//! - The rules from them ([`baruch_typst::typeset::rules`]) are placed by `snapshot::head` behind the work template,
+//!   the scheme rules and the fallback rules ([`typeset_in`]); a work without settings exports byte-identically to
+//!   before Round 29.
 
 use baruch_typst::typeset::TypesetSettings;
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId, broken};
 
-/// Gespeicherte Satz-Einstellungen eines Werks samt Kennung und letzter Änderung.
+/// Stored typesetting settings of a work together with identifier and last change.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkTypeset {
     pub settings: TypesetSettings,
@@ -28,7 +29,7 @@ pub struct WorkTypeset {
     pub updated_by: String,
 }
 
-/// Ergebnis einer Änderung: vorher, nachher und die geänderten Feld-ids (in `FIELDS`-Reihenfolge).
+/// Result of a change: before, after and the changed field ids (in `FIELDS` order).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypesetChange {
     pub before: TypesetSettings,
@@ -36,22 +37,22 @@ pub struct TypesetChange {
     pub changed: Vec<&'static str>,
 }
 
-/// Ergebnis von [`Store::adopt_typeset_rule`]: Änderung der Einstellungen und neue Vorlagenfassung.
+/// Result of [`Store::adopt_typeset_rule`]: change of the settings and new template revision.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypesetAdopted {
     pub change: TypesetChange,
     pub template_rev: u32,
 }
 
-/// Höchstlänge von `updated_by` (CHECK der Migration 0048).
+/// Maximum length of `updated_by` (CHECK of migration 0048).
 const MAX_UPDATED_BY_CHARS: usize = 200;
 
-/// Name des Menschen für `updated_by`: in einer Zeile, höchstens 200 Zeichen.
+/// Name of the human for `updated_by`: on one line, at most 200 characters.
 pub(crate) fn by(human: &str) -> String {
     human.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_UPDATED_BY_CHARS).collect()
 }
 
-/// Normalisiert und prüft; ungültig → `StoreError::Typeset` mit allen Meldungen, durch „; “ getrennt.
+/// Normalises and checks; invalid → `StoreError::Typeset` with all messages, separated by "; ".
 pub(crate) fn checked(settings: &TypesetSettings) -> Result<TypesetSettings, StoreError> {
     let normalized = settings.normalized();
     normalized.validate().map_err(|errors| {
@@ -60,7 +61,7 @@ pub(crate) fn checked(settings: &TypesetSettings) -> Result<TypesetSettings, Sto
     Ok(normalized)
 }
 
-/// Gespeicherte Zeile des Werks (ohne Prüfung, ob es das Werk gibt); auch für `exchange_dump`.
+/// Stored row of the work (without checking whether the work exists); also for `exchange_dump`.
 pub(crate) async fn row(conn: &mut SqliteConnection, work: WorkId) -> Result<Option<WorkTypeset>, StoreError> {
     let row: Option<(Option<String>, String, String, String)> =
         sqlx::query_as("SELECT uuid, settings, updated, updated_by FROM work_typeset WHERE work_id = ?")
@@ -74,15 +75,15 @@ pub(crate) async fn row(conn: &mut SqliteConnection, work: WorkId) -> Result<Opt
     Ok(Some(WorkTypeset { settings, uuid, updated, updated_by }))
 }
 
-/// Gibt es das Werk? Sonst `UnknownWork`.
+/// Does the work exist? Otherwise `UnknownWork`.
 async fn ensure_work(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let found: Option<i64> =
         sqlx::query_scalar("SELECT id FROM work WHERE id = ?").bind(work).fetch_optional(&mut *conn).await?;
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// Schreibt `after` (schon normalisiert und geprüft) über `before`: leer → Zeile löschen (Grabstein), sonst
-/// einfügen bzw. ändern (uuid bleibt). Gleiche Werte → nichts.
+/// Writes `after` (already normalised and checked) over `before`: empty → delete the row (tombstone), otherwise insert
+/// or change (the uuid stays). Same values → nothing.
 pub(crate) async fn write(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -112,7 +113,7 @@ pub(crate) async fn write(
 }
 
 impl Store {
-    /// Gespeicherte Satz-Einstellungen; keine Zeile → `None`. Unbekanntes Werk → `UnknownWork`.
+    /// Stored typesetting settings; no row → `None`. Unknown work → `UnknownWork`.
     pub async fn work_typeset(&self, work: WorkId) -> Result<Option<WorkTypeset>, StoreError> {
         let mut tx = self.pool.begin().await?;
         ensure_work(&mut tx, work).await?;
@@ -121,9 +122,9 @@ impl Store {
         Ok(stored)
     }
 
-    /// Ersetzt die Einstellungen ganz (normalized + validate, sonst `StoreError::Typeset` mit allen Meldungen, nichts
-    /// geändert). Leere Einstellungen = reset. Gleiche Werte → `changed` leer, nichts geschrieben. uuid bleibt bei
-    /// Änderungen gleich.
+    /// Replaces the settings completely (normalized + validate, otherwise `StoreError::Typeset` with all messages,
+    /// nothing changed). Empty settings = reset. Same values → `changed` empty, nothing written. The uuid stays the
+    /// same across changes.
     pub async fn set_work_typeset(
         &self,
         work: WorkId,
@@ -139,7 +140,7 @@ impl Store {
         Ok(change)
     }
 
-    /// Löscht die Zeile (Grabstein). Keine Zeile → `changed` leer.
+    /// Deletes the row (tombstone). No row → `changed` empty.
     pub async fn reset_work_typeset(&self, work: WorkId, human: &str) -> Result<TypesetChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         ensure_work(&mut tx, work).await?;
@@ -149,9 +150,9 @@ impl Store {
         Ok(change)
     }
 
-    /// Eine Transaktion: Einstellungen setzen UND neue Vorlagenfassung `template` (Notiz `note`, Autor `human`) –
-    /// beides oder nichts. Ungültige Einstellungen → `Typeset`; eine Vorlage mit Überschrift (`=` am Zeilenanfang)
-    /// oder ohne Unterschied zur jetzigen → `Refused`. Die Vorlage wird wie in `update_work` gespeichert (CRLF → LF,
+    /// One transaction: set the settings AND a new template revision `template` (note `note`, author `human`) – both or
+    /// nothing. Invalid settings → `Typeset`; a template with a heading (`=` at the start of a line) or without a
+    /// difference to the present one → `Refused`. The template is stored as in `update_work` (CRLF → LF,
     /// `work.template`, `work.updated`).
     pub async fn adopt_typeset_rule(
         &self,
@@ -195,7 +196,7 @@ impl Store {
     }
 }
 
-/// Satz-Einstellungen für `snapshot::head`; keine Zeile → Vorgabe (leer).
+/// Typesetting settings for `snapshot::head`; no row → default (empty).
 pub(crate) async fn typeset_in(conn: &mut SqliteConnection, work: WorkId) -> Result<TypesetSettings, StoreError> {
     Ok(row(conn, work).await?.map(|s| s.settings).unwrap_or_default())
 }
@@ -206,14 +207,14 @@ mod tests {
 
     #[test]
     fn the_name_of_the_human_fits_the_column() {
-        // CHECK (length(updated_by) <= 200) der Migration 0048: längere Namen würden das Speichern scheitern lassen.
+        // CHECK (length(updated_by) <= 200) of migration 0048: longer names would make the saving fail.
         assert_eq!(by("  Mira \n Docht "), "Mira Docht", "in einer Zeile, getrimmt");
         assert_eq!(by(&"ä".repeat(300)).chars().count(), 200, "auf 200 Zeichen gekürzt");
     }
 
     #[test]
     fn invalid_settings_name_every_field() {
-        // Vertrag §4: alle Meldungen, nicht nur die erste.
+        // Contract §4: all messages, not only the first one.
         let bad = TypesetSettings { font_size_pt: Some(99.0), leading_em: Some(9.0), ..Default::default() };
         let Err(StoreError::Typeset(message)) = checked(&bad) else { panic!("ungültig erwartet") };
         assert!(message.contains("Schriftgröße") && message.contains("Zeilenabstand"), "beide Felder: {message}");

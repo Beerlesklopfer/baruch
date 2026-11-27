@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Ältere Fassungen ausblenden (Nutzer 2026-11-24, Release 0.9.0; Migration 0051, Tabelle `node_revision_fold`).
+//! Hiding older revisions (user 2026-11-24, release 0.9.0; migration 0051, table `node_revision_fold`).
 //!
-//! Je Abschnitt höchstens eine Marke „bis hierhin“ (Nummer einer Fassung); was sie ausblendet, regelt
-//! `baruch_core::revision_fold`. Setzen und Aufheben nur der Mensch (RPC und Formular, nicht MCP); Fassungen, Verlauf
-//! und Spiegel bleiben unverändert. Protokolliert wird wie bei der Einstellung „Fassungen“ in `updated`/`updated_by`;
-//! kein Commit im Spiegel (kein Buchtext), nicht im Austauschformat (Arbeitsweise der Instanz).
+//! Per section at most one mark "up to here" (number of a revision); what it hides is governed by
+//! `baruch_core::revision_fold`. Only the human sets and clears it (RPC and form, not MCP); revisions, history and
+//! mirror stay unchanged. It is logged like the setting "Fassungen" in `updated`/`updated_by`; no commit in the mirror
+//! (not book text), not in the exchange format (working style of the instance).
 
 use std::collections::HashMap;
 
@@ -13,17 +13,17 @@ use sqlx::SqliteConnection;
 use crate::write::{node_id, row};
 use crate::{Store, StoreError, WorkId, to_u32};
 
-/// Gespeicherte Marke eines Abschnitts.
+/// Stored mark of a section.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct RevisionFold {
-    /// Nummer der Fassung, an der die Marke steht (ausgeblendet wird darunter).
+    /// Number of the revision at which the mark stands (what lies below it is hidden).
     pub below: u32,
-    /// Zeitpunkt (UTC) und Name des Menschen, der sie zuletzt gesetzt hat.
+    /// Point in time (UTC) and name of the human who last set it.
     pub updated: String,
     pub updated_by: String,
 }
 
-/// Ergebnis von [`Store::fold_revisions_before`]: gesetzte Marken je Abschnittsschlüssel (`node.id`).
+/// Result of [`Store::fold_revisions_before`]: marks set per section key (`node.id`).
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct FoldBefore {
     pub set: Vec<(i64, u32)>,
@@ -53,7 +53,7 @@ async fn upsert(conn: &mut SqliteConnection, node_id: i64, below: u32, human: &s
 }
 
 impl Store {
-    /// Marke des Abschnitts `node` (Stelle); `None` = nichts ausgeblendet.
+    /// Mark of the section `node` (position); `None` = nothing hidden.
     pub async fn revision_fold(&self, work: WorkId, node: usize) -> Result<Option<RevisionFold>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let id = node_id(&mut conn, work, node).await?;
@@ -69,7 +69,7 @@ impl Store {
             .transpose()
     }
 
-    /// Alle Marken des Werks: Abschnittsschlüssel (`Node::key`) → Nummer der Marke.
+    /// All marks of the work: section key (`Node::key`) → number of the mark.
     pub async fn work_revision_folds(&self, work: WorkId) -> Result<HashMap<i64, u32>, StoreError> {
         let rows: Vec<(i64, i64)> = sqlx::query_as(
             "SELECT f.node_id, f.below FROM node_revision_fold f JOIN node n ON n.id = f.node_id WHERE n.work_id = ?",
@@ -80,8 +80,8 @@ impl Store {
         rows.into_iter().map(|(key, below)| Ok((key, to_u32(below, "below")?))).collect()
     }
 
-    /// Marke an Fassung `rev` setzen (nur Mensch). Die Fassung muss es geben (`UnknownRevision`); über der aktuellen
-    /// Fassung wird abgelehnt (`Refused`), damit die aktuelle nie hinter dem Schalter verschwindet.
+    /// Set the mark at revision `rev` (human only). The revision must exist (`UnknownRevision`); above the current
+    /// revision it is rejected (`Refused`), so that the current one never disappears behind the switch.
     pub async fn set_revision_fold(&self, work: WorkId, node: usize, rev: u32, human: &str) -> Result<(), StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let id = node_id(&mut tx, work, node).await?;
@@ -96,7 +96,7 @@ impl Store {
         Ok(())
     }
 
-    /// Marke des Abschnitts aufheben („Wieder alle zeigen“); `true`, wenn es eine gab.
+    /// Clear the mark of the section („Wieder alle zeigen“); `true` if there was one.
     pub async fn clear_revision_fold(&self, work: WorkId, node: usize) -> Result<bool, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let id = node_id(&mut tx, work, node).await?;
@@ -105,7 +105,7 @@ impl Store {
         Ok(done.rows_affected() > 0)
     }
 
-    /// Alle Marken des Werks aufheben; Zahl der aufgehobenen. Unbekanntes Werk → `UnknownWork`.
+    /// Clear all marks of the work; number of marks cleared. Unknown work → `UnknownWork`.
     pub async fn clear_work_revision_folds(&self, work: WorkId) -> Result<u64, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let exists: Option<i64> =
@@ -122,9 +122,9 @@ impl Store {
         Ok(done.rows_affected())
     }
 
-    /// Werkweit „Ältere Fassungen ausblenden bis …“: für jeden Abschnitt die Marke auf die letzte Fassung, die vor
-    /// `before` (UTC-Zeitpunkt im Format von `revision.created`) entstand, höchstens auf die aktuelle. Abschnitte ohne
-    /// solche Fassung bleiben unverändert; vorhandene Marken werden ersetzt. Ein Schritt (eine Transaktion).
+    /// Work-wide „Ältere Fassungen ausblenden bis …“: for every section the mark goes to the last revision that was
+    /// created before `before` (UTC point in time in the format of `revision.created`), at most to the current one.
+    /// Sections without such a revision stay unchanged; existing marks are replaced. One step (one transaction).
     pub async fn fold_revisions_before(
         &self,
         work: WorkId,

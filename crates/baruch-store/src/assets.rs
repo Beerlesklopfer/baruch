@@ -1,22 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Bilder und Grafiken eines Werks (Migration `0009_assets.sql`, Vertrag Runde 6, Abschnitt 4).
+//! Images and graphics of a work (migration `0009_assets.sql`, contract Round 6, section 4).
 //!
-//! - Ein Bild (`asset`) hat einen Namen, eindeutig je Werk ([`valid_asset_name`]: `[a-z0-9._-]`,
-//!   höchstens 80 Zeichen, Endung passend zum Typ), und Fassungen (`asset_revision`) wie ein
-//!   Abschnitt: genau eine trägt `current` (Teilindex `asset_one_current`), jede andere lässt sich
-//!   aktuell schalten ([`crate::Store::set_current_asset`]). Ersetzen ist immer eine neue Fassung
-//!   ([`crate::Store::replace_asset`]), der Inhalt einer Fassung ist per Trigger unveränderlich;
-//!   ändern lassen sich nur Bildunterschrift, Alternativtext und Notiz
-//!   ([`crate::Store::update_asset_revision`], setzt `edited`). Ändern und Löschen sind dem Menschen
-//!   vorbehalten (über MCP gibt es nur lesende Werkzeuge).
-//! - Inhalt als TEXT, nie BLOB: SVG als UTF-8-Text (`encoding = 'svg'`), alles andere (und SVG auf
-//!   Wunsch) als Base64 im Standardalphabet mit `=` und ohne Zeilenumbrüche (`'base64'`). `bytes` und
-//!   `sha256` beziehen sich auf die entschlüsselten Bytes. Höchstens [`MAX_ASSET_BYTES`] je Fassung.
-//! - Pfade (`asset_path`): so, wie sie in Vorlage oder Text stehen (`/bilder/haus.svg`), je Werk
-//!   eindeutig. Export ([`crate::Store::export_assets`]) schreibt je Pfad die aktuelle Fassung, der
-//!   Spiegel ([`mirror_files`]) je Bild `bilder/<name>` (SVG-Text) bzw. `bilder/<name>.b64`.
-//! - Jede schreibende Methode ist eine Transaktion (`BEGIN IMMEDIATE`) und gibt eine [`AssetChange`]
-//!   für den Spiegel-Commit zurück.
+//! - An image (`asset`) has a name, unique per work ([`valid_asset_name`]: `[a-z0-9._-]`, at most 80 characters,
+//!   extension matching the type), and versions (`asset_revision`) like a section: exactly one carries `current`
+//!   (partial index `asset_one_current`), every other one can be switched to current
+//!   ([`crate::Store::set_current_asset`]). Replacing is always a new version ([`crate::Store::replace_asset`]), the
+//!   content of a version is immutable by trigger; only caption, alternative text and note can be changed
+//!   ([`crate::Store::update_asset_revision`], sets `edited`). Changing and deleting are reserved for the human
+//!   (through MCP there are only reading tools).
+//! - Content as TEXT, never BLOB: SVG as UTF-8 text (`encoding = 'svg'`), everything else (and SVG on request) as
+//!   Base64 in the standard alphabet with `=` and without line breaks (`'base64'`). `bytes` and `sha256` refer to the
+//!   decoded bytes. At most [`MAX_ASSET_BYTES`] per version.
+//! - Paths (`asset_path`): the way they stand in template or text (`/bilder/haus.svg`), unique per work. The export
+//!   ([`crate::Store::export_assets`]) writes the current version per path, the mirror ([`mirror_files`]) per image
+//!   `bilder/<name>` (SVG text) or `bilder/<name>.b64`.
+//! - Every writing method is one transaction (`BEGIN IMMEDIATE`) and returns an [`AssetChange`] for the mirror commit.
 
 use std::collections::{BTreeSet, HashMap};
 
@@ -28,10 +26,10 @@ use sqlx::SqliteConnection;
 
 use crate::{Imported, MirrorFile, Store, StoreError, WorkId, broken, import, to_u32};
 
-/// Größte Bilddatei (entschlüsselt, je Fassung): 8 MiB.
+/// Largest image file (decoded, per version): 8 MiB.
 pub const MAX_ASSET_BYTES: usize = 8 * 1024 * 1024;
 
-/// Unterstützte Typen: MIME, erlaubte Endungen (die erste ist die Vorgabe).
+/// Supported types: MIME, allowed extensions (the first one is the default).
 const TYPES: &[(&str, &[&str])] = &[
     ("image/png", &["png"]),
     ("image/jpeg", &["jpg", "jpeg"]),
@@ -40,20 +38,20 @@ const TYPES: &[(&str, &[&str])] = &[
     ("image/svg+xml", &["svg"]),
 ];
 
-/// Zeilenlänge der Base64-Dateien im Spiegel.
+/// Line length of the Base64 files in the mirror.
 const MIRROR_LINE: usize = 76;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetEncoding {
-    /// Base64 (Standardalphabet, mit `=`, ohne Zeilenumbrüche).
+    /// Base64 (standard alphabet, with `=`, without line breaks).
     Base64,
-    /// SVG als UTF-8-Text.
+    /// SVG as UTF-8 text.
     Svg,
 }
 
 impl AssetEncoding {
-    /// Wort der Datenbank (= serde-Name).
+    /// Word of the database (= serde name).
     pub fn as_str(self) -> &'static str {
         match self {
             AssetEncoding::Base64 => "base64",
@@ -70,26 +68,26 @@ impl AssetEncoding {
     }
 }
 
-/// Ein Bild in der Übersicht ([`Store::asset_list`]); Angaben der aktuellen Fassung.
+/// An image in the overview ([`Store::asset_list`]); details of the current version.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AssetSummary {
     pub name: String,
     pub mime: String,
     pub encoding: AssetEncoding,
     pub bytes: u64,
-    /// Nummer der aktuellen Fassung.
+    /// Number of the current version.
     pub current: u32,
-    /// Anzahl der Fassungen.
+    /// Number of versions.
     pub revisions: usize,
     pub caption: String,
     pub alt: String,
-    /// Pfade, unter denen Vorlage und Text das Bild nennen, sortiert.
+    /// Paths under which template and text name the image, sorted.
     pub paths: Vec<String>,
-    /// Letzte Änderung: größter Zeitpunkt aus `created`/`edited` der Fassungen.
+    /// Last change: largest point in time from `created`/`edited` of the versions.
     pub updated: String,
 }
 
-/// Eine Fassung eines Bilds (ohne Inhalt).
+/// A version of an image (without content).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AssetRevisionInfo {
     pub number: u32,
@@ -107,7 +105,7 @@ pub struct AssetRevisionInfo {
     pub edited: Option<String>,
 }
 
-/// Inhalt einer Fassung, wie er in der Datenbank steht (Base64 bzw. SVG-Text).
+/// Content of a version as it is in the database (Base64 or SVG text).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AssetData {
     pub name: String,
@@ -118,7 +116,7 @@ pub struct AssetData {
 }
 
 impl AssetData {
-    /// Die Bytes der Datei (Base64 entschlüsselt bzw. der SVG-Text als UTF-8).
+    /// The bytes of the file (Base64 decoded or the SVG text as UTF-8).
     pub fn bytes(&self) -> Result<Vec<u8>, StoreError> {
         match self.encoding {
             AssetEncoding::Base64 => decode_base64(&self.content),
@@ -127,24 +125,24 @@ impl AssetData {
     }
 }
 
-/// Neues Bild für [`Store::add_asset`].
+/// New image for [`Store::add_asset`].
 #[derive(Debug, Clone)]
 pub struct NewAsset<'a> {
-    /// Dateiname beim Hochladen; daraus der Name, wenn `name` fehlt.
+    /// File name at the upload; the name is derived from it if `name` is missing.
     pub file_name: &'a str,
-    /// Eigener Name; vergeben → `Refused`.
+    /// Custom name; taken → `Refused`.
     pub name: Option<&'a str>,
     pub bytes: &'a [u8],
-    /// SVG als Base64 speichern statt als Text (andere Typen sind immer Base64).
+    /// Store SVG as Base64 instead of as text (other types are always Base64).
     pub as_base64: bool,
-    /// Pfad(e) in Vorlage/Text, eine je Zeile; leer = keiner.
+    /// Path(s) in template/text, one per line; empty = none.
     pub path: Option<&'a str>,
     pub caption: &'a str,
     pub alt: &'a str,
     pub note: &'a str,
 }
 
-/// Bild für [`Store::import_typst_with_assets`]: Pfad, wie er im Text steht, Dateiname, Bytes.
+/// Image for [`Store::import_typst_with_assets`]: path as it stands in the text, file name, bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImportAsset {
     pub path: String,
@@ -152,7 +150,7 @@ pub struct ImportAsset {
     pub bytes: Vec<u8>,
 }
 
-/// Datei für den Export ([`Store::export_assets`]): Pfad ohne führendes `/`, Bytes.
+/// File for the export ([`Store::export_assets`]): path without a leading `/`, bytes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExportedFile {
     pub path: String,
@@ -162,57 +160,57 @@ pub struct ExportedFile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetChangeKind {
-    /// Neues Bild (Fassung 1).
+    /// New image (version 1).
     Added,
-    /// Neue Fassung, sofort aktuell.
+    /// New version, current at once.
     Replaced,
-    /// Markierung „aktuell“ auf eine andere Fassung umgeschaltet.
+    /// "Current" marker switched to another version.
     Switched,
-    /// Bildunterschrift, Alternativtext, Notiz oder Pfade geändert.
+    /// Caption, alternative text, note or paths changed.
     Updated,
-    /// Eine (nicht aktuelle) Fassung gelöscht.
+    /// A version (not the current one) deleted.
     Deleted,
-    /// Das ganze Bild samt Fassungen und Pfaden gelöscht.
+    /// The whole image together with versions and paths deleted.
     Removed,
 }
 
-/// Ergebnis einer Bildänderung für den Spiegel-Commit.
+/// Result of an image change for the mirror commit.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AssetChange {
     pub work: WorkId,
     pub name: String,
-    /// Added/Replaced/Switched: die jetzt aktuelle Fassung; Updated/Deleted: die betroffene;
-    /// Removed: die zuletzt aktuelle.
+    /// Added/Replaced/Switched: the version that is current now; Updated/Deleted: the one concerned; Removed: the one
+    /// that was current last.
     pub rev: u32,
     pub kind: AssetChangeKind,
-    /// Replaced/Switched: die vorher aktuelle Fassung; Updated/Deleted/Removed: die betroffene vorher.
+    /// Replaced/Switched: the version that was current before; Updated/Deleted/Removed: the one concerned, before.
     pub before: Option<AssetRevisionInfo>,
-    /// Deleted/Removed: der gelöschte Inhalt (damit er aus Git wiederherstellbar bleibt).
+    /// Deleted/Removed: the deleted content (so that it stays restorable from Git).
     pub removed: Option<AssetData>,
-    /// Lesbare Einzelheiten für den Commit-Rumpf (Typ, Größe, Pfade vorher/nachher …).
+    /// Readable details for the commit body (type, size, paths before/after …).
     pub detail: String,
 }
 
-/// Eine Schreibweise eines Pfads und das Bild, dem sie gehört ([`PathConflict`]).
+/// One spelling of a path and the image it belongs to ([`PathConflict`]).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PathOwner {
-    /// Pfad, wie er gespeichert ist (wie im Text).
+    /// Path as it is stored (as in the text).
     pub path: String,
-    /// Name des Bilds.
+    /// Name of the image.
     pub asset: String,
 }
 
-/// Altbestand (Runde 21c): mehrere Schreibweisen derselben Normalform gehören verschiedenen Bildern
+/// Legacy data (Round 21c): several spellings of the same normal form belong to different images
 /// ([`Store::asset_path_conflicts`]).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PathConflict {
-    /// Pfad in Normalform ([`normalize_asset_path`]).
+    /// Path in normal form ([`normalize_asset_path`]).
     pub normal: String,
-    /// Alle Schreibweisen mit ihrem Bild, nach Pfad sortiert.
+    /// All spellings with their image, sorted by path.
     pub paths: Vec<PathOwner>,
 }
 
-/// Kollisionen eines Werks (siehe [`Store::asset_path_conflicts`]).
+/// Collisions of a work (see [`Store::asset_path_conflicts`]).
 async fn path_conflicts(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<PathConflict>, StoreError> {
     let rows: Vec<(String, String)> = sqlx::query_as(
         "SELECT p.path, a.name FROM asset_path p JOIN asset a ON a.id = p.asset_id WHERE p.work_id = ? ORDER BY p.path",
@@ -233,10 +231,10 @@ async fn path_conflicts(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec
         .collect())
 }
 
-// ---- Prüfen und Umwandeln ----------------------------------------------------------------------
+// ---- Checking and converting -------------------------------------------------------------------
 
-/// MIME-Typ aus den ersten Bytes: PNG, JPEG, GIF, WebP, SVG (UTF-8-Text, der nach optionalem
-/// BOM, XML-Prolog, Kommentaren und DOCTYPE mit `<svg` beginnt); sonst `None`.
+/// MIME type from the first bytes: PNG, JPEG, GIF, WebP, SVG (UTF-8 text that begins with `<svg` after an optional BOM,
+/// XML prolog, comments and DOCTYPE); otherwise `None`.
 pub fn detect_mime(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
@@ -263,7 +261,7 @@ fn is_svg(bytes: &[u8]) -> bool {
         } else if rest.starts_with("<!--") {
             rest.find("-->").map(|end| &rest[end + 3..])
         } else if rest.starts_with("<!") {
-            // DOCTYPE, auch mit internem Teil in eckigen Klammern.
+            // DOCTYPE, also with an internal subset in square brackets.
             let close = match (rest.find('['), rest.find('>')) {
                 (Some(open), Some(gt)) if open < gt => rest.find("]>").map(|e| e + 2),
                 (_, Some(gt)) => Some(gt + 1),
@@ -282,18 +280,18 @@ fn is_svg(bytes: &[u8]) -> bool {
         .is_some_and(|after| after.chars().next().is_some_and(|c| c.is_whitespace() || c == '>' || c == '/'))
 }
 
-/// Erlaubte Endungen eines MIME-Typs.
+/// Allowed extensions of a MIME type.
 fn extensions(mime: &str) -> &'static [&'static str] {
     TYPES.iter().find(|(m, _)| *m == mime).map_or(&[], |(_, e)| e)
 }
 
-/// Endung des Namens (klein), falls vorhanden.
+/// Extension of the name (lower case), if present.
 fn extension(name: &str) -> Option<&str> {
     name.rsplit_once('.').map(|(_, ext)| ext)
 }
 
-/// Gültiger Bildname: `^[a-z0-9]([a-z0-9._-]{0,78}[a-z0-9])?$` und eine Endung `.png`, `.jpg`,
-/// `.jpeg`, `.gif`, `.webp` oder `.svg`.
+/// Valid image name: `^[a-z0-9]([a-z0-9._-]{0,78}[a-z0-9])?$` and an extension `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`
+/// or `.svg`.
 pub fn valid_asset_name(name: &str) -> bool {
     let bytes = name.as_bytes();
     let edge = |b: u8| b.is_ascii_lowercase() || b.is_ascii_digit();
@@ -306,14 +304,14 @@ pub fn valid_asset_name(name: &str) -> bool {
         && extension(name).is_some_and(|ext| TYPES.iter().any(|(_, list)| list.contains(&ext)))
 }
 
-/// Passt die Endung des Namens zum MIME-Typ?
+/// Does the extension of the name fit the MIME type?
 pub(crate) fn name_fits(name: &str, mime: &str) -> bool {
     extension(name).is_some_and(|ext| extensions(mime).contains(&ext))
 }
 
-/// Name aus einem Dateinamen: ohne Ordner, klein, Zeichen außerhalb `[a-z0-9._-]` → `-` (Folgen
-/// zusammengefasst), Ränder ohne Satzzeichen, höchstens 80 Zeichen; passt die Endung nicht zum Typ,
-/// kommt die Vorgabe-Endung dazu (z. B. `foto` → `foto.png`).
+/// Name from a file name: without folder, lower case, characters outside `[a-z0-9._-]` → `-` (runs collapsed), edges
+/// without punctuation, at most 80 characters; if the extension does not fit the type, the default extension is added
+/// (for example `foto` → `foto.png`).
 pub fn asset_name_from_file(file_name: &str, mime: &str) -> String {
     let base = file_name.rsplit(['/', '\\']).next().unwrap_or("");
     let mut out = String::new();
@@ -343,7 +341,7 @@ pub fn asset_name_from_file(file_name: &str, mime: &str) -> String {
     format!("{stem}.{ext}")
 }
 
-/// `name` mit `-2`, `-3` … vor der Endung (Grenze 80 Zeichen bleibt).
+/// `name` with `-2`, `-3` … before the extension (the limit of 80 characters stays).
 fn numbered_name(name: &str, n: usize) -> String {
     let (stem, ext) = name.rsplit_once('.').unwrap_or((name, ""));
     let suffix = format!("-{n}.{ext}");
@@ -352,26 +350,25 @@ fn numbered_name(name: &str, n: usize) -> String {
     format!("{stem}{suffix}")
 }
 
-/// Base64 (Standardalphabet, mit `=`) → Bytes; kaputt → `StoreError::Asset`.
+/// Base64 (standard alphabet, with `=`) → bytes; broken → `StoreError::Asset`.
 pub fn decode_base64(text: &str) -> Result<Vec<u8>, StoreError> {
     STANDARD.decode(text).map_err(|e| StoreError::Asset(format!("Kein gültiges Base64 ({e}).")))
 }
 
-/// Bytes → Base64 (Standardalphabet, mit `=`, ohne Zeilenumbrüche).
+/// Bytes → Base64 (standard alphabet, with `=`, without line breaks).
 pub fn encode_base64(bytes: &[u8]) -> String {
     STANDARD.encode(bytes)
 }
 
-/// SHA-256 als Kleinbuchstaben-Hex.
+/// SHA-256 as lower-case hex.
 fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Bildpfad in Normalform (Runde 7): führendes `/` und `./`-Teile entfernen, leere Teile
-/// zusammenfassen (`/bilder//a.png`, `./bilder/a.png` → `bilder/a.png`); ein `..`-Teil oder ein
-/// leerer Pfad → `None`. So finden Vorlage, Text, die Seite `/werke/{id}/bilder/pfad?p=`, das
-/// Satzbild und `export --out` dasselbe Bild, gleich wie der Pfad im Text geschrieben ist.
-/// Gespeichert wird der Pfad weiter so, wie er im Text steht (der Text bleibt byte-gleich).
+/// Image path in normal form (Round 7): remove a leading `/` and `./` parts, collapse empty parts (`/bilder//a.png`,
+/// `./bilder/a.png` → `bilder/a.png`); a `..` part or an empty path → `None`. That way template, text, the page
+/// `/werke/{id}/bilder/pfad?p=`, the typeset view and `export --out` find the same image, no matter how the path is
+/// written in the text. The path is still stored the way it stands in the text (the text stays byte-identical).
 pub fn normalize_asset_path(path: &str) -> Option<String> {
     let mut parts = Vec::new();
     for part in path.trim().split('/') {
@@ -384,9 +381,9 @@ pub fn normalize_asset_path(path: &str) -> Option<String> {
     (!parts.is_empty()).then(|| parts.join("/"))
 }
 
-/// Pfad, wie er in Vorlage/Text steht, prüfen: nicht leer, keine Steuerzeichen, kein `\`, keine
-/// Adresse (`://`), kein `..`-Teil und mit Normalform ([`normalize_asset_path`]; `./` und leere Teile
-/// sind erlaubt). Ergebnis getrimmt, sonst wie geschrieben.
+/// Check a path as it stands in template/text: not empty, no control characters, no `\`, no address (`://`), no `..`
+/// part and with a normal form ([`normalize_asset_path`]; `./` and empty parts are allowed). Result trimmed, otherwise
+/// as written.
 fn check_path(path: &str) -> Result<String, StoreError> {
     let path = path.trim();
     let bad = |why: &str| StoreError::Asset(format!("Ungültiger Pfad „{path}“: {why}."));
@@ -408,15 +405,15 @@ fn check_path(path: &str) -> Result<String, StoreError> {
     Ok(path.to_owned())
 }
 
-/// Prüft einen Bildpfad nach denselben Regeln wie der Store beim Speichern (siehe `check_path`,
-/// Normalform über [`normalize_asset_path`]):
-/// Wer Pfade aus fremdem Text übernimmt (Ordner-Import), kann so einen ungültigen überspringen,
-/// statt den ganzen Import scheitern zu lassen. Ergebnis getrimmt.
+/// Checks an image path by the same rules as the store when storing (see `check_path`, normal form through
+/// [`normalize_asset_path`]):
+/// whoever takes paths over from foreign text (folder import) can skip an invalid one that way, instead of letting the
+/// whole import fail. Result trimmed.
 pub fn check_asset_path(path: &str) -> Result<String, StoreError> {
     check_path(path)
 }
 
-/// Pfade aus einer Liste (je Eintrag auch mehrere Zeilen), geprüft, ohne Doppelte, sortiert.
+/// Paths from a list (per entry also several lines), checked, without duplicates, sorted.
 fn check_paths<'a>(paths: impl IntoIterator<Item = &'a str>) -> Result<Vec<String>, StoreError> {
     let mut out = BTreeSet::new();
     for entry in paths {
@@ -427,8 +424,7 @@ fn check_paths<'a>(paths: impl IntoIterator<Item = &'a str>) -> Result<Vec<Strin
     Ok(out.into_iter().collect())
 }
 
-/// Geprüfter Inhalt einer neuen Fassung (auch für das Einlesen einer Austauschdatei, Runde 26: dieselbe Prüfung
-/// wie beim Hochladen).
+/// Checked content of a new version (also for reading in an exchange file, Round 26: the same check as at the upload).
 pub(crate) struct Content {
     pub(crate) mime: &'static str,
     pub(crate) encoding: AssetEncoding,
@@ -437,8 +433,8 @@ pub(crate) struct Content {
     pub(crate) sha256: String,
 }
 
-/// Bildbytes prüfen wie beim Hochladen: höchstens [`MAX_ASSET_BYTES`], ein unterstützter Typ (an den ersten Bytes
-/// erkannt); SVG als Text, sonst Base64.
+/// Check image bytes as at the upload: at most [`MAX_ASSET_BYTES`], a supported type (recognised by the first bytes);
+/// SVG as text, otherwise Base64.
 pub(crate) fn prepare(file_name: &str, bytes: &[u8], as_base64: bool) -> Result<Content, StoreError> {
     let shown = file_name.rsplit(['/', '\\']).next().unwrap_or(file_name);
     if bytes.len() > MAX_ASSET_BYTES {
@@ -448,7 +444,7 @@ pub(crate) fn prepare(file_name: &str, bytes: &[u8], as_base64: bool) -> Result<
         return Err(StoreError::Asset(format!("„{shown}“ ist kein unterstütztes Bild (PNG, JPEG, GIF, WebP, SVG).")));
     };
     let (encoding, content) = if mime == "image/svg+xml" && !as_base64 {
-        // detect_mime erkennt SVG nur in gültigem UTF-8.
+        // detect_mime recognises SVG only in valid UTF-8.
         let text = String::from_utf8(bytes.to_vec()).map_err(|_| broken("SVG ohne UTF-8".into()))?;
         (AssetEncoding::Svg, text)
     } else {
@@ -457,18 +453,18 @@ pub(crate) fn prepare(file_name: &str, bytes: &[u8], as_base64: bool) -> Result<
     Ok(Content { mime, encoding, content, bytes: bytes.len() as i64, sha256: sha256_hex(bytes) })
 }
 
-/// Base64 in Zeilen zu 76 Zeichen, jede mit `\n` (Spiegel, Commit-Rumpf).
+/// Base64 in lines of 76 characters, each with `\n` (mirror, commit body).
 pub(crate) fn wrap_lines(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + text.len() / MIRROR_LINE + 1);
     for chunk in text.as_bytes().chunks(MIRROR_LINE) {
-        // Base64 ist ASCII.
+        // Base64 is ASCII.
         out.push_str(std::str::from_utf8(chunk).unwrap_or(""));
         out.push('\n');
     }
     out
 }
 
-/// Größe lesbar: „512 Bytes“, „3,2 KiB“, „1,5 MiB“.
+/// Size readable: "512 Bytes", "3,2 KiB", "1,5 MiB".
 fn size_text(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} Bytes")
@@ -479,7 +475,7 @@ fn size_text(bytes: u64) -> String {
     }
 }
 
-// ---- Lesen -------------------------------------------------------------------------------------
+// ---- Reading -----------------------------------------------------------------------------------
 
 type InfoRow =
     (i64, Option<i64>, String, String, String, i64, String, String, String, String, String, String, Option<String>);
@@ -516,7 +512,7 @@ async fn work_exists(conn: &mut SqliteConnection, work: WorkId) -> Result<(), St
     found.map(|_| ()).ok_or(StoreError::UnknownWork(work))
 }
 
-/// id des Bilds; unbekanntes Werk → `UnknownWork`, unbekannter Name → `UnknownAsset`.
+/// id of the image; unknown work → `UnknownWork`, unknown name → `UnknownAsset`.
 async fn asset_id(conn: &mut SqliteConnection, work: WorkId, name: &str) -> Result<i64, StoreError> {
     let id: Option<i64> = sqlx::query_scalar("SELECT id FROM asset WHERE work_id = ? AND name = ?")
         .bind(work)
@@ -542,7 +538,7 @@ async fn revisions_of(conn: &mut SqliteConnection, asset: i64) -> Result<Vec<Ass
     rows.into_iter().map(info_of).collect()
 }
 
-/// Die aktuelle Fassung; fehlt sie, ist eine Regel verletzt.
+/// The current version; if it is missing, a rule is violated.
 async fn current_of(conn: &mut SqliteConnection, asset: i64, name: &str) -> Result<AssetRevisionInfo, StoreError> {
     let row: Option<InfoRow> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
         "SELECT {INFO_COLUMNS} FROM asset_revision WHERE asset_id = ? AND status = 'current'"
@@ -553,7 +549,7 @@ async fn current_of(conn: &mut SqliteConnection, asset: i64, name: &str) -> Resu
     row.map(info_of).transpose()?.ok_or_else(|| broken(format!("Bild {name}: keine aktuelle Fassung")))
 }
 
-/// Fassung `rev` (Angaben); unbekannt → `Asset` mit den vorhandenen Nummern.
+/// Version `rev` (details); unknown → `Asset` with the existing numbers.
 async fn revision_of(
     conn: &mut SqliteConnection,
     asset: i64,
@@ -588,9 +584,9 @@ async fn paths_of(conn: &mut SqliteConnection, asset: i64) -> Result<Vec<String>
         .await?)
 }
 
-// ---- Schreiben ---------------------------------------------------------------------------------
+// ---- Writing -----------------------------------------------------------------------------------
 
-/// Freier Name: `base`, sonst `base-2`, `base-3` … (vor der Endung).
+/// Free name: `base`, otherwise `base-2`, `base-3` … (before the extension).
 pub(crate) async fn free_name(conn: &mut SqliteConnection, work: WorkId, base: &str) -> Result<String, StoreError> {
     let mut candidate = base.to_owned();
     let mut n = 2;
@@ -608,7 +604,7 @@ pub(crate) async fn free_name(conn: &mut SqliteConnection, work: WorkId, base: &
     }
 }
 
-/// Neue Fassung einfügen (Nummer `asset.last_rev + 1`), Status wie angegeben. Ergebnis: Nummer.
+/// Add a new version (number `asset.last_rev + 1`), status as given. Result: number.
 #[allow(clippy::too_many_arguments)]
 async fn insert_revision(
     conn: &mut SqliteConnection,
@@ -644,8 +640,8 @@ async fn insert_revision(
     to_u32(number, "Fassungsnummer")
 }
 
-/// Bild, dem ein Pfad des Werks gehört (verglichen in Normalform, [`normalize_asset_path`]; ein
-/// wörtlich gleicher Pfad geht vor): `(id, Name)`.
+/// Image to which a path of the work belongs (compared in normal form, [`normalize_asset_path`]; a literally equal path
+/// takes precedence): `(id, name)`.
 pub(crate) async fn path_owner(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -665,8 +661,8 @@ pub(crate) async fn path_owner(
     Ok(found.map(|(_, id, name)| (*id, name.clone())))
 }
 
-/// Pfade an ein Bild hängen; gehört einer (in Normalform) schon einem anderen Bild des Werks →
-/// `Asset`. Eine andere Schreibweise desselben Bilds kommt wie bisher dazu.
+/// Attach paths to an image; if one (in normal form) already belongs to another image of the work → `Asset`. Another
+/// spelling for the same image is added as before.
 async fn insert_paths(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -683,7 +679,7 @@ async fn insert_paths(
             continue;
         }
         match path_owner(conn, work, path).await? {
-            // Dasselbe Bild in anderer Schreibweise (`/bilder/a.png` und `bilder/a.png`): beide stehen da.
+            // The same image in another spelling (`/bilder/a.png` and `bilder/a.png`): both are there.
             Some((id, _)) if id == asset => {}
             Some((_, other)) => {
                 return Err(StoreError::Asset(format!("Der Pfad „{path}“ gehört schon zum Bild {other}.")));
@@ -700,8 +696,8 @@ async fn insert_paths(
     Ok(())
 }
 
-/// Neues Bild mit Fassung 1 (aktuell). Name: eigener (geprüft, vergeben → `Refused`) oder aus dem
-/// Dateinamen (Kollision → `-2`, `-3` …).
+/// New image with version 1 (current). Name: a custom one (checked, taken → `Refused`) or from the file name (collision
+/// → `-2`, `-3` …).
 async fn add(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -756,7 +752,7 @@ async fn add(
     Ok(AssetChange { work, name, rev, kind: AssetChangeKind::Added, before: None, removed: None, detail })
 }
 
-/// Aktuelle auf `superseded`, `rev` auf `current`.
+/// The current one to `superseded`, `rev` to `current`.
 async fn switch(conn: &mut SqliteConnection, asset: i64, rev: u32) -> Result<(), StoreError> {
     sqlx::query("UPDATE asset_revision SET status = 'superseded' WHERE asset_id = ? AND status = 'current'")
         .bind(asset)
@@ -770,8 +766,8 @@ async fn switch(conn: &mut SqliteConnection, asset: i64, rev: u32) -> Result<(),
     Ok(())
 }
 
-/// Alle Bildzeilen eines Bilds löschen (Pfade, Fassungen, das Bild). Elternverweise werden vorher
-/// gelöst und die aktuelle Fassung auf `superseded` gesetzt, damit die Trigger das Löschen erlauben.
+/// Delete all rows of an image (paths, versions, the image). Parent references are released beforehand and the current
+/// version is set to `superseded`, so that the triggers allow the deletion.
 async fn delete_rows(conn: &mut SqliteConnection, asset: i64) -> Result<(), StoreError> {
     sqlx::query("DELETE FROM asset_path WHERE asset_id = ?").bind(asset).execute(&mut *conn).await?;
     sqlx::query("UPDATE asset_revision SET based_on = NULL WHERE asset_id = ? AND based_on IS NOT NULL")
@@ -787,26 +783,26 @@ async fn delete_rows(conn: &mut SqliteConnection, asset: i64) -> Result<(), Stor
     Ok(())
 }
 
-/// Alle Bilder eines Werks löschen (für `works::delete_work_rows`).
+/// Delete all images of a work (for `works::delete_work_rows`).
 pub(crate) async fn delete_work_assets(conn: &mut SqliteConnection, work: WorkId) -> Result<(), StoreError> {
     let assets: Vec<i64> =
         sqlx::query_scalar("SELECT id FROM asset WHERE work_id = ?").bind(work).fetch_all(&mut *conn).await?;
     for asset in assets {
         delete_rows(conn, asset).await?;
     }
-    // Pfade ohne Bild kann es wegen des Fremdschlüssels nicht geben; sicher ist sicher.
+    // Paths without an image cannot exist because of the foreign key; better safe than sorry.
     sqlx::query("DELETE FROM asset_path WHERE work_id = ?").bind(work).execute(&mut *conn).await?;
     Ok(())
 }
 
-/// Wert „vorher → nachher“ in einer Zeile (leer → „–“).
+/// Value "before → after" on one line (empty → "–").
 fn shown(value: &str) -> String {
     let joined = value.split(['\r', '\n']).map(str::trim).filter(|p| !p.is_empty()).collect::<Vec<_>>().join(" ");
     if joined.is_empty() { "–".to_owned() } else { joined }
 }
 
-/// Spiegel-Dateien: je aktuelles Bild `bilder/<name>` (SVG-Text) bzw. `bilder/<name>.b64` (Base64 in
-/// Zeilen zu 76 Zeichen, jede mit `\n`), nach Namen.
+/// Mirror files: per current image `bilder/<name>` (SVG text) or `bilder/<name>.b64` (Base64 in lines of 76 characters,
+/// each with `\n`), by name.
 pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<MirrorFile>, StoreError> {
     let rows: Vec<(String, String, String)> = sqlx::query_as(
         "SELECT a.name, r.encoding, r.content FROM asset a JOIN asset_revision r ON r.asset_id = a.id \
@@ -827,8 +823,7 @@ pub(crate) async fn mirror_files(conn: &mut SqliteConnection, work: WorkId) -> R
 }
 
 impl Store {
-    /// Alle Bilder des Werks nach Namen, mit den Angaben der aktuellen Fassung. Unbekanntes Werk →
-    /// `UnknownWork`.
+    /// All images of the work by name, with the details of the current version. Unknown work → `UnknownWork`.
     pub async fn asset_list(&self, work: WorkId) -> Result<Vec<AssetSummary>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -867,11 +862,10 @@ impl Store {
         Ok(out)
     }
 
-    /// Bilder suchen (Runde 11, Seite „Bilder“ `?q=`, RPC `asset.search`): alle Bilder, deren Name,
-    /// Bildunterschrift oder Alternativtext der **aktuellen** Fassung `query` enthält – wie
-    /// `LIKE '%query%'`, aber ohne Groß/Klein auch für Umlaute (SQLite faltet in `LIKE` nur ASCII) und
-    /// mit `%` und `_` als gewöhnlichen Zeichen. Leere Suche (nur Leerraum) = alle Bilder. Reihenfolge
-    /// wie [`Store::asset_list`] (nach Namen). Unbekanntes Werk → `UnknownWork`.
+    /// Search images (Round 11, page „Bilder“ `?q=`, RPC `asset.search`): all images whose name, caption or alternative
+    /// text of the **current** version contains `query` – like `LIKE '%query%'`, but case-insensitive also for umlauts
+    /// (SQLite folds only ASCII in `LIKE`) and with `%` and `_` as ordinary characters. Empty search (whitespace only)
+    /// = all images. Order as in [`Store::asset_list`] (by name). Unknown work → `UnknownWork`.
     pub async fn asset_search(&self, work: WorkId, query: &str) -> Result<Vec<AssetSummary>, StoreError> {
         let all = self.asset_list(work).await?;
         let needle = query.trim().to_lowercase();
@@ -884,14 +878,14 @@ impl Store {
             .collect())
     }
 
-    /// Alle Fassungen eines Bilds nach Nummer (ohne Inhalt).
+    /// All versions of an image by number (without content).
     pub async fn asset_revisions(&self, work: WorkId, name: &str) -> Result<Vec<AssetRevisionInfo>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let asset = asset_id(&mut conn, work, name).await?;
         revisions_of(&mut conn, asset).await
     }
 
-    /// Inhalt einer Fassung (`None` = die aktuelle).
+    /// Content of a version (`None` = the current one).
     pub async fn asset_data(&self, work: WorkId, name: &str, rev: Option<u32>) -> Result<AssetData, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let asset = asset_id(&mut conn, work, name).await?;
@@ -902,9 +896,9 @@ impl Store {
         data_of(&mut conn, asset, name, rev).await
     }
 
-    /// Aktuelle Fassung des Bilds, das unter `path` in Vorlage/Text steht; verglichen in Normalform
-    /// ([`normalize_asset_path`]: `/bilder/a.png`, `bilder/a.png` und `./bilder/a.png` sind derselbe
-    /// Pfad). Unbekannt oder ohne Normalform (`..`) → `None`.
+    /// Current version of the image that stands under `path` in template/text; compared in normal form
+    /// ([`normalize_asset_path`]: `/bilder/a.png`, `bilder/a.png` and `./bilder/a.png` are the same path). Unknown or
+    /// without a normal form (`..`) → `None`.
     pub async fn asset_by_path(&self, work: WorkId, path: &str) -> Result<Option<AssetData>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -913,8 +907,8 @@ impl Store {
         data_of(&mut conn, asset, &name, rev).await.map(Some)
     }
 
-    /// Neues Bild anlegen (Fassung 1, aktuell, Autor `human`). Zu groß, kein unterstützter Typ,
-    /// ungültiger Name oder Pfad → `Asset`; Name vergeben → `Refused`.
+    /// Create a new image (version 1, current, author `human`). Too large, no supported type, invalid name or path →
+    /// `Asset`; name taken → `Refused`.
     pub async fn add_asset(&self, work: WorkId, new: &NewAsset<'_>, human: &str) -> Result<AssetChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let change = add(&mut tx, work, new, human).await?;
@@ -922,9 +916,9 @@ impl Store {
         Ok(change)
     }
 
-    /// Bild ersetzen: neue Fassung, sofort aktuell, `based_on` = die bisher aktuelle; Bildunterschrift
-    /// und Alternativtext gehen mit. Gleiche Bytes (SHA-256) → `Refused("Das Bild ist unverändert.")`;
-    /// anderer Typ als die Endung des Namens → `Asset` (mit Typwechsel: [`Store::replace_asset_renaming`]).
+    /// Replace an image: new version, current at once, `based_on` = the one current so far; caption and alternative
+    /// text go along. Same bytes (SHA-256) → `Refused("Das Bild ist unverändert.")`; a type other than the extension of
+    /// the name → `Asset` (with a change of type: [`Store::replace_asset_renaming`]).
     #[allow(clippy::too_many_arguments)]
     pub async fn replace_asset(
         &self,
@@ -939,14 +933,14 @@ impl Store {
         self.replace_asset_renaming(work, name, file_name, bytes, as_base64, note, human, false).await
     }
 
-    /// Wie [`Store::replace_asset`], dazu der **Typwechsel** (Runde 21c): Ist der neue Inhalt ein anderes Format
-    /// als die Endung des Namens, geht das nur mit `rename` (sonst `Asset` mit Hinweis). Dann bekommt das Bild in
-    /// derselben Transaktion den Namen mit der Vorgabe-Endung des neuen Formats (`haus.svg` → `haus.png`); ist
-    /// dieser Name im Werk schon vergeben, den nächsten freien (`haus-2.png`). Alle Pfade bleiben dem Bild
-    /// zugeordnet (sie hängen an der id, nicht am Namen), der Text bleibt byte-gleich – Vorlage und Text finden am
-    /// alten Pfad das neue Bild. Offene Anträge zum Bild ziehen den Namen mit (sie veralten beim Bestätigen ohnehin,
-    /// weil sich die aktuelle Fassung geändert hat). `rename` bei gleichem Format ändert nichts am Namen.
-    /// `AssetChange::name` ist der neue Name, `detail` nennt den alten.
+    /// Like [`Store::replace_asset`], plus the **change of type** (Round 21c): if the new content is a format other
+    /// than the extension of the name, that only works with `rename` (otherwise `Asset` with a hint). Then the image
+    /// gets, in the same transaction, the name with the default extension of the new format (`haus.svg` → `haus.png`);
+    /// if this name is already taken in the work, the next free one (`haus-2.png`). All paths stay assigned to the
+    /// image (they hang on the id, not on the name), the text stays byte-identical – template and text find the new
+    /// image at the old path. Open requests concerning the image take the name along (they become stale on confirmation
+    /// anyway, because the current version has changed). `rename` with the same format changes nothing about the name.
+    /// `AssetChange::name` is the new name, `detail` names the old one.
     #[allow(clippy::too_many_arguments)]
     pub async fn replace_asset_renaming(
         &self,
@@ -1022,21 +1016,21 @@ impl Store {
         })
     }
 
-    /// Altbestand (Runde 21c): Pfade, die in Normalform ([`normalize_asset_path`]) gleich sind, aber zu
-    /// **verschiedenen** Bildern gehören (`/x.png` → Bild A, `x.png` → Bild B). Neu anlegen lässt der Store so
-    /// etwas seit Runde 7 nicht mehr zu; ältere Datenbanken können es noch enthalten. Je Normalform eine
-    /// [`PathConflict`] mit allen Schreibweisen und ihrem Bild, nach Normalform sortiert.
+    /// Legacy data (Round 21c): paths that are equal in normal form ([`normalize_asset_path`]) but belong to
+    /// **different** images (`/x.png` → image A, `x.png` → image B). Since Round 7 the store no longer allows creating
+    /// such a thing; older databases can still contain it. Per normal form one [`PathConflict`] with all spellings and
+    /// their image, sorted by normal form.
     pub async fn asset_path_conflicts(&self, work: WorkId) -> Result<Vec<PathConflict>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
         path_conflicts(&mut conn, work).await
     }
 
-    /// Kollision auflösen (nur Mensch, Runde 21c): Alle Schreibweisen der Normalform `normal` gehören danach dem
-    /// Bild `asset`; die anderen Bilder verlieren diese Pfade (ihre übrigen Pfade und Fassungen bleiben). Der Text
-    /// bleibt byte-gleich; so finden Vorlage, Text, Satz und Export unter jeder Schreibweise dasselbe Bild. Keine
-    /// Kollision unter `normal` → `Refused`; `asset` gehört keine der Schreibweisen → `Asset`. Ergebnis für
-    /// **einen** Spiegel-Commit (`Updated` am gewählten Bild, `detail` nennt die umgehängten Pfade).
+    /// Resolve a collision (human only, Round 21c): afterwards all spellings of the normal form `normal` belong to the
+    /// image `asset`; the other images lose these paths (their other paths and versions stay). The text stays
+    /// byte-identical; that way template, text, typesetting and export find the same image under every spelling. No
+    /// collision under `normal` → `Refused`; none of the spellings belongs to `asset` → `Asset`. Result for **one**
+    /// mirror commit (`Updated` on the chosen image, `detail` names the paths re-attached).
     pub async fn resolve_asset_path(
         &self,
         work: WorkId,
@@ -1092,7 +1086,7 @@ impl Store {
         })
     }
 
-    /// Markierung „aktuell“ auf Fassung `rev` umschalten. Schon aktuell → `Refused`.
+    /// Switch the "current" marker to version `rev`. Already current → `Refused`.
     pub async fn set_current_asset(&self, work: WorkId, name: &str, rev: u32) -> Result<AssetChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let asset = asset_id(&mut tx, work, name).await?;
@@ -1115,8 +1109,8 @@ impl Store {
         })
     }
 
-    /// Bildunterschrift, Alternativtext und/oder Notiz einer Fassung ändern (nur Mensch), setzt
-    /// `edited`. Der Inhalt bleibt (Trigger). Nichts geändert → `Refused("Die Fassung ist unverändert.")`.
+    /// Change caption, alternative text and/or note of a version (human only), sets `edited`. The content stays
+    /// (trigger). Nothing changed → `Refused("Die Fassung ist unverändert.")`.
     #[allow(clippy::too_many_arguments)]
     pub async fn update_asset_revision(
         &self,
@@ -1169,8 +1163,8 @@ impl Store {
         })
     }
 
-    /// Eine Fassung löschen (nur Mensch, nicht die aktuelle → `Refused`); Kinder hängen danach am
-    /// Elternteil. `removed` trägt den gelöschten Inhalt.
+    /// Delete a version (human only, not the current one → `Refused`); afterwards children hang on the parent.
+    /// `removed` carries the deleted content.
     pub async fn delete_asset_revision(
         &self,
         work: WorkId,
@@ -1218,8 +1212,8 @@ impl Store {
         })
     }
 
-    /// Das ganze Bild samt Fassungen und Pfaden löschen (nur Mensch). `removed` trägt den Inhalt der
-    /// zuletzt aktuellen Fassung (alle Fassungen waren einmal aktuell und stehen in der Git-Historie).
+    /// Delete the whole image together with versions and paths (human only). `removed` carries the content of the
+    /// version that was current last (all versions were current once and are in the Git history).
     pub async fn delete_asset(&self, work: WorkId, name: &str, human: &str) -> Result<AssetChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let asset = asset_id(&mut tx, work, name).await?;
@@ -1242,13 +1236,12 @@ impl Store {
         })
     }
 
-    /// Bild in einen Abschnitt einfügen (Runde 18c): eigene Fassung des Menschen `author` auf der Basis
-    /// `based_on` mit dem fertigen Text `body` speichern und – falls das Bild `asset` den Pfad `path` (in
-    /// Normalform verglichen) noch nicht hat – ihm diesen Pfad geben, **beides in einer Transaktion**: Scheitert
-    /// das Speichern (Überschriften passen nicht, unbekannte Fassung …) oder ist der Text unverändert, bleibt auch
-    /// kein Pfad zurück. Ein Pfad, der einem anderen Bild gehört, oder ein ungültiger → `Asset`; unbekanntes Bild →
-    /// `UnknownAsset`. Ergebnis: die Änderung des Abschnitts (für den einen Spiegel-Commit; `None` = Text
-    /// unverändert, nichts gespeichert) und ob der Pfad neu vergeben wurde.
+    /// Insert an image into a section (Round 18c): save a revision of the human `author` on the base `based_on` with
+    /// the finished text `body` and – if the image `asset` does not yet have the path `path` (compared in normal form)
+    /// – give it this path, **both in one transaction**: if the saving fails (headings do not fit, unknown revision …)
+    /// or the text is unchanged, no path is left behind either. A path that belongs to another image, or an invalid one
+    /// → `Asset`; unknown image → `UnknownAsset`. Result: the change of the section (for the one mirror commit; `None`
+    /// = text unchanged, nothing saved) and whether the path was newly assigned.
     #[allow(clippy::too_many_arguments)]
     pub async fn save_human_with_asset_path(
         &self,
@@ -1274,7 +1267,7 @@ impl Store {
         }
         let change = crate::write::save_human(&mut tx, work, node, body, author, Some(based_on)).await?;
         if change.is_none() {
-            // Text unverändert: nichts speichern, auch keinen Pfad (die Transaktion rollt beim Verwerfen zurück).
+            // Text unchanged: save nothing, not a path either (the transaction rolls back when dropped).
             return Ok((None, false));
         }
         crate::outline::check_current_heading(&mut tx, work, node).await?;
@@ -1282,8 +1275,8 @@ impl Store {
         Ok((change, added))
     }
 
-    /// Pfade des Bilds ersetzen (je Eintrag auch mehrere Zeilen; leer = keine). Ein Pfad eines
-    /// anderen Bilds oder ein ungültiger → `Asset`; unverändert → `Refused`.
+    /// Replace the paths of the image (per entry also several lines; empty = none). A path of another image or an
+    /// invalid one → `Asset`; unchanged → `Refused`.
     pub async fn set_asset_paths(&self, work: WorkId, name: &str, paths: &[String]) -> Result<AssetChange, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let asset = asset_id(&mut tx, work, name).await?;
@@ -1309,8 +1302,8 @@ impl Store {
         })
     }
 
-    /// Dateien für den Export: je Pfad (in Normalform, [`normalize_asset_path`]: ohne führendes `/`
-    /// und `./`, ohne Doppelte, sortiert) die Bytes der aktuellen Fassung.
+    /// Files for the export: per path (in normal form, [`normalize_asset_path`]: without a leading `/` and `./`,
+    /// without duplicates, sorted) the bytes of the current version.
     pub async fn export_assets(&self, work: WorkId) -> Result<Vec<ExportedFile>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -1339,11 +1332,10 @@ impl Store {
         Ok(files)
     }
 
-    /// Typst-Datei und ihre Bilder als neues Werk, alles in **einer** Transaktion: wie
-    /// [`Store::import_typst_titled`], dazu je Datei ein Bild (Fassung 1 von `human` mit `note`,
-    /// Name aus dem Dateinamen) und je Pfad ein Eintrag in `asset_path`. Gleiche Bytes unter
-    /// gleichem Dateinamen werden ein Bild mit mehreren Pfaden. Scheitert ein Bild (Typ, Größe,
-    /// Pfad), wird nichts angelegt. Zweite Rückgabe: die angelegten Bildnamen.
+    /// A Typst file and its images as a new work, everything in **one** transaction: like
+    /// [`Store::import_typst_titled`], plus one image per file (version 1 by `human` with `note`, name from the file
+    /// name) and one entry in `asset_path` per path. Same bytes under the same file name become one image with several
+    /// paths. If an image fails (type, size, path), nothing is created. Second return value: the image names created.
     pub async fn import_typst_with_assets(
         &self,
         source: &str,
@@ -1356,7 +1348,7 @@ impl Store {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let imported = import::import_typst(&mut tx, source, file_name, human, note, title).await?;
         let mut names = Vec::new();
-        // (Dateiname, SHA-256) → Bild-id: dieselbe Datei unter zwei Schreibweisen ist ein Bild.
+        // (file name, SHA-256) → image id: the same file under two spellings is one image.
         let mut known: HashMap<(String, String), i64> = HashMap::new();
         for item in assets {
             let path = check_path(&item.path)?;

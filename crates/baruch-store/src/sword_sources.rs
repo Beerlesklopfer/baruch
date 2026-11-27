@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Kommentare und Lexika je Werk sowie der Schalter „Bibel-Belege“ je Persona (Migration
-//! `0037_sword_sources.sql`, Runde 15, Punkte 5a/5c).
+//! Commentaries and lexicons per work as well as the switch "Bibel-Belege" (Bible evidence) per persona (migration
+//! `0037_sword_sources.sql`, Round 15, items 5a/5c).
 //!
-//! - `work_sword_source`: je Werk mehrere SWORD-Module der Art `commentary` oder `lexicon` in einer
-//!   Reihenfolge (`position` 1..n je Art). Ein gelöschtes Werk nimmt seine Zeilen mit.
-//! - `persona_bible`: Schalter je Persona (`enabled` 0/1); keine Zeile = Vorgabe, die der Server festlegt
-//!   (`@belege` an, Lektor aus). Wer den Schalter nutzen darf, prüft der Server.
+//! - `work_sword_source`: per work several SWORD modules of the kind `commentary` or `lexicon` in an order (`position`
+//!   1..n per kind). A deleted work takes its rows along.
+//! - `persona_bible`: switch per persona (`enabled` 0/1); no row = default, which the server defines (`@belege` on,
+//!   lector off). Who may use the switch is checked by the server.
 //!
-//! Kein Buchtext, kein Commit im Spiegel; jede Änderung eine Transaktion (`BEGIN IMMEDIATE`).
+//! Not book text, no commit in the mirror; every change is one transaction (`BEGIN IMMEDIATE`).
 
 use sqlx::SqliteConnection;
 
 use crate::{Store, StoreError, WorkId};
 
-/// Höchstzahl der Module je Art und Werk.
+/// Maximum number of modules per kind and work.
 pub const MAX_WORK_SOURCES: usize = 20;
-/// Längster Modulname (Zeichen).
+/// Longest module name (characters).
 pub const MAX_MODULE_NAME: usize = 200;
 
-/// Gewählte Kommentare und Lexika eines Werks (je in ihrer Reihenfolge).
+/// Chosen commentaries and lexicons of a work (each in its order).
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct WorkSources {
     pub commentaries: Vec<String>,
@@ -49,7 +49,7 @@ async fn persona_id(conn: &mut SqliteConnection, handle: &str) -> Result<i64, St
     Err(StoreError::UnknownPersona(wanted.to_owned()))
 }
 
-/// Namen getrimmt, ohne leere und doppelte (Groß-/Kleinschreibung egal), höchstens [`MAX_WORK_SOURCES`].
+/// Names trimmed, without empty and duplicate ones (case-insensitive), at most [`MAX_WORK_SOURCES`].
 fn cleaned(names: &[String]) -> Result<Vec<String>, StoreError> {
     let mut out: Vec<String> = Vec::new();
     for name in names {
@@ -71,7 +71,7 @@ fn cleaned(names: &[String]) -> Result<Vec<String>, StoreError> {
 }
 
 impl Store {
-    /// Kommentare und Lexika eines Werks; unbekanntes Werk → `UnknownWork`.
+    /// Commentaries and lexicons of a work; unknown work → `UnknownWork`.
     pub async fn work_sword_sources(&self, work: WorkId) -> Result<WorkSources, StoreError> {
         let mut conn = self.pool.acquire().await?;
         work_exists(&mut conn, work).await?;
@@ -91,8 +91,8 @@ impl Store {
         Ok(out)
     }
 
-    /// Kommentare und Lexika eines Werks ganz ersetzen (Reihenfolge wie übergeben, leere und doppelte
-    /// Namen fallen weg). Ob es die Module gibt, prüft der Server.
+    /// Replace the commentaries and lexicons of a work completely (order as passed, empty and duplicate names are
+    /// dropped). Whether the modules exist is checked by the server.
     pub async fn set_work_sword_sources(
         &self,
         work: WorkId,
@@ -119,8 +119,7 @@ impl Store {
         Ok(WorkSources { commentaries, lexicons })
     }
 
-    /// Schalter „Bibel-Belege“ einer Persona; `None` = keine Zeile (Vorgabe des Servers). Unbekannte Persona
-    /// → `UnknownPersona`.
+    /// Switch "Bibel-Belege" of a persona; `None` = no row (default of the server). Unknown persona → `UnknownPersona`.
     pub async fn persona_bible(&self, handle: &str) -> Result<Option<bool>, StoreError> {
         let mut conn = self.pool.acquire().await?;
         let id = persona_id(&mut conn, handle).await?;
@@ -131,7 +130,7 @@ impl Store {
         Ok(enabled.map(|e| e == 1))
     }
 
-    /// Schalter setzen; unbekannte Persona → `UnknownPersona`.
+    /// Set the switch; unknown persona → `UnknownPersona`.
     pub async fn set_persona_bible(&self, handle: &str, on: bool) -> Result<bool, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         let id = persona_id(&mut tx, handle).await?;

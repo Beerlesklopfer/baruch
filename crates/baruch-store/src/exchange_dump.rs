@@ -1,50 +1,48 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Werk aus der Datenbank als [`baruch_exchange::ExchangeWork`] (Runde 26).
+//! A work from the database as [`baruch_exchange::ExchangeWork`] (Round 26).
 //!
-//! Liest Werk, Angaben, Buchangaben, Vorlage, Gliederung mit allen Fassungen, Beiträge, Einfälle (auch
-//! gelöschte), Fäden, Bilder, die Gedankenkarte (Runde 25) und Grabsteine in einer lesenden Transaktion; im Format
-//! stehen nur UUIDs.
+//! Reads work, details, book details, template, outline with all revisions, posts, ideas (also deleted ones), threads,
+//! images, the mind map (Round 25) and tombstones in one reading transaction; the format contains only UUIDs.
 //!
-//! Abbildung (Vertrag F3/F5):
-//! - Zahlen-ids, `slug`, `node.number` (wird berechnet), Quelle des Typst-Imports und alles außerhalb des Werks
-//!   (Verbindungen zu Diensten, Personas samt Modellen, Anträge, Belege, RAG-Zuordnungen) kommen nicht vor.
-//! - Verweise laufen über UUIDs: `revision.based_on` (Nummer) → UUID der Fassung mit dieser Nummer im selben
-//!   Punkt; `post_ref.node_seq`/`rev` → UUID des Punkts bzw. seiner Fassung (`rev` ohne passende Fassung →
-//!   ohne `fassung`); `idea.node_id` → UUID des Punkts; Umschlag und Autorenfoto → UUID des Bilds;
-//!   `asset_revision.based_on` (Nummer) → UUID der Bildfassung.
-//! - `position` von Beiträgen und Fadenbeiträgen ist im Format die Reihenfolge ab 1 (lückenlos), nicht die
-//!   interne Position (ab 0, nach Löschen mit Lücken).
-//! - `done_ref` eines Einfalls ist freier Text; beginnt er mit „key N“ und gibt es den Punkt im Werk, steht dort
-//!   statt „key N“ die UUID des Punkts (der Rest bleibt wörtlich).
-//! - Bilder als Rohbytes (Base64 aus der Datenbank entschlüsselt, SVG-Text als UTF-8), `sha256` neu über die
-//!   Bytes gerechnet.
-//! - Karte (Runde 25, `<karte>`): alle Verbindungen (`idea_link`, auch weich gelöschte), deren beide Einfälle zum
-//!   Werk gehören, nach id; alle Lagen (`idea_map_pos`) des Werks, deren Einfall noch zum Werk gehört, nach id.
-//!   Verweise über die UUIDs der Einfälle; „widerspricht“ steht so, wie es gespeichert ist (from < to hier).
-//! - Grabsteine: alle Einträge in `uuid_tombstone` mit der UUID des Werks (auch `idea_link`, `idea_map_pos`,
+//! Mapping (contract F3/F5):
+//! - Numeric ids, `slug`, `node.number` (is computed), the source of the Typst import and everything outside the work
+//!   (connections to services, personas together with models, requests, evidence, RAG assignments) do not occur.
+//! - References run through UUIDs: `revision.based_on` (number) → UUID of the revision with this number in the same
+//!   item; `post_ref.node_seq`/`rev` → UUID of the item or of its revision (`rev` without a matching revision → without
+//!   `fassung`); `idea.node_id` → UUID of the item; cover and author photo → UUID of the image;
+//!   `asset_revision.based_on` (number) → UUID of the image version.
+//! - `position` of posts and thread posts is, in the format, the order from 1 (without gaps), not the internal position
+//!   (from 0, with gaps after deletions).
+//! - `done_ref` of an idea is free text; if it begins with "key N" and the item exists in the work, the UUID of the
+//!   item stands there instead of "key N" (the rest stays verbatim).
+//! - Images as raw bytes (Base64 from the database decoded, SVG text as UTF-8), `sha256` computed anew over the bytes.
+//! - Map (Round 25, `<karte>`): all links (`idea_link`, also soft-deleted ones) whose two ideas belong to the work, by
+//!   id; all positions (`idea_map_pos`) of the work whose idea still belongs to the work, by id. References through the
+//!   UUIDs of the ideas; „widerspricht“ stands the way it is stored (from < to here).
+//! - Tombstones: all entries in `uuid_tombstone` with the UUID of the work (also `idea_link`, `idea_map_pos`,
 //!   `cover_block`).
-//! - Unterversion 3 (Runde 27): Anschriften aus `work_book`, die Umschlag-Anordnung (`cover_block`, je Block mit uuid,
-//!   in der Reihenfolge der Arten) in `<buch>` und die Satzbild-Einstellungen (`work_sheet`). Hat ein Werk Blöcke,
-//!   aber keine Zeile in `work_book`, stehen die Buchangaben mit ihren Vorgaben da (sonst gäbe es kein `<buch>` für
+//! - Minor version 3 (Round 27): addresses from `work_book`, the cover layout (`cover_block`, per block with uuid, in
+//!   the order of the kinds) in `<buch>` and the typeset view settings (`work_sheet`). If a work has blocks but no row
+//!   in `work_book`, the book details stand there with their defaults (otherwise there would be no `<buch>` for
 //!   `<umschlag>`).
-//! - Unterversion 4 (Runde 28): Befunde (`finding`, nach id) mit Statusverlauf (`finding_status`, nach id) in
-//!   `<befunde>`; Verweise über UUIDs (Punkt, Beitrag, Fadenbeitrag, `similar_to` → UUID des Befunds; Fassung und Ziel
-//!   stehen schon als UUID in der Datenbank). Beiträge und Fadenbeiträge tragen `edited` und ihre alten Fassungen
-//!   (`post_version`, nach id). Die Grabsteinarten `finding`, `finding_status`, `post_version` stehen in der Liste.
-//! - Unterversion 5 (Runde 30): Lösungen je Befund (`finding.solutions`), Varianten an den Fassungen
-//!   (`revision.variant_*`, Befunde als UUIDs; gelöschte fallen weg) und Metadaten der Beiträge (Grundlage als UUID der
-//!   Fassung, Kopfzeile, Antwort auf/Wiederholung von als UUID eines Beitrags derselben Stelle, Relay). Der Auftrag
-//!   (`request`) und das Protokoll `replace_batch` bleiben lokal.
-//! - Unterversion 6 (Runde 29): die Satz-Einstellungen (`work_typeset`, eine Zeile je Werk) mit uuid, `updated`,
-//!   `updated_by` und den Einstellungen; die Grabsteinart `work_typeset` steht in der Liste.
-//! - Unterversion 7 (Runde 31): eigene Register (`index_register`, in ihrer Reihenfolge) und alle Glossarbegriffe
-//!   (`glossary_term` mit Varianten aus `glossary_variant`, angenommene und vorgeschlagene, nach `sort_key`); die
-//!   Grabsteinarten `glossary_term` und `index_register` stehen in der Liste. Registervorschläge (`index_proposal`)
-//!   bleiben lokal (Arbeitsablauf der Instanz, ohne uuid).
-//! - Unterversion 8 (Runde 22): an jeder Fassung `amend_seq` und `based_on_amend` und der Verlauf `revision_amend` (nach
-//!   Schritt, mit uuid), an Befund und Verlaufseintrag `adopted_amend`, der Entwurf in den Satz-Einstellungen
-//!   (`TypesetSettings.draft`); die Grabsteinart `revision_amend` steht in der Liste. Die Einstellung „Fassungen“
-//!   (`work_revision_policy`) bleibt lokal (Arbeitsweise der Instanz).
+//! - Minor version 4 (Round 28): findings (`finding`, by id) with status history (`finding_status`, by id) in
+//!   `<befunde>`; references through UUIDs (item, post, thread post, `similar_to` → UUID of the finding; revision and
+//!   target are already in the database as UUIDs). Posts and thread posts carry `edited` and their old versions
+//!   (`post_version`, by id). The tombstone kinds `finding`, `finding_status`, `post_version` are in the list.
+//! - Minor version 5 (Round 30): solutions per finding (`finding.solutions`), variants on the revisions
+//!   (`revision.variant_*`, findings as UUIDs; deleted ones are dropped) and metadata of the posts (basis as UUID of
+//!   the revision, header line, reply to/repetition of as UUID of a post of the same place, relay). The job (`request`)
+//!   and the log `replace_batch` stay local.
+//! - Minor version 6 (Round 29): the typesetting settings (`work_typeset`, one row per work) with uuid, `updated`,
+//!   `updated_by` and the settings; the tombstone kind `work_typeset` is in the list.
+//! - Minor version 7 (Round 31): custom indexes (`index_register`, in their order) and all glossary terms
+//!   (`glossary_term` with variants from `glossary_variant`, accepted and proposed ones, by `sort_key`); the tombstone
+//!   kinds `glossary_term` and `index_register` are in the list. Index proposals (`index_proposal`) stay local
+//!   (workflow of the instance, without uuid).
+//! - Minor version 8 (Round 22): on every revision `amend_seq` and `based_on_amend` and the history `revision_amend`
+//!   (by step, with uuid), on finding and history entry `adopted_amend`, the draft in the typesetting settings
+//!   (`TypesetSettings.draft`); the tombstone kind `revision_amend` is in the list. The setting „Fassungen“
+//!   (`work_revision_policy`) stays local (working style of the instance).
 
 use std::collections::HashMap;
 
@@ -73,12 +71,12 @@ fn broken(what: impl std::fmt::Display) -> StoreError {
     StoreError::Exchange(format!("Datenbank passt nicht zum Austauschformat: {what}"))
 }
 
-/// Zahl aus der Datenbank als `u32` für das Format (Nummern, Positionen, Sekunden).
+/// Number from the database as `u32` for the format (numbers, positions, seconds).
 fn number(value: i64, what: &str) -> Result<u32, StoreError> {
     u32::try_from(value).map_err(|_| broken(format!("{what} {value}")))
 }
 
-/// JSON-Liste von Zeichenketten (`post.sources`, `chat_thread_post.sources`).
+/// JSON list of strings (`post.sources`, `chat_thread_post.sources`).
 fn sources(json: &str, what: &str) -> Result<Vec<String>, StoreError> {
     serde_json::from_str(json).map_err(|e| broken(format!("Quellen von {what}: {e}")))
 }
@@ -129,9 +127,9 @@ type AssetRevisionRow =
     (String, i64, Option<i64>, String, String, String, String, String, String, String, String, String, Option<String>);
 
 impl Store {
-    /// Das ganze Werk im Modell des Austauschformats.
+    /// The whole work in the model of the exchange format.
     pub async fn exchange_dump(&self, work: WorkId) -> Result<baruch_exchange::ExchangeWork, StoreError> {
-        // Eine lesende Transaktion: Alle Abfragen sehen denselben Stand (WAL-Schnappschuss ab der ersten).
+        // One reading transaction: all queries see the same state (WAL snapshot from the first one on).
         let mut tx = self.pool.begin().await?;
         let dumped = dump(&mut tx, work).await?;
         tx.commit().await?;
@@ -293,8 +291,8 @@ async fn dump(conn: &mut SqliteConnection, work: WorkId) -> Result<ExchangeWork,
     })
 }
 
-/// Alte Fassungen je Beitrag (`thread = false`, Schlüssel `post.id`) bzw. Fadenbeitrag (`thread = true`, Schlüssel
-/// `chat_thread_post.id`) des Werks, älteste zuerst (Runde 28).
+/// Old versions per post (`thread = false`, key `post.id`) or thread post (`thread = true`, key `chat_thread_post.id`)
+/// of the work, oldest first (Round 28).
 async fn post_versions(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -317,7 +315,7 @@ async fn post_versions(
     Ok(out)
 }
 
-/// Befunde des Werks mit Statusverlauf (Runde 28), nach id.
+/// Findings of the work with status history (Round 28), by id.
 async fn findings(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<ExchangeFinding>, StoreError> {
     let entry_rows = sqlx::query(
         "SELECT s.finding_id, s.uuid, s.status, s.reason, s.adopted_revision, s.deferred_node, s.deferred_idea, \
@@ -399,12 +397,12 @@ async fn findings(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<Excha
     Ok(out)
 }
 
-/// Runde 22: Stand (`adopted_amend`, `amend_seq`, `based_on_amend`) aus der Datenbank; negativ → beschädigt.
+/// Round 22: state (`adopted_amend`, `amend_seq`, `based_on_amend`) from the database; negative → damaged.
 fn amend_of(value: Option<i64>) -> Result<Option<u32>, StoreError> {
     value.map(|v| u32::try_from(v).map_err(|_| broken(format!("Stand {v}")))).transpose()
 }
 
-/// Lösungen eines Befunds (Runde 30b, `finding.solutions`) → `<loesung>`.
+/// Solutions of a finding (Round 30b, `finding.solutions`) → `<loesung>`.
 fn solutions_of(id: i64, json: &str) -> Result<Vec<ExchangeSolution>, StoreError> {
     let list: Vec<crate::Solution> =
         serde_json::from_str(json).map_err(|e| broken(format!("Befund {id}: solutions ist keine Liste ({e})")))?;
@@ -414,9 +412,9 @@ fn solutions_of(id: i64, json: &str) -> Result<Vec<ExchangeSolution>, StoreError
         .collect())
 }
 
-/// Metadaten eines Beitrags (Runde 30, Migration 0047) → [`ExchangePostMeta`]: Grundlage als UUID der Fassung
-/// (nur Beiträge eines Abschnitts), Antwort/Wiederholung als UUID eines Beitrags **derselben Stelle** (ein Ziel an
-/// anderer Stelle, etwa nach dem Verschieben, lässt sich im Format nicht ausdrücken und fällt weg).
+/// Metadata of a post (Round 30, migration 0047) → [`ExchangePostMeta`]: basis as UUID of the revision (only posts of a
+/// section), reply/repetition as UUID of a post of **the same place** (a target at another place, for instance after
+/// moving, cannot be expressed in the format and is dropped).
 fn post_meta_of(
     basis: Option<String>,
     label: String,
@@ -437,7 +435,7 @@ fn post_meta_of(
 type SheetRow =
     (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>);
 
-/// Satzbild-Einstellungen (`work_sheet`, Runde 18c); ohne Zeile bzw. ganz leer `None`.
+/// Typeset view settings (`work_sheet`, Round 18c); without a row or completely empty `None`.
 async fn sheet(conn: &mut SqliteConnection, work: WorkId) -> Result<Option<ExchangeSheet>, StoreError> {
     let row: Option<SheetRow> = sqlx::query_as(
         "SELECT font, heading_font, size, fill, heading_fill, background, width FROM work_sheet WHERE work_id = ?",
@@ -477,7 +475,7 @@ type BlockRow = (
     String,
 );
 
-/// Umschlag-Anordnung (`cover_block`, Runde 27) in der Reihenfolge der Arten.
+/// Cover layout (`cover_block`, Round 27) in the order of the kinds.
 async fn cover_blocks(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<ExchangeCoverBlock>, StoreError> {
     let rows: Vec<BlockRow> = sqlx::query_as(
         "SELECT uuid, kind, x_mm, y_mm, width_mm, align, size_pt, leading_em, color, font, style, backdrop, visible, \
@@ -551,7 +549,7 @@ fn origin_of(kind: &str) -> Result<ExchangeOriginKind, StoreError> {
 
 type LinkRow = (String, String, String, String, String, String, String, String, String, Option<String>);
 
-/// Gedankenkarte: Verbindungen zwischen Einfällen des Werks (auch weich gelöschte) und Lagen seiner Einfälle.
+/// Mind map: links between ideas of the work (also soft-deleted ones) and positions of its ideas.
 async fn map(conn: &mut SqliteConnection, work: WorkId) -> Result<ExchangeMap, StoreError> {
     let rows: Vec<LinkRow> = sqlx::query_as(
         "SELECT l.uuid, a.uuid, b.uuid, l.kind, l.note, l.origin_kind, l.origin_name, l.created, l.updated, \
@@ -614,7 +612,7 @@ async fn book(conn: &mut SqliteConnection, work: WorkId) -> Result<Option<Exchan
         if cover_blocks.is_empty() {
             return Ok(None);
         }
-        // Blöcke ohne Buchangaben: die Vorgaben von `BookMeta::default()`, damit `<umschlag>` ein `<buch>` hat.
+        // Blocks without book details: the defaults of `BookMeta::default()`, so that `<umschlag>` has a `<buch>`.
         let meta = crate::BookMeta::default();
         return Ok(Some(ExchangeBook {
             title_area: ExchangeTitleArea::Top,
@@ -689,7 +687,7 @@ async fn book(conn: &mut SqliteConnection, work: WorkId) -> Result<Option<Exchan
     }))
 }
 
-/// Gliederung als Baum (Kinder nach `position`) mit allen Fassungen und Beiträgen; dazu key → UUID.
+/// Outline as a tree (children by `position`) with all revisions and posts; in addition key → UUID.
 async fn outline(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -704,7 +702,7 @@ async fn outline(
     let by_seq: HashMap<i64, String> = nodes.iter().map(|n| (n.1, n.7.clone())).collect();
     let by_key: HashMap<i64, String> = nodes.iter().map(|n| (n.0, n.7.clone())).collect();
 
-    // Fassungen je Punkt (nach Nummer) und (Punkt, Nummer) → UUID für basis und Bezüge.
+    // Revisions per item (by number) and (item, number) → UUID for basis and references.
     let rows: Vec<RevisionRow> = sqlx::query_as(
         "SELECT r.node_id, r.uuid, r.number, r.status, r.author_kind, r.author_name, r.model, r.based_on, r.note, \
          r.body, r.created, r.edited, r.variant_group, r.variant_label, r.variant_summary, r.variant_findings \
@@ -716,7 +714,7 @@ async fn outline(
     .await?;
     let revision_uuid: HashMap<(i64, i64), String> = rows.iter().map(|r| ((r.0, r.2), r.1.clone())).collect();
     let mut revisions: HashMap<i64, Vec<ExchangeRevision>> = HashMap::new();
-    // Runde 22 (Unterversion 8): Stand und Stand der Basis je Fassung, Verlauf der Fortschreibungen (nach Schritt).
+    // Round 22 (minor version 8): state and state of the base per revision, history of the amendments (by step).
     let stands: HashMap<String, (i64, Option<i64>)> = sqlx::query_as::<_, (String, i64, Option<i64>)>(
         "SELECT r.uuid, r.amend_seq, r.based_on_amend FROM revision r JOIN node n ON n.id = r.node_id \
          WHERE n.work_id = ? AND r.uuid IS NOT NULL",
@@ -749,7 +747,7 @@ async fn outline(
             after,
         });
     }
-    // Runde 30b: Befunde einer Variante als UUIDs (gelöschte Befunde fallen weg).
+    // Round 30b: findings of a variant as UUIDs (deleted findings are dropped).
     let finding_uuid: HashMap<i64, String> =
         sqlx::query_as::<_, (i64, String)>("SELECT id, uuid FROM finding WHERE work_id = ? AND uuid IS NOT NULL")
             .bind(work)
@@ -816,7 +814,7 @@ async fn outline(
         });
     }
 
-    // Beiträge je Punkt (nach Position) samt Bezügen und alten Fassungen.
+    // Posts per item (by position) together with references and old versions.
     let mut versions = post_versions(conn, work, false).await?;
     type PostRow = (
         i64,
@@ -851,7 +849,7 @@ async fn outline(
     let key_of_seq: HashMap<i64, i64> = nodes.iter().map(|n| (n.1, n.0)).collect();
     let mut refs: HashMap<i64, Vec<ExchangePostRef>> = HashMap::new();
     for (post, seq, rev, quote) in ref_rows {
-        // Ein Bezug auf eine Stelle, die es nicht mehr gibt, lässt sich nicht über eine UUID ausdrücken.
+        // A reference to a place that no longer exists cannot be expressed through a UUID.
         let (Some(node), Some(key)) = (by_seq.get(&seq), key_of_seq.get(&seq)) else {
             continue;
         };
@@ -859,7 +857,7 @@ async fn outline(
         refs.entry(post).or_default().push(ExchangePostRef { node: node.clone(), revision, quote });
     }
     let mut posts: HashMap<i64, Vec<ExchangePost>> = HashMap::new();
-    // Runde 30: Beiträge je Stelle (id → UUID) für Antwort auf und Wiederholung von.
+    // Round 30: posts per place (id → UUID) for reply to and repetition of.
     let mut post_uuid_by_node: HashMap<i64, HashMap<i64, String>> = HashMap::new();
     for row in &post_rows {
         post_uuid_by_node.entry(row.1).or_default().insert(row.0, row.2.clone());
@@ -886,7 +884,7 @@ async fn outline(
         });
     }
 
-    // Baum: Kinder je Elternteil (seq) in der Reihenfolge von `position`.
+    // Tree: children per parent (seq) in the order of `position`.
     let mut children: HashMap<Option<i64>, Vec<&NodeRow>> = HashMap::new();
     for row in &nodes {
         children.entry(row.2).or_default().push(row);
@@ -914,7 +912,7 @@ async fn outline(
                 kind,
                 numbered: *numbered != 0,
                 title: title.clone(),
-                // Runde 30: fester Schlüssel für die Querverweise `#link(<kN>)`.
+                // Round 30: fixed key for the cross-references `#link(<kN>)`.
                 key: Some(*key),
                 revisions: revisions.remove(key).unwrap_or_default(),
                 posts: posts.remove(key).unwrap_or_default(),
@@ -927,7 +925,7 @@ async fn outline(
     Ok((tree, by_key))
 }
 
-/// Einfälle des Werks, auch gelöschte, nach Anlage (id).
+/// Ideas of the work, also deleted ones, by creation (id).
 async fn ideas(
     conn: &mut SqliteConnection,
     work: WorkId,
@@ -940,8 +938,8 @@ async fn ideas(
     .bind(work)
     .fetch_all(&mut *conn)
     .await?;
-    // Runde 34 (eigene Abfrage, weil sqlx Tupel nur bis 16 Spalten liest): Titel, UUID des Elternknotens (nur, wenn
-    // er zum selben Werk gehört), Reihenfolge, Hauptthema.
+    // Round 34 (a query of its own, because sqlx reads tuples only up to 16 columns): title, UUID of the parent node
+    // (only if it belongs to the same work), order, main topic.
     let tree: Vec<(i64, String, Option<String>, i64, i64)> = sqlx::query_as(
         "SELECT i.id, i.title, (SELECT p.uuid FROM idea p WHERE p.id = i.parent_id AND p.work_id = i.work_id), \
          i.position, i.main_topic FROM idea i WHERE i.work_id = ?",
@@ -1015,8 +1013,8 @@ async fn ideas(
             updated,
             deleted,
             title,
-            // `main_topic` gilt nur ohne Elternknoten und Bezug (so hält es der Store); hier noch einmal, damit die
-            // Ausgabe auch bei von Hand geänderten Zeilen eindeutig ist.
+            // `main_topic` applies only without parent node and reference (that is how the store keeps it); here once
+            // more, so that the output is unambiguous even for rows changed by hand.
             main_topic: main_topic != 0 && parent.is_none() && node.is_none(),
             parent,
             position,
@@ -1025,7 +1023,7 @@ async fn ideas(
     Ok(out)
 }
 
-/// „key N…“ → „<UUID des Punkts>…“, wenn es den Punkt im Werk gibt; sonst wörtlich.
+/// "key N…" → "<UUID of the item>…" if the item exists in the work; otherwise verbatim.
 fn translate_done_ref(text: &str, node_keys: &HashMap<i64, String>) -> String {
     let Some(rest) = text.strip_prefix("key ") else {
         return text.to_owned();
@@ -1037,7 +1035,7 @@ fn translate_done_ref(text: &str, node_keys: &HashMap<i64, String>) -> String {
     }
 }
 
-/// Fäden ohne Abschnitt mit ihren Beiträgen, nach Anlage.
+/// Threads without a section with their posts, by creation.
 async fn threads(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<ExchangeThread>, StoreError> {
     let rows: Vec<(i64, String, String, String, String, String)> = sqlx::query_as(
         "SELECT id, uuid, title, created_by, created, updated FROM chat_thread WHERE work_id = ? ORDER BY id",
@@ -1076,7 +1074,7 @@ async fn threads(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<Exchan
     let empty = HashMap::new();
     for (id, thread, uuid, author, body, sources_json, created, edited, label, reply_to, repeat_of, relay) in post_rows
     {
-        // Ein Fadenbeitrag hat keine Fassungen: die Grundlage bleibt leer (nur die Kopfzeile reist mit).
+        // A thread post has no revisions: the basis stays empty (only the header line travels along).
         let meta = post_meta_of(None, label, reply_to, repeat_of, relay, uuid_by_thread.get(&thread).unwrap_or(&empty));
         let list = posts.entry(thread).or_default();
         list.push(ExchangeThreadPost {
@@ -1104,7 +1102,7 @@ async fn threads(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<Exchan
         .collect())
 }
 
-/// Bilder des Werks nach Anlage, je mit Pfaden und allen Fassungen.
+/// Images of the work by creation, each with paths and all versions.
 async fn assets(conn: &mut SqliteConnection, work: WorkId) -> Result<Vec<ExchangeAsset>, StoreError> {
     let rows: Vec<(i64, String, String, String)> =
         sqlx::query_as("SELECT id, uuid, name, created FROM asset WHERE work_id = ? ORDER BY id")
@@ -1169,14 +1167,14 @@ mod tests {
     #[test]
     fn done_ref_key_becomes_the_node_uuid() {
         let keys: HashMap<i64, String> = [(12, "26000000-0000-4000-8000-00000000000c".to_owned())].into();
-        // „key 12“ → UUID; der Rest („, Beitrag 3“) bleibt wörtlich, weil er keine Zahlen-id ist.
+        // "key 12" → UUID; the rest („, Beitrag 3“) stays verbatim, because it is not a numeric id.
         assert_eq!(translate_done_ref("key 12", &keys), "26000000-0000-4000-8000-00000000000c", "nur key");
         assert_eq!(
             translate_done_ref("key 12, Beitrag 3", &keys),
             "26000000-0000-4000-8000-00000000000c, Beitrag 3",
             "key mit Rest"
         );
-        // Unbekannter Punkt, „key 120“ (nicht „key 12“) und freier Text bleiben unverändert.
+        // An unknown item, "key 120" (not "key 12") and free text stay unchanged.
         assert_eq!(translate_done_ref("key 99", &keys), "key 99", "unbekannter Punkt bleibt Text");
         assert_eq!(translate_done_ref("key 120", &keys), "key 120", "keine Teilzahl");
         assert_eq!(translate_done_ref("Notiz", &keys), "Notiz", "freier Text");

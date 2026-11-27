@@ -1,22 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Tokens für den MCP-Zugang von anderen Rechnern (Migration `0016_mcp_token.sql`, Runde 10, Aufgabe
-//! „scripture“).
+//! Tokens for MCP access from other machines (migration `0016_mcp_token.sql`, Round 10, task "scripture").
 //!
-//! - Ein Token ist `baruch_` + 32 Zufallsbytes (`getrandom`, Base64url ohne Füllzeichen). Der Klartext
-//!   verlässt [`Store::mcp_token_create`] genau einmal; gespeichert wird nur sein SHA-256 (hex) und die
-//!   ersten 12 Zeichen (`prefix`) zum Wiedererkennen.
-//! - [`McpToken`] trägt weder Hash noch Klartext und darf darum überall gezeigt werden.
-//! - Name: getrimmt 1–64 Zeichen ohne Steuerzeichen, eindeutig unter den nicht widerrufenen Tokens
-//!   (Teilindex `mcp_token_active_name`); ein widerrufener Name ist für [`Store::mcp_token_create`] wieder frei.
-//! - Runde 23: [`Store::mcp_token_create_unique`] (RPC `mcp_token.create` und Seite „MCP-Zugang“) prüft zusätzlich
-//!   den Handle (`@mcp:<handle>`, die Regeln reicht der Aufrufer herein): Weder der Handle noch der Alt-Handle
-//!   (Regel bis Runde 22) des neuen Namens darf dem Handle oder dem Alt-Handle eines vorhandenen **oder
-//!   widerrufenen** Tokens gleichen (deren Beiträge tragen ihn weiter), und keiner darf mit der Vorsilbe der Clients
-//!   ohne Token (`lokal-`) beginnen. Prüfung und Anlegen in **einer** Transaktion.
-//! - Widerrufen setzt `revoked` (idempotent); widerrufene Tokens gelten nie mehr, die Zeile bleibt.
-//! - [`Store::mcp_token_verify`] schreibt `last_used` höchstens einmal je Minute.
+//! - A token is `baruch_` + 32 random bytes (`getrandom`, Base64url without padding). The plain text leaves
+//!   [`Store::mcp_token_create`] exactly once; only its SHA-256 (hex) and the first 12 characters (`prefix`) for
+//!   recognition are stored.
+//! - [`McpToken`] carries neither hash nor plain text and may therefore be shown everywhere.
+//! - Name: trimmed 1–64 characters without control characters, unique among the tokens that are not revoked (partial
+//!   index `mcp_token_active_name`); a revoked name is free again for [`Store::mcp_token_create`].
+//! - Round 23: [`Store::mcp_token_create_unique`] (RPC `mcp_token.create` and page „MCP-Zugang“) additionally checks
+//!   the handle (`@mcp:<handle>`, the caller passes in the rules): neither the handle nor the legacy handle (rule up to
+//!   Round 22) of the new name may equal the handle or the legacy handle of an existing **or revoked** token (their
+//!   posts keep carrying it), and none may begin with the prefix of the clients without a token (`lokal-`). Check and
+//!   creation in **one** transaction.
+//! - Revoking sets `revoked` (idempotent); revoked tokens never apply again, the row stays.
+//! - [`Store::mcp_token_verify`] writes `last_used` at most once per minute.
 //!
-//! Kein Buchtext, kein Commit im Spiegel; jede Änderung ist eine Transaktion (`BEGIN IMMEDIATE`).
+//! Not book text, no commit in the mirror; every change is one transaction (`BEGIN IMMEDIATE`).
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -25,21 +24,21 @@ use sha2::{Digest, Sha256};
 
 use crate::{Store, StoreError};
 
-/// Anfang jedes Klartext-Tokens.
+/// Beginning of every plain-text token.
 pub const MCP_TOKEN_PREFIX: &str = "baruch_";
 
-/// Höchstlänge des Namens (Zeichen, nach dem Trimmen).
+/// Maximum length of the name (characters, after trimming).
 const MAX_NAME_CHARS: usize = 64;
 
-/// Länge des gespeicherten Anfangs (`prefix`), mit `baruch_`.
+/// Length of the stored beginning (`prefix`), including `baruch_`.
 const SHOWN_PREFIX: usize = 12;
 
-/// Ein Token ohne Geheimnis (kein Hash, kein Klartext).
+/// A token without the secret (no hash, no plain text).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, sqlx::FromRow)]
 pub struct McpToken {
     pub id: i64,
     pub name: String,
-    /// Die ersten 12 Zeichen des Klartexts (`baruch_` + 5), zum Wiedererkennen.
+    /// The first 12 characters of the plain text (`baruch_` + 5), for recognition.
     pub prefix: String,
     pub created: String,
     pub last_used: Option<String>,
@@ -48,7 +47,7 @@ pub struct McpToken {
 
 const COLUMNS: &str = "id, name, prefix, created, last_used, revoked";
 
-/// SHA-256 als 64 Hex-Zeichen.
+/// SHA-256 as 64 hex characters.
 fn hash(plain: &str) -> String {
     Sha256::digest(plain.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -67,17 +66,17 @@ fn check_name(name: &str) -> Result<&str, StoreError> {
     Ok(name)
 }
 
-/// Meldung: Handle beginnt mit der Vorsilbe der Clients ohne Token (Runde 23).
+/// Message: the handle begins with the prefix of the clients without a token (Round 23).
 const HANDLE_RESERVED: &str = "Namen, deren Autor mit „lokal-“ beginnt, sind Clients ohne Token vorbehalten; anderen \
 Namen wählen.";
-/// Meldung: Handle (oder Alt-Handle) gehört schon einem gültigen Token (Runde 23).
+/// Message: the handle (or legacy handle) already belongs to a valid token (Round 23).
 const HANDLE_TAKEN: &str = "Dieser Name ergibt denselben Autor (@mcp:…) wie ein vorhandener Token – Groß/klein, \
 Umlaute, Sonderzeichen und alles nach 32 Zeichen zählen nicht. Anderen Namen wählen.";
-/// Meldung: Handle (oder Alt-Handle) gehörte einem widerrufenen Token (Runde 23).
+/// Message: the handle (or legacy handle) belonged to a revoked token (Round 23).
 const HANDLE_REVOKED: &str = "Dieser Name ergibt denselben Autor (@mcp:…) wie ein widerrufener Token; dessen \
 Beiträge tragen ihn weiter. Anderen Namen wählen.";
 
-/// Token für den geprüften Namen `name` in der Transaktion des Aufrufers anlegen (Name eindeutig unter den gültigen).
+/// Create a token for the checked name `name` in the transaction of the caller (name unique among the valid ones).
 async fn insert(tx: &mut sqlx::SqliteConnection, name: &str) -> Result<(McpToken, String), StoreError> {
     let mut bytes = [0u8; 32];
     getrandom::getrandom(&mut bytes)
@@ -105,8 +104,8 @@ async fn insert(tx: &mut sqlx::SqliteConnection, name: &str) -> Result<(McpToken
 }
 
 impl Store {
-    /// Neuer Token mit Namen `name`; Antwort: der gespeicherte Eintrag und der Klartext (nur hier). Prüft nur den
-    /// Namen (eindeutig unter den gültigen Tokens); Oberfläche und RPC nehmen [`Store::mcp_token_create_unique`].
+    /// New token with the name `name`; answer: the stored entry and the plain text (only here). Checks only the name
+    /// (unique among the valid tokens); user interface and RPC use [`Store::mcp_token_create_unique`].
     pub async fn mcp_token_create(&self, name: &str) -> Result<(McpToken, String), StoreError> {
         let name = check_name(name)?;
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -115,16 +114,16 @@ impl Store {
         Ok(made)
     }
 
-    /// Wie [`Store::mcp_token_create`], dazu eindeutig im Handle (Runde 23): `handle` bildet einen Namen auf den
-    /// Namensteil seines Handles ab (ohne `@mcp:`), `legacy` auf den nach der Regel bis Runde 22. Abgelehnt
-    /// (`Refused`, nichts angelegt) wird ein Name,
-    /// - dessen Handle oder Alt-Handle mit `reserved_prefix` beginnt (`lokal-`: Clients ohne Token vorbehalten),
-    /// - dessen Handle oder Alt-Handle dem Handle oder Alt-Handle eines vorhandenen oder widerrufenen Tokens gleicht
-    ///   (Groß/klein, Umlaute, Sonderzeichen und alles nach 32 Zeichen fallen zusammen).
+    /// Like [`Store::mcp_token_create`], in addition unique in the handle (Round 23): `handle` maps a name to the name
+    /// part of its handle (without `@mcp:`), `legacy` to the one after the rule up to Round 22. Rejected (`Refused`,
+    /// nothing created) is a name
+    /// - whose handle or legacy handle begins with `reserved_prefix` (`lokal-`: reserved for clients without a token),
+    /// - whose handle or legacy handle equals the handle or legacy handle of an existing or revoked token (upper/lower
+    ///   case, umlauts, special characters and everything after 32 characters coincide).
     ///
-    /// Der Alt-Handle des **neuen** Namens zählt mit, weil ein Token für alte Beiträge auch seinen Alt-Handle besitzt:
-    /// sonst erbte „Laptop Küche“ die Beiträge eines Tokens „laptop-k-che“. Prüfung und Anlegen laufen in einer
-    /// Transaktion (`BEGIN IMMEDIATE`); von zwei gleichzeitigen Anfragen mit gleichem Handle gewinnt genau eine.
+    /// The legacy handle of the **new** name counts as well, because a token also owns its legacy handle for old posts:
+    /// otherwise „Laptop Küche“ would inherit the posts of a token „laptop-k-che“. Check and creation run in one
+    /// transaction (`BEGIN IMMEDIATE`); of two simultaneous requests with the same handle exactly one wins.
     pub async fn mcp_token_create_unique(
         &self,
         name: &str,
@@ -150,14 +149,14 @@ impl Store {
         Ok(made)
     }
 
-    /// Alle Tokens (auch widerrufene), älteste zuerst.
+    /// All tokens (also revoked ones), oldest first.
     pub async fn mcp_token_list(&self) -> Result<Vec<McpToken>, StoreError> {
         Ok(sqlx::query_as(sqlx::AssertSqlSafe(format!("SELECT {COLUMNS} FROM mcp_token ORDER BY id")))
             .fetch_all(&self.pool)
             .await?)
     }
 
-    /// Widerruft den Token `id` (setzt `revoked`; ein zweites Mal ändert nichts). Unbekannt → `Refused`.
+    /// Revokes the token `id` (sets `revoked`; a second time changes nothing). Unknown → `Refused`.
     pub async fn mcp_token_revoke(&self, id: i64) -> Result<McpToken, StoreError> {
         let mut tx = self.pool.begin_with("BEGIN IMMEDIATE").await?;
         sqlx::query(
@@ -176,8 +175,8 @@ impl Store {
         Ok(token)
     }
 
-    /// Der gültige (nicht widerrufene) Token zu einem Klartext, sonst `None`. Setzt `last_used`, wenn es
-    /// leer oder älter als eine Minute ist.
+    /// The valid (not revoked) token for a plain text, otherwise `None`. Sets `last_used` if it is empty or older than
+    /// one minute.
     pub async fn mcp_token_verify(&self, plain: &str) -> Result<Option<McpToken>, StoreError> {
         if !plain.starts_with(MCP_TOKEN_PREFIX) || plain.len() > 200 {
             return Ok(None);
