@@ -1,4 +1,7 @@
 # Hugo i18n of the theme, English (Round 39b). Keys `[id]` with `other = "…"`; de.toml has the same keys.
+
+# _shortcodes/fingerabdruck.html, release.html, taste.html (Round 39c, owner reste_2)
+
 [hilfebild_gross]
 other = "Open the picture in full size"
 
@@ -65,3 +68,5 @@ other = "Page not found"
 other = "There is nothing at this address."
 [zur_startseite]
 other = "To the home page"
+
+# Documentation section and menu (Round 39c, owner docs_site)

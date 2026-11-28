@@ -1,4 +1,7 @@
 # Hugo i18n of the theme, German (Round 39b). Keys `[id]` with `other = "…"`; en.toml has the same keys.
+
+# _shortcodes/fingerabdruck.html, release.html, taste.html (Round 39c, owner reste_2)
+
 # The German values are the wording the layouts carried before Round 39b, verbatim.
 [hilfebild_gross]
 other = "Bild in voller Größe öffnen"
@@ -66,3 +69,5 @@ other = "Seite nicht gefunden"
 other = "Unter dieser Adresse gibt es nichts."
 [zur_startseite]
 other = "Zur Startseite"
+
+# Documentation section and menu (Round 39c, owner docs_site)
