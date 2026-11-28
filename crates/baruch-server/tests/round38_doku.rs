@@ -49,7 +49,7 @@ const FILES: [(&str, Part, State); 13] = [
     ("docs/Verteilung.md", Part::Whole, State::Pending),
     ("docs/Bedienung.md", Part::Whole, State::Pending),
     // Round 38c, mcp_austausch_wysiwyg.
-    ("docs/MCP.md", Part::Whole, State::Pending),
+    ("docs/MCP.md", Part::Whole, State::Translated),
     ("docs/Austauschformat.md", Part::Whole, State::Pending),
     ("docs/WYSIWYG.md", Part::Whole, State::Pending),
     // Round 38c, rpc_doku.
