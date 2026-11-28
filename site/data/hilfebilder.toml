@@ -85,6 +85,7 @@ name = "start-neues-werk"
 seite = ["erste-schritte"]
 zeigt = "Formular „Neues Werk / Importieren“ (`/werke/neu`)"
 adresse = "/werke/neu"
+fenster = "1400x1500"
 
 [[bild]]
 name = "start-arbeitsplatz"
