@@ -8,6 +8,26 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)
+
+- **Developer documentation on the website:** `/en/docs/` with nine pages (usage, architecture, RPC, MCP, exchange
+  format, WYSIWYG, operation, distribution, plan), generated from `docs/*.md` by `site/tools/docs_pages.py` (run by
+  `scripts/ci-site.sh`, output in the ignored folder `site/generated/`). Links between the documents become site
+  links, links to other repository files become links to GitHub. Menu entry "Documentation" (English) and
+  "Dokumentation (englisch)" (German).
+- **Help gaps closed (German and English):** what is logged and the Git mirror (`#protokoll`, `#spiegel`), dark
+  theme (`#dunkles-thema`), rebuilding the index (`#index-neu-aufbauen`), reading in a source file
+  (`#quelle-einlesen`), word counts (`#statistik`).
+- **New work language:** the form for a new work and the RPC method `work.create` (optional `language`, `de` by
+  default) set the work language; the preset titles (first chapter, the parts of a sermon) follow it
+  (`book.preset.*`). German presets are unchanged.
+- **Interface in English, rest:** the RAG index, the MultiGPT and pgvector connections, import, archive, Markdown
+  import, the mind map, the store texts reachable from forms and RPC, Bible module notes, scripture check refusals,
+  print and typesetting labels, numbering refusals and the cross reference tooltip come from the catalogs; the
+  draft date of an English work is written as `2026-11-28` (`typeset::draft_today_in`). Catalog wording aligned
+  (Lector, "Exchange: Write out/Read in", "revisions", B and I buttons). Website shortcode words from the theme
+  catalogs. German texts stay byte-equal.
+
 ### Book outputs in the work language, English website and help (Round 39b)
 
 - **Book outputs follow the work language:** EPUB, PDF (book, cover, front matter, notes sheet, draft watermark),

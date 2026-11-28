@@ -1852,15 +1852,15 @@ method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
   - English numbering scheme names in `baruch-typst/src/scheme.rs` are translated in the server; the pattern-check
     refusals other than the missing pattern stay German, as do `cover_print.rs` block labels in print warnings and
     `typeset_settings.rs` RPC field labels.
-- **Open – interface (priority 4 of rest_literals, not converted, whole files German):** `src/rag/**`,
+- **Done in Round 39c except `pdf_import/**` (see "Round 39c – integrated") – interface (priority 4 of rest_literals, not converted, whole files German):** `src/rag/**`,
   `connections/multigpt.rs`, `connections/pgvector.rs`, `import.rs`, `archive.rs`, `markdown_import/**`,
   `pdf_import/**` (their `KNOWN_GERMAN` entries stay). About 19 test files compare their German texts, and the CLI
   and `spawn_blocking` paths run outside a request scope.
-- **Open – catalog wording:** en `accounts_msg.menu.lektor` and `editor.assistants.lector_badge` say "Lektor",
+- **Done in Round 39c (see "Round 39c – integrated") – catalog wording:** en `accounts_msg.menu.lektor` and `editor.assistants.lector_badge` say "Lektor",
   other keys "Lector"; en `layout.band.exchange` "Exchange: Write out" vs. `export.exchange.heading` "Exchange:
   output"; en "Hide older versions up to" / "show all versions again" still say "versions"; bold/italic buttons
   read K/F in English (`edit_toolbar.html`). The English help quotes them as they are.
-- **Open – shortcodes:** `fingerabdruck.html`, `release.html` (German default text) and `taste.html` ("Mac:")
+- **Done in Round 39c (shortcodes and the rule for `en/hilfe`) – shortcodes:** `fingerabdruck.html`, `release.html` (German default text) and `taste.html` ("Mac:")
   print German words on English pages; `scripts/site-check.py` checks the "no github.com link in the help" rule
   only for `hilfe/`, not for `en/hilfe/`. External link in English `impressum.md` points to the English GitHub
   privacy statement (`docs.github.com/en/…`), a deliberate deviation of hilfe_en_1.
@@ -4264,3 +4264,32 @@ Beispielwerk, FIFO und Parser-Grenzen, Begründungen an den Zusicherungen.
 - ✓ (Runde 5, `heading_numbering` erkennt `numbering("…")` in Funktionen) **Römische Kapitelnummern fehlten:** Die Vorlage des Buchs setzt `#set heading(numbering: (..n) =>
     …numbering("I", ..n)…)` über eine eigene Funktion; die Erkennung greift dabei nicht, die Gliederung zeigt
     arabisch. Erkennung erweitern oder Nummerierung je Werk im Gliederungsmanager einstellbar machen.
+
+## Round 39c – integrated (2026-11-28)
+
+Contract "Developer documentation on the website, user help gaps, rest of the interface literals": base `ff188f2`, S1
+`77b4a9f` (11:38), four branches `team/r39c-<id>` merged with `--no-ff` in task order (docs_site `65fe698`,
+hilfe_luecken `43158d0`, reste_1 `fb04117`, reste_2 `00772cb`); one append conflict at the end of
+`docs/Architektur.md` (both sections kept). No migration (store 0055, library 0108), no new route, RPC method, MCP
+tool or stub (`grep -rn "STUB:" crates` 5); one RPC change: optional `language` of `work.create`.
+
+- **Delivered:** `/en/docs/` with nine generated pages (`site/tools/docs_pages.py`, output ignored in
+  `site/generated/`, run by `ci-site.sh`; Architektur.md stays one page of about 800 KB, splitting measured the same);
+  six help sections (`#protokoll`, `#spiegel`, `#dunkles-thema`, `#index-neu-aufbauen`, `#quelle-einlesen`,
+  `#statistik`) in German and English, no new picture; the listed server modules through the catalogs
+  (`rag_msg`, `archive_msg`, `markdown_msg`, sections in `connections_msg` and `ideas_msg`), `draft_today_in`;
+  presets in the work language (`NewWork.language`, `book.preset.*`, `work.create` `language`, form select);
+  store texts (66 new `PATTERN_KEYS`), Bible module notes, scripture refusals, typeset and numbering labels,
+  cross reference tooltip, shortcode words, English catalog wording.
+- **Integrator:** help quotes updated (Lector, "Exchange: Write out/Read in", "revisions"), sentence on the work
+  language in both `erste-schritte.md` and the "new work is German" sentences in `einstellungen.md`.
+- **Open – picture:** `start-neues-werk` (de and en) shows the form without the new select; retake with
+  `site/tools/bildschirmfotos.py` (not done in this round).
+- **Open – store texts still German (reste_2):** about 70 import-report lines in `exchange_apply.rs`, about 20
+  glossary and index refusals, outline heading-level texts (they quote German level words), `ReplaceSkip.reason`,
+  `cover_blocks.rs` field errors, `sheet.rs`, technical integrity messages; `bibles::CIPHER_KEY_WRONG` (compared by
+  value in `connections/pages.rs`); `typeset.rs::template_hints` passes the German conflict message; the preset
+  labels `layout.work_new.preset_book` and `preset_sermon` still name the German words.
+- **Open – other:** `pdf_import/**` still German; pages of the website are published only with the next push to
+  `main` (`pages.yml` unchanged); the layout of `/en/docs/` was checked by Hugo and `site-check.py` and by a look at
+  the pictures of the integrator (see HANDOFF).
