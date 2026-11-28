@@ -32,26 +32,26 @@
       {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
 {%- endmacro %}
 <div class="rail-bar">
-  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Assistenten schließen">Schließen</a>
-  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="Assistenten einklappen (schmale Leiste am Rand)">Einklappen ›</a>
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="{{ t('editor.assistants.close_title') }}">{{ t('common.close') }}</a>
+  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="{{ t('editor.assistants.collapse_title') }}">{{ t('editor.assistants.collapse') }}</a>
 </div>
 <div class="accordion" data-widget="accordion">
 
 <details class="acc" name="right" data-section="personas"{% if settings.accordion == "personas" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Assistenten</span>
-    <span class="muted small acc-sub">{% if lector %}Lektor: {{ lector.name }} · {{ lector.context_k }}k{% endif %}</span>
+    <span class="acc-title">{{ t('editor.assistants.heading') }}</span>
+    <span class="muted small acc-sub">{% if lector %}{{ t('editor.assistants.lector', name=lector.name, context_k=lector.context_k) }}{% endif %}</span>
   </summary>
   <div class="acc-body">
     <ul class="personas">
     {%- for p in personas %}
       <li class="persona pc{% if not p.active %} inactive{% endif %}{% if p.blocked %} blocked{% endif %}" style="{{ p.style }}">
         <div><span class="pc-swatch" aria-hidden="true"></span><strong>{{ p.name }}</strong> <span class="muted small">{{ p.handle }}</span>
-          {%- if p.lector %} <span class="badge primary" title="{% if lector_fixed %}Lektor fest gewählt (Einstellungen → Assistenten){% else %}Lektor nach größtem Kontext (aktive Persona){% endif %}">Lektor</span>{% endif %}</div>
+          {%- if p.lector %} <span class="badge primary" title="{% if lector_fixed %}{{ t('editor.assistants.lector_fixed') }}{% else %}{{ t('editor.assistants.lector_auto') }}{% endif %}">{{ t('editor.assistants.lector_badge') }}</span>{% endif %}</div>
         <div class="small">{{ p.role }}</div>
-        <div class="muted tiny">{{ p.model }} · {{ p.context_k }}k Kontext · <span class="persona-locality" data-locality="{{ p.locality }}" title="Verbindung{% if p.connection %} „{{ p.connection }}“{% endif %}">{{ p.locality }}</span></div>
+        <div class="muted tiny">{{ t('editor.assistants.persona_model', model=p.model, context_k=p.context_k) }} <span class="persona-locality" data-locality="{{ p.locality }}" title="{{ t('editor.assistants.connection') }}{% if p.connection %} {{ t('editor.assistants.connection_name', name=p.connection) }}{% endif %}">{{ p.locality }}</span></div>
         {%- if p.blocked %}
-        <div class="notice warning tiny persona-blocked" role="note" data-persona-blocked>Gesperrt: externe Verbindung ohne Freigabe – Buchtext geht nicht hinaus. Freigeben unter <a href="/einstellungen/assistenten?work={{ work.id }}" data-settings-open data-settings-page="assistenten" aria-haspopup="dialog">Einstellungen → Assistenten</a>.</div>
+        <div class="notice warning tiny persona-blocked" role="note" data-persona-blocked>{{ t('editor.assistants.blocked') }} <a href="/einstellungen/assistenten?work={{ work.id }}" data-settings-open data-settings-page="assistenten" aria-haspopup="dialog">{{ t('editor.assistants.settings_assistants') }}</a>.</div>
         {%- endif %}
       </li>
     {%- endfor %}
@@ -59,24 +59,24 @@
     {%- if active_personas %}
     <form class="assist-form" method="post" action="/assistenten/act" data-widget="assist">
       {{- assist_hidden() }}
-      <label class="small">Persona <select name="persona" aria-label="Persona für Prüfen und Vorschlag">
+      <label class="small">{{ t('editor.assistants.persona') }} <select name="persona" aria-label="{{ t('editor.assistants.persona_label') }}">
         {%- for p in active_personas %}<option value="{{ p.handle }}"{% if p.lector %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
       </select></label>
-      <input type="text" name="instruction" maxlength="4000" placeholder="Hinweis (optional)" aria-label="Hinweis oder Auftrag an die Persona">
+      <input type="text" name="instruction" maxlength="4000" placeholder="{{ t('editor.assistants.hint_placeholder') }}" aria-label="{{ t('editor.assistants.hint_label') }}">
       {#- Round 15: Prüfen/Vorschlag for section or chapter (building block of the lector, field name="scope"). #}
       {% include "fragments/assist_scope.html" ignore missing %}
       {#- Round 30: review basis (field name="basis"). #}
       {{- basis_select(rev.number if rev is mapping else rev, rev.open_list if rev is defined and rev is mapping else none) }}
       <div class="actions">
-        <button class="btn" type="submit" name="method" value="persona.review" title="Befunde der Persona als Beitrag im Abschnitts-Chat">Prüfen</button>
-        <button class="btn" type="submit" name="method" value="persona.propose" title="neue Fassung als Vorschlag (übernehmen kann nur der Mensch)">Vorschlag</button>
+        <button class="btn" type="submit" name="method" value="persona.review" title="{{ t('editor.assistants.review_title') }}">{{ t('editor.assistants.review') }}</button>
+        <button class="btn" type="submit" name="method" value="persona.propose" title="{{ t('editor.assistants.propose_title') }}">{{ t('editor.assistants.propose') }}</button>
       </div>
     </form>
     {%- else %}
-    <p class="muted small">Keine Persona ist aktiv.</p>
+    <p class="muted small">{{ t('editor.assistants.no_persona') }}</p>
     {%- endif %}
     <div class="actions">
-      <a class="btn" href="/einstellungen/assistenten?work={{ work.id }}" data-settings-open data-settings-page="assistenten" aria-haspopup="dialog" title="Farbe, Rolle, Modell und Kontext je Persona">Farben …</a>
+      <a class="btn" href="/einstellungen/assistenten?work={{ work.id }}" data-settings-open data-settings-page="assistenten" aria-haspopup="dialog" title="{{ t('editor.assistants.colours_title') }}">{{ t('editor.assistants.colours') }}</a>
     </div>
   </div>
 </details>
@@ -103,25 +103,25 @@
     (post.to_findings); „bearbeitet“ names the last change. „als Auftrag“ turns a writing order into a proposal. -#}
 <details class="acc" name="right" data-section="chat"{% if settings.accordion == "chat" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Abschnitts-Chat</span>
-    <span class="badge chat-count" data-chat-count="{{ node.post_count }}" title="{% if node.post_count == 1 %}1 Beitrag{% else %}{{ node.post_count }} Beiträge{% endif %} zu diesem Abschnitt">{{ node.post_count }}</span>
+    <span class="acc-title">{{ t('editor.assistants.chat') }}</span>
+    <span class="badge chat-count" data-chat-count="{{ node.post_count }}" title="{% if node.post_count == 1 %}{{ t('editor.assistants.posts_one') }}{% else %}{{ t('editor.assistants.posts_other', post_count=node.post_count) }}{% endif %} {{ t('editor.assistants.posts_suffix') }}">{{ node.post_count }}</span>
     <span class="muted small acc-sub">{{ node.title }}</span>
   </summary>
   <div class="acc-body">
     <div class="chat-frame">
-    <div class="chat" data-widget="chat" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" tabindex="0" aria-label="Beiträge im Abschnitts-Chat">
+    <div class="chat" data-widget="chat" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" tabindex="0" aria-label="{{ t('editor.assistants.posts_label') }}">
     {%- if node.post_older %}
-      <a class="chat-older small" href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" data-chat-older data-before="{{ node.posts[0].id }}" data-older="{{ node.post_older }}" title="Die ganze Chat-Historie (auch ohne JavaScript)">Ältere Beiträge ({{ node.post_older }}) …</a>
+      <a class="chat-older small" href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" data-chat-older data-before="{{ node.posts[0].id }}" data-older="{{ node.post_older }}" title="{{ t('editor.assistants.history_title') }}">{{ t('editor.assistants.older', post_older=node.post_older) }}</a>
     {%- endif %}
     {%- set at = dict(work=work.id, key=node.key, node=node.id, rev=rev.number, view=view, lq=library_query, targets=node.post_targets) %}
     {%- for post in node.posts %}
       {{- post_entry(post, at) }}
     {%- else %}
-      <p class="muted small">Noch keine Beiträge zu diesem Abschnitt.</p>
+      <p class="muted small">{{ t('editor.assistants.no_posts') }}</p>
     {%- endfor %}
       <div class="chat-end" id="chat-neueste" tabindex="-1"></div>
     </div>
-    <button class="btn small chat-jump" type="button" data-chat-jump hidden title="Zum neuesten Beitrag rollen">Neue Beiträge ↓</button>
+    <button class="btn small chat-jump" type="button" data-chat-jump hidden title="{{ t('editor.assistants.newest_title') }}">{{ t('editor.assistants.newest') }}</button>
     </div>
     <div class="chat-live small" data-chat-live role="status" aria-live="polite" hidden></div>
     {#- Round 10: post of the human; mentioned active personas (@handle, at most three) answer.
@@ -135,19 +135,19 @@
       {{- assist_hidden() }}
       {%- if active_personas %}
       <datalist id="chat-personas-{{ node.key }}">
-        <option value="@alle" data-name="alle" data-role="RFC: alle aktiven Personas, der Lektor zuletzt mit Sammlung">alle – RFC an alle aktiven Personas</option>
+        <option value="@alle" data-name="alle" data-role="{{ t('editor.assistants.all_role') }}">{{ t('editor.assistants.all') }}</option>
         {%- for p in active_personas %}<option value="{{ p.handle }}" data-name="{{ p.name }}" data-role="{{ p.role }}" data-style="{{ p.style }}">{{ p.name }} – {{ p.role }}</option>{% endfor %}
         {#- Round 30c: address by name at the beginning („Lektor, …“) – without JavaScript the browser suggests these
         too. #}
-        {%- for p in active_personas %}<option value="{{ p.name }}, " data-address="1">{{ p.name }}, … – Anrede am Satzanfang</option>{% endfor %}
+        {%- for p in active_personas %}<option value="{{ p.name }}, " data-address="1">{{ t('editor.assistants.address', name=p.name) }}</option>{% endfor %}
       </datalist>
       {%- endif %}
-      <input type="text" name="message" placeholder="@persona fragen …" title="@persona oder die Anrede mit Namen am Satzanfang („Lektor, …“) ruft eine Persona; „RFC …“ am Anfang oder @alle ruft alle aktiven Personas" aria-label="Beitrag" maxlength="4000" required autocomplete="off"{% if active_personas %} list="chat-personas-{{ node.key }}" data-widget="mention"{% endif %}>
-      <label class="small chat-order" title="Die Persona schreibt einen Vorschlag des Abschnitts (übernehmen kann nur der Mensch) und einen kurzen Beitrag"><input type="checkbox" name="as_order" value="1"> als Auftrag</label>
+      <input type="text" name="message" placeholder="{{ t('editor.assistants.placeholder') }}" title="{{ t('editor.assistants.input_title') }}" aria-label="{{ t('editor.assistants.input_label') }}" maxlength="4000" required autocomplete="off"{% if active_personas %} list="chat-personas-{{ node.key }}" data-widget="mention"{% endif %}>
+      <label class="small chat-order" title="{{ t('editor.assistants.task_title') }}"><input type="checkbox" name="as_order" value="1"> {{ t('editor.assistants.task') }}</label>
       {{- basis_select(rev.number if rev is mapping else rev, rev.open_list if rev is defined and rev is mapping else none) }}
-      <button class="btn primary" type="submit">Senden</button>
+      <button class="btn primary" type="submit">{{ t('editor.assistants.send') }}</button>
     </form>
-    <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Alle Beiträge dieses Abschnitts auf einer Seite (ohne JavaScript)">Ganze Chat-Historie</a> · <a href="/faeden?work={{ work.id }}" title="Gespräche ohne Abschnitt, z. B. aus MCP chat ohne key">Fäden ohne Abschnitt</a></p>
+    <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="{{ t('editor.assistants.history_page_title') }}">{{ t('editor.assistants.history_page') }}</a> · <a href="/faeden?work={{ work.id }}" title="{{ t('editor.assistants.threads_title') }}">{{ t('editor.assistants.threads') }}</a></p>
   </div>
 </details>
 

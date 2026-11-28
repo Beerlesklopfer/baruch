@@ -5,7 +5,7 @@
     (radio buttons). Since 0.9.0 the review basis `basis` stands only once in the persona form
     (fragments/assistants.html, after this include) – before it was there twice, then only the last value applied
     silently (cross-check 0.9.0). -#}
-<fieldset class="assist-scope small" aria-label="Umfang für Prüfen und Vorschlag">
-  <label title="Der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld"><input type="radio" name="scope" value="section" checked> Abschnitt{% if node and node.number %} {{ node.number }}{% endif %}</label>
-  <label title="Das ganze Kapitel (bei einer Predigt die ganze Predigt) prüfen bzw. je Abschnitt einen Vorschlag schreiben lassen"><input type="radio" name="scope" value="chapter"> ganzes Kapitel</label>
+<fieldset class="assist-scope small" aria-label="{{ t('editor.scope.label') }}">
+  <label title="{{ t('editor.scope.section_title') }}"><input type="radio" name="scope" value="section" checked> {{ t('editor.scope.section') }}{% if node and node.number %} {{ node.number }}{% endif %}</label>
+  <label title="{{ t('editor.scope.chapter_title') }}"><input type="radio" name="scope" value="chapter"> {{ t('editor.scope.chapter') }}</label>
 </fieldset>

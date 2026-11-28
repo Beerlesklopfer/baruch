@@ -14,37 +14,37 @@
 {%- macro finding_card(c) %}
     <article class="fd-card fd-{{ c.status }} fd-kind-{{ c.kind }}" id="befund-{{ c.id }}" data-finding="{{ c.id }}" data-status="{{ c.status }}" data-kind="{{ c.kind }}" data-persona="{{ c.persona }}">
       <header class="fd-head small">
-        <a class="fd-ref" href="{{ c.url }}" title="Befund {{ c.id }} einzeln">{{ c.ref }}</a>
-        <span class="fd-kind" title="Art: {{ c.kind_label }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
-        <span class="fd-status badge" title="Status: {{ c.status_label }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
+        <a class="fd-ref" href="{{ c.url }}" title="{{ t('editor.lektor_side.finding_title', id=c.id) }}">{{ c.ref }}</a>
+        <span class="fd-kind" title="{{ t('editor.lektor_side.kind_title', kind_label=c.kind_label) }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
+        <span class="fd-status badge" title="{{ t('editor.lektor_side.status_title', status_label=c.status_label) }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
         <span class="fd-persona">{{ c.persona }}</span>
         <span class="muted tiny">{{ c.time }}</span>
       </header>
       <div class="fd-body">{% if c.body_html %}{{ c.body_html | safe }}{% else %}<p>{{ c.body }}</p>{% endif %}</div>
-      {%- if c.quote %}<blockquote class="fd-quote small">„{{ c.quote }}“</blockquote>{% endif %}
-      {%- if c.reason %}<p class="fd-reason small">Begründung: {{ c.reason }}</p>{% endif %}
+      {%- if c.quote %}<blockquote class="fd-quote small">{{ t("editor.lektor_side.quoted", quote=c.quote) }}</blockquote>{% endif %}
+      {%- if c.reason %}<p class="fd-reason small">{{ t('editor.lektor_side.reason', reason=c.reason) }}</p>{% endif %}
     </article>
 {%- endmacro %}
 <div class="rail-bar">
-  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Seitenleiste schließen">Schließen</a>
-  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="Seitenleiste einklappen (schmale Leiste am Rand)">Einklappen ›</a>
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="{{ t('editor.lektor_side.close_title') }}">{{ t('common.close') }}</a>
+  <a class="tool tiny rail-collapse" href="?rrail=1" data-rail-collapse="right" title="{{ t('editor.lektor_side.collapse_title') }}">{{ t('editor.lektor_side.collapse') }}</a>
 </div>
 <div class="accordion" data-widget="accordion">
 
 <details class="acc" name="right" data-section="revisions"{% if settings.accordion == "revisions" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Fassungen</span>
-    <span class="badge rev-count" title="{% if rev.total == 1 %}1 Fassung{% else %}{{ rev.total }} Fassungen{% endif %} dieses Abschnitts">{{ rev.total }}</span>
+    <span class="acc-title">{{ t('editor.lektor_side.revs') }}</span>
+    <span class="badge rev-count" title="{% if rev.total == 1 %}{{ t('editor.lektor_side.total_one') }}{% else %}{{ t('editor.lektor_side.total_other', total=rev.total) }}{% endif %} {{ t('editor.lektor_side.total_suffix') }}">{{ rev.total }}</span>
     {%- if rev.open_proposals %}
-    <span class="badge warning proposal-count">{% if rev.open_proposals == 1 %}1 Vorschlag{% else %}{{ rev.open_proposals }} Vorschläge{% endif %}</span>
+    <span class="badge warning proposal-count">{% if rev.open_proposals == 1 %}{{ t('editor.lektor_side.open_one') }}{% else %}{{ t('editor.lektor_side.open_other', open_proposals=rev.open_proposals) }}{% endif %}</span>
     {%- endif %}
-    <span class="muted small acc-sub">gezeigt: Fassung {{ rev.number }}</span>
+    <span class="muted small acc-sub">{{ t('editor.lektor_side.shown', number=rev.number) }}</span>
   </summary>
   <div class="acc-body" data-zoom-zone="revisions">
     <div class="rev-actions">
-      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted rev-origin">· {{ rev.status }} · {{ rev.author }}</span>
-        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen">Stand {{ rev.amend_seq }} · Verlauf</a>{% endif %}</div>
-      <p class="muted small">Welche Fassung gilt, entscheidet der Autor. Dein Weg ist „Vorschlagen“ unter dem Text.</p>
+      <div class="small"><strong>{{ t('editor.lektor_side.rev', number=rev.number) }}</strong> <span class="muted rev-origin">· {{ rev.status }} · {{ rev.author }}</span>
+        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="{{ t('editor.lektor_side.amends_title') }}">{{ t('editor.lektor_side.amends', amend_seq=rev.amend_seq) }}</a>{% endif %}</div>
+      <p class="muted small">{{ t('editor.lektor_side.author_decides') }}</p>
     </div>
     {% include "fragments/revtree.html" %}
   </div>
@@ -54,37 +54,37 @@
 {%- set fp = findings_panel %}
 <details class="acc" name="right" data-section="befunde"{% if settings.accordion == "befunde" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Befunde</span>
+    <span class="acc-title">{{ t('editor.lektor_side.findings') }}</span>
     {%- if fp.open %}
-    <span class="badge warning findings-open" title="{{ fp.open }} offene Befunde in diesem Abschnitt">{{ fp.open }} offen</span>
+    <span class="badge warning findings-open" title="{{ t('editor.lektor_side.findings_open_title', open=fp.open) }}">{{ t('editor.lektor_side.findings_open', open=fp.open) }}</span>
     {%- endif %}
-    <span class="muted small acc-sub">{{ fp.total }} insgesamt</span>
+    <span class="muted small acc-sub">{{ t('editor.lektor_side.findings_total', total=fp.total) }}</span>
   </summary>
   <div class="acc-body findings-panel" data-zoom-zone="findings">
-    <p class="small"><a href="{{ fp.page_url }}">Alle Befunde dieses Abschnitts</a> · <a href="/werke/{{ work.id }}/befunde">Übersicht übers Werk</a></p>
-    <form class="fd-form lektor-finding" method="post" action="/lektorat/act" data-rpc aria-label="Befund zu diesem Abschnitt schreiben">
+    <p class="small"><a href="{{ fp.page_url }}">{{ t('editor.lektor_side.findings_all') }}</a> · <a href="/werke/{{ work.id }}/befunde">{{ t('editor.lektor_side.findings_overview') }}</a></p>
+    <form class="fd-form lektor-finding" method="post" action="/lektorat/act" data-rpc aria-label="{{ t('editor.lektor_side.finding_form') }}">
       {{- act_hidden("finding.add") }}
-      <label class="small">Art <select name="kind">
-        <option value="hint" selected>Hinweis</option>
-        <option value="critical">Kritisch</option>
-        <option value="praise">Lob</option>
+      <label class="small">{{ t('editor.lektor_side.kind') }} <select name="kind">
+        <option value="hint" selected>{{ t('editor.lektor_side.kind_note') }}</option>
+        <option value="critical">{{ t('editor.lektor_side.kind_critical') }}</option>
+        <option value="praise">{{ t('editor.lektor_side.kind_praise') }}</option>
       </select></label>
-      <label class="small wide">Befund <textarea name="body" rows="3" maxlength="4000" required aria-label="Text des Befunds"></textarea></label>
-      <label class="small wide">Zitat aus dem Abschnitt (freiwillig) <input type="text" name="quote" maxlength="500" aria-label="Zitat, auf das sich der Befund bezieht"></label>
-      <button class="btn small primary" type="submit" title="Der Befund steht unter {{ lektor.handle }}; über den Status entscheidet der Autor">Befund schreiben</button>
+      <label class="small wide">{{ t('editor.lektor_side.finding') }} <textarea name="body" rows="3" maxlength="4000" required aria-label="{{ t('editor.lektor_side.finding_text') }}"></textarea></label>
+      <label class="small wide">{{ t('editor.lektor_side.quote') }} <input type="text" name="quote" maxlength="500" aria-label="{{ t('editor.lektor_side.quote_label') }}"></label>
+      <button class="btn small primary" type="submit" title="{{ t('editor.lektor_side.finding_submit_title', handle=lektor.handle) }}">{{ t('editor.lektor_side.finding_submit') }}</button>
     </form>
     {%- for c in fp.cards %}{{ finding_card(c) }}{% else %}
-    <p class="muted small">Keine offenen Befunde in diesem Abschnitt.</p>
+    <p class="muted small">{{ t('editor.lektor_side.no_findings') }}</p>
     {%- endfor %}
     {%- if fp.decided %}
     <details class="fd-decided">
-      <summary class="small">{{ fp.decided | length }} entschieden</summary>
+      <summary class="small">{{ t('editor.lektor_side.decided', decided=fp.decided | length) }}</summary>
       {%- for c in fp.decided %}{{ finding_card(c) }}{% endfor %}
     </details>
     {%- endif %}
     {%- if fp.praise %}
     <details class="fd-praise">
-      <summary class="small">{{ fp.praise | length }} Lob</summary>
+      <summary class="small">{{ t('editor.lektor_side.praise', praise=fp.praise | length) }}</summary>
       {%- for c in fp.praise %}{{ finding_card(c) }}{% endfor %}
     </details>
     {%- endif %}
@@ -94,55 +94,55 @@
 
 <details class="acc" name="right" data-section="chat"{% if settings.accordion not in ["revisions", "befunde"] %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Abschnitts-Chat</span>
-    <span class="badge chat-count" title="{% if node.post_count == 1 %}1 Beitrag{% else %}{{ node.post_count }} Beiträge{% endif %} zu diesem Abschnitt">{{ node.post_count }}</span>
+    <span class="acc-title">{{ t('editor.lektor_side.chat') }}</span>
+    <span class="badge chat-count" title="{% if node.post_count == 1 %}{{ t('editor.lektor_side.posts_one') }}{% else %}{{ t('editor.lektor_side.posts_other', post_count=node.post_count) }}{% endif %} {{ t('editor.lektor_side.posts_suffix') }}">{{ node.post_count }}</span>
     <span class="muted small acc-sub">{{ node.title }}</span>
   </summary>
   <div class="acc-body">
     <div class="chat-frame">
-    <div class="chat chat-lektor" tabindex="0" aria-label="Beiträge im Abschnitts-Chat">
+    <div class="chat chat-lektor" tabindex="0" aria-label="{{ t('editor.lektor_side.posts_label') }}">
     {%- if node.post_older %}
-      <a class="chat-older small" href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Die ganze Chat-Historie">Ältere Beiträge ({{ node.post_older }}) …</a>
+      <a class="chat-older small" href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="{{ t('editor.lektor_side.history_title') }}">{{ t('editor.lektor_side.older', post_older=node.post_older) }}</a>
     {%- endif %}
     {%- for post in node.posts %}
       <div class="post-item" id="post-{{ post.id }}" data-post-id="{{ post.id }}"{% if post.mine %} data-post-own{% endif %} data-post-author="{{ post.author }}">
       <div class="post{% if post.style %} pc{% endif %}"{% if post.style %} style="{{ post.style }}"{% endif %}>
         {{- post_item(post) }}
-        {%- for source in post.sources %}<div class="muted tiny">Quelle: {{ source }}</div>{% endfor %}
+        {%- for source in post.sources %}<div class="muted tiny">{{ t('editor.lektor_side.source', source=source) }}</div>{% endfor %}
         <div class="post-tools">
-          <a class="tool small" href="/beitrag?work={{ work.id }}&amp;id={{ post.id }}" title="Beitrag zum Markieren und Kopieren, mit Verlauf">Beitrag öffnen</a>
+          <a class="tool small" href="/beitrag?work={{ work.id }}&amp;id={{ post.id }}" title="{{ t('editor.lektor_side.open_post_title') }}">{{ t('editor.lektor_side.open_post') }}</a>
         </div>
         {%- if post.mine %}
         <details class="post-manage">
-          <summary class="tool small" title="Eigenen Beitrag bearbeiten oder löschen">Verwalten</summary>
+          <summary class="tool small" title="{{ t('editor.lektor_side.manage_title') }}">{{ t('editor.lektor_side.manage') }}</summary>
           <form class="post-form post-edit" method="post" action="/lektorat/act" data-rpc>
             {{- act_hidden("post.edit") }}
             <input type="hidden" name="id" value="{{ post.id }}">
-            <label class="small wide">Bearbeiten <textarea name="body" rows="3" maxlength="4000" required aria-label="Neuer Text des Beitrags">{{ post.body }}</textarea></label>
-            <button class="btn small" type="submit" title="die alte Fassung bleibt im Verlauf">Beitrag ändern</button>
+            <label class="small wide">{{ t('editor.lektor_side.edit') }} <textarea name="body" rows="3" maxlength="4000" required aria-label="{{ t('editor.lektor_side.new_text_label') }}">{{ post.body }}</textarea></label>
+            <button class="btn small" type="submit" title="{{ t('editor.lektor_side.old_stays') }}">{{ t('editor.lektor_side.change') }}</button>
           </form>
           <form class="post-form" method="post" action="/lektorat/act" data-rpc>
             {{- act_hidden("post.delete") }}
             <input type="hidden" name="id" value="{{ post.id }}">
-            <label class="small"><input type="checkbox" name="confirm" value="1" required> eigenen Beitrag wirklich entfernen</label>
-            <button class="btn danger small" type="submit">Beitrag entfernen</button>
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('editor.lektor_side.remove_confirm') }}</label>
+            <button class="btn danger small" type="submit">{{ t('editor.lektor_side.remove') }}</button>
           </form>
         </details>
         {%- endif %}
       </div>
       </div>
     {%- else %}
-      <p class="muted small">Noch keine Beiträge zu diesem Abschnitt.</p>
+      <p class="muted small">{{ t('editor.lektor_side.no_posts') }}</p>
     {%- endfor %}
       <div class="chat-end" id="chat-neueste" tabindex="-1"></div>
     </div>
     </div>
     <form class="chat-input" method="post" action="/lektorat/act" data-rpc>
       {{- act_hidden("post.add") }}
-      <input type="text" name="body" placeholder="Beitrag an den Autor …" title="Dein Beitrag steht unter {{ lektor.handle }} im Abschnitts-Chat; Personas ruft er nicht auf" aria-label="Beitrag" maxlength="4000" required autocomplete="off">
-      <button class="btn primary" type="submit">Senden</button>
+      <input type="text" name="body" placeholder="{{ t('editor.lektor_side.placeholder') }}" title="{{ t('editor.lektor_side.send_title', handle=lektor.handle) }}" aria-label="{{ t('editor.lektor_side.post_label') }}" maxlength="4000" required autocomplete="off">
+      <button class="btn primary" type="submit">{{ t('editor.lektor_side.send') }}</button>
     </form>
-    <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="Alle Beiträge dieses Abschnitts auf einer Seite">Ganze Chat-Historie</a> · <a href="/faeden?work={{ work.id }}" title="Gespräche ohne Abschnitt (nur lesen)">Fäden ohne Abschnitt</a></p>
+    <p class="muted tiny"><a href="/beitraege?work={{ work.id }}&amp;key={{ node.key }}#chat-neueste" title="{{ t('editor.lektor_side.history_page_title') }}">{{ t('editor.lektor_side.history_page') }}</a> · <a href="/faeden?work={{ work.id }}" title="{{ t('editor.lektor_side.threads_title') }}">{{ t('editor.lektor_side.threads') }}</a></p>
   </div>
 </details>
 

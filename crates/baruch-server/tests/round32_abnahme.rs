@@ -9,12 +9,12 @@
 #[test]
 fn the_three_entries_stand_at_their_places_in_the_ribbon() {
     let base = include_str!("../templates/base.html");
-    let import = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/werke/import/word\" title=\"Word-Datei lesen, \
-                  Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen\">Word (.docx) importieren…</a>";
-    let quit = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/beenden\" title=\"Baruch auf diesem Rechner beenden \
-                (mit Rückfrage)\">Baruch beenden…</a>";
-    let export = "<a class=\"btn\" href=\"/werke/{{ w }}/word\" title=\"Das Werk als Word-Datei für den Verlag \
-                  (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)\">Word …</a>";
+    let import = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/werke/import/word\" \
+                  title=\"{{ t('layout.band.import_word_title') }}\">{{ t('layout.band.import_word') }}</a>";
+    let quit = "<a class=\"menu-item nur-autor\" role=\"menuitem\" href=\"/beenden\" \
+                title=\"{{ t('layout.band.quit_title') }}\">{{ t('layout.band.quit') }}</a>";
+    let export = "<a class=\"btn\" href=\"/werke/{{ w }}/word\" \
+                  title=\"{{ t('layout.band.word_title') }}\">{{ t('layout.band.word') }}</a>";
     for entry in [import, quit, export] {
         assert_eq!(base.matches(entry).count(), 1, "der Eintrag steht genau einmal und wörtlich in base.html: {entry}");
     }
@@ -394,7 +394,7 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
     let client = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).build().unwrap();
 
     // Menu: the three entries of the round are on the start page as ordinary links.
-    let home = client.get(process.at("/")).send().await.unwrap().text().await.unwrap();
+    let home = client.get(process.at("/")).header("Accept-Language", "de").send().await.unwrap().text().await.unwrap();
     for link in ["href=\"/werke/import/word\"", "href=\"/beenden\"", "/word\" title=\"Das Werk als Word-Datei"] {
         assert!(home.contains(link), "die Startseite trägt den Eintrag {link} im Menüband (ohne JavaScript ein Link)");
     }

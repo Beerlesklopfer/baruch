@@ -646,12 +646,12 @@ mod tests {
             "jede Gruppe endet wörtlich auf „ data-band-group open>“ (sonst bliebe sie im kompakten Band offen)"
         );
         for form in [
-            "<a class=\"btn\" data-laptop-set=\"auto\" aria-pressed=\"false\" href=\"?laptop=auto\">Automatisch</a>",
-            "<a class=\"btn\" data-laptop-set=\"on\" aria-pressed=\"false\" href=\"?laptop=on\">An</a>",
-            "<a class=\"btn\" data-laptop-set=\"off\" aria-pressed=\"false\" href=\"?laptop=off\">Aus</a>",
-            "<a class=\"btn\" data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?lrail=1\">Gliederung</a>",
-            "<a class=\"btn\" data-rail-toggle=\"right\" aria-pressed=\"false\" href=\"?rrail=1\">Assistenten</a>",
-            "<button class=\"btn js-only\" type=\"button\" data-zoom-reset>Zoom zurücksetzen</button>",
+            "<a class=\"btn\" data-laptop-set=\"auto\" aria-pressed=\"false\" href=\"?laptop=auto\">{{ t('layout.band.laptop_auto') }}</a>",
+            "<a class=\"btn\" data-laptop-set=\"on\" aria-pressed=\"false\" href=\"?laptop=on\">{{ t('layout.band.laptop_on') }}</a>",
+            "<a class=\"btn\" data-laptop-set=\"off\" aria-pressed=\"false\" href=\"?laptop=off\">{{ t('layout.band.laptop_off') }}</a>",
+            "<a class=\"btn\" data-rail-toggle=\"left\" aria-pressed=\"false\" href=\"?lrail=1\">{{ t('layout.band.outline') }}</a>",
+            "<a class=\"btn\" data-rail-toggle=\"right\" aria-pressed=\"false\" href=\"?rrail=1\">{{ t('layout.band.assistants') }}</a>",
+            "<button class=\"btn js-only\" type=\"button\" data-zoom-reset>{{ t('layout.band.zoom_reset') }}</button>",
             "data-band-toggle aria-expanded=\"true\" href=\"?band=closed\"",
         ] {
             assert!(base.contains(form), "wörtliche Form fehlt in base.html: {form}");

@@ -29,27 +29,27 @@
       {%- for f in place_fields %}
       <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
       {%- endfor %}
-      <button class="btn" type="submit" title="Neue eigene Hervorhebung; der Vorschlag der Persona bleibt">Als eigene übernehmen</button>
+      <button class="btn" type="submit" title="{{ t('editor.highlights.adopt_title') }}">{{ t('editor.highlights.adopt') }}</button>
     </form>
     {%- endif %}
     <details class="highlight-edit"{% if h.target %} open{% endif %}>
-      <summary class="small">Ändern, zitieren, löschen</summary>
+      <summary class="small">{{ t('editor.highlights.manage') }}</summary>
       <form method="post" action="/literatur/act" class="highlight-form">
         <input type="hidden" name="action" value="update">
         <input type="hidden" name="highlight" value="{{ h.id }}">
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
-        <label>Art <select name="kind">
+        <label>{{ t('editor.highlights.kind') }} <select name="kind">
           {%- for k in kinds %}<option value="{{ k.value }}"{% if k.value == h.kind %} selected{% endif %}>{{ k.label }}</option>{% endfor %}
         </select></label>
-        <label>Notiz <input type="text" name="note" value="{{ h.note }}"></label>
-        <label>Status <select name="status">
-          {%- if h.persona %}<option value="proposed"{% if h.status == 'proposed' %} selected{% endif %}>Vorschlag</option>
-          {%- else %}<option value="active"{% if h.status == 'active' %} selected{% endif %}>aktiv</option>{% endif %}
-          <option value="rejected"{% if h.status == 'rejected' %} selected{% endif %}>abgelehnt</option>
+        <label>{{ t('editor.highlights.note') }} <input type="text" name="note" value="{{ h.note }}"></label>
+        <label>{{ t('editor.highlights.status') }} <select name="status">
+          {%- if h.persona %}<option value="proposed"{% if h.status == 'proposed' %} selected{% endif %}>{{ t('editor.highlights.proposal') }}</option>
+          {%- else %}<option value="active"{% if h.status == 'active' %} selected{% endif %}>{{ t('editor.highlights.active') }}</option>{% endif %}
+          <option value="rejected"{% if h.status == 'rejected' %} selected{% endif %}>{{ t('editor.highlights.rejected') }}</option>
         </select></label>
-        <button class="btn" type="submit">Ändern</button>
+        <button class="btn" type="submit">{{ t('editor.highlights.change') }}</button>
       </form>
       <form method="post" action="/literatur/act" class="highlight-form">
         <input type="hidden" name="action" value="cite">
@@ -57,7 +57,7 @@
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
-        <button class="btn" type="submit">Als Zitat in den Abschnitt (Vorschlag)</button>
+        <button class="btn" type="submit">{{ t('editor.highlights.quote') }}</button>
       </form>
       {%- if h.checkable %}
       <form method="post" action="/literatur/act" class="highlight-form">
@@ -66,7 +66,7 @@
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
-        <button class="btn" type="submit">Gegen den Volltext prüfen</button>
+        <button class="btn" type="submit">{{ t('editor.highlights.verify') }}</button>
       </form>
       {%- endif %}
       <form method="post" action="/literatur/act" class="highlight-form">
@@ -75,12 +75,12 @@
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
-        <label class="small"><input type="checkbox" name="confirm" value="on" required> wirklich löschen</label>
-        <button class="btn danger" type="submit">Löschen</button>
+        <label class="small"><input type="checkbox" name="confirm" value="on" required> {{ t('editor.highlights.delete_confirm') }}</label>
+        <button class="btn danger" type="submit">{{ t('common.delete') }}</button>
       </form>
     </details>
   </li>
 {%- else %}
-  <li class="muted small">Noch keine Hervorhebungen.</li>
+  <li class="muted small">{{ t('editor.highlights.none') }}</li>
 {%- endfor %}
 </ol>

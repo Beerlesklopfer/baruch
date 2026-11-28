@@ -15,14 +15,14 @@
     through thread.since (div.chat-live). The address by name at the start of a sentence („Lektor, …“) calls a persona
     like @handle. -#}
 {% extends "base.html" %}
-{% block title %}{{ thread.title }} – Faden – Baruch{% endblock %}
-{% block page_title %}Faden · {{ work.title }}{% endblock %}
+{% block title %}{{ t('posts.thread.head_title', title=thread.title) }}{% endblock %}
+{% block page_title %}{{ t('posts.thread.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ list_url }}">Alle Fäden</a>
-    <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('posts.thread.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('posts.thread.back') }}">
+    <a class="btn" href="{{ list_url }}">{{ t('posts.thread.all_threads') }}</a>
+    <a class="btn" href="{{ work_url }}" data-back>{{ t('posts.thread.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -32,8 +32,8 @@
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
   <h1 class="pane-title">{{ thread.title }}</h1>
-  <p class="muted tiny">begonnen von {{ thread.created_by }} · ohne Abschnitt · <a href="#chat-neueste">zum neuesten Beitrag ↓</a></p>
-  <div class="thread-scroll" tabindex="0" aria-label="Beiträge des Fadens">
+  <p class="muted tiny">{{ t('posts.thread.started_by', created_by=thread.created_by) }} <a href="#chat-neueste">{{ t('posts.thread.to_newest') }}</a></p>
+  <div class="thread-scroll" tabindex="0" aria-label="{{ t('posts.thread.posts_label') }}">
   <ol class="thread-posts">
   {%- set at = dict(work=work.id, thread=thread.id) %}
   {%- for e in entries %}
@@ -46,12 +46,12 @@
   <form method="post" action="/faden/act" class="thread-form" id="antwort">
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="thread" value="{{ thread.id }}">
-    <label class="wide">Antwort <textarea name="message" rows="3" maxlength="4000" required placeholder="@lektor … bzw. „Lektor, …“ ruft eine Persona · RFC … bzw. @alle ruft alle">{{ draft }}</textarea></label>
-    <label>Persona antworten lassen <select name="persona">
-      <option value="">– nur Erwähnte (@…) –</option>
+    <label class="wide">{{ t('posts.thread.reply') }} <textarea name="message" rows="3" maxlength="4000" required placeholder="{{ t('posts.thread.placeholder') }}">{{ draft }}</textarea></label>
+    <label>{{ t('posts.thread.persona') }} <select name="persona">
+      <option value="">{{ t('posts.thread.mentioned') }}</option>
       {%- for p in personas %}<option value="{{ p.handle }}">{{ p.name }} ({{ p.handle }})</option>{% endfor %}
     </select></label>
-    <button class="btn primary" type="submit">Antworten</button>
+    <button class="btn primary" type="submit">{{ t('posts.thread.send') }}</button>
   </form>
 </main>
 {% endblock %}

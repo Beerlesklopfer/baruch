@@ -6,56 +6,55 @@
     JavaScript. Context: settings, work, title, cmp ({base, group, key, work, title, variants: [{rev, label, summary,
     findings, status, diff_html, against: [{rev, label, diff_html}], url}]}), error, back. -#}
 {% extends "base.html" %}
-{% block title %}Varianten · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Varianten · {{ title }}{% endblock %}
+{% block title %}{{ t('editor.variants.head_title', title=title) }}{% endblock %}
+{% block page_title %}{{ t('editor.variants.page_title', title=title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back }}">Zurück zum Abschnitt</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('editor.variants.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('editor.variants.back') }}">
+    <a class="btn" href="{{ back }}">{{ t('editor.variants.back_to_section') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="variants-page" data-widget="variants">
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
-  <p><a class="btn" href="{{ back }}">Zurück</a></p>
+  <p><a class="btn" href="{{ back }}">{{ t('editor.variants.back') }}</a></p>
   {%- endif %}
   {%- if cmp %}
-  <h1 class="pane-title">Varianten zu {{ cmp.title }}</h1>
-  <p class="muted small">Der Lektor hat diese Varianten als Vorschläge auf derselben Basis{% if cmp.base %} (Fassung {{ cmp.base }}){% endif %}
-    geschrieben. Übernehmen kann nur der Mensch (im Fassungsbaum „zeigen“, dann „Übernehmen“); „übrige verwerfen“
-    verwirft die anderen offenen Varianten dieser Gruppe mit einem Klick.</p>
+  <h1 class="pane-title">{{ t('editor.variants.heading', title=cmp.title) }}</h1>
+  <p class="muted small">{{ t('editor.variants.intro') }}{% if cmp.base %} {{ t('editor.variants.base', base=cmp.base) }}{% endif %}
+    {{ t('editor.variants.intro_end') }}</p>
   <div class="variants-grid" style="--variants: {{ cmp.variants | length }}">
     {%- for v in cmp.variants %}
     <section class="variant-col variant-{{ v.status }}" aria-labelledby="variante-{{ v.rev }}" data-variant="{{ v.rev }}">
-      <h2 class="variant-head" id="variante-{{ v.rev }}"><span class="badge variant">Variante {{ v.label }}</span> Fassung {{ v.rev }}
-        {%- if v.status == "rejected" %} <span class="muted small">(verworfen)</span>{% elif v.status == "current" %} <span class="badge success">aktuell</span>{% endif %}</h2>
+      <h2 class="variant-head" id="variante-{{ v.rev }}"><span class="badge variant">{{ t('editor.variants.variant', label=v.label) }}</span> {{ t('editor.variants.rev', rev=v.rev) }}
+        {%- if v.status == "rejected" %} <span class="muted small">{{ t('editor.variants.rejected') }}</span>{% elif v.status == "current" %} <span class="badge success">{{ t('editor.variants.current') }}</span>{% endif %}</h2>
       <p class="variant-summary">{{ v.summary }}</p>
       {%- if v.findings %}
-      <p class="small">Setzt um: {% for id in v.findings %}<a href="/werke/{{ cmp.work }}/befunde?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      <p class="small">{{ t('editor.variants.implements') }} {% for id in v.findings %}<a href="/werke/{{ cmp.work }}/befunde?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %}</p>
       {%- endif %}
-      <h3 class="small">Unterschied zur Basis</h3>
+      <h3 class="small">{{ t('editor.variants.diff_base') }}</h3>
       {{ v.diff_html | safe }}
       {%- if v.against %}
       <details class="variant-against small">
-        <summary>Unterschied zu den übrigen Varianten</summary>
+        <summary>{{ t('editor.variants.diff_others') }}</summary>
         {%- for o in v.against %}
-        <h4 class="tiny">gegenüber Variante {{ o.label }} (Fassung {{ o.rev }})</h4>
+        <h4 class="tiny">{{ t('editor.variants.versus', label=o.label, rev=o.rev) }}</h4>
         {{ o.diff_html | safe }}
         {%- endfor %}
       </details>
       {%- endif %}
-      <p class="variant-actions small"><a class="btn small" href="{{ v.url }}">Zeigen</a></p>
+      <p class="variant-actions small"><a class="btn small" href="{{ v.url }}">{{ t('editor.variants.show') }}</a></p>
       {%- if v.status == "proposed" or v.status == "current" %}
-      <form class="variant-reject" method="post" action="/loesungen/act" aria-label="Übrige Varianten außer {{ v.label }} verwerfen">
+      <form class="variant-reject" method="post" action="/loesungen/act" aria-label="{{ t('editor.variants.discard_label', label=v.label) }}">
         <input type="hidden" name="method" value="solution.reject_siblings">
         <input type="hidden" name="work" value="{{ cmp.work }}">
         <input type="hidden" name="key" value="{{ cmp.key }}">
         <input type="hidden" name="rev" value="{{ v.rev }}">
         <input type="hidden" name="back" value="/varianten?work={{ cmp.work }}&amp;key={{ cmp.key }}&amp;group={{ cmp.group }}">
-        <label class="small"><input type="checkbox" name="confirm" value="1" required> die übrigen Varianten verwerfen</label>
-        <button class="btn small" type="submit">Übrige verwerfen</button>
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('editor.variants.discard_hint') }}</label>
+        <button class="btn small" type="submit">{{ t('editor.variants.discard') }}</button>
       </form>
       {%- endif %}
     </section>

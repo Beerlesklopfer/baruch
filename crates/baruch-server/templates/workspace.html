@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ node.title }} – Baruch{% endblock %}
+{% block title %}{{ t('layout.workspace.head_title', title=node.title) }}{% endblock %}
 {#- Header in base.html (Round 9): work selection, menus and badges come from `topbar`
     (menu::workspace_topbar); here only the title. #}
 {% block page_title %}{{ work.title }}{% endblock %}
@@ -15,14 +15,14 @@
     (drawer with Esc/click next to it, in the wide window permanent folding open and closed). The columns stay first
     and last child of the grid (the widget „splitter“ measures them that way). #}
 <main class="workspace" data-widget="workspace">
-  <nav class="pane" id="pane-tree" aria-label="Gliederung" data-zoom-zone="tree">{% if lektor %}{% include "fragments/lektor_tree.html" %}{% else %}{% include "fragments/tree.html" %}{% endif %}</nav>
-  <a class="rail" href="#pane-tree" data-rail-open="left" aria-controls="pane-tree" title="Gliederung öffnen"><span class="rail-mark" aria-hidden="true">›</span><span class="rail-label">Gliederung</span></a>
+  <nav class="pane" id="pane-tree" aria-label="{{ t('layout.workspace.outline_label') }}" data-zoom-zone="tree">{% if lektor %}{% include "fragments/lektor_tree.html" %}{% else %}{% include "fragments/tree.html" %}{% endif %}</nav>
+  <a class="rail" href="#pane-tree" data-rail-open="left" aria-controls="pane-tree" title="{{ t('layout.workspace.outline_open') }}"><span class="rail-mark" aria-hidden="true">›</span><span class="rail-label">{{ t('layout.workspace.outline') }}</span></a>
   <div class="splitter" data-widget="splitter" data-side="left" role="separator" aria-orientation="vertical" tabindex="0"></div>
   <a class="rail-scrim" href="#pane-editor" data-rail-close tabindex="-1" aria-hidden="true"></a>
-  <section class="pane" id="pane-editor" aria-label="Editor">{% if lektor %}{% include "fragments/lektor_editor.html" %}{% else %}{% include "fragments/editor.html" %}{% endif %}</section>
+  <section class="pane" id="pane-editor" aria-label="{{ t('layout.workspace.editor_label') }}">{% if lektor %}{% include "fragments/lektor_editor.html" %}{% else %}{% include "fragments/editor.html" %}{% endif %}</section>
   <div class="splitter" data-widget="splitter" data-side="right" role="separator" aria-orientation="vertical" tabindex="0"></div>
-  <a class="rail" href="#pane-assistants" data-rail-open="right" aria-controls="pane-assistants" title="Assistenten öffnen"><span class="rail-mark" aria-hidden="true">‹</span><span class="rail-label">Assistenten</span></a>
-  <aside class="pane" id="pane-assistants" aria-label="Assistenten" data-zoom-zone="assistants">{% if lektor %}{% include "fragments/lektor_assistants.html" %}{% else %}{% include "fragments/assistants.html" %}{% endif %}</aside>
+  <a class="rail" href="#pane-assistants" data-rail-open="right" aria-controls="pane-assistants" title="{{ t('layout.workspace.assistants_open') }}"><span class="rail-mark" aria-hidden="true">‹</span><span class="rail-label">{{ t('layout.workspace.assistants') }}</span></a>
+  <aside class="pane" id="pane-assistants" aria-label="{{ t('layout.workspace.assistants') }}" data-zoom-zone="assistants">{% if lektor %}{% include "fragments/lektor_assistants.html" %}{% else %}{% include "fragments/assistants.html" %}{% endif %}</aside>
 </main>
 {#- Round 35: for Lektors (`lektor` from view.rs) the three columns come from fragments/lektor_*.html (read only,
     propose, post, finding); the dialogs below (literature, create a work, idea) are missing entirely for them. #}
@@ -31,18 +31,18 @@
     keeps the search across closing and opening and hands work hits to the workspace. #}
 <dialog class="literature-dialog" id="literature" data-widget="literature" aria-labelledby="literature-title">
   <header class="literature-head">
-    <h2 class="pane-title" id="literature-title">Literatur</h2>
+    <h2 class="pane-title" id="literature-title">{{ t('layout.workspace.literature') }}</h2>
     <span class="grow"></span>
-    <form method="dialog"><button class="btn" type="submit">Schließen</button></form>
+    <form method="dialog"><button class="btn" type="submit">{{ t('common.close') }}</button></form>
   </header>
   <div class="literature-content">{% include "fragments/library.html" %}</div>
 </dialog>
 {#- Dialog „Importieren…“: uploading or creating as on /werke/neu (widget „work-import“). #}
 <dialog class="work-dialog" id="work-import" data-widget="work-import" aria-labelledby="work-import-title">
   <header class="literature-head">
-    <h2 class="pane-title" id="work-import-title">Werk importieren oder anlegen</h2>
+    <h2 class="pane-title" id="work-import-title">{{ t('layout.workspace.import_heading') }}</h2>
     <span class="grow"></span>
-    <form method="dialog"><button class="btn" type="submit">Schließen</button></form>
+    <form method="dialog"><button class="btn" type="submit">{{ t('common.close') }}</button></form>
   </header>
   {% include "fragments/work_new.html" %}
 </dialog>

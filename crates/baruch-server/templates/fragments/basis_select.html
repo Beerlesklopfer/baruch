@@ -6,10 +6,10 @@
     proposals of the section (`rev.open_list`: number, label „Vorschlag n von @x“) as further options with their
     number – this way a critic cross-checks a proposal or the lector continues writing on it. -#}
 {% macro basis_select(rev, open=none) %}
-<label class="basis-select small" title="Welche Fassung alle Personas dieses Aufrufs prüfen">Prüfgrundlage
+<label class="basis-select small" title="{{ t('editor.basis.title') }}">{{ t('editor.basis.label') }}
   <select name="basis">
-    <option value="shown" selected>gezeigte Fassung{% if rev %} ({{ rev }}){% endif %}</option>
-    <option value="current">aktuelle Fassung</option>
+    <option value="shown" selected>{{ t('editor.basis.shown') }}{% if rev %} ({{ rev }}){% endif %}</option>
+    <option value="current">{{ t('editor.basis.current') }}</option>
     {%- for p in open or [] %}
     <option value="{{ p.number }}">{{ p.label }}</option>
     {%- endfor %}

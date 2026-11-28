@@ -5,26 +5,26 @@
     Context: work {id}, node {key, title}, url. -#}
 <form class="idea-capture" method="post" action="/einfaelle/act" data-idea-form>
   <header class="idea-capture-head">
-    <h2 class="pane-title" id="idea-capture-title">Einfall festhalten</h2>
+    <h2 class="pane-title" id="idea-capture-title">{{ t('layout.idea.heading') }}</h2>
     <span class="grow"></span>
-    <a class="btn" href="/einfaelle?work={{ work.id }}">Alle Einfälle</a>
-    <button class="btn" type="button" data-idea-close>Schließen</button>
+    <a class="btn" href="/einfaelle?work={{ work.id }}">{{ t('layout.idea.all') }}</a>
+    <button class="btn" type="button" data-idea-close>{{ t('common.close') }}</button>
   </header>
   <input type="hidden" name="method" value="idea.create">
   <input type="hidden" name="work" value="{{ work.id }}">
   <input type="hidden" name="key" value="{{ node.key }}" data-idea-key>
   <input type="hidden" name="back" value="{{ url }}">
-  <label class="idea-field">Schlagwörter <span class="muted small">(durch Komma getrennt)</span>
-    <input type="text" name="words" required maxlength="1300" autocomplete="off" placeholder="z. B. Laube, Rosen" data-idea-words></label>
-  <label class="idea-field">Gedanke <span class="muted small">(Umschalt+Enter: neue Zeile)</span>
+  <label class="idea-field">{{ t('layout.idea.tags') }} <span class="muted small">{{ t('layout.idea.tags_hint') }}</span>
+    <input type="text" name="words" required maxlength="1300" autocomplete="off" placeholder="{{ t('layout.idea.tags_placeholder') }}" data-idea-words></label>
+  <label class="idea-field">{{ t('layout.idea.thought') }} <span class="muted small">{{ t('layout.idea.newline_hint') }}</span>
     <textarea name="note" rows="3" maxlength="4000"></textarea></label>
-  <label class="idea-field" data-idea-quote-field>Markiert
+  <label class="idea-field" data-idea-quote-field>{{ t('layout.idea.marked') }}
     <textarea name="quote" rows="2" maxlength="4000" data-idea-quote></textarea></label>
-  <label class="idea-field">Quelle
+  <label class="idea-field">{{ t('layout.idea.source') }}
     <input type="text" name="source" maxlength="200" data-idea-source></label>
-  <p class="muted small idea-capture-ref">Bezug: Abschnitt „<span data-idea-node>{{ node.title }}</span>“</p>
+  <p class="muted small idea-capture-ref">{{ t("layout.idea.ref_before") }}<span data-idea-node>{{ node.title }}</span>{{ t("layout.idea.ref_after") }}</p>
   <div class="idea-capture-actions">
-    <button class="btn primary" type="submit">Festhalten (Enter)</button>
+    <button class="btn primary" type="submit">{{ t('layout.idea.capture') }}</button>
     <span class="muted small" role="status" data-idea-status></span>
   </div>
 </form>

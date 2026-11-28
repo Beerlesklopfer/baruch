@@ -666,15 +666,17 @@ async fn the_finding_block_shows_kind_status_buttons_solutions_and_adopt() {
         &work.nodes.iter().find(|n| n.key == t.keys[1]).unwrap().posts.iter().find(|p| p.id == post).unwrap().body,
         &work.nodes.iter().find(|n| n.key == t.keys[1]).unwrap().revisions[0].body,
     );
-    let html = env
-        .render_str(
+    // Round 39a: rendered outside a request, the macro speaks English unless German is pinned here.
+    let html = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        env.render_str(
             "{% from \"fragments/post_solutions.html\" import post_solutions %}{{ post_solutions(post, work, node, rev) }}",
             minijinja::context! {
                 post => minijinja::context! { id => post, author => "@lektor", solutions => minijinja::Value::from(minijinja::value::Serde(&listed)) },
                 work => t.work, node => t.keys[1], rev => 1,
             },
         )
-        .expect("das Makro rendert");
+    })
+    .expect("das Makro rendert");
     assert_eq!(html.matches("name=\"picks\"").count(), 2, "zwei übernehmbare Lösungen mit Häkchen: {html}");
     assert!(html.contains("(Zitat steht nicht in der gezeigten Fassung)"), "die dritte ehrlich ohne Häkchen: {html}");
     assert!(html.contains("Als Vorschlag übernehmen") && html.contains("Lösungen umsetzen"), "beide Knöpfe: {html}");

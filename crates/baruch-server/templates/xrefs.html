@@ -3,43 +3,41 @@
     work {id, title}, key, section, groups [{key, rev, label, items [{index, text, line, target, replacement,
     target_url, at_url}]}], broken [{section, label, text, url}], done, error. -#}
 {% extends "base.html" %}
-{% block title %}Querverweise – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Querverweise{% endblock %}
+{% block title %}{{ t('reference.xrefs.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('reference.xrefs.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}{% if key %}&amp;key={{ key }}{% endif %}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('reference.xrefs.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('reference.xrefs.back') }}">
+    <a class="btn" href="/?work={{ work.id }}{% if key %}&amp;key={{ key }}{% endif %}">{{ t('reference.xrefs.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page xrefs-page" data-work="{{ work.id }}">
-  <h1 class="pane-title">Querverweise{% if section %} in {{ section }}{% endif %}</h1>
+  <h1 class="pane-title">{{ t('reference.xrefs.heading') }}{% if section %} {{ t('reference.xrefs.in_section', section=section) }}{% endif %}</h1>
   {%- if error %}<p class="toast" role="alert" data-xref-error>{{ error }}</p>{% endif %}
-  {%- if done %}<p class="notice" role="status" data-xref-done>{{ done }} {% if done == "1" %}Verweis{% else %}Verweise{% endif %} eingesetzt (neue Fassung von dir).</p>{% endif %}
-  {%- if key %}<p class="small"><a href="/verweise?work={{ work.id }}">Ganzes Werk zeigen</a></p>{% endif %}
+  {%- if done %}<p class="notice" role="status" data-xref-done>{{ done }} {% if done == "1" %}{{ t('reference.xrefs.done_one') }}{% else %}{{ t('reference.xrefs.done_other') }}{% endif %} {{ t('reference.xrefs.done_note') }}</p>{% endif %}
+  {%- if key %}<p class="small"><a href="/verweise?work={{ work.id }}">{{ t('reference.xrefs.whole_work') }}</a></p>{% endif %}
 
   <section class="xref-broken card" data-xref-broken>
-    <h2>Kaputte Verweise</h2>
+    <h2>{{ t('reference.xrefs.broken') }}</h2>
     {%- if broken %}
     <ul>
       {%- for b in broken %}
       <li class="typeset-diagnostic error"><span class="badge danger">{{ b.label }}</span>
-        {{ b.section }}: „{{ b.text }}“ zeigt auf keinen Gliederungspunkt mit aktueller Fassung.
-        <a class="jump" href="{{ b.url|safe }}" data-jump>zur Stelle</a></li>
+        {{ t('reference.xrefs.broken_item', section=b.section, text=b.text) }}
+        <a class="jump" href="{{ b.url|safe }}" data-jump>{{ t('reference.xrefs.to_place') }}</a></li>
       {%- endfor %}
     </ul>
     {%- else %}
-    <p class="muted small">Keine kaputten Verweise.</p>
+    <p class="muted small">{{ t('reference.xrefs.no_broken') }}</p>
     {%- endif %}
   </section>
 
   <section class="xref-candidates" data-xref-candidates>
-    <h2>Mögliche Querverweise</h2>
-    <p class="muted small">Nennungen von Gliederungspunkten im Text („die Einleitung“, „im dritten Kapitel“, „Kapitel III“,
-      Titel in Anführungszeichen), nur wenn das Ziel eindeutig ist. Nur ein Vorschlag: Umgewandelt wird erst, wenn du
-      bestätigst – als neue Fassung von dir.</p>
+    <h2>{{ t('reference.xrefs.candidates') }}</h2>
+    <p class="muted small">{{ t('reference.xrefs.candidates_help') }}</p>
     {%- for g in groups %}
     <form method="post" action="/verweise/act" class="xref-group card" data-key="{{ g.key }}">
       <input type="hidden" name="method" value="xref.convert">
@@ -47,19 +45,19 @@
       <input type="hidden" name="key" value="{{ g.key }}">
       <input type="hidden" name="rev" value="{{ g.rev }}">
       {%- if key %}<input type="hidden" name="scope" value="{{ key }}">{% endif %}
-      <h3>{{ g.label }} <span class="muted small">(Fassung {{ g.rev }})</span></h3>
+      <h3>{{ g.label }} <span class="muted small">{{ t('reference.xrefs.rev', rev=g.rev) }}</span></h3>
       <ul>
         {%- for c in g.items %}
         <li><label><input type="checkbox" name="picks" value="{{ c.index }}" checked>
-          Zeile {{ c.line }}: „{{ c.text }}“ → <a href="{{ c.target_url|safe }}" data-jump>{{ c.target }}</a></label>
-          <code class="small">{{ c.replacement }}</code> <a class="small" href="{{ c.at_url|safe }}" data-jump>Stelle</a></li>
+          {{ t('reference.xrefs.line', line=c.line, text=c.text) }} <a href="{{ c.target_url|safe }}" data-jump>{{ c.target }}</a></label>
+          <code class="small">{{ c.replacement }}</code> <a class="small" href="{{ c.at_url|safe }}" data-jump>{{ t('reference.xrefs.place') }}</a></li>
         {%- endfor %}
       </ul>
-      <p><label><input type="checkbox" name="confirm" value="1"> Ja, umwandeln</label>
-        <button type="submit" class="btn">In Querverweise umwandeln</button></p>
+      <p><label><input type="checkbox" name="confirm" value="1"> {{ t('reference.xrefs.confirm') }}</label>
+        <button type="submit" class="btn">{{ t('reference.xrefs.convert') }}</button></p>
     </form>
     {%- else %}
-    <p class="muted">Keine möglichen Querverweise gefunden.</p>
+    <p class="muted">{{ t('reference.xrefs.no_candidates') }}</p>
     {%- endfor %}
   </section>
 </main>

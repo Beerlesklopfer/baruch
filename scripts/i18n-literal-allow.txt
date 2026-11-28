@@ -79,87 +79,18 @@ crates/baruch-server/templates/assets.html	nennt) oder über das Formular unten.
 crates/baruch-server/templates/assets.html	und
 crates/baruch-server/templates/assets.html	von Bildern für „ “ ·
 crates/baruch-server/templates/assets.html	weglässt, gehören aber zu verschiedenen Bildern (Altbestand). Satz, Satzbild und Export nehmen dann je nach Schreibweise ein anderes Bild. Bitte wählen, welches Bild den Pfad behält; der Text bleibt unverändert.
-crates/baruch-server/templates/assist_notice.html	Zurück
-crates/baruch-server/templates/base.html	Abgleich mit MultiGPT
-crates/baruch-server/templates/base.html	Alle Werke
-crates/baruch-server/templates/base.html	Ansicht
-crates/baruch-server/templates/base.html	Ansicht des Textes
-crates/baruch-server/templates/base.html	Anträge zur Gliederung
-crates/baruch-server/templates/base.html	Aus
-crates/baruch-server/templates/base.html	Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)
-crates/baruch-server/templates/base.html	Baruch auf diesem Rechner beenden (mit Rückfrage)
-crates/baruch-server/templates/base.html	Befunde
-crates/baruch-server/templates/base.html	Befunde der Personas: offen, übernommen, verworfen, verschoben, erledigt
-crates/baruch-server/templates/base.html	Befunde und Zitate
-crates/baruch-server/templates/base.html	Begriffe mit Erklärungen: angenommen und vorgeschlagen
-crates/baruch-server/templates/base.html	Bild einfügen …
-crates/baruch-server/templates/base.html	Buch
-crates/baruch-server/templates/base.html	Das EPUB des Werks in mehreren Readern nebeneinander
-crates/baruch-server/templates/base.html	Das Werk als Word-Datei für den Verlag (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)
-crates/baruch-server/templates/base.html	Das ganze Werk als E-Book herunterladen (EPUB 3, aktuelle Fassungen)
-crates/baruch-server/templates/base.html	Das ganze Werk als PDF herunterladen (Werkvorlage, aktuelle Fassungen, Bilder)
-crates/baruch-server/templates/base.html	Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)
-crates/baruch-server/templates/base.html	Die Knöpfe zum Einfügen brauchen JavaScript. Ohne JavaScript am Blatt:
-crates/baruch-server/templates/base.html	Einfälle
-crates/baruch-server/templates/base.html	Einfügen
-crates/baruch-server/templates/base.html	Einfügen geht im Editor – in der Vorschau gibt es kein Blatt zum Bearbeiten (Start → Editor).
-crates/baruch-server/templates/base.html	Einstellungen
-crates/baruch-server/templates/base.html	Einstellungen (Alt+,)
-crates/baruch-server/templates/base.html	Erst ein Werk wählen
-crates/baruch-server/templates/base.html	Ganzes Werk mit allen Fassungen, Einfällen, Beiträgen und Bildern als Austauschdatei
-crates/baruch-server/templates/base.html	Gesetzte Seiten aus Typst mit der Werkvorlage
-crates/baruch-server/templates/base.html	Gliederung
-crates/baruch-server/templates/base.html	Hilfe mit Bildern auf der Webseite von Baruch (öffnet ein neues Fenster, braucht das Internet)
-crates/baruch-server/templates/base.html	Im Werk suchen (Strg+Umschalt+F)
-crates/baruch-server/templates/base.html	Im Werk suchen und ersetzen (Strg+Umschalt+F)
-crates/baruch-server/templates/base.html	Liste der Einfälle dieses Werks
-crates/baruch-server/templates/base.html	Menü
-crates/baruch-server/templates/base.html	Menüband
-crates/baruch-server/templates/base.html	Menüband ein- oder ausklappen
-crates/baruch-server/templates/base.html	Menüband ein- oder ausklappen (auch: Klick auf den aktiven Reiter)
-crates/baruch-server/templates/base.html	Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)
-crates/baruch-server/templates/base.html	Mögliche und kaputte Querverweise des Werks
-crates/baruch-server/templates/base.html	Neues Werk / Importieren…
-crates/baruch-server/templates/base.html	PDF oder EPUB importieren…
-crates/baruch-server/templates/base.html	PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen
-crates/baruch-server/templates/base.html	Programm: Werke, Import, Einstellungen
-crates/baruch-server/templates/base.html	Prüfen
-crates/baruch-server/templates/base.html	Quellen
-crates/baruch-server/templates/base.html	Querverweise prüfen
-crates/baruch-server/templates/base.html	Register und Glossar
-crates/baruch-server/templates/base.html	Schließen
-crates/baruch-server/templates/base.html	Stichwort-, Personen-, Bibelstellen- und eigene Register mit Vorschlägen
-crates/baruch-server/templates/base.html	Stichwortzettel zum Halten oder Predigen: je Abschnitt Zeitmarke, Stichpunkte und Bibelstellen
-crates/baruch-server/templates/base.html	Suchen und Verweise
-crates/baruch-server/templates/base.html	Thema einstellen (Einstellungen → Darstellung)
-crates/baruch-server/templates/base.html	Thema: – einstellen unter Einstellungen → Darstellung
-crates/baruch-server/templates/base.html	Umschlag als PDF für die Druckerei (mit Rücken und Beschnitt)
-crates/baruch-server/templates/base.html	Umschlag mit Vorderseite, Rücken und Rückseite
-crates/baruch-server/templates/base.html	Version, Lizenz, Quellcode und Bibliotheken Dritter
-crates/baruch-server/templates/base.html	Wer darf dieses Werk als Lektor lesen? Freigeben und entziehen
-crates/baruch-server/templates/base.html	Werk
-crates/baruch-server/templates/base.html	Werk bearbeiten
-crates/baruch-server/templates/base.html	Werk wählen
-crates/baruch-server/templates/base.html	Werkvorlage und aktuelle Texte als eine Typst-Datei
-crates/baruch-server/templates/base.html	Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen
-crates/baruch-server/templates/base.html	Zitate gegen die Bibel des Werks prüfen (stimmt / weicht ab), Bibelstellen des Abschnitts
-crates/baruch-server/templates/base.html	Zitate prüfen
-crates/baruch-server/templates/base.html	Zoom zurücksetzen
-crates/baruch-server/templates/base.html	Zum Text
-crates/baruch-server/templates/base.html	Zur Arbeitsseite mit Gliederung, Editor und Assistenten
-crates/baruch-server/templates/base.html	Zwischen Editor und Vorschau im Browser wechseln
+# templates_1: tab id of the ribbon (data-band-tab, data-band-panel), not shown text
 crates/baruch-server/templates/base.html	ansicht
+# templates_1: element id of the ribbon (aria-labelledby), not shown text
 crates/baruch-server/templates/base.html	band-panel-ansicht
+# templates_1: element id of the ribbon (aria-labelledby), not shown text
 crates/baruch-server/templates/base.html	band-panel-buch
+# templates_1: element id of the ribbon (aria-labelledby), not shown text
 crates/baruch-server/templates/base.html	band-tab-ansicht
+# templates_1: element id of the ribbon (aria-labelledby), not shown text
 crates/baruch-server/templates/base.html	band-tab-buch
+# templates_1: tab id of the ribbon (data-band-tab, data-band-panel), not shown text
 crates/baruch-server/templates/base.html	buch
-crates/baruch-server/templates/base.html	offene Anträge zur Gliederung
-crates/baruch-server/templates/base.html	offene Befunde im Werk
-crates/baruch-server/templates/base.html	offene Vorschläge im Werk
-crates/baruch-server/templates/base.html	Öffnen
-crates/baruch-server/templates/base.html	Über Baruch
-crates/baruch-server/templates/base.html	⚙ Einstellungen
 crates/baruch-server/templates/befunde.html	( : ) – zählt nicht als offen.
 crates/baruch-server/templates/befunde.html	, Fassung :
 crates/baruch-server/templates/befunde.html	, alle Personas:
@@ -401,54 +332,8 @@ crates/baruch-server/templates/fragments/asset_requests.html	Begründung
 crates/baruch-server/templates/fragments/asset_requests.html	Bestätigen
 crates/baruch-server/templates/fragments/asset_requests.html	Keine offenen Anträge zu Bildern.
 crates/baruch-server/templates/fragments/asset_requests.html	Vorgeschlagener Inhalt für
-crates/baruch-server/templates/fragments/assist_scope.html	Abschnitt
-crates/baruch-server/templates/fragments/assist_scope.html	Das ganze Kapitel (bei einer Predigt die ganze Predigt) prüfen bzw. je Abschnitt einen Vorschlag schreiben lassen
-crates/baruch-server/templates/fragments/assist_scope.html	Der Abschnitt im Wortlaut, das ganze Kapitel als Umfeld
-crates/baruch-server/templates/fragments/assist_scope.html	Umfang für Prüfen und Vorschlag
-crates/baruch-server/templates/fragments/assist_scope.html	ganzes Kapitel
-crates/baruch-server/templates/fragments/assistants.html	1 Beitrag Beiträge zu diesem Abschnitt
-crates/baruch-server/templates/fragments/assistants.html	@persona oder die Anrede mit Namen am Satzanfang („Lektor, …“) ruft eine Persona; „RFC …“ am Anfang oder @alle ruft alle aktiven Personas
-crates/baruch-server/templates/fragments/assistants.html	Alle Beiträge dieses Abschnitts auf einer Seite (ohne JavaScript)
-crates/baruch-server/templates/fragments/assistants.html	Assistenten schließen
-crates/baruch-server/templates/fragments/assistants.html	Befunde der Persona als Beitrag im Abschnitts-Chat
-crates/baruch-server/templates/fragments/assistants.html	Beitrag
-crates/baruch-server/templates/fragments/assistants.html	Beiträge im Abschnitts-Chat
-crates/baruch-server/templates/fragments/assistants.html	Die Persona schreibt einen Vorschlag des Abschnitts (übernehmen kann nur der Mensch) und einen kurzen Beitrag
-crates/baruch-server/templates/fragments/assistants.html	Die ganze Chat-Historie (auch ohne JavaScript)
-crates/baruch-server/templates/fragments/assistants.html	Einstellungen → Assistenten
-crates/baruch-server/templates/fragments/assistants.html	Farbe, Rolle, Modell und Kontext je Persona
-crates/baruch-server/templates/fragments/assistants.html	Fäden ohne Abschnitt
-crates/baruch-server/templates/fragments/assistants.html	Gesperrt: externe Verbindung ohne Freigabe – Buchtext geht nicht hinaus. Freigeben unter
-crates/baruch-server/templates/fragments/assistants.html	Gespräche ohne Abschnitt, z. B. aus MCP chat ohne key
-crates/baruch-server/templates/fragments/assistants.html	Hinweis oder Auftrag an die Persona
-crates/baruch-server/templates/fragments/assistants.html	Keine Persona ist aktiv.
-crates/baruch-server/templates/fragments/assistants.html	Lektor fest gewählt (Einstellungen → Assistenten) Lektor nach größtem Kontext (aktive Persona)
-crates/baruch-server/templates/fragments/assistants.html	Neue Beiträge ↓
-crates/baruch-server/templates/fragments/assistants.html	Noch keine Beiträge zu diesem Abschnitt.
-crates/baruch-server/templates/fragments/assistants.html	Persona für Prüfen und Vorschlag
-crates/baruch-server/templates/fragments/assistants.html	Prüfen
-crates/baruch-server/templates/fragments/assistants.html	RFC: alle aktiven Personas, der Lektor zuletzt mit Sammlung
-crates/baruch-server/templates/fragments/assistants.html	Schließen
-crates/baruch-server/templates/fragments/assistants.html	Verbindung „ “
-crates/baruch-server/templates/fragments/assistants.html	Vorschlag
-crates/baruch-server/templates/fragments/assistants.html	Zum neuesten Beitrag rollen
+# templates_1: data-name of the handle @alle (mention completion), not shown text
 crates/baruch-server/templates/fragments/assistants.html	alle
-crates/baruch-server/templates/fragments/assistants.html	alle – RFC an alle aktiven Personas
-crates/baruch-server/templates/fragments/assistants.html	neue Fassung als Vorschlag (übernehmen kann nur der Mensch)
-crates/baruch-server/templates/fragments/assistants.html	Ältere Beiträge ( ) …
-crates/baruch-server/templates/fragments/basis_select.html	Prüfgrundlage
-crates/baruch-server/templates/fragments/basis_select.html	Welche Fassung alle Personas dieses Aufrufs prüfen
-crates/baruch-server/templates/fragments/basis_select.html	aktuelle Fassung
-crates/baruch-server/templates/fragments/basis_select.html	gezeigte Fassung ( )
-crates/baruch-server/templates/fragments/context_menu.html	(je Zeile eine)
-crates/baruch-server/templates/fragments/context_menu.html	(leer = das Wort)
-crates/baruch-server/templates/fragments/context_menu.html	Aktionen an der Markierung
-crates/baruch-server/templates/fragments/context_menu.html	Ausführliche Erklärung
-crates/baruch-server/templates/fragments/context_menu.html	Kurze Erklärung
-crates/baruch-server/templates/fragments/context_menu.html	Marke setzen (neue Fassung auf Fassung )
-crates/baruch-server/templates/fragments/context_menu.html	Quelle
-crates/baruch-server/templates/fragments/context_menu.html	alle
-crates/baruch-server/templates/fragments/context_menu.html	siehe auch
 crates/baruch-server/templates/fragments/cover_panel.html	(bei Selbstverlag die des Verfassers oder Herausgebers; mehrzeilig)
 crates/baruch-server/templates/fragments/cover_panel.html	Anschrift der Druckerei
 crates/baruch-server/templates/fragments/cover_panel.html	Bestimmt die Rückenbreite. Druckereien nennen die Dicke je Blatt. Vorgabe 0,2 mm je Blatt (eher dick); übliches Werkdruckpapier um 80–90 g/m² hat etwa 0,1 mm je Blatt.
@@ -465,90 +350,6 @@ crates/baruch-server/templates/fragments/cover_panel.html	Titel und Untertitel a
 crates/baruch-server/templates/fragments/cover_panel.html	Titelbereich übernehmen
 crates/baruch-server/templates/fragments/cover_panel.html	Umschlag ansehen (Rückseite, Rücken, Vorderseite) …
 crates/baruch-server/templates/fragments/cover_panel.html	Umschlag-Vorder- und Rückseite im Satz zeigen (nur mit Umschlagbild)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Alle Registereinträge dieses Abschnitts
-crates/baruch-server/templates/fragments/edit_toolbar.html	Als neue Fassung
-crates/baruch-server/templates/fragments/edit_toolbar.html	Ansicht
-crates/baruch-server/templates/fragments/edit_toolbar.html	Ausgeblendete Fassungen beim Blättern wieder überspringen
-crates/baruch-server/templates/fragments/edit_toolbar.html	Bearbeiten im Satzbild der Werkvorlage
-crates/baruch-server/templates/fragments/edit_toolbar.html	Bild aus den Bildern des Werks einfügen (öffnet „Bild einfügen …“ unten)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Den Text als Vorschlag einreichen (entscheiden kann nur der Autor)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Die rechts gewählte Persona prüft den Abschnitt (Befunde als Beitrag im Abschnitts-Chat)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Die rechts gewählte Persona schreibt eine neue Fassung als Vorschlag (übernehmen kann nur der Mensch)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Einfügen
-crates/baruch-server/templates/fragments/edit_toolbar.html	Fassung
-crates/baruch-server/templates/fragments/edit_toolbar.html	Fassung , aktuell
-crates/baruch-server/templates/fragments/edit_toolbar.html	Fassung wechseln
-crates/baruch-server/templates/fragments/edit_toolbar.html	Immer eine neue Fassung auf Fassung anlegen (statt fortzuschreiben)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Markiertes Wort ins Glossar aufnehmen (Dialog; auch im Kontextmenü: Rechtsklick, Kontextmenü-Taste, Umschalt+F10)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Menüband für das Bearbeiten
-crates/baruch-server/templates/fragments/edit_toolbar.html	Nächste Fassung
-crates/baruch-server/templates/fragments/edit_toolbar.html	Nächste Fassung (Alt+→)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Nächste Fassung (dies ist die letzte)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Prüfen
-crates/baruch-server/templates/fragments/edit_toolbar.html	Register und Glossar
-crates/baruch-server/templates/fragments/edit_toolbar.html	Registereinträge des Abschnitts
-crates/baruch-server/templates/fragments/edit_toolbar.html	Registermarke hinter das markierte Wort setzen (Stichwort, Unterstichwort, Register, siehe/siehe auch); gespeichert wird mit „Speichern“
-crates/baruch-server/templates/fragments/edit_toolbar.html	Speichern
-crates/baruch-server/templates/fragments/edit_toolbar.html	Speichern (Strg+S)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Vorige Fassung
-crates/baruch-server/templates/fragments/edit_toolbar.html	Vorige Fassung (Alt+←)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Vorige Fassung (dies ist die erste)
-crates/baruch-server/templates/fragments/edit_toolbar.html	Vorschlag
-crates/baruch-server/templates/fragments/edit_toolbar.html	nur im Satzbild
-crates/baruch-server/templates/fragments/edit_toolbar.html	Überschrift 1
-crates/baruch-server/templates/fragments/edit_toolbar.html	Überschrift 2
-crates/baruch-server/templates/fragments/edit_toolbar.html	Überschrift 3
-crates/baruch-server/templates/fragments/edit_toolbar.html	ältere Fassungen zeigen (bis Fassung ausgeblendet)
-crates/baruch-server/templates/fragments/edit_toolbar.html	ältere verbergen ▾
-crates/baruch-server/templates/fragments/editor.html	), solange Überschrift und Ebene gleich bleiben und keine Grenze unter Einstellungen → Werk → Fassungen greift; sonst entsteht eine neue Fassung
-crates/baruch-server/templates/fragments/editor.html	Abschnitt mit Schlüssel gibt es nicht (mehr).
-crates/baruch-server/templates/fragments/editor.html	Abschnitt ≈
-crates/baruch-server/templates/fragments/editor.html	Alle älteren ersetzten und verworfenen Fassungen unter Fassung ausblenden (nichts wird gelöscht)
-crates/baruch-server/templates/fragments/editor.html	Als eigener Block an der gewählten Stelle, auf Fassung ; vorher speichern, was im Textfeld geändert ist.
-crates/baruch-server/templates/fragments/editor.html	Als neue Fassung speichern
-crates/baruch-server/templates/fragments/editor.html	Alt+← / Alt+→ wechselt die Fassung ·
-crates/baruch-server/templates/fragments/editor.html	Ausgeblendete Fassungen beim Blättern wieder überspringen
-crates/baruch-server/templates/fragments/editor.html	Bild aus den Bildern des Werks einfügen (neue Fassung)
-crates/baruch-server/templates/fragments/editor.html	Bild aus der Vorlage ·
-crates/baruch-server/templates/fragments/editor.html	Bild einfügen …
-crates/baruch-server/templates/fragments/editor.html	Das Werk hat noch keine Bilder.
-crates/baruch-server/templates/fragments/editor.html	Die Vorlage berechnet das Bild ( ); ohne Typst lässt es sich nicht sicher ermitteln.
-crates/baruch-server/templates/fragments/editor.html	Einfügen als neue Fassung
-crates/baruch-server/templates/fragments/editor.html	Fassung
-crates/baruch-server/templates/fragments/editor.html	Fassung , aktuell
-crates/baruch-server/templates/fragments/editor.html	Fassung zur aktuellen machen (die Markierung „aktuell“ wandert)
-crates/baruch-server/templates/fragments/editor.html	Fassung ·
-crates/baruch-server/templates/fragments/editor.html	Fassungen
-crates/baruch-server/templates/fragments/editor.html	Immer eine neue Fassung auf Fassung anlegen (statt fortzuschreiben)
-crates/baruch-server/templates/fragments/editor.html	Kapitelbild aus der Werkvorlage:
-crates/baruch-server/templates/fragments/editor.html	Nicht aktuelle Fassungen hier (ohne offene Vorschläge)
-crates/baruch-server/templates/fragments/editor.html	Nächste Fassung (Alt+→)
-crates/baruch-server/templates/fragments/editor.html	Probeweise gesetzt (die Markierung „aktuell“ bleibt): : Fassung (aktuell) , ·
-crates/baruch-server/templates/fragments/editor.html	Registereintrag oder Glossarbegriff zur Markierung: In Glossar aufnehmen, In Register aufnehmen, Im Glossar nachschlagen
-crates/baruch-server/templates/fragments/editor.html	Satzbild: Enter neuer Absatz · Umschalt+Enter Zeilenumbruch (in einer Überschrift: neuer Absatz) · Strg+S speichert · gelb hinterlegt: Typst-Insel, nur im Quelltext bearbeitbar · Rechtsklick, Kontextmenü-Taste oder Umschalt+F10: Register und Glossar
-crates/baruch-server/templates/fragments/editor.html	Speichern
-crates/baruch-server/templates/fragments/editor.html	Speichern (Strg+S) schreibt Fassung
-crates/baruch-server/templates/fragments/editor.html	Speichern legt eine neue Fassung auf Fassung
-crates/baruch-server/templates/fragments/editor.html	Sprechdauer bei Wörtern je Minute ; Zeitmarke
-crates/baruch-server/templates/fragments/editor.html	Verlauf der Fortschreibungen von Fassung
-crates/baruch-server/templates/fragments/editor.html	Vorige Fassung (Alt+←)
-crates/baruch-server/templates/fragments/editor.html	Vorschau im Browser (Näherung) · die gesetzten Seiten aus Typst zeigt
-crates/baruch-server/templates/fragments/editor.html	Zielzeit überschritten um
-crates/baruch-server/templates/fragments/editor.html	Zitate dieser Fassung gegen die Bibel des Werks prüfen (stimmt / weicht ab)
-crates/baruch-server/templates/fragments/editor.html	Zitate prüfen
-crates/baruch-server/templates/fragments/editor.html	aktuell: Fassung
-crates/baruch-server/templates/fragments/editor.html	an (diese Fassung ist nicht die eigene aktuelle)
-crates/baruch-server/templates/fragments/editor.html	bis hier ausblenden
-crates/baruch-server/templates/fragments/editor.html	nur aktuelle Fassungen
-crates/baruch-server/templates/fragments/editor.html	offene r Befund e samt Unterpunkten ( hier)
-crates/baruch-server/templates/fragments/editor.html	weitere Fassung en :
-crates/baruch-server/templates/fragments/editor.html	· dort hochladen und den Pfad eintragen.
-crates/baruch-server/templates/fragments/editor.html	· geändert · beruht auf Fassung , Stand
-crates/baruch-server/templates/fragments/editor.html	· „Als neue Fassung speichern“ legt immer eine neue an · die Überschriftszeile bestimmt Titel und Ebene in der Gliederung · Assistenten schreiben nur Vorschläge
-crates/baruch-server/templates/fragments/editor.html	ältere Fassung en verbergen ▾
-crates/baruch-server/templates/fragments/editor.html	ältere Fassung en zeigen ▸
-crates/baruch-server/templates/fragments/editor.html	ältere Fassungen zeigen (bis Fassung ausgeblendet)
-crates/baruch-server/templates/fragments/editor.html	ältere verbergen ▾
 crates/baruch-server/templates/fragments/epub_check_panel.html	EPUB-Prüfung
 crates/baruch-server/templates/fragments/epub_check_panel.html	Ganzer Prüfbericht, EPUBCheck ausführen …
 crates/baruch-server/templates/fragments/epub_check_panel.html	Keine Befunde.
@@ -611,91 +412,8 @@ crates/baruch-server/templates/fragments/findings_panel.html	„ “
 crates/baruch-server/templates/fragments/findings_panel.html	→ verschoben nach Abschnitt
 crates/baruch-server/templates/fragments/findings_panel.html	○ Wieder öffnen
 crates/baruch-server/templates/fragments/findings_panel.html	✓ übernommen in
-crates/baruch-server/templates/fragments/highlights.html	Als Zitat in den Abschnitt (Vorschlag)
-crates/baruch-server/templates/fragments/highlights.html	Als eigene übernehmen
-crates/baruch-server/templates/fragments/highlights.html	Gegen den Volltext prüfen
-crates/baruch-server/templates/fragments/highlights.html	Löschen
-crates/baruch-server/templates/fragments/highlights.html	Neue eigene Hervorhebung; der Vorschlag der Persona bleibt
-crates/baruch-server/templates/fragments/highlights.html	Noch keine Hervorhebungen.
-crates/baruch-server/templates/fragments/highlights.html	Vorschlag
-crates/baruch-server/templates/fragments/highlights.html	wirklich löschen
-crates/baruch-server/templates/fragments/highlights.html	Ändern
-crates/baruch-server/templates/fragments/highlights.html	Ändern, zitieren, löschen
-crates/baruch-server/templates/fragments/idea_capture.html	(Umschalt+Enter: neue Zeile)
-crates/baruch-server/templates/fragments/idea_capture.html	Alle Einfälle
-crates/baruch-server/templates/fragments/idea_capture.html	Bezug: Abschnitt „
-crates/baruch-server/templates/fragments/idea_capture.html	Quelle
-crates/baruch-server/templates/fragments/idea_capture.html	Schlagwörter
-crates/baruch-server/templates/fragments/idea_capture.html	Schließen
-crates/baruch-server/templates/fragments/idea_capture.html	“
-crates/baruch-server/templates/fragments/lektor_assistants.html	1 Beitrag Beiträge zu diesem Abschnitt
-crates/baruch-server/templates/fragments/lektor_assistants.html	1 Fassung Fassungen dieses Abschnitts
-crates/baruch-server/templates/fragments/lektor_assistants.html	1 Vorschlag Vorschläge
-crates/baruch-server/templates/fragments/lektor_assistants.html	Alle Befunde dieses Abschnitts
-crates/baruch-server/templates/fragments/lektor_assistants.html	Alle Beiträge dieses Abschnitts auf einer Seite
-crates/baruch-server/templates/fragments/lektor_assistants.html	Befund zu diesem Abschnitt schreiben
-crates/baruch-server/templates/fragments/lektor_assistants.html	Befunde
-crates/baruch-server/templates/fragments/lektor_assistants.html	Begründung:
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag an den Autor …
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag entfernen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag zum Markieren und Kopieren, mit Verlauf
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag ändern
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beitrag öffnen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Beiträge im Abschnitts-Chat
-crates/baruch-server/templates/fragments/lektor_assistants.html	Dein Beitrag steht unter im Abschnitts-Chat; Personas ruft er nicht auf
-crates/baruch-server/templates/fragments/lektor_assistants.html	Der Befund steht unter ; über den Status entscheidet der Autor
-crates/baruch-server/templates/fragments/lektor_assistants.html	Die ganze Chat-Historie
-crates/baruch-server/templates/fragments/lektor_assistants.html	Eigenen Beitrag bearbeiten oder löschen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Fassung
-crates/baruch-server/templates/fragments/lektor_assistants.html	Fassungen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Fäden ohne Abschnitt
-crates/baruch-server/templates/fragments/lektor_assistants.html	Gespräche ohne Abschnitt (nur lesen)
-crates/baruch-server/templates/fragments/lektor_assistants.html	Keine offenen Befunde in diesem Abschnitt.
-crates/baruch-server/templates/fragments/lektor_assistants.html	Noch keine Beiträge zu diesem Abschnitt.
-crates/baruch-server/templates/fragments/lektor_assistants.html	Quelle:
-crates/baruch-server/templates/fragments/lektor_assistants.html	Schließen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Seitenleiste schließen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Verlauf der Fortschreibungen
-crates/baruch-server/templates/fragments/lektor_assistants.html	Welche Fassung gilt, entscheidet der Autor. Dein Weg ist „Vorschlagen“ unter dem Text.
-crates/baruch-server/templates/fragments/lektor_assistants.html	Zitat aus dem Abschnitt (freiwillig)
-crates/baruch-server/templates/fragments/lektor_assistants.html	Zitat, auf das sich der Befund bezieht
+# templates_1: data-section identifier and accordion value, not shown text
 crates/baruch-server/templates/fragments/lektor_assistants.html	befunde
-crates/baruch-server/templates/fragments/lektor_assistants.html	die alte Fassung bleibt im Verlauf
-crates/baruch-server/templates/fragments/lektor_assistants.html	eigenen Beitrag wirklich entfernen
-crates/baruch-server/templates/fragments/lektor_assistants.html	gezeigt: Fassung
-crates/baruch-server/templates/fragments/lektor_assistants.html	offene Befunde in diesem Abschnitt
-crates/baruch-server/templates/fragments/lektor_assistants.html	Ältere Beiträge ( ) …
-crates/baruch-server/templates/fragments/lektor_assistants.html	Übersicht übers Werk
-crates/baruch-server/templates/fragments/lektor_assistants.html	„ “
-crates/baruch-server/templates/fragments/lektor_editor.html	. Die aktuelle Fassung bleibt, bis der Autor entscheidet.
-crates/baruch-server/templates/fragments/lektor_editor.html	Abschnitt mit Schlüssel gibt es nicht (mehr).
-crates/baruch-server/templates/fragments/lektor_editor.html	Den Text als Vorschlag einer neuen Fassung einreichen (entscheiden kann nur der Autor)
-crates/baruch-server/templates/fragments/lektor_editor.html	Du liest und schlägst vor; übernehmen, ändern und löschen kann nur der Autor
-crates/baruch-server/templates/fragments/lektor_editor.html	Fassung , aktuell
-crates/baruch-server/templates/fragments/lektor_editor.html	Fassung ·
-crates/baruch-server/templates/fragments/lektor_editor.html	Fassungen
-crates/baruch-server/templates/fragments/lektor_editor.html	Notiz zum Vorschlag
-crates/baruch-server/templates/fragments/lektor_editor.html	Nächste Fassung (Alt+→)
-crates/baruch-server/templates/fragments/lektor_editor.html	Satzbild: Enter neuer Absatz · Umschalt+Enter Zeilenumbruch · gelb hinterlegt: Typst-Insel, nur im Quelltext bearbeitbar
-crates/baruch-server/templates/fragments/lektor_editor.html	Text des Abschnitts (dein Vorschlag)
-crates/baruch-server/templates/fragments/lektor_editor.html	Verlauf der Fortschreibungen von Fassung
-crates/baruch-server/templates/fragments/lektor_editor.html	Vorige Fassung (Alt+←)
-crates/baruch-server/templates/fragments/lektor_editor.html	Vorschau im Browser (Näherung) · zum Vorschlagen in den Editor wechseln (Start → Editor)
-crates/baruch-server/templates/fragments/lektor_editor.html	aktuell: Fassung
-crates/baruch-server/templates/fragments/lektor_editor.html	freiwillig, z. B. „Satzbau geglättet“
-crates/baruch-server/templates/fragments/lektor_editor.html	offene Befunde dieses Abschnitts samt Unterpunkten
-crates/baruch-server/templates/fragments/lektor_editor.html	· geändert · beruht auf Fassung , Stand
-crates/baruch-server/templates/fragments/lektor_editor.html	Ändere den Text und wähle „Vorschlagen“: Dein Text wird ein Vorschlag auf Fassung
-crates/baruch-server/templates/fragments/lektor_tree.html	Die ganze Gliederung auf einer Seite
-crates/baruch-server/templates/fragments/lektor_tree.html	Gliederung
-crates/baruch-server/templates/fragments/lektor_tree.html	Gliederung einklappen (schmale Leiste am Rand)
-crates/baruch-server/templates/fragments/lektor_tree.html	Gliederung schließen
-crates/baruch-server/templates/fragments/lektor_tree.html	Schließen
-crates/baruch-server/templates/fragments/lektor_tree.html	Sprechdauer bei Wörtern je Minute
-crates/baruch-server/templates/fragments/lektor_tree.html	Vorschlag Vorschläge
-crates/baruch-server/templates/fragments/lektor_tree.html	ganze Gliederung
-crates/baruch-server/templates/fragments/lektor_tree.html	offene Vorschläge
 crates/baruch-server/templates/fragments/library.html	Bedeutungs-Treffer für „ “
 crates/baruch-server/templates/fragments/library.html	Keine Treffer.
 crates/baruch-server/templates/fragments/library.html	Keine passenden Titel.
@@ -713,196 +431,14 @@ crates/baruch-server/templates/fragments/library.html	zu prüfen
 crates/baruch-server/templates/fragments/library.html	· Ähnlichkeit %
 crates/baruch-server/templates/fragments/literature_bibles.html	Einstellungen → Quellen
 crates/baruch-server/templates/fragments/literature_bibles.html	Weitere Treffer auf der Bibelseite.
-crates/baruch-server/templates/fragments/post_item.html	Befunde aus diesem Beitrag anlegen; der Beitrag bleibt unverändert
-crates/baruch-server/templates/fragments/post_item.html	Beitrag
-crates/baruch-server/templates/fragments/post_item.html	Beitrag als „> …“ in die Antwort
-crates/baruch-server/templates/fragments/post_item.html	Beitrag als „> …“ ins Eingabefeld
-crates/baruch-server/templates/fragments/post_item.html	Beitrag bearbeiten, löschen, verschieben oder umwandeln
-crates/baruch-server/templates/fragments/post_item.html	Beitrag löschen
-crates/baruch-server/templates/fragments/post_item.html	Beitrag löschen (mit Rückfrage)
-crates/baruch-server/templates/fragments/post_item.html	Beitrag zum Markieren und Kopieren, Zitieren , Bearbeiten und Verlauf (auch ohne JavaScript)
-crates/baruch-server/templates/fragments/post_item.html	Beitrag öffnen
-crates/baruch-server/templates/fragments/post_item.html	Die alte Fassung bleibt im Verlauf (Fäden stehen nicht im Spiegel)
-crates/baruch-server/templates/fragments/post_item.html	Dieselbe Anfrage an gegen die gezeigte Fassung ; die alte Antwort bleibt
-crates/baruch-server/templates/fragments/post_item.html	Dieselbe Anfrage noch einmal an ; die alte Antwort bleibt
-crates/baruch-server/templates/fragments/post_item.html	Grundlage dieser Antwort (von Baruch, nicht vom Modell)
-crates/baruch-server/templates/fragments/post_item.html	In Befunde umwandeln
-crates/baruch-server/templates/fragments/post_item.html	Löschen
-crates/baruch-server/templates/fragments/post_item.html	Quelle:
-crates/baruch-server/templates/fragments/post_item.html	Schlagwörter
-crates/baruch-server/templates/fragments/post_item.html	Schlagwörter des Einfalls
-crates/baruch-server/templates/fragments/post_item.html	Speichern
-crates/baruch-server/templates/fragments/post_item.html	Text des Beitrags in die Zwischenablage
-crates/baruch-server/templates/fragments/post_item.html	abgerufene Seiten, Zitate und ihre Prüfung; belegte Zitate in die Bibliothek
-crates/baruch-server/templates/fragments/post_item.html	die alte Fassung bleibt im Verlauf
-crates/baruch-server/templates/fragments/post_item.html	gültig ab , ersetzt von
-crates/baruch-server/templates/fragments/post_item.html	nach Fassung
-crates/baruch-server/templates/fragments/post_item.html	wirklich löschen
-crates/baruch-server/templates/fragments/post_item.html	zuletzt bearbeitet ; die alte Fassung steht im Verlauf
-crates/baruch-server/templates/fragments/post_item.html	↪ Belege der Websuche
-crates/baruch-server/templates/fragments/post_solutions.html	(Zitat steht nicht in der gezeigten Fassung)
-crates/baruch-server/templates/fragments/post_solutions.html	(bei „ “)
-crates/baruch-server/templates/fragments/post_solutions.html	Als Vorschlag übernehmen
-crates/baruch-server/templates/fragments/post_solutions.html	Lösungen
-crates/baruch-server/templates/fragments/post_solutions.html	Lösungen aus Beitrag
-crates/baruch-server/templates/fragments/post_solutions.html	Lösungen aus Beitrag in Varianten umsetzen
-crates/baruch-server/templates/fragments/post_solutions.html	Lösungen umsetzen
-crates/baruch-server/templates/fragments/post_solutions.html	besser „ “
-crates/baruch-server/templates/fragments/post_solutions.html	statt „ “
-crates/baruch-server/templates/fragments/proposals.html	Abschnitt im Editor öffnen: dort die weiteren Fassungen mit „aktuell machen“
-crates/baruch-server/templates/fragments/proposals.html	Alle einklappen
-crates/baruch-server/templates/fragments/proposals.html	Ein offener Vorschlag offene Vorschläge
-crates/baruch-server/templates/fragments/proposals.html	Text mit offenen Vorschlägen an ihrer Stelle
-crates/baruch-server/templates/fragments/proposals.html	Vorschlag auf- oder zuklappen
-crates/baruch-server/templates/fragments/proposals.html	weitere Fassung en :
-crates/baruch-server/templates/fragments/proposals.html	Übernehmen
-crates/baruch-server/templates/fragments/revisions.html	(ersetzt oder verworfen)
-crates/baruch-server/templates/fragments/revisions.html	1 Fassung Fassungen dieses Abschnitts
-crates/baruch-server/templates/fragments/revisions.html	1 Vorschlag Vorschläge
-crates/baruch-server/templates/fragments/revisions.html	1 offener Vorschlag offene Vorschläge
-crates/baruch-server/templates/fragments/revisions.html	Ausgeblendet bis Fassung (Marke an Fassung , gilt nur bis unter die aktuelle) : Fassung en .
-crates/baruch-server/templates/fragments/revisions.html	Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.
-crates/baruch-server/templates/fragments/revisions.html	Diese Fassung verwenden
-crates/baruch-server/templates/fragments/revisions.html	Ersetzte und verworfene Fassungen unter Fassung hinter den Schalter legen; nichts wird gelöscht, offene Vorschläge und die aktuelle Fassung bleiben sichtbar
-crates/baruch-server/templates/fragments/revisions.html	Fassung
-crates/baruch-server/templates/fragments/revisions.html	Fassung wirklich löschen
-crates/baruch-server/templates/fragments/revisions.html	Fassung zur aktuellen machen
-crates/baruch-server/templates/fragments/revisions.html	Fassung ändern
-crates/baruch-server/templates/fragments/revisions.html	Fassungen
-crates/baruch-server/templates/fragments/revisions.html	Löschen
-crates/baruch-server/templates/fragments/revisions.html	Text von Fassung
-crates/baruch-server/templates/fragments/revisions.html	Verlauf der Fortschreibungen, mit „Bis hier zurück“
-crates/baruch-server/templates/fragments/revisions.html	Weitere Fassungen
-crates/baruch-server/templates/fragments/revisions.html	Wieder alle zeigen
-crates/baruch-server/templates/fragments/revisions.html	gezeigt: Fassung
-crates/baruch-server/templates/fragments/revisions.html	Ältere Fassungen unter Fassung ausblenden
-crates/baruch-server/templates/fragments/revisions.html	Ältere bis hierhin ausblenden
-crates/baruch-server/templates/fragments/revisions.html	Ältere ersetzte und verworfene Fassungen unter Fassung ausblenden
-crates/baruch-server/templates/fragments/revisions.html	Ändert diese Fassung selbst (keine neue); wird im Git-Spiegel protokolliert.
-crates/baruch-server/templates/fragments/revisions.html	Änderung speichern
-crates/baruch-server/templates/fragments/revisions.html	Übrige Varianten außer verwerfen
-crates/baruch-server/templates/fragments/revisions.html	Übrige verwerfen
-crates/baruch-server/templates/fragments/revisions.html	ältere Fassung en ausgeblendet (bis Fassung )
-crates/baruch-server/templates/fragments/revisions.html	ältere Fassung en verbergen ▾
-crates/baruch-server/templates/fragments/revisions.html	ältere Fassung en zeigen ▸
-crates/baruch-server/templates/fragments/revisions.html	übrige Varianten verwerfen
-crates/baruch-server/templates/fragments/revtree.html	, um (offen, der Mensch bestätigt)
-crates/baruch-server/templates/fragments/revtree.html	Diese Fassung wird erzeugt
-crates/baruch-server/templates/fragments/revtree.html	Fassungen
-crates/baruch-server/templates/fragments/revtree.html	Fassungen des ganzen Kapitels
-crates/baruch-server/templates/fragments/revtree.html	Fassungen dieses Abschnitts
-crates/baruch-server/templates/fragments/revtree.html	Keine Fassungen.
-crates/baruch-server/templates/fragments/revtree.html	Stand der Basis, als der Vorschlag entstand
-crates/baruch-server/templates/fragments/revtree.html	Verlauf der Fortschreibungen von Fassung
-crates/baruch-server/templates/fragments/revtree.html	Vorschlag
-crates/baruch-server/templates/fragments/revtree.html	aktuell: Fassung
-crates/baruch-server/templates/fragments/revtree.html	beruht auf Fassung , Stand
-crates/baruch-server/templates/fragments/revtree.html	in der Vorschau probieren
-crates/baruch-server/templates/fragments/revtree.html	zeigen
-crates/baruch-server/templates/fragments/revtree.html	· geändert
-crates/baruch-server/templates/fragments/revtree.html	Ältere ersetzte und verworfene Fassungen unter Fassung ausblenden
-crates/baruch-server/templates/fragments/revtree.html	ältere Fassung en verbergen ▾
-crates/baruch-server/templates/fragments/revtree.html	ältere Fassung en zeigen ▸
-crates/baruch-server/templates/fragments/search_bar.html	Alle
-crates/baruch-server/templates/fragments/search_bar.html	Alle im Abschnitt ersetzen (Strg+Alt+Enter)
-crates/baruch-server/templates/fragments/search_bar.html	Ersetzen ein-/ausblenden (Strg+H)
-crates/baruch-server/templates/fragments/search_bar.html	Groß/klein beachten (Alt+C)
-crates/baruch-server/templates/fragments/search_bar.html	Im Abschnitt suchen
-crates/baruch-server/templates/fragments/search_bar.html	Im Abschnitt suchen und ersetzen
-crates/baruch-server/templates/fragments/search_bar.html	Im ganzen Werk suchen und ersetzen (Strg+Umschalt+F)
-crates/baruch-server/templates/fragments/search_bar.html	Keine Treffer
-crates/baruch-server/templates/fragments/search_bar.html	Nur ganze Wörter (Alt+W)
-crates/baruch-server/templates/fragments/search_bar.html	Nur in der Markierung suchen (Alt+L; die Markierung im Quelltext beim Öffnen der Suche)
-crates/baruch-server/templates/fragments/search_bar.html	Nächster Treffer (Enter, F3)
-crates/baruch-server/templates/fragments/search_bar.html	Regulärer Ausdruck (Alt+R)
-crates/baruch-server/templates/fragments/search_bar.html	Schließen (Escape)
-crates/baruch-server/templates/fragments/search_bar.html	Suchen
-crates/baruch-server/templates/fragments/search_bar.html	Suchleiste schließen
-crates/baruch-server/templates/fragments/search_bar.html	im Werk …
-crates/baruch-server/templates/fragments/toast.html	Nur als Zusammenfassung gesehen ( )
-crates/baruch-server/templates/fragments/tree.html	Antrag Anträge zur Gliederung
-crates/baruch-server/templates/fragments/tree.html	Assistenten möchten die Gliederung ändern; bestätigen oder ablehnen
-crates/baruch-server/templates/fragments/tree.html	Gliederung
-crates/baruch-server/templates/fragments/tree.html	Gliederung bearbeiten (Ebenen, Reihenfolge, Nummerierung)
-crates/baruch-server/templates/fragments/tree.html	Gliederung einklappen (schmale Leiste am Rand)
-crates/baruch-server/templates/fragments/tree.html	Gliederung schließen
-crates/baruch-server/templates/fragments/tree.html	Gliederung:
-crates/baruch-server/templates/fragments/tree.html	Gliederungsschema wählen, mit Vorschau an dieser Gliederung
-crates/baruch-server/templates/fragments/tree.html	Höher stufen
-crates/baruch-server/templates/fragments/tree.html	Höher stufen (Alt+Umschalt+←)
-crates/baruch-server/templates/fragments/tree.html	Löschen…
-crates/baruch-server/templates/fragments/tree.html	Mehr
-crates/baruch-server/templates/fragments/tree.html	Nummerierung der Gliederung (Gliederungsschema: , Muster )
-crates/baruch-server/templates/fragments/tree.html	Schema wählen…
-crates/baruch-server/templates/fragments/tree.html	Schließen
-crates/baruch-server/templates/fragments/tree.html	Sprechdauer bei Wörtern je Minute (Einstellungen → Werk → Predigtzeit)
-crates/baruch-server/templates/fragments/tree.html	Sprechdauer ≈ samt Unterpunkten , beginnt bei
-crates/baruch-server/templates/fragments/tree.html	Umbenennen, anlegen, umstufen, löschen (Rechtsklick, Umschalt+F10)
-crates/baruch-server/templates/fragments/tree.html	Umbenennen, neu anlegen, löschen
-crates/baruch-server/templates/fragments/tree.html	Vorschlag Vorschläge
-crates/baruch-server/templates/fragments/tree.html	Wörter je Minute und Zielzeit einstellen
-crates/baruch-server/templates/fragments/tree.html	Zielzeit überschritten um
-crates/baruch-server/templates/fragments/tree.html	aus der Werkvorlage ( ) (Vorgabe 1.1)
+# templates_1: form value of the numbering (vorlage|keine), not shown text
 crates/baruch-server/templates/fragments/tree.html	keine
-crates/baruch-server/templates/fragments/tree.html	keine Nummern
-crates/baruch-server/templates/fragments/tree.html	offene Vorschläge
-crates/baruch-server/templates/fragments/tree.html	weitere Fassung en (ersetzt oder verworfen)
+# templates_1: data-settings-page identifier, not shown text
 crates/baruch-server/templates/fragments/tree.html	werk
-crates/baruch-server/templates/fragments/tree.html	„vorlage“ = aus der Werkvorlage, „keine“ = keine Nummern, sonst ein Muster wie „1.1“, „I|1“ oder „I.;A.;1.“.
-crates/baruch-server/templates/fragments/tree.html	„vorlage“ = aus der Werkvorlage, „keine“ = keine Nummern, sonst ein Typst-Muster wie 1.1 oder I.1
-crates/baruch-server/templates/fragments/work_new.html	(Bibelstelle, z. B. „Joh 3,16–18“; leer: später eintragen)
-crates/baruch-server/templates/fragments/work_new.html	(leer: aus der Datei)
-crates/baruch-server/templates/fragments/work_new.html	(mit Haupt-Datei und Bildern, zusammen bis 80 MiB)
-crates/baruch-server/templates/fragments/work_new.html	(mit Vorschau der Gliederung)
-crates/baruch-server/templates/fragments/work_new.html	) und die Bilder relativ dazu mit. Gibt es den Titel schon, bitte einen anderen eintragen.
-crates/baruch-server/templates/fragments/work_new.html	Bibelübersetzung
-crates/baruch-server/templates/fragments/work_new.html	Buch
-crates/baruch-server/templates/fragments/work_new.html	Buch: Kapitel „Erstes Kapitel“
-crates/baruch-server/templates/fragments/work_new.html	Datei (.typ, .md, .markdown bis 16 MiB oder .zip bis 80 MiB)
-crates/baruch-server/templates/fragments/work_new.html	Der Wortlaut kommt als Zitat mit Stelle und Modul in den Punkt „Predigttext“; die gewählte Bibel wird die SWORD-Bibel der Predigt.
-crates/baruch-server/templates/fragments/work_new.html	Grundgerüst
-crates/baruch-server/templates/fragments/work_new.html	Keine SWORD-Bibel gefunden (Einstellungen → Quellen → Bibeln); dann steht nur die Stellenangabe im Predigttext.
-crates/baruch-server/templates/fragments/work_new.html	Neues Werk anlegen
-crates/baruch-server/templates/fragments/work_new.html	Nur bei einer Predigt
-crates/baruch-server/templates/fragments/work_new.html	PDF oder EPUB importieren …
-crates/baruch-server/templates/fragments/work_new.html	SWORD-Bibel für den Wortlaut
-crates/baruch-server/templates/fragments/work_new.html	Typst- oder Markdown-Datei importieren
-crates/baruch-server/templates/fragments/work_new.html	Typst: alles vor der ersten Überschrift wird die Werkvorlage,
-crates/baruch-server/templates/fragments/work_new.html	die Gliederung. Markdown:
-crates/baruch-server/templates/fragments/work_new.html	oder ein Ordner
-crates/baruch-server/templates/fragments/work_new.html	passend zur Art
-crates/baruch-server/templates/fragments/work_new.html	werden die Gliederung (tiefere Ebenen auf die dritte begrenzt), was sich nicht abbilden lässt, steht im Bericht. Ein ZIP oder Ordner bringt genau eine Haupt-Datei (.typ oder .md, sonst
-crates/baruch-server/templates/fragments/work_new.html	– (nicht lesbar)
-crates/baruch-server/templates/glossary.html	(je Zeile eine, z. B. Joh 3,16)
-crates/baruch-server/templates/glossary.html	(je Zeile eine, z. B. Mehrzahl)
-crates/baruch-server/templates/glossary.html	Ausführliche Erklärung
-crates/baruch-server/templates/glossary.html	Bearbeiten oder löschen
-crates/baruch-server/templates/glossary.html	Begriff, Variante, Erklärung
-crates/baruch-server/templates/glossary.html	Begriffe, die im Buch erklärt werden: kurze und ausführliche Erklärung, Varianten (andere Wortformen) und Bibelstellen. Welche Seite das Glossar im Buch bekommt, regelt Einstellungen → Werk → Satz. Assistenten schlagen Begriffe nur vor; übernehmen, ändern und löschen nur Sie.
-crates/baruch-server/templates/glossary.html	Das Glossar lässt sich nicht lesen:
-crates/baruch-server/templates/glossary.html	Der Lektor (Einstellungen → Assistenten) liest das ganze Werk und schlägt Begriffe vor, die erklärt werden sollten. Sie erscheinen hier als Vorschläge; übernehmen nur Sie. Das kann eine Weile dauern.
-crates/baruch-server/templates/glossary.html	Glossar – – Baruch : Glossar buch
-crates/baruch-server/templates/glossary.html	Im Glossar: „ “
-crates/baruch-server/templates/glossary.html	Ja, „ “ aus dem Glossar löschen
-crates/baruch-server/templates/glossary.html	Keine offenen Vorschläge.
-crates/baruch-server/templates/glossary.html	Kurze Erklärung
-crates/baruch-server/templates/glossary.html	Löschen
-crates/baruch-server/templates/glossary.html	Noch keine Begriffe. Im Editor: Wort markieren, Rechtsklick → „In Glossar aufnehmen“, oder unten anlegen.
-crates/baruch-server/templates/glossary.html	Quelle
-crates/baruch-server/templates/glossary.html	Quelle:
-crates/baruch-server/templates/glossary.html	Siehe auch
-crates/baruch-server/templates/glossary.html	Speichern
-crates/baruch-server/templates/glossary.html	Vorgeschlagen von · geändert von angelegt
-crates/baruch-server/templates/glossary.html	Vorschlag von
-crates/baruch-server/templates/glossary.html	Vorschlag, noch nicht im Glossar
-crates/baruch-server/templates/glossary.html	Vorschläge der Assistenten ( )
-crates/baruch-server/templates/glossary.html	Wort oder Variante
-crates/baruch-server/templates/glossary.html	Zurück
-crates/baruch-server/templates/glossary.html	Zurück zum Werk
-crates/baruch-server/templates/glossary.html	auch:
+# templates_1: band_tab block value (tab id), not shown text
+crates/baruch-server/templates/glossary.html	buch
+# templates_1: aria-labelledby element id, not shown text
 crates/baruch-server/templates/glossary.html	neu-titel
-crates/baruch-server/templates/glossary.html	Übernehmen
-crates/baruch-server/templates/glossary.html	„ “ steht nicht im Glossar.
 crates/baruch-server/templates/idea.html	(ihre Antwort wird ein Beitrag im Abschnitts-Chat)
 crates/baruch-server/templates/idea.html	Abschnitt (Ziel bzw. Ort des Beitrags)
 crates/baruch-server/templates/idea.html	Abschnitt „ “
@@ -980,39 +516,10 @@ crates/baruch-server/templates/import_report.html	Werke
 crates/baruch-server/templates/import_report.html	Zum Werk
 crates/baruch-server/templates/import_report.html	Übersprungene Bilder ( )
 crates/baruch-server/templates/import_report.html	„ “ ist angelegt
-crates/baruch-server/templates/index_page.html	(automatisch aus den erkannten Bibelstellen)
-crates/baruch-server/templates/index_page.html	(leer = das Wort)
-crates/baruch-server/templates/index_page.html	, Fassung : – › (siehe: ) (siehe auch: )
-crates/baruch-server/templates/index_page.html	: › (siehe: ) (siehe auch: )
-crates/baruch-server/templates/index_page.html	Abschnitt (aktuelle Fassung )
-crates/baruch-server/templates/index_page.html	Begründung:
-crates/baruch-server/templates/index_page.html	Die Vorschläge lassen sich nicht lesen:
-crates/baruch-server/templates/index_page.html	Die Übersicht lässt sich nicht bilden:
-crates/baruch-server/templates/index_page.html	Einträge filtern
-crates/baruch-server/templates/index_page.html	Entschiedene Vorschläge ( )
-crates/baruch-server/templates/index_page.html	Ja, löschen
-crates/baruch-server/templates/index_page.html	Keine Registereinträge in diesem Abschnitt.
-crates/baruch-server/templates/index_page.html	Keine offenen Registervorschläge.
-crates/baruch-server/templates/index_page.html	Löschen
-crates/baruch-server/templates/index_page.html	Marke als neue Fassung in den Abschnitt setzen
-crates/baruch-server/templates/index_page.html	Marke entfernen (neue Fassung)
-crates/baruch-server/templates/index_page.html	Marke setzen (neue Fassung)
-crates/baruch-server/templates/index_page.html	Noch eigene Register möglich (Kennung: Kleinbuchstaben, Ziffern, Bindestrich).
-crates/baruch-server/templates/index_page.html	Noch keine Einträge.
-crates/baruch-server/templates/index_page.html	Register – – Baruch : Register buch
-crates/baruch-server/templates/index_page.html	Registereinträge sind Marken im Text, direkt hinter dem Wort; das Bibelstellenregister entsteht von selbst aus den erkannten Bibelstellen. Welche Register das Buch am Ende bekommt, regelt Einstellungen → Werk → Satz. Eine Marke setzen oder entfernen ergibt eine neue Fassung des Abschnitts; Assistenten schlagen Einträge nur vor.
-crates/baruch-server/templates/index_page.html	Siehe auch
-crates/baruch-server/templates/index_page.html	Vorschlag von
-crates/baruch-server/templates/index_page.html	Vorschlag, noch nicht im Text
-crates/baruch-server/templates/index_page.html	Vorschläge der Assistenten ( )
-crates/baruch-server/templates/index_page.html	Zurück
-crates/baruch-server/templates/index_page.html	Zurück zum Werk
+# templates_1: aria-labelledby element id, not shown text
 crates/baruch-server/templates/index_page.html	abschnitt-titel
-crates/baruch-server/templates/index_page.html	alle
-crates/baruch-server/templates/index_page.html	siehe auch
-crates/baruch-server/templates/index_page.html	Übernehmen
-crates/baruch-server/templates/index_page.html	„ “ ( ) in
-crates/baruch-server/templates/index_page.html	„ “ → ( ), : übernommen verworfen veraltet (Wort nicht mehr im Text) von
+# templates_1: band_tab block value (tab id), not shown text
+crates/baruch-server/templates/index_page.html	buch
 crates/baruch-server/templates/karte.html	. In der Wolke unter dem Baum liegen die Einfälle ohne Platz.
 crates/baruch-server/templates/karte.html	Alle Befunde
 crates/baruch-server/templates/karte.html	Alle Hauptäste zuklappen
@@ -1166,21 +673,6 @@ crates/baruch-server/templates/literature_bible.html	nächstes Kapitel →
 crates/baruch-server/templates/literature_bible.html	Öffnen
 crates/baruch-server/templates/literature_bible.html	„ “ in das Feld „Stelle“
 crates/baruch-server/templates/literature_bible.html	← voriges Kapitel
-crates/baruch-server/templates/marking.html	, Fassung (aktuell ist Fassung ) . Eine Registermarke ist Buchtext: „Marke setzen“ legt eine neue Fassung an. Glossarbegriffe ändern den Text nicht.
-crates/baruch-server/templates/marking.html	: › (siehe: ) (siehe auch: )
-crates/baruch-server/templates/marking.html	Abschnitt
-crates/baruch-server/templates/marking.html	An der Markierung
-crates/baruch-server/templates/marking.html	An der Markierung – – Baruch : An der Markierung
-crates/baruch-server/templates/marking.html	Bearbeiten ohne JavaScript: Eintrag entfernen und neu setzen. Alle Register:
-crates/baruch-server/templates/marking.html	Begriffe aus diesem Abschnitt vorschlagen lassen
-crates/baruch-server/templates/marking.html	Der Lektor schlägt Begriffe vor, die erklärt werden sollten; sie erscheinen auf der Glossarseite als Vorschläge.
-crates/baruch-server/templates/marking.html	Keine Registereinträge.
-crates/baruch-server/templates/marking.html	Marke entfernen (neue Fassung)
-crates/baruch-server/templates/marking.html	Registereinträge dieses Abschnitts (aktuelle Fassung)
-crates/baruch-server/templates/marking.html	Wort aus dem Abschnitt
-crates/baruch-server/templates/marking.html	Zurück
-crates/baruch-server/templates/marking.html	Zurück zum Abschnitt
-crates/baruch-server/templates/marking.html	Übernehmen
 crates/baruch-server/templates/mitwirkende.html	Baruch läuft ohne Konten – es gibt niemanden, dem das Werk freigegeben werden könnte.
 crates/baruch-server/templates/mitwirkende.html	Das Konto ist gesperrt und kann sich nicht anmelden
 crates/baruch-server/templates/mitwirkende.html	Der Autor sieht und bearbeitet jedes Werk. Ein Lektor sieht nur freigegebene Werke und schreibt dort Vorschläge, Beiträge und Befunde unter seiner Herkunft. Eine entzogene Freigabe wirkt bei der nächsten Anfrage; was der Lektor geschrieben hat, bleibt im Werk.
@@ -1195,172 +687,8 @@ crates/baruch-server/templates/mitwirkende.html	Noch für niemanden freigegeben.
 crates/baruch-server/templates/mitwirkende.html	Zurück
 crates/baruch-server/templates/mitwirkende.html	Zurück zum Werk
 crates/baruch-server/templates/mitwirkende.html	sieht das Werk danach nicht mehr
-crates/baruch-server/templates/notes.html	Je Abschnitt Überschrift, Zeitmarke aus dem Zeitwächter, Stichpunkte und Bibelstellen. Stichpunkte: eigene Kommentarzeilen „// Stichwort: …“, sonst hervorgehobene Stellen (*…*), sonst der erste Satz jedes Absatzes; höchstens sechs Punkte zu je höchstens 160 Zeichen.
-crates/baruch-server/templates/notes.html	Keine Abschnitte.
-crates/baruch-server/templates/notes.html	Keine Stichpunkte.
-crates/baruch-server/templates/notes.html	Mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist
-crates/baruch-server/templates/notes.html	Schriftgröße (Punkt)
-crates/baruch-server/templates/notes.html	Vorschau der Karten
-crates/baruch-server/templates/notes.html	Zurück
-crates/baruch-server/templates/notes.html	Zurück zum Werk
-crates/baruch-server/templates/notes.html	Übernehmen
-crates/baruch-server/templates/outline.html	( Wörter, Wörter je Minute) · Zielzeit
-crates/baruch-server/templates/outline.html	(wird erst auf Anforderung berechnet)
-crates/baruch-server/templates/outline.html	Anträge der Assistenten ( offen)
-crates/baruch-server/templates/outline.html	Aus der Vorlage
-crates/baruch-server/templates/outline.html	Begründung
-crates/baruch-server/templates/outline.html	Bestätigen
-crates/baruch-server/templates/outline.html	Bestätigen führt den Antrag aus (ein Commit im Git-Spiegel, Sie als Bestätiger, der Assistent als Herkunft). Hat sich der Punkt inzwischen geändert, wird der Antrag nicht ausgeführt, sondern als veraltet abgeschlossen. Ablehnen ändert nichts an der Gliederung. Ein neuer Teil, unter den vorhandene Kapitel (in einer Predigt: Predigtteile) wandern würden, braucht Ihre Zustimmung („Zustimmen“); auch Ablehnen steht dann im Git-Spiegel.
-crates/baruch-server/templates/outline.html	Diese Seite ist der Rückfall ohne JavaScript; mit JavaScript geschieht alles im Baum links (Ziehen und Ablegen, Kontextmenü, Doppelklick bzw. F2 zum Umbenennen). Jede Änderung ist ein Commit im Git-Spiegel. Ändern sich Ebene oder Titel, bekommt der Abschnitt eine neue Fassung, die sich nur in der Überschriftszeile unterscheidet. Assistenten legen höchstens neue Punkte an; Umbenennen, Verschieben, Umstufen und Löschen beantragen sie nur – das entscheiden Sie unten bei den Anträgen.
-crates/baruch-server/templates/outline.html	Gliederung von „ “
-crates/baruch-server/templates/outline.html	Gliederung – – Baruch Gliederung ·
-crates/baruch-server/templates/outline.html	Hinter „ “
-crates/baruch-server/templates/outline.html	Höher stufen
-crates/baruch-server/templates/outline.html	Keine Nummern
-crates/baruch-server/templates/outline.html	Keine Vorschau:
-crates/baruch-server/templates/outline.html	Keine offenen Anträge.
-crates/baruch-server/templates/outline.html	Muster wie in Typst: Zählzeichen 1, a, A, i, I mit Text davor und dazwischen, z. B. „1.1“, „I.1“, „1.a)“; „I|1“ nummeriert nur die Kapitel, „I.;A.;1.;a)“ gibt jeder Ebene ihr eigenes Muster.
-crates/baruch-server/templates/outline.html	Ohne Nummer zählen (z. B. Vorwort, Einleitung) Wieder mit Nummer zählen
-crates/baruch-server/templates/outline.html	Schema wählen…
-crates/baruch-server/templates/outline.html	Vor „ “
-crates/baruch-server/templates/outline.html	Warnung: Zielzeit um überschritten
-crates/baruch-server/templates/outline.html	Wörter
-crates/baruch-server/templates/outline.html	Zurück
-crates/baruch-server/templates/outline.html	Zurück zum Werk
-crates/baruch-server/templates/outline.html	Zählen, Bearbeiten
-crates/baruch-server/templates/outline.html	entfällt
-crates/baruch-server/templates/outline.html	mit Nummer ohne Nummer
-crates/baruch-server/templates/outline.html	neu
-crates/baruch-server/templates/outline.html	neue Ebene
-crates/baruch-server/templates/outline.html	ohne Nummer mit Nummer
-crates/baruch-server/templates/outline.html	wandert unter den neuen Teil
-crates/baruch-server/templates/outline.html	– Muster „ “ keine Nummern (die Werkvorlage setzt keins – Vorgabe „1.1“) . Teile zählen eigen, Kapitel über Teile hinweg fortlaufend.
-crates/baruch-server/templates/outline_confirm.html	Der Text enthält neue Überschriften. Beim Speichern wird „ “ geteilt; neu entstehen:
-crates/baruch-server/templates/outline_confirm.html	Der Text hat keine Überschrift mehr. Beim Speichern wird er an „ “ angehängt; „ “ entfällt (Beiträge wandern mit, der alte Text steht im Git-Spiegel).
-crates/baruch-server/templates/outline_confirm.html	Speichern bestätigen – Baruch Speichern bestätigen ·
-crates/baruch-server/templates/outline_confirm.html	Teilen und speichern
-crates/baruch-server/templates/outline_confirm.html	Zurück
-crates/baruch-server/templates/outline_confirm.html	Zusammenführen und speichern
-crates/baruch-server/templates/outline_confirm.html	„Zurück“ verwirft den Text; er ist dann nicht gespeichert.
-crates/baruch-server/templates/outline_edit.html	Davor/danach auf derselben Ebene, darunter eine Ebene tiefer als letzter Unterpunkt. Mit Ebene „ “ entsteht davor bzw. danach ein neuer Teil (auch mit Werkvorlage); die folgenden Kapitel bis zum nächsten Teil stehen dann unter ihm, ihre Texte und Nummern bleiben.
-crates/baruch-server/templates/outline_edit.html	Der Text der aktuellen Fassung steht danach vollständig im Commit des Git-Spiegels.
-crates/baruch-server/templates/outline_edit.html	Die Teil-Markierung im Text bekommt den neuen Titel (neue Fassung, Kommentar bleibt); ein leerer Teil bekommt sie neu. Ein Teiltext ohne Markierung (älterer Bestand) bleibt unverändert, nur der Titel ändert sich.
-crates/baruch-server/templates/outline_edit.html	Die Überschriftszeile im Text bekommt den neuen Titel (neue Fassung, Label und Kommentar bleiben).
-crates/baruch-server/templates/outline_edit.html	Ebene ändern
-crates/baruch-server/templates/outline_edit.html	Gliederung
-crates/baruch-server/templates/outline_edit.html	Höchstens 200 Zeichen, nicht leer
-crates/baruch-server/templates/outline_edit.html	Löschen
-crates/baruch-server/templates/outline_edit.html	Mit allen Unterpunkten. Die Ebene bleibt: vor/hinter nur einen Punkt derselben Ebene, unter nur einen Punkt eine Ebene höher; sonst erst die Ebene ändern (oben). Ungültige Ziele werden abgewiesen.
-crates/baruch-server/templates/outline_edit.html	Unterpunkte wandern um dieselbe Zahl Ebenen mit.
-crates/baruch-server/templates/outline_edit.html	Zurück
-crates/baruch-server/templates/outline_edit.html	Zurück zum Werk
-crates/baruch-server/templates/outline_edit.html	bearbeiten – Gliederung – Baruch Gliederungspunkt bearbeiten ·
+# templates_1: form origin value of the outline actions, not shown text
 crates/baruch-server/templates/outline_edit.html	gliederung
-crates/baruch-server/templates/outline_edit.html	wie der Ort
-crates/baruch-server/templates/outline_edit.html	„ “ hat Unterpunkte; erst verschieben oder löschen.
-crates/baruch-server/templates/outline_edit.html	„ “ mit allen Fassungen und Beiträgen wirklich löschen
-crates/baruch-server/templates/outline_retry.html	Erneut speichern
-crates/baruch-server/templates/outline_retry.html	Ihr Text (noch nicht gespeichert)
-crates/baruch-server/templates/outline_retry.html	Nicht gespeichert – Baruch Nicht gespeichert ·
-crates/baruch-server/templates/outline_retry.html	Nicht gespeichert:
-crates/baruch-server/templates/outline_retry.html	Speichern
-crates/baruch-server/templates/outline_retry.html	Zurück ohne Speichern
-crates/baruch-server/templates/outline_retry.html	„Zurück ohne Speichern“ verwirft den Text; er ist dann nicht gespeichert.
-crates/baruch-server/templates/post.html	Befunde aus diesem Beitrag anlegen (ohne Marken ein Hinweis mit dem ganzen Text); der Beitrag bleibt
-crates/baruch-server/templates/post.html	Beitrag
-crates/baruch-server/templates/post.html	Beitrag von
-crates/baruch-server/templates/post.html	Beitrag wirklich löschen
-crates/baruch-server/templates/post.html	Beitrag – Baruch Beitrag ·
-crates/baruch-server/templates/post.html	Beiträge von Personas bleiben unverändert: kopieren, zitieren oder umwandeln. Nur eigene Beiträge lassen sich bearbeiten.
-crates/baruch-server/templates/post.html	Der Beitrag verschwindet aus dem Chat; der Spiegel hält ihn im Lösch-Commit fest
-crates/baruch-server/templates/post.html	Die alte Fassung bleibt im Verlauf; die Änderung steht im Spiegel des Werks
-crates/baruch-server/templates/post.html	In Befunde umwandeln
-crates/baruch-server/templates/post.html	Löschen
-crates/baruch-server/templates/post.html	Quelle:
-crates/baruch-server/templates/post.html	Speichern
-crates/baruch-server/templates/post.html	Text (markieren und kopieren)
-crates/baruch-server/templates/post.html	Text in die Zwischenablage
-crates/baruch-server/templates/post.html	Text zum Kopieren
-crates/baruch-server/templates/post.html	Zurück
-crates/baruch-server/templates/post.html	Zurück zum Abschnitt
-crates/baruch-server/templates/post.html	als Auftrag (Schreibauftrag wird ein Vorschlag)
-crates/baruch-server/templates/post.html	gültig ab , ersetzt von
-crates/baruch-server/templates/posts.html	@persona fragen … · RFC … · @alle
-crates/baruch-server/templates/posts.html	Beitr ag äge , älteste zuerst.
-crates/baruch-server/templates/posts.html	Beitrag
-crates/baruch-server/templates/posts.html	Beitrag löschen
-crates/baruch-server/templates/posts.html	Beitrag löschen (mit Rückfrage)
-crates/baruch-server/templates/posts.html	Beitrag öffnen
-crates/baruch-server/templates/posts.html	Dieselbe Anfrage gegen die aktuelle Fassung; die alte Antwort bleibt
-crates/baruch-server/templates/posts.html	Kopieren, Zitieren , Bearbeiten und Verlauf
-crates/baruch-server/templates/posts.html	Noch keine Beiträge zu diesem Abschnitt.
-crates/baruch-server/templates/posts.html	Quelle:
-crates/baruch-server/templates/posts.html	Text des Beitrags in die Zwischenablage
-crates/baruch-server/templates/posts.html	Zum neuesten Beitrag ↓
-crates/baruch-server/templates/posts.html	Zurück
-crates/baruch-server/templates/posts.html	Zurück zum Abschnitt
-crates/baruch-server/templates/posts.html	als Auftrag (Schreibauftrag wird ein Vorschlag)
-crates/baruch-server/templates/revision_history.html	Bis hier zurück
-crates/baruch-server/templates/revision_history.html	Diese Fassung wurde noch nie fortgeschrieben.
-crates/baruch-server/templates/revision_history.html	Jetziger Text von Fassung
-crates/baruch-server/templates/revision_history.html	Speichert der Mensch im Editor auf seiner eigenen aktuellen Fassung, wird sie fortgeschrieben (kein neuer Fassungseintrag); jeder Schritt steht hier mit dem Text vorher und nachher und ist ein Commit im Git-Spiegel. „Bis hier zurück“ stellt den Stand vor einem Schritt wieder her – als neuer Schritt, der Verlauf bleibt vollständig. Zurücknehmen geht nur auf der aktuellen Fassung des Menschen.
-crates/baruch-server/templates/revision_history.html	Text auf den Stand vor Schritt setzen (als neuer Schritt)
-crates/baruch-server/templates/revision_history.html	Verlauf von Fassung
-crates/baruch-server/templates/revision_history.html	Verlauf · Fassung · – Baruch Verlauf · · Fassung
-crates/baruch-server/templates/revision_history.html	Zurück
-crates/baruch-server/templates/revision_history.html	Zurück zum Abschnitt
-crates/baruch-server/templates/revision_history.html	stellt den Stand vor Schritt her
-crates/baruch-server/templates/revision_history.html	· (zurück auf den Stand vor Schritt ) · ·
-crates/baruch-server/templates/scripture_check.html	(Fassung )
-crates/baruch-server/templates/scripture_check.html	Bibel: „ “
-crates/baruch-server/templates/scripture_check.html	Das Werk hat keine Bibel: Der Wortlaut bleibt ungeprüft. Bibel wählen unter
-crates/baruch-server/templates/scripture_check.html	Die Bibel des Werks ist nicht lesbar: ·
-crates/baruch-server/templates/scripture_check.html	Ein Zitat gehört zu einer Stelle, wenn es direkt davor oder dahinter steht (Anführungszeichen,
-crates/baruch-server/templates/scripture_check.html	Einstellungen → Quellen
-crates/baruch-server/templates/scripture_check.html	Geprüft von Baruch (nicht von einem Modell) mit dem SWORD-Modul
-crates/baruch-server/templates/scripture_check.html	Keine Bibelstelle in dieser Fassung gefunden.
-crates/baruch-server/templates/scripture_check.html	Zitate prüfen – – Baruch : Zitate prüfen pruefen
-crates/baruch-server/templates/scripture_check.html	Zitate prüfen:
-crates/baruch-server/templates/scripture_check.html	Zurück
-crates/baruch-server/templates/scripture_check.html	Zurück zum Abschnitt
-crates/baruch-server/templates/scripture_check.html	oder Blockzitat). Ein Modell bestätigt nie selbst einen Wortlaut. Mit JavaScript markiert „Zitate prüfen“ im Editor dieselben Ergebnisse im Satzbild (grün: stimmt, rot: weicht ab).
-crates/baruch-server/templates/scripture_check.html	wie angegeben ( )
-crates/baruch-server/templates/scripture_check.html	„ “
-crates/baruch-server/templates/search.html	(gewählter Abschnitt)
-crates/baruch-server/templates/search.html	Alle ersetzen
-crates/baruch-server/templates/search.html	Beim Ersetzen bleiben Zitate (auch Bibelzitate) und Typst-Code unberührt, außer du wählst Zitate ausdrücklich.
-crates/baruch-server/templates/search.html	Bitte den Wortlaut der Bibelzitate prüfen (Prüfanzeige):
-crates/baruch-server/templates/search.html	Die Suche brauchte länger als 2 s und wurde abgebrochen; die Liste ist unvollständig.
-crates/baruch-server/templates/search.html	Die Suche brauchte länger als 2 s; Ersetzen geht erst mit kleinerem Bereich.
-crates/baruch-server/templates/search.html	Die Vorschau zeigt nicht alle Abschnitte (höchstens 500 ganze Abschnitte mit zusammen höchstens 2000 Stellen); bitte Suche oder Bereich eingrenzen.
-crates/baruch-server/templates/search.html	Ersetzen „ “ → „ “ wurde rückgängig gemacht.
-crates/baruch-server/templates/search.html	Es werden von Treffern gezeigt.
-crates/baruch-server/templates/search.html	Fassung (nur Abschnitt und Markierung)
-crates/baruch-server/templates/search.html	Fassung , Stelle Stellen
-crates/baruch-server/templates/search.html	Gesucht wird im Typst-Quelltext der Fassungen. Tasten wie in VS Code: Strg+F suchen und Strg+H ersetzen im Abschnitt, Strg+Umschalt+F bzw. Strg+Umschalt+H im Werk, Enter/F3 nächster Treffer, Alt+C/W/R Groß/klein, ganzes Wort, regulärer Ausdruck.
-crates/baruch-server/templates/search.html	Gliederung (für „Abschnitt“, „Kapitel“, „Teil“, „ab Abschnitt“ den Punkt wählen, für „Auswahl“ Häkchen setzen)
-crates/baruch-server/templates/search.html	Groß/klein
-crates/baruch-server/templates/search.html	Groß/klein beachten (Alt+C)
-crates/baruch-server/templates/search.html	Im Werk suchen und ersetzen
-crates/baruch-server/templates/search.html	Ja, ersetzen (je Abschnitt eine neue Fassung von mir)
-crates/baruch-server/templates/search.html	Keine Treffer.
-crates/baruch-server/templates/search.html	Letztes Ersetzen: „ “ → „ “ in Abschnitt Abschnitten
-crates/baruch-server/templates/search.html	Nur ganze Wörter (Alt+W)
-crates/baruch-server/templates/search.html	Regulärer Ausdruck
-crates/baruch-server/templates/search.html	Regulärer Ausdruck (Alt+R)
-crates/baruch-server/templates/search.html	Rückgängig
-crates/baruch-server/templates/search.html	Rückgängig gemacht: Die Abschnitte stehen wieder auf ihrer vorigen Fassung.
-crates/baruch-server/templates/search.html	Suchen
-crates/baruch-server/templates/search.html	Suchen und ersetzen – – Baruch : Suchen und ersetzen pruefen
-crates/baruch-server/templates/search.html	Vorschau und Ersetzen gelten immer der aktuellen Fassung.
-crates/baruch-server/templates/search.html	Vorschau: „ “ → „ “ · Treffer ·
-crates/baruch-server/templates/search.html	Zurück
-crates/baruch-server/templates/search.html	Zurück zum Werk
-crates/baruch-server/templates/search.html	aktuelle Fassung
-crates/baruch-server/templates/search.html	als Abschnitt wählen
-crates/baruch-server/templates/search.html	gezeigte Fassung
-crates/baruch-server/templates/search.html	öffnen
-crates/baruch-server/templates/search.html	„ “ → „ “ in Abschnitt Abschnitten (je eine neue Fassung von dir, ein Commit im Spiegel).
 crates/baruch-server/templates/settings.html	Einstellungen · – Baruch Einstellungen · ansicht
 crates/baruch-server/templates/settings.html	Werke
 crates/baruch-server/templates/settings.html	Zurück
@@ -1755,23 +1083,6 @@ crates/baruch-server/templates/sync.html	unverändert:
 crates/baruch-server/templates/sync.html	zuletzt abgeglichen (begonnen , nicht beendet) –
 crates/baruch-server/templates/sync.html	– hochladen an, Sammlung „ “, Kapitel , zuletzt
 crates/baruch-server/templates/sync.html	– hochladen aus ( Kapitel liegen noch in „ “)
-crates/baruch-server/templates/thread.html	@lektor … bzw. „Lektor, …“ ruft eine Persona · RFC … bzw. @alle ruft alle
-crates/baruch-server/templates/thread.html	Alle Fäden
-crates/baruch-server/templates/thread.html	Beiträge des Fadens
-crates/baruch-server/templates/thread.html	Zurück
-crates/baruch-server/templates/thread.html	Zurück zum Werk
-crates/baruch-server/templates/thread.html	begonnen von · ohne Abschnitt ·
-crates/baruch-server/templates/thread.html	zum neuesten Beitrag ↓
-crates/baruch-server/templates/thread.html	– nur Erwähnte (@…) –
-crates/baruch-server/templates/threads.html	@lektor … ruft eine Persona
-crates/baruch-server/templates/threads.html	Fäden ohne Abschnitt
-crates/baruch-server/templates/threads.html	Fäden – Baruch Fäden ·
-crates/baruch-server/templates/threads.html	Gespräche mit Personas und MCP-Clients, die an keinem Abschnitt hängen. Sie ändern keinen Buchtext.
-crates/baruch-server/templates/threads.html	Noch keine Fäden.
-crates/baruch-server/templates/threads.html	Zurück
-crates/baruch-server/templates/threads.html	Zurück zum Werk
-crates/baruch-server/templates/threads.html	begonnen von · Beitr ag äge · zuletzt ,
-crates/baruch-server/templates/threads.html	– nur Erwähnte (@…) –
 crates/baruch-server/templates/typeset.html	Alle Bilder sind da; kein Rasterbild liegt unter dpi.
 crates/baruch-server/templates/typeset.html	Bilder hochladen oder Pfad zuordnen
 crates/baruch-server/templates/typeset.html	Buch-PDF mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist
@@ -1799,17 +1110,6 @@ crates/baruch-server/templates/typeset.html	Zurück
 crates/baruch-server/templates/typeset.html	Zurück zum Werk
 crates/baruch-server/templates/typeset.html	zur Stelle
 crates/baruch-server/templates/typeset.html	üblich nach den Landespressegesetzen, keine Rechtsberatung ·
-crates/baruch-server/templates/variants.html	Der Lektor hat diese Varianten als Vorschläge auf derselben Basis (Fassung ) geschrieben. Übernehmen kann nur der Mensch (im Fassungsbaum „zeigen“, dann „Übernehmen“); „übrige verwerfen“ verwirft die anderen offenen Varianten dieser Gruppe mit einem Klick.
-crates/baruch-server/templates/variants.html	Fassung
-crates/baruch-server/templates/variants.html	Unterschied zu den übrigen Varianten
-crates/baruch-server/templates/variants.html	Unterschied zur Basis
-crates/baruch-server/templates/variants.html	Zeigen
-crates/baruch-server/templates/variants.html	Zurück
-crates/baruch-server/templates/variants.html	Zurück zum Abschnitt
-crates/baruch-server/templates/variants.html	die übrigen Varianten verwerfen
-crates/baruch-server/templates/variants.html	gegenüber Variante (Fassung )
-crates/baruch-server/templates/variants.html	Übrige Varianten außer verwerfen
-crates/baruch-server/templates/variants.html	Übrige verwerfen
 crates/baruch-server/templates/websearch_evidence.html	Belege der Websuche – Baruch Belege der Websuche
 crates/baruch-server/templates/websearch_evidence.html	Belege zu Beitrag
 crates/baruch-server/templates/websearch_evidence.html	Die Websuche von @belege ruft jede Seite ab, bevor sie genannt wird. Baruch prüft jedes Zitat gegen den abgerufenen Text: „belegt“ heißt, der Wortlaut steht so auf der Seite. Nur belegte Zitate lassen sich in die Autorenbibliothek übernehmen (Titel, Adresse, Zitat, Hervorhebung).
@@ -1855,11 +1155,6 @@ crates/baruch-server/templates/work_edit.html	Werke
 crates/baruch-server/templates/work_edit.html	Zurück
 crates/baruch-server/templates/work_edit.html	Zurück zum Werk
 crates/baruch-server/templates/work_edit.html	ändern – Baruch ändern buch
-crates/baruch-server/templates/work_new.html	Neues Werk oder Import
-crates/baruch-server/templates/work_new.html	Neues Werk – Baruch Neues Werk
-crates/baruch-server/templates/work_new.html	Werke
-crates/baruch-server/templates/work_new.html	Zurück
-crates/baruch-server/templates/work_new.html	Zurück zum Werk
 crates/baruch-server/templates/work_numbering.html	( Muster „ “ keine Nummern , die Vorlage setzt keins – Vorgabe „1.1“ ) („ “) .
 crates/baruch-server/templates/work_numbering.html	). Bei „Aus der Werkvorlage“ bleibt die Vorlage im Export unverändert; sonst folgt ihr eine Zeile
 crates/baruch-server/templates/work_numbering.html	, die gespeicherte Vorlage bleibt, wie sie ist. Teile zählen eigen, Kapitel über Teile hinweg fortlaufend; Punkte ohne Nummer zählen nicht mit und stehen im Export als
@@ -1903,23 +1198,6 @@ crates/baruch-server/templates/works_archive.html	Zurück
 crates/baruch-server/templates/works_archive.html	Zurück zum Werk
 crates/baruch-server/templates/works_archive.html	nicht gefunden
 crates/baruch-server/templates/works_archive.html	„ “ wiederherstellen
-crates/baruch-server/templates/workspace.html	Assistenten öffnen
-crates/baruch-server/templates/workspace.html	Gliederung
-crates/baruch-server/templates/workspace.html	Gliederung öffnen
-crates/baruch-server/templates/workspace.html	Schließen
-crates/baruch-server/templates/workspace.html	Werk importieren oder anlegen
-crates/baruch-server/templates/xrefs.html	(Fassung )
-crates/baruch-server/templates/xrefs.html	: „ “ zeigt auf keinen Gliederungspunkt mit aktueller Fassung.
-crates/baruch-server/templates/xrefs.html	Ganzes Werk zeigen
-crates/baruch-server/templates/xrefs.html	Keine kaputten Verweise.
-crates/baruch-server/templates/xrefs.html	Keine möglichen Querverweise gefunden.
-crates/baruch-server/templates/xrefs.html	Mögliche Querverweise
-crates/baruch-server/templates/xrefs.html	Nennungen von Gliederungspunkten im Text („die Einleitung“, „im dritten Kapitel“, „Kapitel III“, Titel in Anführungszeichen), nur wenn das Ziel eindeutig ist. Nur ein Vorschlag: Umgewandelt wird erst, wenn du bestätigst – als neue Fassung von dir.
-crates/baruch-server/templates/xrefs.html	Verweis Verweise eingesetzt (neue Fassung von dir).
-crates/baruch-server/templates/xrefs.html	Zeile : „ “ →
-crates/baruch-server/templates/xrefs.html	Zurück
-crates/baruch-server/templates/xrefs.html	Zurück zum Werk
-crates/baruch-server/templates/xrefs.html	zur Stelle
 crates/baruch-server/web/src/assist.ts	: Antwort wird neu angefordert ( ) …
 crates/baruch-server/web/src/assist.ts	Abbrechen
 crates/baruch-server/web/src/assist.ts	Abgebrochen. Dein Beitrag und schon fertige Antworten sind gespeichert; die laufende Antwort nicht.

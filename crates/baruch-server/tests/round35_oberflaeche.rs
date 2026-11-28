@@ -178,7 +178,8 @@ async fn workspace_as(desk: &Desk, who: &Who, rev: Option<u32>, preview: bool) -
         view: preview.then(|| "preview".to_owned()),
         ..Location::default()
     };
-    let html = auth::scope(who.clone(), async {
+    // Round 39a: drawn outside a request, so German is pinned here (the assertions read the German wording).
+    let drawn = auth::scope(who.clone(), async {
         let work = state.store.load_work(desk.work).await.unwrap();
         let shelf = Shelf {
             id: desk.work,
@@ -189,8 +190,8 @@ async fn workspace_as(desk: &Desk, who: &Who, rev: Option<u32>, preview: bool) -
         let resolved = at.resolve(&work);
         view::page(&state.templates, &work, &shelf, resolved, &Settings::from_cookie_header(None), &library)
             .expect("Arbeitsseite zeichnen")
-    })
-    .await;
+    });
+    let html = baruch_server::i18n::scope(baruch_server::i18n::Lang::De, drawn).await;
     konten_ui::apply(&html, who, true)
 }
 

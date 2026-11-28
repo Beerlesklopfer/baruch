@@ -33,7 +33,7 @@
 {%- endmacro %}
 {%- macro pv_details(h) %}
   <details class="pv pc{% if h.shown %} pv-shown{% endif %}{% if not h.known %} pv-unknown{% endif %}" data-pv="{{ h.id }}" data-pv-at="{{ h.at }}" data-pv-gap="{{ h.gap }}" data-pv-kind="{{ h.kind }}" style="{{ h.style }}"{% if h.open %} open{% endif %}>
-    <summary class="pv-line" title="Vorschlag auf- oder zuklappen"><span class="pv-label">{{ h.head }}</span></summary>
+    <summary class="pv-line" title="{{ t('editor.proposals.toggle_title') }}"><span class="pv-label">{{ h.head }}</span></summary>
     <div class="pv-body">
       {%- if h.base_note %}
       <span class="pv-base small">{{ h.base_note }}</span>
@@ -51,8 +51,8 @@
       {#- Round 35: only the author can decide – for Lektors the buttons and their forms are missing. #}
       {%- if not lektor %}
       <div class="pv-actions">
-        <button class="btn success" type="submit" form="pv-accept-{{ h.id }}">Übernehmen</button>
-        <button class="btn danger" type="submit" form="pv-reject-{{ h.id }}">Verwerfen</button>
+        <button class="btn success" type="submit" form="pv-accept-{{ h.id }}">{{ t('editor.proposals.accept') }}</button>
+        <button class="btn danger" type="submit" form="pv-reject-{{ h.id }}">{{ t('editor.proposals.reject') }}</button>
       </div>
       {%- endif %}
     </div>
@@ -60,8 +60,8 @@
 {%- endmacro %}
 {%- macro pv_line(inline, editor) %}
   <div class="pv-bar{% if editor %} pv-bar-editor{% endif %}"{% if editor %} data-pv-bar="{{ inline.key }}"{% endif %}>
-    <span class="muted tiny">{% if inline.count == 1 %}Ein offener Vorschlag{% else %}{{ inline.count }} offene Vorschläge{% endif %}</span>
-    <button class="btn tiny" type="button" data-pv-all hidden>Alle einklappen</button>
+    <span class="muted tiny">{% if inline.count == 1 %}{{ t('editor.proposals.open_one') }}{% else %}{{ t('editor.proposals.open_other', count=inline.count) }}{% endif %}</span>
+    <button class="btn tiny" type="button" data-pv-all hidden>{{ t('editor.proposals.collapse_all') }}</button>
   </div>
 {%- endmacro %}
 {%- macro pv_forms(inline) %}
@@ -81,7 +81,7 @@
 {%- if view == "preview" %}
 <div class="pv-section"{% if inline.count %} data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}"{% endif %}>
   {%- if inline.alternatives and not lektor %}
-  <p class="rev-alt-hint tiny"><a data-nav href="/?work={{ work.id }}&amp;key={{ inline.key }}{{ lq_q }}" title="Abschnitt im Editor öffnen: dort die weiteren Fassungen mit „aktuell machen“">weitere Fassung{% if inline.alternatives != 1 %}en{% endif %}: {{ inline.alternatives }}</a></p>
+  <p class="rev-alt-hint tiny"><a data-nav href="/?work={{ work.id }}&amp;key={{ inline.key }}{{ lq_q }}" title="{{ t('editor.proposals.alternatives_title') }}">{% if inline.alternatives != 1 %}{{ t("editor.page.alternatives_other", count=inline.alternatives) }}{% else %}{{ t("editor.page.alternatives_one", count=inline.alternatives) }}{% endif %}</a></p>
   {%- endif %}
   {%- if inline.count %}{{ pv_bar(inline) }}{% endif %}
   {%- for entry in inline.entries %}
@@ -102,7 +102,7 @@
     child of the sheet of its own (div.pv-bar-editor[data-pv-bar=<key>], proposals.css: at the top and sticky): with the
     typeset view open wysiwyg.ts hides the reading flow, the bar stays visible (wysiwyg.ts stays unchanged). #}
 {{- pv_line(inline, true) }}
-<section class="pv-flow" data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}" aria-label="Text mit offenen Vorschlägen an ihrer Stelle">
+<section class="pv-flow" data-widget="proposals" data-key="{{ inline.key }}" data-rev="{{ inline.rev }}" aria-label="{{ t('editor.proposals.label') }}">
   {{- pv_forms(inline) }}
   {%- for entry in inline.entries %}
   {%- if entry.b is not none %}

@@ -19,27 +19,27 @@
   {%- for r in revisions %}
     <li class="revtree-item {{ r.status_key }}{% if r.current %} is-current{% endif %}{% if r.shown %} shown{% endif %}" style="--depth:{{ r.depth }}" data-rev="{{ r.number }}"{% if r.based_on %} data-based-on="{{ r.based_on }}"{% endif %}>
       <span class="revtree-num">{{ r.number }}</span>
-      {%- if r.current %} <span class="badge success" title="Diese Fassung wird erzeugt">aktuell</span>
+      {%- if r.current %} <span class="badge success" title="{{ t('editor.revtree.creating') }}">{{ t('editor.revtree.current') }}</span>
       {%- else %} <span class="muted small">{{ r.status }}</span>{% endif %}
-      <span class="revtree-author small{% if r.style %} pc pc-chip{% endif %}"{% if r.style %} style="{{ r.style }}"{% endif %}>{% if r.persona %}Persona {% endif %}{{ r.author }}</span>
-      <span class="muted tiny">{{ r.created }}{% if r.edited %} · geändert {{ r.edited }}{% endif %}</span>
-      {%- if r.amend_seq %} <a class="revtree-amend tiny" href="{{ r.history_url }}" title="Verlauf der Fortschreibungen von Fassung {{ r.number }}">Stand {{ r.amend_seq }}</a>{% endif %}
-      {%- if r.based_on_amend %} <span class="muted tiny" title="Stand der Basis, als der Vorschlag entstand">beruht auf{% if r.based_on %} Fassung {{ r.based_on }},{% endif %} Stand {{ r.based_on_amend }}</span>{% endif %}
+      <span class="revtree-author small{% if r.style %} pc pc-chip{% endif %}"{% if r.style %} style="{{ r.style }}"{% endif %}>{% if r.persona %}{{ t('editor.revtree.persona') }} {% endif %}{{ r.author }}</span>
+      <span class="muted tiny">{{ r.created }}{% if r.edited %} {{ t('editor.revtree.edited', edited=r.edited) }}{% endif %}</span>
+      {%- if r.amend_seq %} <a class="revtree-amend tiny" href="{{ r.history_url }}" title="{{ t('editor.revtree.amends_title', number=r.number) }}">{{ t('editor.revtree.amend', amend_seq=r.amend_seq) }}</a>{% endif %}
+      {%- if r.based_on_amend %} <span class="muted tiny" title="{{ t('editor.revtree.basis_title') }}">{{ t('editor.revtree.based_on') }}{% if r.based_on %} {{ t('editor.revtree.based_on_rev', based_on=r.based_on) }}{% endif %} {{ t('editor.revtree.based_on_amend', based_on_amend=r.based_on_amend) }}</span>{% endif %}
       {%- if r.variant %}
-      <span class="revtree-variant tiny" data-variant-group="{{ r.variant.group }}" title="{{ r.variant.title }}"><span class="badge variant">Variante {{ r.variant.label }}</span> {{ r.variant.summary }}
-        {%- if r.variant.findings %} · setzt {% for id in r.variant.findings %}[B{{ id }}]{% if not loop.last %}, {% endif %}{% endfor %} um{% endif %}
-        · <a href="/varianten?work={{ work.id }}&amp;group={{ r.variant.group }}">vergleichen</a></span>
+      <span class="revtree-variant tiny" data-variant-group="{{ r.variant.group }}" title="{{ r.variant.title }}"><span class="badge variant">{{ t('editor.revtree.variant', label=r.variant.label) }}</span> {{ r.variant.summary }}
+        {%- if r.variant.findings %} {{ t('editor.revtree.implements') }} {% for id in r.variant.findings %}[B{{ id }}]{% if not loop.last %}, {% endif %}{% endfor %} {{ t('editor.revtree.implements_end') }}{% endif %}
+        · <a href="/varianten?work={{ work.id }}&amp;group={{ r.variant.group }}">{{ t('editor.revtree.compare') }}</a></span>
       {%- endif %}
       {%- if r.findings %}
-      <span class="revtree-findings tiny" data-findings-adopted="{{ r.findings | join(',') }}">✓ setzt Befund {% for id in r.findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} um</span>
+      <span class="revtree-findings tiny" data-findings-adopted="{{ r.findings | join(',') }}">{{ t('editor.revtree.adopted') }} {% for id in r.findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} {{ t('editor.revtree.implements_end') }}</span>
       {%- endif %}
       {%- if r.proposed_findings %}
-      <span class="revtree-findings proposed tiny" data-findings-proposed="{{ r.proposed_findings | join(',') }}"><span class="badge primary">Vorschlag</span> setzt Befund {% for id in r.proposed_findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} um (offen, der Mensch bestätigt)</span>
+      <span class="revtree-findings proposed tiny" data-findings-proposed="{{ r.proposed_findings | join(',') }}"><span class="badge primary">{{ t('editor.revtree.proposal') }}</span> {{ t('editor.revtree.proposed') }} {% for id in r.proposed_findings %}<a href="{{ r.findings_base }}?befund={{ id }}">[B{{ id }}]</a>{% if not loop.last %}, {% endif %}{% endfor %} {{ t('editor.revtree.proposed_end') }}</span>
       {%- endif %}
       <span class="revtree-links tiny">
-        {%- if r.shown %}<span class="muted">gezeigt</span>{% else %}<a data-nav href="{{ r.show_url }}">zeigen</a>{% endif %}
-        · <a data-nav href="{{ r.try_url }}">in der Vorschau probieren</a>
-        {%- if r.fold and not lektor %} · <button class="btn tiny" type="submit" form="rev-fold-{{ r.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ r.number }} ausblenden">bis hierhin ausblenden</button>{% endif %}</span>
+        {%- if r.shown %}<span class="muted">{{ t('editor.revtree.shown') }}</span>{% else %}<a data-nav href="{{ r.show_url }}">{{ t('editor.revtree.show') }}</a>{% endif %}
+        · <a data-nav href="{{ r.try_url }}">{{ t('editor.revtree.try') }}</a>
+        {%- if r.fold and not lektor %} · <button class="btn tiny" type="submit" form="rev-fold-{{ r.number }}" title="{{ t('editor.revtree.fold_title', number=r.number) }}">{{ t('editor.revtree.fold') }}</button>{% endif %}</span>
     </li>
   {%- endfor %}
   </ul>
@@ -49,21 +49,21 @@
   {%- set hidden_revs = revisions | selectattr("hidden") | list %}
   {%- if hidden_revs %}
   <details class="rev-fold" data-rev-fold-list{% if open %} open{% endif %}>
-    <summary class="small"><span class="rev-fold-show">{{ hidden_revs | length }} ältere Fassung{% if hidden_revs | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_revs | length }} ältere Fassung{% if hidden_revs | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+    <summary class="small"><span class="rev-fold-show">{% if hidden_revs | length != 1 %}{{ t("editor.page.fold_show_other", count=hidden_revs | length) }}{% else %}{{ t("editor.page.fold_show_one", count=hidden_revs | length) }}{% endif %}</span><span class="rev-fold-hide">{% if hidden_revs | length != 1 %}{{ t("editor.page.fold_hide_other", count=hidden_revs | length) }}{% else %}{{ t("editor.page.fold_hide_one", count=hidden_revs | length) }}{% endif %}</span></summary>
     {{- rows(hidden_revs) }}
   </details>
   {%- endif %}
 {%- endmacro %}
-<section class="revtree" aria-label="Fassungen">
-  <h3 class="pane-title">Fassungen dieses Abschnitts</h3>
+<section class="revtree" aria-label="{{ t('editor.revtree.label') }}">
+  <h3 class="pane-title">{{ t('editor.revtree.scope_section') }}</h3>
   {{- folded(revtree.section, rev.fold.open) }}
   <details class="revtree-chapter">
-    <summary class="small">Fassungen des ganzen Kapitels</summary>
+    <summary class="small">{{ t('editor.revtree.scope_chapter') }}</summary>
     {%- for s in revtree.chapter %}
     <div class="revtree-section{% if s.selected %} selected{% endif %}" data-node="{{ s.node }}">
       <div class="small"><strong>{% if s.number %}<span class="num">{{ s.number }}</span>{% endif %}{{ s.title }}</strong>
-        {%- if s.current %} <span class="muted tiny">aktuell: Fassung {{ s.current }}</span>{% endif %}</div>
-      {%- if s.revisions %}{{ folded(s.revisions, false) }}{% else %}<p class="muted tiny">Keine Fassungen.</p>{% endif %}
+        {%- if s.current %} <span class="muted tiny">{{ t('editor.revtree.current_rev', current=s.current) }}</span>{% endif %}</div>
+      {%- if s.revisions %}{{ folded(s.revisions, false) }}{% else %}<p class="muted tiny">{{ t('editor.revtree.none') }}</p>{% endif %}
     </div>
     {%- endfor %}
   </details>

@@ -4,12 +4,12 @@
     Context: work {id, title}, node {id, key, title}?, message, body, based_on?, based_on_amend?, mode?, lq?, view?,
     back_url. -#}
 {% extends "base.html" %}
-{% block title %}Nicht gespeichert – Baruch{% endblock %}
-{% block page_title %}Nicht gespeichert · {{ work.title }}{% endblock %}
+{% block title %}{{ t('outline.retry.head_title') }}{% endblock %}
+{% block page_title %}{{ t('outline.retry.page_title', title=work.title) }}{% endblock %}
 {% block body %}
 <main class="outline-page">
-  <h1 class="pane-title">{% if node %}{{ node.title }}{% else %}Speichern{% endif %}</h1>
-  <p class="notice error" role="alert">Nicht gespeichert: {{ message }}</p>
+  <h1 class="pane-title">{% if node %}{{ node.title }}{% else %}{{ t('common.save') }}{% endif %}</h1>
+  <p class="notice error" role="alert">{{ t('outline.retry.failed', message=message) }}</p>
   <form method="post" action="/gliederung/act" class="outline-confirm outline-retry">
     <input type="hidden" name="method" value="outline.save">
     <input type="hidden" name="work" value="{{ work.id }}">
@@ -22,11 +22,11 @@
     {%- if mode %}<input type="hidden" name="mode" value="{{ mode }}">{% endif %}
     {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
     {%- if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
-    <label class="small" for="outline-retry-body">Ihr Text (noch nicht gespeichert)</label>
+    <label class="small" for="outline-retry-body">{{ t('outline.retry.your_text') }}</label>
     <textarea id="outline-retry-body" name="body" rows="24" required spellcheck="true" lang="de">{{ body }}</textarea>
-    <button class="btn primary" type="submit">Erneut speichern</button>
-    <a class="btn" href="{{ back_url }}">Zurück ohne Speichern</a>
+    <button class="btn primary" type="submit">{{ t('outline.retry.again') }}</button>
+    <a class="btn" href="{{ back_url }}">{{ t('outline.retry.back') }}</a>
   </form>
-  <p class="muted tiny">„Zurück ohne Speichern“ verwirft den Text; er ist dann nicht gespeichert.</p>
+  <p class="muted tiny">{{ t('outline.retry.back_note') }}</p>
 </main>
 {% endblock %}

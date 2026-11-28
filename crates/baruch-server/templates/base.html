@@ -49,26 +49,26 @@
 {%- set fill = " data-badge-fill" if (not tb and w) else "" %}
 <header class="band" data-widget="band" data-tab=""{% if w %} data-work="{{ w }}"{% endif %}>
   <div class="band-top">
-    <nav class="menubar" data-widget="menubar" aria-label="Menü"{% if not tb and w %} data-badges-work="{{ w }}"{% endif %}>
+    <nav class="menubar" data-widget="menubar" aria-label="{{ t('layout.band.menu_label') }}"{% if not tb and w %} data-badges-work="{{ w }}"{% endif %}>
       <details class="menu" data-menu="baruch">
-        <summary class="btn" aria-haspopup="menu" title="Programm: Werke, Import, Einstellungen">Baruch ▾</summary>
+        <summary class="btn" aria-haspopup="menu" title="{{ t('layout.band.baruch_title') }}">Baruch ▾</summary>
         <div class="menu-list" role="menu">
-          <a class="menu-item" role="menuitem" href="/werke">Alle Werke</a>
+          <a class="menu-item" role="menuitem" href="/werke">{{ t('layout.band.all_works') }}</a>
           {#- On the workspace page the entry opens the dialog below with JavaScript (works.ts). #}
-          <a class="menu-item nur-autor" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>Neues Werk / Importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/neu"{% if tb %} data-work-import-open aria-haspopup="dialog" aria-controls="work-import"{% endif %}>{{ t('layout.band.new_work_html') }}</a>
           {#- Round 21a: read a PDF or EPUB, check the outline, adopt it as a work or a source (src/pdf_import/); with
           and without a work. #}
-          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/quelle" title="PDF oder EPUB lesen, Gliederung prüfen und als Werk oder Quelle übernehmen">PDF oder EPUB importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/quelle" title="{{ t('layout.band.import_pdf_title') }}">{{ t('layout.band.import_pdf') }}</a>
           {#- R32-PLATZ import-word -#}
-          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/word" title="Word-Datei lesen, Gliederung, Bearbeiter und Warnungen prüfen und als Werk übernehmen">Word (.docx) importieren…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/werke/import/word" title="{{ t('layout.band.import_word_title') }}">{{ t('layout.band.import_word') }}</a>
           {#- Round 26: exchange between Baruch instances (src/exchange/). #}
-          <a class="menu-item nur-autor" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="Austauschdatei einer anderen Baruch-Instanz einlesen (mit Vorschau)">Austausch: Einlesen…</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/austausch/einlesen{% if w %}?work={{ w }}{% endif %}" title="{{ t('layout.band.exchange_import_title') }}">{{ t('layout.band.exchange_import') }}</a>
           {%- if no_js %}
           {#- Page without main.js (typeset page, follow-up fix Round 18): settings without dialog and without Alt+,
               (both would need main.js). #}
-          <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" title="Einstellungen">⚙ Einstellungen</a>
+          <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" title="{{ t('layout.band.settings_title') }}">{{ t('layout.band.settings') }}</a>
           {%- else %}
-          <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="Einstellungen (Alt+,)" data-shortcut="Alt+,">⚙ Einstellungen</a>
+          <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="{{ t('layout.band.settings_shortcut_title') }}" data-shortcut="Alt+,">{{ t('layout.band.settings') }}</a>
           {%- endif %}
           {#- R39A-S1 lang-switch begin #}
           {#- Round 39a: language of the interface, a plain form (POST /einstellungen/sprache, back through the
@@ -80,12 +80,12 @@
           {#- R39A-S1 lang-switch end #}
           {#- Round 37: help on the website (about::HELP_URL). An ordinary link into a new window, usable without
               JavaScript, without nur-autor (Lektors see it too); no route, no entry in roles. #}
-          <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="Hilfe mit Bildern auf der Webseite von Baruch (öffnet ein neues Fenster, braucht das Internet)">Hilfe</a>
+          <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="{{ t('layout.band.help_title') }}">{{ t('layout.band.help') }}</a>
           {#- Round 24: about Baruch (page /ueber, src/about.rs) – version, licence, source code. An ordinary link,
               reachable on every page and without JavaScript; the work stays in the cookie, the page does not need it.
               #}
-          <a class="menu-item" role="menuitem" href="/ueber" title="Version, Lizenz, Quellcode und Bibliotheken Dritter">Über Baruch</a>
-          <a class="menu-item nur-autor" role="menuitem" href="/beenden" title="Baruch auf diesem Rechner beenden (mit Rückfrage)">Baruch beenden…</a>
+          <a class="menu-item" role="menuitem" href="/ueber" title="{{ t('layout.band.about_title') }}">{{ t('layout.band.about') }}</a>
+          <a class="menu-item nur-autor" role="menuitem" href="/beenden" title="{{ t('layout.band.quit_title') }}">{{ t('layout.band.quit') }}</a>
           {#- R32-PLATZ beenden -#}
           {#- Runde 35: at this marker konten_ui::apply (layer consent::inject) inserts the entry for the account:
               without accounts „Konten einrichten…“, otherwise „Angemeldet: … (Autor|Lektor)“, „Mein Konto“ and
@@ -96,30 +96,30 @@
       </details>
     </nav>
     {#- Tabs: links (?tab=…), also without JavaScript; band.ts switches without reloading (ARIA tabs). #}
-    <nav class="band-tabs" role="tablist" aria-label="Menüband" data-band-default="{% block band_tab %}start{% endblock %}">
-      <a class="band-tab" role="tab" id="band-tab-start" aria-controls="band-panel-start" data-band-tab="start" href="?tab=start" aria-selected="false">Start <span class="badge" data-badge="open_proposals" title="offene Vorschläge im Werk"{% if not proposals %}{{ fill }} hidden{% endif %}>{{ proposals }}</span></a>
+    <nav class="band-tabs" role="tablist" aria-label="{{ t('layout.band.tabs_label') }}" data-band-default="{% block band_tab %}start{% endblock %}">
+      <a class="band-tab" role="tab" id="band-tab-start" aria-controls="band-panel-start" data-band-tab="start" href="?tab=start" aria-selected="false">{{ t('layout.band.tab_start') }} <span class="badge" data-badge="open_proposals" title="{{ t('layout.band.proposals_title') }}"{% if not proposals %}{{ fill }} hidden{% endif %}>{{ proposals }}</span></a>
       {%- if tb and not lektor_view %}
-      <a class="band-tab" role="tab" id="band-tab-einfuegen" aria-controls="band-panel-einfuegen" data-band-tab="einfuegen" href="?tab=einfuegen" aria-selected="false">Einfügen</a>
+      <a class="band-tab" role="tab" id="band-tab-einfuegen" aria-controls="band-panel-einfuegen" data-band-tab="einfuegen" href="?tab=einfuegen" aria-selected="false">{{ t('layout.band.tab_insert') }}</a>
       {%- endif %}
       {%- if w %}
-      <a class="band-tab" role="tab" id="band-tab-pruefen" aria-controls="band-panel-pruefen" data-band-tab="pruefen" href="?tab=pruefen" aria-selected="false">Prüfen <span class="badge warning" data-badge="open_findings" title="offene Befunde im Werk"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }} offen</span></a>
-      <a class="band-tab" role="tab" id="band-tab-buch" aria-controls="band-panel-buch" data-band-tab="buch" href="?tab=buch" aria-selected="false">Buch <span class="badge" data-badge="outline_requests" title="offene Anträge zur Gliederung"{% if not requests %}{{ fill }} hidden{% endif %}>{{ requests }}</span></a>
+      <a class="band-tab" role="tab" id="band-tab-pruefen" aria-controls="band-panel-pruefen" data-band-tab="pruefen" href="?tab=pruefen" aria-selected="false">{{ t('layout.band.tab_check') }} <span class="badge warning" data-badge="open_findings" title="{{ t('layout.band.findings_title') }}"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ t('layout.band.findings_open', count=open_findings) }}</span></a>
+      <a class="band-tab" role="tab" id="band-tab-buch" aria-controls="band-panel-buch" data-band-tab="buch" href="?tab=buch" aria-selected="false">{{ t('layout.band.tab_book') }} <span class="badge" data-badge="outline_requests" title="{{ t('layout.band.requests_title') }}"{% if not requests %}{{ fill }} hidden{% endif %}>{{ requests }}</span></a>
       {%- endif %}
-      <a class="band-tab" role="tab" id="band-tab-ansicht" aria-controls="band-panel-ansicht" data-band-tab="ansicht" href="?tab=ansicht" aria-selected="false">Ansicht</a>
+      <a class="band-tab" role="tab" id="band-tab-ansicht" aria-controls="band-panel-ansicht" data-band-tab="ansicht" href="?tab=ansicht" aria-selected="false">{{ t('layout.band.tab_view') }}</a>
     </nav>
     {%- if tb %}
     {#- Work selection: ordinary GET form; without JavaScript with „Öffnen“, with JavaScript the
         widget „work-select“ opens the chosen work at once (works.ts, remembers it in the cookie baruch_work). #}
-    <form class="work-select" action="/" method="get" role="search" aria-label="Werk wählen">
-      <select name="work" aria-label="Werk" data-widget="work-select">
+    <form class="work-select" action="/" method="get" role="search" aria-label="{{ t('layout.band.work_select_label') }}">
+      <select name="work" aria-label="{{ t('layout.band.work_label') }}" data-widget="work-select">
       {%- for o in tb.works %}
         <option value="{{ o.id }}"{% if o.selected %} selected{% endif %}>{{ o.label }}</option>
       {%- endfor %}
       </select>
       {%- if no_js %}
-      <button class="btn" type="submit">Öffnen</button>
+      <button class="btn" type="submit">{{ t('layout.band.open') }}</button>
       {%- else %}
-      <noscript><button class="btn" type="submit">Öffnen</button></noscript>
+      <noscript><button class="btn" type="submit">{{ t('layout.band.open') }}</button></noscript>
       {%- endif %}
     </form>
     {%- endif %}
@@ -129,40 +129,40 @@
     {#- Ribbon open/closed: without JavaScript a link (?band=closed, the layer turns it into
         ?band=open when the ribbon is collapsed); with JavaScript band.ts folds without reloading (cookie baruch_band).
         #}
-    <a class="btn band-toggle" data-band-toggle aria-expanded="true" href="?band=closed" aria-controls="band-panels" aria-label="Menüband ein- oder ausklappen" title="Menüband ein- oder ausklappen (auch: Klick auf den aktiven Reiter)"><span class="band-toggle-open" aria-hidden="true">▴</span><span class="band-toggle-closed" aria-hidden="true">▾</span></a>
+    <a class="btn band-toggle" data-band-toggle aria-expanded="true" href="?band=closed" aria-controls="band-panels" aria-label="{{ t('layout.band.toggle_label') }}" title="{{ t('layout.band.toggle_title') }}"><span class="band-toggle-open" aria-hidden="true">▴</span><span class="band-toggle-closed" aria-hidden="true">▾</span></a>
   </div>
   <div class="band-panels" id="band-panels">
     <div class="band-panel" role="tabpanel" id="band-panel-start" aria-labelledby="band-tab-start" data-band-panel="start" hidden>
       {%- if tb %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Ansicht des Textes</summary><div class="band-items" role="group" aria-label="Ansicht des Textes">
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.text_view') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.text_view') }}">
         {#- Addresses in key form /?work=W&key=K… (Round 8): the fixed key stays the same when things are
             rearranged; workspace.ts keeps setting text and href after every redraw. #}
-        <a class="btn" data-nav data-view-toggle href="/?work={{ w }}&key={{ tb.key }}&rev={{ tb.rev }}{% if tb.other_view == 'preview' %}&view=preview{% endif %}{{ tb.lq_q }}" title="Zwischen Editor und Vorschau im Browser wechseln">
-          {%- if tb.view == "edit" %}Vorschau{% else %}Editor{% endif -%}
+        <a class="btn" data-nav data-view-toggle href="/?work={{ w }}&key={{ tb.key }}&rev={{ tb.rev }}{% if tb.other_view == 'preview' %}&view=preview{% endif %}{{ tb.lq_q }}" title="{{ t('layout.band.view_toggle_title') }}">
+          {%- if tb.view == "edit" %}{{ t('layout.band.preview') }}{% else %}{{ t('layout.band.editor') }}{% endif -%}
         </a>
       </div></details>
       {%- elif w %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Werk</summary><div class="band-items" role="group" aria-label="Werk">
-        <a class="btn" href="/?work={{ w }}" title="Zur Arbeitsseite mit Gliederung, Editor und Assistenten">Zum Text</a>
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.group_work') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.group_work') }}">
+        <a class="btn" href="/?work={{ w }}" title="{{ t('layout.band.to_text_title') }}">{{ t('layout.band.to_text') }}</a>
       </div></details>
       {%- else %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Werk</summary><div class="band-items" role="group" aria-label="Werk">
-        <a class="btn" href="/werke" title="Erst ein Werk wählen">Werk wählen</a>
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.group_work') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.group_work') }}">
+        <a class="btn" href="/werke" title="{{ t('layout.band.choose_work_title') }}">{{ t('layout.band.choose_work') }}</a>
       </div></details>
       {%- endif %}
       {% block page_actions %}{% endblock %}
-      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Einfälle</summary><div class="band-items" role="group" aria-label="Einfälle">
+      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.ideas') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.ideas') }}">
         {#- Idea: without JavaScript the page /einfaelle with a form, on the workspace page the dialog (Alt+E). #}
-        <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="Einfall festhalten (Alt+E)" data-shortcut="Alt+E">Einfall festhalten</a>
-        <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="Liste der Einfälle dieses Werks">Einfälle</a>
+        <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" data-idea-open{% if tb %} aria-haspopup="dialog" aria-controls="idea-capture"{% endif %} title="{{ t('layout.band.capture_title') }}" data-shortcut="Alt+E">{{ t('layout.band.capture') }}</a>
+        <a class="btn" href="/einfaelle{% if w %}?work={{ w }}{% endif %}" title="{{ t('layout.band.ideas_list_title') }}">{{ t('layout.band.ideas') }}</a>
         {#- Round 25/34: mind map of the ideas (page /werke/W/karte, usable without JavaScript); only with a work. #}
-        {% if w %}<a class="btn" href="/werke/{{ w }}/karte" title="Mindmap der Einfälle dieses Werks (mit der Wolke als Ablage)">Mindmap</a>{% endif %}
+        {% if w %}<a class="btn" href="/werke/{{ w }}/karte" title="{{ t('layout.band.mindmap_title') }}">{{ t('layout.band.mindmap') }}</a>{% endif %}
       </div></details>
       {%- if not w %}
       {#- Without a work the tabs Prüfen and Buch do not exist; what needs no work stands here. #}
-      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">Werkzeuge</summary><div class="band-items" role="group" aria-label="Werkzeuge">
-        <a class="btn" href="/literatur" data-literature-open title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
-        <a class="btn" href="/abgleich" title="Abgleich mit MultiGPT">Abgleichen</a>
+      <details class="band-group" data-band-after data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.tools') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.tools') }}">
+        <a class="btn" href="/literatur" data-literature-open title="{{ t('layout.band.literature_title') }}" data-shortcut="Alt+L">{{ t('layout.band.literature') }}</a>
+        <a class="btn" href="/abgleich" title="{{ t('layout.band.sync_title') }}">{{ t('layout.band.sync') }}</a>
       </div></details>
       {%- endif %}
     </div>
@@ -171,100 +171,100 @@
       {#- The buttons (footnote, quotation, list, …, image, index and glossary) are in the fragment edit_toolbar.html
           and dock at the bottom with JavaScript (div[data-band-dock]). Without JavaScript these links lead to the
           sheet. #}
-      <p class="band-note nojs-only">Die Knöpfe zum Einfügen brauchen JavaScript. Ohne JavaScript am Blatt: <a href="#bild-einfuegen">Bild einfügen …</a> · <a href="/werke/{{ w }}/markierung?key={{ tb.key }}&amp;rev={{ tb.rev }}" title="In Glossar aufnehmen, In Register aufnehmen, Im Glossar nachschlagen">Markierung …</a></p>
-      <p class="band-note band-note-undocked js-only">Einfügen geht im Editor – in der Vorschau gibt es kein Blatt zum Bearbeiten (Start → Editor).</p>
+      <p class="band-note nojs-only">{{ t('layout.band.insert_nojs') }} <a href="#bild-einfuegen">{{ t('layout.band.insert_image') }}</a> · <a href="/werke/{{ w }}/markierung?key={{ tb.key }}&amp;rev={{ tb.rev }}" title="{{ t('layout.band.marking_title') }}">{{ t('layout.band.marking') }}</a></p>
+      <p class="band-note band-note-undocked js-only">{{ t('layout.band.insert_undocked') }}</p>
       {% block band_einfuegen %}{% endblock %}
     </div>
     {%- endif %}
     {%- if w %}
     <div class="band-panel" role="tabpanel" id="band-panel-pruefen" aria-labelledby="band-tab-pruefen" data-band-panel="pruefen" hidden>
       {% block band_pruefen %}{% endblock %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Befunde und Zitate</summary><div class="band-items" role="group" aria-label="Befunde und Zitate">
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.findings_quotes') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.findings_quotes') }}">
         {#- Round 28: findings of the personas (matrix, lists, status; usable without JavaScript). #}
-        <a class="btn" href="/werke/{{ w }}/befunde" title="Befunde der Personas: offen, übernommen, verworfen, verschoben, erledigt">Befunde <span class="badge warning" data-badge="open_findings"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }}</span></a>
+        <a class="btn" href="/werke/{{ w }}/befunde" title="{{ t('layout.band.findings_link_title') }}">{{ t('layout.band.findings') }} <span class="badge warning" data-badge="open_findings"{% if not open_findings %}{{ fill }} hidden{% endif %}>{{ open_findings }}</span></a>
         {#- Round 17c: check quotations against the Bible of the work (page, without JavaScript); on the workspace page
         the shown revision. #}
-        <a class="btn nur-autor" href="/werke/{{ w }}/pruefung{% if tb %}?key={{ tb.key }}&amp;rev={{ tb.rev }}{% endif %}" title="Zitate gegen die Bibel des Werks prüfen (stimmt / weicht ab), Bibelstellen des Abschnitts">Zitate prüfen</a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/pruefung{% if tb %}?key={{ tb.key }}&amp;rev={{ tb.rev }}{% endif %}" title="{{ t('layout.band.check_quotes_title_html') }}">{{ t('layout.band.check_quotes') }}</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Suchen und Verweise</summary><div class="band-items" role="group" aria-label="Suchen und Verweise">
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.search_refs') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.search_refs') }}">
         {#- Round 30a: search/replace in the work (page /suche without JavaScript, on the workspace page a sidebar with
             Ctrl+Shift+F) and cross-references (page /verweise: possible and broken references). #}
-        <a class="btn nur-autor" href="/suche?work={{ w }}" title="Im Werk suchen und ersetzen (Strg+Umschalt+F)">Im Werk suchen und ersetzen (Strg+Umschalt+F)</a><!--NUR-LEKTOR--><a class="btn nur-lektor" href="/suche?work={{ w }}" title="Im Werk suchen (Strg+Umschalt+F)">Im Werk suchen (Strg+Umschalt+F)</a><!--/NUR-LEKTOR-->
-        <a class="btn nur-autor" href="/verweise?work={{ w }}" title="Mögliche und kaputte Querverweise des Werks">Querverweise prüfen</a>
+        <a class="btn nur-autor" href="/suche?work={{ w }}" title="{{ t('layout.band.search_replace') }}">{{ t('layout.band.search_replace') }}</a><!--NUR-LEKTOR--><a class="btn nur-lektor" href="/suche?work={{ w }}" title="{{ t('layout.band.search_only') }}">{{ t('layout.band.search_only') }}</a><!--/NUR-LEKTOR-->
+        <a class="btn nur-autor" href="/verweise?work={{ w }}" title="{{ t('layout.band.xrefs_title') }}">{{ t('layout.band.xrefs') }}</a>
       </div></details>
-      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Quellen</summary><div class="band-items" role="group" aria-label="Quellen">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.sources') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.sources') }}">
         {#- Literature: without JavaScript the page /literatur, on the workspace page the popup (Alt+L). #}
-        <a class="btn" href="/literatur?work={{ w }}{% if tb %}&key={{ tb.key }}&rev={{ tb.rev }}{{ tb.lq_q }}{% endif %}" data-literature-open{% if tb %} aria-haspopup="dialog" aria-controls="literature"{% endif %} title="Literatur (Alt+L)" data-shortcut="Alt+L">Literatur</a>
+        <a class="btn" href="/literatur?work={{ w }}{% if tb %}&key={{ tb.key }}&rev={{ tb.rev }}{{ tb.lq_q }}{% endif %}" data-literature-open{% if tb %} aria-haspopup="dialog" aria-controls="literature"{% endif %} title="{{ t('layout.band.literature_title') }}" data-shortcut="Alt+L">{{ t('layout.band.literature') }}</a>
         {#- Reconciliation with MultiGPT (Round 13): page /abgleich with a button, usable without JavaScript. #}
-        <a class="btn" href="/abgleich?work={{ w }}" title="Abgleich mit MultiGPT">Abgleichen</a>
+        <a class="btn" href="/abgleich?work={{ w }}" title="{{ t('layout.band.sync_title') }}">{{ t('layout.band.sync') }}</a>
       </div></details>
     </div>
     <div class="band-panel" role="tabpanel" id="band-panel-buch" aria-labelledby="band-tab-buch" data-band-panel="buch" hidden>
       {% block band_buch %}{% endblock %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Werk</summary><div class="band-items" role="group" aria-label="Werk">
-        <a class="btn nur-autor" href="/werke/{{ w }}/bearbeiten">Werk bearbeiten</a>
-        <a class="btn" href="/gliederung?work={{ w }}">Gliederung</a>
-        <a class="btn nur-autor" href="/gliederung?work={{ w }}#antraege" data-badge-item="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>Anträge zur Gliederung <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }}{% endif %}>{{ requests }}</span></a>
-        <a class="btn nur-autor" href="/werke/{{ w }}/nummerierung">Gliederungsschema</a>
-        <a class="btn nur-autor" href="/werke/{{ w }}/bilder">Bilder</a><!--NUR-KONTEN-->
-        <a class="btn nur-autor" href="/werke/{{ w }}/mitwirkende" title="Wer darf dieses Werk als Lektor lesen? Freigeben und entziehen">Mitwirkende</a><!--/NUR-KONTEN-->
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.group_work') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.group_work') }}">
+        <a class="btn nur-autor" href="/werke/{{ w }}/bearbeiten">{{ t('layout.band.edit_work') }}</a>
+        <a class="btn" href="/gliederung?work={{ w }}">{{ t('layout.band.outline') }}</a>
+        <a class="btn nur-autor" href="/gliederung?work={{ w }}#antraege" data-badge-item="outline_requests"{% if not requests %}{{ fill }} hidden{% endif %}>{{ t('layout.band.outline_requests') }} <span class="badge" data-badge="outline_requests"{% if not requests %}{{ fill }}{% endif %}>{{ requests }}</span></a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/nummerierung">{{ t('layout.band.numbering') }}</a>
+        <a class="btn nur-autor" href="/werke/{{ w }}/bilder">{{ t('layout.band.images') }}</a><!--NUR-KONTEN-->
+        <a class="btn nur-autor" href="/werke/{{ w }}/mitwirkende" title="{{ t('layout.band.contributors_title') }}">{{ t('layout.band.contributors') }}</a><!--/NUR-KONTEN-->
       </div></details>
-      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Satz</summary><div class="band-items" role="group" aria-label="Satz">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.typesetting') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.typesetting') }}">
         {#- Typesetting: typeset pages from Typst with the work template (page /werke/W/satz, Round 8). #}
-        <a class="btn" href="/werke/{{ w }}/satz{% if tb %}?key={{ tb.key }}{% endif %}" title="Gesetzte Seiten aus Typst mit der Werkvorlage">Satz-Vorschau</a>
+        <a class="btn" href="/werke/{{ w }}/satz{% if tb %}?key={{ tb.key }}{% endif %}" title="{{ t('layout.band.typeset_preview_title') }}">{{ t('layout.band.typeset_preview') }}</a>
         {#- Round 20b: EPUB preview per reader (page /werke/W/epub/vorschau, src/epub_preview.rs). #}
-        <a class="btn" href="/werke/{{ w }}/epub/vorschau" title="Das EPUB des Werks in mehreren Readern nebeneinander">EPUB-Vorschau</a>
+        <a class="btn" href="/werke/{{ w }}/epub/vorschau" title="{{ t('layout.band.epub_preview_title') }}">{{ t('layout.band.epub_preview') }}</a>
       </div></details>
-      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.output') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.output') }}">
         {#- Round 11: the book as PDF; Round 22: with the watermark „Entwurf“, without changing the typeset setting
             (?entwurf=1); Round 20: EPUB 3 (src/epub.rs). #}
-        <a class="btn" href="/werke/{{ w }}/pdf" download title="Das ganze Werk als PDF herunterladen (Werkvorlage, aktuelle Fassungen, Bilder)">PDF</a>
-        <a class="btn" href="/werke/{{ w }}/pdf?entwurf=1" download title="Das ganze Werk als PDF mit Wasserzeichen „Entwurf“ herunterladen (Einstellung bleibt unverändert)">Entwurf</a>
-        <a class="btn" href="/werke/{{ w }}/epub" download title="Das ganze Werk als E-Book herunterladen (EPUB 3, aktuelle Fassungen)">EPUB</a>
+        <a class="btn" href="/werke/{{ w }}/pdf" download title="{{ t('layout.band.pdf_title') }}">{{ t('layout.band.pdf') }}</a>
+        <a class="btn" href="/werke/{{ w }}/pdf?entwurf=1" download title="{{ t('layout.band.draft_title') }}">{{ t('layout.band.draft') }}</a>
+        <a class="btn" href="/werke/{{ w }}/epub" download title="{{ t('layout.band.epub_title') }}">{{ t('layout.band.epub') }}</a>
         {#- R32-PLATZ export-word -#}
-        <a class="btn" href="/werke/{{ w }}/word" title="Das Werk als Word-Datei für den Verlag (Formatvorlagen, Fußnoten, Bilder; auf Wunsch offene Vorschläge als Änderungsverfolgung)">Word …</a>
+        <a class="btn" href="/werke/{{ w }}/word" title="{{ t('layout.band.word_title') }}">{{ t('layout.band.word') }}</a>
         {#- Round 16c: cue sheet (A5 or cards) – one page with format choice and preview, no direct download. #}
-        <a class="btn" href="/werke/{{ w }}/stichwortzettel" title="Stichwortzettel zum Halten oder Predigen: je Abschnitt Zeitmarke, Stichpunkte und Bibelstellen">Stichwortzettel …</a>
-        <a class="btn" href="/werke/{{ w }}/export" title="Werkvorlage und aktuelle Texte als eine Typst-Datei">Exportieren (Typst)</a>
+        <a class="btn" href="/werke/{{ w }}/stichwortzettel" title="{{ t('layout.band.notes_title') }}">{{ t('layout.band.notes') }}</a>
+        <a class="btn" href="/werke/{{ w }}/export" title="{{ t('layout.band.typst_title') }}">{{ t('layout.band.typst') }}</a>
         {#- Round 26: exchange between Baruch instances (src/exchange/). #}
-        <a class="btn" href="/werke/{{ w }}/austausch" title="Ganzes Werk mit allen Fassungen, Einfällen, Beiträgen und Bildern als Austauschdatei">Austausch: Ausgeben</a>
+        <a class="btn" href="/werke/{{ w }}/austausch" title="{{ t('layout.band.exchange_title') }}">{{ t('layout.band.exchange') }}</a>
       </div></details>
-      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Umschlag</summary><div class="band-items" role="group" aria-label="Umschlag">
-        <a class="btn" href="/werke/{{ w }}/umschlag" title="Umschlag mit Vorderseite, Rücken und Rückseite">Umschlag</a>
-        <a class="btn" href="/werke/{{ w }}/umschlag.pdf" download title="Umschlag als PDF für die Druckerei (mit Rücken und Beschnitt)">Umschlag-PDF</a>
+      <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">{{ t('layout.band.cover') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.cover') }}">
+        <a class="btn" href="/werke/{{ w }}/umschlag" title="{{ t('layout.band.cover_title') }}">{{ t('layout.band.cover') }}</a>
+        <a class="btn" href="/werke/{{ w }}/umschlag.pdf" download title="{{ t('layout.band.cover_pdf_title') }}">{{ t('layout.band.cover_pdf') }}</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Register und Glossar</summary><div class="band-items" role="group" aria-label="Register und Glossar">
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.index_glossary') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.index_glossary') }}">
         {#- Round 31: glossary and index of the work (usable without JavaScript). #}
-        <a class="btn" href="/werke/{{ w }}/glossar" title="Begriffe mit Erklärungen: angenommen und vorgeschlagen">Glossar</a>
-        <a class="btn" href="/werke/{{ w }}/register" title="Stichwort-, Personen-, Bibelstellen- und eigene Register mit Vorschlägen">Register</a>
+        <a class="btn" href="/werke/{{ w }}/glossar" title="{{ t('layout.band.glossary_title') }}">{{ t('layout.band.glossary') }}</a>
+        <a class="btn" href="/werke/{{ w }}/register" title="{{ t('layout.band.index_title') }}">{{ t('layout.band.index') }}</a>
       </div></details>
     </div>
     {%- endif %}
     <div class="band-panel" role="tabpanel" id="band-panel-ansicht" aria-labelledby="band-tab-ansicht" data-band-panel="ansicht" hidden>
       {% block band_ansicht %}{% endblock %}
       {%- if tb %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Seitenleisten</summary><div class="band-items" role="group" aria-label="Seitenleisten">
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.sidebars') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.sidebars') }}">
         {#- Pressed = column visible; the layer sets aria-pressed and turns the address (src/band.rs), laptop.ts
             switches without reloading. #}
-        <a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">Gliederung</a>
-        <a class="btn" data-rail-toggle="right" aria-pressed="false" href="?rrail=1">Assistenten</a>
+        <a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">{{ t('layout.band.outline') }}</a>
+        <a class="btn" data-rail-toggle="right" aria-pressed="false" href="?rrail=1">{{ t('layout.band.assistants') }}</a>
       </div></details>
       {%- endif %}
-      <details class="band-group" data-band-group open><summary class="band-group-label">Laptop-Modus</summary><div class="band-items" role="group" aria-label="Laptop-Modus">
-        <a class="btn" data-laptop-set="auto" aria-pressed="false" href="?laptop=auto">Automatisch</a>
-        <a class="btn" data-laptop-set="on" aria-pressed="false" href="?laptop=on">An</a>
-        <a class="btn" data-laptop-set="off" aria-pressed="false" href="?laptop=off">Aus</a>
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.laptop') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.laptop') }}">
+        <a class="btn" data-laptop-set="auto" aria-pressed="false" href="?laptop=auto">{{ t('layout.band.laptop_auto') }}</a>
+        <a class="btn" data-laptop-set="on" aria-pressed="false" href="?laptop=on">{{ t('layout.band.laptop_on') }}</a>
+        <a class="btn" data-laptop-set="off" aria-pressed="false" href="?laptop=off">{{ t('layout.band.laptop_off') }}</a>
       </div></details>
-      <details class="band-group" data-band-group open><summary class="band-group-label">Darstellung</summary><div class="band-items" role="group" aria-label="Darstellung">
-        {%- set theme_name = "Hell" if settings is defined and settings.theme == "light" else ("Dunkel" if settings is defined and settings.theme == "dark" else "System") %}
+      <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.band.display') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.band.display') }}">
+        {%- set theme_name = t("layout.band.theme_light") if settings is defined and settings.theme == "light" else (t("layout.band.theme_dark") if settings is defined and settings.theme == "dark" else t("layout.band.theme_system")) %}
         {%- set theme_sign = "☀" if settings is defined and settings.theme == "light" else ("☾" if settings is defined and settings.theme == "dark" else "◐") %}
         {%- if no_js %}
         {#- Page without main.js (typeset page, follow-up fix Round 18): a button without a widget would do nothing –
             the theme is set here by a link to Einstellungen → Darstellung (form, without JavaScript). #}
-        <a class="btn" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" aria-label="Thema einstellen (Einstellungen → Darstellung)" title="Thema: {{ theme_name }} – einstellen unter Einstellungen → Darstellung">{{ theme_sign }}</a>
+        <a class="btn" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" aria-label="{{ t('layout.band.theme_set_label') }}" title="{{ t('layout.band.theme_set_title', theme_name=theme_name) }}">{{ theme_sign }}</a>
         {%- else %}
-        <button class="btn" type="button" data-widget="theme" data-auto="◐" data-light="☀" data-dark="☾" aria-label="Thema wechseln" title="Thema: {{ theme_name }}">{{ theme_sign }}</button>
-        <button class="btn js-only" type="button" data-zoom-reset>Zoom zurücksetzen</button>
+        <button class="btn" type="button" data-widget="theme" data-auto="◐" data-light="☀" data-dark="☾" aria-label="{{ t('layout.band.theme_switch_label') }}" title="{{ t('layout.band.theme_title', theme_name=theme_name) }}">{{ theme_sign }}</button>
+        <button class="btn js-only" type="button" data-zoom-reset>{{ t('layout.band.zoom_reset') }}</button>
         {%- endif %}
       </div></details>
     </div>
@@ -283,7 +283,7 @@
 {% block body %}{% endblock %}
 {#- Shell of the settings (Round 9): behind all dialogs of the page; settings.ts loads the content. #}
 <dialog class="settings-dialog" id="settings" data-widget="settings" aria-labelledby="settings-title">
-  <header class="literature-head"><h2 class="pane-title" id="settings-title">Einstellungen</h2><span class="grow"></span><form method="dialog"><button class="btn" type="submit">Schließen</button></form></header>
+  <header class="literature-head"><h2 class="pane-title" id="settings-title">{{ t('layout.band.settings_heading') }}</h2><span class="grow"></span><form method="dialog"><button class="btn" type="submit">{{ t('common.close') }}</button></form></header>
   <div class="settings-content" data-settings-content></div>
 </dialog>
 </body>

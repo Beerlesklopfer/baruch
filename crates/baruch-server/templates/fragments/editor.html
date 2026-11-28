@@ -23,53 +23,53 @@
       detail?, expr?}. #}
   {%- if chapter_image %}
   {%- if chapter_image.known and not chapter_image.missing %}
-  <figure class="chapter-image" title="Kapitelbild {{ chapter_image.chapter }} aus der Werkvorlage: {{ chapter_image.path }}">
+  <figure class="chapter-image" title="{{ t('editor.page.chapter_image_title', chapter=chapter_image.chapter, path=chapter_image.path) }}">
     <a href="{{ chapter_image.detail }}"><img src="{{ chapter_image.thumb }}" alt="{{ chapter_image.alt }}" loading="lazy" height="40"></a>
-    <figcaption class="tiny"><span>{{ chapter_image.caption or chapter_image.name }}</span>{% if chapter_image.alt %}<span class="muted"> · Alternativtext: {{ chapter_image.alt }}</span>{% endif %}</figcaption>
+    <figcaption class="tiny"><span>{{ chapter_image.caption or chapter_image.name }}</span>{% if chapter_image.alt %}<span class="muted"> {{ t('editor.page.chapter_image_alt', alt=chapter_image.alt) }}</span>{% endif %}</figcaption>
   </figure>
   {%- elif chapter_image.known %}
-  <p class="chapter-image chapter-image-missing tiny" role="note">Kapitelbild fehlt: <code>{{ chapter_image.path }}</code> · <a href="/werke/{{ work.id }}/bilder">Bilder</a></p>
+  <p class="chapter-image chapter-image-missing tiny" role="note">{{ t('editor.page.chapter_image_missing') }} <code>{{ chapter_image.path }}</code> · <a href="/werke/{{ work.id }}/bilder">{{ t('editor.page.images') }}</a></p>
   {%- else %}
-  <p class="chapter-image chapter-image-hint tiny" role="note" title="Die Vorlage berechnet das Bild ({{ chapter_image.expr }}); ohne Typst lässt es sich nicht sicher ermitteln.">Bild aus der Vorlage · <a href="/werke/{{ work.id }}/bilder">Bilder</a></p>
+  <p class="chapter-image chapter-image-hint tiny" role="note" title="{{ t('editor.page.chapter_image_expr', expr=chapter_image.expr) }}">{{ t('editor.page.chapter_image_template') }} <a href="/werke/{{ work.id }}/bilder">{{ t('editor.page.images') }}</a></p>
   {%- endif %}
   {%- endif %}
   <h2 class="node-title" title="{% if node.number %}{{ node.number }} {% endif %}{{ node.title }}">{% if node.number %}<span class="num">{{ node.number }}</span>{% endif %}{{ node.title }}</h2>
-  <span class="muted small rev-meta">Fassung {{ rev.number }}{% if rev.amend_seq %} · <a class="rev-amend" href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen von Fassung {{ rev.number }}">Stand {{ rev.amend_seq }}</a>{% endif %} · {{ rev.status }} · {% if rev.author_style %}<span class="pc pc-chip" style="{{ rev.author_style }}">{{ rev.author }}</span>{% else %}{{ rev.author }}{% endif %}{% if rev.edited %} · geändert {{ rev.edited }}{% endif %}{% if rev.proposal and rev.based_on %} · beruht auf Fassung {{ rev.based_on }}{% if rev.based_on_amend %}, Stand {{ rev.based_on_amend }}{% endif %}{% endif %}</span>
-  <nav class="switcher" aria-label="Fassungen">
-    {%- if rev.prev %}<a class="btn" data-nav data-key="prev" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Vorige Fassung (Alt+←)">‹</a>
+  <span class="muted small rev-meta">{{ t('editor.page.rev', number=rev.number) }}{% if rev.amend_seq %} · <a class="rev-amend" href="{{ rev.history_url }}" title="{{ t('editor.page.amends_title', number=rev.number) }}">{{ t('editor.page.amend', amend_seq=rev.amend_seq) }}</a>{% endif %} · {{ rev.status }} · {% if rev.author_style %}<span class="pc pc-chip" style="{{ rev.author_style }}">{{ rev.author }}</span>{% else %}{{ rev.author }}{% endif %}{% if rev.edited %} {{ t('editor.page.edited', edited=rev.edited) }}{% endif %}{% if rev.proposal and rev.based_on %} {{ t('editor.page.based_on', based_on=rev.based_on) }}{% if rev.based_on_amend %}{{ t('editor.page.based_on_amend', based_on_amend=rev.based_on_amend) }}{% endif %}{% endif %}</span>
+  <nav class="switcher" aria-label="{{ t('editor.page.revs_label') }}">
+    {%- if rev.prev %}<a class="btn" data-nav data-key="prev" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.prev }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="{{ t('editor.page.prev') }}">‹</a>
     {%- else %}<span class="btn" aria-disabled="true">‹</span>{% endif %}
-    <span class="counter{% if rev.is_current %} is-current{% endif %}" title="Fassung {{ rev.number }}{% if rev.is_current %}, aktuell{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
-    {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="Nächste Fassung (Alt+→)">›</a>
+    <span class="counter{% if rev.is_current %} is-current{% endif %}" title="{{ t('editor.page.rev_title', number=rev.number) }}{% if rev.is_current %}{{ t('editor.page.current_suffix') }}{% endif %}">{{ rev.position }}/{{ rev.total }}</span>
+    {%- if rev.next %}<a class="btn" data-nav data-key="next" href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.next }}{{ view_q }}{{ pick_q }}{{ lq_q }}{{ rev.fold.q }}" title="{{ t('editor.page.next') }}">›</a>
     {%- else %}<span class="btn" aria-disabled="true">›</span>{% endif %}
     {#- 0.9.0 (user 2026-11-24): hide older revisions. Closed: „(+ n ausgeblendet)“ as a link that opens the
         switch (?fassungen=alle, paging then shows all); open: „n ältere verbergen“. „bis hier ausblenden“ points
         through form="rev-fold-<n>" to the form in the accordion „Fassungen“ (the editor carries no revision forms). #}
     {%- if rev.fold.hidden %}
     {%- if rev.fold.open %}
-    <a class="rev-fold-toggle small" data-nav data-rev-fold="open" href="{{ rev.fold.hide_url }}" title="Ausgeblendete Fassungen beim Blättern wieder überspringen">{{ rev.fold.hidden }} ältere verbergen ▾</a>
+    <a class="rev-fold-toggle small" data-nav data-rev-fold="open" href="{{ rev.fold.hide_url }}" title="{{ t('editor.page.fold_skip_title') }}">{{ t('editor.page.fold_skip', hidden=rev.fold.hidden) }}</a>
     {%- else %}
-    <a class="rev-fold-toggle small" data-nav data-rev-fold="closed" href="{{ rev.fold.show_url }}" title="{{ rev.fold.hidden }} ältere Fassungen zeigen (bis Fassung {{ rev.fold.cutoff }} ausgeblendet)">(+ {{ rev.fold.hidden }} ausgeblendet) ▸</a>
+    <a class="rev-fold-toggle small" data-nav data-rev-fold="closed" href="{{ rev.fold.show_url }}" title="{{ t('editor.page.fold_show_title', hidden=rev.fold.hidden, cutoff=rev.fold.cutoff) }}">{{ t('editor.page.fold_hidden', hidden=rev.fold.hidden) }}</a>
     {%- endif %}
     {%- endif %}
     {%- if rev.fold.offered %}
-    <button class="btn tiny rev-fold-here" type="submit" form="rev-fold-{{ rev.number }}" title="Alle älteren ersetzten und verworfenen Fassungen unter Fassung {{ rev.number }} ausblenden (nichts wird gelöscht)">bis hier ausblenden</button>
+    <button class="btn tiny rev-fold-here" type="submit" form="rev-fold-{{ rev.number }}" title="{{ t('editor.page.fold_here_title', number=rev.number) }}">{{ t('editor.page.fold_here') }}</button>
     {%- endif %}
   </nav>
   {#- Round 28 (befund-uebersicht): open findings of the section including sub-items (counting rule §1.5), link to the
       findings of the section on the page /werke/<id>/befunde (without JavaScript). #}
   {%- if node.open_findings %}
-  <a class="badge warning findings-badge editor-findings" href="{{ node.findings_url }}" data-findings-open="{{ node.open_findings }}" title="{{ node.open_findings }} offene{% if node.open_findings == 1 %}r{% endif %} Befund{% if node.open_findings != 1 %}e{% endif %}{% if node.open_findings != node.open_findings_own %} samt Unterpunkten ({{ node.open_findings_own }} hier){% endif %}">{{ node.open_findings }} offen</a>
+  <a class="badge warning findings-badge editor-findings" href="{{ node.findings_url }}" data-findings-open="{{ node.open_findings }}" title="{% if node.open_findings == 1 %}{{ t('editor.page.findings_one', count=node.open_findings) }}{% else %}{{ t('editor.page.findings_other', count=node.open_findings) }}{% endif %}{% if node.open_findings != node.open_findings_own %} {{ t('editor.page.findings_children', open_findings_own=node.open_findings_own) }}{% endif %}">{{ t('editor.page.findings_open', count=node.open_findings) }}</a>
   {%- endif %}
   {%- if not rev.is_current and rev.current %}
-  <a class="current-link small" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.current }}{{ view_q }}{{ pick_q }}{{ lq_q }}">aktuell: Fassung {{ rev.current }}</a>
+  <a class="current-link small" data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.current }}{{ view_q }}{{ pick_q }}{{ lq_q }}">{{ t('editor.page.current', current=rev.current) }}</a>
   {%- endif %}
   {#- Round 16b (time guard): only for a sermon or a target time. Finished by the server on loading (without
       JavaScript); the widget „timing“ (web/src/timing.ts) recounts while typing, debounced, through RPC timing.count
       (the same rule as the server) and recomputes the total time with data-rest (sum without this section). #}
   {%- if timing %}
   <p class="editor-timing small" data-widget="timing" data-work="{{ work.id }}" data-rest="{{ timing.rest }}"{% if timing.target is not none %} data-target="{{ timing.target }}"{% endif %} aria-live="polite">
-    <span data-timing-text title="Sprechdauer bei {{ timing.words_per_minute }} Wörtern je Minute{% if timing.start_clock %}; Zeitmarke {{ timing.start_clock }}{% endif %}">Abschnitt ≈ <span data-timing-section>{{ timing.section_clock }}</span> · gesamt <span data-timing-total>{{ timing.total_clock }}</span>{% if timing.target_clock %} / Ziel {{ timing.target_clock }}{% endif %}</span>
-    <span class="badge warning" data-timing-over role="alert"{% if not timing.over %} hidden{% endif %}>Zielzeit überschritten{% if timing.over %} um {{ timing.over_clock }}{% endif %}</span>
+    <span data-timing-text title="{{ t('editor.page.timing_title', words_per_minute=timing.words_per_minute) }}{% if timing.start_clock %}{{ t('editor.page.timing_mark', start_clock=timing.start_clock) }}{% endif %}">{{ t('editor.page.timing_section') }} <span data-timing-section>{{ timing.section_clock }}</span> {{ t('editor.page.timing_total') }} <span data-timing-total>{{ timing.total_clock }}</span>{% if timing.target_clock %} {{ t('editor.page.timing_target_html', target_clock=timing.target_clock) }}{% endif %}</span>
+    <span class="badge warning" data-timing-over role="alert"{% if not timing.over %} hidden{% endif %}>{{ t('editor.page.over') }}{% if timing.over %} {{ t('editor.page.over_by', over_clock=timing.over_clock) }}{% endif %}</span>
   </p>
   {%- endif %}
   {%- if rev.saved_notice %}
@@ -81,13 +81,13 @@
       editor carries no revision forms (wish 2026-11-06), it still works without JavaScript. #}
   {%- if rev.alternatives %}
   <details class="rev-alternatives small">
-    <summary title="Nicht aktuelle Fassungen hier (ohne offene Vorschläge)">weitere Fassung{% if rev.alternatives | length != 1 %}en{% endif %}: {{ rev.alternatives | length }}</summary>
+    <summary title="{{ t('editor.page.alternatives_title') }}">{% if rev.alternatives | length != 1 %}{{ t("editor.page.alternatives_other", count=rev.alternatives | length) }}{% else %}{{ t("editor.page.alternatives_one", count=rev.alternatives | length) }}{% endif %}</summary>
     {%- macro alt_items(list) %}
       {%- for a in list %}
       <li class="rev-alt{% if a.shown %} shown{% endif %}">
-        {%- if a.shown %}<strong>Fassung {{ a.number }}</strong> <span class="muted">(gezeigt)</span>{% else %}<a data-nav href="{{ a.url }}">Fassung {{ a.number }}</a>{% endif %}
+        {%- if a.shown %}<strong>{{ t('editor.page.alt_rev', number=a.number) }}</strong> <span class="muted">{{ t('editor.page.alt_shown') }}</span>{% else %}<a data-nav href="{{ a.url }}">{{ t('editor.page.alt_rev', number=a.number) }}</a>{% endif %}
         <span class="muted">· {{ a.status }} · {{ a.author }}</span>
-        <button class="btn tiny" type="submit" form="rev-alt-{{ a.number }}" title="Fassung {{ a.number }} zur aktuellen machen (die Markierung „aktuell“ wandert)">aktuell machen</button>
+        <button class="btn tiny" type="submit" form="rev-alt-{{ a.number }}" title="{{ t('editor.page.make_current_title', number=a.number) }}">{{ t('editor.page.make_current') }}</button>
       </li>
       {%- endfor %}
     {%- endmacro %}
@@ -97,7 +97,7 @@
     {%- set hidden_alts = rev.alternatives | selectattr("hidden") | list %}
     {%- if hidden_alts %}
     <details class="rev-fold" data-rev-fold-list{% if rev.fold.open %} open{% endif %}>
-      <summary><span class="rev-fold-show">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+      <summary><span class="rev-fold-show">{% if hidden_alts | length != 1 %}{{ t("editor.page.fold_show_other", count=hidden_alts | length) }}{% else %}{{ t("editor.page.fold_show_one", count=hidden_alts | length) }}{% endif %}</span><span class="rev-fold-hide">{% if hidden_alts | length != 1 %}{{ t("editor.page.fold_hide_other", count=hidden_alts | length) }}{% else %}{{ t("editor.page.fold_hide_one", count=hidden_alts | length) }}{% endif %}</span></summary>
       <ul class="rev-alt-list">
         {{- alt_items(hidden_alts) }}
       </ul>
@@ -106,22 +106,22 @@
   </details>
   {%- endif %}
   {%- if node.missing_key is not none %}
-  <p class="notice small missing-key" role="status">Abschnitt mit Schlüssel {{ node.missing_key }} gibt es nicht (mehr).</p>
+  <p class="notice small missing-key" role="status">{{ t('editor.page.missing', missing_key=node.missing_key) }}</p>
   {%- endif %}
 </div>
 
 {%- if view == "preview" %}
 <div class="editor-body" data-zoom-zone="sheet">
   {%- if picked %}
-  <p class="picked small">Probeweise gesetzt (die Markierung „aktuell“ bleibt):
-    {%- for p in picked %} {% if p.number %}{{ p.number }} {% endif %}{{ p.title }}: Fassung {{ p.rev }}{% if p.current %} (aktuell){% endif %}{% if not loop.last %},{% endif %}{% endfor %}
-    · <a data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.number }}&view=preview{{ lq_q }}">nur aktuelle Fassungen</a></p>
+  <p class="picked small">{{ t('editor.page.trial') }}
+    {%- for p in picked %} {% if p.number %}{{ p.number }} {% endif %}{{ t('editor.page.trial_item', title=p.title, rev=p.rev) }}{% if p.current %} {{ t('editor.page.trial_current') }}{% endif %}{% if not loop.last %},{% endif %}{% endfor %}
+    · <a data-nav href="/?work={{ work.id }}&key={{ node.key }}&rev={{ rev.number }}&view=preview{{ lq_q }}">{{ t('editor.page.trial_reset') }}</a></p>
   {%- endif %}
   {%- if missing_images %}
   {#- Round 11: image paths in the text for which the work has no image – clearly, with the way to the page Bilder. #}
   <div class="notice warning missing-images" role="alert">
-    {%- for p in missing_images %}<div>Bild fehlt: <code>{{ p }}</code></div>{% endfor %}
-    <div class="small"><a href="/werke/{{ work.id }}/bilder">Bilder des Werks</a> · dort hochladen und den Pfad eintragen.</div>
+    {%- for p in missing_images %}<div>{{ t('editor.page.image_missing') }} <code>{{ p }}</code></div>{% endfor %}
+    <div class="small"><a href="/werke/{{ work.id }}/bilder">{{ t('editor.page.work_images') }}</a> {{ t('editor.page.image_upload') }}</div>
   </div>
   {%- endif %}
   <div class="sheet-wrap">
@@ -134,7 +134,7 @@
   </div>
 </div>
 <div class="editor-status" data-zoom-zone="status">
-  <span class="muted tiny status-hints">Vorschau im Browser (Näherung) · die gesetzten Seiten aus Typst zeigt <a href="/werke/{{ work.id }}/satz?key={{ node.key }}">Satz</a></span>
+  <span class="muted tiny status-hints">{{ t('editor.page.preview_note') }} <a href="/werke/{{ work.id }}/satz?key={{ node.key }}">{{ t('editor.page.typesetting') }}</a></span>
 </div>
 {%- else %}
 {#- Saving through outline.save: if the heading line changes, the outline adapts
@@ -168,7 +168,7 @@
   {% include "fragments/search_bar.html" %}
   <div class="editor-body" data-zoom-zone="sheet">
     {%- if missing_images %}
-    <p class="notice warning small missing-images" role="note">Bild fehlt: {% for p in missing_images %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% endfor %} · <a href="/werke/{{ work.id }}/bilder">Bilder des Werks</a></p>
+    <p class="notice warning small missing-images" role="note">{{ t('editor.page.image_missing') }} {% for p in missing_images %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% endfor %} · <a href="/werke/{{ work.id }}/bilder">{{ t('editor.page.work_images') }}</a></p>
     {%- endif %}
     <form class="editor-form" id="editor-form" method="post" action="/gliederung/act" data-rpc data-widget="editor" data-outline-save>
       <input type="hidden" name="method" value="outline.save">
@@ -180,20 +180,20 @@
       <input type="hidden" name="mode" value="auto">
       {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
       <div class="ws-wrap" data-ws-wrap hidden>
-        <div class="ws-sheet" data-ws-sheet contenteditable="true" role="textbox" aria-multiline="true" aria-label="Satzbild des Abschnitts" spellcheck="true" lang="de"{% if ws_sheet is not none %} data-ws-ready{% endif %}>{% if ws_sheet is not none %}{{ ws_sheet | safe }}{% endif %}</div>
+        <div class="ws-sheet" data-ws-sheet contenteditable="true" role="textbox" aria-multiline="true" aria-label="{{ t('editor.page.ws_label') }}" spellcheck="true" lang="de"{% if ws_sheet is not none %} data-ws-ready{% endif %}>{% if ws_sheet is not none %}{{ ws_sheet | safe }}{% endif %}</div>
       </div>
-      <textarea name="body"{% if library_query %} id="fundstelle"{% endif %} spellcheck="true" lang="de" aria-label="Text des Abschnitts">{{ rev.body }}</textarea>
+      <textarea name="body"{% if library_query %} id="fundstelle"{% endif %} spellcheck="true" lang="de" aria-label="{{ t('editor.page.text_label') }}">{{ rev.body }}</textarea>
     </form>
     {%- if proposals and proposals.count %}{% with inline = proposals %}{% include "fragments/proposals.html" %}{% endwith %}{% endif %}
   </div>
   <div class="editor-status" data-zoom-zone="status">
-    {%- set ws_hint = "Satzbild: Enter neuer Absatz · Umschalt+Enter Zeilenumbruch (in einer Überschrift: neuer Absatz) · Strg+S speichert · gelb hinterlegt: Typst-Insel, nur im Quelltext bearbeitbar · Rechtsklick, Kontextmenü-Taste oder Umschalt+F10: Register und Glossar" %}
+    {%- set ws_hint = t("editor.page.ws_hint") %}
     {%- if rev.own_current %}
-    {%- set save_hint = "Speichern (Strg+S) schreibt Fassung " ~ rev.number ~ " fort (jetzt Stand " ~ rev.amend_seq ~ "), solange Überschrift und Ebene gleich bleiben und keine Grenze unter Einstellungen → Werk → Fassungen greift; sonst entsteht eine neue Fassung" %}
+    {%- set save_hint = t("editor.page.save_hint_amend", rev=rev.number, amend=rev.amend_seq) %}
     {%- else %}
-    {%- set save_hint = "Speichern legt eine neue Fassung auf Fassung " ~ rev.number ~ " an (diese Fassung ist nicht die eigene aktuelle)" %}
+    {%- set save_hint = t("editor.page.save_hint_new", rev=rev.number) %}
     {%- endif %}
-    {%- set foot_hint = "Alt+← / Alt+→ wechselt die Fassung · " ~ save_hint ~ " · „Als neue Fassung speichern“ legt immer eine neue an · die Überschriftszeile bestimmt Titel und Ebene in der Gliederung · Assistenten schreiben nur Vorschläge" %}
+    {%- set foot_hint = t("editor.page.foot_hint_html", save_hint=save_hint) %}
     <span class="muted tiny status-hints" title="{{ ws_hint }} · {{ foot_hint }}"><span class="ws-hint" data-ws-hint hidden>{{ ws_hint }} · </span><span>{{ foot_hint }}</span></span>
     {#- Round 17c: check display of the quotations. Without JavaScript a link to the page /werke/{id}/pruefung (list of
         the shown revision); the widget „scripture-check“ (web/src/scripture_check.ts) shows the list here and
@@ -202,9 +202,9 @@
     {#- Round 31c: context menu without JavaScript – the actions „In Glossar aufnehmen“, „In Register aufnehmen“ and „Im
         Glossar nachschlagen“ as forms on /werke/{id}/markierung (section and revision in the link). With JavaScript
         the link opens the context menu at the selection (context_menu.ts, data-ctx-open). #}
-    <a class="btn" data-ctx-open href="/werke/{{ work.id }}/markierung?key={{ node.key }}&amp;rev={{ rev.number }}" title="Registereintrag oder Glossarbegriff zur Markierung: In Glossar aufnehmen, In Register aufnehmen, Im Glossar nachschlagen">Markierung …</a>
+    <a class="btn" data-ctx-open href="/werke/{{ work.id }}/markierung?key={{ node.key }}&amp;rev={{ rev.number }}" title="{{ t('editor.page.marking_title') }}">{{ t('editor.page.marking') }}</a>
     <span class="scripture-check" data-widget="scripture-check" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}">
-      <a class="btn" data-check-link href="/werke/{{ work.id }}/pruefung?key={{ node.key }}&amp;rev={{ rev.number }}" title="Zitate dieser Fassung gegen die Bibel des Werks prüfen (stimmt / weicht ab)">Zitate prüfen</a>
+      <a class="btn" data-check-link href="/werke/{{ work.id }}/pruefung?key={{ node.key }}&amp;rev={{ rev.number }}" title="{{ t('editor.page.check_quotes_title_html') }}">{{ t('editor.page.check_quotes') }}</a>
     </span>
     {#- Round 11/18c: insert an image from the images of the work. Without JavaScript a form to
         POST /werke/bilder/einfuegen: creates, as the human, a new revision on revision rev.number
@@ -216,30 +216,30 @@
         field is disabled without JavaScript and is never sent). The button „Bild“ of the ribbon only opens
         this details (data-image-insert). #}
     <details class="image-insert" id="bild-einfuegen" data-image-insert data-widget="sheet-tools">
-      <summary class="btn" title="Bild aus den Bildern des Werks einfügen (neue Fassung)">Bild einfügen …</summary>
+      <summary class="btn" title="{{ t('editor.page.insert_image_title') }}">{{ t('editor.page.insert_image') }}</summary>
       {%- if image_choices %}
       <form class="image-insert-form" method="post" action="/werke/bilder/einfuegen">
         <input type="hidden" name="work" value="{{ work.id }}">
         <input type="hidden" name="key" value="{{ node.key }}">
         <input type="hidden" name="rev" value="{{ rev.number }}">
         <input type="hidden" name="body" value="" disabled data-image-body>
-        <label class="small">Bild <select name="name" required>
+        <label class="small">{{ t('editor.page.image') }} <select name="name" required>
           {%- for a in image_choices %}<option value="{{ a.name }}">{{ a.name }}{% if a.caption %} – {{ a.caption }}{% endif %}</option>{% endfor %}
         </select></label>
-        <label class="small">Stelle <select name="place" data-image-place>
+        <label class="small">{{ t('editor.page.place') }} <select name="place" data-image-place>
           {%- for p in image_places %}<option value="{{ p.value }}">{{ p.label }}</option>{% endfor %}
         </select></label>
-        <label class="small">Bildunterschrift <input type="text" name="caption" maxlength="500" placeholder="leer = Unterschrift des Bilds"></label>
-        <button class="btn primary" type="submit">Einfügen als neue Fassung</button>
-        <p class="muted tiny" data-image-note>Als eigener Block an der gewählten Stelle, auf Fassung {{ rev.number }}; vorher speichern, was im Textfeld geändert ist.</p>
+        <label class="small">{{ t('editor.page.caption') }} <input type="text" name="caption" maxlength="500" placeholder="{{ t('editor.page.caption_placeholder') }}"></label>
+        <button class="btn primary" type="submit">{{ t('editor.page.insert_new') }}</button>
+        <p class="muted tiny" data-image-note>{{ t('editor.page.insert_note', number=rev.number) }}</p>
       </form>
       {%- else %}
-      <p class="small">Das Werk hat noch keine Bilder. <a href="/werke/{{ work.id }}/bilder">Bilder hochladen</a></p>
+      <p class="small">{{ t('editor.page.no_images') }} <a href="/werke/{{ work.id }}/bilder">{{ t('editor.page.upload_images') }}</a></p>
       {%- endif %}
     </details>
     {#- Round 22: main button first (submitButton takes the first button of the form for „Gespeichert“/„Speichern“). #}
-    <button class="btn primary" type="submit" form="editor-form" data-saved="Gespeichert" data-dirty="Speichern" title="{{ save_hint }}">Speichern</button>
-    <button class="btn" type="submit" form="editor-form" name="as_new" value="1" title="Immer eine neue Fassung auf Fassung {{ rev.number }} anlegen (statt fortzuschreiben)">Als neue Fassung speichern</button>
+    <button class="btn primary" type="submit" form="editor-form" data-saved="{{ t('editor.page.saved') }}" data-dirty="{{ t('common.save') }}" title="{{ save_hint }}">{{ t('common.save') }}</button>
+    <button class="btn" type="submit" form="editor-form" name="as_new" value="1" title="{{ t('editor.page.save_new_title', number=rev.number) }}">{{ t('editor.page.save_new') }}</button>
   </div>
 </div>
 {%- endif %}

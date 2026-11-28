@@ -23,50 +23,50 @@
 {%- endmacro %}
 <details class="acc" name="right" data-section="revisions"{% if settings.accordion == "revisions" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Fassungen</span>
-    <span class="badge rev-count" title="{% if rev.total == 1 %}1 Fassung{% else %}{{ rev.total }} Fassungen{% endif %} dieses Abschnitts">{{ rev.total }}</span>
+    <span class="acc-title">{{ t('editor.revisions.heading') }}</span>
+    <span class="badge rev-count" title="{% if rev.total == 1 %}{{ t('editor.revisions.total_one') }}{% else %}{{ t('editor.revisions.total_other', total=rev.total) }}{% endif %} {{ t('editor.revisions.total_suffix') }}">{{ rev.total }}</span>
     {%- if rev.open_proposals %}
-    <span class="badge warning proposal-count" title="{% if rev.open_proposals == 1 %}1 offener Vorschlag{% else %}{{ rev.open_proposals }} offene Vorschläge{% endif %}">{% if rev.open_proposals == 1 %}1 Vorschlag{% else %}{{ rev.open_proposals }} Vorschläge{% endif %}</span>
+    <span class="badge warning proposal-count" title="{% if rev.open_proposals == 1 %}{{ t('editor.revisions.open_one_title') }}{% else %}{{ t('editor.revisions.open_other_title', open_proposals=rev.open_proposals) }}{% endif %}">{% if rev.open_proposals == 1 %}{{ t('editor.revisions.open_one') }}{% else %}{{ t('editor.revisions.open_other', open_proposals=rev.open_proposals) }}{% endif %}</span>
     {%- endif %}
     {%- if rev.fold.hidden %}
-    <span class="badge rev-fold-count" title="{{ rev.fold.hidden }} ältere Fassung{% if rev.fold.hidden != 1 %}en{% endif %} ausgeblendet (bis Fassung {{ rev.fold.cutoff }})">{{ rev.fold.hidden }} ausgeblendet</span>
+    <span class="badge rev-fold-count" title="{% if rev.fold.hidden != 1 %}{{ t('editor.revisions.fold_title_other', count=rev.fold.hidden, cutoff=rev.fold.cutoff) }}{% else %}{{ t('editor.revisions.fold_title_one', count=rev.fold.hidden, cutoff=rev.fold.cutoff) }}{% endif %}">{{ t('editor.revisions.hidden', hidden=rev.fold.hidden) }}</span>
     {%- endif %}
-    <span class="muted small acc-sub">gezeigt: Fassung {{ rev.number }}</span>
+    <span class="muted small acc-sub">{{ t('editor.revisions.shown', number=rev.number) }}</span>
   </summary>
   <div class="acc-body" data-zoom-zone="revisions">
     <div class="rev-actions">
-      <div class="small"><strong>Fassung {{ rev.number }}</strong> <span class="muted">· {{ rev.status }}</span>
-        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="Verlauf der Fortschreibungen, mit „Bis hier zurück“">Stand {{ rev.amend_seq }} · Verlauf</a>{% endif %}</div>
+      <div class="small"><strong>{{ t('editor.revisions.rev', number=rev.number) }}</strong> <span class="muted">· {{ rev.status }}</span>
+        {%- if rev.amend_seq %} · <a href="{{ rev.history_url }}" title="{{ t('editor.revisions.amends_title') }}">{{ t('editor.revisions.amends', amend_seq=rev.amend_seq) }}</a>{% endif %}</div>
       {%- if not rev.is_current and not rev.proposal %}
       <form method="post" action="/act" data-rpc>
         {{- hidden("revision.set_current") }}
-        <button class="btn success" type="submit">Diese Fassung verwenden</button>
+        <button class="btn success" type="submit">{{ t('editor.revisions.use') }}</button>
       </form>
       {%- endif %}
       <details class="rev-edit">
-        <summary class="btn">Fassung ändern</summary>
+        <summary class="btn">{{ t('editor.revisions.change') }}</summary>
         <form class="rev-edit-form" method="post" action="/act" data-rpc>
           {{- hidden("revision.update") }}
           {#- Round 23a (code review web-3): state the text field is based on; if the revision has been continued
           meanwhile, revision.update refuses („Veraltet: …“). #}
           <input type="hidden" name="based_on_amend" value="{{ rev.amend_seq | default(0) }}">
-          <label class="small">Text von Fassung {{ rev.number }}
+          <label class="small">{{ t('editor.revisions.text_of', number=rev.number) }}
             <textarea name="body" required spellcheck="true" lang="de">{{ rev.body }}</textarea></label>
-          <label class="small">Notiz <input type="text" name="note" value="{{ rev.note }}"></label>
-          <span class="muted small">Ändert diese Fassung selbst (keine neue); wird im Git-Spiegel protokolliert.</span>
-          <button class="btn primary" type="submit">Änderung speichern</button>
+          <label class="small">{{ t('editor.revisions.note') }} <input type="text" name="note" value="{{ rev.note }}"></label>
+          <span class="muted small">{{ t('editor.revisions.change_note') }}</span>
+          <button class="btn primary" type="submit">{{ t('editor.revisions.change_save') }}</button>
         </form>
       </details>
       {%- if rev.fold.offered or rev.fold.mark %}
       <div class="rev-fold-actions small">
         {%- if rev.fold.offered %}
-        <button class="btn" type="submit" form="rev-fold-{{ rev.number }}" title="Ersetzte und verworfene Fassungen unter Fassung {{ rev.number }} hinter den Schalter legen; nichts wird gelöscht, offene Vorschläge und die aktuelle Fassung bleiben sichtbar">Ältere bis hierhin ausblenden</button>
+        <button class="btn" type="submit" form="rev-fold-{{ rev.number }}" title="{{ t('editor.revisions.fold_here_title', number=rev.number) }}">{{ t('editor.revisions.fold_here') }}</button>
         {%- endif %}
         {%- if rev.fold.mark %}
         <form class="rev-unfold" method="post" action="/act" data-rpc>
           {{- hidden("revision.fold_clear") }}
-          <span class="muted">Ausgeblendet bis Fassung {{ rev.fold.cutoff }}{% if rev.fold.cutoff != rev.fold.mark %} (Marke an Fassung {{ rev.fold.mark }}, gilt nur bis unter die aktuelle){% endif %}: {{ rev.fold.hidden }} Fassung{% if rev.fold.hidden != 1 %}en{% endif %}.</span>
-          <button class="btn tiny" type="submit">Wieder alle zeigen</button>
+          <span class="muted">{{ t('editor.revisions.folded', cutoff=rev.fold.cutoff) }}{% if rev.fold.cutoff != rev.fold.mark %} {{ t('editor.revisions.folded_mark', mark=rev.fold.mark) }}{% endif %}{% if rev.fold.hidden != 1 %}{{ t("editor.revisions.fold_count_other", count=rev.fold.hidden) }}{% else %}{{ t("editor.revisions.fold_count_one", count=rev.fold.hidden) }}{% endif %}</span>
+          <button class="btn tiny" type="submit">{{ t('editor.revisions.unfold') }}</button>
         </form>
         {%- endif %}
       </div>
@@ -74,21 +74,21 @@
       <form class="rev-delete" method="post" action="/act" data-rpc>
         {{- hidden("revision.delete") }}
         {%- if rev.is_current %}
-        <button class="btn danger" type="submit" disabled>Löschen</button>
-        <span class="muted small">Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.</span>
+        <button class="btn danger" type="submit" disabled>{{ t('common.delete') }}</button>
+        <span class="muted small">{{ t('editor.revisions.current_undeletable') }}</span>
         {%- else %}
-        <label class="small"><input type="checkbox" name="confirm" value="1" required> Fassung {{ rev.number }} wirklich löschen</label>
-        <button class="btn danger" type="submit">Löschen</button>
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('editor.revisions.delete_confirm', number=rev.number) }}</label>
+        <button class="btn danger" type="submit">{{ t('common.delete') }}</button>
         {%- endif %}
       </form>
     </div>
     {%- if rev.alternatives %}
     <div class="rev-alternatives-forms small">
-      <div><strong>Weitere Fassungen</strong> <span class="muted">(ersetzt oder verworfen)</span></div>
+      <div><strong>{{ t('editor.revisions.alternatives') }}</strong> <span class="muted">{{ t('editor.revisions.alternatives_note') }}</span></div>
       {%- macro alt_rows(list) %}
         {%- for a in list %}
         <li class="rev-alt{% if a.shown %} shown{% endif %}">
-          {%- if a.shown %}Fassung {{ a.number }} <span class="muted">(gezeigt)</span>{% else %}<a data-nav href="{{ a.url }}">Fassung {{ a.number }}</a>{% endif %}
+          {%- if a.shown %}{{ t('editor.revisions.alt_rev', number=a.number) }} <span class="muted">{{ t('editor.revisions.alt_shown') }}</span>{% else %}<a data-nav href="{{ a.url }}">{{ t('editor.revisions.alt_rev', number=a.number) }}</a>{% endif %}
           <span class="muted">· {{ a.status }} · {{ a.author }}</span>
           <form class="rev-alt-form" id="rev-alt-{{ a.number }}" method="post" action="/act" data-rpc>
             <input type="hidden" name="method" value="revision.set_current">
@@ -98,10 +98,10 @@
             <input type="hidden" name="rev" value="{{ a.number }}">
             <input type="hidden" name="view" value="{{ view }}">
             {%- if library_query %}<input type="hidden" name="lq" value="{{ library_query }}">{% endif %}
-            <button class="btn tiny" type="submit" title="Fassung {{ a.number }} zur aktuellen machen">aktuell machen</button>
+            <button class="btn tiny" type="submit" title="{{ t('editor.revisions.make_current_title', number=a.number) }}">{{ t('editor.revisions.make_current') }}</button>
           </form>
           {%- if a.fold %}
-          <button class="btn tiny" type="submit" form="rev-fold-{{ a.number }}" title="Ältere ersetzte und verworfene Fassungen unter Fassung {{ a.number }} ausblenden">bis hierhin ausblenden</button>
+          <button class="btn tiny" type="submit" form="rev-fold-{{ a.number }}" title="{{ t('editor.revisions.alt_fold_title', number=a.number) }}">{{ t('editor.revisions.alt_fold') }}</button>
           {%- endif %}
         </li>
         {%- endfor %}
@@ -112,7 +112,7 @@
       {%- set hidden_alts = rev.alternatives | selectattr("hidden") | list %}
       {%- if hidden_alts %}
       <details class="rev-fold" data-rev-fold-list{% if rev.fold.open %} open{% endif %}>
-        <summary><span class="rev-fold-show">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} zeigen ▸</span><span class="rev-fold-hide">{{ hidden_alts | length }} ältere Fassung{% if hidden_alts | length != 1 %}en{% endif %} verbergen ▾</span></summary>
+        <summary><span class="rev-fold-show">{% if hidden_alts | length != 1 %}{{ t("editor.page.fold_show_other", count=hidden_alts | length) }}{% else %}{{ t("editor.page.fold_show_one", count=hidden_alts | length) }}{% endif %}</span><span class="rev-fold-hide">{% if hidden_alts | length != 1 %}{{ t("editor.page.fold_hide_other", count=hidden_alts | length) }}{% else %}{{ t("editor.page.fold_hide_one", count=hidden_alts | length) }}{% endif %}</span></summary>
         <ul class="rev-alt-list">
           {{- alt_rows(hidden_alts) }}
         </ul>
@@ -121,21 +121,21 @@
     </div>
     {%- endif %}
     {%- for r in revtree.section if r.shown and r.variant and r.status_key == "proposed" %}
-    <form class="rev-variant small" method="post" action="/loesungen/act" aria-label="Übrige Varianten außer {{ r.variant.label }} verwerfen">
+    <form class="rev-variant small" method="post" action="/loesungen/act" aria-label="{{ t('editor.revisions.discard_others_label', label=r.variant.label) }}">
       <input type="hidden" name="method" value="solution.reject_siblings">
       <input type="hidden" name="work" value="{{ work.id }}">
       <input type="hidden" name="key" value="{{ node.key }}">
       <input type="hidden" name="rev" value="{{ r.number }}">
-      <span><span class="badge variant">Variante {{ r.variant.label }}</span> {{ r.variant.summary }} ·
-        <a href="/varianten?work={{ work.id }}&amp;key={{ node.key }}&amp;group={{ r.variant.group }}">Varianten vergleichen</a></span>
-      <label><input type="checkbox" name="confirm" value="1" required> übrige Varianten verwerfen</label>
-      <button class="btn small" type="submit">Übrige verwerfen</button>
+      <span><span class="badge variant">{{ t('editor.revisions.variant', label=r.variant.label) }}</span> {{ r.variant.summary }} ·
+        <a href="/varianten?work={{ work.id }}&amp;key={{ node.key }}&amp;group={{ r.variant.group }}">{{ t('editor.revisions.compare') }}</a></span>
+      <label><input type="checkbox" name="confirm" value="1" required> {{ t('editor.revisions.discard_others_hint') }}</label>
+      <button class="btn small" type="submit">{{ t('editor.revisions.discard_others') }}</button>
     </form>
     {%- endfor %}
     {%- if rev.fold.numbers %}
     <div class="rev-fold-forms" hidden>
       {%- for n in rev.fold.numbers %}
-      <form id="rev-fold-{{ n }}" method="post" action="/act" data-rpc aria-label="Ältere Fassungen unter Fassung {{ n }} ausblenden">
+      <form id="rev-fold-{{ n }}" method="post" action="/act" data-rpc aria-label="{{ t('editor.revisions.fold_label', number=n) }}">
         <input type="hidden" name="method" value="revision.fold_set">
         <input type="hidden" name="work" value="{{ work.id }}">
         <input type="hidden" name="node" value="{{ node.id }}">

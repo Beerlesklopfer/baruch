@@ -3,20 +3,19 @@
     hidden field and is sent once more with split=1 or merge=1. Context: work, node,
     based_on, based_on_amend, mode (auto | new, Round 23a), body, check, previous, lq, view, back_url. -#}
 {% extends "base.html" %}
-{% block title %}Speichern bestätigen – Baruch{% endblock %}
-{% block page_title %}Speichern bestätigen · {{ work.title }}{% endblock %}
+{% block title %}{{ t('outline.confirm.head_title') }}{% endblock %}
+{% block page_title %}{{ t('outline.confirm.page_title', title=work.title) }}{% endblock %}
 {% block body %}
 <main class="outline-page">
   <h1 class="pane-title">{{ node.title }}</h1>
   {%- if check.split %}
-  <p>Der Text enthält neue Überschriften. Beim Speichern wird „{{ node.title }}“ geteilt; neu entstehen:</p>
+  <p>{{ t('outline.confirm.split', title=node.title) }}</p>
   <ul class="outline-new">
     {%- for title in check.split %}<li>{{ title }}</li>{% endfor %}
   </ul>
   {%- endif %}
   {%- if check.merge %}
-  <p>Der Text hat keine Überschrift mehr. Beim Speichern wird er an „{{ previous }}“ angehängt; „{{ node.title }}“
-    entfällt (Beiträge wandern mit, der alte Text steht im Git-Spiegel).</p>
+  <p>{{ t('outline.confirm.merge', previous=previous, title=node.title) }}</p>
   {%- endif %}
   <pre class="outline-text">{{ body }}</pre>
   <form method="post" action="/gliederung/act" class="outline-confirm">
@@ -31,10 +30,10 @@
     {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
     {%- if view %}<input type="hidden" name="view" value="{{ view }}">{% endif %}
     <input type="hidden" name="body" value="{{ body }}">
-    {%- if check.split %}<button class="btn primary" type="submit" name="split" value="1">Teilen und speichern</button>{% endif %}
-    {%- if check.merge %}<button class="btn primary" type="submit" name="merge" value="1">Zusammenführen und speichern</button>{% endif %}
-    <a class="btn" href="{{ back_url }}">Zurück</a>
+    {%- if check.split %}<button class="btn primary" type="submit" name="split" value="1">{{ t('outline.confirm.split_save') }}</button>{% endif %}
+    {%- if check.merge %}<button class="btn primary" type="submit" name="merge" value="1">{{ t('outline.confirm.merge_save') }}</button>{% endif %}
+    <a class="btn" href="{{ back_url }}">{{ t('outline.confirm.back') }}</a>
   </form>
-  <p class="muted tiny">„Zurück“ verwirft den Text; er ist dann nicht gespeichert.</p>
+  <p class="muted tiny">{{ t('outline.confirm.back_note') }}</p>
 </main>
 {% endblock %}

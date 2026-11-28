@@ -7,13 +7,13 @@
     rev {number, status, amend_seq, body, own_current}, steps [{seq, kind, undo_of, author, created, diff, can_undo}],
     back, notice, error. -#}
 {% extends "base.html" %}
-{% block title %}Verlauf · Fassung {{ rev.number }} · {{ node.label }} – Baruch{% endblock %}
-{% block page_title %}Verlauf · {{ node.label }} · Fassung {{ rev.number }}{% endblock %}
+{% block title %}{{ t('editor.history.head_title', number=rev.number, label=node.label) }}{% endblock %}
+{% block page_title %}{{ t('editor.history.page_title', label=node.label, number=rev.number) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back }}">Zurück zum Abschnitt</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('editor.history.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('editor.history.back') }}">
+    <a class="btn" href="{{ back }}">{{ t('editor.history.back_to_section') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -24,17 +24,14 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Verlauf von Fassung {{ rev.number }}</h1>
-  <p class="small">{{ node.label }} · {{ rev.status }} · {% if rev.amend_seq %}Stand {{ rev.amend_seq }}{% else %}nie fortgeschrieben{% endif %}</p>
-  <p class="muted small">Speichert der Mensch im Editor auf seiner eigenen aktuellen Fassung, wird sie fortgeschrieben
-    (kein neuer Fassungseintrag); jeder Schritt steht hier mit dem Text vorher und nachher und ist ein Commit im
-    Git-Spiegel. „Bis hier zurück“ stellt den Stand vor einem Schritt wieder her – als neuer Schritt, der Verlauf bleibt
-    vollständig.{% if not rev.own_current %} Zurücknehmen geht nur auf der aktuellen Fassung des Menschen.{% endif %}</p>
+  <h1 class="pane-title">{{ t('editor.history.heading', number=rev.number) }}</h1>
+  <p class="small">{{ node.label }} · {{ rev.status }} · {% if rev.amend_seq %}{{ t('editor.history.amend', amend_seq=rev.amend_seq) }}{% else %}{{ t('editor.history.never') }}{% endif %}</p>
+  <p class="muted small">{{ t('editor.history.intro') }}{% if not rev.own_current %} {{ t('editor.history.own_only') }}{% endif %}</p>
   {%- if steps %}
   <ol class="amend-steps" reversed>
     {%- for s in steps %}
     <li class="amend-step amend-{{ 'undo' if s.undo_of else 'amend' }}" data-seq="{{ s.seq }}">
-      <div class="amend-head small"><strong>Stand {{ s.seq }}</strong> · {{ s.kind }}{% if s.undo_of %} (zurück auf den Stand vor Schritt {{ s.undo_of }}){% endif %} · {{ s.author }} · <span class="muted">{{ s.created }}</span></div>
+      <div class="amend-head small"><strong>{{ t('editor.history.step', seq=s.seq) }}</strong> · {{ s.kind }}{% if s.undo_of %} {{ t('editor.history.undo_of', undo_of=s.undo_of) }}{% endif %} · {{ s.author }} · <span class="muted">{{ s.created }}</span></div>
       {{ s.diff | safe }}
       {%- if s.can_undo %}
       <form class="amend-undo" method="post" action="/werke/fassungen/act">
@@ -43,18 +40,18 @@
         <input type="hidden" name="key" value="{{ node.key }}">
         <input type="hidden" name="rev" value="{{ rev.number }}">
         <input type="hidden" name="seq" value="{{ s.seq }}">
-        <button class="btn" type="submit" title="Text auf den Stand vor Schritt {{ s.seq }} setzen (als neuer Schritt)">Bis hier zurück</button>
-        <span class="muted tiny">stellt den Stand vor Schritt {{ s.seq }} her</span>
+        <button class="btn" type="submit" title="{{ t('editor.history.back_here_title', seq=s.seq) }}">{{ t('editor.history.back_here') }}</button>
+        <span class="muted tiny">{{ t('editor.history.back_here_note', seq=s.seq) }}</span>
       </form>
       {%- endif %}
     </li>
     {%- endfor %}
   </ol>
   {%- else %}
-  <p class="muted">Diese Fassung wurde noch nie fortgeschrieben.</p>
+  <p class="muted">{{ t('editor.history.never_long') }}</p>
   {%- endif %}
   <details class="amend-current">
-    <summary class="small">Jetziger Text von Fassung {{ rev.number }}</summary>
+    <summary class="small">{{ t('editor.history.current_text', number=rev.number) }}</summary>
     <pre class="amend-body">{{ rev.body }}</pre>
   </details>
 </main>
