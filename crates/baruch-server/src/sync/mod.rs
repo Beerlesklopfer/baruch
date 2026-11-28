@@ -124,25 +124,18 @@ pub(crate) async fn credentials(
     store: &Store,
     secrets: &Arc<dyn crate::connections::SecretStore>,
 ) -> Result<(String, Option<String>), RagError> {
-    let row = store
-        .connection_get(baruch_store::ConnectionKind::Multigpt)
-        .await
-        .map_err(|e| RagError::Failed(format!("Einstellungen der Verbindung MultiGPT: {e}")))?;
+    let row = store.connection_get(baruch_store::ConnectionKind::Multigpt).await.map_err(|e| {
+        RagError::Failed(crate::i18n::tc("sync_msg.link.settings", &[("detail", e.to_string().into())]))
+    })?;
     let url = row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned();
     if url.is_empty() {
-        return Err(RagError::NotConfigured(
-            "Keine Adresse für MultiGPT eingetragen (Einstellungen → Verbindungen).".into(),
-        ));
+        return Err(RagError::NotConfigured(crate::i18n::tc("sync_msg.link.no_address", &[])));
     }
     let secret = crate::connections::secrets::get(secrets, "multigpt")
         .await
-        .map_err(|e| RagError::Failed(format!("Schlüsselbund: {e}")))?;
+        .map_err(|e| RagError::Failed(crate::i18n::tc("sync_msg.link.keyring", &[("detail", e.to_string().into())])))?;
     if secret.is_some() && !crate::connections::secret_bound(&row) {
-        return Err(RagError::NotConfigured(
-            "Das Token baruch/multigpt ist für eine andere Adresse hinterlegt; Baruch schickt es nicht an die \
-             jetzige. Für die neue Adresse das Token neu eintragen (Einstellungen → Verbindungen)."
-                .into(),
-        ));
+        return Err(RagError::NotConfigured(crate::i18n::tc("sync_msg.link.token_other", &[])));
     }
     Ok((url, secret))
 }
@@ -159,7 +152,23 @@ pub(crate) async fn configured(state: &AppState) -> bool {
 /// Instant for the display: `2026-11-07T17:53:42.451Z` (UTC) → `07.11.2026 18:53` in local time (other forms
 /// unchanged).
 pub fn display_time(stamp: &str) -> String {
-    crate::localtime::german_minutes(stamp)
+    crate::localtime::ui_minutes(crate::i18n::current(), stamp)
+}
+
+/// "Speicher: …" note of a run, the store message in the language of the run.
+pub(crate) fn store_note(e: &baruch_store::StoreError) -> String {
+    let detail = crate::store_text::store_error_text(crate::i18n::current(), e);
+    crate::i18n::tc("sync_msg.run.store", &[("detail", detail.into())])
+}
+
+/// "MultiGPT does not offer the tool …" (schema error of a run).
+pub(crate) fn missing_tool(tool: &str) -> RagError {
+    RagError::Schema(crate::i18n::tc("sync_msg.tool.missing", &[("tool", tool.into())]))
+}
+
+/// Schema error `key` naming the tool.
+pub(crate) fn schema_error(key: &str, tool: &str) -> RagError {
+    RagError::Schema(crate::i18n::tc(key, &[("tool", tool.into())]))
 }
 
 /// Collection of a work: „Baruch: <Werktitel>“ in one line, at most 200 characters.
@@ -258,12 +267,9 @@ impl Report {
 /// Sentence about an error of the remote side.
 pub(crate) fn why(e: &RagError) -> String {
     match e {
-        RagError::Denied(m) => format!(
-            "MultiGPT verweigert den Zugriff ({m}). Zum Hochladen braucht der Schlüssel das Recht docs.write, zum \
-             Holen docs.read."
-        ),
+        RagError::Denied(m) => crate::i18n::tc("sync_msg.link.denied", &[("detail", m.into())]),
         RagError::Unreachable(m) | RagError::Timeout(m) => {
-            format!("MultiGPT ist nicht erreichbar ({m}); die Arbeit geht lokal weiter.")
+            crate::i18n::tc("sync_msg.link.unreachable", &[("detail", m.into())])
         }
         RagError::NotConfigured(m) => m.clone(),
         other => other.message().to_owned(),
@@ -289,9 +295,9 @@ fn summary(report: &Report) -> String {
     let c = &report.counts;
     let total = c.uploaded + c.replaced + c.removed + c.downloaded + c.unchanged + c.failed;
     if report.ok && total == 0 && report.notes.is_empty() {
-        return "Nichts abzugleichen: kein Werk mit „nach MultiGPT hochladen“, keine Sammlung gewählt.".into();
+        return crate::i18n::tc("sync_msg.run.nothing", &[]);
     }
-    if report.ok { "Abgleich fertig.".into() } else { "Abgleich mit Hinweisen beendet.".into() }
+    if report.ok { crate::i18n::tc("sync_msg.run.done", &[]) } else { crate::i18n::tc("sync_msg.run.done_notes", &[]) }
 }
 
 /// Clears the mark "running" also if the run aborts.
@@ -362,7 +368,7 @@ pub async fn local_document(
         .store
         .sync_document(collection.trim(), document.trim())
         .await
-        .map_err(|e| RagError::Failed(format!("Speicher: {e}")))?;
+        .map_err(|e| RagError::Failed(store_note(&e)))?;
     Ok(found.map(|d| LocalDocument {
         title: if d.title.is_empty() { d.document_id.clone() } else { d.title },
         url: Some(d.url).filter(|u| !u.is_empty()),
@@ -388,7 +394,7 @@ pub async fn status(state: &AppState, work: Option<WorkId>) -> Result<Value, Rpc
     if let Some(w) = work
         && works.is_empty()
     {
-        return Err(RpcError::new(INVALID_PARAMS, format!("Unbekanntes Werk {w}.")));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.unknown_work", &[("work", w.into())])));
     }
     let mut collections = Vec::new();
     for name in state.store.sync_collections().await? {
@@ -412,11 +418,7 @@ pub async fn status(state: &AppState, work: Option<WorkId>) -> Result<Value, Rpc
 /// upload); records the collection „Baruch: <Werktitel>“. No network.
 pub async fn set_upload(state: &AppState, work: WorkId, on: bool, confirm: bool) -> Result<Value, RpcError> {
     if on && !confirm {
-        return Err(RpcError::new(
-            INVALID_PARAMS,
-            "confirm: true fehlt. Hochladen bitte bestätigen: Die aktuellen Fassungen dieses Werks gehen beim \
-             nächsten Abgleich als Dokumente nach MultiGPT; nichts geändert.",
-        ));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.confirm", &[])));
     }
     let meta = state.store.sync_work(work).await?;
     let saved = state.store.sync_set_upload(work, on, &collection_for(&meta.title)).await?;
@@ -426,7 +428,9 @@ pub async fn set_upload(state: &AppState, work: WorkId, on: bool, confirm: bool)
 /// `sync.set_collections {collections}`. No network.
 pub async fn set_collections(state: &AppState, collections: &[String]) -> Result<Value, RpcError> {
     let saved = state.store.sync_set_collections(collections).await.map_err(|e| match e {
-        baruch_store::StoreError::Refused(m) => RpcError::new(INVALID_PARAMS, m),
+        baruch_store::StoreError::Refused(m) => {
+            RpcError::new(INVALID_PARAMS, crate::store_text::translate(crate::i18n::current(), m))
+        }
         other => RpcError::from(other),
     })?;
     Ok(json!({ "collections": saved }))
@@ -440,14 +444,13 @@ pub async fn offered_collections(state: &AppState) -> Result<Value, RpcError> {
     let mut session = Session::open(state, limits.transport()).await.map_err(refused)?;
     if session.tools().find(multigpt::COLLECTIONS_TOOL).is_none() {
         session.close().await;
-        return Err(RpcError::new(REFUSED, "MultiGPT bietet das Werkzeug list_collections nicht an (tools/list)."));
+        return Err(RpcError::new(REFUSED, crate::i18n::tc("sync_msg.rpc.no_collections_tool", &[])));
     }
     let outcome = session.call(multigpt::COLLECTIONS_TOOL, json!({}), None).await;
     session.release().await;
     let result = outcome.map_err(refused)?;
-    let payload = multigpt::tool_payload(&result).ok_or_else(|| {
-        RpcError::new(REFUSED, "list_collections: Antwort nicht lesbar (weder structuredContent noch JSON in content).")
-    })?;
+    let payload = multigpt::tool_payload(&result)
+        .ok_or_else(|| RpcError::new(REFUSED, crate::i18n::tc("sync_msg.rpc.collections_unreadable", &[])))?;
     let found = multigpt::parse_collections(&payload);
     with_shared(&state.data, |s| s.offered = found.clone());
     Ok(json!({ "collections": decorate(state, found).await? }))
@@ -483,24 +486,25 @@ fn work_of(params: &Value) -> Result<Option<WorkId>, RpcError> {
         Some(Value::String(s)) => s.trim().parse::<WorkId>().ok().filter(|w| *w > 0).map(Some),
         _ => None,
     }
-    .ok_or_else(|| RpcError::new(INVALID_PARAMS, "work: Werk-id (Zahl) erwartet."))
+    .ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.work_id", &[])))
 }
 
 /// RPC `sync.*` (from `rpc::call`, before the work is chosen).
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(RpcError::new(INVALID_PARAMS, "Parameter als Objekt erwartet"));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.params_object", &[])));
     }
     match method {
         "sync.status" => status(state, work_of(&params)?).await,
         "sync.run" => start(state).await,
         "sync.set_upload" => {
-            let work = work_of(&params)?.ok_or_else(|| RpcError::new(INVALID_PARAMS, "work: Werk-id fehlt."))?;
+            let work = work_of(&params)?
+                .ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.work_missing", &[])))?;
             let on = params
                 .get("on")
                 .and_then(Value::as_bool)
-                .ok_or_else(|| RpcError::new(INVALID_PARAMS, "on: true oder false erwartet."))?;
+                .ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.on", &[])))?;
             let confirm = params.get("confirm") == Some(&Value::Bool(true));
             set_upload(state, work, on, confirm).await
         }
@@ -509,7 +513,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 .get("collections")
                 .and_then(Value::as_array)
                 .and_then(|items| items.iter().map(|v| v.as_str().map(str::to_owned)).collect::<Option<Vec<_>>>())
-                .ok_or_else(|| RpcError::new(INVALID_PARAMS, "collections: Liste von Texten erwartet."))?;
+                .ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("sync_msg.rpc.collections_list", &[])))?;
             set_collections(state, &list).await
         }
         "sync.collections" => offered_collections(state).await,
@@ -546,7 +550,7 @@ mod display_tests {
 
     #[test]
     fn stamps_are_shown_as_day_month_year_and_minutes_in_local_time() {
-        let shown = display_time("2026-11-07T17:53:42.451Z");
+        let shown = crate::i18n::sync_scope(crate::i18n::Lang::De, || display_time("2026-11-07T17:53:42.451Z"));
         assert_eq!(
             shown,
             crate::localtime::german_minutes("2026-11-07T17:53:42.451Z"),

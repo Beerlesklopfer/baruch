@@ -192,12 +192,13 @@ pub fn check_name(name: &str, display: &str) -> Result<String, &'static str> {
     Ok(slug.to_owned())
 }
 
-/// German sentence for a message code from `konten_ui::MESSAGES`; an unknown code stays as it is.
+/// Sentence for a message code from `konten_ui::MESSAGES` in the language of the request; an unknown code stays as
+/// it is.
 pub fn message(code: &str) -> String {
     crate::konten_ui::MESSAGES
         .iter()
         .find(|(known, _)| *known == code)
-        .map_or_else(|| code.to_owned(), |(_, text)| (*text).to_owned())
+        .map_or_else(|| code.to_owned(), |(_, key)| crate::i18n::tc(key, &[]))
 }
 
 #[cfg(test)]
@@ -275,7 +276,12 @@ mod tests {
     #[test]
     fn messages_come_from_the_table_and_unknown_codes_stay_codes() {
         let known = crate::konten_ui::MESSAGES[0];
-        assert_eq!(message(known.0), known.1, "der Satz aus der Tabelle der Oberfläche");
+        let german = crate::i18n::t(crate::i18n::Lang::De, known.1, &[]);
+        assert_eq!(
+            crate::i18n::sync_scope(crate::i18n::Lang::De, || message(known.0)),
+            german,
+            "der Satz aus der Tabelle der Oberfläche"
+        );
         assert_eq!(message("gibt_es_nicht"), "gibt_es_nicht", "ein unbekannter Code wird nicht zu fremdem Text");
     }
 

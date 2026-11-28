@@ -103,7 +103,13 @@ fn choice<T>(
     }
     let found = from_id(raw);
     if found.is_none() {
-        errors.push(FieldError { field, message: format!("{}: unbekannte Wahl „{raw}“", field_label(field)) });
+        errors.push(FieldError {
+            field,
+            message: crate::i18n::tc(
+                "settings_msg.typeset.unknown_choice",
+                &[("field", field_label(field).into()), ("raw", raw.into())],
+            ),
+        });
     }
     found
 }
@@ -166,8 +172,9 @@ pub fn settings_from_form(fields: &[(String, String)]) -> Result<TypesetSettings
             s.margins = Some(Margins { inside_mm, outside_mm, top_mm, bottom_mm, binding_mm: binding.unwrap_or(0.0) });
         }
         [None, None, None, None] if binding.is_none() => {}
-        _ => errors
-            .push(FieldError { field: "margins", message: "Ränder: alle vier Ränder angeben oder alle leer".into() }),
+        _ => {
+            errors.push(FieldError { field: "margins", message: crate::i18n::tc("settings_msg.typeset.margins", &[]) })
+        }
     }
     s.font = Some(get("font").to_owned()).filter(|f| !f.is_empty());
     s.font_size_pt = number(get("font_size_pt"));
@@ -417,7 +424,9 @@ pub fn handles(method: &str) -> bool {
 pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -> Result<Value, RpcError> {
     match method {
         "work.typeset_preview" => {
-            let value = params.get("settings").ok_or_else(|| RpcError::new(INVALID_PARAMS, "settings fehlt"))?;
+            let value = params.get("settings").ok_or_else(|| {
+                RpcError::new(INVALID_PARAMS, crate::i18n::tc("settings_msg.typeset.settings_missing", &[]))
+            })?;
             let settings: TypesetSettings = serde_json::from_value(value.clone())
                 .map_err(|e| RpcError::new(INVALID_PARAMS, format!("settings: {e}")))?;
             let p = preview(state, work, &settings).await?;
@@ -460,10 +469,10 @@ fn index_choices(form: &[(String, String)], registers: &[baruch_typst::index::Re
         .collect();
     let mut out = Vec::new();
     for slug in &chosen {
-        let title = registers
-            .iter()
-            .find(|r| r.slug == *slug)
-            .map_or_else(|| format!("Register „{slug}“ (gibt es nicht mehr)"), |r| r.title.clone());
+        let title = registers.iter().find(|r| r.slug == *slug).map_or_else(
+            || crate::i18n::tc("settings_msg.typeset.register_gone", &[("slug", (*slug).into())]),
+            |r| r.title.clone(),
+        );
         out.push(context! { slug => *slug, title => title, checked => true });
     }
     for r in registers.iter().filter(|r| !chosen.contains(&r.slug.as_str())) {
@@ -582,12 +591,16 @@ pub async fn block(
 // `Response` as the error is intended here (finished answer for `?` in the handler); a `Box` would change all callers.
 #[allow(clippy::result_large_err)]
 async fn form_work(state: &AppState, fields: &[(String, String)]) -> Result<WorkId, Response> {
-    let gone = || (StatusCode::NOT_FOUND, "Unbekanntes Werk.").into_response();
+    let gone = || (StatusCode::NOT_FOUND, crate::i18n::tc("settings_msg.typeset.unknown_work", &[])).into_response();
     match field(fields, "work").parse::<WorkId>().ok().filter(|&w| w > 0) {
         Some(w) => match state.store.work_slug(w).await {
             Ok(_) => Ok(w),
             Err(StoreError::UnknownWork(_)) => Err(gone()),
-            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()),
+            Err(e) => Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                crate::i18n::tc("settings_msg.frame.error", &[("detail", e.to_string().into())]),
+            )
+                .into_response()),
         },
         None => state.default_work().await.map_err(|_| gone()),
     }
@@ -635,7 +648,7 @@ pub async fn act(
     match field(&fields, "action") {
         "reset" => {
             if field(&fields, "confirm") != "1" {
-                let message = "Zurücksetzen bitte mit dem Häkchen bestätigen; nichts geändert.".to_owned();
+                let message = crate::i18n::tc("settings_msg.typeset.reset_confirm", &[]);
                 let retry = Retry { form: Vec::new(), errors: vec![("reset".to_owned(), message)], preview: None };
                 return retry_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, work, retry).await;
             }
@@ -666,7 +679,7 @@ pub async fn act(
                 Err(e) => refused(&state, &headers, work, form, e).await,
             }
         }
-        _ => (StatusCode::BAD_REQUEST, "Unbekannte Aktion (save, preview oder reset).").into_response(),
+        _ => (StatusCode::BAD_REQUEST, crate::i18n::tc("settings_msg.typeset.unknown_action", &[])).into_response(),
     }
 }
 
@@ -682,7 +695,7 @@ pub async fn adopt_act(
         Err(response) => return response,
     };
     if field(&fields, "confirm") != "1" {
-        let message = "Übernehmen bitte mit dem Häkchen bestätigen; die Werkvorlage bleibt unverändert.".to_owned();
+        let message = crate::i18n::tc("settings_msg.typeset.apply_confirm", &[]);
         let retry = Retry { form: Vec::new(), errors: vec![("template_rule".to_owned(), message)], preview: None };
         return retry_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, work, retry).await;
     }
@@ -712,8 +725,7 @@ pub async fn preview_svg(
     if crate::guard::cross_site_get(&headers) {
         return crate::typeset::foreign_get();
     }
-    let missing =
-        || (StatusCode::NOT_FOUND, "Vorschau gibt es nicht (mehr); bitte „Vorschau“ erneut drücken.").into_response();
+    let missing = || (StatusCode::NOT_FOUND, crate::i18n::tc("settings_msg.typeset.preview_gone", &[])).into_response();
     let Some(n) = file.strip_suffix(".svg").and_then(|n| n.parse::<usize>().ok()).filter(|&n| n >= 1) else {
         return missing();
     };
@@ -821,15 +833,17 @@ mod tests {
 
     #[test]
     fn partial_margins_and_bad_values_are_reported_all_at_once_like_validate() {
-        let errors = settings_from_form(&form(&[
-            ("margin_inside_mm", "20"),
-            ("margin_top_mm", "18"),
-            ("font_size_pt", "dreißig"),
-            ("lang", "Deutsch"),
-            ("running_head", "kopf"),
-            ("page_format", "custom"),
-            ("page_width_mm", "50"),
-        ]))
+        let errors = crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            settings_from_form(&form(&[
+                ("margin_inside_mm", "20"),
+                ("margin_top_mm", "18"),
+                ("font_size_pt", "dreißig"),
+                ("lang", "Deutsch"),
+                ("running_head", "kopf"),
+                ("page_format", "custom"),
+                ("page_width_mm", "50"),
+            ]))
+        })
         .expect_err("mehrere Fehler");
         let fields: Vec<&str> = errors.iter().map(|e| e.field).collect();
         // Order of FIELDS: page_format before margins before font_size_pt before lang before running_head.

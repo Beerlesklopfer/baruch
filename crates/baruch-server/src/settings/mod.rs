@@ -71,41 +71,51 @@ pub struct SettingsPage {
 static PAGES: [SettingsPage; 8] = [
     SettingsPage {
         slug: "darstellung",
-        title: "Darstellung",
-        storage: "Cookie in diesem Browser",
+        title: "settings_msg.page.display",
+        storage: "settings_msg.storage.display",
         render: render_display,
     },
-    SettingsPage { slug: "werk", title: "Werk", storage: "SQLite, Git-Spiegel des Werks", render: render_work },
+    SettingsPage {
+        slug: "werk",
+        title: "settings_msg.page.work",
+        storage: "settings_msg.storage.work",
+        render: render_work,
+    },
     SettingsPage {
         slug: "assistenten",
-        title: "Assistenten",
-        storage: "SQLite (alle Werke)",
+        title: "settings_msg.page.assistants",
+        storage: "settings_msg.storage.all_works",
         render: render_assistants,
     },
     SettingsPage {
         slug: "verbindungen",
-        title: "Verbindungen",
-        storage: "SQLite, Geheimnisse im Schlüsselbund",
+        title: "settings_msg.page.connections",
+        storage: "settings_msg.storage.connections",
         render: crate::connections::render_connections,
     },
     SettingsPage {
         slug: "quellen",
-        title: "Quellen",
-        storage: "SQLite (alle Werke)",
+        title: "settings_msg.page.sources",
+        storage: "settings_msg.storage.all_works",
         render: crate::connections::render_sources,
     },
     SettingsPage {
         slug: "mcp",
-        title: "MCP-Zugang",
-        storage: "SQLite (nur Hash der Tokens); Clients zur Laufzeit",
+        title: "settings_msg.page.access",
+        storage: "settings_msg.storage.access",
         render: render_access,
     },
-    SettingsPage { slug: "daten", title: "Daten", storage: "Datenordner", render: render_data },
+    SettingsPage {
+        slug: "daten",
+        title: "settings_msg.page.data",
+        storage: "settings_msg.storage.data",
+        render: render_data,
+    },
     // Round 35: accounts (list, create a Lektor, lock, reset password, „Am eigenen Rechner ohne Anmeldung“).
     SettingsPage {
         slug: "konten",
-        title: "Konten",
-        storage: "SQLite dieser Instanz (Passwort nur als Prüfwert; nicht im Austausch, nicht im Spiegel)",
+        title: "settings_msg.page.accounts",
+        storage: "settings_msg.storage.accounts",
         render: crate::konten_ui::pages::render_settings,
     },
 ];
@@ -281,7 +291,9 @@ pub(crate) async fn resolve_work(
     if let Some(work) = asked {
         return match state.store.work_slug(work).await {
             Ok(_) => Ok(Some(work)),
-            Err(StoreError::UnknownWork(_)) => Err(FrameError::NotFound(format!("unbekanntes Werk {work}"))),
+            Err(StoreError::UnknownWork(_)) => {
+                Err(FrameError::NotFound(crate::i18n::tc("settings_msg.frame.unknown_work", &[("work", work.into())])))
+            }
             Err(e) => Err(FrameError::Internal(e.to_string())),
         };
     }
@@ -325,7 +337,9 @@ pub(crate) async fn frame(
     query: BTreeMap<String, String>,
     info: RequestInfo,
 ) -> Result<Framed, FrameError> {
-    let page = page(slug).ok_or_else(|| FrameError::NotFound(format!("unbekannte Einstellungsseite „{slug}“")))?;
+    let page = page(slug).ok_or_else(|| {
+        FrameError::NotFound(crate::i18n::tc("settings_msg.frame.unknown_page", &[("slug", slug.into())]))
+    })?;
     let work = resolve_work(state, asked, info.settings.work).await?;
     let body = REQUEST.scope(info, (page.render)(state, work, &query)).await.map_err(FrameError::Internal)?;
     // Round 35: a Lektor reaches only „Darstellung“ (cookies in the own browser); the other pages are not in
@@ -334,11 +348,13 @@ pub(crate) async fn frame(
     let pages: Vec<Value> = registry()
         .iter()
         .filter(|p| !lektor || p.slug == "darstellung")
-        .map(|p| context! { slug => p.slug, title => p.title, current => p.slug == page.slug })
+        .map(|p| context! { slug => p.slug, title => crate::i18n::tc(p.title, &[]), current => p.slug == page.slug })
         .collect();
     let html = render_template(
         "settings/frame.html",
-        context! { slug => page.slug, storage => page.storage, pages => pages, work => work, body => body },
+        context! {
+            slug => page.slug, storage => crate::i18n::tc(page.storage, &[]), pages => pages, work => work, body => body,
+        },
     )
     .map_err(FrameError::Internal)?;
     Ok(Framed { page, work, html })
@@ -368,23 +384,29 @@ async fn full_page(state: &AppState, headers: &HeaderMap, status: StatusCode, fr
     let work = match framed.work {
         Some(id) => match state.store.work_meta(id).await {
             Ok(meta) => Some(context! { id => id, title => meta.title, author => meta.author }),
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
         },
         None => None,
     };
     let ctx = context! {
-        settings => Value::from(Serde(settings)), work => work, frame => framed.html, title => framed.page.title,
+        settings => Value::from(Serde(settings)), work => work, frame => framed.html,
+        title => crate::i18n::tc(framed.page.title, &[]),
     };
     match render_template("settings.html", ctx) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     }
+}
+
+/// "Fehler: …" of a page that cannot be drawn, in the language of the request.
+fn error_text(detail: impl std::fmt::Display) -> String {
+    crate::i18n::tc("settings_msg.frame.error", &[("detail", detail.to_string().into())])
 }
 
 fn frame_error(e: FrameError) -> Response {
     match e {
         FrameError::NotFound(m) => (StatusCode::NOT_FOUND, m).into_response(),
-        FrameError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {m}")).into_response(),
+        FrameError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, error_text(m)).into_response(),
     }
 }
 
@@ -505,16 +527,21 @@ fn invalid(message: impl Into<String>) -> RpcError {
 }
 
 fn page_param(params: &Json) -> Result<&'static SettingsPage, RpcError> {
-    let slug = params.get("page").and_then(Json::as_str).ok_or_else(|| invalid("page fehlt (z. B. „darstellung“)"))?;
-    page(slug).ok_or_else(|| invalid(format!("unbekannte Einstellungsseite „{slug}“")))
+    let slug = params
+        .get("page")
+        .and_then(Json::as_str)
+        .ok_or_else(|| invalid(crate::i18n::tc("settings_msg.rpc.page_missing", &[])))?;
+    page(slug).ok_or_else(|| invalid(crate::i18n::tc("settings_msg.frame.unknown_page", &[("slug", slug.into())])))
 }
 
 fn work_param(params: &Json) -> Result<Option<WorkId>, RpcError> {
     match params.get("work") {
         None | Some(Json::Null) => Ok(None),
-        Some(value) => {
-            value.as_i64().filter(|&w| w > 0).map(Some).ok_or_else(|| invalid("work: Werk-id (Zahl) erwartet"))
-        }
+        Some(value) => value
+            .as_i64()
+            .filter(|&w| w > 0)
+            .map(Some)
+            .ok_or_else(|| invalid(crate::i18n::tc("settings_msg.rpc.work_id", &[]))),
     }
 }
 
@@ -525,7 +552,7 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params: J
         "settings.pages" => {
             let pages: Vec<Json> = registry()
                 .iter()
-                .map(|p| json!({ "slug": p.slug, "title": p.title, "storage": p.storage, "url": format!("/einstellungen/{}", p.slug) }))
+                .map(|p| json!({ "slug": p.slug, "title": crate::i18n::tc(p.title, &[]), "storage": crate::i18n::tc(p.storage, &[]), "url": format!("/einstellungen/{}", p.slug) }))
                 .collect();
             Ok(json!({ "pages": pages }))
         }
@@ -540,18 +567,26 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params: J
                             Json::String(s) => s.clone(),
                             Json::Number(n) => n.to_string(),
                             Json::Bool(b) => b.to_string(),
-                            _ => return Err(invalid(format!("query.{key}: Text erwartet"))),
+                            _ => {
+                                return Err(invalid(crate::i18n::tc(
+                                    "settings_msg.rpc.query_text",
+                                    &[("key", key.into())],
+                                )));
+                            }
                         };
                         if key != "work" && key != "fragment" {
                             query.insert(key.clone(), value);
                         }
                     }
                 }
-                Some(_) => return Err(invalid("query: Objekt erwartet")),
+                Some(_) => return Err(invalid(crate::i18n::tc("settings_msg.rpc.query_object", &[]))),
             }
             let info = RequestInfo { settings: settings.clone(), host: None, error: None, work_retry: None };
             let framed = frame(state, page.slug, work_param(&params)?, query, info).await?;
-            Ok(json!({ "page": page.slug, "title": page.title, "storage": page.storage, "html": framed.html }))
+            Ok(json!({
+                "page": page.slug, "title": crate::i18n::tc(page.title, &[]),
+                "storage": crate::i18n::tc(page.storage, &[]), "html": framed.html,
+            }))
         }
         "settings.get" => {
             let page = page_param(&params)?;
@@ -562,17 +597,15 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params: J
                 "assistenten" => assistants::values(state).await,
                 "mcp" => access::values(state).await,
                 "daten" => data::values(state).await,
-                "verbindungen" | "quellen" => {
-                    Err(invalid("Verbindungen und Quellen liest man über connection.list bzw. sources.list."))
-                }
-                other => Err(invalid(format!("unbekannte Einstellungsseite „{other}“"))),
+                "verbindungen" | "quellen" => Err(invalid(crate::i18n::tc("settings_msg.rpc.read_connections", &[]))),
+                other => Err(invalid(crate::i18n::tc("settings_msg.frame.unknown_page", &[("slug", other.into())]))),
             }
         }
         "settings.set" => {
             let page = page_param(&params)?;
             let values = match params.get("values") {
                 Some(Json::Object(map)) => Json::Object(map.clone()),
-                _ => return Err(invalid("values: Objekt mit den Feldern der Seite erwartet")),
+                _ => return Err(invalid(crate::i18n::tc("settings_msg.rpc.values_object", &[]))),
             };
             match page.slug {
                 "werk" => {
@@ -580,18 +613,14 @@ pub async fn call(state: &AppState, settings: &Settings, method: &str, params: J
                     work::set(state, work, values).await
                 }
                 "assistenten" => assistants::set(state, values).await,
-                "darstellung" => Err(invalid(
-                    "Darstellung liegt in Cookies dieses Browsers: Cookies setzt das Formular POST /einstellungen/darstellung/act.",
-                )),
-                "verbindungen" | "quellen" => {
-                    Err(invalid("Verbindungen und Quellen schreibt man über connection.* bzw. sources.*."))
-                }
-                other => Err(invalid(format!("Die Seite „{other}“ hat nichts zu speichern."))),
+                "darstellung" => Err(invalid(crate::i18n::tc("settings_msg.rpc.display_cookies", &[]))),
+                "verbindungen" | "quellen" => Err(invalid(crate::i18n::tc("settings_msg.rpc.write_connections", &[]))),
+                other => Err(invalid(crate::i18n::tc("settings_msg.rpc.nothing_to_save", &[("page", other.into())]))),
             }
         }
         "settings.backup" => {
             if params.get("confirm") != Some(&Json::Bool(true)) {
-                return Err(invalid("Sicherung bitte bestätigen (confirm: true)."));
+                return Err(invalid(crate::i18n::tc("settings_msg.rpc.backup_confirm", &[])));
             }
             let made = backup(state).await.map_err(|e| RpcError::new(INTERNAL, e))?;
             Ok(json!({ "dir": made.dir.display().to_string(), "size_bytes": made.size_bytes, "skipped": made.skipped }))

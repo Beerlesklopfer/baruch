@@ -219,11 +219,13 @@ fn db(e: sqlx::Error) -> RpcError {
 
 /// Integer (number or digits as text).
 pub(crate) fn int_param(params: &Value, name: &str) -> Result<i64, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(crate::i18n::tc("websearch_msg.rpc.number_expected", &[("name", name.into())]));
     match params.get(name) {
         Some(Value::Number(n)) => n.as_i64().ok_or_else(wrong),
         Some(Value::String(s)) => s.trim().parse().map_err(|_| wrong()),
-        None | Some(Value::Null) => Err(invalid(format!("{name} fehlt"))),
+        None | Some(Value::Null) => {
+            Err(invalid(crate::i18n::tc("websearch_msg.rpc.missing", &[("name", name.into())])))
+        }
         Some(_) => Err(wrong()),
     }
 }
@@ -240,8 +242,10 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     match method {
         "websearch.get" => status(state).await,
         "websearch.set" => {
-            let on =
-                params.get("on").and_then(Value::as_bool).ok_or_else(|| invalid("on: true oder false erwartet"))?;
+            let on = params
+                .get("on")
+                .and_then(Value::as_bool)
+                .ok_or_else(|| invalid(crate::i18n::tc("websearch_msg.rpc.on", &[])))?;
             set_enabled(state, on).await.map_err(db)?;
             Ok(json!({ "on": on }))
         }

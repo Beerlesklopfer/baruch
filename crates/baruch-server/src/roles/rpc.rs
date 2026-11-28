@@ -33,9 +33,12 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Integer from `params[name]` (number or digits as text from forms); missing → -32602.
 fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(crate::i18n::tc("accounts_msg.roles.number_expected", &[("name", name.into())]));
     match params.get(name) {
-        None | Some(Value::Null) => Err(invalid(format!("{name} fehlt ({what})"))),
+        None | Some(Value::Null) => {
+            let what = crate::i18n::tc(what, &[]);
+            Err(invalid(crate::i18n::tc("accounts_msg.roles.missing", &[("name", name.into()), ("what", what.into())])))
+        }
         Some(Value::Number(n)) => n.as_i64().ok_or_else(wrong),
         Some(Value::String(s)) => s.trim().parse().map_err(|_| wrong()),
         Some(_) => Err(wrong()),
@@ -121,22 +124,21 @@ async fn list(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
 }
 
 async fn grant(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
-    let account = required(params, "account", "Konto")?;
+    let account = required(params, "account", "accounts_msg.roles.what_account")?;
     let role = match params.get("role") {
         None | Some(Value::Null) => "lektor",
         Some(Value::String(role)) if role == "lektor" => "lektor",
-        Some(_) => return Err(invalid("role: nur „lektor“ lässt sich freigeben")),
+        Some(_) => return Err(invalid(crate::i18n::tc("accounts_msg.roles.role_lektor", &[]))),
     };
     // First the work (unknown → -32602 as everywhere), then the account.
     state.store.work_slug(work).await?;
     match grantable(state, account).await? {
         Ok(()) => {}
-        Err(GrantRefusal::UnknownAccount) => return Err(invalid(format!("Unbekanntes Konto {account}."))),
+        Err(GrantRefusal::UnknownAccount) => {
+            return Err(invalid(crate::i18n::tc("accounts_msg.roles.unknown_account", &[("account", account.into())])));
+        }
         Err(GrantRefusal::NotLektor) => {
-            return Err(RpcError::new(
-                REFUSED,
-                "Nur Lektor-Konten bekommen eine Freigabe; der Autor ist Autor in jedem Werk.",
-            ));
+            return Err(RpcError::new(REFUSED, crate::i18n::tc("accounts_msg.roles.lektor_only", &[])));
         }
     }
     state.store.member_grant(work, account, role).await?;
@@ -153,7 +155,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
 pub async fn call_as(state: &AppState, who: &Who, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(invalid("Parameter als Objekt erwartet"));
+        return Err(invalid(crate::i18n::tc("accounts_msg.roles.params_object", &[])));
     }
     match method {
         "revision.propose" | "finding.add" => {
@@ -170,12 +172,12 @@ pub async fn call_as(state: &AppState, who: &Who, method: &str, params: Value) -
             if !who.full_rights() {
                 return Err(super::author_only(method));
             }
-            let work = required(&params, "work", "Werk")?;
+            let work = required(&params, "work", "accounts_msg.roles.what_work")?;
             match method {
                 "member.list" => list(state, work).await,
                 "member.grant" => grant(state, work, &params).await,
                 _ => {
-                    let account = required(&params, "account", "Konto")?;
+                    let account = required(&params, "account", "accounts_msg.roles.what_account")?;
                     state.store.work_slug(work).await?;
                     let revoked = state.store.member_revoke(work, account).await?;
                     Ok(json!({ "work": work, "account": account, "revoked": revoked }))

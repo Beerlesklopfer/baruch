@@ -24,9 +24,10 @@ use crate::AppState;
 use crate::konten_ui::{self, LoginView, SetupView};
 
 /// Message for a failed login attempt – the same for a wrong password, an unknown name and
-/// a locked account (contract §1.1): the answer does not reveal which accounts exist.
+/// a locked account (contract §1.1): the answer does not reveal which accounts exist. German wording; the page
+/// shows `accounts_msg.login.failed` in the language of the request.
 pub const LOGIN_FAILED: &str = "Name oder Passwort stimmt nicht.";
-/// Message during the brute-force lock.
+/// Message during the brute-force lock (German wording of `accounts_msg.login.blocked`).
 pub const LOGIN_BLOCKED: &str = "Zu viele Fehlversuche. Bitte warten und dann erneut versuchen.";
 
 /// Accounts page in the settings and „Mein Konto“ (targets of the redirects).
@@ -49,6 +50,11 @@ impl From<StoreError> for Problem {
             other => Problem::Internal(other.to_string()),
         }
     }
+}
+
+/// [`Store::ACCOUNT_NOT_FIRST`] in the language of the request.
+fn not_first() -> String {
+    crate::store_text::translate(crate::i18n::current(), Store::ACCOUNT_NOT_FIRST)
 }
 
 /// Internal codes without a sentence in the table of the UI: there already is an account, or none yet.
@@ -125,7 +131,11 @@ pub(super) async fn set_active(state: &AppState, id: i64, active: bool) -> Resul
 }
 
 fn internal(e: impl std::fmt::Display) -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        crate::i18n::tc("accounts_msg.login.error", &[("detail", e.to_string().into())]),
+    )
+        .into_response()
 }
 
 fn back(page: &str, kind: &str, code: &str) -> Response {
@@ -164,8 +174,12 @@ async fn login(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
     }
     let LoginForm { name, password, next } = form;
     let page = |status: StatusCode, error: &str, wait: Option<u64>| {
-        let view =
-            LoginView { name: name.clone(), next: next.clone(), error: Some(error.to_owned()), retry_after: wait };
+        let error = if error == LOGIN_BLOCKED {
+            crate::i18n::tc("accounts_msg.login.blocked", &[])
+        } else {
+            crate::i18n::tc("accounts_msg.login.failed", &[])
+        };
+        let view = LoginView { name: name.clone(), next: next.clone(), error: Some(error), retry_after: wait };
         let mut response = konten_ui::login_page(status, &view);
         if let Some(wait) = wait {
             response.headers_mut().insert(header::RETRY_AFTER, HeaderValue::from(wait));
@@ -245,7 +259,7 @@ async fn setup(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
         konten_ui::setup_page(status, &view)
     };
     if super::accounts_exist(&state).await {
-        return page(StatusCode::FORBIDDEN, Store::ACCOUNT_NOT_FIRST.to_owned(), false);
+        return page(StatusCode::FORBIDDEN, not_first(), false);
     }
     if !gate::own_machine(&state, &parts) {
         return page(StatusCode::FORBIDDEN, super::message("nicht_eigener_rechner"), false);
@@ -253,7 +267,7 @@ async fn setup(State(state): State<Arc<AppState>>, parts: Parts, Form(form): For
     let account = match create_account(&state, &name, &display, password, Some(&password2), true).await {
         Ok(account) => account,
         Err(Problem::Code(NOT_FIRST)) => {
-            return page(StatusCode::FORBIDDEN, Store::ACCOUNT_NOT_FIRST.to_owned(), false);
+            return page(StatusCode::FORBIDDEN, not_first(), false);
         }
         Err(Problem::Code(code)) => return page(StatusCode::UNPROCESSABLE_ENTITY, super::message(code), true),
         Err(Problem::Internal(e)) => return internal(e),
@@ -315,8 +329,8 @@ struct AccountsForm {
 async fn accounts(State(state): State<Arc<AppState>>, Form(form): Form<AccountsForm>) -> Response {
     let who = super::current();
     if !who.full_rights() {
-        return (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], "Abgelehnt: Das darf nur der Autor.")
-            .into_response();
+        let text = crate::i18n::tc("accounts_msg.login.author_only", &[]);
+        return (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], text).into_response();
     }
     let AccountsForm { action, id, name, display, password, password2, open } = form;
     let unknown = || Err(Problem::Code("unbekanntes_konto"));

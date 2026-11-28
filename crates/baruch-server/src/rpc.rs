@@ -198,7 +198,7 @@ async fn accept_markdown_headings(
             let rev = store.load_work(work).await?.nodes.get(shown).and_then(|n| n.current_number());
             answer["node"] = json!(shown);
             answer["rev"] = json!(rev);
-            answer["markdown"] = json!("Markdown-Überschriften umgewandelt.");
+            answer["markdown"] = json!(crate::i18n::tc("system_msg.rpc.markdown_converted", &[]));
             match (&saved.outline, &saved.change) {
                 (Some(outline), _) => {
                     answer["outline"] = crate::outline::outline_answer(outline);
@@ -209,7 +209,8 @@ async fn accept_markdown_headings(
             }
         }
         Err(e) => {
-            answer["markdown"] = json!(format!("Markdown-Überschriften nicht umgewandelt: {e}"));
+            let text = crate::store_text::store_error_text(crate::i18n::current(), &e);
+            answer["markdown"] = json!(crate::i18n::tc("system_msg.rpc.markdown_failed", &[("detail", text.into())]));
         }
     }
     Ok(())
@@ -768,7 +769,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
         }
         "revision.delete" => {
             if params_value.get("confirm") != Some(&Value::Bool(true)) {
-                return Err(RpcError::new(INVALID_PARAMS, "Löschen bitte bestätigen (confirm)."));
+                return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.rpc.delete_confirm", &[])));
             }
             let held = state.write_lock.lock().await;
             let p: DeleteParams = params(resolve_keys(state, work_id, params_value).await?)?;
@@ -830,7 +831,7 @@ async fn dispatch(state: &AppState, settings: &Settings, method: &str, params_va
                 "editor": names(state, panes.editor).await,
                 "assistants": names(state, panes.assistants).await,
                 "url": resolved.url(work_id, library.query.as_deref()),
-                "title": format!("{} – Baruch", n.title),
+                "title": crate::i18n::tc("system_msg.rpc.page_title", &[("title", n.title.as_str().into())]),
             }))
         }
         m if crate::literature::handles(m) => crate::literature::call(state, work_id, m, params_value).await,

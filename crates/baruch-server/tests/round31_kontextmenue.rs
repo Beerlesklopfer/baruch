@@ -474,13 +474,15 @@ fn the_r31_fields_survive_the_form_round_trip_in_their_order() {
 
 #[test]
 fn invalid_r31_values_report_the_messages_of_validate() {
-    let errors = settings_from_form(&pairs(&[
-        ("glossary_page", "mittendrin"),
-        ("index_register", "stichwort"),
-        ("index_register", "stichwort"),
-        ("index_columns", "5"),
-        ("glossary_first_mention", "vielleicht"),
-    ]))
+    let errors = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        settings_from_form(&pairs(&[
+            ("glossary_page", "mittendrin"),
+            ("index_register", "stichwort"),
+            ("index_register", "stichwort"),
+            ("index_columns", "5"),
+            ("glossary_first_mention", "vielleicht"),
+        ]))
+    })
     .expect_err("mehrere Fehler");
     let reference = TypesetSettings {
         index_pages: Some(IndexPages { registers: vec!["stichwort".into(), "stichwort".into()], columns: 5 }),

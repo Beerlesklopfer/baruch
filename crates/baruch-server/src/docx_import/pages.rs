@@ -49,7 +49,13 @@ fn templates() -> &'static Environment<'static> {
 fn render(status: StatusCode, ctx: JinjaValue) -> Response {
     match templates().get_template("docx_import.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage docx_import.html: {e}")).into_response(),
+        Err(e) => {
+            let text = crate::i18n::tc(
+                "import_msg.page.template",
+                &[("name", "docx_import.html".into()), ("detail", e.to_string().into())],
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, text).into_response()
+        }
     }
 }
 
@@ -66,7 +72,7 @@ fn status_of(e: &RpcError) -> StatusCode {
 }
 
 fn too_large() -> String {
-    format!("Die Datei ist größer als {} MiB.", MAX_DOCX_BYTES / (1024 * 1024))
+    crate::i18n::tc("import_msg.page.too_large", &[("max", (MAX_DOCX_BYTES / (1024 * 1024)).into())])
 }
 
 /// Form page (also after errors of the preview).
@@ -145,7 +151,7 @@ async fn preview_form(
     let mut multipart = match multipart {
         Ok(m) => m,
         Err(e) => {
-            let message = format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text());
+            let message = crate::i18n::tc("import_msg.page.not_upload", &[("detail", e.body_text().into())]);
             return form_page(&state, &headers, unprocessable, &title, Some(message)).await;
         }
     };
@@ -158,7 +164,10 @@ async fn preview_form(
                 let (status, message) = if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
                     (StatusCode::PAYLOAD_TOO_LARGE, too_large())
                 } else {
-                    (unprocessable, format!("Das Formular ließ sich nicht lesen ({}).", e.body_text()))
+                    (
+                        unprocessable,
+                        crate::i18n::tc("import_msg.page.form_unreadable", &[("detail", e.body_text().into())]),
+                    )
                 };
                 return form_page(&state, &headers, status, &title, Some(message)).await;
             }
@@ -172,7 +181,10 @@ async fn preview_form(
                         let (status, message) = if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
                             (StatusCode::PAYLOAD_TOO_LARGE, too_large())
                         } else {
-                            (unprocessable, format!("Die Datei ließ sich nicht lesen ({}).", e.body_text()))
+                            (
+                                unprocessable,
+                                crate::i18n::tc("import_msg.page.file_unreadable", &[("detail", e.body_text().into())]),
+                            )
                         };
                         return form_page(&state, &headers, status, &title, Some(message)).await;
                     }
@@ -183,7 +195,7 @@ async fn preview_form(
         }
     }
     let Some((file_name, bytes)) = file.filter(|(n, b)| !n.trim().is_empty() || !b.is_empty()) else {
-        let message = "Bitte eine Word-Datei (.docx) wählen.".to_owned();
+        let message = crate::i18n::tc("import_msg.page.choose_docx", &[]);
         return form_page(&state, &headers, unprocessable, &title, Some(message)).await;
     };
     if bytes.len() as u64 > MAX_DOCX_BYTES {

@@ -46,7 +46,8 @@ pub fn hash(password: &str) -> Result<String, String> {
 pub fn hash_with(password: &str, m_kib: u32, t: u32, p: u32) -> Result<String, String> {
     let params = Params::new(m_kib, t, p, Some(OUTPUT_BYTES)).map_err(|e| format!("Argon2-Parameter: {e}"))?;
     let mut salt = [0u8; SALT_BYTES];
-    getrandom::getrandom(&mut salt).map_err(|e| format!("Zufallszahlen des Systems: {e}"))?;
+    getrandom::getrandom(&mut salt)
+        .map_err(|e| crate::i18n::tc("accounts_msg.login.random", &[("detail", e.to_string().into())]))?;
     let salt = SaltString::encode_b64(&salt).map_err(|e| format!("Salz: {e}"))?;
     let hash = Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
         .hash_password(password.as_bytes(), &salt)
@@ -68,7 +69,7 @@ pub fn verify(password: &str, phc: &str) -> bool {
 pub async fn hash_blocking(password: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || hash(&password))
         .await
-        .unwrap_or_else(|_| Err("Passwort-Hash abgebrochen".to_owned()))
+        .unwrap_or_else(|_| Err(crate::i18n::tc("accounts_msg.login.hash_aborted", &[])))
 }
 
 /// [`verify`] off the runtime; without PHC text (unknown account) against [`DUMMY_PHC`] – that takes equally long

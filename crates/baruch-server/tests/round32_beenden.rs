@@ -146,8 +146,13 @@ async fn under_a_proxy_name_the_page_explains_and_offers_no_form() {
 #[tokio::test]
 async fn a_foreign_origin_or_an_unknown_peer_cannot_quit() {
     let mut running = run(Duration::from_secs(5), "").await;
-    let answer =
-        client().post(running.url("/beenden")).header(header::ORIGIN, "http://fremd.example.net").send().await.unwrap();
+    let answer = client()
+        .post(running.url("/beenden"))
+        .header(header::ORIGIN, "http://fremd.example.net")
+        .header(header::ACCEPT_LANGUAGE, "de")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(answer.status(), StatusCode::FORBIDDEN, "Formular einer fremden Seite: guard::same_origin lehnt ab");
     assert!(answer.text().await.unwrap().starts_with("Abgelehnt:"), "die Ablehnung kommt vom Schutz der Schreibwege");
     let answer = client().post(running.url("/beenden")).header("sec-fetch-site", "cross-site").send().await.unwrap();
@@ -180,6 +185,7 @@ async fn quitting_answers_with_a_self_contained_page_and_stops_the_server() {
     let answer = client()
         .post(running.url("/beenden"))
         .header(header::ORIGIN, format!("http://{}", running.address))
+        .header(header::ACCEPT_LANGUAGE, "de")
         .send()
         .await
         .unwrap();
@@ -472,7 +478,8 @@ impl Process {
 async fn the_button_ends_the_real_process_cleanly() {
     let mut process = Process::start().await;
     process.write_something().await;
-    let answer = client().post(format!("{}/beenden", process.url)).send().await.unwrap();
+    let answer =
+        client().post(format!("{}/beenden", process.url)).header(header::ACCEPT_LANGUAGE, "de").send().await.unwrap();
     assert_eq!(answer.status(), StatusCode::OK, "POST /beenden am echten Server vom eigenen Rechner");
     assert!(answer.text().await.unwrap().contains(DONE_TEXT), "mit der Abschlussseite");
     let (code, lines) = process.finish(GRACE + Duration::from_secs(10));

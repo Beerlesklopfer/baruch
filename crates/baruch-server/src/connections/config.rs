@@ -123,32 +123,29 @@ fn invalid(code: &'static str, message: impl Into<String>) -> Fault {
 pub fn check_url(input: &str) -> Result<String, Fault> {
     let text = input.trim();
     if text.is_empty() || text.chars().count() > 2000 || text.chars().any(char::is_whitespace) {
-        return Err(invalid("url", "Adresse fehlt oder ist ungültig (eine Zeile, höchstens 2000 Zeichen)."));
+        return Err(invalid("url", crate::i18n::tc("connections_msg.field.url", &[])));
     }
-    let url = reqwest::Url::parse(text).map_err(|_| invalid("url", "Adresse ist ungültig."))?;
+    let url = reqwest::Url::parse(text)
+        .map_err(|_| invalid("url", crate::i18n::tc("connections_msg.field.url_invalid", &[])))?;
     if !matches!(url.scheme(), "http" | "https") {
-        return Err(invalid("url_schema", "Adresse muss mit http:// oder https:// beginnen."));
+        return Err(invalid("url_schema", crate::i18n::tc("connections_msg.field.url_scheme", &[])));
     }
     if !url.username().is_empty() || url.password().is_some() {
-        return Err(invalid(
-            "url_benutzer",
-            "Adresse ohne Benutzer und Passwort (Geheimnisse gehören in den Schlüsselbund).",
-        ));
+        return Err(invalid("url_benutzer", crate::i18n::tc("connections_msg.field.url_user", &[])));
     }
     if url.host_str().is_none_or(str::is_empty) {
-        return Err(invalid("url", "Adresse ohne Rechnernamen."));
+        return Err(invalid("url", crate::i18n::tc("connections_msg.field.url_host", &[])));
     }
     if url.query_pairs().any(|(name, _)| secret_like(&name)) {
-        return Err(invalid(
-            "url_geheimnis",
-            "Adresse ohne Schlüssel oder Token in der Abfrage (dafür gibt es den Schlüsselbund).",
-        ));
+        return Err(invalid("url_geheimnis", crate::i18n::tc("connections_msg.field.url_secret", &[])));
     }
     Ok(text.to_owned())
 }
 
 fn text<'a>(name: &str, value: &'a Value) -> Result<&'a str, Fault> {
-    value.as_str().ok_or_else(|| invalid("feld", format!("{name}: Text erwartet.")))
+    value
+        .as_str()
+        .ok_or_else(|| invalid("feld", crate::i18n::tc("connections_msg.field.text", &[("name", name.into())])))
 }
 
 fn one_line(value: &str, max: usize) -> bool {
@@ -163,7 +160,7 @@ fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
             let host = text(name, value)?.trim();
             let bad = !one_line(host, 253) || host.contains(|c: char| c.is_whitespace() || "/@?#".contains(c));
             if bad {
-                return Err(invalid("host", "Rechner: Name oder IP-Adresse ohne Leerzeichen, / oder @."));
+                return Err(invalid("host", crate::i18n::tc("connections_msg.field.host", &[])));
             }
             Value::from(host)
         }
@@ -175,37 +172,34 @@ fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
             };
             match port {
                 Some(port @ 1..=65535) => Value::from(port),
-                _ => return Err(invalid("port", "Port: ganze Zahl von 1 bis 65535.")),
+                _ => return Err(invalid("port", crate::i18n::tc("connections_msg.field.port", &[]))),
             }
         }
         "database" | "user" => {
             let value = text(name, value)?.trim();
             if !one_line(value, 63) {
-                return Err(invalid("feld", format!("{name}: höchstens 63 Zeichen in einer Zeile.")));
+                return Err(invalid("feld", crate::i18n::tc("connections_msg.field.short", &[("name", name.into())])));
             }
             Value::from(value)
         }
         "tls" => {
             let mode = text(name, value)?.trim();
             if !TLS_MODES.contains(&mode) {
-                return Err(invalid("tls", "TLS: disable, prefer, require oder verify-full."));
+                return Err(invalid("tls", crate::i18n::tc("connections_msg.field.tls", &[])));
             }
             Value::from(mode)
         }
         "dir" => {
             let dir = text(name, value)?.trim();
             if dir.is_empty() || !one_line(dir, 4096) {
-                return Err(invalid("ordner", "Ordner: nicht leer, eine Zeile."));
+                return Err(invalid("ordner", crate::i18n::tc("connections_msg.field.dir", &[])));
             }
             Value::from(dir)
         }
         "table" => {
             let table = text(name, value)?.trim();
             if split_table(table).is_none() {
-                return Err(invalid(
-                    "tabelle",
-                    "Tabelle: Name aus Buchstaben, Ziffern und _ (nicht mit einer Ziffer beginnend, höchstens 63 Zeichen), wahlweise schema.tabelle.",
-                ));
+                return Err(invalid("tabelle", crate::i18n::tc("connections_msg.field.table", &[])));
             }
             Value::from(table)
         }
@@ -214,13 +208,9 @@ fn check_field(name: &str, value: &Value) -> Result<Value, Fault> {
             let column = text(name, value)?.trim();
             let optional = !PG_REQUIRED_COLUMNS.contains(&name);
             if !(is_identifier(column) || optional && column.is_empty()) {
-                return Err(invalid(
-                    "spalte",
-                    format!(
-                        "{name}: Spaltenname aus Buchstaben, Ziffern und _ (nicht mit einer Ziffer beginnend, höchstens 63 Zeichen){}.",
-                        if optional { "; leer = Spalte gibt es nicht" } else { "" }
-                    ),
-                ));
+                let key =
+                    if optional { "connections_msg.field.column_optional" } else { "connections_msg.field.column" };
+                return Err(invalid("spalte", crate::i18n::tc(key, &[("name", name.into())])));
             }
             Value::from(column)
         }
@@ -287,15 +277,12 @@ pub fn embed_prefixes(kind: ConnectionKind, config: &Value) -> baruch_rag::Embed
 /// Lay given fields over the stored ones (or the default) and check everything.
 pub fn merged(kind: ConnectionKind, current: &Value, given: &Value) -> Result<Value, Fault> {
     let Some(given) = given.as_object() else {
-        return Err(invalid("feld", "config: JSON-Objekt erwartet."));
+        return Err(invalid("feld", crate::i18n::tc("connections_msg.field.config_object", &[])));
     };
     let allowed = fields(kind);
     for name in given.keys() {
         if secret_like(name) {
-            return Err(invalid(
-                "geheimnis_feld",
-                "Geheimnisse gehören nicht in die Einstellungen, sondern in den Schlüsselbund (connection.set_secret).",
-            ));
+            return Err(invalid("geheimnis_feld", crate::i18n::tc("connections_msg.field.secret_in_config", &[])));
         }
         if !allowed.contains(&name.as_str()) {
             return Err(invalid("feld", format!("{kind}: unbekanntes Feld (erlaubt: {}).", allowed.join(", "))));

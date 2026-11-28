@@ -37,16 +37,21 @@ pub fn writes() -> Router<Arc<AppState>> {
     Router::new().route("/lektorat/act", post(lektorat_act)).route("/werke/{id}/mitwirkende/act", post(members_act))
 }
 
+/// "Fehler: …" of a form in the language of the request.
+fn form_error(detail: &str) -> String {
+    crate::i18n::tc("accounts_msg.roles.form_error", &[("detail", detail.into())])
+}
+
 /// Answer to an RPC error of a form.
 fn failure(error: &RpcError) -> Response {
     match error.code {
         FORBIDDEN => {
-            (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], format!("Abgelehnt: {}", error.message))
-                .into_response()
+            let text = crate::i18n::tc("accounts_msg.gate.refused", &[("detail", (&error.message).into())]);
+            (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], text).into_response()
         }
         UNAUTHENTICATED => (StatusCode::UNAUTHORIZED, error.message.clone()).into_response(),
-        INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", error.message)).into_response(),
-        _ => (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {}", error.message)).into_response(),
+        INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, form_error(&error.message)).into_response(),
+        _ => (StatusCode::UNPROCESSABLE_ENTITY, form_error(&error.message)).into_response(),
     }
 }
 
@@ -112,7 +117,7 @@ async fn lektorat_act(State(state): State<Arc<AppState>>, Form(form): Form<HashM
     }
     let mut params = match params_of(&form) {
         Ok(params) => params,
-        Err(message) => return (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {message}")).into_response(),
+        Err(message) => return (StatusCode::UNPROCESSABLE_ENTITY, form_error(&message)).into_response(),
     };
     // The work is fixed afterwards (for the redirect): the named one, otherwise the smallest released one – never
     // the default work of the instance. Whether it is released is checked by `check_rpc` in `rpc::call`.

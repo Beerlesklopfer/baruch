@@ -57,24 +57,32 @@ fn number(text: Option<&str>) -> Option<i64> {
     text.map(str::trim).filter(|t| !t.is_empty()).and_then(|t| t.parse().ok())
 }
 
-fn notice(code: Option<&str>) -> Option<&'static str> {
+fn notice(code: Option<&str>) -> Option<String> {
     match code {
-        Some("uebernommen") => Some("Der Beleg ist in der Autorenbibliothek: Titel, Zitat und Hervorhebung."),
+        Some("uebernommen") => Some(crate::i18n::tc("websearch_msg.page.adopted", &[])),
         _ => None,
     }
 }
 
-fn error_text(code: Option<&str>) -> Option<&'static str> {
-    code.map(|c| match c {
-        "nicht_belegt" => {
-            "Nur belegte Zitate kommen in die Bibliothek: Dieser Wortlaut steht nicht auf der abgerufenen Seite \
-             (oder es gibt kein Zitat). Nichts angelegt."
-        }
-        "schon" => "Dieser Beleg ist schon in der Bibliothek.",
-        "unbekannt" => "Diesen Beleg gibt es nicht.",
-        "aktion" => "Unbekannte Aktion; nichts geändert.",
-        _ => "Das hat nicht geklappt; nichts angelegt.",
+fn error_text(code: Option<&str>) -> Option<String> {
+    code.map(|c| {
+        let key = match c {
+            "nicht_belegt" => "websearch_msg.page.not_proven",
+            "schon" => "websearch_msg.page.already",
+            "unbekannt" => "websearch_msg.page.unknown",
+            "aktion" => "websearch_msg.page.unknown_action",
+            _ => "websearch_msg.page.failed",
+        };
+        crate::i18n::tc(key, &[])
     })
+}
+
+fn error_response(e: impl std::fmt::Display) -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        crate::i18n::tc("websearch_msg.page.error", &[("detail", e.to_string().into())]),
+    )
+        .into_response()
 }
 
 fn view(row: &Evidence, work: Option<i64>) -> Value {
@@ -99,11 +107,11 @@ async fn evidence_page(
     Query(query): Query<EvidenceQuery>,
 ) -> Response {
     let Some(post) = number(query.post.as_deref()) else {
-        return (StatusCode::BAD_REQUEST, "post fehlt (Beitrag).").into_response();
+        return (StatusCode::BAD_REQUEST, crate::i18n::tc("websearch_msg.page.post_missing", &[])).into_response();
     };
     let rows = match evidence::for_post(state.store.pool(), post).await {
         Ok(rows) => rows,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return error_response(e),
     };
     let work = number(query.work.as_deref()).or_else(|| rows.first().and_then(|r| r.work));
     let key = number(query.key.as_deref()).or_else(|| rows.first().and_then(|r| r.key));
@@ -128,7 +136,11 @@ async fn evidence_page(
     };
     match templates().get_template("websearch_evidence.html").and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            crate::i18n::tc("websearch_msg.page.template_error", &[("detail", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -166,7 +178,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
         "switch" => {
             let on = matches!(form.on.as_deref(), Some("1" | "on" | "true"));
             if let Err(e) = set_enabled(&state, on).await {
-                return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response();
+                return error_response(e);
             }
             let work_q = work.map(|w| format!("&work={w}")).unwrap_or_default();
             Redirect::to(&format!("/einstellungen/assistenten?persona=belege&ok=websuche{work_q}#persona-belege"))

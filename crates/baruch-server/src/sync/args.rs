@@ -141,9 +141,9 @@ impl Filler {
     /// Finished arguments; a required entry Baruch does not fill → [`RagError::Schema`].
     pub(crate) fn finish(self) -> Result<Value, RagError> {
         if let Some(unknown) = self.required.iter().find(|r| !self.args.contains_key(*r)) {
-            return Err(RagError::Schema(format!(
-                "{} verlangt den Parameter „{unknown}“, den Baruch nicht kennt.",
-                self.tool
+            return Err(RagError::Schema(crate::i18n::tc(
+                "sync_msg.tool.unknown_param",
+                &[("tool", self.tool.into()), ("name", unknown.as_str().into())],
             )));
         }
         Ok(Value::Object(self.args))
@@ -191,9 +191,8 @@ pub(crate) struct Listed {
 /// One page of `list_documents`: documents and the continuation (`next_cursor` …), if reported,
 /// as well as `has_more`. No list → [`RagError::Schema`].
 pub(crate) fn listed(result: &Value) -> Result<(Vec<Listed>, Option<String>, bool), RagError> {
-    let payload = tool_payload(result).ok_or_else(|| {
-        RagError::Schema("list_documents: Antwort nicht lesbar (weder structuredContent noch JSON in content).".into())
-    })?;
+    let payload =
+        tool_payload(result).ok_or_else(|| RagError::Schema(crate::i18n::tc("sync_msg.tool.list_unreadable", &[])))?;
     let list = match &payload {
         Value::Array(list) => Some(list),
         Value::Object(map) => LIST_KEYS.iter().find_map(|k| map.get(*k).and_then(Value::as_array)).or_else(|| {
@@ -201,9 +200,7 @@ pub(crate) fn listed(result: &Value) -> Result<(Vec<Listed>, Option<String>, boo
         }),
         _ => None,
     }
-    .ok_or_else(|| {
-        RagError::Schema("list_documents: keine Dokumentliste in der Antwort (documents, items …).".into())
-    })?;
+    .ok_or_else(|| RagError::Schema(crate::i18n::tc("sync_msg.tool.no_list", &[])))?;
     let mut out = Vec::new();
     for item in list {
         let (id, title, url, stamp) = match item {
@@ -230,10 +227,7 @@ pub(crate) fn listed(result: &Value) -> Result<(Vec<Listed>, Option<String>, boo
         });
     }
     if out.is_empty() && !list.is_empty() {
-        return Err(RagError::Schema(format!(
-            "list_documents: {} Einträge ohne Dokument-ID; Format nicht lesbar.",
-            list.len()
-        )));
+        return Err(RagError::Schema(crate::i18n::tc("sync_msg.tool.no_ids", &[("count", list.len().into())])));
     }
     let map = payload.as_object();
     let next = map.and_then(|m| text_in(m, NEXT_KEYS));

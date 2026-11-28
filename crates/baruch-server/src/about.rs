@@ -43,6 +43,16 @@ pub const THIRD_PARTY_PLACES: &[(&str, &str)] = &[
     ("Windows (.msi)", "THIRD-PARTY-LICENSES.txt im Installationsordner (Vorgabe C:\\Program Files\\Baruch)"),
 ];
 
+/// A place of [`THIRD_PARTY_PLACES`] in the language of the request (the list keeps the German wording; places that
+/// are only a path stay as they are).
+fn place_text(place: &str) -> String {
+    match THIRD_PARTY_PLACES.iter().position(|(_, p)| *p == place) {
+        Some(1) => crate::i18n::tc("system_msg.about.appimage_place", &[]),
+        Some(3) => crate::i18n::tc("system_msg.about.windows_place", &[]),
+        _ => place.to_owned(),
+    }
+}
+
 /// Address of the release page of this version (`…/releases/tag/v<version>`). Baruch never fetches it itself.
 pub fn release_url() -> String {
     format!("{REPOSITORY}/releases/tag/v{VERSION}")
@@ -83,8 +93,10 @@ async fn page(axum::extract::State(state): axum::extract::State<Arc<AppState>>, 
         .map(|exe| std::fs::canonicalize(&exe).unwrap_or(exe))
         .and_then(|exe| find_third_party(&exe))
         .map(|path| path.display().to_string());
-    let places: Vec<Jinja> =
-        THIRD_PARTY_PLACES.iter().map(|(package, place)| context! { package => *package, place => *place }).collect();
+    let places: Vec<Jinja> = THIRD_PARTY_PLACES
+        .iter()
+        .map(|(package, place)| context! { package => *package, place => place_text(place) })
+        .collect();
     let ctx = context! {
         settings => Jinja::from(Serde(settings)),
         version => VERSION,

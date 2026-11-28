@@ -304,7 +304,11 @@ async fn secrets_stay_masked_checks_follow_no_redirect_and_private_hits_are_not_
     let mut results: Vec<Value> = private.iter().map(|url| hit("Intern", url)).collect();
     results.push(hit("Licht", "https://lichtkunde.example/feuer"));
     mcp.set_results(results);
-    let research = baruch_server::websearch::research(&server.state, "Feuer am Leuchtturm").await;
+    let research = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::websearch::research(&server.state, "Feuer am Leuchtturm"),
+    )
+    .await;
     let fetched: Vec<String> =
         mcp.tool_calls("fetch_url").iter().map(|a| a["url"].as_str().unwrap_or("").to_owned()).collect();
     assert_eq!(fetched, ["https://lichtkunde.example/feuer"], "nur die öffentliche Adresse wurde abgerufen");

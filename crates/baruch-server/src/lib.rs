@@ -475,7 +475,8 @@ async fn script(Path(name): Path<String>) -> Response {
 }
 
 fn internal(e: impl std::fmt::Display) -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()
+    (StatusCode::INTERNAL_SERVER_ERROR, i18n::tc("system_msg.page.error", &[("detail", e.to_string().into())]))
+        .into_response()
 }
 
 /// Work and work selection for page and `ui.render`. Unknown work → `UnknownWork`; a work without
@@ -526,7 +527,9 @@ async fn index(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(at)
     };
     let (work, shelf) = match shelf(&state, work_id).await {
         Ok(found) => found,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
+        Err(StoreError::UnknownWork(_)) => {
+            return (StatusCode::NOT_FOUND, i18n::tc("system_msg.page.unknown_work", &[])).into_response();
+        }
         Err(e) => return internal(e),
     };
     let library = match rpc::library_view(&state, work_id, at.lq.as_deref()).await {
@@ -627,7 +630,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
     if form.method == "revision.delete" {
         // The server checks the checkbox itself; `required` in the HTML alone stops nobody.
         if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
-            return (StatusCode::UNPROCESSABLE_ENTITY, "Löschen bitte bestätigen.").into_response();
+            return (StatusCode::UNPROCESSABLE_ENTITY, i18n::tc("system_msg.page.delete_confirm", &[])).into_response();
         }
         params["confirm"] = json!(true);
     }

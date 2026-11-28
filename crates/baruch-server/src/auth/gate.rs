@@ -85,15 +85,15 @@ async fn answer(
                 "error": { "code": crate::rpc::UNAUTHENTICATED, "message": "Login required." } });
             return (StatusCode::UNAUTHORIZED, Json(body)).into_response();
         }
-        return (StatusCode::UNAUTHORIZED, "Anmeldung erforderlich.").into_response();
+        return (StatusCode::UNAUTHORIZED, crate::i18n::tc("accounts_msg.gate.login_required", &[])).into_response();
     }
     let preferred = last_work(&parts.headers);
     match roles::check_request_preferring(state, &who, &parts.method, path, parts.uri.query(), preferred).await {
         Verdict::Allow => {}
         Verdict::Redirect(url) => return Redirect::to(&url).into_response(),
         Verdict::Deny(reason) => {
-            return (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], format!("Abgelehnt: {reason}"))
-                .into_response();
+            let text = crate::i18n::tc("accounts_msg.gate.refused", &[("detail", reason.into())]);
+            return (StatusCode::FORBIDDEN, [("x-baruch-abgelehnt", "rolle")], text).into_response();
         }
     }
     if who.lektor().is_some() {

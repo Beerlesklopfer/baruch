@@ -59,12 +59,16 @@ fn query(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
 
 async fn page(server: &common::Server, work: Option<i64>, pairs: &[(&str, &str)]) -> String {
     let q = query(pairs);
-    render_connections(&server.state, work, &q).await.expect("Seite Verbindungen")
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, render_connections(&server.state, work, &q))
+        .await
+        .expect("Seite Verbindungen")
 }
 
 async fn sources_page(server: &common::Server, pairs: &[(&str, &str)]) -> String {
     let q = query(pairs);
-    render_sources(&server.state, None, &q).await.expect("Seite Quellen")
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, render_sources(&server.state, None, &q))
+        .await
+        .expect("Seite Quellen")
 }
 
 /// Successful RPC call.

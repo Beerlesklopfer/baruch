@@ -295,7 +295,10 @@ async fn bad_titles_are_refused_on_every_way_in_and_change_nothing() {
     let answer =
         mcp_call(&server, "propose_revision", json!({ "work": work, "key": seed, "body": empty_heading })).await;
     assert_eq!(answer["result"]["isError"], true, "MCP lehnt den Vorschlag ab: {answer}");
-    assert_eq!(answer["result"]["content"][0]["text"], EMPTY, "mit der deutschen Meldung: {answer}");
+    assert_eq!(
+        answer["result"]["content"][0]["text"], "An outline item needs a title.",
+        "MCP: englische Meldung: {answer}"
+    );
     let with_long = format!("== {long}\n\nText.\n");
     let answer = mcp_call(&server, "propose_revision", json!({ "work": work, "key": seed, "body": with_long })).await;
     assert_eq!(answer["result"]["isError"], true, "auch ein zu langer Titel: {answer}");

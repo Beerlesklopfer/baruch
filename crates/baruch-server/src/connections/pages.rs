@@ -27,7 +27,7 @@ use minijinja::{Environment, Value as Jinja};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{Fault, account, collections, config, describe, open_part, parse_kind, sources, usage_is_stub, usage_stub};
+use super::{Fault, account, collections, config, describe, open_part, parse_kind, sources, usage_is_stub};
 use crate::AppState;
 
 /// Own template environment (autoescape for `.html`).
@@ -47,108 +47,89 @@ fn templates() -> &'static Environment<'static> {
 }
 
 fn render(name: &str, ctx: Value) -> Result<String, String> {
-    templates()
-        .get_template(name)
-        .and_then(|t| t.render(Jinja::from(minijinja::value::Serde(&ctx))))
-        .map_err(|e| format!("Vorlage {name}: {e}"))
-}
-
-/// Success message for `?ok=`; unknown codes show nothing.
-pub fn notice_text(code: &str) -> Option<&'static str> {
-    Some(match code {
-        "gespeichert" => "Die Einstellungen sind gespeichert.",
-        "geheimnis" => "Das Geheimnis ist im Schlüsselbund hinterlegt.",
-        "gespeichert_geheimnis" => "Die Einstellungen sind gespeichert, das Geheimnis ist im Schlüsselbund hinterlegt.",
-        "geheimnis_entfernt" => "Das Geheimnis ist aus dem Schlüsselbund entfernt.",
-        "geprueft" => "Die Verbindung ist geprüft; das Ergebnis steht bei der Verbindung.",
-        "kurztest" => "Der Kurztest ist gelaufen; das Ergebnis steht bei Eliezer.",
-        "rag" => "Die RAG-Wege des Werks sind gespeichert.",
-        "sammlungen" => "Die Sammlungen des Werks sind gespeichert.",
-        "reindex" => "Der Index des Werks wird neu aufgebaut; den Stand zeigt „Status der Wege“.",
-        "angelegt" => "Die Quelle ist angelegt.",
-        "geaendert" => "Die Quelle ist geändert.",
-        "verschoben" => "Die Quelle ist verschoben.",
-        "geloescht" => "Die Quelle ist gelöscht.",
-        "bibel_ordner" => "Die Modulordner der Bibeln sind gespeichert.",
-        "bibel_vorgabe" => "Die Modulordner der Bibeln stehen wieder auf der Vorgabe.",
-        "bibel_gewaehlt" => "Die Bibel des Werks ist gewählt; die Stellenprüfung prüft jetzt den Wortlaut.",
-        "bibel_keine" => "Das Werk hat keine Bibel mehr; der Wortlaut bleibt ungeprüft.",
-        "bibel_schluessel" => "Der Schlüssel passt und ist im Schlüsselbund hinterlegt; das Modul ist lesbar.",
-        "bibel_schluessel_entfernt" => "Der Schlüssel ist aus dem Schlüsselbund entfernt.",
-        _ => return None,
+    templates().get_template(name).and_then(|t| t.render(Jinja::from(minijinja::value::Serde(&ctx)))).map_err(|e| {
+        crate::i18n::tc("connections_msg.page.template", &[("name", name.into()), ("detail", e.to_string().into())])
     })
 }
 
+/// Success message for `?ok=`; unknown codes show nothing.
+pub fn notice_text(code: &str) -> Option<String> {
+    Some(crate::i18n::tc(
+        match code {
+            "gespeichert" => "connections_msg.ok.gespeichert",
+            "geheimnis" => "connections_msg.ok.geheimnis",
+            "gespeichert_geheimnis" => "connections_msg.ok.gespeichert_geheimnis",
+            "geheimnis_entfernt" => "connections_msg.ok.geheimnis_entfernt",
+            "geprueft" => "connections_msg.ok.geprueft",
+            "kurztest" => "connections_msg.ok.kurztest",
+            "rag" => "connections_msg.ok.rag",
+            "sammlungen" => "connections_msg.ok.sammlungen",
+            "reindex" => "connections_msg.ok.reindex",
+            "angelegt" => "connections_msg.ok.angelegt",
+            "geaendert" => "connections_msg.ok.geaendert",
+            "verschoben" => "connections_msg.ok.verschoben",
+            "geloescht" => "connections_msg.ok.geloescht",
+            "bibel_ordner" => "connections_msg.ok.bibel_ordner",
+            "bibel_vorgabe" => "connections_msg.ok.bibel_vorgabe",
+            "bibel_gewaehlt" => "connections_msg.ok.bibel_gewaehlt",
+            "bibel_keine" => "connections_msg.ok.bibel_keine",
+            "bibel_schluessel" => "connections_msg.ok.bibel_schluessel",
+            "bibel_schluessel_entfernt" => "connections_msg.ok.bibel_schluessel_entfernt",
+            _ => return None,
+        },
+        &[],
+    ))
+}
+
 /// Error message for `?fehler=`; an unknown code yields a general message.
-pub fn error_text(code: &str) -> &'static str {
-    match code {
-        "kind" => "Unbekannte Verbindung; nichts geändert.",
-        "url" => "Die Adresse ist ungültig; nichts geändert.",
-        "url_schema" => "Die Adresse muss mit http:// oder https:// beginnen; nichts geändert.",
-        "url_benutzer" => {
-            "Die Adresse darf keinen Benutzer und kein Passwort enthalten – Geheimnisse gehören in den Schlüsselbund; nichts geändert."
-        }
-        "url_geheimnis" => {
-            "Die Adresse darf keinen Schlüssel und kein Token in der Abfrage tragen – dafür gibt es den Schlüsselbund; nichts geändert."
-        }
-        "geheimnis_feld" => {
-            "Geheimnisse gehören nicht in die Einstellungen, sondern in den Schlüsselbund; nichts geändert."
-        }
-        "host" => "Der Rechner (Host) ist ungültig: Name oder IP-Adresse ohne Leerzeichen; nichts geändert.",
-        "port" => "Der Port muss eine ganze Zahl von 1 bis 65535 sein; nichts geändert.",
-        "tls" => "TLS: disable, prefer, require oder verify-full; nichts geändert.",
-        "feld" => "Ein Feld ist ungültig (zu lang oder mehrzeilig); nichts geändert.",
-        "ordner" => "Der Ordner darf nicht leer sein; nichts geändert.",
-        "modell" => "Das Einbettungsmodell darf nicht leer sein (höchstens 200 Zeichen); nichts geändert.",
-        "praefix" => {
-            "Ein Aufgaben-Präfix darf höchstens 64 Zeichen lang sein und keine Steuerzeichen (auch keinen Zeilenumbruch) enthalten; nichts geändert."
-        }
-        "geheimnis_leer" => "Das Geheimnis ist leer; nichts geändert.",
-        "geheimnis_ungueltig" => "Das Geheimnis ist zu lang oder mehrzeilig; nichts geändert.",
-        "kein_geheimnis" => "LanceDB braucht kein Geheimnis.",
-        "bestaetigen" => "Bitte bestätigen (Kästchen anhaken); nichts geändert.",
-        "schluesselbund" => "Der Schlüsselbund ist nicht erreichbar oder lehnt ab; nichts geändert.",
-        "gespeichert_ohne_geheimnis" => {
-            "Die Einstellungen sind gespeichert, das Geheimnis aber nicht: Der Schlüsselbund ist nicht erreichbar oder lehnt ab. Das bisherige Geheimnis bleibt und wird nicht an eine geänderte Adresse geschickt."
-        }
-        "werk" => "Unbekanntes Werk; nichts geändert.",
-        "weg" => "Unbekannter RAG-Weg; nichts geändert.",
-        "sammlung" => "Sammlung ungültig (1 bis 200 Zeichen, eine Zeile, höchstens 100); nichts geändert.",
-        "reindex" => "Der Index ließ sich nicht neu aufbauen; den Grund nennt „Status der Wege“.",
-        "tabelle" => {
-            "Die Tabelle muss ein Name aus Buchstaben, Ziffern und _ sein (wahlweise schema.tabelle); nichts geändert."
-        }
-        "spalte" => {
-            "Ein Spaltenname ist ungültig (Buchstaben, Ziffern und _, nicht mit einer Ziffer beginnend; nur Stelle, Titel, Adresse und Modell dürfen leer sein); nichts geändert."
-        }
-        "titel" => "Der Titel muss 1 bis 200 Zeichen in einer Zeile haben; nichts geändert.",
-        "adresse" => {
-            "Die Adresse muss mit http:// oder https:// beginnen, einen Rechner nennen und darf keine Leerzeichen enthalten; nichts geändert."
-        }
-        "notiz" => "Die Notiz ist zu lang (höchstens 4000 Zeichen); nichts geändert.",
-        "quelle" => "Diese Quelle gibt es nicht (mehr); bitte neu laden.",
-        "position" => "Ungültige Stelle; nichts verschoben.",
-        "methode" => "Unbekannte Aktion; nichts geändert.",
-        "kurztest_modell" => {
-            "Für den Kurztest bitte ein Modell wählen (eine Zeile, höchstens 200 Zeichen); nichts gesendet."
-        }
-        "intern" => "Interner Fehler; nichts geändert. Bitte erneut versuchen.",
-        "bibel_ordner" => {
-            "Modulordner: je Zeile ein absoluter Pfad (oder ~/…), höchstens 20 Ordner zu je 1000 Zeichen; nichts geändert."
-        }
-        "bibel_modul" => {
-            "Dieses Bibelmodul gibt es in keinem Modulordner, oder Baruch kann es nicht lesen; nichts geändert."
-        }
-        "bibel_schluessel_falsch" => "Der Schlüssel passt nicht zum Modul; nichts gespeichert.",
-        "bibel_schluessel" => {
-            "Schlüssel: 1 bis 255 Zeichen in einer Zeile, nur für ein verschlüsseltes Modul aus den Modulordnern; nichts gespeichert."
-        }
-        _ => "Das hat nicht geklappt (unbekannter Fehlercode).",
-    }
+pub fn error_text(code: &str) -> String {
+    crate::i18n::tc(
+        match code {
+            "kind" => "connections_msg.error.kind",
+            "url" => "connections_msg.error.url",
+            "url_schema" => "connections_msg.error.url_schema",
+            "url_benutzer" => "connections_msg.error.url_benutzer",
+            "url_geheimnis" => "connections_msg.error.url_geheimnis",
+            "geheimnis_feld" => "connections_msg.error.geheimnis_feld",
+            "host" => "connections_msg.error.host",
+            "port" => "connections_msg.error.port",
+            "tls" => "connections_msg.error.tls",
+            "feld" => "connections_msg.error.feld",
+            "ordner" => "connections_msg.error.ordner",
+            "modell" => "connections_msg.error.modell",
+            "praefix" => "connections_msg.error.praefix",
+            "geheimnis_leer" => "connections_msg.error.geheimnis_leer",
+            "geheimnis_ungueltig" => "connections_msg.error.geheimnis_ungueltig",
+            "kein_geheimnis" => "connections_msg.error.kein_geheimnis",
+            "bestaetigen" => "connections_msg.error.bestaetigen",
+            "schluesselbund" => "connections_msg.error.schluesselbund",
+            "gespeichert_ohne_geheimnis" => "connections_msg.error.gespeichert_ohne_geheimnis",
+            "werk" => "connections_msg.error.werk",
+            "weg" => "connections_msg.error.weg",
+            "sammlung" => "connections_msg.error.sammlung",
+            "reindex" => "connections_msg.error.reindex",
+            "tabelle" => "connections_msg.error.tabelle",
+            "spalte" => "connections_msg.error.spalte",
+            "titel" => "connections_msg.error.titel",
+            "adresse" => "connections_msg.error.adresse",
+            "notiz" => "connections_msg.error.notiz",
+            "quelle" => "connections_msg.error.quelle",
+            "position" => "connections_msg.error.position",
+            "methode" => "connections_msg.error.methode",
+            "kurztest_modell" => "connections_msg.error.kurztest_modell",
+            "intern" => "connections_msg.error.intern",
+            "bibel_ordner" => "connections_msg.error.bibel_ordner",
+            "bibel_modul" => "connections_msg.error.bibel_modul",
+            "bibel_schluessel_falsch" => "connections_msg.error.bibel_schluessel_falsch",
+            "bibel_schluessel" => "connections_msg.error.bibel_schluessel",
+            _ => "connections_msg.error.other",
+        },
+        &[],
+    )
 }
 
 /// Messages from the query for the template.
-fn messages(query: &BTreeMap<String, String>) -> (Option<&'static str>, Option<&'static str>) {
+fn messages(query: &BTreeMap<String, String>) -> (Option<String>, Option<String>) {
     let notice = query.get("ok").and_then(|code| notice_text(code).or_else(|| model_notice_text(code)));
     let error = query.get("fehler").map(|code| error_text(code));
     (notice, error)
@@ -173,7 +154,7 @@ pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
         let more = items.len().saturating_sub(SHOWN);
         let mut text = items.into_iter().take(SHOWN).collect::<Vec<_>>().join(", ");
         if more > 0 {
-            text.push_str(&format!(" … und {more} weitere"));
+            text = crate::i18n::tc("connections_msg.detail.more", &[("list", text.into()), ("more", more.into())]);
         }
         text
     };
@@ -186,43 +167,49 @@ pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
             .map(|c| {
                 let name = c["name"].as_str().unwrap_or("");
                 match c["count"].as_i64() {
-                    Some(count) => format!("{name} ({count} {unit})"),
+                    Some(count) => crate::i18n::tc(
+                        "connections_msg.detail.count",
+                        &[("name", name.into()), ("count", count.into()), ("unit", unit.into())],
+                    ),
                     None => name.to_owned(),
                 }
             })
             .collect();
-        (!items.is_empty()).then(|| format!("Sammlungen: {}", short(items)))
+        (!items.is_empty())
+            .then(|| crate::i18n::tc("connections_msg.detail.collections", &[("list", short(items).into())]))
     };
     let mut lines = Vec::new();
     match kind {
         ConnectionKind::Eliezer => {
             let models = list("models");
             if !models.is_empty() {
-                lines.push(format!("Modelle: {}", short(models)));
+                lines.push(crate::i18n::tc("connections_msg.detail.models", &[("list", short(models).into())]));
             }
         }
         ConnectionKind::Multigpt => {
             let name = details.pointer("/server/name").and_then(Value::as_str).unwrap_or("");
             let version = details.pointer("/server/version").and_then(Value::as_str).unwrap_or("");
             if !name.is_empty() {
-                lines.push(format!("Server: {name} {version}").trim().to_owned());
+                let server = format!("{name} {version}").trim().to_owned();
+                lines.push(crate::i18n::tc("connections_msg.detail.server", &[("name", server.into())]));
             }
             let tools = list("tools");
             if !tools.is_empty() {
-                lines.push(format!("Werkzeuge: {}", short(tools)));
+                lines.push(crate::i18n::tc("connections_msg.detail.tools", &[("list", short(tools).into())]));
             }
             if let Some(pages) = number("pages").filter(|&p| p > 1) {
-                lines.push(format!("Werkzeugliste in {pages} Seiten"));
+                lines.push(crate::i18n::tc("connections_msg.detail.tool_pages", &[("pages", pages.into())]));
             }
-            lines.extend(collections("Dokumente"));
+            lines.extend(collections(&crate::i18n::tc("connections_msg.detail.unit_documents", &[])));
         }
         ConnectionKind::Pgvector => {
             if let Some(version) = text("server_version") {
-                lines.push(format!("Server: {version}"));
+                lines.push(crate::i18n::tc("connections_msg.detail.server", &[("name", version.into())]));
             }
             if details.get("server_version").is_some() {
-                let vector = text("vector").unwrap_or("fehlt");
-                lines.push(format!("Erweiterung vector: {vector}"));
+                let missing = crate::i18n::tc("connections_msg.detail.vector_missing", &[]);
+                let vector = text("vector").map_or(missing, str::to_owned);
+                lines.push(crate::i18n::tc("connections_msg.detail.vector", &[("vector", vector.into())]));
             }
             if let Some(table) = text("table") {
                 let columns: Vec<String> = details
@@ -231,53 +218,61 @@ pub fn detail_lines(kind: ConnectionKind, details: &Value) -> Vec<String> {
                     .map(|map| map.iter().filter_map(|(role, c)| c.as_str().map(|c| format!("{role} = {c}"))).collect())
                     .unwrap_or_default();
                 if columns.is_empty() {
-                    lines.push(format!("Tabelle: {table}"));
+                    lines.push(crate::i18n::tc("connections_msg.detail.table", &[("table", table.into())]));
                 } else {
-                    lines.push(format!("Tabelle: {table} ({})", columns.join(", ")));
+                    lines.push(crate::i18n::tc(
+                        "connections_msg.detail.table_columns",
+                        &[("table", table.into()), ("columns", columns.join(", ").into())],
+                    ));
                 }
             }
             if let Some(chunks) = number("chunks") {
-                lines.push(format!("Abschnitte: {chunks}"));
+                lines.push(crate::i18n::tc("connections_msg.detail.chunks", &[("count", chunks.into())]));
             }
             if let Some(dimension) = number("dimension") {
-                lines.push(format!("Dimension: {dimension}"));
+                lines.push(crate::i18n::tc("connections_msg.detail.dimension", &[("count", dimension.into())]));
             }
             let models = list("models");
             if !models.is_empty() {
-                lines.push(format!("Einbettungsmodelle in den Daten: {}", short(models)));
+                lines.push(crate::i18n::tc("connections_msg.detail.data_models", &[("list", short(models).into())]));
             }
-            lines.extend(collections("Abschnitte"));
+            lines.extend(collections(&crate::i18n::tc("connections_msg.detail.unit_sections", &[])));
         }
         ConnectionKind::Lancedb => {
             if let Some(dir) = text("dir") {
                 let exists = details.get("exists").and_then(Value::as_bool);
                 let writable = details.get("writable").and_then(Value::as_bool);
-                let state = match (exists, writable) {
-                    (Some(false), _) => " (fehlt noch)",
-                    (_, Some(false)) => " (nicht beschreibbar)",
-                    (Some(true), Some(true)) => " (beschreibbar)",
-                    _ => "",
+                let key = match (exists, writable) {
+                    (Some(false), _) => "connections_msg.detail.dir_missing",
+                    (_, Some(false)) => "connections_msg.detail.dir_readonly",
+                    (Some(true), Some(true)) => "connections_msg.detail.dir_writable",
+                    _ => "connections_msg.detail.dir",
                 };
-                lines.push(format!("Ordner: {dir}{state}"));
+                lines.push(crate::i18n::tc(key, &[("dir", dir.into())]));
             }
             let tables = list("tables");
             if !tables.is_empty() {
-                lines.push(format!("Tabellen: {}", short(tables)));
+                lines.push(crate::i18n::tc("connections_msg.detail.tables", &[("list", short(tables).into())]));
             }
             if let Some(entries) = number("entries") {
-                lines.push(format!("Einträge: {entries}"));
+                lines.push(crate::i18n::tc("connections_msg.detail.entries", &[("count", entries.into())]));
             }
             match (text("model"), number("dimension")) {
-                (Some(model), Some(dimension)) => lines.push(format!("Index: {model}, Dimension {dimension}")),
-                (Some(model), None) => lines.push(format!("Index: {model}")),
+                (Some(model), Some(dimension)) => lines.push(crate::i18n::tc(
+                    "connections_msg.detail.index_dimension",
+                    &[("model", model.into()), ("dimension", dimension.into())],
+                )),
+                (Some(model), None) => {
+                    lines.push(crate::i18n::tc("connections_msg.detail.index", &[("model", model.into())]));
+                }
                 _ => {}
             }
             if let Some(configured) = text("configured_model") {
-                lines.push(format!("Eingestelltes Modell: {configured}"));
+                lines.push(crate::i18n::tc("connections_msg.detail.configured_model", &[("model", configured.into())]));
             }
             match text("embedder") {
-                Some("ok") => lines.push("Einbettung: geht".to_owned()),
-                Some(why) => lines.push(format!("Einbettung: {why}")),
+                Some("ok") => lines.push(crate::i18n::tc("connections_msg.detail.embedder_ok", &[])),
+                Some(why) => lines.push(crate::i18n::tc("connections_msg.detail.embedder", &[("detail", why.into())])),
                 None => {}
             }
         }
@@ -297,47 +292,48 @@ fn form_fields(kind: ConnectionKind, config: &Value) -> Vec<Value> {
     config::fields(kind)
         .iter()
         .map(|name| {
+            // Label and hint are catalog keys (an empty hint stays empty).
             let (label, kind_of, hint) = match *name {
-                "url" => ("Adresse", "url", "http:// oder https://, ohne Benutzer und Passwort"),
-                "host" => ("Rechner (Host)", "text", "leer = nicht eingerichtet"),
-                "port" => ("Port", "number", ""),
-                "database" => ("Datenbank", "text", "leer = wie der Benutzer"),
-                "user" => ("Benutzer", "text", ""),
-                "tls" => ("TLS", "select", ""),
-                "dir" => ("Ordner", "text", "relativ zum Datenordner oder absolut"),
+                "url" => ("connections_msg.form.url", "url", "connections_msg.form.url_hint"),
+                "host" => ("connections_msg.form.host", "text", "connections_msg.form.host_hint"),
+                "port" => ("connections_msg.form.port", "number", ""),
+                "database" => ("connections_msg.form.database", "text", "connections_msg.form.database_hint"),
+                "user" => ("connections_msg.form.user", "text", ""),
+                "tls" => ("connections_msg.form.tls", "select", ""),
+                "dir" => ("connections_msg.form.dir", "text", "connections_msg.form.dir_hint"),
                 "embedding_model" if kind == ConnectionKind::Pgvector => {
-                    ("Einbettungsmodell", "text", "dasselbe Modell, mit dem die Daten eingebettet sind")
+                    ("connections_msg.form.embedding_model", "text", "connections_msg.form.embedding_model_hint")
                 }
-                "embedding_model" => ("Einbettungsmodell", "text", ""),
-                "table" => ("Tabelle", "text", "tabelle oder schema.tabelle, genau wie in der Datenbank"),
-                "text_column" => ("Spalte Text", "text", ""),
-                "vector_column" => ("Spalte Vektor", "text", "Typ vector (pgvector)"),
-                "collection_column" => ("Spalte Sammlung", "text", ""),
-                "document_column" => ("Spalte Dokument", "text", ""),
-                "section_column" => ("Spalte Stelle", "text", "leer = gibt es nicht"),
-                "title_column" => ("Spalte Titel", "text", "leer = gibt es nicht"),
-                "url_column" => ("Spalte Adresse", "text", "leer = gibt es nicht"),
+                "embedding_model" => ("connections_msg.form.embedding_model", "text", ""),
+                "table" => ("connections_msg.form.table", "text", "connections_msg.form.table_hint"),
+                "text_column" => ("connections_msg.form.text_column", "text", ""),
+                "vector_column" => {
+                    ("connections_msg.form.vector_column", "text", "connections_msg.form.vector_column_hint")
+                }
+                "collection_column" => ("connections_msg.form.collection_column", "text", ""),
+                "document_column" => ("connections_msg.form.document_column", "text", ""),
+                "section_column" => {
+                    ("connections_msg.form.section_column", "text", "connections_msg.form.optional_hint")
+                }
+                "title_column" => ("connections_msg.form.title_column", "text", "connections_msg.form.optional_hint"),
+                "url_column" => ("connections_msg.form.url_column", "text", "connections_msg.form.optional_hint"),
                 "model_column" => {
-                    ("Spalte Modell", "text", "leer = gibt es nicht; sonst prüft Baruch das Modell je Sammlung")
+                    ("connections_msg.form.model_column", "text", "connections_msg.form.model_column_hint")
                 }
                 // Round 19b: task prefixes (suggestion for nomic-embed-text in the placeholder and in the hint).
-                "query_prefix" if kind == ConnectionKind::Pgvector => (
-                    "Präfix der Anfrage",
-                    "text",
-                    "wie die Daten eingebettet sind; für nomic-embed-text „search_query: “ (mit Leerzeichen am Ende); leer = kein Präfix",
-                ),
-                "query_prefix" => (
-                    "Präfix der Anfrage",
-                    "text",
-                    "für nomic-embed-text „search_query: “ (mit Leerzeichen am Ende); leer = kein Präfix",
-                ),
-                "document_prefix" => (
-                    "Präfix der Dokumente",
-                    "text",
-                    "für nomic-embed-text „search_document: “; leer = kein Präfix. Eine Änderung verlangt „Index neu aufbauen“",
-                ),
-                _ => ("Feld", "text", ""),
+                "query_prefix" if kind == ConnectionKind::Pgvector => {
+                    ("connections_msg.form.query_prefix", "text", "connections_msg.form.query_prefix_pg_hint")
+                }
+                "query_prefix" => {
+                    ("connections_msg.form.query_prefix", "text", "connections_msg.form.query_prefix_hint")
+                }
+                "document_prefix" => {
+                    ("connections_msg.form.document_prefix", "text", "connections_msg.form.document_prefix_hint")
+                }
+                _ => ("connections_msg.form.other", "text", ""),
             };
+            let label = crate::i18n::tc(label, &[]);
+            let hint = if hint.is_empty() { String::new() } else { crate::i18n::tc(hint, &[]) };
             let required = match kind {
                 ConnectionKind::Pgvector => {
                     *name == "embedding_model" || *name == "table" || config::PG_REQUIRED_COLUMNS.contains(name)
@@ -431,10 +427,10 @@ pub fn render_connections<'a>(
                 "secret": described["secret"], "secret_error": described.get("secret_error"),
                 "secret_for": described.get("secret_for"),
                 "fields": form_fields(row.kind, &row.config), "check": check,
-                "checkable": true, "stub": usage_stub(row.kind),
+                "checkable": true, "stub": usage_text(row.kind),
                 "stub_open": usage_is_stub(row.kind), "open_part": open_part(row.kind), "probe": probe,
                 "default": row.updated.is_none(),
-                "error": if error_kind == Some(row.kind) { error } else { None },
+                "error": if error_kind == Some(row.kind) { error.clone() } else { None },
             }));
         }
         let rag = match work {
@@ -499,7 +495,10 @@ async fn models_context(state: &AppState, query: &BTreeMap<String, String>) -> R
                         .filter_map(|m| {
                             let id = m.get("id")?.as_str()?;
                             let n = m.get("context_length")?.as_u64()?;
-                            Some(format!("{id}: {n} Tokens"))
+                            Some(crate::i18n::tc(
+                                "connections_msg.detail.tokens",
+                                &[("id", id.into()), ("count", n.into())],
+                            ))
                         })
                         .collect()
                 })
@@ -507,7 +506,7 @@ async fn models_context(state: &AppState, query: &BTreeMap<String, String>) -> R
             let lines = if contexts.is_empty() {
                 Vec::new()
             } else {
-                vec![format!("Gemeldete Kontextlängen: {}", contexts.join(", "))]
+                vec![crate::i18n::tc("connections_msg.detail.contexts", &[("list", contexts.join(", ").into())])]
             };
             m["check"] = json!({
                 "ok": check.get("ok") == Some(&json!(true)),
@@ -535,34 +534,40 @@ async fn models_context(state: &AppState, query: &BTreeMap<String, String>) -> R
 }
 
 /// Success message of the model connections for `?ok=`.
-pub fn model_notice_text(code: &str) -> Option<&'static str> {
-    Some(match code {
-        "modell_gespeichert" => "Die Modell-Verbindung ist gespeichert.",
-        "modell_angelegt" => "Die Modell-Verbindung ist angelegt.",
-        "modell_geloescht" => "Die Modell-Verbindung ist gelöscht; Personas, die sie nutzten, nutzen wieder Eliezer.",
-        "modell_schluessel" => "Der Schlüssel ist im Schlüsselbund hinterlegt und gilt für die jetzige Adresse.",
-        "modell_schluessel_entfernt" => "Der Schlüssel ist aus dem Schlüsselbund entfernt.",
-        "modell_geprueft" => "Die Modell-Verbindung ist geprüft; das Ergebnis steht bei ihr.",
-        "modell_kurztest" => "Der Kurztest ist gelaufen; das Ergebnis steht bei der Verbindung.",
-        _ => return None,
-    })
+pub fn model_notice_text(code: &str) -> Option<String> {
+    Some(crate::i18n::tc(
+        match code {
+            "modell_gespeichert" => "connections_msg.model_ok.modell_gespeichert",
+            "modell_angelegt" => "connections_msg.model_ok.modell_angelegt",
+            "modell_geloescht" => "connections_msg.model_ok.modell_geloescht",
+            "modell_schluessel" => "connections_msg.model_ok.modell_schluessel",
+            "modell_schluessel_entfernt" => "connections_msg.model_ok.modell_schluessel_entfernt",
+            "modell_geprueft" => "connections_msg.model_ok.modell_geprueft",
+            "modell_kurztest" => "connections_msg.model_ok.modell_kurztest",
+            _ => return None,
+        },
+        &[],
+    ))
 }
 
 /// Error message of the model connections for `?modellfehler=`.
-pub fn model_error_text(code: &str) -> &'static str {
-    match code {
-        "name" => "Der Name fehlt, ist zu lang oder gibt es schon; nichts geändert.",
-        "art" => "Unbekannte Art (Eliezer, OpenAI-kompatibel oder Ollama); nichts geändert.",
-        "adresse" => "Die Adresse ist ungültig (http:// oder https://, ohne Benutzer und Schlüssel); nichts geändert.",
-        "verbindung" => "Diese Modell-Verbindung gibt es nicht (mehr); bitte neu laden.",
-        "eliezer" => "Die Verbindung Eliezer lässt sich nicht löschen und bleibt von der Art Eliezer.",
-        "schluessel" => "Der Schlüssel ist leer, zu lang oder mehrzeilig; nichts geändert.",
-        "schluesselbund" => "Der Schlüsselbund ist nicht erreichbar oder lehnt ab; nichts geändert.",
-        "bestaetigen" => "Bitte bestätigen (Kästchen anhaken); nichts geändert.",
-        "modell" => "Für den Kurztest bitte ein Modell angeben (eine Zeile, höchstens 200 Zeichen); nichts gesendet.",
-        "aktion" => "Unbekannte Aktion; nichts geändert.",
-        _ => "Das hat nicht geklappt; nichts geändert.",
-    }
+pub fn model_error_text(code: &str) -> String {
+    crate::i18n::tc(
+        match code {
+            "name" => "connections_msg.model_error.name",
+            "art" => "connections_msg.model_error.art",
+            "adresse" => "connections_msg.model_error.adresse",
+            "verbindung" => "connections_msg.model_error.verbindung",
+            "eliezer" => "connections_msg.model_error.eliezer",
+            "schluessel" => "connections_msg.model_error.schluessel",
+            "schluesselbund" => "connections_msg.model_error.schluesselbund",
+            "bestaetigen" => "connections_msg.model_error.bestaetigen",
+            "modell" => "connections_msg.model_error.modell",
+            "aktion" => "connections_msg.model_error.aktion",
+            _ => "connections_msg.model_error.other",
+        },
+        &[],
+    )
 }
 
 /// `POST /einstellungen/werk/bibeln` (Round 15, behind `guard::same_origin`): `method=bible.set_work_sources`,
@@ -609,22 +614,43 @@ pub(crate) struct ModelForm {
     work: Option<String>,
 }
 
-/// Error code from an RPC response of the model connections (fixed codes, never inputs in the address).
+/// What a connection is used for ([`super::usage_stub`], German) in the language of the request.
+fn usage_text(kind: ConnectionKind) -> String {
+    let key = match kind {
+        ConnectionKind::Eliezer => "connections_msg.usage.eliezer",
+        ConnectionKind::Multigpt => "connections_msg.usage.multigpt",
+        ConnectionKind::Pgvector => "connections_msg.usage.pgvector",
+        ConnectionKind::Lancedb => "connections_msg.usage.lancedb",
+    };
+    crate::i18n::tc(key, &[])
+}
+
+/// How the web search uses the list of sources (page „Quellen“, `data-usage`), in the language of the request.
+fn sources_usage_text() -> String {
+    let site = match crate::i18n::current() {
+        crate::i18n::Lang::De => "site:<Rechner>",
+        crate::i18n::Lang::En => "site:<host>",
+    };
+    crate::i18n::tc("connections_msg.sources.usage", &[("site", site.into())])
+}
+
+/// Error code from an RPC response of the model connections (fixed codes, never inputs in the address). The message
+/// is in the language of the request, so both the German and the English wording count.
 fn model_fault(e: &crate::rpc::RpcError) -> &'static str {
     let m = e.message.as_str();
-    if m.contains("Schlüsselbund") {
+    if m.contains("Schlüsselbund") || m.contains("Keyring") {
         "schluesselbund"
     } else if m.contains("Eliezer") {
         "eliezer"
-    } else if m.contains("Adresse") || m.starts_with("url") {
+    } else if m.contains("Adresse") || m.contains("Address") || m.starts_with("url") {
         "adresse"
-    } else if m.contains("Art") || m.starts_with("kind") {
+    } else if m.contains("Art") || m.contains("Kind") || m.starts_with("kind") {
         "art"
-    } else if m.contains("Name") {
+    } else if m.contains("Name") || m.contains(" name") {
         "name"
     } else if m.contains("secret") {
         "schluessel"
-    } else if m.contains("gibt es nicht") {
+    } else if m.contains("gibt es nicht") || m.contains("does not exist") {
         "verbindung"
     } else {
         "unbekannt"
@@ -790,7 +816,7 @@ pub fn render_sources<'a>(
         render(
             "settings/quellen.html",
             json!({ "notice": notice, "error": error, "sources": list, "count": count, "work": work,
-                    "usage": sources::USAGE, "bibles": bibles }),
+                    "usage": sources_usage_text(), "bibles": bibles }),
         )
     })
 }

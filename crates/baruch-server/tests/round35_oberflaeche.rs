@@ -163,7 +163,12 @@ async fn page_as(
     let app = pages
         .layer(axum::middleware::from_fn_with_state(server.state.clone(), baruch_server::consent::inject))
         .with_state(server.state.clone());
-    let response = auth::scope(who, app.oneshot(Request::get(uri).body(Body::empty()).unwrap())).await.unwrap();
+    let response = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        auth::scope(who, app.oneshot(Request::get(uri).body(Body::empty()).unwrap())),
+    )
+    .await
+    .unwrap();
     let status = response.status();
     (status, body_of(response).await)
 }
@@ -191,7 +196,7 @@ async fn workspace_as(desk: &Desk, who: &Who, rev: Option<u32>, preview: bool) -
             .expect("Arbeitsseite zeichnen")
     })
     .await;
-    konten_ui::apply(&html, who, true)
+    baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || konten_ui::apply(&html, who, true))
 }
 
 /// The three panes (like `ui.render`), drawn as `who`.

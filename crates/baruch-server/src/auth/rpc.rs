@@ -30,25 +30,21 @@ pub fn handles(method: &str) -> bool {
     METHODS.contains(&method)
 }
 
-/// German sentence for the message codes of the building blocks (the UI has its own table).
-fn sentence(code: &str) -> &'static str {
-    match code {
-        "passwort_falsch" => "Das bisherige Passwort stimmt nicht.",
-        "passwort_kurz" => "Das Passwort braucht mindestens 10 Zeichen.",
-        "passwort_lang" => "Das Passwort darf höchstens 200 Zeichen haben.",
-        "passwort_ungleich" => "Die beiden Passwörter sind verschieden.",
-        "name_vergeben" => "Diesen Namen gibt es schon.",
-        "name_ungueltig" => {
-            "Ungültiger Name: 1 bis 40 Zeichen mit mindestens einem Buchstaben a–z oder einer Ziffer, nicht \
-             „unbekannt“; Anzeigename höchstens 80 Zeichen."
-        }
-        "letzter_autor" => "Das letzte aktive Autor-Konto lässt sich nicht sperren.",
-        "unbekanntes_konto" => "Dieses Konto gibt es nicht.",
-        routes::NEEDS_AUTHOR => {
-            "Es gibt noch kein Konto. Das erste Konto (der Autor) wird am eigenen Rechner unter /einrichten angelegt."
-        }
-        _ => "Das ging nicht.",
-    }
+/// Sentence for the message codes of the building blocks in the language of the request (the UI has its own table).
+fn sentence(code: &str) -> String {
+    let key = match code {
+        "passwort_falsch" => "accounts_msg.rpc.password_wrong",
+        "passwort_kurz" => "accounts_msg.rpc.password_short",
+        "passwort_lang" => "accounts_msg.rpc.password_long",
+        "passwort_ungleich" => "accounts_msg.rpc.password_differ",
+        "name_vergeben" => "accounts_msg.rpc.name_taken",
+        "name_ungueltig" => "accounts_msg.rpc.name_invalid",
+        "letzter_autor" => "accounts_msg.rpc.last_author",
+        "unbekanntes_konto" => "accounts_msg.rpc.unknown_account",
+        routes::NEEDS_AUTHOR => "accounts_msg.rpc.needs_author",
+        _ => "accounts_msg.rpc.failed",
+    };
+    crate::i18n::tc(key, &[])
 }
 
 fn refused(problem: Problem) -> RpcError {
@@ -169,7 +165,10 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 // Own password: only with the current one; the session of this request stays, all others end.
                 (Some(identity), _) => {
                     let Some(current) = p.current else {
-                        return Err(RpcError::new(INVALID_PARAMS, "account.set_password: current fehlt"));
+                        return Err(RpcError::new(
+                            INVALID_PARAMS,
+                            crate::i18n::tc("accounts_msg.rpc.current_missing", &[]),
+                        ));
                     };
                     routes::check_current(state, identity, current).await.map_err(refused)?;
                     let keep = session::current_hash();
@@ -184,15 +183,12 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                     routes::change_password(state, id, p.password, None, None).await.map_err(refused)?;
                     Ok(json!({ "id": id, "changed": true }))
                 }
-                (None, None) => Err(RpcError::new(
-                    REFUSED,
-                    "Ohne Anmeldung gibt es kein eigenes Konto; mit id das Passwort eines Kontos setzen.",
-                )),
+                (None, None) => Err(RpcError::new(REFUSED, crate::i18n::tc("accounts_msg.rpc.no_own_account", &[]))),
             }
         }
         "account.logout_all" => {
             let Some(identity) = who.identity() else {
-                return Err(RpcError::new(REFUSED, "Ohne Anmeldung gibt es keine Sitzungen zu beenden."));
+                return Err(RpcError::new(REFUSED, crate::i18n::tc("accounts_msg.rpc.no_sessions", &[])));
             };
             let sessions = state.store.session_delete_all(identity.id, None).await.map_err(internal)?;
             Ok(json!({ "sessions": sessions }))

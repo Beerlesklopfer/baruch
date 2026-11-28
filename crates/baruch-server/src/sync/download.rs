@@ -27,9 +27,7 @@ const MAX_PAGES: usize = 50;
 /// the list is read completely.
 async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<Listed>, bool), RagError> {
     let session = link.session().await?;
-    let schema = session.schema(LIST_DOCUMENTS_TOOL).ok_or_else(|| {
-        RagError::Schema(format!("MultiGPT bietet das Werkzeug {LIST_DOCUMENTS_TOOL} nicht an (tools/list)."))
-    })?;
+    let schema = session.schema(LIST_DOCUMENTS_TOOL).ok_or_else(|| super::missing_tool(LIST_DOCUMENTS_TOOL))?;
     let props = schema.get("properties").and_then(serde_json::Value::as_object).cloned().unwrap_or_default();
     let cursor_key = CURSOR_KEYS.iter().find(|k| props.contains_key(**k)).copied();
     let mut out: Vec<Listed> = Vec::new();
@@ -38,10 +36,7 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
     for page in 0..MAX_PAGES {
         let mut f = Filler::new(LIST_DOCUMENTS_TOOL, &schema);
         if !f.collection(collection) {
-            return Err(RagError::Schema(format!(
-                "{LIST_DOCUMENTS_TOOL} nennt im inputSchema keinen Parameter für die Sammlung; ohne ihn listete \
-                 MultiGPT alle Dokumente, darum fragt Baruch nicht."
-            )));
+            return Err(super::schema_error("sync_msg.tool.no_collection_list", LIST_DOCUMENTS_TOOL));
         }
         // Requested page size (capped by the `maximum` of the schema); `None` = the schema knows none.
         let asked = f.number(PAGE_LIMIT_KEYS, (max + 1) as u64);
@@ -97,12 +92,10 @@ async fn list(link: &mut Link, collection: &str, max: usize) -> Result<(Vec<List
 /// ([`read_all_pages`]); this way the local copy equals the online full text (hash, index, highlights).
 async fn read(link: &mut Link, collection: &str, id: &str, limits: Limits) -> Result<String, RagError> {
     let session = link.session().await?;
-    let schema = session
-        .schema(READ_TOOL)
-        .ok_or_else(|| RagError::Schema(format!("MultiGPT bietet das Werkzeug {READ_TOOL} nicht an (tools/list).")))?;
+    let schema = session.schema(READ_TOOL).ok_or_else(|| super::missing_tool(READ_TOOL))?;
     let mut f = Filler::new(READ_TOOL, &schema);
     if !f.document(id) {
-        return Err(RagError::Schema(format!("{READ_TOOL} nennt im inputSchema keinen Parameter für das Dokument.")));
+        return Err(super::schema_error("sync_msg.tool.no_document_param", READ_TOOL));
     }
     if schema.get("properties").is_some() {
         f.collection(collection);
@@ -153,28 +146,28 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
             Ok(found) => found,
             Err(e) => {
                 report.counts.failed += 1;
-                report.problem(link, format!("Sammlung „{collection}“ nicht gelesen: {}", why(&e)));
+                report.problem(
+                    link,
+                    crate::i18n::tc(
+                        "sync_msg.download.not_read",
+                        &[("collection", collection.into()), ("detail", why(&e).into())],
+                    ),
+                );
                 continue;
             }
         };
         let mut docs = docs;
         if !complete && docs.len() <= limits.documents {
-            report.note(
-                link,
-                format!(
-                    "Die Liste der Sammlung „{collection}“ ist womöglich unvollständig (volle Seite ohne Fortsetzung); \
-                     lokale Kopien, die darin fehlen, bleiben erhalten."
-                ),
-            );
+            report.note(link, crate::i18n::tc("sync_msg.download.incomplete", &[("collection", collection.into())]));
         }
         if docs.len() > limits.documents {
             docs.truncate(limits.documents);
             complete = false;
             report.problem(
                 link,
-                format!(
-                    "Sammlung „{collection}“ hat mehr als {} Dokumente; geholt werden nur die ersten {}.",
-                    limits.documents, limits.documents
+                crate::i18n::tc(
+                    "sync_msg.download.too_many",
+                    &[("collection", collection.into()), ("max", limits.documents.into())],
                 ),
             );
         }
@@ -182,7 +175,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
             Ok(states) => states.into_iter().map(|s| (s.item.clone(), s)).collect(),
             Err(e) => {
                 report.counts.failed += 1;
-                report.problem(link, format!("Speicher: {e}"));
+                report.problem(link, super::store_note(&e));
                 continue;
             }
         };
@@ -197,7 +190,17 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
                 Ok(text) => text,
                 Err(e) => {
                     report.counts.failed += 1;
-                    report.problem(link, format!("„{}“ ({collection}) nicht gelesen: {}", doc.title, why(&e)));
+                    report.problem(
+                        link,
+                        crate::i18n::tc(
+                            "sync_msg.download.doc_not_read",
+                            &[
+                                ("title", (&doc.title).into()),
+                                ("collection", collection.into()),
+                                ("detail", why(&e).into()),
+                            ],
+                        ),
+                    );
                     continue;
                 }
             };
@@ -205,10 +208,13 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
                 report.counts.failed += 1;
                 report.problem(
                     link,
-                    format!(
-                        "„{}“ ({collection}) ist größer als {} und wird nicht geholt.",
-                        doc.title,
-                        mib(limits.document_bytes)
+                    crate::i18n::tc(
+                        "sync_msg.download.doc_too_big",
+                        &[
+                            ("title", (&doc.title).into()),
+                            ("collection", collection.into()),
+                            ("max", mib(limits.document_bytes).into()),
+                        ],
                     ),
                 );
                 continue;
@@ -218,10 +224,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
                 complete = false;
                 report.problem(
                     link,
-                    format!(
-                        "Grenze von {} je Abgleich erreicht; die übrigen Dokumente folgen beim nächsten Abgleich.",
-                        mib(limits.run_bytes)
-                    ),
+                    crate::i18n::tc("sync_msg.download.budget", &[("max", mib(limits.run_bytes).into())]),
                 );
                 break;
             }
@@ -239,7 +242,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
                 Ok((_, false)) => report.counts.unchanged += 1,
                 Err(e) => {
                     report.counts.failed += 1;
-                    report.problem(link, format!("Speicher: {e}"));
+                    report.problem(link, super::store_note(&e));
                     continue;
                 }
             }
@@ -257,7 +260,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report, lim
             };
             if let Err(e) = store.sync_state_put(&state).await {
                 report.counts.failed += 1;
-                report.problem(link, format!("Speicher: {e}"));
+                report.problem(link, super::store_note(&e));
             }
         }
         if complete {

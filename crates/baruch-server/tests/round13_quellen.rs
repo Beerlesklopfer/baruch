@@ -252,7 +252,11 @@ async fn the_check_has_one_timeout_for_all_requests() {
         b.tool_delays.insert("list_collections".into(), Duration::from_secs(30));
     });
     let started = Instant::now();
-    let outcome = baruch_server::connections::check::multigpt(&mock.url(), None).await;
+    let outcome = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::connections::check::multigpt(&mock.url(), None),
+    )
+    .await;
     let took = started.elapsed();
     let limit = baruch_server::connections::check::TIMEOUT;
     // Reason: initialize, tools/list and list_collections together have at most TIMEOUT (10 s); without the shared

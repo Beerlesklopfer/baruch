@@ -78,7 +78,8 @@ pub const REPLY_DELAY: Duration = Duration::from_millis(500);
 /// a connection to the database, quitting is not to hang on it (SQLite also survives the hard end).
 pub const CLOSE_WAIT: Duration = Duration::from_secs(5);
 
-/// Sentence of the final page (visible without JavaScript too); tests and documentation name it literally.
+/// Sentence of the final page in German (visible without JavaScript too); tests and documentation name it literally.
+/// The page shows `system_msg.shutdown.done` in the language of the request (German: this sentence).
 pub const DONE_TEXT: &str = "Baruch ist beendet – dieses Fenster kann geschlossen werden";
 
 /// Last line on the standard output after the clean shutdown.
@@ -219,7 +220,14 @@ fn render(status: StatusCode, name: &str, ctx: Jinja) -> Response {
         Ok(html) => {
             (status, [(header::CACHE_CONTROL, HeaderValue::from_static("no-store"))], Html(html)).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            crate::i18n::tc(
+                "system_msg.shutdown.template_error",
+                &[("name", name.into()), ("detail", e.to_string().into())],
+            ),
+        )
+            .into_response(),
     }
 }
 
@@ -253,7 +261,7 @@ async fn quit(State(state): State<Arc<AppState>>, request: Request) -> Response 
         tokio::time::sleep(REPLY_DELAY).await;
         shutdown.request();
     });
-    render(StatusCode::OK, "shutdown_done.html", context! { text => DONE_TEXT })
+    render(StatusCode::OK, "shutdown_done.html", context! { text => crate::i18n::tc("system_msg.shutdown.done", &[]) })
 }
 
 /// Pages (GET), merged in `lib.rs` with the pages: `GET /beenden`.

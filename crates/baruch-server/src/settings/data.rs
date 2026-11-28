@@ -94,10 +94,7 @@ pub fn open_permissions(_path: &Path) -> Option<u32> {
 /// Note for the page „Daten“ on [`open_permissions`]; `None` if there is nothing to report.
 pub fn permissions_warning(path: &Path) -> Option<String> {
     let mode = open_permissions(path)?;
-    Some(format!(
-        "Der Datenordner ist auch für andere Benutzer dieses Rechners zugänglich (Rechte {mode:04o}). Baruch ändert \
-         die Rechte eines vorhandenen Ordners nicht; „chmod 700“ auf den Ordner lässt nur noch den Besitzer hinein."
-    ))
+    Some(crate::i18n::tc("settings_msg.data.open_permissions", &[("mode", format!("{mode:04o}").into())]))
 }
 
 /// Size of a folder in bytes, recursive; symbolic links do not count and are not
@@ -236,7 +233,7 @@ pub struct Backup {
 /// Copies `from` to `to` (which does not exist yet), recursively; on the top level without [`DB_FILES`].
 /// Symbolic links are not copied but reported in `skipped`.
 fn copy_tree(from: &Path, to: &Path, rel: &str, top: bool, skipped: &mut Vec<String>) -> Result<(), String> {
-    let entries = std::fs::read_dir(from).map_err(|e| format!("{} lässt sich nicht lesen: {e}", from.display()))?;
+    let entries = std::fs::read_dir(from).map_err(|e| path_error("settings_msg.data.unreadable", from, &e))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("{}: {e}", from.display()))?;
         let name = entry.file_name();
@@ -251,16 +248,21 @@ fn copy_tree(from: &Path, to: &Path, rel: &str, top: bool, skipped: &mut Vec<Str
         if kind.is_symlink() {
             skipped.push(relative);
         } else if kind.is_dir() {
-            std::fs::create_dir(&target).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", target.display()))?;
+            std::fs::create_dir(&target).map_err(|e| path_error("settings_msg.data.not_created", &target, &e))?;
             copy_tree(&path, &target, &relative, false, skipped)?;
         } else if kind.is_file() {
-            std::fs::copy(&path, &target).map_err(|e| format!("{} lässt sich nicht kopieren: {e}", path.display()))?;
+            std::fs::copy(&path, &target).map_err(|e| path_error("settings_msg.data.not_copied", &path, &e))?;
         } else {
             // Device files, FIFOs, sockets: do not copy, but report.
             skipped.push(relative);
         }
     }
     Ok(())
+}
+
+/// Message `key` with the arguments `path` and `detail`.
+fn path_error(key: &str, path: &Path, detail: &dyn std::fmt::Display) -> String {
+    crate::i18n::tc(key, &[("path", path.display().to_string().into()), ("detail", detail.to_string().into())])
 }
 
 /// Free space (usable for non-root) of the file system under `path`; `None` if unknown.
@@ -285,12 +287,13 @@ pub(crate) fn room_for(needed: u64, available: Option<u64>) -> Result<(), String
     if available >= needed.saturating_add(RESERVE_BYTES) {
         return Ok(());
     }
-    Err(format!(
-        "Zu wenig Platz für die Sicherung: Sie braucht etwa {}, frei sind {}, und {} sollen danach frei \
-         bleiben (für die laufende Datenbank und die Spiegel); nichts angelegt.",
-        human_size(needed),
-        human_size(available),
-        human_size(RESERVE_BYTES)
+    Err(crate::i18n::tc(
+        "settings_msg.data.no_room",
+        &[
+            ("needed", human_size(needed).into()),
+            ("free", human_size(available).into()),
+            ("reserve", human_size(RESERVE_BYTES).into()),
+        ],
     ))
 }
 
@@ -323,25 +326,25 @@ fn existing_backups(parent: &Path, name: &str) -> usize {
 pub async fn backup(state: &AppState) -> Result<Backup, String> {
     let _held = state.write_lock.lock().await;
     let data = std::fs::canonicalize(&state.data)
-        .map_err(|e| format!("Datenordner {} nicht gefunden: {e}", state.data.display()))?;
+        .map_err(|e| path_error("settings_msg.data.folder_missing", &state.data, &e))?;
     let (Some(parent), Some(name)) = (data.parent(), data.file_name()) else {
-        return Err(format!("Der Datenordner {} hat keinen Elternordner für die Sicherung.", data.display()));
+        return Err(crate::i18n::tc("settings_msg.data.no_parent", &[("path", data.display().to_string().into())]));
     };
     let stamp: String = sqlx::query_scalar("SELECT strftime('%Y-%m-%d-%H%M%S', 'now', 'localtime')")
         .fetch_one(state.store.pool())
         .await
-        .map_err(|e| format!("Zeit der Sicherung: {e}"))?;
+        .map_err(|e| crate::i18n::tc("settings_msg.data.time", &[("detail", e.to_string().into())]))?;
     let name = name.to_string_lossy().into_owned();
     let (dir, parent_dir, base) = (data.clone(), parent.to_owned(), name.clone());
     let (count, needed, available) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         (existing_backups(&parent_dir, &base), dir_size(&dir), free_space(&parent_dir))
     }))
     .await
-    .map_err(|e| format!("Platz prüfen abgebrochen: {e}"))?;
+    .map_err(|e| crate::i18n::tc("settings_msg.data.space_aborted", &[("detail", e.to_string().into())]))?;
     if count >= MAX_BACKUPS {
-        return Err(format!(
-            "Neben dem Datenordner liegen schon {count} Sicherungen ({name}.sicherung-…, höchstens {MAX_BACKUPS}); \
-             bitte alte entfernen oder verschieben. Nichts angelegt."
+        return Err(crate::i18n::tc(
+            "settings_msg.data.too_many",
+            &[("count", count.into()), ("name", name.as_str().into()), ("max", MAX_BACKUPS.into())],
         ));
     }
     room_for(needed, available)?;
@@ -349,12 +352,9 @@ pub async fn backup(state: &AppState) -> Result<Backup, String> {
     match std::fs::create_dir(&target) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err(format!(
-                "Die Sicherung {} gibt es schon; nichts überschrieben. Bitte in einer Sekunde noch einmal.",
-                target.display()
-            ));
+            return Err(crate::i18n::tc("settings_msg.data.exists", &[("path", target.display().to_string().into())]));
         }
-        Err(e) => return Err(format!("{} lässt sich nicht anlegen: {e}", target.display())),
+        Err(e) => return Err(path_error("settings_msg.data.not_created", &target, &e)),
     }
     let result = fill(state, &data, &target).await;
     if result.is_err() {
@@ -366,19 +366,22 @@ pub async fn backup(state: &AppState) -> Result<Backup, String> {
 
 async fn fill(state: &AppState, data: &Path, target: &Path) -> Result<Backup, String> {
     let db = target.join("baruch.sqlite");
-    let db_text = db.to_str().ok_or_else(|| format!("{} ist kein UTF-8-Pfad", db.display()))?.to_owned();
+    let db_text = db
+        .to_str()
+        .ok_or_else(|| crate::i18n::tc("settings_msg.data.not_utf8", &[("path", db.display().to_string().into())]))?
+        .to_owned();
     sqlx::query("VACUUM INTO ?")
         .bind(db_text)
         .execute(state.store.pool())
         .await
-        .map_err(|e| format!("Datenbank sichern (VACUUM INTO): {e}"))?;
+        .map_err(|e| crate::i18n::tc("settings_msg.data.vacuum", &[("detail", e.to_string().into())]))?;
     let (from, to) = (data.to_owned(), target.to_owned());
     let skipped = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let mut skipped = Vec::new();
         copy_tree(&from, &to, "", true, &mut skipped).map(|()| skipped)
     }))
     .await
-    .map_err(|e| format!("Kopieren abgebrochen: {e}"))??;
+    .map_err(|e| crate::i18n::tc("settings_msg.data.copy_aborted", &[("detail", e.to_string().into())]))??;
     let dir = target.to_owned();
     let size_bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || dir_size(&dir))).await.unwrap_or(0);
     Ok(Backup { dir: target.to_owned(), size_bytes, skipped })
@@ -396,8 +399,8 @@ pub(super) struct ActForm {
 pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work = form.work.as_deref().and_then(|w| w.trim().parse::<WorkId>().ok()).filter(|&w| w > 0);
     if !form.confirm.as_deref().is_some_and(|c| matches!(c, "1" | "on")) {
-        let message = "Sicherung bitte bestätigen (Kästchen ankreuzen).";
-        return super::error_page(&state, &headers, "daten", work, message).await;
+        let message = crate::i18n::tc("settings_msg.data.backup_confirm", &[]);
+        return super::error_page(&state, &headers, "daten", work, &message).await;
     }
     match backup(&state).await {
         Ok(made) => {
@@ -441,7 +444,9 @@ mod tests {
         let mib = 1024 * 1024;
         assert!(room_for(10 * mib, None).is_ok(), "unbekannter Platz hält nicht auf (andere Systeme)");
         assert!(room_for(10 * mib, Some(10 * mib + RESERVE_BYTES)).is_ok(), "genau Sicherung plus Rücklage reicht");
-        let refused = room_for(10 * mib, Some(10 * mib + RESERVE_BYTES - 1)).expect_err("ein Byte zu wenig");
+        let refused =
+            crate::i18n::sync_scope(crate::i18n::Lang::De, || room_for(10 * mib, Some(10 * mib + RESERVE_BYTES - 1)))
+                .expect_err("ein Byte zu wenig");
         assert!(refused.contains("Zu wenig Platz") && refused.contains("nichts angelegt"), "Meldung: {refused}");
         assert!(room_for(u64::MAX - 1, Some(u64::MAX - 1)).is_err(), "kein Überlauf bei riesigen Zahlen");
     }

@@ -77,7 +77,12 @@ async fn importing_creates_a_work_with_its_own_mirror_and_import_commit() {
 async fn importing_the_same_file_twice_is_refused() {
     let server = common::open().await;
     let first = server.import_garden().await;
-    let err = baruch_server::import::import_typst(&server.state, GARDEN, "nochmal.typ").await.unwrap_err();
+    let err = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::import::import_typst(&server.state, GARDEN, "nochmal.typ"),
+    )
+    .await
+    .unwrap_err();
     assert_eq!(err.code, rpc::REFUSED, "schon importiert ist ein fachlicher Fehler: {err:?}");
     assert!(
         err.message.contains("schon importiert") && err.message.contains(&first.slug),

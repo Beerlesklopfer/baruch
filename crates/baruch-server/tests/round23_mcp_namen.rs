@@ -735,7 +735,8 @@ async fn a_stale_preview_is_reported_as_stale_and_open_requests_per_origin_are_b
         }
         other => panic!("veraltet → StoreError::Stale, war {other:?}"),
     }
-    let rpc = baruch_server::rpc::RpcError::from(error);
+    let rpc =
+        baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || baruch_server::rpc::RpcError::from(error));
     assert_eq!(rpc.code, -32000, "über RPC bleibt es eine fachliche Ablehnung (-32000)");
     let listed = m.server.rpc("outline.requests", json!({ "work": m.work, "open": true, "preview": true })).await;
     let shown = result(&listed)["requests"][0]["preview_error"].as_str().unwrap().to_owned();

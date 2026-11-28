@@ -44,7 +44,9 @@ async fn ok(server: &common::Server, method: &str, params: Value) -> Value {
 
 /// `model.*` directly through the module.
 async fn model_call(server: &common::Server, method: &str, params: Value) -> Result<Value, (i64, String)> {
-    models::call(&server.state, method, params).await.map_err(|e| (e.code, e.message))
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, models::call(&server.state, method, params))
+        .await
+        .map_err(|e| (e.code, e.message))
 }
 
 async fn use_mock(server: &common::Server, mock: &MockEliezer) {
@@ -53,7 +55,9 @@ async fn use_mock(server: &common::Server, mock: &MockEliezer) {
 
 async fn page(server: &common::Server, pairs: &[(&str, &str)]) -> String {
     let q: BTreeMap<String, String> = pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
-    render_connections(&server.state, None, &q).await.expect("Seite Verbindungen")
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, render_connections(&server.state, None, &q))
+        .await
+        .expect("Seite Verbindungen")
 }
 
 /// Excerpt of the page: the connection `kind` (up to the next one).
@@ -99,7 +103,8 @@ async fn the_key_goes_only_to_the_address_it_was_entered_for() {
     mock.require_bearer(Some(SECRET));
     // New address, key still stored for the old one: nothing may go out.
     use_mock(&server, &mock).await;
-    let (result, _) = chat(&server, "mock-modell", "Test Bindung").await;
+    let (result, _) =
+        baruch_server::i18n::scope(baruch_server::i18n::Lang::De, chat(&server, "mock-modell", "Test Bindung")).await;
     let error = result.unwrap_err();
     assert!(
         matches!(&error, LlmError::NotConfigured(m) if m.contains("anderes Ziel") && m.contains("nicht gesendet")),

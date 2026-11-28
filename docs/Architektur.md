@@ -6366,3 +6366,57 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
 #### messages_1
 
 #### messages_2
+
+Server messages of settings, connections, accounts/roles, system, sync, web search, import and the messages of the
+store. Eight area files, each in `locales/en` (base, English) and `locales/de` (the wording from before Round 39a,
+byte for byte): `settings_msg`, `connections_msg`, `accounts_msg`, `system_msg`, `sync_msg`, `websearch_msg`,
+`import_msg`, `store_msg`.
+
+- **Converted** (`i18n::tc` in the language of the request): `settings/**` (page names and storage notes of the
+  frame, `?ok=` notices, form errors, `settings.*` refusals, backup messages), `auth/**` except the command line
+  `auth/cli.rs` (gate refusals, sign-in page, `account.*` sentences), `konten_ui/**` (message codes `?ok=`/`?fehler=`:
+  the table `MESSAGES` now maps a code to a key; account entry of the menu „Baruch ▾“), `roles/**` (refusals of the
+  gate and of `check_rpc`, Lektor proposals and findings), `guard.rs` (the four „Abgelehnt“ bodies; `check` returns
+  the key of its reason), `lib.rs` (`internal()`, unknown work; the mirror folder checks stay German, they are system messages), `rpc.rs`, `instance.rs`, `about.rs`
+  (the two translatable package places), `shutdown.rs` (final page), `models.rs` (connection errors, release
+  sentence, model list notes, `model.*` refusals), `sync/**` except `sync/mock.rs` (page notices, `sync.*` errors,
+  every note of a run), `websearch/**` except `verify.rs` and `mock.rs` (evidence page, adopting, notes and refused
+  addresses of a search run), `connections/{mod,check,config,collections,secrets,sources,pages}.rs` (checks, field
+  checks, keyring, the page „Verbindungen“ with its message codes, check details and form fields),
+  `pdf_import/pages.rs`, `docx_import/pages.rs` and the browser-facing errors and warnings of `docx_import/mod.rs`.
+- **Guards outside `i18n::layer`** (`own_reads`, `remote_only_mcp`, `local_host`) take the language from cookie and
+  `Accept-Language` of the request themselves (`i18n::resolve(headers, None)`); `same_origin` and the gate run inside
+  and use `i18n::tc`.
+- **Store messages** (`src/store_text.rs`): `store_error_text` matches every `StoreError` variant exhaustively.
+  Variants with a fixed wording are formatted from their fields (`store_msg.error.*`). Variants carrying a text
+  (`Refused`, `Heading`, `Asset`, `Title`, `Color`, `Idea`, `Finding`, `PostEdit`, `Replace`, `CoverBlock`, `Stale`;
+  the detail of `Import`, `Exchange`, `Numbering`, `Glossary`, `Typeset`) are matched against the German texts of
+  `PATTERN_KEYS` in `locales/de/store_msg.ftl`: every `{ $name }` matches any text (longest literal part tried
+  first), the captured parts become the arguments, and an argument named `detail` is translated again (nested
+  messages such as „Veraltet: …“, „Vorschlag abgelehnt: …“). German output is therefore always the store's own
+  wording. `/rpc` uses the language of the request, `/mcp` English (S1 wiring). Places that pass a store text on
+  (`connections` faults, `sync.set_collections`, `roles::unknown_work`, the sign-up page) translate it the same way.
+- **Kept German on purpose** (tests and documentation name them): the constants `auth::routes::LOGIN_FAILED` and
+  `LOGIN_BLOCKED`, `roles::NO_WORK`, `shutdown::DONE_TEXT`, `about::THIRD_PARTY_PLACES` and
+  `connections::usage_stub` hold the German wording; the pages show the catalog key of the same sentence.
+  `docx_import::cli_import` runs in German (`i18n::scope(Lang::De, …)`), like every command line text.
+- **Comparisons before translating**: `auth::routes` compares `StoreError::Refused` with `Store::ACCOUNT_*` before any
+  text is made; `connections::pages::model_fault` reads the RPC message for a code and now knows the German and the
+  English wording (`Schlüsselbund`/`Keyring`, `Adresse`/`Address`, `Art`/`Kind`, `gibt es nicht`/`does not exist`).
+- **Tests**: `tests/round39a_messages_2.rs` triggers a settings notice, a form error, a failed sign-in, an import
+  error, a store refusal (`Refused` and `UnknownIdea`) over `/rpc` in en and de, the same store error over `/mcp`
+  (English for a German browser), the guard refusal and English protocol errors; it scans `crates/baruch-store/src`
+  for every `Refused("…")` literal and every constant passed to `Refused(…)` and asserts a `store_msg` pattern with
+  the verbatim German text, and checks that every `*_msg` key quoted in `src` exists.
+- **Open** (German user-facing text remains; English shows German there): `connections/multigpt.rs` (MCP client
+  errors, search and full-text messages), `connections/pgvector.rs` (check details, search refusals), `rag/**`
+  (status and index messages), `import.rs` (import notes and image refusals, also used by the browser import of
+  Typst/Markdown), `archive.rs` (ZIP refusals), `markdown_import/**`, `pdf_import/{mod,pdf,epub,remote,typst_out,draft}.rs`,
+  `docx_import/draft.rs`; the display values `models::locality` („lokal“/„extern“, also a `data-locality` code) and
+  `models::kind_title` („OpenAI-kompatibel“). Store texts without a pattern stay German: the dynamic payloads of
+  `ideas.rs`, `idea_links.rs`, `glossary.rs`, `outline.rs` (heading problems of `Heading`), `cover_blocks.rs`,
+  `exchange_apply.rs`, the typesetting checks of `baruch-typst` inside `Typeset`, the ISBN check of `book.rs` and
+  the field labels inside `store_msg.book.field_*`.
+- **Not converted by design** (contract §5): command line (`auth/cli.rs`, `--allow-host` parsing in `guard.rs`,
+  `connections::secrets::describe`/`--secrets`), mocks, log lines, `expect()` texts, Word comment and proposal texts
+  written into the work (`docx_import::apply`), message codes in addresses (`?ok=`, `?fehler=`).

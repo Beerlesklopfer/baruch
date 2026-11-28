@@ -141,7 +141,8 @@ pub fn cross_site_subresource(method: &axum::http::Method, headers: &HeaderMap) 
 /// come from the own book. There the route itself still decides (`epub_preview::from_own_frame` through `Referer`).
 pub async fn own_reads(request: Request, next: Next) -> Response {
     if cross_site_subresource(request.method(), request.headers()) && !epub_reader_path(request.uri().path()) {
-        return (StatusCode::FORBIDDEN, "Abgelehnt: Anfrage von einer fremden Seite (lesend)").into_response();
+        let lang = crate::i18n::resolve(request.headers(), None);
+        return (StatusCode::FORBIDDEN, crate::i18n::t(lang, "system_msg.guard.foreign_read", &[])).into_response();
     }
     next.run(request).await
 }
@@ -157,7 +158,11 @@ fn epub_reader_path(path: &str) -> bool {
 pub async fn same_origin(request: Request, next: Next) -> Response {
     match check(request.headers()) {
         Ok(()) => next.run(request).await,
-        Err(why) => (StatusCode::FORBIDDEN, format!("Abgelehnt: {why}")).into_response(),
+        Err(why) => {
+            let detail = crate::i18n::tc(why, &[]);
+            (StatusCode::FORBIDDEN, crate::i18n::tc("system_msg.guard.refused", &[("detail", detail.into())]))
+                .into_response()
+        }
     }
 }
 
@@ -167,7 +172,9 @@ pub async fn remote_only_mcp(request: Request, next: Next) -> Response {
     let peer = request.extensions().get::<ConnectInfo<SocketAddr>>().map(|ConnectInfo(addr)| *addr);
     match peer {
         Some(addr) if !addr.ip().to_canonical().is_loopback() && request.uri().path() != "/mcp" => {
-            (StatusCode::FORBIDDEN, "Abgelehnt: Von anderen Rechnern nur /mcp mit Token.").into_response()
+            // Outside of `i18n::layer`: the language comes from cookie and Accept-Language of the request.
+            let lang = crate::i18n::resolve(request.headers(), None);
+            (StatusCode::FORBIDDEN, crate::i18n::t(lang, "system_msg.guard.remote", &[])).into_response()
         }
         _ => next.run(request).await,
     }
@@ -282,13 +289,10 @@ pub async fn local_host(State(state): State<Arc<AppState>>, request: Request, ne
     match host {
         None => next.run(request).await,
         Some(Ok(host)) if state.allowed_hosts.allows(host) => next.run(request).await,
-        Some(_) => (
-            StatusCode::MISDIRECTED_REQUEST,
-            "Abgelehnt: Baruch antwortet nur unter einer IP-Adresse, localhost oder einem beim Start erlaubten \
-             Rechnernamen (--allow-host, Betrieb hinter einem Reverse-Proxy), nicht unter einem fremden Namen \
-             (Host-Kopfzeile, Schutz vor DNS-Rebinding).",
-        )
-            .into_response(),
+        Some(_) => {
+            let lang = crate::i18n::resolve(request.headers(), None);
+            (StatusCode::MISDIRECTED_REQUEST, crate::i18n::t(lang, "system_msg.guard.host", &[])).into_response()
+        }
     }
 }
 
@@ -315,20 +319,20 @@ fn is_port(port: &str) -> bool {
     !port.is_empty() && port.len() <= 5 && port.bytes().all(|b| b.is_ascii_digit())
 }
 
-/// Checks `Sec-Fetch-Site` and `Origin` against `Host`. `Err` names the reason.
+/// Checks `Sec-Fetch-Site` and `Origin` against `Host`. `Err` is the catalog key of the reason (`system_msg.guard.*`).
 pub fn check(headers: &HeaderMap) -> Result<(), &'static str> {
     if let Some(site) = headers.get("sec-fetch-site") {
         match site.to_str() {
             Ok("same-origin" | "none") => {}
-            _ => return Err("Anfrage von einer fremden Seite (Sec-Fetch-Site)"),
+            _ => return Err("system_msg.guard.fetch_site"),
         }
     }
     if let Some(origin) = headers.get(header::ORIGIN) {
-        let origin = origin.to_str().map_err(|_| "Origin nicht lesbar")?;
-        let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).ok_or("Origin ohne Host")?;
+        let origin = origin.to_str().map_err(|_| "system_msg.guard.origin_unreadable")?;
+        let host = headers.get(header::HOST).and_then(|h| h.to_str().ok()).ok_or("system_msg.guard.origin_no_host")?;
         let authority = origin.strip_prefix("http://").or_else(|| origin.strip_prefix("https://"));
         if authority != Some(host) {
-            return Err("Anfrage von einer fremden Seite (Origin passt nicht zu Host)");
+            return Err("system_msg.guard.origin_mismatch");
         }
     }
     Ok(())

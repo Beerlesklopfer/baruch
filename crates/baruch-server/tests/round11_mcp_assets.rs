@@ -231,7 +231,7 @@ async fn replace_set_cover_and_delete_only_open_requests() {
     assert_eq!(commits(&server, &slug), before, "kein Commit für Anträge");
 
     let twice = refused(&server, &s, "asset_delete", json!({ "work": work, "name": "beet.svg", "note": "weg" })).await;
-    assert!(twice.contains("schon"), "derselbe offene Antrag nicht zweimal: {twice}");
+    assert!(twice.contains("already exists"), "derselbe offene Antrag nicht zweimal (MCP englisch): {twice}");
     let unknown = refused(&server, &s, "asset_delete", json!({ "work": work, "name": "fehlt.svg" })).await;
     assert!(unknown.contains("fehlt.svg"), "unbekanntes Bild: {unknown}");
     let same = refused(
@@ -241,7 +241,7 @@ async fn replace_set_cover_and_delete_only_open_requests() {
         json!({ "work": work, "name": "beet.svg", "content": BED, "encoding": "svg" }),
     )
     .await;
-    assert!(same.contains("unverändert"), "gleicher Inhalt ist kein Antrag: {same}");
+    assert!(same.contains("unchanged"), "gleicher Inhalt ist kein Antrag (MCP englisch): {same}");
     let none = refused(&server, &s, "asset_set_cover", json!({ "work": work, "name": null })).await;
     assert!(none.contains("no cover"), "nichts zu entfernen: {none}");
     let mine = ok(&server, &s, "asset_requests", json!({ "work": work, "mine": true, "persona": "@lektor" })).await;

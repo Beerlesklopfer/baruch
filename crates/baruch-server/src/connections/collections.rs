@@ -23,7 +23,7 @@ pub(crate) fn remote_way(way: &str) -> Result<RagWay, Fault> {
     match way.trim() {
         "pgvector" => Ok(RagWay::Pgvector),
         "multigpt" => Ok(RagWay::Multigpt),
-        _ => Err(Fault::Invalid("weg", "way: pgvector oder multigpt (nur diese Wege haben Sammlungen).".into())),
+        _ => Err(Fault::Invalid("weg", crate::i18n::tc("connections_msg.rpc.way", &[]))),
     }
 }
 
@@ -79,12 +79,12 @@ pub(crate) async fn set(state: &AppState, work: WorkId, way: RagWay, collections
 fn way_param(params: &Value) -> Result<RagWay, Fault> {
     match params.get("way").and_then(Value::as_str) {
         Some(way) => remote_way(way),
-        None => Err(Fault::Invalid("weg", "way fehlt (pgvector oder multigpt).".into())),
+        None => Err(Fault::Invalid("weg", crate::i18n::tc("connections_msg.rpc.way_missing", &[]))),
     }
 }
 
 fn collections_param(params: &Value) -> Result<Vec<String>, Fault> {
-    let invalid = || Fault::Invalid("sammlung", "collections: Liste von Texten erwartet.".into());
+    let invalid = || Fault::Invalid("sammlung", crate::i18n::tc("connections_msg.rpc.collections", &[]));
     let list = params.get("collections").and_then(Value::as_array).ok_or_else(invalid)?;
     list.iter().map(|c| c.as_str().map(str::to_owned).ok_or_else(invalid)).collect()
 }

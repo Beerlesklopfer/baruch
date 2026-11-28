@@ -91,20 +91,18 @@ pub(crate) const UPLOADING: &str = "hochladen-begonnen";
 /// Upload a document; returns its new ID (`None` if the answer names none).
 async fn put(link: &mut Link, collection: &str, chapter: &Chapter) -> Result<Option<String>, RagError> {
     let session = link.session().await?;
-    let schema = session.schema(UPLOAD_TOOL).ok_or_else(|| {
-        RagError::Schema(format!("MultiGPT bietet das Werkzeug {UPLOAD_TOOL} nicht an (tools/list)."))
-    })?;
+    let schema = session.schema(UPLOAD_TOOL).ok_or_else(|| super::missing_tool(UPLOAD_TOOL))?;
     let mut f = Filler::new(UPLOAD_TOOL, &schema);
     if !f.collection(collection) {
-        return Err(RagError::Schema(format!("{UPLOAD_TOOL} nennt im inputSchema keinen Parameter für die Sammlung.")));
+        return Err(super::schema_error("sync_msg.tool.no_collection_param", UPLOAD_TOOL));
     }
     let titled = f.text(&TITLE_KEYS[..2], Some("title"), &chapter.title);
     let named = f.text(&["filename"], None, &file_name(&chapter.title));
     if !titled && !named {
-        return Err(RagError::Schema(format!("{UPLOAD_TOOL} nennt im inputSchema keinen Parameter für den Titel.")));
+        return Err(super::schema_error("sync_msg.tool.no_title_param", UPLOAD_TOOL));
     }
     if !f.text(CONTENT_KEYS, Some("content"), &chapter.text) {
-        return Err(RagError::Schema(format!("{UPLOAD_TOOL} nennt im inputSchema keinen Parameter für den Text.")));
+        return Err(super::schema_error("sync_msg.tool.no_text_param", UPLOAD_TOOL));
     }
     f.text(MIME_KEYS, None, "text/plain");
     let result = session.call(UPLOAD_TOOL, f.finish()?, None).await?;
@@ -114,12 +112,10 @@ async fn put(link: &mut Link, collection: &str, chapter: &Chapter) -> Result<Opt
 /// Delete a document.
 async fn remove(link: &mut Link, collection: &str, remote_id: &str) -> Result<(), RagError> {
     let session = link.session().await?;
-    let schema = session.schema(DELETE_TOOL).ok_or_else(|| {
-        RagError::Schema(format!("MultiGPT bietet das Werkzeug {DELETE_TOOL} nicht an (tools/list)."))
-    })?;
+    let schema = session.schema(DELETE_TOOL).ok_or_else(|| super::missing_tool(DELETE_TOOL))?;
     let mut f = Filler::new(DELETE_TOOL, &schema);
     if !f.document(remote_id) {
-        return Err(RagError::Schema(format!("{DELETE_TOOL} nennt im inputSchema keinen Parameter für das Dokument.")));
+        return Err(super::schema_error("sync_msg.tool.no_document_param", DELETE_TOOL));
     }
     // Some schemas require the collection as well; without `properties` the document is enough.
     if schema.get("properties").is_some() {
@@ -174,20 +170,17 @@ impl Writer<'_> {
 
     fn fail(&mut self, what: &str, e: &RagError) {
         self.report.counts.failed += 1;
-        let text = format!("{what}: {}", why(e));
+        let text = crate::i18n::tc("sync_msg.upload.problem", &[("what", what.into()), ("detail", why(e).into())]);
         self.report.problem(self.link, text);
         if self.blocks(e) {
             self.blocked = true;
-            self.report.note(
-                self.link,
-                "Weitere Änderungen nach MultiGPT ruhen bis zum nächsten Abgleich; lokal ist nichts verloren.",
-            );
+            self.report.note(self.link, crate::i18n::tc("sync_msg.upload.resting", &[]));
         }
     }
 
     async fn store_fail(&mut self, e: baruch_store::StoreError) {
         self.report.counts.failed += 1;
-        self.report.problem(self.link, format!("Speicher: {e}"));
+        self.report.problem(self.link, super::store_note(&e));
     }
 
     /// Reset the state of a chapter (after an error where certainly nothing arrived at MultiGPT): the
@@ -234,10 +227,9 @@ impl Writer<'_> {
         if let Some(marker) = known.filter(|s| s.remote_stamp == UPLOADING) {
             self.report.note(
                 self.link,
-                format!(
-                    "Der letzte Abgleich brach beim Hochladen von „{}“ ab (die Antwort von MultiGPT kam nicht an); dort \
-                     liegt es womöglich ohne Zuordnung doppelt – bitte in der Sammlung „{collection}“ prüfen.",
-                    marker.title
+                crate::i18n::tc(
+                    "sync_msg.upload.aborted",
+                    &[("title", (&marker.title).into()), ("collection", collection.into())],
                 ),
             );
         }
@@ -251,7 +243,7 @@ impl Writer<'_> {
             return;
         }
         if let Err(e) = self.link.session().await {
-            return self.fail(&format!("Hochladen von „{}“", chapter.title), &e);
+            return self.fail(&crate::i18n::tc("sync_msg.upload.uploading", &[("title", (&chapter.title).into())]), &e);
         }
         // Mark before uploading: if the run aborts between upload and state (answer lost, crash),
         // the next run knows about it and says so (the document can then lie twice at MultiGPT).
@@ -280,28 +272,17 @@ impl Writer<'_> {
                 if !lost {
                     self.restore(collection, &chapter.item, known_clean.as_ref()).await;
                 }
-                return self.fail(&format!("Hochladen von „{}“", chapter.title), &e);
+                return self
+                    .fail(&crate::i18n::tc("sync_msg.upload.uploading", &[("title", (&chapter.title).into())]), &e);
             }
         };
         if remote_id.is_none() {
-            self.report.note(
-                self.link,
-                format!(
-                    "„{}“: MultiGPT nannte keine Dokument-ID. Das Dokument liegt vermutlich dort, Baruch kann es aber \
-                     weder ersetzen noch löschen; erneut hochgeladen wird es erst nach einer Änderung.",
-                    chapter.title
-                ),
-            );
+            self.report
+                .note(self.link, crate::i18n::tc("sync_msg.upload.no_id", &[("title", (&chapter.title).into())]));
         }
         if let Some(old) = known_clean.as_ref().filter(|s| s.remote_id.is_empty() && !s.hash.is_empty()) {
-            self.report.note(
-                self.link,
-                format!(
-                    "Die vorige Fassung von „{}“ hatte keine Dokument-ID und bleibt bei MultiGPT liegen (bitte dort \
-                     löschen).",
-                    old.title
-                ),
-            );
+            self.report
+                .note(self.link, crate::i18n::tc("sync_msg.upload.old_no_id", &[("title", (&old.title).into())]));
         }
         let remote_id = remote_id.unwrap_or_default();
         // Lock note also without an ID: state with hash, so that the same content is not uploaded again with every
@@ -333,7 +314,11 @@ impl Writer<'_> {
                     if let Err(e) = self.store.sync_state_put(&stale).await {
                         self.store_fail(e).await;
                     }
-                    self.fail(&format!("Löschen der alten Fassung von „{}“ ({old})", chapter.title), &e);
+                    let what = crate::i18n::tc(
+                        "sync_msg.upload.delete_old",
+                        &[("title", (&chapter.title).into()), ("id", old.as_str().into())],
+                    );
+                    self.fail(&what, &e);
                 }
             },
             None => self.report.counts.uploaded += 1,
@@ -345,7 +330,11 @@ impl Writer<'_> {
         if !gone.remote_id.is_empty()
             && let Err(e) = remove(self.link, &gone.collection, &gone.remote_id).await
         {
-            return self.fail(&format!("Löschen von „{}“ ({})", gone.title, gone.remote_id), &e);
+            let what = crate::i18n::tc(
+                "sync_msg.upload.delete",
+                &[("title", (&gone.title).into()), ("id", (&gone.remote_id).into())],
+            );
+            return self.fail(&what, &e);
         }
         match self.store.sync_state_delete(SyncSide::Baruch, &gone.collection, &gone.item).await {
             Ok(()) => self.report.counts.removed += 1,
@@ -360,7 +349,7 @@ pub(crate) async fn run(store: &Store, link: &mut Link, report: &mut Report) {
         Ok(works) => works,
         Err(e) => {
             report.counts.failed += 1;
-            report.problem(link, format!("Speicher: {e}"));
+            report.problem(link, super::store_note(&e));
             return;
         }
     };

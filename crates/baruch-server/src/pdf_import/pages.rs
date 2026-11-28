@@ -51,7 +51,11 @@ fn render(status: StatusCode, ctx: JinjaValue) -> Response {
     match templates().get_template("source_import.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
         Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage source_import.html: {e}")).into_response()
+            let text = crate::i18n::tc(
+                "import_msg.page.template",
+                &[("name", "source_import.html".into()), ("detail", e.to_string().into())],
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, text).into_response()
         }
     }
 }
@@ -165,9 +169,9 @@ struct PageQuery {
 }
 
 async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PageQuery>) -> Response {
-    let notice = q.verworfen.is_some().then_some("Entwurf verworfen; es wurde nichts angelegt.");
+    let notice = q.verworfen.is_some().then(|| crate::i18n::tc("import_msg.page.discarded", &[]));
     let form = FormValues { way: "auto".into(), ..FormValues::default() };
-    form_page(&state, &headers, StatusCode::OK, form, None, notice, None).await
+    form_page(&state, &headers, StatusCode::OK, form, None, notice.as_deref(), None).await
 }
 
 pub(super) fn pages() -> Router<Arc<AppState>> {
@@ -182,7 +186,7 @@ pub(super) fn writes() -> Router<Arc<AppState>> {
 }
 
 fn too_large() -> String {
-    format!("Die Datei ist größer als {} MiB.", MAX_SOURCE_FILE_BYTES / (1024 * 1024))
+    crate::i18n::tc("import_msg.page.too_large", &[("max", (MAX_SOURCE_FILE_BYTES / (1024 * 1024)).into())])
 }
 
 fn status_of(e: &RpcError) -> StatusCode {
@@ -198,7 +202,7 @@ async fn preview_form(
     let mut multipart = match multipart {
         Ok(m) => m,
         Err(e) => {
-            let message = format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text());
+            let message = crate::i18n::tc("import_msg.page.not_upload", &[("detail", e.body_text().into())]);
             return form_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, form, Some(message), None, None)
                 .await;
         }
@@ -215,7 +219,7 @@ async fn preview_form(
                 } else {
                     (
                         StatusCode::UNPROCESSABLE_ENTITY,
-                        format!("Das Formular ließ sich nicht lesen ({}).", e.body_text()),
+                        crate::i18n::tc("import_msg.page.form_unreadable", &[("detail", e.body_text().into())]),
                     )
                 };
                 return form_page(&state, &headers, status, form, Some(message), None, None).await;
@@ -233,7 +237,7 @@ async fn preview_form(
                         } else {
                             (
                                 StatusCode::UNPROCESSABLE_ENTITY,
-                                format!("Die Datei ließ sich nicht lesen ({}).", e.body_text()),
+                                crate::i18n::tc("import_msg.page.file_unreadable", &[("detail", e.body_text().into())]),
                             )
                         };
                         return form_page(&state, &headers, status, form, Some(message), None, None).await;
@@ -249,44 +253,44 @@ async fn preview_form(
         }
     }
     // „Lokal lesen“ after an error of MultiGPT: the stored file, no choosing again.
-    let (file_name, bytes) = match (
-        file.filter(|(n, b)| !n.trim().is_empty() || !b.is_empty()),
-        pending.filter(|d| !d.is_empty()),
-    ) {
-        (Some(file), _) => file,
-        (None, Some(id)) => {
-            let data = state.data.clone();
-            let owned = id.clone();
-            match tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load_pending(&data, &owned))).await {
-                Ok(Ok((pending, bytes))) => {
-                    let data = state.data.clone();
-                    let _ = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &id))).await;
-                    if form.title.trim().is_empty() {
-                        form.title = pending.title.unwrap_or_default();
+    let (file_name, bytes) =
+        match (file.filter(|(n, b)| !n.trim().is_empty() || !b.is_empty()), pending.filter(|d| !d.is_empty())) {
+            (Some(file), _) => file,
+            (None, Some(id)) => {
+                let data = state.data.clone();
+                let owned = id.clone();
+                match tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load_pending(&data, &owned))).await
+                {
+                    Ok(Ok((pending, bytes))) => {
+                        let data = state.data.clone();
+                        let _ =
+                            tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &id))).await;
+                        if form.title.trim().is_empty() {
+                            form.title = pending.title.unwrap_or_default();
+                        }
+                        (pending.file_name, bytes)
                     }
-                    (pending.file_name, bytes)
-                }
-                _ => {
-                    let message = "Die abgelegte Datei gibt es nicht mehr (älter als 24 Stunden oder schon gelesen); bitte die Datei neu wählen.".to_owned();
-                    return form_page(
-                        &state,
-                        &headers,
-                        StatusCode::UNPROCESSABLE_ENTITY,
-                        form,
-                        Some(message),
-                        None,
-                        None,
-                    )
-                    .await;
+                    _ => {
+                        let message = crate::i18n::tc("import_msg.page.stored_gone", &[]);
+                        return form_page(
+                            &state,
+                            &headers,
+                            StatusCode::UNPROCESSABLE_ENTITY,
+                            form,
+                            Some(message),
+                            None,
+                            None,
+                        )
+                        .await;
+                    }
                 }
             }
-        }
-        (None, None) => {
-            let message = "Bitte eine PDF- oder EPUB-Datei wählen.".to_owned();
-            return form_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, form, Some(message), None, None)
-                .await;
-        }
-    };
+            (None, None) => {
+                let message = crate::i18n::tc("import_msg.page.choose_source", &[]);
+                return form_page(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, form, Some(message), None, None)
+                    .await;
+            }
+        };
     if bytes.len() as u64 > MAX_SOURCE_FILE_BYTES {
         return form_page(&state, &headers, StatusCode::PAYLOAD_TOO_LARGE, form, Some(too_large()), None, None).await;
     }
@@ -343,26 +347,24 @@ fn parse_lines(fields: &[(String, String)]) -> Result<Vec<Confirmed>, String> {
         let source = srcs.get(i).and_then(|s| s.trim().parse::<usize>().ok());
         let equals = line.chars().take_while(|c| *c == '=').count();
         if equals == 0 {
-            return Err(format!(
-                "Zeile „{line}“: Jede Zeile beginnt mit =, == oder === und dem Titel (leer = streichen)."
-            ));
+            return Err(crate::i18n::tc("import_msg.outline.line_start", &[("line", line.into())]));
         }
         if equals > 3 {
-            return Err(format!("Zeile „{line}“: Baruch kennt drei Ebenen (=, ==, ===)."));
+            return Err(crate::i18n::tc("import_msg.outline.levels", &[("line", line.into())]));
         }
         let title = line[equals..].trim();
         let (part, title) = match title.strip_prefix("Teil:") {
             Some(rest) if equals == 1 => (true, rest.trim()),
-            Some(_) => return Err(format!("Zeile „{line}“: Ein Teil steht auf der obersten Ebene („= Teil: Titel“).")),
+            Some(_) => return Err(crate::i18n::tc("import_msg.outline.part_level", &[("line", line.into())])),
             None => (false, title),
         };
         if title.is_empty() {
-            return Err(format!("Zeile „{line}“: Titel fehlt (zum Streichen die ganze Zeile leeren)."));
+            return Err(crate::i18n::tc("import_msg.outline.no_title", &[("line", line.into())]));
         }
         out.push(Confirmed { level: equals as u8, title: title.to_owned(), part, source });
     }
     if out.is_empty() {
-        return Err("Die Gliederung ist leer: mindestens ein Punkt (Kapitel) ist nötig.".into());
+        return Err(crate::i18n::tc("import_msg.outline.empty", &[]));
     }
     Ok(out)
 }
@@ -436,7 +438,8 @@ async fn apply_form(
         Err(e) => {
             let mut message = e.message.clone();
             if message.contains(crate::import::TITLE_HINT) {
-                message = message.replace(crate::import::TITLE_HINT, "Bitte oben einen anderen Titel eintragen.");
+                message =
+                    message.replace(crate::import::TITLE_HINT, &crate::i18n::tc("import_msg.page.other_title", &[]));
             }
             let status = if e.code == INVALID_PARAMS || e.code == crate::rpc::REFUSED {
                 StatusCode::UNPROCESSABLE_ENTITY

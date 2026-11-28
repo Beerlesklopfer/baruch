@@ -287,7 +287,11 @@ async fn search_hits_with_addresses_of_the_own_network_are_not_fetched_and_appea
     results.push(hit("Chronik", ARCHIVE));
     mcp.set_results(results);
 
-    let research = baruch_server::websearch::research(&server.state, "Feuer am Leuchtturm").await;
+    let research = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::websearch::research(&server.state, "Feuer am Leuchtturm"),
+    )
+    .await;
     assert!(research.failure.is_none(), "die Websuche läuft durch: {research:?}");
     assert_eq!(
         fetched(&mcp),

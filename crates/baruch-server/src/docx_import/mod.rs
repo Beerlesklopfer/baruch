@@ -215,7 +215,7 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
     }
     let sections = original.sections;
     if sections.is_empty() {
-        return Err(DocxError::Invalid("Die Datei enthält keinen Text.".into()));
+        return Err(DocxError::Invalid(crate::i18n::tc("import_msg.docx.no_text", &[])));
     }
     let has_preamble = sections[0].title.is_empty();
 
@@ -285,10 +285,12 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
                 warn(
                     &mut warnings,
                     "docx_vorspann_eingefuegt",
-                    format!(
-                        "{who} hat Text vor der ersten Überschrift eingefügt; er gehört zu keinem Abschnitt und ist \
-                         nicht übernommen (Anfang: „{}“).",
-                        short(&out.sections[0].body, 80)
+                    crate::i18n::tc(
+                        "import_msg.docx.lead_text",
+                        &[
+                            ("who", who.to_string().into()),
+                            ("start", short(&out.sections[0].body, 80).to_string().into()),
+                        ],
                     ),
                 );
                 proposed.extend(out.sections.iter().skip(1).enumerate());
@@ -298,11 +300,13 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
             warn(
                 &mut warnings,
                 "docx_gliederung_abweichend",
-                format!(
-                    "Die Änderungen von {who} ließen sich den Abschnitten nicht zuordnen ({} statt {}); kein Vorschlag \
-                     angelegt.",
-                    proposed.len(),
-                    sections.len()
+                crate::i18n::tc(
+                    "import_msg.docx.unaligned_editor",
+                    &[
+                        ("who", who.to_string().into()),
+                        ("found", proposed.len().into()),
+                        ("expected", sections.len().into()),
+                    ],
                 ),
             );
         } else {
@@ -318,17 +322,19 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
                 warn(
                     &mut warnings,
                     "docx_ueberschrift_eingefuegt",
-                    format!(
-                        "{who} hat die Überschrift „{}“ eingefügt; sie legt keinen Abschnitt an, ihr Text steht fett \
-                         im Vorschlag zum vorangehenden Abschnitt.",
-                        change.after
+                    crate::i18n::tc(
+                        "import_msg.docx.heading_inserted",
+                        &[("who", who.to_string().into()), ("heading", change.after.to_string().into())],
                     ),
                 );
             } else if change.after.is_empty() {
                 warn(
                     &mut warnings,
                     "docx_ueberschrift_geloescht",
-                    format!("{who} hat die Überschrift „{}“ gelöscht; sie bleibt bestehen.", change.before),
+                    crate::i18n::tc(
+                        "import_msg.docx.heading_deleted",
+                        &[("who", who.to_string().into()), ("heading", change.before.to_string().into())],
+                    ),
                 );
             } else if change.section < sections.len() {
                 plan.headings.push(change);
@@ -342,7 +348,7 @@ pub fn prepare(bytes: &[u8]) -> Result<Prepared, DocxError> {
         warn(
             &mut warnings,
             "docx_kommentar_ohne_stelle",
-            format!("{lost} Kommentar(e) ohne auffindbare Stelle im Text stehen am ersten Abschnitt."),
+            crate::i18n::tc("import_msg.docx.lost_comments", &[("count", lost.into())]),
         );
     }
     Ok(Prepared { document, sections, editors, places, warnings, footnotes })
@@ -504,10 +510,15 @@ pub async fn apply_prepared(
     let mut warnings: Vec<DocxWarning> =
         report.warnings.iter().map(|w| DocxWarning { code: w.code.clone(), message: w.message.clone() }).collect();
     for s in &report.skipped {
-        warn(&mut warnings, "docx_bild_uebersprungen", format!("Bild „{}“ übersprungen: {}.", s.path, s.reason));
+        let text = crate::i18n::tc(
+            "import_msg.docx.image_skipped",
+            &[("path", s.path.to_string().into()), ("reason", s.reason.to_string().into())],
+        );
+        warn(&mut warnings, "docx_bild_uebersprungen", text);
     }
     if let Some(error) = &report.mirror {
-        warn(&mut warnings, "docx_spiegel", format!("Der Git-Spiegel ließ sich nicht schreiben: {error}"));
+        let text = crate::i18n::tc("import_msg.docx.mirror", &[("detail", error.to_string().into())]);
+        warn(&mut warnings, "docx_spiegel", text);
     }
     let (mut proposals, mut posts) = (0, 0);
 
@@ -518,11 +529,9 @@ pub async fn apply_prepared(
         warn(
             &mut warnings,
             "docx_gliederung_abweichend",
-            format!(
-                "Das Werk hat {} Abschnitte, die Datei {}; Vorschläge und Beiträge ließen sich nicht zuordnen und \
-                 sind nicht angelegt.",
-                loaded.nodes.len(),
-                prepared.sections.len()
+            crate::i18n::tc(
+                "import_msg.docx.unaligned_work",
+                &[("work", loaded.nodes.len().into()), ("file", prepared.sections.len().into())],
             ),
         );
     }
@@ -663,12 +672,17 @@ pub fn applied_json(applied: &Applied) -> Value {
 async fn prepare_blocking(bytes: Vec<u8>) -> Result<(Prepared, Vec<u8>), RpcError> {
     tokio::task::spawn_blocking(crate::i18n::carry(move || prepare(&bytes).map(|prepared| (prepared, bytes))))
         .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
+        .map_err(|e| {
+            RpcError::new(
+                INTERNAL,
+                crate::i18n::tc("import_msg.docx.read_aborted", &[("detail", e.to_string().into())]),
+            )
+        })?
         .map_err(RpcError::from)
 }
 
 fn too_large() -> String {
-    format!("Die Datei ist größer als {} MiB.", MAX_DOCX_BYTES / (1024 * 1024))
+    crate::i18n::tc("import_msg.page.too_large", &[("max", (MAX_DOCX_BYTES / (1024 * 1024)).into())])
 }
 
 /// Preview: read the file and store it as a draft; nothing else is created.
@@ -679,9 +693,7 @@ pub async fn preview(
     title: Option<&str>,
 ) -> Result<draft::Draft, RpcError> {
     if !is_docx_name(file_name) {
-        return Err(invalid(format!(
-            "„{file_name}“ ist keine Word-Datei (.docx); das alte Format .doc bitte in Word als .docx speichern."
-        )));
+        return Err(invalid(crate::i18n::tc("import_msg.docx.not_docx", &[("file", file_name.into())])));
     }
     if bytes.len() as u64 > MAX_DOCX_BYTES {
         return Err(invalid(too_large()));
@@ -710,14 +722,15 @@ pub async fn preview(
 pub async fn load_draft(state: &AppState, id: &str) -> Result<draft::Draft, RpcError> {
     let data = state.data.clone();
     let owned = id.to_owned();
-    let loaded = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load(&data, &owned)))
-        .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?;
+    let loaded =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load(&data, &owned))).await.map_err(|e| {
+            RpcError::new(
+                INTERNAL,
+                crate::i18n::tc("import_msg.docx.read_aborted", &[("detail", e.to_string().into())]),
+            )
+        })?;
     loaded.map_err(|e| match e {
-        draft::LoadError::Unknown => invalid(format!(
-            "Entwurf „{id}“ gibt es nicht (verworfen, schon übernommen oder älter als 24 Stunden); die Datei bitte neu \
-             lesen."
-        )),
+        draft::LoadError::Unknown => invalid(crate::i18n::tc("import_msg.docx.draft_unknown", &[("id", id.into())])),
         draft::LoadError::Broken(m) => RpcError::new(INTERNAL, m),
     })
 }
@@ -745,7 +758,7 @@ pub async fn apply(
     {
         let mut applying = APPLYING.lock().unwrap_or_else(|e| e.into_inner());
         if !applying.insert(id.to_owned()) {
-            return Err(RpcError::new(REFUSED, format!("Entwurf „{id}“ wird gerade übernommen.")));
+            return Err(RpcError::new(REFUSED, crate::i18n::tc("import_msg.docx.draft_busy", &[("id", id.into())])));
         }
     }
     let _guard = ApplyingGuard(id.to_owned());
@@ -753,7 +766,12 @@ pub async fn apply(
     let owned = id.to_owned();
     let bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load_source(&data, &owned)))
         .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
+        .map_err(|e| {
+            RpcError::new(
+                INTERNAL,
+                crate::i18n::tc("import_msg.docx.read_aborted", &[("detail", e.to_string().into())]),
+            )
+        })?
         .map_err(|e| RpcError::new(INTERNAL, e))?;
     let (prepared, _) = prepare_blocking(bytes).await?;
     let wanted = title.map(str::trim).filter(|t| !t.is_empty()).or(draft.wanted_title.as_deref());
@@ -767,13 +785,13 @@ pub async fn apply(
 /// Discard a draft; `true` if it existed.
 pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
     if !draft::valid_id(id) {
-        return Err(invalid("draft: 32 Kleinbuchstaben-Hex (aus docx_import.preview)."));
+        return Err(invalid(crate::i18n::tc("import_msg.docx.draft_id", &[])));
     }
     let data = state.data.clone();
     let owned = id.to_owned();
-    tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &owned)))
-        .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Löschen abgebrochen: {e}")))
+    tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &owned))).await.map_err(|e| {
+        RpcError::new(INTERNAL, crate::i18n::tc("import_msg.docx.delete_aborted", &[("detail", e.to_string().into())]))
+    })
 }
 
 /// Number of drafts in the data folder (tests, display).
@@ -865,6 +883,15 @@ fn level_mark(level: u8, numbered: bool) -> String {
 /// `baruch-server import DATEI.docx [--uebernehmen] [--title T]`: `Ok(text)` → standard output, exit 0;
 /// `Err(text)` → error output, exit 1.
 pub async fn cli_import(state: &AppState, file: &std::path::Path, options: &CliDocxImport) -> Result<String, String> {
+    // The command line stays German (CLI texts are not part of the user interface languages, Round 39a).
+    crate::i18n::scope(crate::i18n::Lang::De, cli_import_german(state, file, options)).await
+}
+
+async fn cli_import_german(
+    state: &AppState,
+    file: &std::path::Path,
+    options: &CliDocxImport,
+) -> Result<String, String> {
     let shown = file.display().to_string();
     let meta = tokio::fs::metadata(file).await.map_err(|e| format!("{shown} lässt sich nicht lesen: {e}"))?;
     if !meta.is_file() {

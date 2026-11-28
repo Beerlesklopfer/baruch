@@ -39,13 +39,13 @@ pub struct KeyringSecrets;
 /// Error text without content: only the kind of the error.
 fn keyring_error(e: &keyring::Error) -> String {
     match e {
-        keyring::Error::NoStorageAccess(_) => {
-            "kein Zugriff auf den Schlüsselbund (gesperrt oder nicht erreichbar)".into()
+        keyring::Error::NoStorageAccess(_) => crate::i18n::tc("connections_msg.keyring.no_access", &[]),
+        keyring::Error::PlatformFailure(inner) => {
+            crate::i18n::tc("connections_msg.keyring.failure", &[("detail", inner.to_string().into())])
         }
-        keyring::Error::PlatformFailure(inner) => format!("Fehler des Schlüsselbunds: {inner}"),
-        keyring::Error::BadEncoding(_) => "der hinterlegte Wert ist kein UTF-8-Text".into(),
+        keyring::Error::BadEncoding(_) => crate::i18n::tc("connections_msg.keyring.encoding", &[]),
         keyring::Error::Ambiguous(found) => {
-            format!("{} Einträge passen; bitte im Schlüsselbund aufräumen", found.len())
+            crate::i18n::tc("connections_msg.keyring.ambiguous", &[("count", found.len().into())])
         }
         other => other.to_string(),
     }

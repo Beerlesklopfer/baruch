@@ -9,18 +9,14 @@
 //!
 //! Title 1–200 characters in one line, address http/https with host, without user info and
 //! whitespace, at most 2000 characters; note at most 4000 characters. Invalid → -32602, nothing changed.
-//! The web search of `@belege` (Round 13, [`crate::websearch`]) queries these sources first ([`USAGE`]).
+//! The web search of `@belege` (Round 13, [`crate::websearch`]) queries these sources first (usage text: catalog key
+//! `connections_msg.sources.usage`, page „Quellen“, `data-usage`).
 
 use baruch_store::{NewSource, PreferredSource, SourceEdit, StoreError};
 use serde_json::{Value, json};
 
 use super::Fault;
 use crate::AppState;
-
-/// How the web search uses the list (page „Quellen“, `data-usage`).
-pub const USAGE: &str = "Die Websuche für @belege (Einstellungen → Assistenten, Vorgabe aus) fragt zuerst die ersten \
-drei Quellen dieser Liste über „site:<Rechner>“ ab, danach das allgemeine Web. Treffer, deren Rechner zu einer Quelle \
-passt, sind als „bevorzugte Quelle“ gekennzeichnet.";
 
 const MAX_NOTE: usize = 4000;
 
@@ -31,14 +27,14 @@ fn invalid(code: &'static str, message: &str) -> Fault {
 pub fn check_title(title: &str) -> Result<String, Fault> {
     let title = title.trim();
     if title.is_empty() || title.chars().count() > 200 || title.chars().any(char::is_control) {
-        return Err(invalid("titel", "title: 1 bis 200 Zeichen in einer Zeile."));
+        return Err(invalid("titel", &crate::i18n::tc("connections_msg.sources.title", &[])));
     }
     Ok(title.to_owned())
 }
 
 pub fn check_address(url: &str) -> Result<String, Fault> {
     let url = url.trim();
-    let bad = || invalid("adresse", "url: http:// oder https:// mit Rechner, ohne Benutzer, höchstens 2000 Zeichen.");
+    let bad = || invalid("adresse", &crate::i18n::tc("connections_msg.sources.url", &[]));
     if url.is_empty() || url.chars().count() > 2000 || url.chars().any(char::is_whitespace) {
         return Err(bad());
     }
@@ -52,7 +48,7 @@ pub fn check_address(url: &str) -> Result<String, Fault> {
 
 pub fn check_note(note: &str) -> Result<String, Fault> {
     if note.chars().count() > MAX_NOTE {
-        return Err(invalid("notiz", "note: höchstens 4000 Zeichen."));
+        return Err(invalid("notiz", &crate::i18n::tc("connections_msg.sources.note", &[])));
     }
     Ok(note.trim().to_owned())
 }
@@ -61,7 +57,9 @@ pub fn check_note(note: &str) -> Result<String, Fault> {
 /// beforehand).
 fn store_fault(e: StoreError) -> Fault {
     match e {
-        StoreError::Refused(message) => Fault::Invalid("quelle", message.to_owned()),
+        StoreError::Refused(message) => {
+            Fault::Invalid("quelle", crate::store_text::translate(crate::i18n::current(), message))
+        }
         other => other.into(),
     }
 }
@@ -145,7 +143,7 @@ pub(crate) async fn call(state: &AppState, method: &str, params: &Value) -> Opti
         "sources.delete" => match id_param(params) {
             Err(e) => Err(e),
             Ok(_) if params.get("confirm") != Some(&Value::Bool(true)) => {
-                Err(invalid("bestaetigen", "confirm: true fehlt; nichts gelöscht."))
+                Err(invalid("bestaetigen", &crate::i18n::tc("connections_msg.sources.confirm", &[])))
             }
             Ok(id) => delete(state, id).await.map(|gone| json!({ "deleted": gone })),
         },
