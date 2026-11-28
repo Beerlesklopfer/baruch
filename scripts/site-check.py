@@ -31,13 +31,15 @@ ihrem Unterordner (en/). Geprüft wird zusätzlich:
 10. Mit Hilfe (ohne --ohne-hilfe) hat jede weitere Sprache ihre Startseite der Hilfe (en/hilfe/index.html), aber
     keine Weiterleitung en/bedienung/: Die alte Adresse /bedienung/ gibt es nur auf Deutsch.
 
-Entwicklerdokumentation (Runde 39c, /en/docs/, erzeugt von site/tools/docs_pages.py aus docs/*.md); ihre Links und
-Anker prüft schon Punkt 1. Zusätzlich:
+Entwicklerdokumentation (Runde 39c, /en/docs/, erzeugt von site/tools/docs_pages.py aus docs/*.md; Runde 39d: auch
+Deutsch unter /docs/, aus docs/de/); ihre Links und Anker prüft schon Punkt 1, die Sprachregeln 7 und 9 gelten für
+beide Abschnitte (der Umschalter einer Seite unter /docs/ führt auf dieselbe Seite unter /en/docs/ und zurück). Zusätzlich:
 
-11. Keine Seite verlinkt in die Ausgabe des Generators (Pfad mit site/generated oder /generated/): Sie ist nicht
-    eingecheckt, ein solcher Link führte auf GitHub ins Leere.
-12. Unter /en/docs/ zeigt kein Link auf eine der neun Quellen bei GitHub (blob/main/docs/<Quelle>.md): Diese
-    Dateien stehen selbst im Abschnitt; der Generator schreibt solche Links auf /en/docs/<Seite>/ um.
+11. Keine Seite verlinkt in die Ausgabe des Generators (Pfad mit site/generated, site/generated-de, /generated/ oder
+    /generated-de/): Sie ist nicht eingecheckt, ein solcher Link führte auf GitHub ins Leere.
+12. Unter /en/docs/ und /docs/ zeigt kein Link auf eine der neun Quellen bei GitHub (blob/main/docs/<Quelle>.md, auch
+    docs/de/<Quelle>.md): Diese Dateien stehen selbst im Abschnitt; der Generator schreibt solche Links auf
+    /en/docs/<Seite>/ bzw. /docs/<Seite>/ um.
 
 Exit 0 ohne Fund, 1 mit der Liste der Fundstellen (Datei: Meldung), 2 bei falschem Aufruf.
 --selbsttest baut einen erfundenen Mini-Baum, prüft ihn fehlerfrei und danach je eine eingebaute Störung;
@@ -62,7 +64,8 @@ VERBOTENE_DOKU = ("blob/main/docs/Bedienung.md", "blob/main/docs/Betrieb.md")
 # GitHub instead of the site is a finding.
 DOKU_QUELLEN = ("Bedienung.md", "Architektur.md", "RPC.md", "MCP.md", "Austauschformat.md", "WYSIWYG.md", "Betrieb.md",
                 "Verteilung.md", "Plan.md")
-DOKU_ABSCHNITT = tuple(f"{s}/docs/" for s in SPRACHEN_UNTER)
+# The sections of the developer documentation: German in the root (docs/), the other languages below their folder.
+DOKU_ABSCHNITT = ("docs/",) + tuple(f"{s}/docs/" for s in SPRACHEN_UNTER)
 # rel values of <link> that make the browser load something.
 LADENDE_REL = {"stylesheet", "icon", "preload", "prefetch", "modulepreload", "apple-touch-icon", "manifest"}
 # Attributes whose value the browser loads without the reader doing anything.
@@ -286,13 +289,14 @@ def pruefe(ordner, basis=BASIS, mit_hilfe=True):
                     funde.append((rel, f"Link auf {verboten.split('/', 2)[2]} bei GitHub (steht auf der Webseite): {adresse}"))
             if in_hilfe and im_main and urlsplit(adresse).netloc.lower().endswith("github.com"):
                 funde.append((rel, f"Link zu github.com im Text der Hilfe: {adresse}"))
-            if "site/generated" in adresse or "/generated/" in urlsplit(adresse).path:
+            if "site/generated" in adresse or any(f"/{g}/" in urlsplit(adresse).path for g in ("generated", "generated-de")):
                 funde.append((rel, f"Link in die Ausgabe des Generators (nicht eingecheckt): {adresse}"))
             if in_doku:
                 for quelle in DOKU_QUELLEN:
-                    if urlsplit(adresse).path.endswith(f"/blob/main/docs/{quelle}"):
-                        funde.append((rel, f"Link auf docs/{quelle} bei GitHub statt auf die Seite unter /en/docs/: "
-                                           f"{adresse}"))
+                    pfad = urlsplit(adresse).path
+                    if pfad.endswith(f"/blob/main/docs/{quelle}") or pfad.endswith(f"/blob/main/docs/de/{quelle}"):
+                        funde.append((rel, f"Link auf docs/{quelle} bei GitHub statt auf die Seite des Abschnitts "
+                                           f"(/docs/ oder /en/docs/): {adresse}"))
         for adresse, was in seite.geladen:
             if fremd(adresse, basis):
                 funde.append((rel, f"fremde Adresse für Stil, Schrift oder Bild ({was}): {adresse}"))
@@ -382,13 +386,19 @@ def mini_baum(ordner, zweisprachig=False):
              '<a href=/en/hilfe/moewen/#zaehlen>Counting</a></main></body></html>')
     schreibe(ordner, "bilder/en/hilfe/watt.png", "kein echtes Bild")
     schreibe(ordner, "bilder/en/hilfe/watt-dunkel.png", "kein echtes Bild")
-    # Developer documentation (Round 39c): only English, so the switch leads to the German home page; links between
-    # the pages with anchors, a link into the repository (allowed outside the help).
-    schreibe(ordner, "en/docs/index.html", kopf_mit("en", "/") + '<main><a href=/en/docs/rpc/>RPC</a>'
+    # Developer documentation (Round 39c English, Round 39d German): the same slugs in both languages, so the switch
+    # leads to the same page; links between the pages with anchors, a link into the repository (allowed outside the
+    # help).
+    schreibe(ordner, "en/docs/index.html", kopf_mit("en", "/docs/") + '<main><a href=/en/docs/rpc/>RPC</a>'
              ' <a href=/en/docs/rpc/#work-create>work.create</a></main></body></html>')
-    schreibe(ordner, "en/docs/rpc/index.html", kopf_mit("en", "/") + '<main><h2 id=work-create>work.create</h2>'
+    schreibe(ordner, "en/docs/rpc/index.html", kopf_mit("en", "/docs/rpc/") + '<main><h2 id=work-create>work.create</h2>'
              '<a href=https://github.com/beispiel/baruch/blob/main/crates/baruch-server/src/rpc.rs>rpc.rs</a>'
              ' <a href=/en/docs/>Documentation</a></main></body></html>')
+    schreibe(ordner, "docs/index.html", kopf_mit("de", "/en/docs/") + '<main><a href=/docs/rpc/>RPC</a>'
+             ' <a href=/docs/rpc/#work-create>work.create</a></main></body></html>')
+    schreibe(ordner, "docs/rpc/index.html", kopf_mit("de", "/en/docs/rpc/") + '<main><h2 id=work-create>work.create</h2>'
+             '<a href=https://github.com/beispiel/baruch/blob/main/crates/baruch-server/src/rpc.rs>rpc.rs</a>'
+             ' <a href=/docs/>Dokumentation</a></main></body></html>')
 
 
 def selbsttest():
@@ -573,6 +583,38 @@ def selbsttest():
              "GitHub hieße, dass das Umschreiben versagt hat.",
              "Link auf docs/RPC.md bei GitHub statt",
              anhaengen("en/docs/index.html", "<a href=https://github.com/beispiel/baruch/blob/main/docs/RPC.md>RPC</a>"), True)
+
+    stoerung("ein toter Anker in der deutschen Entwicklerdokumentation wird gefunden",
+             "Die Seiten unter /docs/ verweisen mit denselben englischen Ankern aufeinander wie die unter /en/docs/ (vom "
+             "Generator geprüft); ein Anker, den es auf der erzeugten Seite nicht gibt, muss auch hier auffallen.",
+             "toter Anker", anhaengen("docs/index.html", "<a href=/docs/rpc/#work-delete>work.delete</a>"), True)
+    stoerung("ein Link in die Ausgabe des deutschen Generators wird gefunden",
+             "site/generated-de ist nicht eingecheckt (.gitignore); ein Link dorthin führte auf GitHub ins Leere.",
+             "Ausgabe des Generators",
+             anhaengen("docs/rpc/index.html",
+                       "<a href=https://github.com/beispiel/baruch/blob/main/site/generated-de/docs/rpc.md>Quelle</a>"), True)
+    stoerung("ein Link auf eine der neun Quellen bei GitHub unter /docs/ wird gefunden",
+             "Die Übersetzung steht selbst im Abschnitt; der Generator schreibt solche Links auf die Seite um, ein Link "
+             "nach GitHub hieße, dass das Umschreiben versagt hat.",
+             "Link auf docs/RPC.md bei GitHub statt",
+             anhaengen("docs/index.html", "<a href=https://github.com/beispiel/baruch/blob/main/docs/de/RPC.md>RPC</a>"), True)
+    stoerung("ein Link auf das englische Original bei GitHub unter /docs/ wird gefunden",
+             "Auch ein Link auf die englische Quelle aus dem deutschen Abschnitt zeigt, dass der Generator ihn nicht auf "
+             "die deutsche Seite umgeschrieben hat.",
+             "Link auf docs/MCP.md bei GitHub statt",
+             anhaengen("docs/rpc/index.html", "<a href=https://github.com/beispiel/baruch/blob/main/docs/MCP.md>MCP</a>"), True)
+    stoerung("ein Sprachumschalter der deutschen Dokumentation, der ins Leere führt, wird gefunden",
+             "Der Schalter muss auf die gleiche Seite unter /en/docs/ führen (gleiche Namen der Adressen in beiden "
+             "Sprachen); fehlt sie, landete der Leser auf einer 404-Seite.",
+             "Sprachumschalter zeigt ins Leere",
+             lambda o: schreibe(o, "docs/rpc/index.html", lies(os.path.join(o, "docs/rpc/index.html")).replace(
+                 "href=/en/docs/rpc/ hreflang", "href=/en/docs/gibt-es-nicht/ hreflang")), True)
+    stoerung("die deutsche Dokumentation mit <html lang=en> wird gefunden",
+             "Der Abschnitt /docs/ ist deutsch; ein falsches lang-Attribut verfälschte Silbentrennung und Vorlesen. "
+             "Der Fehler zeigt sich zweimal: an der Seite selbst und am Umschalter ihrer englischen Übersetzung.",
+             ("<html lang> ist", "führt auf eine Seite mit <html lang>"),
+             lambda o: schreibe(o, "docs/index.html", lies(os.path.join(o, "docs/index.html")).replace(
+                 "<html lang=de>", "<html lang=en>")), True)
 
     print("site-check.py --selbsttest: " + ("alles in Ordnung" if not fehler else f"{fehler} Zusicherung(en) verletzt"))
     return 1 if fehler else 0

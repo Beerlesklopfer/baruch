@@ -268,20 +268,31 @@ For the integrator: after the full test run `--pruefen --lang en`, then `--fotos
    Wer sie nicht erneuern will, fotografiert nur die Hilfe: `--ziel` auf einen anderen Ordner und `hilfe/` kopieren.
 5. Vorhandene Dateien löscht das Skript nie; ein Foto überschreibt nur seine eigene Datei.
 
-## docs_pages.py – developer documentation (Round 39c)
+## docs_pages.py – developer documentation (Rounds 39c and 39d)
 
-`docs_pages.py` generates the English pages under `/en/docs/` from nine files in `docs/` (`Bedienung.md`,
+`docs_pages.py` generates the English pages under `/en/docs/` from nine files in `docs/` and the German pages under
+`/docs/` from their translations in `docs/de/` (`Bedienung.md`,
 `Architektur.md`, `RPC.md`, `MCP.md`, `Austauschformat.md`, `WYSIWYG.md`, `Betrieb.md`, `Verteilung.md`, `Plan.md`;
 table `DOCS` with slug, weight and description). Python standard library only, no network; always run with `-I`.
 
 ```sh
-python3 -I site/tools/docs_pages.py              # writes site/generated/docs/ (index and one page per source)
-python3 -I site/tools/docs_pages.py --list       # the sources with address and weight, writes nothing
+python3 -I site/tools/docs_pages.py              # both languages: site/generated/docs/ and site/generated-de/docs/
+python3 -I site/tools/docs_pages.py --lang de    # only German (en, de or all, default all)
+python3 -I site/tools/docs_pages.py --list       # the sources with address and weight (also --lang), writes nothing
 python3 -I site/tools/docs_pages.py --selbsttest # checks the generator on an invented mini repository
 ```
 
 `scripts/ci-site.sh` runs it before every Hugo build (`--site` and `--repo` set by the script). The output
-`site/generated/` is not checked in (`.gitignore`); every run deletes `site/generated/docs/` and writes it anew, so a
+`site/generated/` and `site/generated-de/` are not checked in (`.gitignore`); every run deletes the `docs/` folder of
+its language there and writes it anew, so a
 removed source leaves no stale page. A dead relative link, a missing anchor or a link outside the repository is a
 finding: exit 1, the list of findings, nothing written. What the generator rewrites (anchors, links, raw HTML,
 shortcode syntax) is described in its module docstring and in `site/README.md` ("Developer documentation").
+
+German (Round 39d): the source of `docs/de/<Name>.md` (the architecture: `docs/de/Architektur.part<N>.md`, joined in
+numeric order, header comment of every part dropped) is checked against the English original before anything is
+written: every heading needs an explicit id `{#<English anchor>}`, the sequence of heading levels and ids must equal
+the English one, link anchors must be ids of their targets, relative links resolve against `docs/de/`, and a link into
+the English original is a finding (exit 1, nothing written, both languages together). The pages get the same slugs
+as the English ones (`/docs/<slug>/`), so the language switch resolves. The tools for translators and the lag check
+are `scripts/docs-anchors.py` and `scripts/check-doc-lag.py` (see `site/README.md`).

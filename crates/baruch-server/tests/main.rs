@@ -196,6 +196,7 @@ mod round39c_docs_site;
 mod round39c_hilfe;
 mod round39c_reste_1;
 mod round39c_reste_2;
+mod round39d_docs_de;
 mod round4;
 mod round5;
 mod round5_fixes;

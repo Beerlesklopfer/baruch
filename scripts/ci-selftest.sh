@@ -372,7 +372,13 @@ EOF
         python3 -I "$root/site/tools/docs_pages.py" --selbsttest
     check "docs_pages.py nennt die neun Quellen mit ihren festen Adressen" \
         "ci-site.sh prüft nach dem Bau genau die Adressen, die --list nennt; fehlte eine Quelle, prüfte es sie nicht." \
-        sh -c "[ \"\$(python3 -I '$root/site/tools/docs_pages.py' --list | wc -l)\" = 9 ] && python3 -I '$root/site/tools/docs_pages.py' --list | grep -q '^docs/Architektur.md	/en/docs/architecture/	20\$'"
+        sh -c "[ \"\$(python3 -I '$root/site/tools/docs_pages.py' --list --lang en | wc -l)\" = 9 ] && python3 -I '$root/site/tools/docs_pages.py' --list --lang en | grep -q '^docs/Architektur.md	/en/docs/architecture/	20\$'"
+    check "docs_pages.py nennt die neun deutschen Seiten unter /docs/" \
+        "Runde 39d: ci-site.sh prüft nach dem Bau auch /docs/<Seite>/; --list --lang de muss dieselben neun Quellen mit denselben Namen der Adressen nennen wie das Englische." \
+        sh -c "[ \"\$(python3 -I '$root/site/tools/docs_pages.py' --list --lang de | wc -l)\" = 9 ] && python3 -I '$root/site/tools/docs_pages.py' --list --lang de | grep -q '^docs/de/Architektur.md	/docs/architecture/	20\$'"
+    check "check-doc-lag.py läuft ohne --strict mit Exit 0" \
+        "Der Rückstand der Übersetzung ist nur eine Auskunft; ci-site.sh ruft das Skript auf und darf davon nicht abbrechen." \
+        python3 -I "$root/scripts/check-doc-lag.py"
     make_site seite-doku "$version" "baruch.bernau.family"
     mkdir -p "$tmp/seite-doku/tools"
     printf 'import sys\nif "--list" not in sys.argv:\n    print("docs/Probe.md: link to a file that does not exist")\n    sys.exit(1)\n' > "$tmp/seite-doku/tools/docs_pages.py"

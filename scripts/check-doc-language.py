@@ -16,6 +16,10 @@ checks only the text before or after the split marker (exit 2 if the marker is m
 numbers stay those of the file. `--hints` also prints `hint: path:line: prose` for prose lines with common
 German words without umlauts; hints never change the exit code.
 
+Allowed-German area (Round 39d): the files under docs/de/ (the German translations of the developer docs) are German
+by design and are skipped; the check is a path prefix of the path relative to the repository, so nothing else is
+exempt (not docs/ itself, not a folder that merely ends in de/).
+
 Exit codes: 0 nothing found, 1 German prose found, 2 usage error or missing file.
 Python 3 standard library only.
 """
@@ -30,6 +34,10 @@ SPLIT = "<!-- R38c split: architektur_1 above, architektur_2 below -->"
 # Umlauts allowed in the prose of a translated file: (file name relative to the repository, text, reason).
 # Keep in sync with ALLOWED in crates/baruch-server/tests/round38_doku.rs.
 ALLOWED = [("README.md", "© Jörg Bernau", "the name of the author in the copyright line")]
+
+# Folder (relative to the repository, with the trailing slash) whose Markdown files are German by design. Keep in
+# sync with GERMAN_AREA in crates/baruch-server/tests/round38_doku.rs.
+GERMAN_AREA = "docs/de/"
 
 GERMAN_LETTERS = set("äöüÄÖÜß")
 
@@ -88,6 +96,13 @@ def allowed_for(path):
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
     return [text for (name, text, _) in ALLOWED if name == rel]
+
+
+def in_german_area(path):
+    """True for a file below docs/de/ of this repository (decided by its path relative to the repository)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    rel = os.path.relpath(os.path.abspath(path), root).replace(os.sep, "/")
+    return rel.startswith(GERMAN_AREA)
 
 
 def split_part(text, part):
@@ -151,6 +166,8 @@ def run(args, out=sys.stdout, err=sys.stderr):
         return 2
     found = False
     for path in files:
+        if in_german_area(path):
+            continue
         try:
             with open(path, encoding="utf-8") as f:
                 text = f.read()
@@ -235,6 +252,14 @@ def selftest():
         check(out.strip() == "hint: %s:2: Das ist nicht gut und so." % hinted, "a hint names path and line")
 
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    check(in_german_area(os.path.join(root, "docs", "de", "Plan.md")) and
+          in_german_area(os.path.join(root, "docs", "de", "sub", "x.md")),
+          "files below docs/de/ are in the allowed-German area")
+    check(not in_german_area(os.path.join(root, "docs", "Plan.md")) and
+          not in_german_area(os.path.join(root, "docs", "schema", "de", "x.md")) and
+          not in_german_area(os.path.join(root, "docs", "dex", "x.md")) and
+          not in_german_area(os.path.join(root, "README.md")),
+          "nothing else is exempt: not docs/ itself, not another folder called de, not a longer name")
     check(allowed_for(os.path.join(root, "README.md")) == ["© Jörg Bernau"],
           "the copyright line of README.md is the one allowed exception")
     check(allowed_for(os.path.join(root, "SKILLS.md")) == [], "no exception applies to other files")
