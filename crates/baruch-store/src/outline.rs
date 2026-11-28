@@ -205,12 +205,14 @@ struct Outline {
     numbering: Option<String>,
     /// Outline scheme (`work.numbering_scheme`, migration 0008).
     scheme: String,
+    /// Work language (Round 39b): words of the schemes with words.
+    language: crate::WorkLanguage,
     items: Vec<Item>,
 }
 
 impl Outline {
     fn pattern(&self) -> Numbering {
-        load::work_numbering(&self.scheme, self.numbering.as_deref(), &self.template)
+        load::work_numbering(&self.scheme, self.numbering.as_deref(), &self.template, self.language)
     }
 }
 
@@ -226,12 +228,13 @@ type OutlineRow = (i64, i64, Option<i64>, i64, String, String, i64);
 
 /// Outline of the work in tree order (depth-first search, siblings by position), with levels.
 async fn load_outline(conn: &mut SqliteConnection, work: WorkId) -> Result<Outline, StoreError> {
-    let head: Option<(String, Option<String>, String)> =
-        sqlx::query_as("SELECT template, numbering, numbering_scheme FROM work WHERE id = ?")
+    let head: Option<(String, Option<String>, String, String)> =
+        sqlx::query_as("SELECT template, numbering, numbering_scheme, language FROM work WHERE id = ?")
             .bind(work)
             .fetch_optional(&mut *conn)
             .await?;
-    let (template, numbering, scheme) = head.ok_or(StoreError::UnknownWork(work))?;
+    let (template, numbering, scheme, language) = head.ok_or(StoreError::UnknownWork(work))?;
+    let language = crate::WorkLanguage::parse(&language).unwrap_or_default();
     let rows: Vec<OutlineRow> = sqlx::query_as(
         "SELECT id, seq, parent_seq, position, title, kind, numbered FROM node WHERE work_id = ? ORDER BY seq",
     )
@@ -279,7 +282,7 @@ async fn load_outline(conn: &mut SqliteConnection, work: WorkId) -> Result<Outli
             push(index, None, &mut items)?;
         }
     }
-    Ok(Outline { template, numbering, scheme, items })
+    Ok(Outline { template, numbering, scheme, language, items })
 }
 
 /// Is the sequence of levels valid? Parts (0) stand on the top level, every level at most one deeper than the previous
@@ -1659,7 +1662,7 @@ fn custom_spec<'a>(custom: Option<&'a str>, stored: Option<&'a str>) -> Option<&
 /// Numbering of a scheme (not yet stored) for the work; invalid pattern → [`StoreError::Numbering`].
 fn numbering_for(outline: &Outline, scheme: Scheme, custom: Option<&str>) -> Result<Numbering, StoreError> {
     let custom = custom_spec(custom, outline.numbering.as_deref());
-    Numbering::of_scheme(scheme, custom, &outline.template).map_err(StoreError::Numbering)
+    Numbering::of_scheme_in(scheme, custom, &outline.template, outline.language).map_err(StoreError::Numbering)
 }
 
 /// Numbers of the outline in tree order after `numbering`.
@@ -1676,7 +1679,8 @@ fn outline_numbers(outline: &Outline, numbering: &Numbering) -> Vec<String> {
 
 /// Display of the numbering from scheme id, custom pattern and work template.
 fn numbering_info(scheme: &str, numbering: Option<String>, template: &str) -> NumberingInfo {
-    let effective_numbering = load::work_numbering(scheme, numbering.as_deref(), template);
+    // Only the pattern is shown here, and patterns have no words: the language does not matter.
+    let effective_numbering = load::work_numbering(scheme, numbering.as_deref(), template, crate::WorkLanguage::De);
     let scheme = Scheme::from_id(scheme).unwrap_or(Scheme::Template);
     let spec = effective_numbering.spec();
     let custom = numbering.clone().filter(|n| !n.trim().is_empty());

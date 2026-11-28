@@ -103,6 +103,12 @@ pub struct EpubInput {
     /// `Store::back_matter`; inactive ([`baruch_typst::index::BackMatter::is_active`]) → no files for them.
     #[serde(default)]
     pub back_matter: baruch_typst::index::BackMatter,
+    /// Round 39b: language of the work. Labels and generated words of the book (navigation, landmarks, guide, cover,
+    /// title page, glossary, index, notes, figures) follow it through the book catalog
+    /// ([`baruch_core::book_text`]); without `meta.language` it also decides the language tag
+    /// ([`template::book_language`]). Default German: every input from before Round 39b stays byte-identical.
+    #[serde(default)]
+    pub work_language: baruch_core::WorkLanguage,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

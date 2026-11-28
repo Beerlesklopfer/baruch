@@ -60,8 +60,9 @@ use std::collections::HashMap;
 use sqlx::SqliteConnection;
 
 use baruch_typst::scheme::{Numbering, Scheme, export_template};
+use baruch_typst::typeset::TypesetSettings;
 
-use crate::{MirrorFile, StoreError, WorkId, broken, load, slug, to_usize};
+use crate::{MirrorFile, StoreError, WorkId, WorkLanguage, broken, load, slug, to_usize};
 
 /// Current revision of a section in tree order ([`ordered_currents`]).
 pub(crate) struct Current {
@@ -149,20 +150,34 @@ struct Head {
     bodies: HashMap<i64, String>,
 }
 
-/// Work row for head and projection: template, title, custom pattern, scheme id.
-type WorkHead = (String, String, Option<String>, String);
+/// Work row for head and projection: template, title, custom pattern, scheme id, work language (Round 39b).
+type WorkHead = (String, String, Option<String>, String, WorkLanguage);
 
 async fn work_head(conn: &mut SqliteConnection, work: WorkId) -> Result<WorkHead, StoreError> {
-    sqlx::query_as("SELECT template, title, numbering, numbering_scheme FROM work WHERE id = ?")
-        .bind(work)
-        .fetch_optional(&mut *conn)
-        .await?
-        .ok_or(StoreError::UnknownWork(work))
+    let row: (String, String, Option<String>, String, String) =
+        sqlx::query_as("SELECT template, title, numbering, numbering_scheme, language FROM work WHERE id = ?")
+            .bind(work)
+            .fetch_optional(&mut *conn)
+            .await?
+            .ok_or(StoreError::UnknownWork(work))?;
+    let (template, title, numbering, scheme, language) = row;
+    Ok((template, title, numbering, scheme, WorkLanguage::parse(&language).unwrap_or_default()))
+}
+
+/// Typesetting settings for the rule block of a work (Round 39b, contract §2.1): the stored settings; an English work
+/// without its own `lang` gets `lang: "en"`, so that `#set text(lang: "en")` stands behind the work template like the
+/// other typesetting rules. German works: the stored settings unchanged (byte-identical).
+pub(crate) fn rule_settings(mut settings: TypesetSettings, language: WorkLanguage) -> TypesetSettings {
+    let own = settings.lang.as_deref().map(str::trim).is_some_and(|l| !l.is_empty());
+    if language == WorkLanguage::En && !own {
+        settings.lang = Some(language.as_str().to_owned());
+    }
+    settings
 }
 
 async fn head(conn: &mut SqliteConnection, work: WorkId) -> Result<Head, StoreError> {
-    let (template, title, numbering, scheme) = work_head(conn, work).await?;
-    let numbering = load::work_numbering(&scheme, numbering.as_deref(), &template);
+    let (template, title, numbering, scheme, language) = work_head(conn, work).await?;
+    let numbering = load::work_numbering(&scheme, numbering.as_deref(), &template, language);
     let scheme = Scheme::from_id(&scheme).unwrap_or(Scheme::Template);
     let mut exported = export_template(&template, scheme, &numbering);
     let projection = project(&heading_rows(conn, work).await?, &numbering);
@@ -184,7 +199,7 @@ async fn head(conn: &mut SqliteConnection, work: WorkId) -> Result<Head, StoreEr
     // Round 29: typesetting settings as Typst rules behind the work template, the scheme rules and the fallback rules –
     // the one place for export, export map, mirror (main.typ), typesetting preview, PDF and cover. Without settings ""
     // (byte-identical).
-    let typeset = crate::typeset::typeset_in(conn, work).await?;
+    let typeset = rule_settings(crate::typeset::typeset_in(conn, work).await?, language);
     let satz = baruch_typst::typeset::rules(&typeset);
     if !satz.is_empty() {
         if !exported.is_empty() && !exported.ends_with('\n') {
@@ -390,8 +405,8 @@ pub(crate) async fn counted_headings(
     conn: &mut SqliteConnection,
     work: WorkId,
 ) -> Result<Option<Vec<i64>>, StoreError> {
-    let (template, _, custom, scheme) = work_head(conn, work).await?;
-    let numbering = load::work_numbering(&scheme, custom.as_deref(), &template);
+    let (template, _, custom, scheme, language) = work_head(conn, work).await?;
+    let numbering = load::work_numbering(&scheme, custom.as_deref(), &template, language);
     let counted = project(&heading_rows(conn, work).await?, &numbering).counted;
     Ok(match Scheme::from_id(&scheme).unwrap_or(Scheme::Template) {
         Scheme::Template => match baruch_typst::heading_numbering(&template) {
@@ -490,7 +505,8 @@ pub(crate) async fn back_matter_in(
     let mut registers = baruch_typst::index::builtin_registers();
     registers.extend(crate::glossary::registers_in(conn, work).await?);
     let glossary = crate::glossary::accepted_entries_in(conn, work).await?;
-    Ok(baruch_typst::index::BackMatter { settings, registers, glossary })
+    let (.., lang) = work_head(conn, work).await?;
+    Ok(baruch_typst::index::BackMatter { settings, registers, glossary, lang })
 }
 
 /// A non-empty template that is still followed by something ends in a line ending: otherwise the first heading (or
@@ -550,7 +566,7 @@ mod tests {
     use super::*;
 
     fn numbering() -> Numbering {
-        load::work_numbering("decimal", None, "")
+        load::work_numbering("decimal", None, "", WorkLanguage::De)
     }
 
     #[test]

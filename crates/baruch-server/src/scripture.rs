@@ -16,7 +16,15 @@
 //!   passages whose digits the model has torn apart („Mk 1 0,42–45“) are put together again.
 //!
 //! Everything is read only: no writing, no lock, no commit.
+//!
+//! **Work language (Round 39b):** the words Baruch writes for read-back – the closing lines ([`mark_scripture`],
+//! [`mark_others`], [`mark_bible`]), the wording labels in them and in the `wording` field of `scripture.check` /
+//! `scripture_check` ([`wording_label_in`]) and the facts block – follow the language of the work through the book
+//! catalog ([`baruch_core::book_text`]). Every recognition (closing lines in the chat, [`crate::chat_render`])
+//! accepts both languages. German works stay exactly as before; the constants below are the German values.
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
 use baruch_scripture::{Found, RefStatus};
 use baruch_store::WorkId;
 use serde_json::{Value, json};
@@ -69,6 +77,65 @@ pub fn mark_others_bible(module: &str) -> String {
 /// Beginning of the line with a Bible (then module, versification, licence and the results per passage).
 pub const MARK_BIBLE: &str = "Wortlaut geprüft von Baruch (nicht vom Modell)";
 
+/// Wording of a passage without a Bible in the work language ([`UNCHECKED`] in German).
+pub fn unchecked_in(lang: WorkLanguage) -> String {
+    book_t(lang, "book.scripture.unchecked", &[])
+}
+
+/// [`MARK_SCRIPTURE`] in the work language.
+pub fn mark_scripture(lang: WorkLanguage) -> String {
+    book_t(lang, "book.scripture.mark_scripture", &[])
+}
+
+/// [`MARK_OTHERS`] in the work language.
+pub fn mark_others(lang: WorkLanguage) -> String {
+    book_t(lang, "book.scripture.mark_others", &[])
+}
+
+/// [`MARK_BIBLE`] in the work language.
+pub fn mark_bible(lang: WorkLanguage) -> String {
+    book_t(lang, "book.scripture.mark_bible", &[])
+}
+
+/// [`mark_others_bible`] in the work language.
+pub fn mark_others_bible_in(module: &str, lang: WorkLanguage) -> String {
+    book_t(lang, "book.scripture.mark_others_bible", &[("mark", &mark_bible(lang)), ("module", module)])
+}
+
+/// Starts of the closing lines of the passage check in every work language (for recognitions such as the chat).
+pub fn closing_marks() -> Vec<String> {
+    WorkLanguage::ALL.into_iter().flat_map(|lang| [mark_others(lang), mark_scripture(lang), mark_bible(lang)]).collect()
+}
+
+/// Catalog keys of the wording labels of [`crate::bibles`], longest German text first (one contains the other).
+const WORDING_KEYS: [&str; 10] = [
+    "book.scripture.invalid_ref",
+    "book.scripture.versification_mismatch",
+    "book.scripture.missing_verse",
+    "book.scripture.module_spacing",
+    "book.scripture.wording_unchecked",
+    "book.scripture.wording_matches",
+    "book.scripture.wording_differs",
+    "book.scripture.no_quote",
+    "book.scripture.partial",
+    "book.scripture.unchecked",
+];
+
+/// A wording label of [`crate::bibles`] (German, such as „Wortlaut stimmt (Teilzitat)“ or „Vers fehlt im Modul X:
+/// …“) in the work language: the fixed phrases from the book catalog, module names, references and reasons stay.
+/// German: unchanged.
+pub fn wording_label_in(label: &str, lang: WorkLanguage) -> String {
+    if lang == WorkLanguage::De {
+        return label.to_owned();
+    }
+    let mut out = label.to_owned();
+    for key in WORDING_KEYS {
+        out = out.replace(&book_t(WorkLanguage::De, key, &[]), &book_t(lang, key, &[]));
+    }
+    let module = |l| format!("({} ", book_t(l, "book.scripture.module", &[]));
+    out.replace(&module(WorkLanguage::De), &module(lang))
+}
+
 const METHODS: &[&str] = &["scripture.check"];
 
 /// Does this module serve the RPC method?
@@ -91,7 +158,8 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 Some(name) => crate::bibles::by_name(state, name).await?,
                 None => crate::bibles::of_work(state, work).await?,
             };
-            check_with(&choice, text).map_err(|message| RpcError::new(INVALID_PARAMS, message))
+            let lang = crate::work_language::of(state, work).await;
+            check_with_in(&choice, text, lang).map_err(|message| RpcError::new(INVALID_PARAMS, message))
         }
         _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
     }
@@ -102,17 +170,38 @@ pub fn check(text: &str) -> Result<Value, String> {
     check_with(&Choice::None, text)
 }
 
-/// Check with the Bible of the work `work` (without a work: no Bible).
+/// Check with the Bible of the work `work` (without a work: no Bible); the wording labels in the language of the work
+/// (Round 39b; without a work German).
 pub async fn check_for_work(state: &AppState, work: Option<WorkId>, text: &str) -> Result<Value, RpcError> {
+    let lang = match work {
+        Some(w) => crate::work_language::of(state, w).await,
+        None => WorkLanguage::De,
+    };
+    check_for_work_in(state, work, text, lang).await
+}
+
+/// Like [`check_for_work`] with the language of the labels given (the passage page of the interface stays German).
+pub async fn check_for_work_in(
+    state: &AppState,
+    work: Option<WorkId>,
+    text: &str,
+    lang: WorkLanguage,
+) -> Result<Value, RpcError> {
     let choice = match work {
         Some(w) => crate::bibles::of_work(state, w).await?,
         None => Choice::None,
     };
-    check_with(&choice, text).map_err(|message| RpcError::new(INVALID_PARAMS, message))
+    check_with_in(&choice, text, lang).map_err(|message| RpcError::new(INVALID_PARAMS, message))
 }
 
-/// Check of a text with `choice` as JSON.
+/// Check of a text with `choice` as JSON (German labels).
 pub fn check_with(choice: &Choice, text: &str) -> Result<Value, String> {
+    check_with_in(choice, text, WorkLanguage::De)
+}
+
+/// Like [`check_with`] with the wording labels (`wording`) in the work language `lang` (Round 39b); the codes
+/// (`wording_code`, `status`) stay the same in every language.
+pub fn check_with_in(choice: &Choice, text: &str, lang: WorkLanguage) -> Result<Value, String> {
     if text.chars().count() > MAX_TEXT_CHARS {
         return Err(format!("text: höchstens {MAX_TEXT_CHARS} Zeichen"));
     }
@@ -122,16 +211,16 @@ pub fn check_with(choice: &Choice, text: &str) -> Result<Value, String> {
     let wording = check_wording(choice.bible(), text, &found);
     // Round 19c: note on strikingly many word fragments in the module (per answer and per passage, else null).
     let note = crate::bibles::choice_note(choice);
-    let list: Vec<Value> = found.iter().zip(&wording).map(|(f, w)| entry(f, w, note.as_deref())).collect();
+    let list: Vec<Value> = found.iter().zip(&wording).map(|(f, w)| entry(f, w, note.as_deref(), lang)).collect();
     Ok(json!({ "refs": list, "truncated": truncated, "source": baruch_scripture::SOURCE, "bible": choice.json(),
                "module_note": note }))
 }
 
-fn entry(found: &Found, wording: &WordingResult, module_note: Option<&str>) -> Value {
+fn entry(found: &Found, wording: &WordingResult, module_note: Option<&str>, lang: WorkLanguage) -> Value {
     let book = found.passage.as_ref().map(|p| p.book);
     let short = match wording.code {
-        "unchecked" => UNCHECKED.to_owned(),
-        _ => wording.label.clone(),
+        "unchecked" => unchecked_in(lang),
+        _ => wording_label_in(&wording.label, lang),
     };
     json!({
         "input": found.input,
@@ -188,11 +277,21 @@ pub async fn facts_for_work(state: &AppState, work: WorkId, handle: &str, sectio
         return None;
     }
     let choice = crate::bibles::of_work(state, work).await.unwrap_or(Choice::None);
-    facts_with(&choice, handle, section)
+    let lang = crate::work_language::of(state, work).await;
+    facts_with_in(&choice, handle, section, lang)
 }
 
 /// Facts block with `choice` (public for tests with a test Bible).
 pub fn facts_with(choice: &Choice, handle: &str, section: &str) -> Option<String> {
+    facts_with_in(choice, handle, section, WorkLanguage::De)
+}
+
+/// Facts block in the work language (Round 39b): an English work gets the block in English, so that the model
+/// renders the results with the English words; German exactly as before.
+pub fn facts_with_in(choice: &Choice, handle: &str, section: &str, lang: WorkLanguage) -> Option<String> {
+    if lang == WorkLanguage::En {
+        return facts_with_en(choice, handle, section);
+    }
     if !checks_scripture(handle) {
         return None;
     }
@@ -252,6 +351,74 @@ pub fn facts_with(choice: &Choice, handle: &str, section: &str) -> Option<String
     Some(lines.join("\n"))
 }
 
+/// Closing sentence of the English facts block without a Bible.
+pub const FACTS_END_EN: &str =
+    "Wording: Baruch has no local Bible; every quotation stays unchecked. Do not confirm any wording.";
+
+/// Closing sentence of the English facts block with a Bible.
+pub const FACTS_END_BIBLE_EN: &str = "Wording: Baruch checked the results above with the named SWORD module, not \
+you. Only render them; never confirm a wording yourself, and do not copy Bible text except the checked verse of a \
+difference.";
+
+/// The facts block of [`facts_with_in`] for an English work: the same facts, English sentences and labels.
+fn facts_with_en(choice: &Choice, handle: &str, section: &str) -> Option<String> {
+    if !checks_scripture(handle) {
+        return None;
+    }
+    let lang = WorkLanguage::En;
+    let bible = choice.bible();
+    let head = match (bible, choice) {
+        (Some(b), _) => format!(
+            "Reference check (Baruch, versification Schlachter 1951; wording from the SWORD module {} \"{}\", \
+             versification {}, licence according to conf: {}):",
+            b.info.name, b.info.description, b.v11n.name, b.info.notice
+        ),
+        (None, Choice::None) => "Reference check (Baruch, versification Schlachter 1951 – no wording):".to_owned(),
+        (None, other) => format!(
+            "Reference check (Baruch, versification Schlachter 1951 – no wording; the chosen Bible cannot be read: \
+             {}):",
+            other.json()["problem"].as_str().unwrap_or("unknown")
+        ),
+    };
+    let found = baruch_scripture::scan(section);
+    let wording = check_wording(bible, section, &found);
+    let mut lines = vec![head];
+    if let Some(note) = choice.bible().and_then(crate::bibles::module_note) {
+        lines.push(format!("Note: {note}"));
+    }
+    if found.is_empty() {
+        lines.push("- no reference found".to_owned());
+    }
+    let mut seen: Vec<(String, String, Option<String>)> = Vec::new();
+    for (f, w) in found.iter().zip(&wording) {
+        let label = f.normalized.clone().unwrap_or_else(|| f.input.clone());
+        let id = (label.clone(), w.code.to_owned(), w.quote.clone());
+        if seen.contains(&id) {
+            continue;
+        }
+        if seen.len() == MAX_FACTS {
+            lines.push(format!("- … further references not listed (at most {MAX_FACTS})"));
+            break;
+        }
+        let result = if f.status == RefStatus::Valid { "exists".to_owned() } else { f.message() };
+        let said = match w.code {
+            "unchecked" => book_t(lang, "book.scripture.wording_unchecked", &[]),
+            "differs" => format!(
+                "{} – quotation \"{}\", Bible \"{}\", differences: {}",
+                wording_label_in(&w.label, lang),
+                shorten(w.quote.as_deref().unwrap_or_default(), MAX_FACT_TEXT),
+                shorten(w.bible_text.as_deref().unwrap_or_default(), MAX_FACT_TEXT),
+                baruch_scripture::wording::diff_line(&w.diff)
+            ),
+            _ => wording_label_in(&w.label, lang),
+        };
+        lines.push(format!("- \"{}\" → {label}: {result}; {said}", f.input));
+        seen.push(id);
+    }
+    lines.push(if bible.is_some() { FACTS_END_BIBLE_EN } else { FACTS_END_EN }.to_owned());
+    Some(lines.join("\n"))
+}
+
 /// Appends the note on the wording to an answer (without a Bible): for @schrift/@belege, if section or
 /// answer name a passage, [`MARK_SCRIPTURE`]; for other personas, if the answer names a passage,
 /// [`MARK_OTHERS`] (with a Bible [`mark_others_bible`], see [`mark_with`]); otherwise the answer stays unchanged.
@@ -273,11 +440,18 @@ pub async fn mark_answer_for_work(state: &AppState, work: WorkId, handle: &str, 
         !baruch_scripture::scan(&body).is_empty()
     };
     let choice = if wanted { crate::bibles::of_work(state, work).await.unwrap_or(Choice::None) } else { Choice::None };
-    mark_with(&choice, handle, section, body)
+    let lang = crate::work_language::of(state, work).await;
+    mark_with_in(&choice, handle, section, body, lang)
 }
 
 /// Like [`mark_answer`] with `choice` (public for tests with a test Bible).
 pub fn mark_with(choice: &Choice, handle: &str, section: &str, body: String) -> String {
+    mark_with_in(choice, handle, section, body, WorkLanguage::De)
+}
+
+/// Like [`mark_with`] with the closing line in the work language `lang` (Round 39b). If the line is already there,
+/// it is not added once more.
+pub fn mark_with_in(choice: &Choice, handle: &str, section: &str, body: String, lang: WorkLanguage) -> String {
     let in_section = baruch_scripture::scan(section);
     let mut labels: Vec<String> = Vec::new();
     for f in &in_section {
@@ -291,15 +465,15 @@ pub fn mark_with(choice: &Choice, handle: &str, section: &str, body: String) -> 
     let line = if checks_scripture(handle) {
         let any = !in_section.is_empty() || !baruch_scripture::scan(&body).is_empty();
         match choice.bible() {
-            Some(bible) if any => Some(bible_line(bible, section, &in_section)),
-            _ => any.then(|| MARK_SCRIPTURE.to_owned()),
+            Some(bible) if any => Some(bible_line(bible, section, &in_section, lang)),
+            _ => any.then(|| mark_scripture(lang)),
         }
     } else if baruch_scripture::scan(&body).is_empty() {
         None
     } else {
         Some(match choice.bible() {
-            Some(bible) => mark_others_bible(&bible.info.name),
-            None => MARK_OTHERS.to_owned(),
+            Some(bible) => mark_others_bible_in(&bible.info.name, lang),
+            None => mark_others(lang),
         })
     };
     match line {
@@ -310,20 +484,30 @@ pub fn mark_with(choice: &Choice, handle: &str, section: &str, body: String) -> 
 
 /// „Wortlaut geprüft von Baruch (nicht vom Modell), Modul GerSch, Versifikation German, Lizenz …: Joh 3,16
 /// stimmt; Ps 23,1 kein Zitat gefunden.“
-fn bible_line(bible: &baruch_sword::Bible, section: &str, found: &[Found]) -> String {
+fn bible_line(bible: &baruch_sword::Bible, section: &str, found: &[Found], lang: WorkLanguage) -> String {
     let wording = check_wording(Some(bible), section, found);
+    // „Wortlaut stimmt“ → „stimmt“ after the reference: the first word of the catalog label with its space.
+    let matches = book_t(lang, "book.scripture.wording_matches", &[]);
+    let word = matches.split_once(' ').map_or("", |(first, _)| first).to_owned() + " ";
     let mut parts: Vec<String> = Vec::new();
     for (f, w) in found.iter().zip(&wording) {
         let label = f.normalized.clone().unwrap_or_else(|| f.input.clone());
-        let part = format!("{label} {}", w.label.trim_start_matches("Wortlaut "));
+        let part = format!("{label} {}", wording_label_in(&w.label, lang).trim_start_matches(word.as_str()));
         if !parts.contains(&part) && parts.len() < MAX_FACTS {
             parts.push(part);
         }
     }
-    let list = if parts.is_empty() { "keine Stelle im Abschnitt".to_owned() } else { parts.join("; ") };
-    let line = format!(
-        "{MARK_BIBLE}, Modul {}, Versifikation {}, Lizenz laut conf: {}: {list}.",
-        bible.info.name, bible.v11n.name, bible.info.notice
+    let list = if parts.is_empty() { book_t(lang, "book.scripture.no_passage", &[]) } else { parts.join("; ") };
+    let line = book_t(
+        lang,
+        "book.scripture.bible_line",
+        &[
+            ("mark", &mark_bible(lang)),
+            ("module", &bible.info.name),
+            ("versification", bible.v11n.name),
+            ("notice", &bible.info.notice),
+            ("list", &list),
+        ],
     );
     // Round 19c: note on word fragments in the module in the same line (this way it stays a closing note).
     match crate::bibles::module_note(bible) {

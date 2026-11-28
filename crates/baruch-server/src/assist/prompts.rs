@@ -563,7 +563,32 @@ pub fn default_prompt_in(handle: &str, role: &str, kind: WorkKind, language: Wor
             format!("{spoken}\n\n{SERMON_NOTE}")
         }
     };
-    lang::localized(&prompt, language)
+    read_back_words(&lang::localized(&prompt, language), language)
+}
+
+/// The words a default prompt tells @schrift and @belege to write (Round 39b): `book.scripture.wording_unchecked`,
+/// the wording results of Baruch, `book.claims.not_supported` and `book.claims.check_reference` in the work language
+/// from the book catalog ([`baruch_core::book_text`]); the example reference in the English notation.
+/// German: unchanged.
+pub fn read_back_words(prompt: &str, language: WorkLanguage) -> String {
+    if language == WorkLanguage::De {
+        return prompt.to_owned();
+    }
+    let word = |lang, key: &str| baruch_core::book_text::book_t(lang, key, &[]);
+    let mut out = prompt.replace("Joh 3,16: the reference exists", "John 3:16: the reference exists");
+    for key in [
+        "book.scripture.wording_unchecked",
+        "book.scripture.wording_matches",
+        "book.scripture.no_quote",
+        "book.claims.not_supported",
+        "book.claims.check_reference",
+    ] {
+        out = out.replace(&word(WorkLanguage::De, key), &word(language, key));
+    }
+    // „weicht ab“ stands alone in the list of results; the catalog has the whole label „Wortlaut weicht ab“.
+    let differs = |lang| word(lang, "book.scripture.wording_differs");
+    let short = |text: String| text.split_once(' ').map_or(text.clone(), |(_, rest)| rest.to_owned());
+    out.replace(&format!("\"{}\"", short(differs(WorkLanguage::De))), &format!("\"{}\"", differs(language)))
 }
 
 /// Effective prompt per work kind for a German work, see [`effective_prompt_in`].

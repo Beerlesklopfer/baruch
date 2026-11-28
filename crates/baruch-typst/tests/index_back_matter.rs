@@ -9,7 +9,7 @@ use baruch_typst::index::*;
 use baruch_typst::typeset::{GlossaryPosition, IndexPages, TypesetSettings};
 
 fn with(settings: TypesetSettings, glossary: Vec<GlossaryEntry>) -> BackMatter {
-    BackMatter { settings, registers: builtin_registers(), glossary }
+    BackMatter { settings, registers: builtin_registers(), glossary, ..BackMatter::default() }
 }
 
 fn pages(registers: &[&str]) -> TypesetSettings {

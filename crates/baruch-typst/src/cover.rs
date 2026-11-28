@@ -157,6 +157,9 @@ pub struct WrapOptions {
 /// (Round 27, contract 1.6): `#let baruch_buch = (…)`.
 pub const BOOK_DICT: &str = "baruch_buch";
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 use crate::cover_layout::{
     Backdrop, CoverAlign, CoverBlock, CoverBlockKind, CoverFace, CoverGeometry, CoverLayout, FontStyle, LEADING_EM,
     SIZE_PT, SpineDirection, WIDTH_MM, effective_blocks,
@@ -383,7 +386,14 @@ fn one_line(address: &str) -> Option<String> {
 /// that of the publisher as a line of its own after the © line, that of the print shop behind „Druck:“ – without
 /// addresses the lines stay as before Round 27.
 pub fn imprint_lines(info: &BookInfo) -> Vec<String> {
-    let mut lines = vec![DNB_TITLE.to_owned(), DNB_TEXT.to_owned()];
+    imprint_lines_in(info, WorkLanguage::De)
+}
+
+/// Like [`imprint_lines`] in the work language `lang` (Round 39b): DNB notice, „Bibelzitate“, cover credit, „Gesetzt
+/// mit Baruch“ and „Druck“ from the book catalog; German exactly as before.
+pub fn imprint_lines_in(info: &BookInfo, lang: WorkLanguage) -> Vec<String> {
+    let t = |key: &str, args: &[(&str, &str)]| book_t(lang, key, args);
+    let mut lines = vec![t("book.imprint.dnb_title", &[]), t("book.imprint.dnb_text", &[])];
     lines.push(copyright_line(info));
     if let Some(address) = one_line(&info.publisher_address) {
         lines.push(address);
@@ -395,22 +405,62 @@ pub fn imprint_lines(info: &BookInfo) -> Vec<String> {
         lines.push(format!("ISBN {isbn}"));
     }
     match (filled(&info.bible), filled(&info.bible_notice)) {
-        (Some(bible), Some(notice)) => lines.push(format!("Bibelzitate: {bible}. {notice}")),
-        (Some(bible), None) => lines.push(format!("Bibelzitate: {bible}.")),
+        (Some(bible), Some(notice)) => lines.push(format!("{} {notice}", t("book.imprint.bible", &[("bible", bible)]))),
+        (Some(bible), None) => lines.push(t("book.imprint.bible", &[("bible", bible)])),
         (None, Some(notice)) => lines.push(notice.to_owned()),
         (None, None) => {}
     }
     if let Some(credit) = filled(&info.image_credit) {
-        lines.push(format!("Umschlaggestaltung und Bildnachweis: {credit}"));
+        lines.push(t("book.imprint.cover_credit", &[("credit", credit)]));
     }
-    lines.push(TYPESET_WITH.to_owned());
+    lines.push(t("book.imprint.typeset_with", &[]));
     match (filled(&info.printer), one_line(&info.printer_address)) {
-        (Some(printer), Some(address)) => lines.push(format!("Druck: {printer}, {address}")),
-        (Some(printer), None) => lines.push(format!("Druck: {printer}")),
-        (None, Some(address)) => lines.push(format!("Druck: {address}")),
+        (Some(printer), Some(address)) => {
+            lines.push(t("book.imprint.printer", &[("printer", &format!("{printer}, {address}"))]))
+        }
+        (Some(printer), None) => lines.push(t("book.imprint.printer", &[("printer", printer)])),
+        (None, Some(address)) => lines.push(t("book.imprint.printer", &[("printer", &address)])),
         (None, None) => {}
     }
     lines
+}
+
+/// The cover and front-matter Typst written for a German work, with the generated words in the work language
+/// `lang` (Round 39b): language rule, DNB notice, „Gesetzt mit Baruch“, the starts of the cover credit, Bible and
+/// print-shop lines and the ISBN placeholder. The German words only ever stand there as whole string literals
+/// written by this module (user texts never start a literal with them in practice), so replacing those literals is
+/// exact. German: unchanged.
+fn localized(source: String, lang: WorkLanguage) -> String {
+    if lang == WorkLanguage::De {
+        return source;
+    }
+    let both = |key: &str| (typst_string(&book_t(WorkLanguage::De, key, &[])), typst_string(&book_t(lang, key, &[])));
+    // Literal start up to the placeholder: `"Druck: ` for `Druck: { $printer }`.
+    let start = |key: &str, name: &str| {
+        let slot = "\u{1}";
+        let cut = |language| {
+            let text = book_t(language, key, &[(name, slot)]);
+            let before = text.split_once(slot).map_or(text.as_str(), |(before, _)| before).to_owned();
+            let literal = typst_string(&before);
+            literal[..literal.len() - 1].to_owned()
+        };
+        (cut(WorkLanguage::De), cut(lang))
+    };
+    let pairs = [
+        ("#set text(lang: \"de\")".to_owned(), format!("#set text(lang: \"{}\")", lang.as_str())),
+        both("book.imprint.dnb_title"),
+        both("book.imprint.dnb_text"),
+        both("book.imprint.typeset_with"),
+        both("book.cover.isbn_placeholder"),
+        start("book.imprint.cover_credit", "credit"),
+        start("book.imprint.bible", "bible"),
+        start("book.imprint.printer", "printer"),
+    ];
+    let mut out = source;
+    for (german, other) in pairs {
+        out = out.replace(&german, &other);
+    }
+    out
 }
 
 fn imprint(info: &BookInfo) -> String {
@@ -440,6 +490,15 @@ fn dedication(info: &BookInfo) -> Option<String> {
 /// Baruch writes the dictionary [`BOOK_DICT`] once after [`FRAME_MARK`] and sets every function on a page of its
 /// own at the fixed place; if a function is missing, the previous page stands there. Without a layout and without
 /// functions the output is byte-identical to Round 26.
+///
+/// Round 39b: the generated words in the work language `lang` (German: byte-identical to the function without
+/// `_in`).
+pub fn frame_parts_in(info: &BookInfo, opts: &FrameOptions, lang: WorkLanguage) -> FrameParts {
+    let parts = frame_parts(info, opts);
+    FrameParts { front: localized(parts.front, lang), back: localized(parts.back, lang), ..parts }
+}
+
+/// Frame of a German work (exactly as before Round 39b); [`frame_parts_in`] for the work language.
 pub fn frame_parts(info: &BookInfo, opts: &FrameOptions) -> FrameParts {
     let cover = opts.cover.as_ref().filter(|_| opts.cover_pages);
     if cover.is_none() && !opts.front_matter {
@@ -526,6 +585,15 @@ pub fn wrap_source(info: &BookInfo, opts: &WrapOptions) -> String {
 /// Like [`wrap_source`], with the text rules of the work template (`rules` from [`template_text_rules`], empty =
 /// none) directly after `#set text(lang: "de")` (Round 20c): this way a blurb on the cover for the print shop
 /// breaks like on the cover page in the book.
+///
+/// Round 39b: the generated words in the work language `lang` (German: byte-identical to the function without
+/// `_in`).
+pub fn wrap_source_with_rules_in(info: &BookInfo, opts: &WrapOptions, rules: &str, lang: WorkLanguage) -> String {
+    localized(wrap_source_with_rules(info, opts, rules), lang)
+}
+
+/// Cover for the print shop of a German work (exactly as before Round 39b); [`wrap_source_with_rules_in`] for the
+/// work language.
 pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) -> String {
     let bleed = opts.bleed_mm.max(0.0);
     let panel = opts.page_width_mm.max(1.0) + bleed;
@@ -621,6 +689,14 @@ pub fn wrap_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) 
 /// author, publisher, free text; missing kinds as default blocks), otherwise title, subtitle and author in the
 /// title area as before. `spine_mm`, `barcode` and `author_photo` play no role; `bleed_mm` only for the default
 /// blocks (as in the typeset book). User texts only as string literals.
+///
+/// Round 39b: the generated words in the work language `lang` (German: byte-identical to the function without
+/// `_in`).
+pub fn front_source_with_rules_in(info: &BookInfo, opts: &WrapOptions, rules: &str, lang: WorkLanguage) -> String {
+    localized(front_source_with_rules(info, opts, rules), lang)
+}
+
+/// Cover front of a German work (exactly as before Round 39b); [`front_source_with_rules_in`] for the work language.
 pub fn front_source_with_rules(info: &BookInfo, opts: &WrapOptions, rules: &str) -> String {
     let width = opts.page_width_mm.max(1.0);
     let height = opts.page_height_mm.max(1.0);
@@ -1067,6 +1143,14 @@ pub fn block_has_content(info: &BookInfo, block: &CoverBlock, refs: &BlockRefs<'
 
 /// `#let baruch_buch = (…)`: all details as Typst strings (never markup or code), empty = `""`, plus
 /// `impressum_zeilen` as an array of the lines of [`imprint_lines`].
+///
+/// Round 39b: the generated words in the work language `lang` (German: byte-identical to the function without
+/// `_in`).
+pub fn book_dict_in(info: &BookInfo, lang: WorkLanguage) -> String {
+    localized(book_dict(info), lang)
+}
+
+/// Dictionary of a German work (exactly as before Round 39b); [`book_dict_in`] for the work language.
 pub fn book_dict(info: &BookInfo) -> String {
     let value = |text: &str| typst_string(text.trim());
     let entries: [(&str, String); 23] = [

@@ -19,14 +19,31 @@
 //! check off, and applying twice still changes nothing (idempotent). Applied after the quotation check in the lector
 //! (review, ask), in the section chat ([`super::run_inputs`]) and in threads without a section ([`crate::threads`]).
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
 use baruch_scripture::{Found, Passage, RefStatus, scan};
 
 use super::prompts::critical_finding;
 
-/// Start of the note „Stelle steht im Text“.
+/// Start of the note „Stelle steht im Text“ (German; the English one is `book.claims.in_text` of the book catalog).
 pub const IN_TEXT: &str = "(Stelle steht im Text:";
-/// Start of the note „Stelle ungültig“.
+/// Start of the note „Stelle ungültig“ (German; the English one is `book.claims.invalid` of the book catalog).
 pub const INVALID: &str = "(Stelle ungültig:";
+
+/// Starts of both notes in every work language (Round 39b): Baruch writes them in the language of the finding and
+/// removes them in every language before marking anew.
+fn note_starts() -> Vec<String> {
+    WorkLanguage::ALL
+        .into_iter()
+        .flat_map(|lang| [book_t(lang, "book.claims.in_text", &[]), book_t(lang, "book.claims.invalid", &[])])
+        .collect()
+}
+
+/// Language of a finding line (Round 39b): English if it carries the English critical marker, otherwise German –
+/// the marker follows the work language ([`super::lang::markers`]), so the note does too.
+fn line_language(line: &str) -> WorkLanguage {
+    if line.contains(super::lang::EN.critical) { WorkLanguage::En } else { WorkLanguage::De }
+}
 
 /// Words with which a finding claims a reference is missing in the text (lower case, as whole words).
 const MISSING_WORDS: &[&str] = &[
@@ -47,11 +64,28 @@ const MISSING_WORDS: &[&str] = &[
     "nicht abgedeckt",
     "nicht gedeckt",
     "außerhalb des",
+    // English findings (Round 39b): recognition accepts both languages in every work.
+    "not supported",
+    "unsupported",
+    "not in the text",
+    "not in the sermon text",
+    "not in the section",
+    "not in the chapter",
+    "does not occur",
+    "not contained",
+    "not present",
+    "not quoted",
+    "not cited",
+    "not mentioned",
+    "does not appear",
+    "not covered",
+    "outside the",
 ];
 
 /// Words that claim a reference is missing only together with a place ([`PLACE_WORDS`]): „Lk 15,7 fehlt im
 /// Predigttext“ yes, „Zu Lk 15,5 fehlt eine Anwendung“ no (criticism of the content, rework Round 17).
-const WEAK_MISSING_WORDS: &[&str] = &["steht nicht", "fehlt", "fehlen", "findet sich nicht"];
+const WEAK_MISSING_WORDS: &[&str] =
+    &["steht nicht", "fehlt", "fehlen", "findet sich nicht", "missing", "is absent", "cannot be found"];
 
 /// Places where a reference can be missing.
 const PLACE_WORDS: &[&str] = &[
@@ -63,6 +97,14 @@ const PLACE_WORDS: &[&str] = &[
     "in der predigt",
     "im gezeigten text",
     "im wortlaut",
+    "in the text",
+    "in the sermon text",
+    "in the bible text",
+    "in the section",
+    "in the chapter",
+    "in the sermon",
+    "in the shown text",
+    "in the wording",
 ];
 
 /// Does `phrase` occur in `lower` as whole words (no letter and no digit directly before or after)?
@@ -80,7 +122,8 @@ fn has_words(lower: &str, phrase: &str) -> bool {
 /// reference – neither if Baruch appended it nor if the model imitates it (manual check integrator Round 17:
 /// „… zu Joh 3,16 ist faktisch falsch (nicht im Text belegt) …“ otherwise got „(Stelle steht im Text: Joh 3,16)“).
 pub fn claims_missing(line: &str) -> bool {
-    let lower = strip_notes(&line.replace(super::prompts::UNBACKED_NOTE, "")).to_lowercase();
+    let without = line.replace(super::prompts::UNBACKED_NOTE, "").replace(super::lang::EN.unbacked_note, "");
+    let lower = strip_notes(&without).to_lowercase();
     MISSING_WORDS.iter().any(|w| has_words(&lower, w))
         || (WEAK_MISSING_WORDS.iter().any(|w| has_words(&lower, w)) && PLACE_WORDS.iter().any(|w| has_words(&lower, w)))
 }
@@ -88,13 +131,14 @@ pub fn claims_missing(line: &str) -> bool {
 /// Remove all notes „(Stelle steht im Text: …)“ and „(Stelle ungültig: …)“ from a line (up to the
 /// matching bracket, including the space before it); end of line without whitespace. Set only by [`mark_ref_claims`].
 pub fn strip_notes(line: &str) -> String {
-    if !line.contains(IN_TEXT) && !line.contains(INVALID) {
+    let starts = note_starts();
+    if !starts.iter().any(|start| line.contains(start.as_str())) {
         return line.to_owned();
     }
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
     loop {
-        let next = [IN_TEXT, INVALID].iter().filter_map(|m| rest.find(m)).min();
+        let next = starts.iter().filter_map(|m| rest.find(m.as_str())).min();
         let Some(at) = next else {
             out.push_str(rest);
             break;
@@ -149,14 +193,16 @@ fn shown_passages(corpus: &str) -> Vec<(Passage, String)> {
 /// Notes on a „Kritisch:“ line (no duplicates).
 fn notes_for(line: &str, shown: &[(Passage, String)]) -> Vec<String> {
     let missing = claims_missing(line);
+    let lang = line_language(line);
+    let (in_text, invalid) = (book_t(lang, "book.claims.in_text", &[]), book_t(lang, "book.claims.invalid", &[]));
     let mut notes: Vec<String> = Vec::new();
     for found in scan(line) {
         let note = match (&found.status, &found.passage) {
             (RefStatus::Valid, Some(p)) if missing => {
-                shown.iter().find(|(outer, _)| within(p, outer)).map(|(_, label)| format!("{IN_TEXT} {label})"))
+                shown.iter().find(|(outer, _)| within(p, outer)).map(|(_, label)| format!("{in_text} {label})"))
             }
             (RefStatus::Valid, _) => None,
-            _ => Some(format!("{INVALID} {})", invalid_message(&found))),
+            _ => Some(format!("{invalid} {})", invalid_message(&found))),
         };
         if let Some(note) = note
             && !notes.contains(&note)

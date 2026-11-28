@@ -1,0 +1,310 @@
+=== nav.xhtml (application/xhtml+xml, Nav, id nav, properties Some("nav"), title Some("Inhalt"), key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Inhalt</title>
+<link rel="stylesheet" type="text/css" href="style/book.css"/>
+</head>
+<body>
+<nav epub:type="toc" id="toc" role="doc-toc">
+<h1>Inhalt</h1>
+<ol>
+<li><a href="text/k10.xhtml#k10">Planen</a><ol>
+<li><a href="text/k11.xhtml#k11">1 Der Platz</a><ol>
+<li><a href="text/k11.xhtml#k12">1.1 Boden und Licht</a></li>
+</ol>
+</li>
+<li><a href="text/k13.xhtml#k13">2 Das Fundament</a><ol>
+<li><a href="text/k13.xhtml#k14">2.1 Beton &amp; Kies</a></li>
+</ol>
+</li>
+</ol>
+</li>
+</ol>
+</nav>
+<nav epub:type="landmarks" id="landmarks" hidden="hidden">
+<h2>Orientierung</h2>
+<ol>
+<li><a epub:type="cover" href="text/cover.xhtml">Umschlag</a></li>
+<li><a epub:type="titlepage" href="text/title.xhtml">Titel</a></li>
+<li><a epub:type="toc" href="nav.xhtml#toc">Inhalt</a></li>
+<li><a epub:type="bodymatter" href="text/k10.xhtml">Text</a></li>
+</ol>
+</nav>
+</body>
+</html>
+
+=== toc.ncx (application/x-dtbncx+xml, Ncx, id ncx, properties None, title None, key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head>
+<meta name="dtb:uid" content="urn:uuid:3f6c2a1e-8b4d-4c7a-9e21-5d0f7a9b1c42"/>
+<meta name="dtb:depth" content="3"/>
+<meta name="dtb:totalPageCount" content="0"/>
+<meta name="dtb:maxPageNumber" content="0"/>
+</head>
+<docTitle><text>Das Gartenhaus am Bach</text></docTitle>
+<docAuthor><text>Erika Beispiel</text></docAuthor>
+<navMap>
+<navPoint id="nav-1" playOrder="1">
+<navLabel><text>Planen</text></navLabel>
+<content src="text/k10.xhtml#k10"/>
+<navPoint id="nav-2" playOrder="2">
+<navLabel><text>1 Der Platz</text></navLabel>
+<content src="text/k11.xhtml#k11"/>
+<navPoint id="nav-3" playOrder="3">
+<navLabel><text>1.1 Boden und Licht</text></navLabel>
+<content src="text/k11.xhtml#k12"/>
+</navPoint>
+</navPoint>
+<navPoint id="nav-4" playOrder="4">
+<navLabel><text>2 Das Fundament</text></navLabel>
+<content src="text/k13.xhtml#k13"/>
+<navPoint id="nav-5" playOrder="5">
+<navLabel><text>2.1 Beton &amp; Kies</text></navLabel>
+<content src="text/k13.xhtml#k14"/>
+</navPoint>
+</navPoint>
+</navPoint>
+</navMap>
+</ncx>
+
+=== style/book.css (text/css, Style, id css, properties None, title None, key None)
+/* Baruch: EPUB-Grundstil */
+section.baruch-part { text-align: center; }
+h1.baruch-part-title { margin-top: 30%; }
+section.baruch-scene, section.baruch-work { margin: 1em 0; }
+section.baruch-work { padding: 0.5em 1em; border-left: 0.2em solid #999999; }
+blockquote.baruch-quote { margin: 1em 1.5em; }
+footer.baruch-attribution { text-align: end; font-style: italic; }
+figure.baruch-figure { margin: 1em 0; text-align: center; }
+img.baruch-image, img.baruch-inline-image, img.baruch-cover-image { max-width: 100%; height: auto; }
+img.baruch-inline-image { max-height: 1.2em; vertical-align: middle; }
+figcaption { font-size: 0.9em; font-style: italic; }
+.baruch-missing { font-family: monospace; }
+a.baruch-noteref { text-decoration: none; }
+hr.baruch-notes-rule { width: 30%; margin: 2em auto 0.5em 0; }
+ol.baruch-footnotes { font-size: 0.85em; }
+section.baruch-cover { text-align: center; margin: 0; padding: 0; }
+img.baruch-cover-image { max-height: 100%; }
+section.baruch-titlepage { text-align: center; }
+p.baruch-title { font-size: 1.8em; font-weight: bold; margin-top: 25%; }
+p.baruch-subtitle { font-size: 1.2em; }
+p.baruch-author { margin-top: 2em; }
+p.baruch-publisher { margin-top: 4em; }
+section.baruch-imprint p { font-size: 0.85em; text-indent: 0; }
+section.baruch-dedication { text-align: center; font-style: italic; margin-top: 30%; }
+/* Baruch: Satz (EPUB) */
+section.baruch-chapter { break-before: page; page-break-before: always; }
+section.baruch-part { break-before: page; page-break-before: always; }
+
+=== images/cover.png (image/png, CoverImage, id cover-image, properties Some("cover-image"), title None, key None)
+[239 bytes, fnv 29f7273371b39ae2]
+=== text/cover.xhtml (application/xhtml+xml, Cover, id cover, properties None, title Some("Umschlag"), key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Umschlag</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-cover" epub:type="cover">
+<img class="baruch-cover-image" src="../images/cover.png" alt="Umschlag: Das Gartenhaus am Bach"/>
+</section>
+</body>
+</html>
+
+=== text/title.xhtml (application/xhtml+xml, Front, id title, properties None, title Some("Titel"), key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Das Gartenhaus am Bach</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-titlepage" epub:type="titlepage">
+<p class="baruch-title">Das Gartenhaus am Bach</p>
+<p class="baruch-subtitle">Ein Bautagebuch</p>
+<p class="baruch-author">Erika Beispiel</p>
+<p class="baruch-publisher">Beispielverlag</p>
+</section>
+</body>
+</html>
+
+=== text/imprint.xhtml (application/xhtml+xml, Front, id imprint, properties None, title Some("Impressum"), key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Impressum</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-imprint" epub:type="copyright-page">
+<p>© 2026 Erika Beispiel</p>
+<p>Beispielverlag</p>
+<p>ISBN 978-3-16-148410-0</p>
+</section>
+</body>
+</html>
+
+=== text/dedication.xhtml (application/xhtml+xml, Front, id dedication, properties None, title Some("Widmung"), key None)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Widmung</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-dedication" epub:type="dedication">
+<p>Für alle, die am Bach bauen.</p>
+</section>
+</body>
+</html>
+
+=== text/k10.xhtml (application/xhtml+xml, Part, id k10, properties None, title Some("Planen"), key Some(10))
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Planen</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-part" epub:type="part">
+<h1 id="k10" class="baruch-part-title">Planen</h1>
+</section>
+</body>
+</html>
+
+=== text/k11.xhtml (application/xhtml+xml, Chapter, id k11, properties None, title Some("1 Der Platz"), key Some(11))
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>1 Der Platz</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-chapter" epub:type="chapter">
+<h1 id="k11"><span class="baruch-number">1</span> Der Platz</h1>
+<p>Am Bach steht eine alte Weide. Unter ihr soll das Gartenhaus stehen, nahe genug am Wasser, aber sicher vor dem Hochwasser im Frühjahr.<sup><a class="baruch-noteref" id="fnref1" href="#fn1" epub:type="noteref" role="doc-noteref">1</a></sup></p>
+<figure class="baruch-figure"><img class="baruch-image" src="../images/bilder/weide.png" alt="Skizze der Weide am Bach"/><figcaption>Die Weide</figcaption></figure>
+<h2 id="k12"><span class="baruch-number">1.1</span> Boden und Licht</h2>
+<p>Der Boden ist lehmig und hält das Wasser lange. Morgens fällt Licht durch die Zweige, nachmittags liegt der Platz im Schatten.</p>
+<hr class="baruch-notes-rule"/>
+<ol class="baruch-footnotes">
+<li><aside id="fn1" epub:type="footnote" role="doc-footnote"><p>Der Bach trat zuletzt vor zwölf Jahren über die Ufer. <a href="#fnref1" class="baruch-backlink" role="doc-backlink" title="zurück zum Text">↩</a></p></aside></li>
+</ol>
+</section>
+</body>
+</html>
+
+=== text/k13.xhtml (application/xhtml+xml, Chapter, id k13, properties None, title Some("2 Das Fundament"), key Some(13))
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>2 Das Fundament</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-chapter" epub:type="chapter">
+<h1 id="k13"><span class="baruch-number">2</span> Das Fundament</h1>
+<p>Wie in <a class="baruch-xref" href="k11.xhtml#k12">Boden und Licht</a> beschrieben, trägt der Lehm schlecht. Darum ruht das Haus auf sechs Punktfundamenten.</p>
+<figure class="baruch-figure"><img class="baruch-image" src="../images/bilder/plan.png" alt=""/></figure>
+<h2 id="k14"><span class="baruch-number">2.1</span> Beton &amp; Kies</h2>
+<p>Unter jeden Pfeiler kommt eine Handbreit Kies, darauf der Beton.</p>
+</section>
+</body>
+</html>
+
+=== images/bilder/weide.png (image/png, Image, id img-1, properties None, title None, key None)
+[107 bytes, fnv cee8ffba52426da1]
+=== images/bilder/plan.png (image/png, Image, id img-2, properties None, title None, key None)
+[98 bytes, fnv 98e4e774b3343649]
+=== content.opf
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="de">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier id="book-id">urn:uuid:3f6c2a1e-8b4d-4c7a-9e21-5d0f7a9b1c42</dc:identifier>
+<dc:identifier id="isbn">urn:isbn:9783161484100</dc:identifier>
+<dc:title id="title">Das Gartenhaus am Bach</dc:title>
+<meta refines="#title" property="title-type">main</meta>
+<dc:title id="subtitle">Ein Bautagebuch</dc:title>
+<meta refines="#subtitle" property="title-type">subtitle</meta>
+<dc:creator id="creator">Erika Beispiel</dc:creator>
+<meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+<dc:language>de</dc:language>
+<dc:publisher>Beispielverlag</dc:publisher>
+<dc:date>2026</dc:date>
+<dc:rights>© 2026 Erika Beispiel</dc:rights>
+<dc:rights>Bildnachweis: Zeichnungen: Erika Beispiel</dc:rights>
+<dc:description>Wie aus einer Weide am Bach ein Gartenhaus wurde.</dc:description>
+<meta property="dcterms:modified">2026-11-09T12:00:00Z</meta>
+<meta name="cover" content="cover-image"/>
+<meta property="schema:accessMode">textual</meta>
+<meta property="schema:accessMode">visual</meta>
+<meta property="schema:accessModeSufficient">textual</meta>
+<meta property="schema:accessibilityFeature">structuralNavigation</meta>
+<meta property="schema:accessibilityFeature">tableOfContents</meta>
+<meta property="schema:accessibilityFeature">readingOrder</meta>
+<meta property="schema:accessibilityHazard">none</meta>
+<meta property="schema:accessibilitySummary">Text mit Inhaltsverzeichnis und Überschriften in Lesereihenfolge; nicht jedes Bild hat einen Alternativtext.</meta>
+</metadata>
+<manifest>
+<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+<item id="css" href="style/book.css" media-type="text/css"/>
+<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+<item id="cover" href="text/cover.xhtml" media-type="application/xhtml+xml"/>
+<item id="title" href="text/title.xhtml" media-type="application/xhtml+xml"/>
+<item id="imprint" href="text/imprint.xhtml" media-type="application/xhtml+xml"/>
+<item id="dedication" href="text/dedication.xhtml" media-type="application/xhtml+xml"/>
+<item id="k10" href="text/k10.xhtml" media-type="application/xhtml+xml"/>
+<item id="k11" href="text/k11.xhtml" media-type="application/xhtml+xml"/>
+<item id="k13" href="text/k13.xhtml" media-type="application/xhtml+xml"/>
+<item id="img-1" href="images/bilder/weide.png" media-type="image/png"/>
+<item id="img-2" href="images/bilder/plan.png" media-type="image/png"/>
+</manifest>
+<spine toc="ncx">
+<itemref idref="cover"/>
+<itemref idref="title"/>
+<itemref idref="imprint"/>
+<itemref idref="dedication"/>
+<itemref idref="k10"/>
+<itemref idref="k11"/>
+<itemref idref="k13"/>
+</spine>
+<guide>
+<reference type="cover" title="Umschlag" href="text/cover.xhtml"/>
+<reference type="title-page" title="Titel" href="text/title.xhtml"/>
+<reference type="toc" title="Inhalt" href="nav.xhtml"/>
+<reference type="text" title="Text" href="text/k10.xhtml"/>
+</guide>
+</package>
+
+=== spine
+["cover", "title", "imprint", "dedication", "k10", "k11", "k13"]
+=== toc
+TocEntry { title: "Planen", href: "text/k10.xhtml#k10", level: 0, key: Some(10) }
+TocEntry { title: "1 Der Platz", href: "text/k11.xhtml#k11", level: 1, key: Some(11) }
+TocEntry { title: "1.1 Boden und Licht", href: "text/k11.xhtml#k12", level: 2, key: Some(12) }
+TocEntry { title: "2 Das Fundament", href: "text/k13.xhtml#k13", level: 1, key: Some(13) }
+TocEntry { title: "2.1 Beton & Kies", href: "text/k13.xhtml#k14", level: 2, key: Some(14) }
+=== warnings
+EpubWarning { code: "IMAGE_NO_ALT", message: "Bild bilder/plan.png hat keinen Alternativtext (alt=\"\"); Vorleseprogramme übergehen es.", key: Some(13) }
+=== package
+[7615 bytes, fnv 0a50e12492f381ca]

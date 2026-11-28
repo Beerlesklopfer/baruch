@@ -197,12 +197,10 @@ pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode)
     }
 
     let typeset = crate::cover::typeset_settings(state, work).await?;
-    let language = typeset
-        .lang
-        .clone()
-        .filter(|l| baruch_epub::template::is_language_tag(l.trim()))
-        .or_else(|| baruch_epub::template::template_lang(&template))
-        .unwrap_or_else(|| "de".into());
+    // Round 39b (contract §2.1): labels follow the work language; the language tag follows the typesetting setting,
+    // then the template (German work) or "en" (English work).
+    let work_language = state.store.work_language(work).await?;
+    let language = baruch_epub::template::book_language(typeset.lang.as_deref(), &template, work_language);
 
     let book = state.store.book_meta(work).await?;
     let info = crate::cover::book_info(state, work, &book).await?;
@@ -254,11 +252,12 @@ pub async fn epub_input(state: &AppState, work: WorkId, footnotes: FootnoteMode)
         images,
         cover,
         front_matter: book.front_matter,
-        imprint: baruch_typst::cover::imprint_lines(&info),
+        imprint: baruch_typst::cover::imprint_lines_in(&info, work_language),
         dedication: info.dedication.clone(),
         footnotes,
         // R31: index and glossary (glossary.xhtml, index-{slug}.xhtml); inactive without effect.
         back_matter: state.store.back_matter(work).await?,
+        work_language,
     })
 }
 
@@ -340,9 +339,18 @@ pub fn epub_draft(
     stored: Option<&baruch_typst::typeset::Draft>,
     choice: Option<bool>,
 ) -> Option<baruch_typst::typeset::Draft> {
+    epub_draft_in(stored, choice, baruch_core::WorkLanguage::De)
+}
+
+/// Like [`epub_draft`] in the work language (Round 39b): „Stand <date>“ / „As of <date>“ in the addition.
+pub fn epub_draft_in(
+    stored: Option<&baruch_typst::typeset::Draft>,
+    choice: Option<bool>,
+    lang: baruch_core::WorkLanguage,
+) -> Option<baruch_typst::typeset::Draft> {
     crate::typeset::effective_draft(stored, choice).map(|d| {
         let date = d.date.then(crate::typeset::draft_today);
-        let note = baruch_typst::typeset::draft_line(&d, date.as_deref());
+        let note = baruch_typst::typeset::draft_line_in(&d, date.as_deref(), lang);
         baruch_typst::typeset::Draft { note, date: false, ..d }
     })
 }
@@ -356,7 +364,7 @@ pub async fn book_for_draft(
     draft: Option<bool>,
 ) -> Result<Arc<EpubBook>, RpcError> {
     let mut input = epub_input(state, work, footnotes).await?;
-    input.typeset.draft = epub_draft(input.typeset.draft.as_ref(), draft);
+    input.typeset.draft = epub_draft_in(input.typeset.draft.as_ref(), draft, input.work_language);
     let mut book = baruch_epub::build(&input).map_err(epub_error)?;
     // The raster image lies in the cache; a second call costs only the query of the warning.
     let (_, mut warnings) = epub_cover(state, work).await?;

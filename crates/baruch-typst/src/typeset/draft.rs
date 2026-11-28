@@ -20,8 +20,11 @@
 //!   time as a finished text, otherwise source and state would not be reproducible.
 //! - **Size:** calculated from the number of characters (at most 80 pt), so that even 40 characters fit on an A6 page.
 
-use super::model::Draft;
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 use super::model::DraftPlacement;
+use super::model::{DEFAULT_DRAFT_TEXT, Draft};
 use super::rules::literal;
 
 /// First line of the rule (marker in the typesetting source of the outputs).
@@ -30,11 +33,16 @@ pub const DRAFT_MARK: &str = "// Baruch: Entwurf (nur in den Ausgaben)";
 /// Second line of the watermark: „Stand <Datum>“ (only with `draft.date` and a date passed in) and the addition,
 /// joined with „ · “; empty if both are missing. The EPUB note uses this line too.
 pub fn draft_line(draft: &Draft, date: Option<&str>) -> String {
+    draft_line_in(draft, date, WorkLanguage::De)
+}
+
+/// Like [`draft_line`] in the work language `lang` (Round 39b): „Stand <date>“ / „As of <date>“ from the book catalog.
+pub fn draft_line_in(draft: &Draft, date: Option<&str>, lang: WorkLanguage) -> String {
     let mut parts: Vec<String> = Vec::new();
     if draft.date
         && let Some(date) = date.map(str::trim).filter(|d| !d.is_empty())
     {
-        parts.push(format!("Stand {date}"));
+        parts.push(book_t(lang, "book.draft.as_of", &[("date", date)]));
     }
     let note = draft.note.trim();
     if !note.is_empty() {
@@ -57,8 +65,23 @@ fn unbreakable(text: &str) -> String {
 /// The rule of the watermark (ends with `'\n'`); `date` is today's date in local time as text (e.g. „10.11.2026“)
 /// and is only set with `draft.date`.
 pub fn draft_rule(draft: &Draft, date: Option<&str>) -> String {
+    draft_rule_in(draft, date, WorkLanguage::De)
+}
+
+/// Text of the watermark in the work language `lang` (Round 39b): the stored default [`DEFAULT_DRAFT_TEXT`]
+/// („ENTWURF“) becomes the catalog word of the work language („DRAFT“ in English); a text of the human stays as it
+/// is. German: always the stored text.
+pub fn draft_text_in(draft: &Draft, lang: WorkLanguage) -> String {
     let text = draft.text.trim();
-    let line = draft_line(draft, date);
+    if text == DEFAULT_DRAFT_TEXT { book_t(lang, "book.draft.watermark", &[]) } else { text.to_owned() }
+}
+
+/// Like [`draft_rule`] in the work language `lang` (Round 39b): default text and „Stand“ line from the book catalog
+/// ([`draft_text_in`], [`draft_line_in`]).
+pub fn draft_rule_in(draft: &Draft, date: Option<&str>, lang: WorkLanguage) -> String {
+    let text = draft_text_in(draft, lang);
+    let text = text.as_str();
+    let line = draft_line_in(draft, date, lang);
     let alpha = draft.opacity_percent.clamp(1, 100);
     let fill = format!("rgb(0%, 0%, 0%, {alpha}%)");
     let body = match draft.placement {

@@ -104,24 +104,30 @@ pub struct RenderInput<'a> {
 
 // ---- Markdown subset -------------------------------------------------------------------------------------------
 
-/// Starts of the closing notes of Baruch (footer).
-fn footer_prefixes() -> [&'static str; 9] {
-    [
-        crate::scripture::MARK_OTHERS,
-        crate::scripture::MARK_SCRIPTURE,
-        crate::scripture::MARK_BIBLE,
-        crate::assist::CUT_NOTE,
-        crate::assist::TRUNCATED_NOTE,
-        crate::assist::prompts::CRITICAL_MISSING_NOTE,
-        crate::assist::prompts::CRITICAL_MISSING_NOTE_EN,
-        "Komprimiert:",
-        "(Antwort abgeschnitten",
-    ]
+/// Starts of the closing notes of Baruch (footer). The closing lines of the passage check are recognised in every
+/// work language (Round 39b, [`crate::scripture::closing_marks`]); the German ones are the constants from before.
+fn footer_prefixes() -> &'static [String] {
+    static PREFIXES: std::sync::LazyLock<Vec<String>> = std::sync::LazyLock::new(|| {
+        let mut out = crate::scripture::closing_marks();
+        out.extend(
+            [
+                crate::assist::CUT_NOTE,
+                crate::assist::TRUNCATED_NOTE,
+                crate::assist::prompts::CRITICAL_MISSING_NOTE,
+                crate::assist::prompts::CRITICAL_MISSING_NOTE_EN,
+                "Komprimiert:",
+                "(Antwort abgeschnitten",
+            ]
+            .map(str::to_owned),
+        );
+        out
+    });
+    &PREFIXES
 }
 
 fn is_footer_line(line: &str) -> bool {
     let t = line.trim();
-    !t.is_empty() && footer_prefixes().iter().any(|p| t.starts_with(p))
+    !t.is_empty() && footer_prefixes().iter().any(|p| t.starts_with(p.as_str()))
 }
 
 /// A list item with sub-items.
@@ -806,6 +812,25 @@ mod tests {
             "Schlusshinweis klein als Fußzeile: {html}"
         );
         assert!(html.starts_with("<p>Das trägt.</p>"), "der Text davor bleibt Absatz: {html}");
+    }
+
+    #[test]
+    fn the_english_closing_notes_of_an_english_work_become_a_footer_too() {
+        // Round 39b: Baruch writes the closing line in the work language; recognition accepts both in every work.
+        for mark in [
+            crate::scripture::mark_others(baruch_core::WorkLanguage::En),
+            crate::scripture::mark_scripture(baruch_core::WorkLanguage::En),
+            crate::scripture::mark_others_bible_in("KJV", baruch_core::WorkLanguage::En),
+        ] {
+            let html = markdown_html(&format!("This works.\n\n{mark}"));
+            assert!(
+                html.ends_with(&format!(
+                    "<footer class=\"post-foot small muted\"><p>{}</p></footer>",
+                    html_escape(&mark)
+                )),
+                "the English closing note is a small footer like the German one: {html}"
+            );
+        }
     }
 
     #[test]

@@ -16,23 +16,24 @@ use sqlx::SqliteConnection;
 
 use baruch_typst::scheme::{Numbering, Scheme};
 
-use crate::{StoreError, WorkId, broken, parse_author, to_u32, to_usize, words};
+use crate::{StoreError, WorkId, WorkLanguage, broken, parse_author, to_u32, to_usize, words};
 
 type NodeRow = (i64, i64, Option<i64>, String, String, String, i64, i64);
 type RevisionRow = (i64, i64, String, String, String, Option<String>, String, String);
 type PostRow = (i64, i64, String, String, String, String);
 type RefRow = (i64, i64, i64, String);
 type PersonaRow = (String, String, String, String, i64, i64);
-type WorkRow = (String, String, String, String, Option<String>, String);
+type WorkRow = (String, String, String, String, Option<String>, String, String);
 
 /// Numbering of a work from the scheme (`work.numbering_scheme`), the custom pattern (`work.numbering`) and the work
 /// template. Never fails: an unknown scheme counts as "from the work template", an unreadable custom pattern as before
-/// as a Typst pattern for all levels.
-pub(crate) fn work_numbering(scheme: &str, numbering: Option<&str>, template: &str) -> Numbering {
+/// as a Typst pattern for all levels. Round 39b: the words of the schemes with words follow the work language
+/// (`work.language`, [`Numbering::of_scheme_in`]); German works number exactly as before.
+pub(crate) fn work_numbering(scheme: &str, numbering: Option<&str>, template: &str, lang: WorkLanguage) -> Numbering {
     let scheme = Scheme::from_id(scheme).unwrap_or(Scheme::Template);
     match scheme {
         Scheme::Custom => Numbering::lenient(numbering.unwrap_or(baruch_typst::scheme::DEFAULT_PATTERN)),
-        _ => Numbering::of_scheme(scheme, None, template).unwrap_or_else(|_| Numbering::off()),
+        _ => Numbering::of_scheme_in(scheme, None, template, lang).unwrap_or_else(|_| Numbering::off()),
     }
 }
 
@@ -102,12 +103,13 @@ pub(crate) fn numbers(numbering: &Numbering, nodes: &[Numbered]) -> Vec<String> 
 }
 
 pub(crate) async fn work(conn: &mut SqliteConnection, work: WorkId) -> Result<Work, StoreError> {
-    let (kind, title, author, template, numbering, scheme): WorkRow =
-        sqlx::query_as("SELECT kind, title, author, template, numbering, numbering_scheme FROM work WHERE id = ?")
-            .bind(work)
-            .fetch_optional(&mut *conn)
-            .await?
-            .ok_or(StoreError::UnknownWork(work))?;
+    let (kind, title, author, template, numbering, scheme, language): WorkRow = sqlx::query_as(
+        "SELECT kind, title, author, template, numbering, numbering_scheme, language FROM work WHERE id = ?",
+    )
+    .bind(work)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or(StoreError::UnknownWork(work))?;
 
     let rows: Vec<NodeRow> = sqlx::query_as(
         "SELECT id, seq, parent_seq, number, title, kind, findings, numbered FROM node WHERE work_id = ? ORDER BY seq",
@@ -137,7 +139,8 @@ pub(crate) async fn work(conn: &mut SqliteConnection, work: WorkId) -> Result<Wo
             findings: to_u32(findings, "findings")?,
         });
     }
-    let numbering = work_numbering(&scheme, numbering.as_deref(), &template);
+    let language = WorkLanguage::parse(&language).unwrap_or_default();
+    let numbering = work_numbering(&scheme, numbering.as_deref(), &template, language);
     for (node, number) in nodes.iter_mut().zip(numbers(&numbering, &counted)) {
         node.number = number;
     }

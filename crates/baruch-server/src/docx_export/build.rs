@@ -243,18 +243,18 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
         }
     }
 
-    // Language and imprint as in the EPUB: typeset settings before work template; imprint only with front matter.
+    // Language and imprint as in the EPUB (Round 39b, contract §2.1): typeset settings, then the work template for a
+    // German work or "en" for an English one; imprint only with front matter, in the work language.
     let typeset = crate::cover::typeset_settings(state, work).await?;
-    let lang = typeset
-        .lang
-        .clone()
-        .filter(|l| baruch_epub::template::is_language_tag(l.trim()))
-        .or_else(|| baruch_epub::template::template_lang(&meta.template))
-        .unwrap_or_else(|| "de".to_owned());
+    let work_language = store.work_language(work).await?;
+    let lang = baruch_epub::template::book_language(typeset.lang.as_deref(), &meta.template, work_language);
     let book = store.book_meta(work).await?;
     let imprint = if book.front_matter {
         let info = crate::cover::book_info(state, work, &book).await?;
-        baruch_typst::cover::imprint_lines(&info).into_iter().filter(|line| !line.trim().is_empty()).collect()
+        baruch_typst::cover::imprint_lines_in(&info, work_language)
+            .into_iter()
+            .filter(|line| !line.trim().is_empty())
+            .collect()
     } else {
         Vec::new()
     };

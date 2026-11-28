@@ -107,6 +107,9 @@ pub struct Notes {
     pub cards: Vec<Card>,
     pub total_clock: String,
     pub target_clock: Option<String>,
+    /// Round 39b: work language of the sheet (generated words and `text(lang:)`).
+    #[serde(skip)]
+    pub lang: baruch_core::WorkLanguage,
 }
 
 impl Notes {
@@ -129,6 +132,7 @@ impl Notes {
                     refs: c.refs.clone(),
                 })
                 .collect(),
+            lang: self.lang,
         }
     }
 }
@@ -620,6 +624,7 @@ pub async fn notes_of(state: &AppState, work_id: WorkId) -> Result<Notes, RpcErr
         cards,
         total_clock: clock(timing.seconds),
         target_clock: timing.target_seconds.map(clock),
+        lang: state.store.work_language(work_id).await?,
     })
 }
 
@@ -714,7 +719,9 @@ async fn generate(state: &AppState, work: WorkId, options: &NotesOptions) -> Res
     // Round 22: watermark before the first line (before any content, the page rule of the notes only adds to it).
     let stored = crate::typeset::stored_draft(state, work).await.map_err(|e| Failed::Other(e.into()))?;
     if let Some(draft) = crate::typeset::effective_draft(stored.as_ref(), options.draft) {
-        main.insert_str(0, &crate::typeset::draft_rule_for(&draft));
+        // Round 39b: default text and „Stand“ line in the work language (German as `draft_rule_for`).
+        let date = draft.date.then(crate::typeset::draft_today);
+        main.insert_str(0, &baruch_typst::typeset::draft_rule_in(&draft, date.as_deref(), notes.lang));
     }
     let pdf = super::generate(work, PdfKind::Notes, Source { main, files: Vec::new() }, options.limit).await?;
     Ok((notes, pdf))

@@ -15,6 +15,9 @@
 
 use std::collections::BTreeMap;
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 use super::project::label_safe;
 use super::{
     BackMatter, GLOSSARY_ANCHOR_PREFIX, GlossaryEntry, IndexMark, IndexTerm, Register, RegisterKind, RegisterView,
@@ -232,12 +235,12 @@ pub(super) const HELPERS: &str = r#"#let baruch-idx-ranges(ns) = {
 "#;
 
 /// An index page.
-fn register_page(out: &mut String, register: &Register, collected: &Collected, columns: u8) {
+fn register_page(out: &mut String, register: &Register, collected: &Collected, columns: u8, lang: WorkLanguage) {
     out.push_str("#pagebreak(weak: true)\n");
-    out.push_str(&format!("#heading(level: 1, numbering: none)[#{}]\n", lit(&register.title)));
+    out.push_str(&format!("#heading(level: 1, numbering: none)[#{}]\n", lit(&register_title(register, lang))));
     let groups = ordered(collected, register);
     if groups.is_empty() {
-        out.push_str("#emph(\"Keine Einträge.\")\n\n");
+        out.push_str(&format!("#emph({})\n\n", lit(&book_t(lang, "book.index.empty", &[]))));
         return;
     }
     out.push_str("#context {\n  let d = baruch-idx-pages()\n  let body = {\n");
@@ -276,11 +279,14 @@ fn register_page(out: &mut String, register: &Register, collected: &Collected, c
 }
 
 /// Glossary page.
-fn glossary_page(out: &mut String, glossary: &[GlossaryEntry]) {
+fn glossary_page(out: &mut String, glossary: &[GlossaryEntry], lang: WorkLanguage) {
     out.push_str("#pagebreak(weak: true)\n");
-    out.push_str("#heading(level: 1, numbering: none)[#\"Glossar\"]\n");
+    out.push_str(&format!(
+        "#heading(level: 1, numbering: none)[#{}]\n",
+        lit(&book_t(lang, "book.glossary.title", &[]))
+    ));
     if glossary.is_empty() {
-        out.push_str("#emph(\"Keine Begriffe.\")\n\n");
+        out.push_str(&format!("#emph({})\n\n", lit(&book_t(lang, "book.glossary.empty", &[]))));
         return;
     }
     let mut entries: Vec<&GlossaryEntry> = glossary.iter().collect();
@@ -321,7 +327,8 @@ pub(super) fn render(back: &BackMatter, collected: &Collected) -> String {
     if pages.is_none() && glossary.is_none() {
         return String::new();
     }
-    let mut out = format!("{}\n{HELPERS}\n", super::BACK_MATTER_MARK);
+    let lang = back.lang;
+    let mut out = format!("{}\n{}\n", super::BACK_MATTER_MARK, helpers(lang));
     let columns = pages.map_or(1, |p| p.columns.clamp(1, 3));
     let registers: Vec<&Register> = pages
         .map(|p| {
@@ -337,15 +344,42 @@ pub(super) fn render(back: &BackMatter, collected: &Collected) -> String {
         })
         .unwrap_or_default();
     if glossary == Some(GlossaryPosition::BeforeIndexes) {
-        glossary_page(&mut out, &back.glossary);
+        glossary_page(&mut out, &back.glossary, lang);
     }
     for register in registers {
-        register_page(&mut out, register, collected, columns);
+        register_page(&mut out, register, collected, columns, lang);
     }
     if glossary == Some(GlossaryPosition::AfterIndexes) {
-        glossary_page(&mut out, &back.glossary);
+        glossary_page(&mut out, &back.glossary, lang);
     }
     out
+}
+
+/// [`HELPERS`] with the words of the work language (Round 39b): „siehe“, „siehe auch“ and „Bibelstellen:“ from the
+/// book catalog. German: [`HELPERS`] unchanged.
+pub(super) fn helpers(lang: WorkLanguage) -> String {
+    if lang == WorkLanguage::De {
+        return HELPERS.to_owned();
+    }
+    let mut out = HELPERS.to_owned();
+    // „siehe auch“ before „siehe“: the shorter word is part of the longer one.
+    for key in ["book.index.see_also", "book.index.see", "book.glossary.bible_refs_label"] {
+        let german = format!("#emph[{}]", book_t(WorkLanguage::De, key, &[]));
+        out = out.replace(&german, &format!("#emph[{}]", book_t(lang, key, &[])));
+    }
+    out
+}
+
+/// Title of an index page in the work language (Round 39b): a built-in index whose title is still the German default
+/// of [`super::builtin_registers`] gets the catalog title of the work language; an own title stays as it is.
+pub fn register_title(register: &Register, lang: WorkLanguage) -> String {
+    let key = match register.kind {
+        RegisterKind::Keyword => "book.index.keyword_register",
+        RegisterKind::Person => "book.index.person_register",
+        RegisterKind::Scripture => "book.index.scripture_register",
+        RegisterKind::Custom => return register.title.clone(),
+    };
+    if register.title == book_t(WorkLanguage::De, key, &[]) { book_t(lang, key, &[]) } else { register.title.clone() }
 }
 
 /// Identifier of the index of scripture references (for callers that recognise automatic marks).

@@ -18,6 +18,7 @@ fn glossary(terms: &[&str]) -> BackMatter {
             .enumerate()
             .map(|(n, term)| GlossaryEntry { uuid: format!("u{n}"), term: (*term).into(), ..GlossaryEntry::default() })
             .collect(),
+        ..BackMatter::default()
     }
 }
 

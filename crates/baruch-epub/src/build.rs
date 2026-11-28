@@ -28,13 +28,14 @@
 //!
 //! Deterministic: orders follow the input, no time and no randomness.
 
+use baruch_core::book_text::book_t;
 use baruch_typst::typeset::{FootnoteNumbering, FootnoteRestart, TypesetSettings};
 
 use crate::template::{
     TEMPLATE_PAGEBREAK_MAPPED, TEMPLATE_PAGEBREAK_UNMAPPED, is_language_tag, pagebreak_rules, template_chapter_start,
 };
 use crate::xhtml::{
-    ImageTarget, Links, Note, NoteTarget, PlacedMark, Renderer, endnote_list, escape_text, footnote_list,
+    ImageTarget, Links, Note, NoteTarget, PlacedMark, Renderer, endnote_list_in, escape_text, footnote_list_in,
     normalize_path,
 };
 use crate::{
@@ -107,18 +108,12 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         )));
     }
     let mut warnings = Vec::new();
-    // Language: metadata, else typesetting setting, else `#set text(lang: …)` of the template, else "de".
-    let fallback = || {
-        input
-            .typeset
-            .lang
-            .as_deref()
-            .map(str::trim)
-            .filter(|l| is_language_tag(l))
-            .map(str::to_owned)
-            .or_else(|| crate::template::template_lang(&input.template))
-            .unwrap_or_else(|| "de".to_owned())
-    };
+    // Language: metadata, else the rule of contract R39b §2.1 (typesetting setting, then for a German work
+    // `#set text(lang: …)` of the template or "de", for an English work "en").
+    let wl = input.work_language;
+    let t = |key: &str| book_t(wl, key, &[]);
+    let fallback =
+        || crate::template::book_language(input.typeset.lang.as_deref(), &input.template, input.work_language);
     let lang = match meta.language.trim() {
         "" => fallback(),
         tag if is_language_tag(tag) => tag.to_owned(),
@@ -131,7 +126,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             "de".to_owned()
         }
     };
-    let title = if meta.title.trim().is_empty() { "Ohne Titel".to_owned() } else { meta.title.trim().to_owned() };
+    let title = if meta.title.trim().is_empty() { t("book.untitled") } else { meta.title.trim().to_owned() };
 
     // Work template: page breaks from show rules.
     let mut typeset = input.typeset.clone();
@@ -163,7 +158,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     }
 
     let files = split(&input.sections);
-    let mut links = Links::default();
+    let mut links = Links { lang: wl, ..Links::default() };
     for file in &files {
         for s in &file.sections {
             links.key_files.insert(s.key, file.name().to_owned());
@@ -258,7 +253,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             });
         }
         if note_target == NoteTarget::SameFile {
-            body.push_str(&footnote_list(&renderer.notes));
+            body.push_str(&footnote_list_in(&renderer.notes, wl));
         }
         body.push_str("</section>\n");
         next_note = renderer.next_note;
@@ -282,7 +277,11 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     let mut spine = Vec::new();
     // Cover.
     if let (Some(cover), Some(href)) = (&input.cover, &cover_href) {
-        let alt = if cover.alt.trim().is_empty() { format!("Umschlag: {title}") } else { cover.alt.trim().to_owned() };
+        let alt = if cover.alt.trim().is_empty() {
+            book_t(wl, "book.cover.alt", &[("title", &title)])
+        } else {
+            cover.alt.trim().to_owned()
+        };
         items.push(EpubItem {
             id: "cover-image".into(),
             href: href.clone(),
@@ -299,7 +298,8 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             escape_text(href),
             escape_text(&alt)
         );
-        items.push(text_item("cover", "text/cover.xhtml", ItemKind::Cover, "Umschlag", page(&lang, "Umschlag", &body)));
+        let label = t("book.cover.title");
+        items.push(text_item("cover", "text/cover.xhtml", ItemKind::Cover, &label, page(&lang, &label, &body)));
         spine.push("cover".to_owned());
     }
     // Front matter. R22: with a draft the title page always exists – it carries the notice (imprint and dedication
@@ -318,10 +318,11 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             }
         }
         if let Some(draft) = draft {
-            body.push_str(&draft_notice(draft));
+            body.push_str(&draft_notice(draft, wl));
         }
         body.push_str("</section>\n");
-        items.push(text_item("title", "text/title.xhtml", ItemKind::Front, "Titel", page(&lang, &title, &body)));
+        let label = t("book.title_page.title");
+        items.push(text_item("title", "text/title.xhtml", ItemKind::Front, &label, page(&lang, &title, &body)));
         spine.push("title".to_owned());
     }
     if input.front_matter {
@@ -332,13 +333,8 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
                 body.push_str(&format!("<p>{}</p>\n", escape_text(line.trim())));
             }
             body.push_str("</section>\n");
-            items.push(text_item(
-                "imprint",
-                "text/imprint.xhtml",
-                ItemKind::Front,
-                "Impressum",
-                page(&lang, "Impressum", &body),
-            ));
+            let label = t("book.front.imprint");
+            items.push(text_item("imprint", "text/imprint.xhtml", ItemKind::Front, &label, page(&lang, &label, &body)));
             spine.push("imprint".to_owned());
         }
         if !input.dedication.trim().is_empty() {
@@ -348,12 +344,13 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
                 body.push_str(&format!("<p>{}</p>\n", lines.join("<br/>")));
             }
             body.push_str("</section>\n");
+            let label = t("book.front.dedication");
             items.push(text_item(
                 "dedication",
                 "text/dedication.xhtml",
                 ItemKind::Front,
-                "Widmung",
-                page(&lang, "Widmung", &body),
+                &label,
+                page(&lang, &label, &body),
             ));
             spine.push("dedication".to_owned());
         }
@@ -363,22 +360,18 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
         items.push(item);
     }
     if note_target == NoteTarget::Endnotes && !all_notes.is_empty() {
+        let label = t("book.endnotes.title");
         let body = format!(
-            "<section class=\"baruch-endnotes\" epub:type=\"endnotes\">\n<h1>Anmerkungen</h1>\n{}\
+            "<section class=\"baruch-endnotes\" epub:type=\"endnotes\">\n<h1>{}</h1>\n{}\
              </section>\n",
-            endnote_list(&all_notes)
+            escape_text(&label),
+            endnote_list_in(&all_notes, wl)
         );
-        items.push(text_item(
-            "notes",
-            "text/notes.xhtml",
-            ItemKind::Notes,
-            "Anmerkungen",
-            page(&lang, "Anmerkungen", &body),
-        ));
+        items.push(text_item("notes", "text/notes.xhtml", ItemKind::Notes, &label, page(&lang, &label, &body)));
         spine.push("notes".to_owned());
         // At the top level: in works with parts (level 0) not as a child of the last part.
         let top = toc.iter().map(|e: &TocEntry| e.level).min().unwrap_or(1);
-        toc.push(TocEntry { title: "Anmerkungen".into(), href: "text/notes.xhtml".into(), level: top, key: None });
+        toc.push(TocEntry { title: label, href: "text/notes.xhtml".into(), level: top, key: None });
     }
     // Index and glossary (Round 31b) at the end, in the order of the typeset result.
     if back.is_active() {
@@ -403,7 +396,7 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
     let has_cover = input.cover.is_some();
     let has_title = input.front_matter || draft.is_some();
     // R22: title metadata (dc:title, docTitle) with „(Entwurf)“; the title page shows the title itself.
-    let meta_title = if draft.is_some() { format!("{title} (Entwurf)") } else { title.clone() };
+    let meta_title = if draft.is_some() { book_t(wl, "book.draft.title", &[("title", &title)]) } else { title.clone() };
     let mut head = vec![
         EpubItem {
             id: "nav".into(),
@@ -411,9 +404,9 @@ pub fn build(input: &EpubInput) -> Result<EpubBook, EpubError> {
             media_type: XHTML.into(),
             kind: ItemKind::Nav,
             properties: Some("nav".into()),
-            title: Some("Inhalt".into()),
+            title: Some(t("book.toc.title")),
             key: None,
-            bytes: nav_xhtml(&lang, &toc, &first_text, has_cover, has_title).into_bytes(),
+            bytes: nav_xhtml(&lang, wl, &toc, &first_text, has_cover, has_title).into_bytes(),
         },
         EpubItem {
             id: "ncx".into(),
@@ -481,7 +474,7 @@ fn group_letter(term: &str) -> String {
 fn back_matter_items(lang: &str, input: &EpubInput, marks: &[PlacedMark], links: &Links) -> Vec<EpubItem> {
     use baruch_typst::typeset::GlossaryPosition;
     let back = &input.back_matter;
-    let glossary = back.settings.glossary_page.map(|_| glossary_item(lang, &back.glossary));
+    let glossary = back.settings.glossary_page.map(|_| glossary_item(lang, input.work_language, &back.glossary));
     let mut out = Vec::new();
     if back.settings.glossary_page == Some(GlossaryPosition::BeforeIndexes) {
         out.extend(glossary.clone());
@@ -508,14 +501,20 @@ fn back_matter_items(lang: &str, input: &EpubInput, marks: &[PlacedMark], links:
 
 /// `text/glossary.xhtml`: terms sorted (DIN 5007-1), per term `dt` (glossterm, id = label of the typeset result)
 /// and `dd` (glossdef: variants, short and detailed explanation, Bible references).
-fn glossary_item(lang: &str, glossary: &[baruch_typst::index::GlossaryEntry]) -> EpubItem {
+fn glossary_item(
+    lang: &str,
+    wl: baruch_core::WorkLanguage,
+    glossary: &[baruch_typst::index::GlossaryEntry],
+) -> EpubItem {
     let mut entries: Vec<&baruch_typst::index::GlossaryEntry> = glossary.iter().collect();
     entries.sort_by_key(|e| (baruch_typst::index::sort_key(&e.term), e.term.clone()));
-    let mut body = String::from(
-        "<section class=\"baruch-glossary\" epub:type=\"glossary\" role=\"doc-glossary\">\n<h1>Glossar</h1>\n",
+    let label = book_t(wl, "book.glossary.title", &[]);
+    let mut body = format!(
+        "<section class=\"baruch-glossary\" epub:type=\"glossary\" role=\"doc-glossary\">\n<h1>{}</h1>\n",
+        escape_text(&label)
     );
     if entries.is_empty() {
-        body.push_str("<p>Keine Begriffe.</p>\n");
+        body.push_str(&format!("<p>{}</p>\n", escape_text(&book_t(wl, "book.glossary.empty", &[]))));
     } else {
         body.push_str("<dl>\n");
         for e in entries {
@@ -531,7 +530,8 @@ fn glossary_item(lang: &str, glossary: &[baruch_typst::index::GlossaryEntry]) ->
             let variants: Vec<String> =
                 e.variants.iter().map(|v| v.trim()).filter(|v| !v.is_empty()).map(escape_text).collect();
             if !variants.is_empty() {
-                body.push_str(&format!("<p class=\"baruch-gl-variants\">Auch: {}</p>", variants.join(", ")));
+                let line = book_t(wl, "book.glossary.variants", &[("variants", &variants.join(", "))]);
+                body.push_str(&format!("<p class=\"baruch-gl-variants\">{line}</p>"));
             }
             if !e.short.trim().is_empty() {
                 body.push_str(&format!("<p>{}</p>", escape_text(e.short.trim())));
@@ -543,14 +543,15 @@ fn glossary_item(lang: &str, glossary: &[baruch_typst::index::GlossaryEntry]) ->
             let refs: Vec<String> =
                 e.bible_refs.iter().map(|r| r.trim()).filter(|r| !r.is_empty()).map(escape_text).collect();
             if !refs.is_empty() {
-                body.push_str(&format!("<p class=\"baruch-gl-refs\">Bibelstellen: {}</p>", refs.join("; ")));
+                let line = book_t(wl, "book.glossary.bible_refs", &[("refs", &refs.join("; "))]);
+                body.push_str(&format!("<p class=\"baruch-gl-refs\">{line}</p>"));
             }
             body.push_str("</dd>\n");
         }
         body.push_str("</dl>\n");
     }
     body.push_str("</section>\n");
-    text_item("glossary", "text/glossary.xhtml", ItemKind::Glossary, "Glossar", page(lang, "Glossar", &body))
+    text_item("glossary", "text/glossary.xhtml", ItemKind::Glossary, &label, page(lang, &label, &body))
 }
 
 /// An entry (headword or subheadword) as a list item without the closing `</li>`.
@@ -591,11 +592,12 @@ fn index_entry(
     }
     if !term.see.is_empty() {
         let see: Vec<String> = term.see.iter().map(|s| escape_text(s)).collect();
-        parts.push(format!("<em>siehe</em> {}", see.join("; ")));
+        parts.push(format!("<em>{}</em> {}", escape_text(&book_t(links.lang, "book.index.see", &[])), see.join("; ")));
     }
     if !term.also.is_empty() {
         let also: Vec<String> = term.also.iter().map(|s| escape_text(s)).collect();
-        parts.push(format!("<em>siehe auch</em> {}", also.join("; ")));
+        let word = escape_text(&book_t(links.lang, "book.index.see_also", &[]));
+        parts.push(format!("<em>{word}</em> {}", also.join("; ")));
     }
     if !parts.is_empty() {
         out.push(' ');
@@ -607,13 +609,13 @@ fn index_entry(
 /// letter except in the index of Bible references.
 fn index_item(lang: &str, view: &baruch_typst::index::RegisterView, marks: &[PlacedMark], links: &Links) -> EpubItem {
     let slug = &view.register.slug;
-    let title = &view.register.title;
+    let title = &baruch_typst::index::register_title(&view.register, links.lang);
     let mut body = format!(
         "<section class=\"baruch-index\" epub:type=\"index\" role=\"doc-index\">\n<h1>{}</h1>\n",
         escape_text(title)
     );
     if view.terms.is_empty() {
-        body.push_str("<p>Keine Einträge.</p>\n");
+        body.push_str(&format!("<p>{}</p>\n", escape_text(&book_t(links.lang, "book.index.empty", &[]))));
     } else {
         let letters = view.register.kind != baruch_typst::index::RegisterKind::Scripture;
         let mut letter = String::new();
@@ -936,21 +938,41 @@ fn nested(out: &mut String, toc: &[TocEntry], indent_list: &str, link: impl Fn(&
     out.push_str("</ol>\n");
 }
 
-fn nav_xhtml(lang: &str, toc: &[TocEntry], first_text: &str, cover: bool, title: bool) -> String {
-    let mut out = head(lang, "Inhalt", "style/book.css");
-    out.push_str("<body>\n<nav epub:type=\"toc\" id=\"toc\" role=\"doc-toc\">\n<h1>Inhalt</h1>\n");
+fn nav_xhtml(
+    lang: &str,
+    wl: baruch_core::WorkLanguage,
+    toc: &[TocEntry],
+    first_text: &str,
+    cover: bool,
+    title: bool,
+) -> String {
+    let t = |key: &str| escape_text(&book_t(wl, key, &[]));
+    let contents = t("book.toc.title");
+    let mut out = head(lang, &book_t(wl, "book.toc.title", &[]), "style/book.css");
+    out.push_str(&format!("<body>\n<nav epub:type=\"toc\" id=\"toc\" role=\"doc-toc\">\n<h1>{contents}</h1>\n"));
     nested(&mut out, toc, "", |e| format!("<a href=\"{}\">{}</a>", escape_text(&e.href), escape_text(&e.title)));
-    out.push_str(
-        "</nav>\n<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"hidden\">\n<h2>Orientierung</h2>\n<ol>\n",
-    );
+    out.push_str(&format!(
+        "</nav>\n<nav epub:type=\"landmarks\" id=\"landmarks\" hidden=\"hidden\">\n<h2>{}</h2>\n<ol>\n",
+        t("book.nav.landmarks")
+    ));
     if cover {
-        out.push_str("<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">Umschlag</a></li>\n");
+        out.push_str(&format!(
+            "<li><a epub:type=\"cover\" href=\"text/cover.xhtml\">{}</a></li>\n",
+            t("book.cover.title")
+        ));
     }
     if title {
-        out.push_str("<li><a epub:type=\"titlepage\" href=\"text/title.xhtml\">Titel</a></li>\n");
+        out.push_str(&format!(
+            "<li><a epub:type=\"titlepage\" href=\"text/title.xhtml\">{}</a></li>\n",
+            t("book.title_page.title")
+        ));
     }
-    out.push_str("<li><a epub:type=\"toc\" href=\"nav.xhtml#toc\">Inhalt</a></li>\n");
-    out.push_str(&format!("<li><a epub:type=\"bodymatter\" href=\"{}\">Text</a></li>\n", escape_text(first_text)));
+    out.push_str(&format!("<li><a epub:type=\"toc\" href=\"nav.xhtml#toc\">{contents}</a></li>\n"));
+    out.push_str(&format!(
+        "<li><a epub:type=\"bodymatter\" href=\"{}\">{}</a></li>\n",
+        escape_text(first_text),
+        t("book.nav.text")
+    ));
     out.push_str("</ol>\n</nav>\n</body>\n</html>\n");
     out
 }
@@ -958,8 +980,9 @@ fn nav_xhtml(lang: &str, toc: &[TocEntry], first_text: &str, cover: bool, title:
 /// R22: notice „Entwurf“ on the title page – text of the watermark, addition (the server has already written the
 /// date into it, the EPUB stays without a clock), only as escaped text. Style inline, so that `style/book.css`
 /// stays byte-identical without a draft.
-fn draft_notice(draft: &baruch_typst::typeset::Draft) -> String {
-    let mut line = format!("Entwurf: {}", draft.text.trim());
+fn draft_notice(draft: &baruch_typst::typeset::Draft, wl: baruch_core::WorkLanguage) -> String {
+    let text = baruch_typst::typeset::draft_text_in(draft, wl);
+    let mut line = book_t(wl, "book.draft.notice", &[("text", &text)]);
     if !draft.note.trim().is_empty() {
         line.push_str(" · ");
         line.push_str(draft.note.trim());
@@ -1068,7 +1091,8 @@ fn opf(
         m.push_str(&format!("<dc:rights>{}</dc:rights>\n", e(meta.rights.trim())));
     }
     if !meta.image_credit.trim().is_empty() {
-        m.push_str(&format!("<dc:rights>Bildnachweis: {}</dc:rights>\n", e(meta.image_credit.trim())));
+        let credit = book_t(input.work_language, "book.meta.image_credit", &[("credit", meta.image_credit.trim())]);
+        m.push_str(&format!("<dc:rights>{}</dc:rights>\n", e(&credit)));
     }
     if !meta.description.trim().is_empty() {
         m.push_str(&format!("<dc:description>{}</dc:description>\n", e(meta.description.trim())));
@@ -1090,13 +1114,17 @@ fn opf(
         m.push_str("<meta property=\"schema:accessibilityFeature\">alternativeText</meta>\n");
     }
     m.push_str("<meta property=\"schema:accessibilityHazard\">none</meta>\n");
-    let summary = if !has_images {
-        "Reiner Text mit Inhaltsverzeichnis und Überschriften in Lesereihenfolge."
-    } else if all_alt {
-        "Text mit Inhaltsverzeichnis und Überschriften in Lesereihenfolge; jedes Bild hat einen Alternativtext."
-    } else {
-        "Text mit Inhaltsverzeichnis und Überschriften in Lesereihenfolge; nicht jedes Bild hat einen Alternativtext."
-    };
+    let summary = book_t(
+        input.work_language,
+        if !has_images {
+            "book.a11y.summary_text"
+        } else if all_alt {
+            "book.a11y.summary_all_alt"
+        } else {
+            "book.a11y.summary_some_alt"
+        },
+        &[],
+    );
     m.push_str(&format!("<meta property=\"schema:accessibilitySummary\">{summary}</meta>\n"));
 
     let mut out = format!(
@@ -1120,14 +1148,21 @@ fn opf(
         out.push_str(&format!("<itemref idref=\"{}\"/>\n", e(id)));
     }
     out.push_str("</spine>\n<guide>\n");
+    let t = |key: &str| e(&book_t(input.work_language, key, &[]));
     if items.iter().any(|i| i.id == "cover") {
-        out.push_str("<reference type=\"cover\" title=\"Umschlag\" href=\"text/cover.xhtml\"/>\n");
+        out.push_str(&format!(
+            "<reference type=\"cover\" title=\"{}\" href=\"text/cover.xhtml\"/>\n",
+            t("book.cover.title")
+        ));
     }
     if items.iter().any(|i| i.id == "title") {
-        out.push_str("<reference type=\"title-page\" title=\"Titel\" href=\"text/title.xhtml\"/>\n");
+        out.push_str(&format!(
+            "<reference type=\"title-page\" title=\"{}\" href=\"text/title.xhtml\"/>\n",
+            t("book.title_page.title")
+        ));
     }
-    out.push_str("<reference type=\"toc\" title=\"Inhalt\" href=\"nav.xhtml\"/>\n");
-    out.push_str(&format!("<reference type=\"text\" title=\"Text\" href=\"{}\"/>\n", e(first_text)));
+    out.push_str(&format!("<reference type=\"toc\" title=\"{}\" href=\"nav.xhtml\"/>\n", t("book.toc.title")));
+    out.push_str(&format!("<reference type=\"text\" title=\"{}\" href=\"{}\"/>\n", t("book.nav.text"), e(first_text)));
     out.push_str("</guide>\n</package>\n");
     (out, warnings)
 }

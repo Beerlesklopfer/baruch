@@ -965,5 +965,16 @@ answer in the work language, with the markers of that language (`Kritisch:` or `
 („Einstellungen → Werk → Werksprache“, RPC `work.language_set`). `exchange_export` writes the language as attribute
 `sprache` at `<angaben>` (exchange format sub-version 10).
 
+**Work language in outputs and read-back words (Round 39b).** `epub_export`, `epub_check` and the Typst of
+`typst_check` follow the work language for every generated book word (navigation, landmarks, cover, title page,
+notes, glossary and index pages, numbering words such as `Chapter 1`/`Part One`, page abbreviation `p.`, draft
+watermark `DRAFT`, imprint lines); the language tag is the typesetting setting `lang`, otherwise for a German work the
+template language or `de`, for an English work `en` (`docs/RPC.md`, "Work language"). `scripture_check` writes
+`wording` in the language of the work: German works as before (`ungeprüft`, `Wortlaut stimmt`, …), English works
+`unchecked`, `wording matches`, `wording differs`, `no quotation found`, `reference invalid – wording not checked`,
+`Verse missing in the module …`; the codes (`wording_code`, `status`) are the same in every language. The closing
+lines Baruch appends to persona answers with Bible references and the notes on reference claims (`(reference is in
+the text: …)`) are English in an English work and German in a German one; every recognition accepts both.
+
 **Stubs.** No tool is a stub at present; a future stub answers honestly in English ("not implemented yet", with what
 is missing) and carries `// STUB: <what is missing> (<stage>)` in the code (`grep -rn "STUB:" crates`).
