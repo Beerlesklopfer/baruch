@@ -137,7 +137,7 @@ Programm namens `typst` installiert kein Paket – ein eigenes Typst bleibt unbe
 Der Umfang ist bewusst klein: `compile` (PDF, PNG, SVG), `fonts`, `--version`. Eine vorhandene Ausgabedatei wird
 überschrieben, wie bei Typst. Pakete aus dem Netz (`@preview/…`), `watch` und `query` gibt es nicht; Baruch
 sagt das ehrlich und beendet sich mit einem Fehler. Einzelheiten:
-{{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}, Abschnitt „Typst-Kommandozeile“.
+{{< doku "docs/Verteilung.md" "docs/Verteilung.md" >}}, Abschnitt „Typst command line“.
 
 ## Optional: Prüfsumme vergleichen {#pruefsumme}
 

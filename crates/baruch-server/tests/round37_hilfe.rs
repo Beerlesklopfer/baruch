@@ -616,11 +616,11 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
         guide.contains("https://baruch.bernau.family/hilfe/") && guide.contains("site/content/de/hilfe/"),
         "docs/Bedienung.md verweist auf die Hilfe – auf der Webseite und im Repository (Vertrag §1 a)"
     );
-    for heading in ["\n## Regel für Entwickler\n", "\n## Wo steht was\n", "\n## Technische Anmerkungen\n"] {
+    for heading in ["\n## Rule for developers\n", "\n## Where is what\n", "\n## Technical notes\n"] {
         assert!(guide.contains(heading), "docs/Bedienung.md hat den Abschnitt {}", heading.trim());
     }
     assert!(
-        guide.contains("im selben Commit ändern"),
+        guide.contains("change the responsible help page under\n`site/content/de/hilfe/` in the same commit"),
         "die Regel für Entwickler sagt, was „Bedienung nachziehen“ jetzt heißt (Vertrag §1 c)"
     );
     assert!(
@@ -630,7 +630,7 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
         guide.lines().count()
     );
     assert!(
-        !guide.contains("So geht es"),
+        !guide.contains("So geht es") && !guide.contains("How to do it"),
         "Bedienschritte („So geht es“) stehen nur in der Hilfe, nie in beiden Dateien (Vertrag §1)"
     );
     assert_eq!(
@@ -640,8 +640,9 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
          Bilder mit echtem Namen stehen nur in der Hilfe"
     );
 
-    let table = guide.split("\n## Wo steht was\n").nth(1).unwrap().split("\n## ").next().unwrap();
+    let table = guide.split("\n## Where is what\n").nth(1).unwrap().split("\n## ").next().unwrap();
     // Every `##` heading of the former file (state 00537dd) – verbatim, so that none is lost in the distribution.
+    // Since Round 38c the table is English and quotes the old German headings („…“).
     let old_sections = [
         "Starten",
         "Typst- oder Markdown-Datei importieren",
@@ -696,7 +697,7 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
         })
         .collect();
     for section in old_sections {
-        let row = table.lines().find(|line| line.starts_with(&format!("| {section} | "))).unwrap_or_else(|| {
+        let row = table.lines().find(|line| line.starts_with(&format!("| „{section}“ | "))).unwrap_or_else(|| {
             panic!("„Wo steht was“ führt den früheren Abschnitt „{section}“ (lückenlos, Vertrag §1 b)")
         });
         assert!(
@@ -742,10 +743,10 @@ fn the_developer_guide_points_to_the_help_and_maps_every_old_section() {
     }
     assert!(pairs >= 100, "die Tabelle nennt die Abschnitte mit Anker ({pairs} Paare geprüft)");
 
-    let notes = guide.split("\n## Technische Anmerkungen\n").nth(1).unwrap();
+    let notes = guide.split("\n## Technical notes\n").nth(1).unwrap();
     for (name, _, title) in PAGES {
         assert!(
-            notes.contains(&format!("\n### {title} (`{name}.md`)\n")),
+            notes.contains(&format!("\n### „{title}“ (`{name}.md`)\n")),
             "die technischen Anmerkungen haben je Hilfeseite einen Abschnitt (Vertrag §1 d): {title}"
         );
     }

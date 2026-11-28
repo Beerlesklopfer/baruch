@@ -48,7 +48,7 @@ Windows; interfaces may still change (see [Status and limits](#status-and-limits
 - **Typst is the source.** The mirror is an ordinary Typst folder that can be typeset with
   `typst compile main.typ` even without Baruch – or with Baruch itself: `baruch-typst compile main.typ` is the
   same program as a Typst command line (built-in engine, without network and without packages; `compile`,
-  `fonts`, `--version`; [docs/Verteilung.md](docs/Verteilung.md), section „Typst-Kommandozeile“).
+  `fonts`, `--version`; [docs/Verteilung.md](docs/Verteilung.md), section "Typst command line").
 - **Usable without JavaScript.** Every page works with links and forms. JavaScript adds comfort:
   dragging, keyboard, popups, live updates.
 - **Local and honest.** Baruch answers only on your own machine. Keys live in the keyring.
@@ -478,7 +478,7 @@ builds the packages, continues the APT repository and delivers website and repos
   operation behind a reverse proxy with TLS are described in [docs/Betrieb.md](docs/Betrieb.md).
 - **Website:** <https://baruch.bernau.family/> – source under [site/](site/README.md), delivered only through
   the CI. No workflow has run so far (see [docs/Verteilung.md](docs/Verteilung.md), section
-  „Stand der Prüfung“).
+  "State of verification").
 - **Interfaces** (RPC, MCP, exchange format) may still change until version 1.0.
 - Baruch does not ship Bible texts, commentaries or literature; it only reads what is on your own
   machine and shows its license.

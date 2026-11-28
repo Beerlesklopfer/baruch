@@ -1,101 +1,101 @@
-# Bedienung von Baruch
+# Using Baruch
 
-**Die Bedienung steht in der Hilfe auf der Webseite:** <https://baruch.bernau.family/hilfe/> – im Repository die
-Seiten unter [`site/content/de/hilfe/`](../site/content/de/hilfe/). Sie ist die einzige Beschreibung für Anwender, in
-Alltagssprache, Schritt für Schritt und mit Bildern. Für Betreiber gilt entsprechend
-[`site/content/de/betrieb.md`](../site/content/de/betrieb.md) (Einstieg: [`docs/Betrieb.md`](Betrieb.md)).
+**Usage is described in the help on the website:** <https://baruch.bernau.family/hilfe/> – in the repository the
+pages under [`site/content/de/hilfe/`](../site/content/de/hilfe/). It is the only description for users, in
+everyday language, step by step and with images. For operators the same holds for
+[`site/content/de/betrieb.md`](../site/content/de/betrieb.md) (entry point: [`docs/Betrieb.md`](Betrieb.md)).
 
-Diese Datei enthält nur noch:
+This file now only contains:
 
-1. die Tabelle **„Wo steht was“** – jede frühere Überschrift dieser Datei mit ihrem neuen Ort,
-2. die **Regel für Entwickler**,
-3. **Technische Anmerkungen** je Hilfeseite: was kein Anwender braucht (Adressen und Routen, Cookie-Namen,
-   Parameter, Commits im Git-Spiegel, RPC- und MCP-Namen, Grenzen der Prüfung, Annahmen zu Ungeprüftem).
+1. the table **"Where is what"** – every former heading of this file with its new place,
+2. the **rule for developers**,
+3. **technical notes** per help page: what no user needs (addresses and routes, cookie names,
+   parameters, commits in the Git mirror, RPC and MCP names, limits of the verification, assumptions about unchecked things).
 
-Bedienschritte stehen hier nicht mehr – nie in beiden Dateien.
+Usage steps no longer stand here – never in both files.
 
-## Regel für Entwickler
+## Rule for developers
 
-„Bedienung nachziehen“ (AGENTS.md: Doku wächst mit dem Code) heißt seit Runde 37: **die zuständige Hilfeseite unter
-`site/content/de/hilfe/` im selben Commit ändern.** Technisches zur selben Änderung kommt in die „Technischen
-Anmerkungen“ unten. Für die Hilfeseiten gilt:
+"Update the usage docs" (AGENTS.md: docs grow with the code) means since Round 37: **change the responsible help page under
+`site/content/de/hilfe/` in the same commit.** Technical matters of the same change go into the "Technical
+notes" below. For the help pages:
 
-- Alltagssprache: Fassung statt Revision, Assistent (Rolle) statt Persona; Fachwörter (MCP, Token, SWORD, Typst,
-  Reverse-Proxy …) beim ersten Vorkommen in einem Halbsatz erklären. Keine Rundennummern, keine Dateinamen des
-  Quelltexts, keine Routen (nur Adressen, die man wirklich eintippt).
-- Tasten immer für beide Welten („Strg+S (Mac: ⌘S)“), die Mac-Taste aus dem Code belegt; `tasten.md` sammelt alle.
-- Jede Überschrift trägt einen festen Anker `{#…}`; jede `##`-Überschrift hat ein Bild
-  (`{{< hilfebild name="…" alt="…" titel="…" >}}`, Namen nur aus `site/data/hilfebilder.toml`) oder steht im Kopf
-  der Seite unter `ohne_bild`. Kein rohes HTML, auch keine HTML-Kommentare (der Bau bricht ab).
-- Verweise nur als gewöhnliche Links ab `/`; auf `/installation/`, `/mcp/`, `/betrieb/` nur auf die Seite oder
-  ihre festen Anker. Kein `doku`-Shortcode und kein Link zu GitHub in der Hilfe.
-- Beispiele frei erfunden; das Beispielwerk der Hilfe heißt „Ein Jahr auf Mövenoog“ von Mara Tiedemann.
-- Prüfen: `hugo --minify --panicOnWarning -s site` und `cargo test -p baruch-server --test server round37_hilfe`.
+- Everyday language: „Fassung“ instead of „Revision“, „Assistent“ (role) instead of „Persona“; explain technical terms (MCP, Token, SWORD, Typst,
+  reverse proxy …) at their first occurrence in a half sentence. No round numbers, no file names of the
+  source, no routes (only addresses that one really types in).
+- Keys always for both worlds („Strg+S (Mac: ⌘S)“), the Mac key proven from the code; `tasten.md` collects all of them.
+- Every heading carries a fixed anchor `{#…}`; every `##` heading has an image
+  (`{{< hilfebild name="…" alt="…" titel="…" >}}`, names only from `site/data/hilfebilder.toml`) or stands in the head
+  of the page under `ohne_bild`. No raw HTML, also no HTML comments (the build aborts).
+- Links only as ordinary links from `/`; to `/installation/`, `/mcp/`, `/betrieb/` only to the page or
+  its fixed anchors. No `doku` shortcode and no link to GitHub in the help.
+- Examples freely invented; the sample work of the help is called „Ein Jahr auf Mövenoog“ by Mara Tiedemann.
+- Checking: `hugo --minify --panicOnWarning -s site` and `cargo test -p baruch-server --test server round37_hilfe`.
 
-Kommentare im Rust-Code, die noch `docs/Bedienung.md „…“` nennen, meinen den Abschnitt aus der Tabelle unten.
+Comments in the Rust code that still name `docs/Bedienung.md „…“` mean the section from the table below.
 
-## Wo steht was
+## Where is what
 
-Jede `##`-Überschrift der früheren Fassung dieser Datei (Stand `00537dd`, `git show 00537dd:docs/Bedienung.md`):
+Every `##` heading of the former revision of this file (state `00537dd`, `git show 00537dd:docs/Bedienung.md`):
 
-| Frühere Überschrift | Hilfeseite und Anker |
+| Former heading | Help page and anchor |
 |---|---|
-| Starten | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#starten`; Datenordner: `/betrieb/#datenordner` |
-| Typst- oder Markdown-Datei importieren | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#typst-markdown`, `#markdown`, `#teile`, `#export-import`, `#kommandozeile` |
-| PDF oder EPUB importieren (Runde 21a) | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#pdf-epub` |
-| Werke | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#werke`, `#neues-werk`, `#predigt`, `#werk-bearbeiten`, `#loeschen-archiv` |
-| Bildschirm | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#bildschirm` |
-| Menüband | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#menueband`, `#menue-baruch`, `#reiter`, `#band-einklappen`, `#kompaktes-band`, `#laptop-modus`, `#ohne-javascript`; Knöpfe des Editors: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`; Über Baruch: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#ueber` |
-| Zeitangaben | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#zeitangaben` |
-| Adresse | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#adresse` |
-| Gliederung | [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung`, `#ueberschriften`, `#teile`, `#ohne-nummer`, `#seite`, `#antraege`, `#zustimmung-teil`, `#schema`, `#muster` |
-| Zeitwächter | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#zeitwaechter` |
-| Satzbild | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#satzbild`, `#ansichten`, `#einfuegen`, `#bild-einfuegen` |
-| Bilder | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#bilder`, `#bild-einfuegen` |
-| Revisionen | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#ausblenden` |
-| Vorschläge im Lesefluss | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#vorschlaege` |
-| Abschnitts-Chat | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
-| Assistenten fragen | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#websuche` |
-| Befunde (Runde 28) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#befunde` |
-| Chat bedienen und Aufträge (Runde 28, chat-auftrag) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#faeden` |
-| Suchen und Ersetzen (Runde 30a) | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#suchen`, `#ersetzen` |
-| Querverweise (Runde 30a) | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#verweise` |
-| Lösungsvorschläge und Varianten (Runde 30b) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#loesungen`, `#rueckfrage` |
-| Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c) | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
-| Bibelstellen | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#zitate-pruefen`, `#nachschlagen` |
-| Satz (Typst-Vorschau) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz`, `#satz-einstellungen` |
-| Buch als PDF, Umschlag und Titelei | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`, `#umschlag`, `#epub` |
-| Stichwortzettel | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#stichwortzettel` |
-| Literatur | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#literatur`, `#bedeutungssuche`, `#quellen`, `#nachschlagen` |
-| Einfälle | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#festhalten`, `#liste`, `#einfall` |
-| Mindmap | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap`, `#wolke`, `#mindmap-tasten`, `#mindmap-gliederung`, `#mindmap-austausch` |
-| Fäden | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#faeden` |
-| Abgleich mit MultiGPT | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#abgleich` |
-| Vergrößern mit Strg+Mausrad | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#vergroessern` |
-| Einstellungen | [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#oeffnen`, `#darstellung`, `#werk`, `#assistenten`, `#verbindungen`, `#quellen`, `#mcp-zugang`, `#daten`; Satz: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz-einstellungen`; Bibeln (SWORD), Kommentare und Lexika: [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bibeln-waehlen` |
-| Sicherheit | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherheit`; Betrieb hinter einem Proxy: `/betrieb/#reverse-proxy` |
-| Konten und Rollen (Runde 35) | [`konten.md`](../site/content/de/hilfe/konten.md) `#einrichten`, `#anmelden`, `#lektoren`, `#lektor-rechte`, `#passwort` |
-| Austausch zwischen Instanzen | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#ausgeben`, `#einlesen`, `#instanz` |
-| Umschlag-Editor (Runde 27) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag` |
-| Runde 19 – RAG-Pflege, Reste der Stellen | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bedeutungssuche`, `#zitate-pruefen`, `#nachschlagen`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen` |
-| EPUB (Runde 20) | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#epub` |
-| Runde 31 – Register und Glossar | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#glossar`, `#register` |
-| Runde 22 – Revisionen und Spiegel | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#verlauf`; Rückfrage: [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`; Archiv: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#loeschen-archiv`; Entwurf: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`; Austausch: [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#einlesen` |
-| Runde 23 – Härtung | nach Inhalt verteilt: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`, `#fassungen`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#antraege`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#befunde`, `#websuche`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag`, `#epub`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen`, `#mcp-zugang`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner` |
-| Runde 32 – Word und Beenden | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#word`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#word-export`; [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#beenden` |
-| Runde 36 – Reste | nach Inhalt verteilt: [`konten.md`](../site/content/de/hilfe/konten.md) `#lektor-rechte`, `#passwort`, `#anmelden`; [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap-austausch`; [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#ausblenden`, `#einfuegen`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`, `#pruefen`; [`menueband.md`](../site/content/de/hilfe/menueband.md) `#laptop-modus`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung` |
+| „Starten“ | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#starten`; data folder: `/betrieb/#datenordner` |
+| „Typst- oder Markdown-Datei importieren“ | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#typst-markdown`, `#markdown`, `#teile`, `#export-import`, `#kommandozeile` |
+| „PDF oder EPUB importieren (Runde 21a)“ | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#pdf-epub` |
+| „Werke“ | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#werke`, `#neues-werk`, `#predigt`, `#werk-bearbeiten`, `#loeschen-archiv` |
+| „Bildschirm“ | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#bildschirm` |
+| „Menüband“ | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#menueband`, `#menue-baruch`, `#reiter`, `#band-einklappen`, `#kompaktes-band`, `#laptop-modus`, `#ohne-javascript`; buttons of the editor: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`; „Über Baruch“: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#ueber` |
+| „Zeitangaben“ | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#zeitangaben` |
+| „Adresse“ | [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#adresse` |
+| „Gliederung“ | [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung`, `#ueberschriften`, `#teile`, `#ohne-nummer`, `#seite`, `#antraege`, `#zustimmung-teil`, `#schema`, `#muster` |
+| „Zeitwächter“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#zeitwaechter` |
+| „Satzbild“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#satzbild`, `#ansichten`, `#einfuegen`, `#bild-einfuegen` |
+| „Bilder“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#bilder`, `#bild-einfuegen` |
+| „Revisionen“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#ausblenden` |
+| „Vorschläge im Lesefluss“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#vorschlaege` |
+| „Abschnitts-Chat“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
+| „Assistenten fragen“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#websuche` |
+| „Befunde (Runde 28)“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#befunde` |
+| „Chat bedienen und Aufträge (Runde 28, chat-auftrag)“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#faeden` |
+| „Suchen und Ersetzen (Runde 30a)“ | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#suchen`, `#ersetzen` |
+| „Querverweise (Runde 30a)“ | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#verweise` |
+| „Lösungsvorschläge und Varianten (Runde 30b)“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#pruefen`, `#loesungen`, `#rueckfrage` |
+| „Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c)“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat` |
+| „Bibelstellen“ | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#zitate-pruefen`, `#nachschlagen` |
+| „Satz (Typst-Vorschau)“ | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz`, `#satz-einstellungen` |
+| „Buch als PDF, Umschlag und Titelei“ | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`, `#umschlag`, `#epub` |
+| „Stichwortzettel“ | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#stichwortzettel` |
+| „Literatur“ | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#literatur`, `#bedeutungssuche`, `#quellen`, `#nachschlagen` |
+| „Einfälle“ | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#festhalten`, `#liste`, `#einfall` |
+| „Mindmap“ | [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap`, `#wolke`, `#mindmap-tasten`, `#mindmap-gliederung`, `#mindmap-austausch` |
+| „Fäden“ | [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#faeden` |
+| „Abgleich mit MultiGPT“ | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#abgleich` |
+| „Vergrößern mit Strg+Mausrad“ | [`menueband.md`](../site/content/de/hilfe/menueband.md) `#vergroessern` |
+| „Einstellungen“ | [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#oeffnen`, `#darstellung`, `#werk`, `#assistenten`, `#verbindungen`, `#quellen`, `#mcp-zugang`, `#daten`; typesetting: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#satz-einstellungen`; Bibles (SWORD), commentaries and lexicons: [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bibeln-waehlen` |
+| „Sicherheit“ | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherheit`; operation behind a proxy: `/betrieb/#reverse-proxy` |
+| „Konten und Rollen (Runde 35)“ | [`konten.md`](../site/content/de/hilfe/konten.md) `#einrichten`, `#anmelden`, `#lektoren`, `#lektor-rechte`, `#passwort` |
+| „Austausch zwischen Instanzen“ | [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#ausgeben`, `#einlesen`, `#instanz` |
+| „Umschlag-Editor (Runde 27)“ | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag` |
+| „Runde 19 – RAG-Pflege, Reste der Stellen“ | [`bibel-quellen.md`](../site/content/de/hilfe/bibel-quellen.md) `#bedeutungssuche`, `#zitate-pruefen`, `#nachschlagen`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen` |
+| „EPUB (Runde 20)“ | [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#epub` |
+| „Runde 31 – Register und Glossar“ | [`suchen.md`](../site/content/de/hilfe/suchen.md) `#glossar`, `#register` |
+| „Runde 22 – Revisionen und Spiegel“ | [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#fassungen`, `#verlauf`; follow-up question: [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`; archive: [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#loeschen-archiv`; draft: [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#pdf`; exchange: [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#einlesen` |
+| „Runde 23 – Härtung“ | distributed by content: [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#einfuegen`, `#fassungen`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#antraege`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#chat`, `#befunde`, `#websuche`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#umschlag`, `#epub`; [`einstellungen.md`](../site/content/de/hilfe/einstellungen.md) `#verbindungen`, `#mcp-zugang`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner` |
+| „Runde 32 – Word und Beenden“ | [`einlesen.md`](../site/content/de/hilfe/einlesen.md) `#word`; [`buchsatz.md`](../site/content/de/hilfe/buchsatz.md) `#word-export`; [`erste-schritte.md`](../site/content/de/hilfe/erste-schritte.md) `#beenden` |
+| „Runde 36 – Reste“ | distributed by content: [`konten.md`](../site/content/de/hilfe/konten.md) `#lektor-rechte`, `#passwort`, `#anmelden`; [`einfaelle.md`](../site/content/de/hilfe/einfaelle.md) `#mindmap-austausch`; [`schreiben.md`](../site/content/de/hilfe/schreiben.md) `#ausblenden`, `#einfuegen`; [`assistenten.md`](../site/content/de/hilfe/assistenten.md) `#rueckfrage`, `#pruefen`; [`menueband.md`](../site/content/de/hilfe/menueband.md) `#laptop-modus`; [`austausch-sicherung.md`](../site/content/de/hilfe/austausch-sicherung.md) `#sicherung`, `#datenordner`; [`gliederung.md`](../site/content/de/hilfe/gliederung.md) `#gliederung` |
 
-Alle Tastenkürzel und Mausgesten stehen zusätzlich gesammelt in
-[`tasten.md`](../site/content/de/hilfe/tasten.md); der Einstieg ist [`_index.md`](../site/content/de/hilfe/_index.md).
+All keyboard shortcuts and mouse gestures are additionally collected in
+[`tasten.md`](../site/content/de/hilfe/tasten.md); the entry point is [`_index.md`](../site/content/de/hilfe/_index.md).
 
-## Technische Anmerkungen
+## Technical notes
 
-Je Hilfeseite, was dort bewusst fehlt. Schnittstellen im Einzelnen: `docs/RPC.md`, `docs/MCP.md`; Aufbau:
-`docs/Architektur.md`; Betrieb: `docs/Betrieb.md`; Verteilung und Starter: `docs/Verteilung.md`.
+Per help page, what is deliberately missing there. Interfaces in detail: `docs/RPC.md`, `docs/MCP.md`; structure:
+`docs/Architektur.md`; operation: `docs/Betrieb.md`; distribution and launchers: `docs/Verteilung.md`.
 
-### Erste Schritte (`erste-schritte.md`)
+### „Erste Schritte“ (`erste-schritte.md`)
 
-- **Aufruf:**
+- **Invocation:**
 
   ```
   baruch-server [serve] [--listen 127.0.0.1:8765] [--data ORDNER] [--secrets keyring|memory] [--allow-host NAME]…
@@ -104,906 +104,907 @@ Je Hilfeseite, was dort bewusst fehlt. Schnittstellen im Einzelnen: `docs/RPC.md
   baruch-server export ID|SLUG [--data ORDNER]
   ```
 
-  Der Befehl (`serve`, `import`, `export`) steht vor den Angaben. `--version` gibt `baruch-server <Version>` aus.
-  `--listen` auch als `BARUCH_LISTEN` (Vorgabe `127.0.0.1:8765`, derselbe Port wie beim Benutzerdienst aus
-  `packaging/systemd/`), `--data` auch als `BARUCH_DATA`. `--allow-host NAME` (mehrfach, auch
-  `BARUCH_ALLOWED_HOSTS`, Komma-getrennt) erlaubt für den Betrieb hinter einem Reverse-Proxy zusätzlich einen
-  Rechnernamen (`docs/Betrieb.md`).
-- **Datenordner:** `ORDNER/baruch.sqlite`, Git-Spiegel jedes Werks in `ORDNER/works/<slug>/`. Vorgabe ohne `--data`:
-  Linux `~/.local/share/baruch` (bzw. `$XDG_DATA_HOME/baruch`), macOS `~/Library/Application Support/baruch`,
-  Windows `C:\Users\<name>\AppData\Local\baruch` – bewusst **Local**, nicht Roaming: Servergespeicherte Profile einer
-  Domäne würden sonst SQLite-Datenbank (samt WAL) und Git-Spiegel bei jeder An- und Abmeldung hin- und herkopieren.
-  Legt Baruch den Datenordner selbst neu an, bekommt er unter Linux und macOS die Rechte 0700; einen vorhandenen
-  Ordner ändert Baruch nicht (wer `--data` außerhalb des eigenen Home legt, prüft die Rechte selbst – Datenbank und
-  Spiegel enthalten das ganze Manuskript).
-- **Geheimnisse** der Verbindungen (Schlüssel, Token, Passwort) liegen nur mit dem Vorgabe-Datenordner im
-  Schlüsselbund des Systems (Dienst `baruch`). Mit jedem anderen `--data` bleiben sie im Speicher des Prozesses und
-  sind beim Beenden weg – so kann ein Wegwerf- oder Prüfserver die Einträge `baruch/…` des eigentlichen Dienstes
-  weder lesen noch überschreiben oder löschen. `--secrets keyring` (`BARUCH_SECRETS=keyring`) nimmt ausdrücklich den
-  Schlüsselbund, `--secrets memory` den Speicher; die Startausgabe nennt, was gilt („Geheimnisse: …“).
-- **Beispielwerk:** Eine wirklich neue Datenbank bekommt „Beispielwerk: Leise Abhängigkeit (Auszug)“; ein
-  vorhandener Datenordner wird nicht verändert. Die Hilfe und ihre Bilder zeigen stattdessen das erfundene Werk
-  „Ein Jahr auf Mövenoog“ (Bildliste `site/data/hilfebilder.toml`).
-- **Werkwahl:** Adresse `/?work=<id>`; Cookie `baruch_work` (ein Jahr). `/` ohne `?work=` öffnet das gemerkte
-  Werk, sonst das älteste, sonst die Werkliste. Links und Formulare tragen das Werk weiter.
-- **Seiten:** Werkliste `/werke`; Anlegen/Importieren `/werke/neu` (mit JavaScript der Dialog „Importieren…“);
-  Ändern `/werke/<id>/bearbeiten`; Löschen `/werke/<id>/loeschen`; Archiv `/werke/archiv`; Export
-  `/werke/<id>/export` (lädt `<slug>.typ`, wie `baruch-server export`); Über Baruch `/ueber`, Lizenztext
-  `/ueber/lizenz` (reiner Text).
-- **Neues Werk:** Die Werkvorlage eines neuen Buchs enthält `#set document(…)` und
-  `#set heading(numbering: "1.1")`; Commit „Werk angelegt: <Titel>“. Predigttext aus SWORD steht als
-  `#quote(block: true, attribution: [Joh 3,16 (Modul)])[…]`; fehlende Verse meldet `sermon_text.missing`; eine
-  ungültige Stelle antwortet ohne JavaScript mit Status 422. Auf `/werke/neu` gilt bei leerer Bibel das Vorgabewerk,
-  im Dialog das gezeigte Werk.
-- **Eindeutige Titel:** Meldung „Es gibt schon ein Werk „…“ (slug).“ Hatten vor dem Update zwei Werke denselben
-  Titel, bekommt beim ersten Start eines einen neuen: das gesäte Beispielwerk wieder seinen Beispieltitel, sonst das
-  jüngere „<Titel> (2)“. Ordnernamen, Spiegel und Texte bleiben.
-- **Ändern:** Commit „Werk geändert: <Felder>“, wenn sich eine Datei ändert (z. B. `vorlage.typ`). In die
-  Werkvorlage gehören `#set`, `#show`, `#let` …
-- **Löschen:** letzter Commit „Werk gelöscht: <Titel>“, der Spiegel wandert nach
-  `ORDNER/works/.geloescht/<slug>-<JJJJ-MM-TT>/`. Der Ordnername (`slug`) bleibt dauerhaft reserviert (neues Werk:
-  `<slug>-2`); Werk-Nummern werden nie wieder vergeben. Die Einfälle stehen sofort im Spiegel der Einfälle ohne
-  Werk (`<data>/einfaelle/einfaelle.md`); beim Start holt Baruch diesen Spiegel auf (ohne Änderung kein Commit).
-- **Archiv wiederherstellen:** Der Ordner wandert zurück nach `works/<slug>`, Commit „Werk wiederhergestellt“.
-  Über MCP gibt es das nicht.
-- **Adresse:** `/?work=<id>&key=<schlüssel>&rev=<nummer>[&view=preview][&pick=…][&lq=<suche>]`. `key` ist der feste
-  Schlüssel des Abschnitts (MCP-Feld `url` nennt dieselbe Adresse). Ältere Adressen mit `node=<stelle>` gehen
-  weiter; fehlt der Schlüssel, zeigt Baruch den Abschnitt der Stelle `node` bzw. den Vorgabe-Abschnitt und
-  „Abschnitt mit Schlüssel K gibt es nicht (mehr).“ `rev` ist die Nummer der Fassung (nach dem Löschen mit
-  Lücken), nicht ihre Stelle. `pick=<abschnitt>:<nummer>[,…]` setzt in der Vorschau probeweise andere Fassungen
-  ein; ungültige Einträge werden übergangen. Ohne `work` das Vorgabewerk (das älteste), unbekanntes Werk 404.
-  Mit `?lq=` steht der Kasten „Bilder des Werks“ unter den Treffern, auch ohne JavaScript.
-- **Zeitangaben:** Ortszeit seit der Nutzerentscheidung 2026-11-07 (vorher UTC); gespeichert und über RPC/MCP
-  geliefert wird weiter UTC.
-- **Über Baruch:** Lizenz `AGPL-3.0-or-later`; Quelltext beim Tag `v<Version>`; Webseite
-  `https://baruch.bernau.family/`; `THIRD-PARTY-LICENSES.txt` je Paket (liegt die Datei neben dem Programm, steht
-  ihr Pfad dabei). Ein aus dem Quelltext gebautes Programm hat die Datei nicht; die Seite nennt den Befehl
-  (`scripts/third-party-licenses.py`). Im AppImage liegt der Pfad im eingehängten Abbild und gilt nur, solange
-  Baruch läuft. Nur über das APT-Repository (Debian, Ubuntu) kommen neue Versionen mit `sudo apt upgrade`.
-- **Beenden:**
+  The command (`serve`, `import`, `export`) stands before the options. `--version` prints `baruch-server <Version>`.
+  `--listen` also as `BARUCH_LISTEN` (default `127.0.0.1:8765`, the same port as with the user service from
+  `packaging/systemd/`), `--data` also as `BARUCH_DATA`. `--allow-host NAME` (repeatable, also
+  `BARUCH_ALLOWED_HOSTS`, comma-separated) additionally allows a host name for operation behind a reverse proxy
+  (`docs/Betrieb.md`).
+- **Data folder:** `ORDNER/baruch.sqlite`, Git mirror of every work in `ORDNER/works/<slug>/`. Default without `--data`:
+  Linux `~/.local/share/baruch` (or `$XDG_DATA_HOME/baruch`), macOS `~/Library/Application Support/baruch`,
+  Windows `C:\Users\<name>\AppData\Local\baruch` – deliberately **Local**, not Roaming: server-stored profiles of a
+  domain would otherwise copy the SQLite database (including the WAL) and the Git mirror back and forth at every login and logout.
+  If Baruch creates the data folder itself, it gets the permissions 0700 under Linux and macOS; Baruch does not change
+  an existing folder (whoever puts `--data` outside their own home checks the permissions themselves – database and
+  mirror contain the whole manuscript).
+- **Secrets** of the connections (key, token, password) lie in the keyring of the system (service `baruch`) only with the
+  default data folder. With any other `--data` they stay in the memory of the process and
+  are gone at the end – so a throwaway or test server can neither read nor overwrite or delete the entries `baruch/…` of the
+  actual service. `--secrets keyring` (`BARUCH_SECRETS=keyring`) explicitly takes the
+  keyring, `--secrets memory` the memory; the start output names what holds („Geheimnisse: …“).
+- **Sample work:** a really new database gets „Beispielwerk: Leise Abhängigkeit (Auszug)“; an
+  existing data folder is not changed. The help and its images show the invented work
+  „Ein Jahr auf Mövenoog“ instead (image list `site/data/hilfebilder.toml`).
+- **Choice of work:** address `/?work=<id>`; cookie `baruch_work` (one year). `/` without `?work=` opens the remembered
+  work, otherwise the oldest, otherwise the list of works. Links and forms carry the work along.
+- **Pages:** list of works `/werke`; create/import `/werke/neu` (with JavaScript the dialog „Importieren…“);
+  change `/werke/<id>/bearbeiten`; delete `/werke/<id>/loeschen`; archive `/werke/archiv`; export
+  `/werke/<id>/export` (downloads `<slug>.typ`, like `baruch-server export`); „Über Baruch“ `/ueber`, licence text
+  `/ueber/lizenz` (plain text).
+- **New work:** the work template of a new book contains `#set document(…)` and
+  `#set heading(numbering: "1.1")`; commit „Werk angelegt: <Titel>“. A sermon text from SWORD stands as
+  `#quote(block: true, attribution: [Joh 3,16 (Modul)])[…]`; missing verses are reported by `sermon_text.missing`; an
+  invalid reference answers with status 422 without JavaScript. On `/werke/neu` with an empty Bible the default work holds,
+  in the dialog the shown work.
+- **Unique titles:** message `Es gibt schon ein Werk „…“ (slug).` If two works had the same
+  title before the update, one of them gets a new one at the first start: the seeded sample work its sample title again, otherwise the
+  younger one „<Titel> (2)“. Folder names, mirrors and texts stay.
+- **Changing:** commit „Werk geändert: <Felder>“, when a file changes (e.g. `vorlage.typ`). `#set`, `#show`, `#let` …
+  belong in the work template.
+- **Deleting:** last commit „Werk gelöscht: <Titel>“, the mirror moves to
+  `ORDNER/works/.geloescht/<slug>-<JJJJ-MM-TT>/`. The folder name (`slug`) stays permanently reserved (new work:
+  `<slug>-2`); work numbers are never assigned again. The ideas stand immediately in the mirror of the ideas without a
+  work (`<data>/einfaelle/einfaelle.md`); at start Baruch brings this mirror up to date (no commit without a change).
+- **Restoring from the archive:** the folder moves back to `works/<slug>`, commit „Werk wiederhergestellt“.
+  It does not exist through MCP.
+- **Address:** `/?work=<id>&key=<schlüssel>&rev=<nummer>[&view=preview][&pick=…][&lq=<suche>]`. `key` is the fixed
+  key of the section (the MCP field `url` names the same address). Older addresses with `node=<stelle>` keep
+  working; if the key is missing, Baruch shows the section of the position `node` or the default section and
+  „Abschnitt mit Schlüssel K gibt es nicht (mehr).“ `rev` is the number of the revision (with gaps after deleting),
+  not its position. `pick=<abschnitt>:<nummer>[,…]` tentatively puts other revisions into the preview;
+  invalid entries are skipped. Without `work` the default work (the oldest), an unknown work 404.
+  With `?lq=` the box „Bilder des Werks“ stands below the hits, also without JavaScript.
+- **Times:** local time since the user decision of 2026-11-07 (before that UTC); stored and delivered through RPC/MCP
+  is still UTC.
+- **„Über Baruch“:** licence `AGPL-3.0-or-later`; source at the tag `v<Version>`; website
+  `https://baruch.bernau.family/`; `THIRD-PARTY-LICENSES.txt` per package (if the file lies next to the program, its
+  path stands there). A program built from the source does not have the file; the page names the command
+  (`scripts/third-party-licenses.py`). In the AppImage the path lies in the mounted image and only holds as long as
+  Baruch runs. Only through the APT repository (Debian, Ubuntu) do new versions come with `sudo apt upgrade`.
+- **Quitting:**
 
-  | Route | Zweck |
+  | Route | Purpose |
   |---|---|
-  | `GET /beenden` | Rückfrage mit Formular; nicht vom eigenen Rechner 403 mit Erklärung |
-  | `POST /beenden` | hinter `guard::same_origin`; nur vom eigenen Rechner (auch nicht unter einem `--allow-host`-Namen), sonst 403; Antwort 200 mit der Abschlussseite, 500 ms später fährt Baruch herunter |
+  | `GET /beenden` | confirmation with a form; not from the own machine 403 with an explanation |
+  | `POST /beenden` | behind `guard::same_origin`; only from the own machine (also not under an `--allow-host` name), otherwise 403; response 200 with the final page, 500 ms later Baruch shuts down |
 
-  Mit JavaScript ruft die Abschlussseite `window.close()`; Browser lassen das nur bei Fenstern zu, die ein Skript
-  oder der Starter als App-Fenster geöffnet hat. Die Starter (`baruch`, AppImage, macOS-Programm,
-  Windows-Startmenü) öffnen Baruch deshalb mit einem Chromium-artigen Browser als `--app`-Fenster;
-  `BARUCH_BROWSER=standard` nimmt immer den Standardbrowser, `BARUCH_NO_BROWSER=1` öffnet keinen (Stand der Prüfung
-  je Plattform: `docs/Verteilung.md`, „Baruch beenden“). Als Dienst (`systemd --user`, `Restart=on-failure`) bleibt
-  Baruch nach dem Beenden aus. `systemctl --user stop`, `kill` (SIGTERM) und unter Windows Strg+Pause bzw. das
-  Schließen des Konsolenfensters fahren genauso sauber herunter; letzte Zeile „Baruch beendet.“, Status 0. Über RPC
-  und MCP lässt sich Baruch nicht beenden.
+  With JavaScript the final page calls `window.close()`; browsers allow that only for windows that a script
+  or the launcher opened as an app window. The launchers (`baruch`, AppImage, macOS program,
+  Windows start menu) therefore open Baruch with a Chromium-like browser as an `--app` window;
+  `BARUCH_BROWSER=standard` always takes the default browser, `BARUCH_NO_BROWSER=1` opens none (state of verification
+  per platform: `docs/Verteilung.md`, "Quitting Baruch"). As a service (`systemd --user`, `Restart=on-failure`)
+  Baruch stays off after quitting. `systemctl --user stop`, `kill` (SIGTERM) and under Windows Ctrl+Break or
+  closing the console window shut down just as cleanly; last line „Baruch beendet.“, status 0. Baruch cannot be quit through RPC
+  and MCP.
 
-### Vorhandene Texte einlesen (`einlesen.md`)
+### „Vorhandene Texte einlesen“ (`einlesen.md`)
 
-- **Typst-Import, Regeln:** `=` Kapitel, `==` Abschnitt, `===` Unterabschnitt; der Text samt Überschriftszeile wird
-  Revision 1. Titel und Autor aus `#set document(title: …, author: …)`; auskommentierte `#set document(…)` (`//`,
-  `/* … */`) zählen nicht. Titel vergeben: Exit 1 mit „Es gibt schon ein Werk „…“ (slug). Mit --title "…" einen
-  anderen Titel wählen.“ Ordnername (`slug`) aus dem Titel, höchstens 40 Zeichen, an der letzten Wortgrenze gekürzt
-  („Mövenoog – ein ganzes Jahr auf der kleinen Insel“ → `moevenoog-ein-ganzes-jahr-auf-der`), bei Gleichheit `-2`,
-  `-3` …; vorhandene Werke behalten ihren Ordnernamen.
-- **Spiegel nach dem Import:** Commit „Import aus <datei>“ mit `vorlage.typ`, `main.typ` (Werkvorlage + `#include`
-  aller Abschnitte) und `abschnitte/NNN-titel.typ`, jede mit der ersten Zeile `#import "../vorlage.typ": *` (nur im
-  Spiegel, nicht in der Revision; so gelten eigene Funktionen wie `#szene` auch dort). Werke ohne Vorlage haben
-  weder `vorlage.typ` noch die Zeile. Ausgabe: Werk, Ordnername, Anzahl der Abschnitte, Spiegelordner, Commit.
-- **Abgelehnt:** dieselbe Datei ein zweites Mal (auch umbenannt oder mit CRLF; stderr, Exit 1); eine FIFO, ein
-  Gerät oder ein Ordner („… ist keine Datei“, ohne zu warten); nicht UTF-8; über 16 MiB. Ein BOM bleibt in der
-  Werkvorlage, die erste Überschrift wird trotzdem Kapitel.
-- **Keine Gliederung** sind Überschriftszeilen in Raw-Blöcken, in mehrzeiligem Inline-Raw, in Blockkommentaren, in
-  mehrzeiligen Strings im Code (`#let x = "…"`) und in mehrzeiligen Inhaltsblöcken aus Code (`#block[…]`,
-  `#figure(caption: […])`, `#let x = […]`, `#show …: it => […]`). Ein Kommentar hinter einer Überschrift
-  (`== Titel // Notiz`) gehört nicht zum Titel. Bekannte Grenze: eingerückte Überschriften, `====` und tiefer und
-  `#heading(...)` werden nicht erkannt – außer den Markierungen `<baruch-part>` und `<baruch-unnumbered>` (genau in
-  der dokumentierten Form; dahinter darf `// …` stehen; andere Abstände, ein anderes Label oder ein Einzug machen
-  daraus Text bzw. Werkvorlage). Ein anderes `#heading(...)` vor der ersten Überschrift bleibt Werkvorlage.
-  Vorhandene Werke werden für die Markierungen nicht umgeschrieben.
-- **Export auf der Kommandozeile:** `baruch-server export <id|slug>` schreibt Werkvorlage + aktuelle Texte auf
-  stdout (ohne die `#import`-Zeilen des Spiegels); direkt nach dem Import Byte für Byte die Eingabe.
-  `--out ORDNER` schreibt die Typst-Datei (unter ihrem Importnamen, sonst `<slug>.typ`) und jedes Bild an seinen
-  Pfad (ohne `./` und führendes `/`), byte-gleich. Der Export prüft vor der ersten Datei: vorhandene Zieldatei,
-  Zwischenordner als Verknüpfung oder Datei, zwei Bildpfade zugleich Datei und Ordner (`a.png` und `a.png/b.svg`)
-  → Exit 1 mit Grund, nichts geschrieben.
-- **Bilder beim Import (CLI):** gelesen wird, was Vorlage und Text mit `image("…")` nennen (auch in
-  `#figure(image("…"))`), relativ zum Ordner der Datei; `./bilder/a.png`, `bilder//a.png` und `/bilder/a.png` sind
-  dasselbe Bild `bilder/a.png` (der Pfad im Text bleibt, wie er geschrieben ist). Übersprungen: außerhalb des
-  Ordners (über `..` oder Symlink), Pfade mit `..`, fehlend, über 8 MiB, kein Bild – je eine Zeile „Bild
-  übersprungen: <pfad> (<grund>)“ auf stderr; Ausgabe „Bilder: n“; zusammen höchstens 64 MiB je Datei. Das
-  Hochladen einer einzelnen Datei (`/werke/import`) und `work.import` bringen nur den Text.
-- **Export → Import, Hinweiscodes** (CLI: `Hinweis (<code>): …` auf stderr): `import-typeset-adopted` (Block
-  `// Baruch: Satz` wird Satz-Einstellung), `import-typeset-kept` (von Hand geändert, bleibt Werkvorlage; der
-  Bundsteg kommt als Teil des Innenrands zurück), Show-Regeln `// Baruch: Überschriften ohne Nummer` → Merker
-  „Nummer aus“ (auch bei Überschrift mit eigenem Label und unter „Ohne Nummern“), `import-back-matter-cut` (ab
-  `// Baruch: Register und Glossar`, nur wenn dahinter der erzeugte Block steht, mit Zeile),
-  `import-back-matter-kept`, `import-projection-removed` (ohne Glossarseite trägt die erste Erwähnung den Vermerk
+- **Typst import, rules:** `=` chapter, `==` section, `===` subsection; the text including the heading line becomes
+  revision 1. Title and author from `#set document(title: …, author: …)`; commented-out `#set document(…)` (`//`,
+  `/* … */`) do not count. Title taken: exit 1 with `Es gibt schon ein Werk „…“ (slug). Mit --title "…" einen
+  anderen Titel wählen.` Folder name (`slug`) from the title, at most 40 characters, cut at the last word boundary
+  („Mövenoog – ein ganzes Jahr auf der kleinen Insel“ → `moevenoog-ein-ganzes-jahr-auf-der`), on equality `-2`,
+  `-3` …; existing works keep their folder name.
+- **Mirror after the import:** commit „Import aus <datei>“ with `vorlage.typ`, `main.typ` (work template + `#include`
+  of all sections) and `abschnitte/NNN-titel.typ`, each with the first line `#import "../vorlage.typ": *` (only in the
+  mirror, not in the revision; so own functions such as `#szene` hold there too). Works without a template have
+  neither `vorlage.typ` nor the line. Output: work, folder name, number of sections, mirror folder, commit.
+- **Refused:** the same file a second time (also renamed or with CRLF; stderr, exit 1); a FIFO, a
+  device or a folder („… ist keine Datei“, without waiting); not UTF-8; over 16 MiB. A BOM stays in the
+  work template, the first heading still becomes a chapter.
+- **No outline** are heading lines in raw blocks, in multi-line inline raw, in block comments, in
+  multi-line strings in code (`#let x = "…"`) and in multi-line content blocks from code (`#block[…]`,
+  `#figure(caption: […])`, `#let x = […]`, `#show …: it => […]`). A comment behind a heading
+  (`== Titel // Notiz`) does not belong to the title. Known limit: indented headings, `====` and deeper and
+  `#heading(...)` are not recognised – except the markers `<baruch-part>` and `<baruch-unnumbered>` (exactly in
+  the documented form; `// …` may stand behind them; other spacing, another label or an indentation make
+  them text or work template). Another `#heading(...)` before the first heading stays work template.
+  Existing works are not rewritten for the markers.
+- **Export on the command line:** `baruch-server export <id|slug>` writes the work template + current texts to
+  stdout (without the `#import` lines of the mirror); right after the import byte for byte the input.
+  `--out ORDNER` writes the Typst file (under its import name, otherwise `<slug>.typ`) and every image to its
+  path (without `./` and a leading `/`), byte-identical. Before the first file the export checks: an existing target file,
+  an intermediate folder as a link or file, two image paths at the same time file and folder (`a.png` and `a.png/b.svg`)
+  → exit 1 with a reason, nothing written.
+- **Images on import (CLI):** what the template and text name with `image("…")` is read (also in
+  `#figure(image("…"))`), relative to the folder of the file; `./bilder/a.png`, `bilder//a.png` and `/bilder/a.png` are
+  the same image `bilder/a.png` (the path in the text stays as it is written). Skipped: outside the
+  folder (through `..` or a symlink), paths with `..`, missing, over 8 MiB, not an image – one line each „Bild
+  übersprungen: <pfad> (<grund>)“ on stderr; output „Bilder: n“; together at most 64 MiB per file.
+  Uploading a single file (`/werke/import`) and `work.import` bring only the text.
+- **Export → import, hint codes** (CLI: `Hinweis (<code>): …` on stderr): `import-typeset-adopted` (the block
+  `// Baruch: Satz` becomes a typesetting setting), `import-typeset-kept` (changed by hand, stays work template; the
+  binding offset comes back as part of the inner margin), show rules `// Baruch: Überschriften ohne Nummer` → flag
+  „Nummer aus“ (also for a heading with its own label and under „Ohne Nummern“), `import-back-matter-cut` (from
+  `// Baruch: Register und Glossar`, only when the generated block stands behind it, with line),
+  `import-back-matter-kept`, `import-projection-removed` (without a glossary page the first mention carries the note
   `/*baruch-erste-erwaehnung*/#emph[Wort]`).
-- **Markdown → Typst:** `#`/`##`/`###` → `=`/`==`/`===`, `####`–`######` auf `===` begrenzt; YAML-Kopf → `#set
+- **Markdown → Typst:** `#`/`##`/`###` → `=`/`==`/`===`, `####`–`######` limited to `===`; YAML head → `#set
   document(…)`; `#emph[…]`, `#strong[…]`, `#strike[…]`; `#quote(block: true)[…]`; `#raw("…")`; `#link("…")[Text]`;
-  `#footnote[…]`; `#image("…", alt: "…")` bzw. `#figure(…, caption: […])`; `#table(…)`; `/ Begriff: Erklärung`;
-  `<br>` wird Umbruch, HTML-Blöcke stehen als Kommentar. Wörtlich bleiben `#`, `*`, `_`, `$`, `@`, `<`, `[`, `]`,
-  `` ` ``, `\`, `~` und `=`/`-`/`+`/`/` am Zeilenanfang. Dateien, die die Haupt-Datei nicht nennt: `archive-unused`.
-  Abgelehnte Archive: Verknüpfungen, `..`, absolute Pfade, doppelte Namen, Zip-Bomben. CLI-Ausgabe:
+  `#footnote[…]`; `#image("…", alt: "…")` or `#figure(…, caption: […])`; `#table(…)`; `/ Begriff: Erklärung`;
+  `<br>` becomes a break, HTML blocks stand as a comment. Literal stay `#`, `*`, `_`, `$`, `@`, `<`, `[`, `]`,
+  `` ` ``, `\`, `~` and `=`/`-`/`+`/`/` at the line start. Files that the main file does not name: `archive-unused`.
+  Refused archives: links, `..`, absolute paths, duplicate names, zip bombs. CLI output:
   `Hinweis (<code>, Zeile n): …`.
-- **EPUB auf der Kommandozeile:** `baruch-server export <id|slug> --epub DATEI [--data ORDNER]`; vorhandene Datei
-  Exit 1; `--epub` zusammen mit `--out`, `--pdf`, `--stichwort` oder `--baruch` Exit 2.
-- **PDF/EPUB:** Seite `/werke/import/quelle`; lokal `pdftotext`/`pdfinfo` (Paket `poppler-utils`); EPUB-Fußnoten
-  werden `#footnote[…]`, die Zahl am Anfang entfällt nur als Nummer des Fußnotenzeichens (Hinweis „Fußnotennummer
-  entfernt“; „1 Kor 13,4“ bleibt). MultiGPT nimmt laut seiner Werkzeugbeschreibung kein EPUB an (Annahme aus der
-  Beschreibung, nicht gegen einen echten Dienst geprüft). Entwürfe in `import-drafts/`. Kommandozeile mit
-  `--data DIR`; ohne `--uebernehmen` und `--bibliothek` schreibt sie nichts, ein vermuteter Teil wird dort ein
-  Kapitel; beide Schalter bei `.typ`/`.md`/`.zip` → Exit 2.
-- **Word:** Seite `/werke/import/word`; Vorschläge unter `@word:<name>` (Modell „word“); Name: klein, ä→ae, ö→oe,
-  ü→ue, ß→ss, alles andere Bindestrich, höchstens 40 Zeichen, ohne Namen `@word:unbekannt`. Überschriften aus den
-  Vorlagen „Überschrift 1–3“/„Heading 1–3“ (auch abgeleitete Vorlagen und Gliederungsebene des Absatzes);
-  Tabellen als Typst-Tabelle (im Satzbild eine Insel); Bilder PNG, JPEG, GIF, WebP, SVG. Aus einer von Baruch
-  geschriebenen Datei wird `@lektor` zu `@word:lektor`; Typst-Inseln kommen wörtlich zurück (Test
-  `round32_abnahme`). Hinweiscodes:
+- **EPUB on the command line:** `baruch-server export <id|slug> --epub DATEI [--data ORDNER]`; an existing file
+  exit 1; `--epub` together with `--out`, `--pdf`, `--stichwort` or `--baruch` exit 2.
+- **PDF/EPUB:** page `/werke/import/quelle`; locally `pdftotext`/`pdfinfo` (package `poppler-utils`); EPUB footnotes
+  become `#footnote[…]`, the number at the start is dropped only as the number of the footnote mark (hint „Fußnotennummer
+  entfernt“; „1 Kor 13,4“ stays). According to its tool description MultiGPT accepts no EPUB (an assumption from the
+  description, not checked against a real service). Drafts in `import-drafts/`. Command line with
+  `--data DIR`; without `--uebernehmen` and `--bibliothek` it writes nothing, a presumed part becomes a
+  chapter there; both switches with `.typ`/`.md`/`.zip` → exit 2.
+- **Word:** page `/werke/import/word`; proposals under `@word:<name>` (model „word“); name: lower case, ä→ae, ö→oe,
+  ü→ue, ß→ss, everything else a hyphen, at most 40 characters, without a name `@word:unbekannt`. Headings from the
+  styles „Überschrift 1–3“/„Heading 1–3“ (also derived styles and the outline level of the paragraph);
+  tables as a Typst table (an island in the typeset view); images PNG, JPEG, GIF, WebP, SVG. From a file written by Baruch
+  `@lektor` becomes `@word:lektor`; Typst islands come back literally (test
+  `round32_abnahme`). Hint codes:
 
-  | Code | Bedeutung |
+  | Code | Meaning |
   |---|---|
-  | `docx_ueberschrift_tief` | Überschrift 4–6 steht fett im Abschnitt |
-  | `docx_text_vor_ueberschrift` | Text vor der ersten Überschrift in eigenem ersten Kapitel |
-  | `docx_ueberschrift_eingefuegt`, `docx_ueberschrift_geloescht` | vom Bearbeiter eingefügte bzw. gelöschte Überschrift |
-  | `docx_vorspann_eingefuegt` | eingefügter Text vor der ersten Überschrift – nicht übernommen |
-  | `docx_formataenderung` | verfolgte Formatänderungen: Endstand gilt |
-  | `docx_verschoben` | verschobener Text als Löschung und Einfügung |
-  | `docx_textfeld`, `docx_objekt` | Textfeld, Zeichnung, eingebettetes Objekt – nicht übernommen |
-  | `docx_formel` | Formel nur als einfacher Text |
-  | `docx_tabelle_vereinfacht` | verbundene Zellen, ungleich lange Zeilen, eingefügte/gelöschte Tabellenzeilen |
-  | `docx_bild_format`, `docx_bild_extern`, `docx_bild_uebersprungen` | Format nicht unterstützt (EMF/WMF), nur verknüpft, zu groß |
-  | `docx_endnote`, `docx_fussnote_absaetze` | Endnoten als Fußnoten; mehrere Absätze einer Fußnote als Zeilen |
-  | `docx_verborgener_text`, `docx_symbol`, `docx_unbekannt` | verborgener Text, Symbolschriften, unbekanntes Element |
-  | `docx_kommentar_ohne_stelle` | Kommentar am ersten Abschnitt |
-  | `docx_gliederung_abweichend`, `docx_vorschlag_abgelehnt`, `docx_beitrag_abgelehnt` | Vorschlag oder Beitrag ließ sich nicht anlegen (das Werk besteht trotzdem) |
+  | `docx_ueberschrift_tief` | heading 4–6 stands bold in the section |
+  | `docx_text_vor_ueberschrift` | text before the first heading in a first chapter of its own |
+  | `docx_ueberschrift_eingefuegt`, `docx_ueberschrift_geloescht` | heading inserted or deleted by the editor |
+  | `docx_vorspann_eingefuegt` | inserted text before the first heading – not taken over |
+  | `docx_formataenderung` | tracked format changes: the final state holds |
+  | `docx_verschoben` | moved text as deletion and insertion |
+  | `docx_textfeld`, `docx_objekt` | text box, drawing, embedded object – not taken over |
+  | `docx_formel` | formula only as plain text |
+  | `docx_tabelle_vereinfacht` | merged cells, rows of unequal length, inserted/deleted table rows |
+  | `docx_bild_format`, `docx_bild_extern`, `docx_bild_uebersprungen` | format not supported (EMF/WMF), only linked, too large |
+  | `docx_endnote`, `docx_fussnote_absaetze` | endnotes as footnotes; several paragraphs of a footnote as lines |
+  | `docx_verborgener_text`, `docx_symbol`, `docx_unbekannt` | hidden text, symbol fonts, unknown element |
+  | `docx_kommentar_ohne_stelle` | comment at the first section |
+  | `docx_gliederung_abweichend`, `docx_vorschlag_abgelehnt`, `docx_beitrag_abgelehnt` | a proposal or post could not be created (the work exists anyway) |
 
-  Kommandozeile: `baruch-server import DATEI.docx [--uebernehmen] [--title "TITEL"] [--data ORDNER]`; unlesbare
-  Datei Exit 1.
-- Über MCP gibt es keinen Import (kein Typst, PDF, EPUB, Word).
+  Command line: `baruch-server import DATEI.docx [--uebernehmen] [--title "TITEL"] [--data ORDNER]`; an unreadable
+  file exit 1.
+- There is no import through MCP (no Typst, PDF, EPUB, Word).
 
-### Menüband und Laptop-Modus (`menueband.md`)
+### „Menüband und Laptop-Modus“ (`menueband.md`)
 
-- Das Menüband ersetzt die frühere Kopfzeile mit den Menüs „Werk“, „Ansicht“ und „Werkzeuge“ und die frühere
-  Werkzeugleiste über dem Blatt; kein Eintrag ist entfallen. Umbenannt: „Satz“ → Satz-Vorschau, „Als
-  PDF/Entwurf/EPUB herunterladen“ → PDF, Entwurf, EPUB; „Editor“ außerhalb der Arbeitsseite → Zum Text.
-- **Adressen:** Reiter `?tab=start|einfuegen|pruefen|buch|ansicht`, Band `?band=…` (Cookie `baruch_band`),
-  Laptop-Modus `?laptop=on|off|auto` (Cookie `baruch_laptop`, ein Jahr), Leisten `?lrail=1`, `?rrail=1` (Cookies
-  `baruch_lrail`, `baruch_rrail`); Schubladen ohne JavaScript über die Sprungziele `#pane-tree` und
-  `#pane-assistants`. Ohne JavaScript sind Menü und Gruppen `<details>`.
-- **Ziele:** Neues Werk `/werke/neu`; Einstellungen ohne JavaScript `/einstellungen/darstellung`; Suche `/suche`;
-  Querverweise `/verweise`; Literatur `/literatur` (auf der Arbeitsseite das Popup); Abgleich `/abgleich`;
-  „Literatur“ als Zurück-Gruppe auf `/quelle`. Die Satz-Seite trägt im Reiter Buch die Gruppen Zurück,
-  Herunterladen, Seiten (‹ Seite n von N ›) und Satzlauf (Satz abbrechen).
-- **Abzeichen** stehen im ausgelieferten HTML jeder Seite; das Skript frischt sie nur auf.
-- **Zoom:** Stufen im Cookie `baruch_zoom`; Strg+Mausrad wertet nur `ctrlKey` aus (am Mac also Ctrl, nicht ⌘),
-  Strg+0 auch `metaKey`.
-- **Hilfe-Eintrag:** gewöhnlicher Link auf `about::HELP_URL` (`https://baruch.bernau.family/hilfe/`), neues
-  Fenster, ohne `nur-autor` (auch Lektoren sehen ihn); keine Route, kein Eintrag in `roles`.
-- **K** und **F** heißen für Bildschirmleser „Hervorheben“ und „Fett“. In der Auswahlliste „Absatzformat“ gehören
-  die Pfeiltasten der Liste.
-- Früher stellte Baruch die drei Spalten unter 900 px untereinander; das ist entfallen.
+- The ribbon replaces the former top bar with the menus „Werk“, „Ansicht“ and „Werkzeuge“ and the former
+  toolbar above the sheet; no entry has been dropped. Renamed: „Satz“ → „Satz-Vorschau“, „Als
+  PDF/Entwurf/EPUB herunterladen“ → „PDF“, „Entwurf“, „EPUB“; „Editor“ outside the work page → „Zum Text“.
+- **Addresses:** tab `?tab=start|einfuegen|pruefen|buch|ansicht`, ribbon `?band=…` (cookie `baruch_band`),
+  laptop mode `?laptop=on|off|auto` (cookie `baruch_laptop`, one year), rails `?lrail=1`, `?rrail=1` (cookies
+  `baruch_lrail`, `baruch_rrail`); drawers without JavaScript through the jump targets `#pane-tree` and
+  `#pane-assistants`. Without JavaScript menu and groups are `<details>`.
+- **Targets:** new work `/werke/neu`; settings without JavaScript `/einstellungen/darstellung`; search `/suche`;
+  cross-references `/verweise`; literature `/literatur` (on the work page the popup); reconciliation `/abgleich`;
+  „Literatur“ as the back group on `/quelle`. The typeset page carries in the tab „Buch“ the groups „Zurück“,
+  „Herunterladen“, „Seiten“ („‹ Seite n von N ›“) and „Satzlauf“ („Satz abbrechen“).
+- **Badges** stand in the delivered HTML of every page; the script only refreshes them.
+- **Zoom:** steps in the cookie `baruch_zoom`; Ctrl+mouse wheel evaluates only `ctrlKey` (so on the Mac Ctrl, not ⌘),
+  Ctrl+0 also `metaKey`.
+- **Help entry:** an ordinary link to `about::HELP_URL` (`https://baruch.bernau.family/hilfe/`), new
+  window, without `nur-autor` (Lektoren see it too); no route, no entry in `roles`.
+- **K** and **F** are called „Hervorheben“ and „Fett“ for screen readers. In the selection list „Absatzformat“ the
+  arrow keys belong to the list.
+- Formerly Baruch put the three columns below each other under 900 px; that has been dropped.
 
-### Gliederung (`gliederung.md`)
+### „Gliederung“ (`gliederung.md`)
 
-- **Schreibweise im Text:** Teil = `#heading(level: 1, numbering: none)[Titel] <baruch-part>`, Kapitel `= `,
-  Abschnitt `== `, Unterabschnitt `=== `; ein Punkt ohne Nummer kann als
-  `#heading(level: N, numbering: none)[Titel] <baruch-unnumbered>` stehen. Ändern sich Ebene oder Titel, bekommt
-  der Abschnitt eine neue Fassung vom Menschen, die sich nur in der Überschriftszeile unterscheidet (Label `<…>`
-  und Kommentar `// …` bleiben). Jede Gliederungsänderung ist genau ein Commit („Gliederung: …“).
-- **Assistenten:** anlegen über MCP `outline_add` (Commit mit ihrem Namen; Teil mit `level: 0`); umbenennen,
-  verschieben, umstufen, Nummer an/aus, löschen nur als Antrag. In einer Predigt sagt der Antrag „n vorhandene
-  Predigtteile wandern unter den neuen Teil“. Legt ein Assistent einen Teil vor ein Kapitel mitten in einem Teil
-  (ohne vorhandene Kapitel zu übernehmen gilt das als Anlegen), stehen die folgenden Kapitel bis zum nächsten Teil
-  unter dem neuen Teil.
-- **Markdown-Überschriften** (seit 2026-11-07): 1–6 Rauten und ein Leerzeichen am Zeilenanfang. Nicht umgewandelt:
-  `\# …`, Raute in Anführungszeichen (`'# …'`, `"# …"`), Typst-Code (`#heading(…)`, `#set`, `#let`), eingerückte
-  Zeilen, Zeilen in Raw-Blöcken, Kommentaren und Inhaltsblöcken, die Werkvorlage. Vorschläge der Assistenten bleiben,
-  wie sie sind; beim Übernehmen gilt dieselbe Regel (der Vorschlag bleibt im Fassungsbaum, darauf folgt die
-  umgewandelte Fassung). „Fassung ändern“ wandelt um wie „Speichern“.
-- **Titelregeln, Meldungen:** „Ein Gliederungspunkt braucht einen Titel.“, „Der Titel darf keinen Zeilenumbruch
-  enthalten.“, „Der Titel ist zu lang (höchstens 200 Zeichen, hier N).“ Geprüft wird nur ein geänderter Titel
-  (auch bei `revision.save`, Umschalten, Übernehmen, jeder Überschrift, die den Abschnitt teilen würde); ein Punkt
-  `== ` ohne Titel bleibt. Import und Export bleiben byte-gleich.
-- **Löschen:** Der Commit nennt den Text der aktuellen Fassung und, was sonst verloren geht – jede übrige Fassung
-  (offene Vorschläge eigens gezählt) und jeden Beitrag im Wortlaut.
-- **Ohne JavaScript:** Gliederungsmanager `/gliederung`, Bearbeiten `/gliederung/bearbeiten`; mit JavaScript sind
-  die Rückfall-Links ausgeblendet. Die Rückfrage zum Teilen/Zusammenführen ist ohne JavaScript eine eigene Seite
-  mit „Zurück“.
-- **Teile, Einzelheiten:** Umbenennen schreibt die Markierungszeile neu (Kommentar dahinter bleibt; ein Teil mit
-  leerem Text bekommt die Markierung). Ein Teil ohne Markierung (selbst geschriebener Text) behält seinen Text;
-  nur der Titel ändert sich, die Meldung sagt es. Ein anderer Titel in der Markierung benennt den Teil um, auch
-  beim Umschalten auf eine ältere Fassung; eine Fassung ohne Markierung schaltet ohne Gliederungsabgleich um.
-- **Ältere Teile (Nutzerentscheidung 2026-11-07):** Beim ersten Start stellt Baruch einmal alle Teile, deren
-  aktuelle Fassung leer ist oder nur aus der alten Zeile „= Teil …“ besteht (genau eine `=`-Zeile ohne Label und
-  Kommentar, Titel der des Teils oder mit „Teil“ beginnend), auf die Markierung um: neue aktuelle Fassung des
-  Menschen mit der Notiz „Umwandlung Runde 14 (Nutzerentscheidung)“, je Werk ein Commit „Umwandlung Runde 14
-  (Nutzerentscheidung): n Teile …“; die alte Fassung bleibt umschaltbar. Teile mit anderem Text bleiben; stderr
-  nennt Anzahl und Knoten-ids. Merker `parts_marked_r14` in `store_meta`; eine neue Datenbank setzt ihn gleich
-  (ihr Beispielwerk behält seine leeren Teile).
-- **Ohne Nummer:** Commit „Gliederung: „…“ ohne Nummer“ (`Baruch-Action: outline-numbered`), RPC
-  `outline.set_numbered`. Ändert man die Ebene über die Gliederung, bleibt die Markierung (nur `level:` ändert
-  sich). Im Export, Spiegel und Satz steht ein Punkt mit „Nummer aus“ als
-  `#heading(level: 1, numbering: none)[Vorwort] <baruch-unnumbered>` – in allen Schemata mit Nummern; der
-  gespeicherte Text bleibt (`= Vorwort`). Eine Überschrift mit eigenem Label (`= Vorwort <vorwort>`) bekommt
-  stattdessen `#show heading.where(…): set heading(numbering: none)` hinter der Vorlage. Bei „Ohne Nummern“ bleibt
-  alles, wie es gespeichert ist.
-- **Anträge, Commits:** Bestätigen = ein Commit mit dem Menschen als Autor und Committer, Trailer `Baruch-Origin`,
-  `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`, Betreff „… (Antrag N)“. Abgelehnt oder veraltet
-  (Nutzerentscheidung 2026-11-08, jede Antragsart): ein leerer Commit „Gliederung: Antrag N abgelehnt“ bzw.
-  „… veraltet“, Trailer `Baruch-Decision: rejected|stale`, `Baruch-Requested-By`, `Baruch-Origin`,
-  `Baruch-Request`, `Baruch-Decided-By`, im Rumpf Antragsteller, Zusammenfassung, Begründung, Grund. Gleich, ob
-  über Formular, Zustimmungsdialog oder RPC. Zustimmung zu einem Teil: Revision 1 des Teils trägt den Assistenten.
-  Hinweisleiste verlinkt `/gliederung#antraege`; Vorschau `/gliederung/antraege/ID/vorschau`. Predigten nennen in
-  der Vorschau „Predigtteil II.“.
-- **Umschalten mit anderer Ebene:** ein Commit („… auf Fassung n umgeschaltet · Ebene 1 → 2“, im Rumpf die
-  mitgestuften Punkte); jeder mitgestufte Unterpunkt bekommt eine neue Fassung vom Menschen. Abgelehnt: Fassung
-  ohne Überschrift, mit weiteren Überschriften, mit Text vor der Überschrift, mit einer Ebene, die an der Stelle
-  nicht geht (z. B. der erste Punkt als Abschnitt). „Fassung ändern“ und `revision.save` der aktuellen Fassung
-  verlangen genau eine Überschrift der Ebene des Punkts; eine nicht aktuelle Fassung lässt sich frei ändern.
-  Assistenten können Vorschläge mit anderer Ebene nicht anlegen.
-- **Maskierungen** in Überschriften (`\'`, `\#`, `\*` …) zeigt die Gliederung aufgelöst („Anna's Laube“);
-  Dateinamen im Spiegel folgen dem aufgelösten Titel und der Stelle. Der Export (`work.export`) ist nach
-  Umstellungen gültiges Typst in neuer Reihenfolge, ohne Änderung byte-gleich zur Import-Datei.
-- **Gliederungsschema:** Seite `/werke/<id>/nummerierung`; Vorschau per GET; Commit „Gliederung:
-  Gliederungsschema „Juristisch““; ungültiges Muster 422, unverändertes Schema 409. Im Export folgt der Vorlage
-  eine Zeile `// Baruch: Gliederungsschema „…“` und eine `#set heading(numbering: …)`-Regel (bei „Aus der
-  Werkvorlage“ nichts); geprüft für alle dreizehn Schemata. Die gespeicherte Vorlage (`vorlage.typ`) bleibt. Im
-  Kopf der Gliederung: „I|1“ → „Nur Kapitel römisch“, „1.1“ → „Dezimal (DIN 1421)“, sonst das Muster, das rohe
-  Muster im Tooltip; Werte `vorlage`, `keine`.
-- **Mustersprache:** ein Muster mit genau einem Zählzeichen zeigt nur die eigene Zahl der Ebene, eins mit mehreren
-  zählt hierarchisch; Ebenen hinter der Liste haben keine Nummer; `;` und `|` sind reserviert.
-- **Nummerierung aus der Werkvorlage:** Es zählt die letzte `#set heading(numbering: …)`-Regel der obersten Ebene.
-  Ein Textmuster gilt wörtlich wie in Typst (`"1;"` ergibt „2;“, `aa` sind zwei Zählzeichen). Eine Funktion wird
-  je Ebene ausgerechnet, wenn sie nur aus Bedingungen über die Tiefe (`n.pos().len()` mit Vergleichen, auch über
-  `let p = n.pos()`), `if`/`else`, Text, `numbering("…", ..n)`, `numbering("…", p.at(i))` (`p.first()`,
-  `p.last()`), `str(p.at(i))`, `* 2` und `+` besteht – direkt oder über eine `#let`-Funktion. Beispiel:
-  `(..n) => if n.pos().len() == 1 { "Kapitel " + str(n.pos().at(0)) } else { numbering("1.1", ..n) }` ergibt
-  „Kapitel 3“ · „3.2“ · „3.2.1“. Die Regel, die Baruch für „Teile und Kapitel“, „Kapitel ausgeschrieben“,
-  „Juristisch“, „Predigt“, „Buch“ exportiert, wird beim Einlesen wieder dieses Schema (als Schema gilt danach „Aus
-  der Werkvorlage“). Nicht Ausrechenbares: das erste `numbering("…")` der Funktion für alle Ebenen.
-- **Nennungen im Text** („im dreizehnten Kapitel“, „Kapitel XLII“) erkennt Baruch bis zur hundertsten
-  Ordnungszahl und für römische Zahlen in üblicher Schreibweise, nur wenn genau ein Punkt gemeint sein kann.
+- **Notation in the text:** part = `#heading(level: 1, numbering: none)[Titel] <baruch-part>`, chapter `= `,
+  section `== `, subsection `=== `; an item without a number can stand as
+  `#heading(level: N, numbering: none)[Titel] <baruch-unnumbered>`. If level or title change, the
+  section gets a new revision from the human that differs only in the heading line (label `<…>`
+  and comment `// …` stay). Every outline change is exactly one commit („Gliederung: …“).
+- **Assistants:** create through MCP `outline_add` (commit with their name; part with `level: 0`); renaming,
+  moving, changing the level, number on/off, deleting only as a request. In a sermon the request says „n vorhandene
+  Predigtteile wandern unter den neuen Teil“. If an assistant puts a part before a chapter in the middle of a part
+  (without taking over existing chapters this counts as creating), the following chapters up to the next part stand
+  under the new part.
+- **Markdown headings** (since 2026-11-07): 1–6 hashes and a space at the line start. Not converted:
+  `\# …`, a hash in quotation marks (`'# …'`, `"# …"`), Typst code (`#heading(…)`, `#set`, `#let`), indented
+  lines, lines in raw blocks, comments and content blocks, the work template. Proposals of the assistants stay
+  as they are; on acceptance the same rule holds (the proposal stays in the revision tree, followed by the
+  converted revision). „Fassung ändern“ converts like „Speichern“.
+- **Title rules, messages:** „Ein Gliederungspunkt braucht einen Titel.“, „Der Titel darf keinen Zeilenumbruch
+  enthalten.“, „Der Titel ist zu lang (höchstens 200 Zeichen, hier N).“ Only a changed title is checked
+  (also with `revision.save`, switching, accepting, every heading that would split the section); an item
+  `== ` without a title stays. Import and export stay byte-identical.
+- **Deleting:** the commit names the text of the current revision and what else gets lost – every other revision
+  (open proposals counted separately) and every post in its wording.
+- **Without JavaScript:** outline manager `/gliederung`, editing `/gliederung/bearbeiten`; with JavaScript
+  the fallback links are hidden. The confirmation for splitting/merging is a page of its own without JavaScript
+  with „Zurück“.
+- **Parts, details:** renaming rewrites the marker line (a comment behind it stays; a part with
+  empty text gets the marker). A part without a marker (self-written text) keeps its text;
+  only the title changes, the message says so. Another title in the marker renames the part, also
+  when switching to an older revision; a revision without a marker switches without outline reconciliation.
+- **Older parts (user decision 2026-11-07):** at the first start Baruch once converts all parts whose
+  current revision is empty or consists only of the old line „= Teil …“ (exactly one `=` line without label and
+  comment, title that of the part or beginning with „Teil“) to the marker: a new current revision of the
+  human with the note „Umwandlung Runde 14 (Nutzerentscheidung)“, one commit per work „Umwandlung Runde 14
+  (Nutzerentscheidung): n Teile …“; the old revision stays switchable. Parts with other text stay; stderr
+  names the count and the node ids. Flag `parts_marked_r14` in `store_meta`; a new database sets it right away
+  (its sample work keeps its empty parts).
+- **Without a number:** commit `Gliederung: „…“ ohne Nummer` (`Baruch-Action: outline-numbered`), RPC
+  `outline.set_numbered`. If one changes the level through the outline, the marker stays (only `level:` changes).
+  In export, mirror and typesetting an item with „Nummer aus“ stands as
+  `#heading(level: 1, numbering: none)[Vorwort] <baruch-unnumbered>` – in all schemes with numbers; the
+  stored text stays (`= Vorwort`). A heading with its own label (`= Vorwort <vorwort>`) instead gets
+  `#show heading.where(…): set heading(numbering: none)` behind the template. With „Ohne Nummern“ everything stays
+  as it is stored.
+- **Requests, commits:** confirming = one commit with the human as author and committer, trailers `Baruch-Origin`,
+  `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`, subject „… (Antrag N)“. Rejected or stale
+  (user decision 2026-11-08, every kind of request): an empty commit „Gliederung: Antrag N abgelehnt“ or
+  „… veraltet“, trailers `Baruch-Decision: rejected|stale`, `Baruch-Requested-By`, `Baruch-Origin`,
+  `Baruch-Request`, `Baruch-Decided-By`, in the body requester, summary, justification, reason. The same whether
+  through form, approval dialog or RPC. Approval of a part: revision 1 of the part carries the assistant.
+  The notice bar links to `/gliederung#antraege`; preview `/gliederung/antraege/ID/vorschau`. Sermons name
+  „Predigtteil II.“ in the preview.
+- **Switching with another level:** one commit („… auf Fassung n umgeschaltet · Ebene 1 → 2“, in the body the
+  items relevelled along); every sub-item relevelled along gets a new revision from the human. Refused: a revision
+  without a heading, with further headings, with text before the heading, with a level that is not possible at that
+  place (e.g. the first item as a section). „Fassung ändern“ and `revision.save` of the current revision
+  require exactly one heading of the level of the item; a non-current revision can be changed freely.
+  Assistants cannot create proposals with another level.
+- **Escapes** in headings (`\'`, `\#`, `\*` …) are shown resolved by the outline („Anna's Laube“);
+  file names in the mirror follow the resolved title and the position. The export (`work.export`) is valid Typst in a new order
+  after rearrangements, byte-identical to the import file without a change.
+- **Outline scheme:** page `/werke/<id>/nummerierung`; preview through GET; commit `Gliederung:
+  Gliederungsschema „Juristisch“`; an invalid pattern 422, an unchanged scheme 409. In the export the template is followed by
+  a line `// Baruch: Gliederungsschema „…“` and a `#set heading(numbering: …)` rule (with „Aus der
+  Werkvorlage“ nothing); checked for all thirteen schemes. The stored template (`vorlage.typ`) stays. In the
+  head of the outline: „I|1“ → „Nur Kapitel römisch“, „1.1“ → „Dezimal (DIN 1421)“, otherwise the pattern, the raw
+  pattern in the tooltip; values `vorlage`, `keine`.
+- **Pattern language:** a pattern with exactly one counter symbol shows only the own number of the level, one with several
+  counts hierarchically; levels beyond the list have no number; `;` and `|` are reserved.
+- **Numbering from the work template:** the last `#set heading(numbering: …)` rule of the top level counts.
+  A text pattern holds literally as in Typst (`"1;"` yields „2;“, `aa` are two counter symbols). A function is
+  computed per level if it consists only of conditions on the depth (`n.pos().len()` with comparisons, also through
+  `let p = n.pos()`), `if`/`else`, text, `numbering("…", ..n)`, `numbering("…", p.at(i))` (`p.first()`,
+  `p.last()`), `str(p.at(i))`, `* 2` and `+` – directly or through a `#let` function. Example:
+  `(..n) => if n.pos().len() == 1 { "Kapitel " + str(n.pos().at(0)) } else { numbering("1.1", ..n) }` yields
+  „Kapitel 3“ · „3.2“ · „3.2.1“. The rule that Baruch exports for „Teile und Kapitel“, „Kapitel ausgeschrieben“,
+  „Juristisch“, „Predigt“, „Buch“ becomes this scheme again on reading in (afterwards „Aus
+  der Werkvorlage“ counts as the scheme). What cannot be computed: the first `numbering("…")` of the function for all levels.
+- **Mentions in the text** („im dreizehnten Kapitel“, „Kapitel XLII“) are recognised by Baruch up to the hundredth
+  ordinal number and for Roman numerals in the usual notation, only when exactly one item can be meant.
 
-### Schreiben, Bilder und Fassungen (`schreiben.md`)
+### „Schreiben, Bilder und Fassungen“ (`schreiben.md`)
 
-- **Satzbild:** Die Quelle bleibt Typst; vor dem Speichern wird das Satzbild in Typst übersetzt, danach gelten die
-  Regeln des Quelltexts. Der Server liefert das Satzbild fertig mit (kein Umweg über den Quelltext); Abschnitte über
-  64 KiB kommen ohne fertiges Satzbild. Gemerkte Ansicht: Cookie `baruch_editor`. Kommt man über einen Treffer der
-  Literatursuche (`#fundstelle`), beginnt der Editor im Quelltext, bei offenem Satzbild ist die Fundstelle dort gelb
-  markiert (ändert den Text nicht, verschwindet beim Tippen). Beschreibung von Blöcken, Inseln und RPC:
+- **Typeset view:** the source stays Typst; before saving the typeset view is translated into Typst, afterwards the
+  rules of the source text hold. The server delivers the typeset view ready-made (no detour through the source text); sections over
+  64 KiB come without a ready-made typeset view. Remembered view: cookie `baruch_editor`. If one arrives through a hit of the
+  literature search (`#fundstelle`), the editor starts in the source text; with the typeset view open, the find spot is highlighted
+  yellow there (does not change the text, disappears when typing). Description of blocks, islands and RPC:
   `docs/WYSIWYG.md`.
-- **Überschrift im Satzbild:** Rückschritt am Anfang eines Absatzes direkt hinter einer Überschrift und Entf am
-  Ende einer Überschrift ziehen den Absatz nicht in die Überschrift (ein leerer Absatz entfällt). Das Satzbild
-  prüft die Titelregeln mit derselben Meldung wie der Server. Teile bietet das Satzbild nicht an (der Server lehnt
-  einen neuen Teil aus dem Satzbild ab); für Teile und Punkte ohne Nummer lässt sich kein Absatzformat wählen,
-  gespeichert wird wieder die Markierung (Kommentar dahinter bleibt).
-- **Blöcke:** `#szene[…]`, `#arbeit[…]` als Kasten; Argumente (`#szene(ort: […])`) und ein Label `<name>` auf der
-  nächsten Zeile stehen klein daneben und bleiben erhalten. `#image("…")` und `#figure(image("…"), caption: […])`
-  erscheinen als Bild, sobald das Bild unter diesem Pfad angelegt ist (auch mit `./`); ein Block mit mehreren
-  `image(…)` zeigt alle. `1. …` nummerierte Liste, `/ Begriff: Erklärung` Begriffsliste, `\` erzwungener Umbruch
-  (↵), `#link("…")[Text]`, `@ziel` als Schaltfläche (Klick zeigt das Label; ändern nur im Quelltext). Inseln:
-  `#let`, `#set`, `#show`, eigene Funktionen, Formeln, Raw-Text, Kommentare, Listen mit gemischten Zeichen; das
-  Verlassen des Inselfelds nach einer Änderung übernimmt ebenfalls. Bibelstelle als Insel `#bibelstelle[…]` (nur
-  wenn die Vorlage `#let bibelstelle(…)` bzw. `#let bibel(…)` definiert, mit dem Namen der Vorlage),
-  Literaturverweis `@schlüssel` (nur mit `#bibliography(…)`); Szene nur mit `#let szene`, Arbeit nur mit
-  `#let arbeit`; Begriff `/ Begriff: …`, Umbruch `\` am Zeilenende. Im Quelltext beginnen Blöcke an einem
-  Zeilenanfang.
-- **Zitat-Knopf:** fügte bis Runde 35 eine Zeile „– “ ein, die ungefüllt als einzelner Gedankenstrich im Buch
-  stand; seit Runde 36 entfällt sie. Stellenangabe direkt unter einem Zitatblock zeigt das
-  Satzbild als Zitat und Absatz (keine Code-Insel).
-- **Speichern:** seit 2026-11-27 normales Speichern ohne Größen- und Zeitgrenze (vorher: neue Fassung nach
-  30 Minuten Pause oder ab 20 % Änderung). Der Dialog „Seite speichern“ des Browsers erscheint auf der
-  Arbeitsseite nicht. Eine eingeschaltete Zeitgrenze zählt ab dem letzten Schreiben der Fassung: Die erste kleine
-  Korrektur an einem älteren, nie fortgeschriebenen Abschnitt ergibt eine neue Fassung („Zeitgrenze
-  überschritten“). Der Editor schickt den geladenen Stand mit; bei anderem Stand entsteht eine neue Fassung („nicht
-  auf der aktuellen Fassung bearbeitet“). Jede Fortschreibung ist ein Commit. Rückmeldung mit JavaScript als
-  Hinweis unten, ohne im Editor-Kopf. Alle anderen Schreibwege (Bild einfügen, Registermarke, Verweis, Ersetzen,
-  Gliederung) legen neue Fassungen an. Lehnt das Speichern ohne JavaScript ab (z. B. ungültige Überschriftenebene),
-  zeigt Baruch Meldung und Text in einem Textfeld („Erneut speichern“). Die Rückfrage „Teilen/Zusammenführen und
-  speichern“ behält den Speichermodus; der Kopf nennt danach Fassung und Grund („Überschrift geändert“).
-- **Einstellungen → Werk → Fassungen** (Anker `#fassungen`): Fortschreiben an/aus, Prozent 1–100 (Vorgabe 20),
-  Minuten 0–1440 (0 = keine Zeitgrenze, Vorgabe 30); nur in der Datenbank (nicht im Austauschformat), jede
-  Änderung ein Protokoll-Commit.
-- **Verlauf:** `/werke/<id>/fassungen/verlauf`; jede Rücknahme ist ein Commit. „Fassung ändern“ an der aktuellen
-  oder einer fortgeschriebenen Fassung ist ein Schritt im Verlauf; ist sie inzwischen in einem anderen Reiter
-  fortgeschrieben, lehnt Baruch ab („Veraltet: …“, das Formular an `/act` reicht `based_on_amend` durch).
-- **Weitere Fassungen:** Link `?rev=`, „aktuell machen“ ohne JavaScript als Formular an `/act`.
-- **Fassungen:** Neue Fassung hat die gezeigte Fassung als Elternteil. Löschen prüft der Server selbst (ohne Haken
-  „Löschen bitte bestätigen.“); Kinder hängen danach am Elternteil; unbekannte Nummer: „Fassung 3 gibt es nicht;
-  vorhanden: 1, 2, 4“. „In der Vorschau probieren“ = `pick` in der Adresse. Jede Übernahme, Umschaltung,
-  Speicherung, Änderung und Löschung ist genau ein Commit (`docs/Architektur.md`); Ändern und Löschen schreiben
-  vorher/nachher bzw. den gelöschten Text in die Commit-Nachricht. Scheitert der Spiegel, bleibt die Änderung
-  gespeichert; der nächste Commit holt nach.
-- **Ausblenden:** Adresse `&fassungen=alle`; die Marke gilt je Abschnitt, steht nur in der Datenbank (nicht im
-  Austauschformat), kein Commit; die Aktion gibt es nur an der aktuellen Fassung und darunter; nach Umschalten auf
-  eine ältere Fassung gilt eine höhere Marke nur bis unter die neue aktuelle. Werkweit: Marke auf die letzte
-  Fassung vor dem Tag (höchstens die aktuelle), ersetzt vorhandene Marken. Über MCP nicht möglich. Der Zähler im
-  Menüband zeigt dasselbe wie der im Editor-Kopf.
-- **Vorschläge im Lesefluss:** Linien mindestens 3 : 1 Kontrast (WCAG 1.4.11); auf dem Blatt, das auch im dunklen
-  Thema hell bleibt (#f4f1ea), gilt die helle Linie. Einklappen: Cookie `baruch_folded`; ohne JavaScript klappt der
-  Browser selbst (nicht über das Neuladen hinweg). Autoren ohne Persona-Eintrag: `@mcp:<name>`. Ein umformulierter
-  Absatz neben einem neuen erscheint als zwei Stücke („geändert“, „eingefügt“).
-- **Bilder:** Seite `/werke/<id>/bilder`, Suche `?q=…` (ohne Groß/Klein, `%` und `_` wörtlich), Vorschau
-  `…/vorschau?b=320` (lädt beim Hinscrollen), ein Bild `/werke/<id>/bilder/<name>[?fassung=n]` mit SHA-256, Bytes
-  `/werke/<id>/bilder/<name>/datei[?fassung=n]`, nach Pfad `/werke/<id>/bilder/pfad?p=<Pfad>` (jede Schreibweise,
-  nie `..`), Anträge `#antraege`, vorgeschlagener Inhalt `/werke/<id>/bilder/antraege/<nr>/datei` (30 Tage nach
-  der Entscheidung entfernt, dann HTTP 410). Name leer = aus dem Dateinamen (klein, unzulässige Zeichen `-`, bei
-  Kollision `-2` vor der Endung); „SVG als Base64 speichern“ („(Base64)“ in der Liste). Spiegel: `bilder/<name>`
-  bzw. `bilder/<name>.b64` (76 Zeichen je Zeile), Commit „Bild <name>: …“. Endung anpassen: `haus.svg` →
-  `haus.png` (vergeben: `haus-2.png`), Pfade bleiben, im EPUB heißt die Datei z. B. `haus.svg.png`. Pfad-Kollision:
-  Commit „Pfad-Kollision … aufgelöst“. Grenzen für Assistenten je Werk in 24 Stunden: 30 Anlagen/Ersetzungsanträge,
-  zusammen 64 MiB, höchstens 10 offene Ersetzungsanträge.
-- **Bild einfügen:** eingefügt wird `#figure(image("<Pfad>", alt: "…"), caption: [...])` als Mensch (ein Commit;
-  der Text der Unterschrift wird maskiert). Ohne Pfad bekommt das Bild `bilder/<name>` zusammen mit der Fassung.
-  Cursorstelle im Quelltext: nächste Zeilengrenze, nie in ein mehrzeiliges Konstrukt (`#footnote[…]`,
-  `#link(…)[…]`). Kapitelbild: erkannt aus einer literalen Liste wie `#let kapitelbilder = ("bilder/a.png", …)` und
-  `image(kapitelbilder.at(counter(heading).get().first() - 1))`, wenn Kapitel die erste Ebene sind; sonst
-  „Kapitelbild fehlt: <Pfad>“ bzw. „Bild aus der Vorlage“.
-- **Zeitwächter:** Sekunden = Wörter × 60 ÷ Wörter je Minute, aufgerundet; Gesamtzeit = Summe der Punkte. Nur in
-  der Datenbank, kein Commit. RPC `work.timing`, `work.timing_set`, `timing.count`; MCP `work_timing` (nur lesend).
-  Zählregeln (`baruch_typst::timing::spoken_words`): (1) CRLF → LF; (2) Kommentare `/* … */` und `//` am
-  Zeilenanfang oder nach Leerraum zählen nicht; (3) Überschriftszeilen und Teil-Markierungen nicht; (4) Raw-Text
-  und Mathe `$…$` nicht; (5) `#name`/`#name.feld` samt Argumenten fällt weg, folgende Inhaltsblöcke `[…]` werden
-  gesprochen – außer `#footnote` und `#arbeit`; Zeilen mit `#set`, `#show`, `#let`, `#import`, `#include` fallen
-  ganz weg; (6) Labels `<…>` und Verweise `@name` fallen weg; (7) `*`, `_` fallen weg, `~` wird Leerzeichen,
-  Listenzeichen am Zeilenanfang fallen weg, `\x` wird `x`; (8) ein Wort ist eine Folge ohne Leerraum mit
-  mindestens einem Buchstaben oder einer Ziffer. Beispiel: `#quote(block: true)[Im Anfang war das Wort.] <zitat>`
-  = 5 Wörter = 3 Sekunden bei 110.
+- **Heading in the typeset view:** Backspace at the start of a paragraph directly behind a heading and Delete at the
+  end of a heading do not pull the paragraph into the heading (an empty paragraph is dropped). The typeset view
+  checks the title rules with the same message as the server. The typeset view does not offer parts (the server refuses
+  a new part from the typeset view); for parts and items without a number no paragraph format can be chosen,
+  the marker is saved again (a comment behind it stays).
+- **Blocks:** `#szene[…]`, `#arbeit[…]` as a box; arguments (`#szene(ort: […])`) and a label `<name>` on the
+  next line stand small next to it and are preserved. `#image("…")` and `#figure(image("…"), caption: […])`
+  appear as an image as soon as the image is created under this path (also with `./`); a block with several
+  `image(…)` shows all of them. `1. …` numbered list, `/ Begriff: Erklärung` term list, `\` forced break
+  (↵), `#link("…")[Text]`, `@ziel` as a button (a click shows the label; change only in the source text). Islands:
+  `#let`, `#set`, `#show`, own functions, formulas, raw text, comments, lists with mixed markers;
+  leaving the island field after a change also takes it over. Bible reference as an island `#bibelstelle[…]` (only
+  if the template defines `#let bibelstelle(…)` or `#let bibel(…)`, with the name of the template),
+  literature reference `@schlüssel` (only with `#bibliography(…)`); scene only with `#let szene`, work assignment only with
+  `#let arbeit`; term `/ Begriff: …`, break `\` at the line end. In the source text blocks begin at a
+  line start.
+- **Quotation button:** until Round 35 it inserted a line „– “ which, unfilled, stood as a single dash in the book;
+  since Round 36 it is dropped. A reference directly below a quotation block is shown by the
+  typeset view as quotation and paragraph (no code island).
+- **Saving:** since 2026-11-27 normal saving without a size and time limit (before: a new revision after
+  30 minutes of pause or from 20 % change). The dialog „Seite speichern“ of the browser does not appear on the
+  work page. A switched-on time limit counts from the last write of the revision: the first small
+  correction to an older section that was never amended yields a new revision („Zeitgrenze
+  überschritten“). The editor sends the loaded state along; with a different state a new revision arises („nicht
+  auf der aktuellen Fassung bearbeitet“). Every amendment is a commit. Feedback with JavaScript as a
+  hint at the bottom, without it in the editor head. All other writing paths (inserting an image, index mark, reference, replacing,
+  outline) create new revisions. If saving without JavaScript is refused (e.g. invalid heading level),
+  Baruch shows the message and the text in a text field („Erneut speichern“). The confirmation „Teilen/Zusammenführen und
+  speichern“ keeps the save mode; the head afterwards names the revision and the reason („Überschrift geändert“).
+- **„Einstellungen → Werk → Fassungen“** (anchor `#fassungen`): amending on/off, percent 1–100 (default 20),
+  minutes 0–1440 (0 = no time limit, default 30); only in the database (not in the exchange format), every
+  change a log commit.
+- **History:** `/werke/<id>/fassungen/verlauf`; every undo is a commit. „Fassung ändern“ on the current
+  or an amended revision is a step in the history; if it has meanwhile been amended in another tab,
+  Baruch refuses („Veraltet: …“, the form to `/act` passes `based_on_amend` through).
+- **Further revisions:** link `?rev=`, „aktuell machen“ without JavaScript as a form to `/act`.
+- **Revisions:** a new revision has the shown revision as its parent. The server itself checks deleting (without the checkbox
+  „Löschen bitte bestätigen.“); children hang on the parent afterwards; unknown number: „Fassung 3 gibt es nicht;
+  vorhanden: 1, 2, 4“. „In der Vorschau probieren“ = `pick` in the address. Every acceptance, switch,
+  save, change and deletion is exactly one commit (`docs/Architektur.md`); changing and deleting write
+  before/after or the deleted text into the commit message. If the mirror fails, the change stays
+  stored; the next commit catches up.
+- **Hiding:** address `&fassungen=alle`; the mark holds per section, stands only in the database (not in the
+  exchange format), no commit; the action exists only at the current revision and below it; after switching to
+  an older revision a higher mark holds only up to below the new current one. Work-wide: mark on the last
+  revision before the day (at most the current one), replaces existing marks. Not possible through MCP. The counter in the
+  ribbon shows the same as the one in the editor head.
+- **Proposals in the reading flow:** lines at least 3 : 1 contrast (WCAG 1.4.11); on the sheet, which stays light even in the dark
+  theme (#f4f1ea), the light line holds. Collapsing: cookie `baruch_folded`; without JavaScript the
+  browser collapses by itself (not across reloads). Authors without a persona entry: `@mcp:<name>`. A rephrased
+  paragraph next to a new one appears as two pieces („geändert“, „eingefügt“).
+- **Images:** page `/werke/<id>/bilder`, search `?q=…` (case-insensitive, `%` and `_` literal), preview
+  `…/vorschau?b=320` (loads when scrolled into view), one image `/werke/<id>/bilder/<name>[?fassung=n]` with SHA-256, bytes
+  `/werke/<id>/bilder/<name>/datei[?fassung=n]`, by path `/werke/<id>/bilder/pfad?p=<Pfad>` (every spelling,
+  never `..`), requests `#antraege`, proposed content `/werke/<id>/bilder/antraege/<nr>/datei` (removed 30 days after
+  the decision, then HTTP 410). Empty name = from the file name (lower case, invalid characters `-`, on
+  collision `-2` before the extension); „SVG als Base64 speichern“ („(Base64)“ in the list). Mirror: `bilder/<name>`
+  or `bilder/<name>.b64` (76 characters per line), commit „Bild <name>: …“. Adjusting the extension: `haus.svg` →
+  `haus.png` (taken: `haus-2.png`), paths stay, in the EPUB the file is called e.g. `haus.svg.png`. Path collision:
+  commit „Pfad-Kollision … aufgelöst“. Limits for assistants per work in 24 hours: 30 creations/replacement requests,
+  together 64 MiB, at most 10 open replacement requests.
+- **Inserting an image:** `#figure(image("<Pfad>", alt: "…"), caption: [...])` is inserted as the human (one commit;
+  the text of the caption is escaped). Without a path the image gets `bilder/<name>` together with the revision.
+  Cursor position in the source text: the next line boundary, never into a multi-line construct (`#footnote[…]`,
+  `#link(…)[…]`). Chapter image: recognised from a literal list such as `#let kapitelbilder = ("bilder/a.png", …)` and
+  `image(kapitelbilder.at(counter(heading).get().first() - 1))`, when chapters are the first level; otherwise
+  „Kapitelbild fehlt: <Pfad>“ or „Bild aus der Vorlage“.
+- **Time keeper:** seconds = words × 60 ÷ words per minute, rounded up; total time = sum of the items. Only in
+  the database, no commit. RPC `work.timing`, `work.timing_set`, `timing.count`; MCP `work_timing` (read only).
+  Counting rules (`baruch_typst::timing::spoken_words`): (1) CRLF → LF; (2) comments `/* … */` and `//` at the
+  line start or after whitespace do not count; (3) heading lines and part markers do not; (4) raw text
+  and maths `$…$` do not; (5) `#name`/`#name.feld` including arguments are dropped, following content blocks `[…]` are
+  spoken – except `#footnote` and `#arbeit`; lines with `#set`, `#show`, `#let`, `#import`, `#include` are dropped
+  entirely; (6) labels `<…>` and references `@name` are dropped; (7) `*`, `_` are dropped, `~` becomes a space,
+  list markers at the line start are dropped, `\x` becomes `x`; (8) a word is a sequence without whitespace with
+  at least one letter or digit. Example: `#quote(block: true)[Im Anfang war das Wort.] <zitat>`
+  = 5 words = 3 seconds at 110.
 
-### Assistenten, Chat und Befunde (`assistenten.md`)
+### „Assistenten, Chat und Befunde“ (`assistenten.md`)
 
-- **Begriffe:** In Code, RPC und MCP heißen die Assistenten „Persona“, das Kürzel „Handle“. Baruch ruft das Modell
-  der Persona über das Modell-Backend Eliezer auf (Einstellungen → Verbindungen).
-- **Aufträge:** Formulare ohne JavaScript an `/assistenten/act`; Fehler zeigt eine Hinweisseite (statt einer
-  Fehlerseite) mit „Zurück zum Abschnitt“, im Chat je Persona, wer nicht geantwortet hat; mit „komprimiert“ der
-  Hinweis und „Weiter zum Abschnitt“. Mit JavaScript der schwebende Hinweis (Toast) unten rechts, der stehen
-  bleibt. Mit Gemma dauert ein Aufruf etwa 25 s. Fordert Baruch neu an, verschwindet das bisher Gezeigte („Antwort
+- **Terms:** in code, RPC and MCP the assistants are called "persona", the short name "handle". Baruch calls the model
+  of the persona through the model backend Eliezer („Einstellungen → Verbindungen“).
+- **Jobs:** forms without JavaScript to `/assistenten/act`; errors show a notice page (instead of an
+  error page) with „Zurück zum Abschnitt“, in the chat per persona who did not answer; with „komprimiert“ the
+  hint and „Weiter zum Abschnitt“. With JavaScript the floating notice (toast) at the bottom right, which stays.
+  With Gemma a call takes about 25 s. If Baruch requests anew, what was shown so far disappears („Antwort
   wird neu angefordert (…)“).
-- **Länge der Antworten:** höchstens 700 (Frage), 900 (Prüfen), 500 (Chat) Token, beim Vorschlag nach der Länge des
-  Abschnitts (höchstens 4096); `BARUCH_MAX_TOKENS` setzt eine kleinere Obergrenze. Abgeschnitten: „… (Antwort
+- **Length of the answers:** at most 700 (question), 900 (review), 500 (chat) tokens, for a proposal by the length of the
+  section (at most 4096); `BARUCH_MAX_TOKENS` sets a smaller upper limit. Cut off: „… (Antwort
   abgeschnitten: Längengrenze erreicht)“.
-- **Warteschlange:** Eliezer bearbeitet einen Auftrag zur Zeit (sonst lädt es ein Modell zweimal; die Grafikkarte
-  des Entwicklungsrechners hat 22 GB), acht warten. Die Kontextlänge der Persona muss zu der passen, mit der
-  Eliezer das Modell lädt (Gemma: 32768); Baruch fordert selbst keine an.
-- **Lektor:** für den Versuch seit 2026-11-06 fest `@lektor` (alle Personas auf einem Modell); das Abzeichen sagt
-  im Titel „fest gewählt“ bzw. „nach größtem Kontext“. Gedächtnis: Einfälle zum Abschnitt und bis zu zehn offene
-  des Werks ohne Bezug. Befunde der anderen: je Abschnitt die letzten drei.
-- **Prompt-Regeln:** verbotene Einleitungen „Als Assistent“, „Als KI“, „Als Sprachmodell“, „Gerne“, „Natürlich“
-  (beginnt auch die zweite Antwort so, fällt ihr erster Satz weg); Bibelverse im Wortlaut nur von `@schrift`;
-  der Hörer liest in der Ich-Perspektive der Zielgruppe. Im Vorschlag entfernt Baruch Zeilen, die mit „Kritisch:“,
-  „Was trägt:“, „Vorschlag:“, „Jetzt wichtig:“, „Kann warten:“ beginnen, einen Codeblock um den Text, und prüft
-  dort keine verbotenen Einleitungen. Der Vermerk „Komprimiert“ steht beim Vorschlag in der Notiz, nie im Buchtext;
-  Notiz beim Kapitel „Vorschlag von @lektor (ganzes Kapitel)“, der Kopf nennt „beruht auf Fassung n“.
-- **Lektor-Vorgabe:** verlangt „Was trägt:“ nur bei einer Prüfung; im Chat geht der Lektor zuerst auf die Nachricht
-  ein (Regel 8 des Prompts); ein eigener Rollen-Prompt bleibt unberührt (bei der Handprüfung auf den Ton achten).
-  „Chat nur Abschnitt“ gilt für alle Werke und steht nur in der Datenbank; die Persona bekommt dann den Abschnitt,
-  Titel und Gliederung (nur Nummern und Titel). Prüfen und Fragen im Bereich „Assistenten“ sehen weiter das Kapitel.
-- **Arbeitsseite ohne JavaScript:** In der Gliederung stehen die Pfeile und „Bearbeiten“ in einer eigenen Zeile
-  unter dem Eintrag; in schmaler Spalte rutscht das Abzeichen „k offen“ unter den Titel. Die Liste „Zitate prüfen“
-  hängt an der ganzen Statuszeile.
-- **„Kritisch:“-Erkennung** (nur noch Nathan als Auditor Pflicht): Zeile, die nach Listenzeichen mit „Kritisch:“
-  beginnt, oder „Kritisch:“ direkt hinter der Angabe des Teils („- III. Zuspruch: Kritisch: …“, fett, mit Zusatz
-  „(Schluss)“ oder nur „II. Kritisch: …“); „Unkritisch:“ oder „… ist kritisch: …“ zählen nicht. Fehlt er nach
-  einmaligem Nachfordern, steht ein Hinweis von Baruch unter dem Beitrag. Lösung in fester Form:
-  `- statt: „Zitat“`, `- besser: „…“` oder `- Schritt: …`; Fortschritt „fehlender Lösungsvorschlag“; bei
-  abgeschnittener Antwort kein Nachfordern.
-- **Prüfauftrag erkannt** an einem Wort, das mit „prüf“, „überprüf“, „nachprüf“, „gegenprüf“, „kontrollier“,
-  „check“ oder „review“ beginnt, oder an einer Befundnummer („[B12]“). Nur eigene, offene Befunde; fremde,
-  unbekannte oder entschiedene Nummern übergeht Baruch; keine doppelte Rückfrage. Sieht die Persona alles
-  umgesetzt, sagt sie „Alle meine Befunde zu diesem Abschnitt scheinen erledigt.“ (dann kein Pflichtbefund).
-  „Ja, erledigt“ setzt „erledigt ohne Änderung“ (Begründung „laut @persona umgesetzt …“); beides ein Commit.
-  Übernommene Befunde zeigen „übernommen in Fassung 3 · Stand 2“.
-- **Kritik-Zyklus:** auch über MCP `ask_persona` mit `rev`. Zeigt die aktuelle Fassung nur die Überschrift und
-  liegt ein Vorschlag mit Text vor, prüfen alle den Vorschlag (Hinweis „aktuelle Fassung enthält nur die
-  Überschrift – Vorschlag n prüfen?“ bei ausdrücklicher Wahl). Nur der Lektor kommentiert fremde Befunde; die
-  übrigen sehen sie als „schon gemeldet“.
-- **Chat:** neu-Marke im LocalStorage `baruch_chat_seen` (eigene Beiträge nie neu; erster Besuch: fremde Beiträge
-  seit dem letzten Besuch irgendeines Abschnitts des Werks; leerer Chat: Merker „war leer“; verglichen werden nur
-  Serverzeiten). Ganze Historie `/beitraege` (Anker `#chat-neueste`), Beitrag `/beitrag`, Fäden `/faeden?work=…`,
-  Faden `/faden?…`. Vervollständigung ohne JavaScript über `datalist`; am Satzanfang nach zwei Buchstaben die
-  Anrede („Le“ → „Lektor, “). Erwähnungen: höchstens drei, jede nur einmal, Groß/Klein egal; inaktive oder
-  unbekannte werden übergangen; RFC hebt die Grenze auf. Live: Abfrage alle drei Sekunden.
-- **Commits:** Löschen eines Beitrags (trägt den ganzen Text; im Faden „Fadenbeitrag n: gelöscht“), Bearbeiten
-  („Beitrag n: bearbeitet“ mit vorher/nachher), Umwandeln in Einfall. Fäden stehen nie im Spiegel: das Bearbeiten
-  eines Fadenbeitrags ergibt keinen Commit (alte Fassung nur in Datenbank und Austauschformat). Nach dem
-  Verschieben stehen die offenen Befunde beim Zielabschnitt, übernommene bleiben beim alten.
-- **MCP:** nur eigene Beiträge (`post_edit`, Verschieben, Löschen, Umwandeln; `docs/MCP.md`). `chat` ohne
-  Abschnitt legt einen Faden an; eine Relay-Stufe, höchstens drei Antworten je Nachricht, jede Persona einmal; je
-  Client höchstens zwei Aufträge zugleich. Alle Clients ohne Token teilen sich je Werk 300 Beiträge in 24 Stunden,
-  100 offene Vorschläge und vier gleichzeitige Modellaufträge (je Name weiter zwei). Relay-Antworten werden bei ↻
-  mit derselben Anrede wiederholt. Ältere Antworten ohne gespeicherten Auftrag: ↻ wiederholt die letzte
-  Nachricht des Menschen davor als Chat.
-- **Sprungmarken im Prompt:** `[key:105] 2.3 Titel`; Personas nennen Stellen als `[[key:105]]` bzw.
-  `[[key:105|„Zitat“]]`; ungeprüfte bleiben Text mit „Sprungmarke ungeprüft: …“. HTML aus einer Antwort wird nie
-  ausgeführt. Der Schlusshinweis („Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft“) steht als Fußzeile.
-- **Befunde:** Seite `/werke/<id>/befunde`; Datei `befunde.md` im Spiegel (nach Teil, Kapitel, Abschnitt, dann
-  Fäden); jede Statusänderung, jeder Vorschlag, jede Entscheidung ein Commit. „Angehängt“: Inhaltswörter ab drei
-  Buchstaben ohne Füllwörter, dazu jede Zahl, Dice-Maß ab 0,8. Matrix zählt höchstens die neuesten 2000 („Gekappt:
-  …“); Liste „Offen, älter als n Tage“ gekappt bei 200. Sammelvorschläge zählen nicht in „k offen“; sind alle
-  Ursprünge entschieden: „veraltet (alle Ursprünge entschieden)“. Anspringen über `find` in der Adresse. Beim
-  ersten Start mit dieser Funktion zerlegt Baruch einmal alle vorhandenen Persona-Antworten. Austauschdatei
-  (`.baruch`, Unterversion 4) trägt Befunde samt Verlauf (`docs/Austauschformat.md`). Lösungen ohne JavaScript an
-  `/loesungen/act`; Varianten `/varianten` (Geschwister im Fassungsbaum; lange Abschnitte als Teilvorschlag).
-  Mindmap: `?befunde=1`.
-- **Websuche:** MultiGPT-Werkzeuge `web_search` (dahinter SearXNG) und `fetch_url`; die ersten drei Rechner der
-  Quellenliste je mit „site:<Rechner> <Anfrage>“; [W1]…[W4], je Seite höchstens 1 500 Zeichen; Seiten über 1 MiB
-  oder ohne Antwort nach 10 s übersprungen; die ganze Websuche höchstens 30 s. Zitatprüfung: ganze Wörter; mit
-  Auslassung „…“ je Stück mindestens drei Wörter, übersprungen höchstens 400 Zeichen; „(unbekannte Quelle)“,
-  „(nicht abgerufen)“; letzte Zeile „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“. Nicht abgerufen werden
-  `localhost`, 127.x, 10.x, 192.168.x, 172.16–31.x, 169.254.x, 100.64–127.x, `fc00::/7`, `fe80::/10`, Namen auf
-  `.local`, `.internal`, `.home.arpa`, `.localhost`, Namen ohne Punkt, Adressen mit Benutzerangaben, andere
-  Schemata; Baruch fragt kein DNS (ein öffentlicher Name auf eine private Adresse wird nicht erkannt). Belegseite
-  `/websuche/belege`; übernommener Beleg = Titel der Art „web“ mit Notiz „Abgerufen am … (Websuche @belege)“.
-  Kein MCP-Werkzeug; über `ask_persona`/`chat` sucht @belege nicht im Web. Ein Vorschlag bekommt keine Websuche.
-  Annahme: Namen und Parameter der MultiGPT-Werkzeuge wie in `connections/multigpt.rs`; gegen einen echten
-  MultiGPT-Dienst und eine echte Suchmaschine prüft nur der Nutzer.
+- **Queue:** Eliezer works on one job at a time (otherwise it loads a model twice; the graphics card
+  of the development machine has 22 GB), eight wait. The context length of the persona must match the one with which
+  Eliezer loads the model (Gemma: 32768); Baruch requests none itself.
+- **Lector:** for the trial since 2026-11-06 fixed `@lektor` (all personas on one model); the badge says
+  in its title „fest gewählt“ or „nach größtem Kontext“. Memory: ideas about the section and up to ten open ones
+  of the work without a reference. Findings of the others: the last three per section.
+- **Prompt rules:** forbidden openings „Als Assistent“, „Als KI“, „Als Sprachmodell“, „Gerne“, „Natürlich“
+  (if the second answer also begins that way, its first sentence is dropped); Bible verses in their wording only from `@schrift`;
+  the listener reads in the first-person perspective of the target group. In a proposal Baruch removes lines that begin with „Kritisch:“,
+  „Was trägt:“, „Vorschlag:“, „Jetzt wichtig:“, „Kann warten:“, a code block around the text, and checks
+  no forbidden openings there. The note „Komprimiert“ stands in the note of a proposal, never in the book text;
+  note for a chapter „Vorschlag von @lektor (ganzes Kapitel)“, the head names „beruht auf Fassung n“.
+- **Lector default:** demands „Was trägt:“ only for a review; in the chat the lector first responds to the message
+  (rule 8 of the prompt); an own role prompt stays untouched (pay attention to the tone during the manual check).
+  „Chat nur Abschnitt“ holds for all works and stands only in the database; the persona then gets the section,
+  title and outline (only numbers and titles). Review and questions in the area „Assistenten“ still see the chapter.
+- **Work page without JavaScript:** in the outline the arrows and „Bearbeiten“ stand in a row of their own
+  below the entry; in a narrow column the badge „k offen“ slips below the title. The list „Zitate prüfen“
+  hangs on the whole status line.
+- **„Kritisch:“ detection** (only Nathan as auditor is still mandatory): a line that begins with „Kritisch:“ after list markers,
+  or „Kritisch:“ directly behind the reference of the part („- III. Zuspruch: Kritisch: …“, bold, with the addition
+  „(Schluss)“ or only „II. Kritisch: …“); „Unkritisch:“ or „… ist kritisch: …“ do not count. If it is missing after
+  one follow-up request, a hint from Baruch stands below the post. Solution in a fixed form:
+  `- statt: „Zitat“`, `- besser: „…“` or `- Schritt: …`; progress „fehlender Lösungsvorschlag“; for a
+  cut-off answer no follow-up request.
+- **Review job recognised** by a word that begins with „prüf“, „überprüf“, „nachprüf“, „gegenprüf“, „kontrollier“,
+  „check“ or „review“, or by a finding number („[B12]“). Only own, open findings; foreign,
+  unknown or decided numbers Baruch skips; no double follow-up question. If the persona sees everything
+  implemented, it says „Alle meine Befunde zu diesem Abschnitt scheinen erledigt.“ (then no mandatory finding).
+  „Ja, erledigt“ sets „erledigt ohne Änderung“ (reason „laut @persona umgesetzt …“); both one commit.
+  Adopted findings show „übernommen in Fassung 3 · Stand 2“.
+- **Critique cycle:** also through MCP `ask_persona` with `rev`. If the current revision shows only the heading and
+  a proposal with text exists, all review the proposal (hint „aktuelle Fassung enthält nur die
+  Überschrift – Vorschlag n prüfen?“ on an explicit choice). Only the lector comments on foreign findings; the
+  others see them as „schon gemeldet“.
+- **Chat:** new mark in the LocalStorage `baruch_chat_seen` (own posts never new; first visit: foreign posts
+  since the last visit of any section of the work; empty chat: flag "was empty"; only server times are
+  compared). Whole history `/beitraege` (anchor `#chat-neueste`), post `/beitrag`, threads `/faeden?work=…`,
+  thread `/faden?…`. Completion without JavaScript through `datalist`; at the sentence start after two letters the
+  form of address („Le“ → „Lektor, “). Mentions: at most three, each only once, case-insensitive; inactive or
+  unknown ones are skipped; RFC lifts the limit. Live: a poll every three seconds.
+- **Commits:** deleting a post (carries the whole text; in a thread „Fadenbeitrag n: gelöscht“), editing
+  („Beitrag n: bearbeitet“ with before/after), turning into an idea. Threads never stand in the mirror: editing
+  a thread post yields no commit (the old revision only in the database and the exchange format). After
+  moving, the open findings stand at the target section, adopted ones stay at the old one.
+- **MCP:** only own posts (`post_edit`, moving, deleting, turning into an idea; `docs/MCP.md`). `chat` without a
+  section creates a thread; one relay stage, at most three answers per message, every persona once; per
+  client at most two jobs at the same time. All clients without a token share per work 300 posts in 24 hours,
+  100 open proposals and four concurrent model jobs (per name still two). Relay answers are repeated on ↻
+  with the same form of address. Older answers without a stored job: ↻ repeats the last
+  message of the human before it as a chat.
+- **Jump labels in the prompt:** `[key:105] 2.3 Titel`; personas name places as `[[key:105]]` or
+  `[[key:105|„Zitat“]]`; unchecked ones stay text with „Sprungmarke ungeprüft: …“. HTML from an answer is never
+  executed. The closing note („Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft“) stands as a footer.
+- **Findings:** page `/werke/<id>/befunde`; file `befunde.md` in the mirror (by part, chapter, section, then
+  threads); every status change, every proposal, every decision one commit. „Angehängt“: content words from three
+  letters on without filler words, plus every number, Dice measure from 0.8. The matrix counts at most the newest 2000 („Gekappt:
+  …“); the list „Offen, älter als n Tage“ capped at 200. Collective proposals do not count in „k offen“; if all
+  origins are decided: „veraltet (alle Ursprünge entschieden)“. Jumping there through `find` in the address. At the
+  first start with this function Baruch once parses all existing persona answers. The exchange file
+  (`.baruch`, minor version 4) carries findings including their history (`docs/Austauschformat.md`). Solutions without JavaScript to
+  `/loesungen/act`; variants `/varianten` (siblings in the revision tree; long sections as a partial proposal).
+  Mind map: `?befunde=1`.
+- **Web search:** MultiGPT tools `web_search` (SearXNG behind it) and `fetch_url`; the first three hosts of the
+  source list each with „site:<Rechner> <Anfrage>“; [W1]…[W4], at most 1 500 characters per page; pages over 1 MiB
+  or without an answer after 10 s skipped; the whole web search at most 30 s. Quotation check: whole words; with
+  an ellipsis „…“ at least three words per piece, at most 400 characters skipped; „(unbekannte Quelle)“,
+  „(nicht abgerufen)“; last line „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“. Not fetched are
+  `localhost`, 127.x, 10.x, 192.168.x, 172.16–31.x, 169.254.x, 100.64–127.x, `fc00::/7`, `fe80::/10`, names ending in
+  `.local`, `.internal`, `.home.arpa`, `.localhost`, names without a dot, addresses with user information, other
+  schemes; Baruch asks no DNS (a public name pointing to a private address is not recognised). Evidence page
+  `/websuche/belege`; an adopted piece of evidence = a title of the kind „web“ with the note „Abgerufen am … (Websuche @belege)“.
+  No MCP tool; through `ask_persona`/`chat` @belege does not search the web. A proposal gets no web search.
+  Assumption: names and parameters of the MultiGPT tools as in `connections/multigpt.rs`; only the user checks against a real
+  MultiGPT service and a real search engine.
 
-### Bibel, Literatur und Quellen (`bibel-quellen.md`)
+### „Bibel, Literatur und Quellen“ (`bibel-quellen.md`)
 
-- **Verszählung:** Zählung „German“ des SWORD-Projekts (Schlachter 1951, `docs/Architektur.md`): „Ps 51,21“,
-  „Neh 3,38“, „1. Kön 5,32“, „Dan 3,33“, „3. Joh 15“. Baruch kennt alle 18 Verszählungen des SWORD-Projekts
-  (Luther, NRSV, Vulg, MT …). Umrechnen über RPC `scripture.map` bzw. MCP `scripture_map`, Vorgabe KJV → German
-  („Joel 2,28–32“ → „Joel 3,1–5“, „Mal 4,1–6“ → „Mal 3,19–24“, „Ps 51,1“ → „Ps 51,3“), nur über eine geprüfte
-  Regeltabelle. Nicht abgebildet: die Psalmen der griechisch-lateinischen Zählungen (LXX, Vulgata, Synodal); für
-  Catholic, Catholic2, Segond und Calvin gibt es keine geprüften Regeln (anders zählende Bücher bleiben
+- **Versification:** the versification „German“ of the SWORD project (Schlachter 1951, `docs/Architektur.md`): „Ps 51,21“,
+  „Neh 3,38“, „1. Kön 5,32“, „Dan 3,33“, „3. Joh 15“. Baruch knows all 18 versifications of the SWORD project
+  (Luther, NRSV, Vulg, MT …). Mapping through RPC `scripture.map` or MCP `scripture_map`, default KJV → German
+  („Joel 2,28–32“ → „Joel 3,1–5“, „Mal 4,1–6“ → „Mal 3,19–24“, „Ps 51,1“ → „Ps 51,3“), only through a checked
+  rule table. Not mapped: the psalms of the Greek-Latin versifications (LXX, Vulgata, Synodal); for
+  Catholic, Catholic2, Segond and Calvin there are no checked rules (books counted differently stay
   „Versifikation passt nicht“).
-- **Module:** Baruch liest SWORD-Module selbst (Treiber zText, RawText; Kompression ZIP, LZSS, BZIP2, XZ;
-  Kommentare RawCom, RawCom4, zCom, zCom4; Lexika RawLD, RawLD4, zLD), ohne libsword. Nicht lesbar: HREFCom,
-  RawFiles, unbekannte Verszählung. Ein Block, der sich zu mehr als 64 MiB entpacken würde, wird abgelehnt.
-  Modulordner = Ordner mit `mods.d/` und `modules/`; Vorgabe `$SWORD_PATH`, dann `~/.sword`, dann
-  `/usr/share/sword`; ein Modulname gilt nur einmal (früherer Ordner gewinnt). `DataPath` relativ zum Modulordner,
-  `..` abgelehnt. Freie Module: CrossWire (`https://www.crosswire.org/sword/modules/`), Installer `installmgr`
-  (Paket `sword-utils`), BibleTime, Xiphos; oder Modul-ZIP
-  (`https://www.crosswire.org/ftpmirror/pub/sword/packages/rawzip/`) entpacken; eigene Module mit `osis2mod`.
-  Lizenzvermerk aus `DistributionLicense`, `Copyright` der conf. Verschlüsselt = `CipherKey=` in der conf;
-  Schlüssel im Schlüsselbund unter `sword-cipher:<modul>`, nie in conf, Datenbank oder Seite. Gespeichert:
-  Modulordner für alle Werke, Bibel je Werk (Migration 0030), Kommentare/Lexika je Werk (Migration 0037, Formular
-  an `POST /einstellungen/werk/bibeln`). RPC `bible.set_dirs`, `bible.set_work`, `bible.cipher_key_set`,
+- **Modules:** Baruch reads SWORD modules itself (drivers zText, RawText; compression ZIP, LZSS, BZIP2, XZ;
+  commentaries RawCom, RawCom4, zCom, zCom4; lexicons RawLD, RawLD4, zLD), without libsword. Not readable: HREFCom,
+  RawFiles, unknown versification. A block that would unpack to more than 64 MiB is refused.
+  Module folder = folder with `mods.d/` and `modules/`; default `$SWORD_PATH`, then `~/.sword`, then
+  `/usr/share/sword`; a module name counts only once (the earlier folder wins). `DataPath` relative to the module folder,
+  `..` refused. Free modules: CrossWire (`https://www.crosswire.org/sword/modules/`), installer `installmgr`
+  (package `sword-utils`), BibleTime, Xiphos; or unpack a module ZIP
+  (`https://www.crosswire.org/ftpmirror/pub/sword/packages/rawzip/`); own modules with `osis2mod`.
+  Licence note from `DistributionLicense`, `Copyright` of the conf. Enciphered = `CipherKey=` in the conf;
+  key in the keyring under `sword-cipher:<modul>`, never in the conf, the database or a page. Stored:
+  module folders for all works, the Bible per work (migration 0030), commentaries/lexicons per work (migration 0037, form
+  to `POST /einstellungen/werk/bibeln`). RPC `bible.set_dirs`, `bible.set_work`, `bible.cipher_key_set`,
   `bible.cipher_key_delete`, `bible.modules`, `bible.set_work_sources`, `bible.work_sources`, `bible.check`,
   `bible.lookup`, `bible.search`, `bible.marks`, `scripture.check`, `commentary.lookup/search`,
-  `lexicon.lookup/keys/search`; MCP nur lesend `bible_modules`, `bible_lookup`, `bible_search`, `scripture_check`,
+  `lexicon.lookup/keys/search`; MCP read only `bible_modules`, `bible_lookup`, `bible_search`, `scripture_check`,
   `commentary_lookup`, `lexicon_lookup`, `lexicon_search`.
-- **Wortlautprüfung:** gelesen wird Klartext ohne Fußnoten, Querverweise und Überschriften (kanonische
-  Psalmüberschriften bleiben). Zitatformen: „…“, “…”, »…«, "…", `#quote[…]`, Blockzitat
-  `#quote(block: true, attribution: [Joh 3,16])[…]` (Stelle in der Zuschreibung, am Ende oder direkt dahinter;
-  auch in `#szene[…]`). Zwischen Stelle und Zitat nur Leerraum, Klammern, Satzzeichen, weitere Stellen derselben
-  Liste oder kurze Einleitungswörter mit Doppelpunkt. Innere Anführungszeichen und mehrere Absätze (wiederholtes
-  Anführungszeichen oder bis zum Schlusszeichen) gelten; Grenzen: gleichartiges Zitat im Zitat, vergessenes
-  Schlusszeichen vor einem Absatz mit demselben Zeichen. Normalisiert: Satzzeichen, Groß/Klein, Bindestriche,
-  Trennungen, Apostrophe, Leerraum, typografische Zeichen, Typst-Auszeichnung (`_…_`, `*…*`, Maskierungen,
-  Fußnoten im Zitat), zerlegte Umlaute. Steht die Stelle am Absatzanfang und das Zitat dahinter, gehört dieses zur
-  Stelle. Trennreste im Modul („die ses“): Vergleich zusätzlich ohne Leerraum → „Wortlaut stimmt (Leerraum im
-  Modul)“, duldet nur zusätzliche Wortgrenzen des Moduls; Hinweis bei auffällig vielen Wortfragmenten.
-- **Stellenerkennung, Einzelheiten:** Bücher mit einem Kapitel („Jud 3“ = Jud 1,3); „4. Mo 25,19“, „5. Mose 6,4“,
-  „4Mo 1,1“; „Joh 3, 1. Joh 4“ sind zwei Stellen; nur mit Vers zählen „Am“, „Mal“, „Mi“, „Ob“, „Hab“, „Ri“, „Tit“,
-  „Da“, „Hi“ („Ob“ nur mit Kapitel und Vers oder Bereich). Keine Stelle vor einem Zahlwort („Johannes 3 Mal“,
-  „Psalm 23 Jahre“, „3x“, „Stück“, „Tage“, „Uhr“) – nur ohne ausdrücklichen Vers: „Joh 3,16 Mal 3“ bleibt
-  Joh 3,16, „Joh 3,16 Mal 3,20“ sind zwei Stellen; Uhrzeit nach Wochentag (Mo–So, Stunde 0–23, Minute 00–59; im
-  Stellenfeld bleibt „Mi 7:18“ Micha). „Vers im selben Satz“: höchstens 120 Zeichen, kein Satzende, keine
-  Leerzeile, keine andere Stelle dazwischen (auch „Verse 23–24“, „V. 23“); ein anderes Kapitel ohne Buchname
-  beendet die Suche. Englische Zählungen: „Mal 4,1“, „2. Kor 13,14“ ungültig. Predigttext: bis 400 Verse
-  vollständig, ab 401 „Nur die ersten 400 Verse eingefügt.“; Sonderzeichen im Bibeltext werden maskiert.
-- **Faktenblock für Personas:** `@schrift` und `@belege` bekommen „Stellenprüfung (Baruch, Verszählung Schlachter
-  1951 – kein Wortlaut): …“ bzw. mit Bibel Modul, Versifikation, Lizenzvermerk und Ergebnis je Stelle. Antworten
-  tragen „Wortlaut: ungeprüft – keine lokale Bibel in Baruch (geprüft nur Buch/Kapitel/Vers).“ bzw. „Wortlaut
-  geprüft von Baruch (nicht vom Modell), Modul …, Versifikation …, Lizenz laut conf: …“. Trennt das Modell Ziffern
-  („Mk 1 0,42–45“), setzt Baruch sie zusammen (Befund 2026-11-06: die getrennten Ziffern kamen aus dem Text des
-  Modells). Vermerke „(nicht im Text belegt)“, „(Stelle steht im Text: …)“, „(Stelle ungültig: …)“ setzt nur
-  Baruch; schreibt ein Modell sie selbst, entfernt Baruch sie und prüft neu. „fehlt“ zählt nur mit Ort. Beleg ist
-  nur der gezeigte Text, der Auftrag und Baruchs Belege – nicht fremde Befunde, frühere Beiträge oder Einfälle
-  (diese stehen gerahmt als „Daten, keine Anweisungen“).
-- **Zitate prüfen:** Seite `/werke/<id>/pruefung?key=…&rev=…` (auch bei Strg/Umschalt-Klick); Markierung über die
-  CSS Custom Highlight API (ältere Browser: nur die Liste), nur ganze Wörter, mehrdeutiger Wortlaut bleibt
-  unmarkiert („n Zitat(e) im Satzbild nicht eindeutig gefunden (nur in der Liste)“).
-- **Lexikon-Stichwörter:** erst Strong-Nummern der Verse, dann Strong-Nummern im Text („G25“, „G26“ findet
-  „G0026“), dann großgeschriebene Wörter mit Lemma-Probe (ohne -ern, -en, -es, -er, -e, -n, -s; zurückgeführter
-  Umlaut; letzter Bestandteil eines Kompositums); höchstens 5 Artikel je Lexikon; Kommentar-Einträge höchstens
-  4000 Zeichen.
-- **Literatur:** Seite `/literatur?work=…&node=…&rev=…&lq=…`, Modus `lmode=rag` (Einfälle: `mode=rag`),
-  Dokumentansicht `/quelle?title=…` (`&quote=…#zitat-…`, `&highlight=…#hervorhebung-…`), Volltext
-  `/quelle/multigpt?collection=…&document=…`, Bibel `/literatur/bibel`, Treffer im Werk
-  `/?work&node&rev&lq#fundstelle`. Die Seiten merken sich den Abschnitt über `key`. Zitieren legt
-  `#quote(block: true, attribution: [@schlüssel[Stelle]])[…]` bzw. `[Ps 139,23–24 (Modul)]` an, Urheber
-  `@literatur`. Bibeltreffer im Suchfeld: je Bibel höchstens 10, höchstens drei Bibeln, 3 s. Volltext in Teilen zu
-  höchstens 20 000 Zeichen; Antwort über 4 MiB wird abgelehnt; Felder „Anfang/Ende im Volltext“ (Zeichen ab 0);
-  Zitierschlüssel übernommener MultiGPT-Dokumente `mg-…`. Eine Suche nur aus Steuerzeichen: „Keine Treffer.“
-- **Bedeutungssuche:** Wege LanceDB, pgvector, MultiGPT; Treffer mehrerer Wege einmal („gefunden von …“,
-  Reciprocal Rank Fusion); Links nur bei sicherer Adresse (im Werk `/…`, sonst http/https). Von einer fremden
-  Seite geöffnet (`Sec-Fetch-Site`/`Origin`) sucht Baruch nicht nach Bedeutung und lädt keinen Volltext.
-  Höchstens vier Suchen fragen gleichzeitig die Remote-Wege (danach nach 20 s „Zu viele gleichzeitige Suchen …“).
-  `weak` in `rag.search` und MCP `rag_search`. Weitere Einzelheiten unter „Einstellungen“.
-- **Abgleich:** Seite `/abgleich`. Dokumenttitel „<Nummer> <Titel>“; ein Teil und Abschnitte vor dem ersten
-  Kapitel je ein eigenes Dokument; die Sammlung wird beim Einschalten festgehalten. Scheitert das Löschen des
-  alten Dokuments, löscht es der nächste Abgleich. Beiträge lädt der Abgleich nicht hoch (anders als im Plan;
-  vorgemerkt im Backlog). Geholte Dokumente: Art `remote`; 30 s je Anfrage; unvollständige Listen löschen keine
-  lokale Kopie; Rechte `docs.write`/`docs.read`; ohne Dokument-ID Hinweis statt erneutem Hochladen; verlorene
-  Antworten meldet der nächste Abgleich; „Verbindung prüfen“ beendet ihre Sitzung bei MultiGPT. Annahme: Werkzeuge
+- **Wording check:** plain text without footnotes, cross-references and headings is read (canonical
+  psalm titles stay). Quotation forms: „…“, “…”, »…«, "…", `#quote[…]`, block quotation
+  `#quote(block: true, attribution: [Joh 3,16])[…]` (reference in the attribution, at the end or directly behind it;
+  also in `#szene[…]`). Between reference and quotation only whitespace, brackets, punctuation, further references of the same
+  list or short introductory words with a colon. Inner quotation marks and several paragraphs (repeated
+  quotation mark or up to the closing mark) count; limits: a quotation of the same kind inside a quotation, a forgotten
+  closing mark before a paragraph with the same mark. Normalised: punctuation, case, hyphens,
+  hyphenations, apostrophes, whitespace, typographic characters, Typst markup (`_…_`, `*…*`, escapes,
+  footnotes in the quotation), decomposed umlauts. If the reference stands at the start of a paragraph and the quotation behind it, the latter belongs to the
+  reference. Hyphenation remnants in the module („die ses“): an additional comparison without whitespace → „Wortlaut stimmt (Leerraum im
+  Modul)“, tolerates only additional word boundaries of the module; a hint for conspicuously many word fragments.
+- **Reference detection, details:** books with one chapter („Jud 3“ = Jud 1,3); „4. Mo 25,19“, „5. Mose 6,4“,
+  „4Mo 1,1“; „Joh 3, 1. Joh 4“ are two references; only with a verse count „Am“, „Mal“, „Mi“, „Ob“, „Hab“, „Ri“, „Tit“,
+  „Da“, „Hi“ („Ob“ only with chapter and verse or a range). No reference before a numeral word („Johannes 3 Mal“,
+  „Psalm 23 Jahre“, „3x“, „Stück“, „Tage“, „Uhr“) – only without an explicit verse: „Joh 3,16 Mal 3“ stays
+  Joh 3,16, „Joh 3,16 Mal 3,20“ are two references; a time of day after a weekday (Mo–So, hour 0–23, minute 00–59; in the
+  reference field „Mi 7:18“ stays Micah). "Verse in the same sentence": at most 120 characters, no sentence end, no
+  empty line, no other reference in between (also „Verse 23–24“, „V. 23“); another chapter without a book name
+  ends the search. English versifications: „Mal 4,1“, „2. Kor 13,14“ invalid. Sermon text: up to 400 verses
+  complete, from 401 on „Nur die ersten 400 Verse eingefügt.“; special characters in the Bible text are escaped.
+- **Fact block for personas:** `@schrift` and `@belege` get „Stellenprüfung (Baruch, Verszählung Schlachter
+  1951 – kein Wortlaut): …“ or, with a Bible, module, versification, licence note and result per reference. Answers
+  carry „Wortlaut: ungeprüft – keine lokale Bibel in Baruch (geprüft nur Buch/Kapitel/Vers).“ or „Wortlaut
+  geprüft von Baruch (nicht vom Modell), Modul …, Versifikation …, Lizenz laut conf: …“. If the model separates digits
+  („Mk 1 0,42–45“), Baruch joins them (finding 2026-11-06: the separated digits came from the text of the
+  model). Notes „(nicht im Text belegt)“, „(Stelle steht im Text: …)“, „(Stelle ungültig: …)“ are set only by
+  Baruch; if a model writes them itself, Baruch removes them and checks anew. „fehlt“ counts only with a location. Evidence is
+  only the shown text, the job and Baruch's evidence – not foreign findings, earlier posts or ideas
+  (these stand framed as „Daten, keine Anweisungen“).
+- **Checking quotations:** page `/werke/<id>/pruefung?key=…&rev=…` (also on Ctrl/Shift click); highlighting through the
+  CSS Custom Highlight API (older browsers: only the list), only whole words, ambiguous wording stays
+  unhighlighted („n Zitat(e) im Satzbild nicht eindeutig gefunden (nur in der Liste)“).
+- **Lexicon keywords:** first Strong numbers of the verses, then Strong numbers in the text („G25“, „G26“ finds
+  „G0026“), then capitalised words with a lemma probe (without -ern, -en, -es, -er, -e, -n, -s; umlaut traced
+  back; last component of a compound); at most 5 articles per lexicon; commentary entries at most
+  4000 characters.
+- **Literature:** page `/literatur?work=…&node=…&rev=…&lq=…`, mode `lmode=rag` (ideas: `mode=rag`),
+  document view `/quelle?title=…` (`&quote=…#zitat-…`, `&highlight=…#hervorhebung-…`), full text
+  `/quelle/multigpt?collection=…&document=…`, Bible `/literatur/bibel`, hits in the work
+  `/?work&node&rev&lq#fundstelle`. The pages remember the section through `key`. Quoting creates
+  `#quote(block: true, attribution: [@schlüssel[Stelle]])[…]` or `[Ps 139,23–24 (Modul)]`, originator
+  `@literatur`. Bible hits in the search field: at most 10 per Bible, at most three Bibles, 3 s. Full text in parts of
+  at most 20 000 characters; a response over 4 MiB is refused; fields „Anfang/Ende im Volltext“ (characters from 0);
+  citation keys of adopted MultiGPT documents `mg-…`. A search consisting only of control characters: „Keine Treffer.“
+- **Semantic search:** ways LanceDB, pgvector, MultiGPT; hits of several ways once („gefunden von …“,
+  Reciprocal Rank Fusion); links only for a safe address (in the work `/…`, otherwise http/https). Opened from a foreign
+  page (`Sec-Fetch-Site`/`Origin`), Baruch does not search by meaning and loads no full text.
+  At most four searches ask the remote ways at the same time (after that, after 20 s „Zu viele gleichzeitige Suchen …“).
+  `weak` in `rag.search` and MCP `rag_search`. Further details under „Einstellungen“.
+- **Reconciliation:** page `/abgleich`. Document title „<Nummer> <Titel>“; a part and sections before the first
+  chapter each a document of its own; the collection is fixed when switching on. If deleting the
+  old document fails, the next reconciliation deletes it. The reconciliation does not upload posts (unlike in the plan;
+  noted in the backlog). Fetched documents: kind `remote`; 30 s per request; incomplete lists delete no
+  local copy; permissions `docs.write`/`docs.read`; without a document id a hint instead of uploading again; lost
+  responses are reported by the next reconciliation; „Verbindung prüfen“ ends its session at MultiGPT. Assumption: tools
   `search_documents`, `read_document`, `list_collections`, `document_info`, `list_documents`, `upload_document`,
-  `delete_document` mit den Parametern aus `connections/multigpt.rs`; geprüft gegen einen Nachbau.
+  `delete_document` with the parameters from `connections/multigpt.rs`; checked against a mock.
 
-### Einfälle und Mindmap (`einfaelle.md`)
+### „Einfälle und Mindmap“ (`einfaelle.md`)
 
-- **Seiten:** Liste `/einfaelle` (`?work=<id>|none|all&word=&status=open|done|all&q=&deleted=1`, Bedeutung
-  `&mode=rag`), ein Einfall `/einfaelle/{id}`, Mindmap `/werke/{id}/karte` (alte Lesezeichen der Gedankenkarte
-  gelten weiter; `?befunde=1`, eingeklappt `zu=<Kennungen>`), Gliederungsansicht `/werke/{id}/karte/gliederung`,
-  Einlesen `/werke/{id}/karte/einlesen`.
-- **Einfall:** Doppelte Schlagwörter (auch in anderer Groß-/Kleinschreibung) fallen zusammen; kein Zeilenumbruch
-  im Schlagwort. Quelle aus der Literatur: „Literatur: <Titel>“. Löschen prüft der Server. Verarbeiten: Titel aus
-  den Schlagwörtern („Laube, Rosen“, höchstens 200 Zeichen, Titelregeln der Gliederung); Punkt und „verarbeitet“
-  entstehen in einem Schritt; Beitrag mit Autor „Autor“ bzw. „Notiz“, Markierung als `> …`, Quelle „Einfall <id>“
-  bzw. „Einfall 3 von @belege“ / „… von @mcp:claude-code“ (Autor des Beitrags bleibt, wer verarbeitet).
-- **Spiegel:** Jede Aktion (anlegen, ändern, löschen, wiederherstellen, verarbeiten, jede Aktion und Umkehr auf
-  der Mindmap) ist ein Commit mit Herkunft: `works/<slug>/einfaelle.md` bzw. ohne Werk `<data>/einfaelle/`
-  (`einfaelle.md`); der Lösch-Commit trägt den ganzen Eintrag.
-- **Assistenten:** voller Zugriff auf Einfälle (Entscheidung IDEA_CRUD; MCP `idea_create`, `idea_update`,
-  `idea_delete`, `idea_move`, `idea_link` …). `idea_create` ohne `parent` und `key` legt in die Wolke. Noch nicht
-  umgesetzt: Der Lektor schlägt von sich aus passende Stellen vor.
-- **Mindmap:** die erste Hälfte der Hauptäste steht rechts, die zweite links. Gespeicherte Lagen der alten
-  Gedankenkarte bleiben in der Datenbank, wirken aber nicht. Ist ein Ende einer Beziehung eingeklappt, endet die
-  Linie am sichtbaren Vorfahren; Beschriftungen suchen sich einen freien Platz auf deckendem Grund (in einer
-  vollen Karte ein Stück neben der Linie). „widerspricht“ ohne Pfeil, Strich-Punkt. Nähe wird nie gespeichert
-  (gespeicherte Einbettungen oder gleiche Schlagwörter, bestes Paar). „Gruppen benennen (Assistent)“: Vorschläge
-  mit Übernehmen/Verwerfen, nur bis zum Neustart. Eingeklapptes in `localStorage` je Werk; Ausschnitt bis zum
-  Schließen des Tabs. Umschalt+Tab und Tab ohne gewählten Knoten bleiben beim Browser. Strg/Umschalt+Klick auf den
-  Titel öffnet den Einfall bzw. Abschnitt als Link. An Kapitel, Teil und Werk wirkt Enter wie Tab (am Werk: freies
-  Hauptthema). Einfall auf den oberen/unteren Rand eines Einfalls ziehen ordnet davor/dahinter ein. Dunkles Thema:
-  Bildlaufleiste am Fensterrand in den Farben der Seite. Menüband der Seite: Gruppen als
-  `details.band-group[data-band-group]` – Knoten, Ansicht, Ausgabe, Einlesen, Gliederungsansicht, Zurück.
-- **Tasten am Mac (aus `mindmap.ts`):** Alt+E und Alt+L werten auch `event.code` aus (KeyE, KeyL) und gehen darum
-  mit ⌥; Strg+Z und das Mausrad werten `ctrlKey || metaKey` aus.
-- **Stand der Prüfung:** Die Tests prüfen die Aufrufe, die das Widget absetzt, und das Bild, das der Server danach
-  liefert; in der Sichtprüfung lief es in Firefox mit künstlichen Ereignissen. Echte Maus und Tastatur, Zoom und
-  Pfeiltasten sind Handprüfung (`HANDOFF.md`).
-- **Ausgabe:** `.xmind` = ZIP mit `content.json`, `metadata.json`, `manifest.json`; `.mm` FreeMind/Freeplane;
-  `.svg`; `.pdf` (A4 quer, Titel und Filter); `.md`. In `.svg`/`.pdf` bleibt Eingeklapptes eingeklappt, in `.mm`
-  und `.xmind` nie. Übertragung: Titel (Kapitel mit Nummer, „1 Helling“); Notiz (`notes.plain.content` bzw.
-  `richcontent TYPE="NOTE"`, je Zeile ein Absatz); Schlagwörter (`labels` bzw. Attribut „Schlagwort“);
-  Beziehungen (`relationships` mit `end1Id`, `end2Id`, `title` bzw. `arrowlink` mit `MIDDLE_LABEL`; Beschriftung =
-  Art und Notiz; `.mm` färbt je Art); nicht: Status, Herkunft, Bezug (nur in `.md`), Zitat, Quelle, Bibelstelle,
-  Lagen, Bilder, Stile, Marker.
-- **Einlesen:** HTML-Notizen werden reiner Text; Beziehungen kommen als „führt weiter“ mit der Beschriftung als
-  Notiz; das Hauptthema der Datei wird nicht selbst zum Einfall; der eigene Ast „Wolke“ wird an seiner Kennung
-  (`baruch-wolke`) erkannt, nicht am Titel; „unter Knoten …“ kennt keine Wolke. Ein Commit, Herkunft Mensch.
-  Grenzen: `.xmind`-Archiv höchstens 50 Einträge und 20 MiB entpackt; höchstens 20 Schlagwörter je Knoten; `.mm`
-  nur UTF-8 oder ASCII; XMind-8 (nur `content.xml`) abgelehnt. Nicht gelesen: weitere Blätter (Hinweis),
-  Zusammenfassungen, Sprechblasen, Bilder, Marker, Stile, andere Attribute, `richcontent TYPE="DETAILS"`.
-- **Annahmen zu XMind und Freeplane (nicht geprüft, Handprüfung des Nutzers):** Der Aufbau der `.xmind`-Datei
-  folgt der offenen Beschreibung des Formats aus dem Gedächtnis; geprüft ist nur die Rundreise mit dem eigenen
-  Leser.
+- **Pages:** list `/einfaelle` (`?work=<id>|none|all&word=&status=open|done|all&q=&deleted=1`, meaning
+  `&mode=rag`), one idea `/einfaelle/{id}`, mind map `/werke/{id}/karte` (old bookmarks of the idea map
+  keep working; `?befunde=1`, collapsed `zu=<Kennungen>`), outline view `/werke/{id}/karte/gliederung`,
+  reading in `/werke/{id}/karte/einlesen`.
+- **Idea:** duplicate keywords (also in different upper/lower case) collapse; no line break
+  in a keyword. Source from the literature: „Literatur: <Titel>“. The server checks deleting. Processing: title from
+  the keywords („Laube, Rosen“, at most 200 characters, title rules of the outline); the item and „verarbeitet“
+  arise in one step; a post with the author „Autor“ or „Notiz“, the selection as `> …`, source „Einfall <id>“
+  or „Einfall 3 von @belege“ / „… von @mcp:claude-code“ (the author of the post stays whoever processes).
+- **Mirror:** every action (create, change, delete, restore, process, every action and reversal on
+  the mind map) is a commit with origin: `works/<slug>/einfaelle.md` or, without a work, `<data>/einfaelle/`
+  (`einfaelle.md`); the delete commit carries the whole entry.
+- **Assistants:** full access to ideas (decision IDEA_CRUD; MCP `idea_create`, `idea_update`,
+  `idea_delete`, `idea_move`, `idea_link` …). `idea_create` without `parent` and `key` puts it into the cloud. Not yet
+  implemented: the lector suggests fitting places on its own.
+- **Mind map:** the first half of the main branches stands on the right, the second on the left. Stored positions of the old
+  idea map stay in the database, but have no effect. If one end of a relation is collapsed, the
+  line ends at the visible ancestor; labels look for a free place on an opaque background (in a
+  full map a little beside the line). „widerspricht“ without an arrow, dash-dot. Nearness is never stored
+  (stored embeddings or equal keywords, best pair). „Gruppen benennen (Assistent)“: suggestions
+  with accept/discard, only until the restart. Collapsed state in `localStorage` per work; the viewport until
+  the tab is closed. Shift+Tab and Tab without a chosen node stay with the browser. Ctrl/Shift+click on the
+  title opens the idea or section as a link. At chapter, part and work Enter acts like Tab (at the work: a free
+  main topic). Dragging an idea onto the upper/lower edge of an idea orders it before/after. Dark theme:
+  the scroll bar at the window edge in the colours of the page. Ribbon of the page: groups as
+  `details.band-group[data-band-group]` – „Knoten“, „Ansicht“, „Ausgabe“, „Einlesen“, „Gliederungsansicht“, „Zurück“.
+- **Keys on the Mac (from `mindmap.ts`):** Alt+E and Alt+L also evaluate `event.code` (KeyE, KeyL) and therefore work
+  with ⌥; Ctrl+Z and the mouse wheel evaluate `ctrlKey || metaKey`.
+- **State of verification:** the tests check the calls that the widget issues, and the picture that the server then
+  delivers; in the visual check it ran in Firefox with synthetic events. Real mouse and keyboard, zoom and
+  arrow keys are a manual check (`HANDOFF.md`).
+- **Output:** `.xmind` = ZIP with `content.json`, `metadata.json`, `manifest.json`; `.mm` FreeMind/Freeplane;
+  `.svg`; `.pdf` (A4 landscape, title and filter); `.md`. In `.svg`/`.pdf` collapsed stays collapsed, in `.mm`
+  and `.xmind` never. Transfer: title (chapter with number, „1 Helling“); note (`notes.plain.content` or
+  `richcontent TYPE="NOTE"`, one paragraph per line); keywords (`labels` or the attribute „Schlagwort“);
+  relations (`relationships` with `end1Id`, `end2Id`, `title` or `arrowlink` with `MIDDLE_LABEL`; label =
+  kind and note; `.mm` colours per kind); not: status, origin, reference (only in `.md`), quotation, source, Bible reference,
+  positions, images, styles, markers.
+- **Reading in:** HTML notes become plain text; relations come as „führt weiter“ with the label as the
+  note; the main topic of the file does not itself become an idea; the own branch „Wolke“ is recognised by its identifier
+  (`baruch-wolke`), not by its title; „unter Knoten …“ knows no cloud. One commit, origin human.
+  Limits: `.xmind` archive at most 50 entries and 20 MiB unpacked; at most 20 keywords per node; `.mm`
+  only UTF-8 or ASCII; XMind 8 (only `content.xml`) refused. Not read: further sheets (hint),
+  summaries, callouts, images, markers, styles, other attributes, `richcontent TYPE="DETAILS"`.
+- **Assumptions about XMind and Freeplane (not checked, manual check by the user):** the structure of the `.xmind` file
+  follows the open description of the format from memory; only the round trip with the own
+  reader is checked.
 
-  | Annahme | Risiko, falls sie nicht stimmt |
+  | Assumption | Risk if it does not hold |
   |---|---|
-  | XMind (2020 und neuer) öffnet ein ZIP mit `content.json`, `metadata.json`, `manifest.json` ohne `content.xml` und ohne Vorschaubild | Datei öffnet nicht |
-  | `content.json` ist ein Feld von Blättern mit `id`, `class: "sheet"`, `title`, `rootTopic`, `relationships` | Blatt wird nicht erkannt |
-  | Themen: `id`, `class: "topic"`, `title`, `children.attached`, `notes.plain.content`, `labels` | Notizen oder Etiketten fehlen |
-  | `structureClass: "org.xmind.ui.map.unbalanced"` verteilt die Äste rechts und links | andere Anordnung |
-  | Themen-ids dürfen beliebige Texte sein (`i:12`, `n:7`, `baruch-wolke`) | Beziehungen oder Themen fehlen |
-  | `relationships`: `id`, `end1Id`, `end2Id`, `title` genügen | Beziehungslinien fehlen |
-  | `manifest.json` mit `file-entries` für beide Dateien | Warnung beim Öffnen |
-  | Beim Einlesen: freie Themen unter `children.detached`, HTML-Notizen unter `notes.realHTML.content` | Inhalte fehlen nach dem Einlesen |
-  | Freeplane liest `MIDDLE_LABEL` und zeigt Attribute an; FreeMind 1.0.1 übergeht `MIDDLE_LABEL` | Beschriftung fehlt in der Anzeige |
-  | Freeplane schreibt Beschriftungen als `MIDDLE_LABEL` (sonst `SOURCE_LABEL`/`TARGET_LABEL`), Notizen als `richcontent TYPE="NOTE"` | Beschriftung oder Notiz fehlt nach dem Einlesen |
+  | XMind (2020 and newer) opens a ZIP with `content.json`, `metadata.json`, `manifest.json` without `content.xml` and without a preview image | file does not open |
+  | `content.json` is an array of sheets with `id`, `class: "sheet"`, `title`, `rootTopic`, `relationships` | sheet is not recognised |
+  | Topics: `id`, `class: "topic"`, `title`, `children.attached`, `notes.plain.content`, `labels` | notes or labels are missing |
+  | `structureClass: "org.xmind.ui.map.unbalanced"` distributes the branches right and left | a different arrangement |
+  | Topic ids may be arbitrary texts (`i:12`, `n:7`, `baruch-wolke`) | relations or topics are missing |
+  | `relationships`: `id`, `end1Id`, `end2Id`, `title` suffice | relation lines are missing |
+  | `manifest.json` with `file-entries` for both files | warning when opening |
+  | On reading in: free topics under `children.detached`, HTML notes under `notes.realHTML.content` | contents are missing after reading in |
+  | Freeplane reads `MIDDLE_LABEL` and shows attributes; FreeMind 1.0.1 skips `MIDDLE_LABEL` | the label is missing in the display |
+  | Freeplane writes labels as `MIDDLE_LABEL` (otherwise `SOURCE_LABEL`/`TARGET_LABEL`), notes as `richcontent TYPE="NOTE"` | label or note is missing after reading in |
 
-### Suchen, Verweise, Register und Glossar (`suchen.md`)
+### „Suchen, Verweise, Register und Glossar“ (`suchen.md`)
 
-- **Suche:** Seite `/suche`
-  (`/suche?work=W&q=…&range=…&key=…&sel=1,2,3&case=1&word=1&re=1&kinds=text,heading`); Markierung aus dem Editor
-  `range=selection&start=…&end=…` (UTF-16, Bereich „Markierung im Editor (Zeichen a–b)“); gezeigte Fassung
-  `shown_rev=n` bzw. `rev=shown` (nur für Abschnitt und Markierung; Vorschau und Ersetzen gelten immer der aktuellen
-  Fassung). Treffer-Links `/?work=W&key=K&find=…&at=…`. Ohne Teile ist der Bereich „Teil“ das ganze Werk.
-- **Regeln:** Gesucht wird im Typst-Quelltext. Im Wortlaut-Modus findet ein Typst-Sonderzeichen auch seine
-  maskierte Form („C#“ findet „C\#“), der Ersatz wird maskiert. Regulärer Ausdruck: Syntax des Rust-Crates `regex`,
-  Gruppen `$1` bzw. `${name}`, Ersatz wörtlich im Quelltext. Treffer: Vorgabe 500 gezeigt, höchstens 2000 (mehr
-  werden gezählt); nach „abgebrochen“ geht Ersetzen erst mit kleinerem Bereich. Die Vorschau zeigt nur ganze
-  Abschnitte mit zusammen höchstens 2000 Stellen; über 8 MiB eingesetzter Text: „Zu viele Ersetzungen auf einmal“.
-  Die Vorschau startet nicht auf Anfrage einer fremden Seite (403). Ein Abschnitt, dessen aktuelle Fassung seit
-  der Vorschau eine andere ist, wird mit Grund übersprungen.
-- **Commits:** „Ersetzt „x“ → „y“ in n Abschnitten“ (ein Commit für alle), „Ersetzen rückgängig: …“. MCP sucht nur
-  (`text_search`); Vorschläge dort über `propose_revision`.
-- **Tasten (aus `search_keys.ts`):** Strg gilt auch als ⌘ (`ctrlKey || metaKey`); Buchstaben über `code`, darum
-  gehen Alt+C/W/R/L am Mac mit ⌥. ⌘H fängt macOS in der Regel selbst ab (Fenster ausblenden) – am Mac nicht
-  geprüft; Ctrl+H erreicht den Browser. Nach „Alle“ geht „⌶“ wieder aus. Bei offenem Satzbild schaltet der Editor
-  nach dem Ersetzen auf den Quelltext. Auf `/suche` schalten Alt+C/W/R die Kästchen, wenn der Fokus im Such- oder
-  Ersatzfeld steht.
-- **Sprungmarken:** Jeder Gliederungspunkt hat `<k{Schlüssel}>` (etwa `<k103>`), nur in Export, Spiegel,
-  Satz-Ansicht und PDF: am Zeilenende der Überschrift (`= Einleitung <k103>`); Teile, Punkte ohne Nummer und
-  Überschriften mit eigenem Label behalten ihr Label und bekommen darunter `#metadata("baruch-key") <k103>`. Beim
-  ersten Start mit dieser Funktion ändert sich jeder Spiegel einmal (ein Commit je Werk). Eingefügt wird
-  `#link(<k103>)[die Einleitung]` bzw. mit Seitenzahl
-  `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]`. Ohne JavaScript schreibt man die
-  Form selbst; `xref.targets` bzw. `/verweise` (`?key=K`) nennen die Marken. Strg+Klick wirkt auch auf
-  `<kN>`/`#link(<kN>)` im Quelltext. Sprungverlauf je Browser-Tab (`sessionStorage`); „Vorwärts“ nur als Knopf.
-  Beim Wiedereinlesen eines Exports verschwinden die Marken aus den Überschriften, die Verweise zeigen auf die
-  neuen Schlüssel. Im EPUB interne Links auf die Überschrift in der Kapiteldatei. Gezählte Nennungen („das dritte
-  Kapitel“) nur für Kapitel mit Nummer. Ist die Werk-Einstellung „Verweis mit Seitenzahl“ ungesetzt, merkt sich
-  der Browser die letzte Wahl; gesetzt gilt eine Änderung im Dialog nur für diesen Verweis.
-- **Glossar und Register:** Seiten `/werke/{id}/glossar`, `/werke/{id}/register` (`?key=K`: Abschnitt mit „Marke
-  setzen“), `/werke/{id}/markierung?key=K&rev=R`; ohne Werk `/werke`. Registermarke im Text:
-  `#metadata((register: "stichwort", term: "Gnade"))<baruch-idx>`; nie in Überschriften, Code, Kommentaren, Raw
-  oder einer anderen Marke; Meldung „… trägt an der gewählten Fundstelle schon diese Registermarke; nichts
-  geändert“; „alle“ setzt nur fehlende. Eigene Register: Kennung aus Kleinbuchstaben, Ziffern, Bindestrich
-  (z. B. `orte`), Titel bis 80 Zeichen, höchstens 13. Registervorschläge werden „veraltet“, wenn das Wort fehlt
-  oder die Marke schon trägt; sie bleiben auf ihrer Instanz. Verworfene Glossarvorschläge hinterlassen einen
-  Grabstein (kommen beim Austausch nicht wieder). RPC `glossary.suggest`; MCP `glossary_list`,
-  `glossary_propose`, `index_propose`. Spiegel: Datei `glossar.md`, jede Änderung ein Commit. Austauschdatei
-  (Unterversion 7) trägt Glossar samt Vorschlägen, eigene Register und die Satz-Einstellungen dafür; höchstens
-  5000 Glossarbegriffe, Registertitel höchstens 80 Zeichen (sonst wird die Datei ganz abgelehnt).
-- **Im Satz:** Register- und Glossarseiten entstehen nur beim Herausschreiben (Typst-Export, Spiegel,
-  Satz-Vorschau, PDF, EPUB) ab der Zeile `// Baruch: Register und Glossar`; der gespeicherte Text bleibt. Der
-  Export lässt sich mit `typst compile` ohne Paket und ohne Netz setzen (geprüft mit dem eingebetteten Compiler).
-  Im EPUB `Glossar` und je Register eine eigene Datei am Ende. Bibelstellenregister: nicht aus Kommentaren, Code
-  oder Überschriften; Reihenfolge der biblischen Bücher. Beim Wiedereinlesen bleiben die Registermarken des
-  Menschen; die Hervorhebung der ersten Erwähnung ohne Glossarseite bleibt als gewöhnliche Hervorhebung.
-  Ende-zu-Ende geprüft in `tests/round31_abnahme.rs`.
+- **Search:** page `/suche`
+  (`/suche?work=W&q=…&range=…&key=…&sel=1,2,3&case=1&word=1&re=1&kinds=text,heading`); selection from the editor
+  `range=selection&start=…&end=…` (UTF-16, range „Markierung im Editor (Zeichen a–b)“); shown revision
+  `shown_rev=n` or `rev=shown` (only for section and selection; preview and replacing always apply to the current
+  revision). Hit links `/?work=W&key=K&find=…&at=…`. Without parts the range „Teil“ is the whole work.
+- **Rules:** the search runs in the Typst source text. In wording mode a Typst special character also finds its
+  escaped form („C#“ finds „C\#“), the replacement is escaped. Regular expression: syntax of the Rust crate `regex`,
+  groups `$1` or `${name}`, replacement literal in the source text. Hits: default 500 shown, at most 2000 (more
+  are counted); after „abgebrochen“ replacing only works with a smaller range. The preview shows only whole
+  sections with together at most 2000 places; over 8 MiB of inserted text: „Zu viele Ersetzungen auf einmal“.
+  The preview does not start on the request of a foreign page (403). A section whose current revision has
+  changed since the preview is skipped with a reason.
+- **Commits:** `Ersetzt „x“ → „y“ in n Abschnitten` (one commit for all), „Ersetzen rückgängig: …“. MCP only searches
+  (`text_search`); proposals there through `propose_revision`.
+- **Keys (from `search_keys.ts`):** Ctrl also counts as ⌘ (`ctrlKey || metaKey`); letters through `code`, therefore
+  Alt+C/W/R/L work on the Mac with ⌥. macOS usually catches ⌘H itself (hide window) – not checked on the
+  Mac; Ctrl+H reaches the browser. After „Alle“ „⌶“ switches off again. With the typeset view open the editor switches
+  to the source text after replacing. On `/suche` Alt+C/W/R toggle the checkboxes when the focus is in the search or
+  replacement field.
+- **Jump labels:** every outline item has `<k{Schlüssel}>` (such as `<k103>`), only in export, mirror,
+  typeset page and PDF: at the line end of the heading (`= Einleitung <k103>`); parts, items without a number and
+  headings with their own label keep their label and get `#metadata("baruch-key") <k103>` below it. At the
+  first start with this function every mirror changes once (one commit per work). What is inserted is
+  `#link(<k103>)[die Einleitung]` or, with a page number,
+  `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]`. Without JavaScript one writes the
+  form oneself; `xref.targets` or `/verweise` (`?key=K`) name the labels. Ctrl+click also works on
+  `<kN>`/`#link(<kN>)` in the source text. Jump history per browser tab (`sessionStorage`); „Vorwärts“ only as a button.
+  When an export is read in again, the labels disappear from the headings, the references point to the
+  new keys. In the EPUB internal links to the heading in the chapter file. Counted mentions („das dritte
+  Kapitel“) only for chapters with a number. If the work setting „Verweis mit Seitenzahl“ is unset,
+  the browser remembers the last choice; when set, a change in the dialog holds only for this reference.
+- **Glossary and index:** pages `/werke/{id}/glossar`, `/werke/{id}/register` (`?key=K`: section with „Marke
+  setzen“), `/werke/{id}/markierung?key=K&rev=R`; without a work `/werke`. Index mark in the text:
+  `#metadata((register: "stichwort", term: "Gnade"))<baruch-idx>`; never in headings, code, comments, raw
+  or another mark; message „… trägt an der gewählten Fundstelle schon diese Registermarke; nichts
+  geändert“; „alle“ only sets missing ones. Own indexes: identifier of lower-case letters, digits, hyphen
+  (e.g. `orte`), title up to 80 characters, at most 13. Index proposals become „veraltet“ when the word is missing
+  or already carries the mark; they stay on their instance. Discarded glossary proposals leave a
+  tombstone (they do not come back on exchange). RPC `glossary.suggest`; MCP `glossary_list`,
+  `glossary_propose`, `index_propose`. Mirror: file `glossar.md`, every change a commit. The exchange file
+  (minor version 7) carries the glossary including proposals, own indexes and the typesetting settings for them; at most
+  5000 glossary terms, index titles at most 80 characters (otherwise the file is refused entirely).
+- **In typesetting:** index and glossary pages arise only when writing out (Typst export, mirror,
+  typesetting preview, PDF, EPUB) from the line `// Baruch: Register und Glossar` on; the stored text stays. The
+  export can be typeset with `typst compile` without a package and without a network (checked with the embedded compiler).
+  In the EPUB `Glossar` and a file of its own per index at the end. Bible reference index: not from comments, code
+  or headings; order of the biblical books. On reading in again the index marks of the
+  human stay; the emphasis of the first mention without a glossary page stays as an ordinary emphasis.
+  Checked end to end in `tests/round31_abnahme.rs`.
 
-### Buchsatz: PDF, E-Book und Umschlag (`buchsatz.md`)
+### „Buchsatz: PDF, E-Book und Umschlag“ (`buchsatz.md`)
 
-- **Adressen:** Satz `/werke/<id>/satz?key=<schlüssel>` (Abschnitt `#druckpruefung`), PDF `/werke/<id>/pdf`
-  (`<slug>.pdf`), Umschlag `/werke/<id>/umschlag`, Umschlag-PDF `/werke/<id>/umschlag.pdf`
-  (`<slug>-umschlag.pdf`), EPUB `/werke/{id}/epub` (`?fussnoten=endnoten`), Vorschau `/werke/{id}/epub/vorschau`,
-  Prüfung `/werke/<id>/epub/pruefung`, EPUBCheck `POST /werke/epub/pruefen`, Stichwortzettel
-  `/werke/<id>/stichwortzettel` und `…/stichwortzettel.pdf?format=…&schrift=…` (`<slug>-stichwortzettel.pdf`),
-  Word `/werke/<id>/word` (`<ordnername>.docx`). Entwurf: jede Ausgabe mit `?entwurf=1` bzw. `?entwurf=0`
+- **Addresses:** typesetting `/werke/<id>/satz?key=<schlüssel>` (section `#druckpruefung`), PDF `/werke/<id>/pdf`
+  (`<slug>.pdf`), cover `/werke/<id>/umschlag`, cover PDF `/werke/<id>/umschlag.pdf`
+  (`<slug>-umschlag.pdf`), EPUB `/werke/{id}/epub` (`?fussnoten=endnoten`), preview `/werke/{id}/epub/vorschau`,
+  check `/werke/<id>/epub/pruefung`, EPUBCheck `POST /werke/epub/pruefen`, keyword notes
+  `/werke/<id>/stichwortzettel` and `…/stichwortzettel.pdf?format=…&schrift=…` (`<slug>-stichwortzettel.pdf`),
+  Word `/werke/<id>/word` (`<ordnername>.docx`). Draft: every output with `?entwurf=1` or `?entwurf=0`
   (`/pdf`, `/stichwortzettel.pdf`, `/epub`, `/umschlag.pdf`, `/satz`).
-- **Satz-Seite:** lädt kein JavaScript (Thema-Zeichen führt zu Einstellungen → Darstellung, „Einstellungen“ öffnet
-  die Seite, kein Alt+, und keine Pfeiltasten). Eine Seite, die zwei Kapitel teilen, steht in der Liste beider;
-  ein lebender Kolumnentitel zählt nicht als Text des Kapitels. Meldungen mit Zeile und Spalte im Export.
-  Fehlende Schrift: „Schrift „x“ fehlt; ersetzt durch eingebettete Schrift“. Pakete (`#import "@preview/…"`):
-  „Typst-Pakete werden nicht geladen (offline)“. `image("/x")`, `image("./x")`, `image("x")` finden dasselbe Bild.
-  Nach 60 s „Typst brauchte länger als 60 s“ (503); Zwischenspeicher höchstens 8 Stände und 192 MiB Seiten.
-  Abbrechen: „Der Satz wurde abgebrochen. Es wurde nicht neu gesetzt.“ / „Es lief kein Satz, der abzubrechen
-  war.“; wartende Anfragen 503. Typst lässt sich nicht mitten im Rechnen anhalten: Es hört nach dem Umbruch auf;
-  eine lange Schleife der Vorlage läuft zu Ende. Von einer fremden Website starten Satz-Seite, Seitenbilder und
-  PDF keinen Satz (403). Druckprüfung, Beispiel: „Bild „umschlag.png“: 142 dpi bei 14,8 × 21,6 cm – für 300 dpi
-  braucht es 1748 × 2552 Pixel“; SVG erscheint nie; sie zählt nicht zu den Fehlern von Typst.
-- **Satz-Einstellungen:** Tabelle `work_typeset`, jede Änderung ein Commit; Regelblock `// Baruch: Satz` hinter
-  der Werkvorlage in `main.typ`, Export, Satz-Vorschau, Buch-PDF und Umschlag – nur wenn mindestens eine
-  Einstellung gesetzt ist. Ändern nur der Mensch (MCP `typeset_settings` liest). Anker `#satz`. Grenzen und
-  Einzelheiten: Bundsteg leer = 0; Absatzmaß leer = 1 bzw. 0,5 em; Sprache z. B. `de`, `en`, `de-CH`; Zählung „ab
-  dem ersten Kapitel“: die erste Kapitelseite trägt die 1, ein Querverweis „S. n“ nennt die gedruckte Zahl; der
-  Werktitel für den Kolumnentitel kommt aus `#set document(title: …)`; der Umbruch des Kapitelanfangs gilt im
-  Export auch vor einem Teil; bei Absätzen mit Einzug bleibt der erste Absatz nach einer Überschrift ohne Einzug.
-  Übernehmbare Regel: `#show heading.where(level: 1): it => { pagebreak(weak: true, to: "odd"); it }` (auch
-  abgewandelt, mehrzeilig oder `it => [#pagebreak() #it]`); Übernehmen = neue Fassung der Werkvorlage ohne die
-  Zeile, ein Commit. Vorschaubilder liegen nur im Zwischenspeicher. „Erzeugte Typst-Regeln“ zeigt den Block.
-  Seitenmaß des Umschlags folgt der ersten Buchseite; der Rücken rechnet mit der Seitenzahl samt Leerseiten.
-- **Satzbild-Einstellungen** (Anker `#satzbild`, nur SQLite, nicht im Spiegel und nicht im Austauschformat):
-  Schrift als Liste wie in CSS (höchstens 200 Zeichen, ohne `; < > { }`), Größe 6–48 pt, Satzbreite 6–60 cm mit
-  `pt`, `mm`, `cm`, `em`, Farben `#rrggbb`; „Alles aus der Vorlage“ nimmt alle zurück.
-- **Entwurf:** Text höchstens 40, Zusatz 120 Zeichen; Datum = Tag der Ausgabe in Ortszeit; Deckkraft 5–50 %
-  (Vorgabe 12 %); auf dem Umschlag-PDF nur mit Häkchen (dann Warnung der Druckprüfung); EPUB: Hinweis auf der
-  Titelseite und „(Entwurf)“ im Titel; Export, Spiegel und erzeugte Regeln bleiben ohne Wasserzeichen.
-- **PDF:** Fehler 422 (Seite mit Meldungen), 409 („Für dieses Werk entsteht gerade ein PDF …“), 503 nach 120 s.
-  Kommandozeile `baruch-server export <id|slug> --pdf DATEI [--data ORDNER]`: vorhandene Datei Exit 1 („… gibt es
-  schon; nichts überschrieben“), Satzfehler Exit 1, `--pdf` mit `--out` Exit 2; Warnungen der Druckprüfung auf
-  stderr. `pdfinfo` (poppler 25.03) meldet bei allen PDFs „Syntax Error: Suspects object is wrong type
-  (boolean)“ – harmlos: Typst schreibt `/MarkInfo << /Marked true /Suspects false >>` (PDF/UA); gemessen im Test
+- **Typeset page:** loads no JavaScript (the theme symbol leads to „Einstellungen → Darstellung“, „Einstellungen“ opens
+  the page, no Alt+, and no arrow keys). A page that two chapters share stands in the list of both;
+  a living running head does not count as text of the chapter. Messages with line and column in the export.
+  Missing font: `Schrift „x“ fehlt; ersetzt durch eingebettete Schrift`. Packages (`#import "@preview/…"`):
+  „Typst-Pakete werden nicht geladen (offline)“. `image("/x")`, `image("./x")`, `image("x")` find the same image.
+  After 60 s „Typst brauchte länger als 60 s“ (503); cache at most 8 states and 192 MiB of pages.
+  Cancelling: „Der Satz wurde abgebrochen. Es wurde nicht neu gesetzt.“ / „Es lief kein Satz, der abzubrechen
+  war.“; waiting requests 503. Typst cannot be stopped in the middle of computing: it stops after the layout;
+  a long loop of the template runs to its end. From a foreign website the typeset page, page images and
+  PDF start no typesetting (403). Print check, example: `Bild „umschlag.png“: 142 dpi bei 14,8 × 21,6 cm – für 300 dpi
+  braucht es 1748 × 2552 Pixel`; SVG never appears; it does not count among the errors of Typst.
+- **Typesetting settings:** table `work_typeset`, every change a commit; rule block `// Baruch: Satz` behind
+  the work template in `main.typ`, export, typesetting preview, book PDF and cover – only when at least one
+  setting is set. Only the human changes them (MCP `typeset_settings` reads). Anchor `#satz`. Limits and
+  details: binding offset empty = 0; paragraph spacing empty = 1 or 0.5 em; language e.g. `de`, `en`, `de-CH`; counting „ab
+  dem ersten Kapitel“: the first chapter page carries the 1, a cross-reference „S. n“ names the printed number; the
+  work title for the running head comes from `#set document(title: …)`; the break at the chapter start also holds in the
+  export before a part; with indented paragraphs the first paragraph after a heading stays without indentation.
+  Adoptable rule: `#show heading.where(level: 1): it => { pagebreak(weak: true, to: "odd"); it }` (also
+  varied, multi-line or `it => [#pagebreak() #it]`); adopting = a new revision of the work template without the
+  line, one commit. Preview images lie only in the cache. „Erzeugte Typst-Regeln“ shows the block.
+  The page size of the cover follows the first book page; the spine computes with the page count including blank pages.
+- **Typeset view settings** (anchor `#satzbild`, SQLite only, not in the mirror and not in the exchange format):
+  font as a list as in CSS (at most 200 characters, without `; < > { }`), size 6–48 pt, text width 6–60 cm with
+  `pt`, `mm`, `cm`, `em`, colours `#rrggbb`; „Alles aus der Vorlage“ resets all of them.
+- **Draft:** text at most 40, addition 120 characters; date = day of the output in local time; opacity 5–50 %
+  (default 12 %); on the cover PDF only with the checkbox (then a warning of the print check); EPUB: a note on the
+  title page and „(Entwurf)“ in the title; export, mirror and generated rules stay without a watermark.
+- **PDF:** error 422 (page with messages), 409 („Für dieses Werk entsteht gerade ein PDF …“), 503 after 120 s.
+  Command line `baruch-server export <id|slug> --pdf DATEI [--data ORDNER]`: an existing file exit 1 („… gibt es
+  schon; nichts überschrieben“), typesetting error exit 1, `--pdf` with `--out` exit 2; warnings of the print check on
+  stderr. `pdfinfo` (poppler 25.03) reports for all PDFs „Syntax Error: Suspects object is wrong type
+  (boolean)“ – harmless: Typst writes `/MarkInfo << /Marked true /Suspects false >>` (PDF/UA); measured in the test
   `round21_bilder`.
-- **Umschlag:** Blöcke je Fläche in mm ab der Schnittkante oben links (negativ = im Beschnitt; y zwischen −50 und
-  1000); Farbe `light`, `dark` oder `#rrggbb`; Freitext/Motto höchstens 1000 Zeichen; Einrasten bis 1,5 mm. Ohne
-  JavaScript trägt die Adresse die Werte als `b.<Art>.<Feld>=…` (z. B. `?b.front_title.y_mm=40`). Schnellwahl und
-  Zurücksetzen sind je ein Commit. Sobald ein Block gespeichert ist, setzt Baruch den Umschlag aus den Blöcken
-  (Vorschau, Umschlag-PDF, Vorder-/Rückseite im Buch-PDF). Schrift ohne Auswahl: die erste aus dem letzten
-  `#set text(font: …)` auf oberster Ebene. Höhe der Blöcke misst Typst mit den Text- und Absatzregeln der
-  Werkvorlage (`#set text(…)`/`#set par(…)` am Zeilenanfang; nicht Schrift, Größe, Farbe). Eigene Schriftdateien
-  hochladen geht noch nicht. Namensschilder der Rückenblöcke nur am gewählten Block. Kontrast: WCAG unter 3 : 1,
-  gemessen im Rasterbild samt Schatten/Verlauf; SVG nicht gemessen; Bilder über 20 000 Pixel Kantenlänge „nicht
-  gemessen“. Rücken-Rechnung: „Rücken 1,5 mm = 30 Buchseiten (15 Blatt) × 0,1 mm je Blatt (die 3 Umschlagseiten
-  im Satz zählen nicht)“. Löschen des Umschlagbilds entfernt zuerst den Umschlag (Commit „Umschlag entfernt“); ein
-  bestätigter Umschlag-Antrag ist ein Commit „Bildantrag n bestätigt: …“. RPC `cover.layout`; MCP `cover_layout`
-  liest, `cover_layout_set` stellt nur einen Antrag.
-- **Buchangaben:** Jahr vierstellig; ISBN-13 mit oder ohne Bindestriche, Präfix 978/979, gespeichert wie
-  eingegeben; einzeilige Felder 200 Zeichen, Klappentext 4000, Kurzbiografie 2000, Widmung, Rechtehinweis,
-  Bildnachweis 1000, Anschriften 500; ungültig 422; Commit „Buchangaben geändert: …“.
-- **Titelei aus der Werkvorlage:** Funktionen `#let schmutztitel(buch) = …`, `haupttitel`, `impressum`, `widmung`;
-  `buch` ist ein Wörterbuch aus Zeichenketten: `titel`, `untertitel`, `autor`, `verlag`, `verlag_anschrift`,
+- **Cover:** blocks per face in mm from the trim edge at the top left (negative = in the bleed; y between −50 and
+  1000); colour `light`, `dark` or `#rrggbb`; free text/motto at most 1000 characters; snapping up to 1.5 mm. Without
+  JavaScript the address carries the values as `b.<Art>.<Feld>=…` (e.g. `?b.front_title.y_mm=40`). Quick choice and
+  reset are one commit each. As soon as a block is stored, Baruch typesets the cover from the blocks
+  (preview, cover PDF, front/back in the book PDF). Font without a choice: the first one from the last
+  `#set text(font: …)` at the top level. Typst measures the height of the blocks with the text and paragraph rules of the
+  work template (`#set text(…)`/`#set par(…)` at the line start; not font, size, colour). Uploading own font files
+  does not work yet. Name tags of the spine blocks only at the chosen block. Contrast: WCAG below 3 : 1,
+  measured in the raster image including shadow/gradient; SVG not measured; images over 20 000 pixels of edge length „nicht
+  gemessen“. Spine computation: „Rücken 1,5 mm = 30 Buchseiten (15 Blatt) × 0,1 mm je Blatt (die 3 Umschlagseiten
+  im Satz zählen nicht)“. Deleting the cover image first removes the cover (commit „Umschlag entfernt“); a
+  confirmed cover request is a commit „Bildantrag n bestätigt: …“. RPC `cover.layout`; MCP `cover_layout`
+  reads, `cover_layout_set` only files a request.
+- **Book data:** year with four digits; ISBN-13 with or without hyphens, prefix 978/979, stored as
+  entered; single-line fields 200 characters, blurb 4000, short biography 2000, dedication, rights notice,
+  picture credits 1000, addresses 500; invalid 422; commit „Buchangaben geändert: …“.
+- **Front matter from the work template:** functions `#let schmutztitel(buch) = …`, `haupttitel`, `impressum`, `widmung`;
+  `buch` is a dictionary of strings: `titel`, `untertitel`, `autor`, `verlag`, `verlag_anschrift`,
   `ort`, `jahr`, `auflage`, `isbn`, `preis`, `reihe`, `druck`, `druck_anschrift`, `bibel`, `bibel_hinweis`,
   `bildnachweis`, `widmung`, `klappentext`, `vita`, `copyright`, `dnb_titel`, `dnb_text`, `gesetzt`,
-  `impressum_zeilen`. Reihenfolge: Schmutztitel, Seite 2 (Reihe bzw. leer), Haupttitel, Impressum (Hinweis der
-  Deutschen Nationalbibliothek, ©-Zeile, Auflage, ISBN, Bibelübersetzung, Bildnachweis, „Gesetzt mit Baruch“,
-  Druck), Widmung samt Leerseite. Neue Bücher bekommen die Impressum-Vorlage angehängt. Anschriften: Verlag nach
-  der ©-Zeile, Druckerei hinter „Druck:“, Zeilen mit Komma verbunden. Rückseite: Strichcode EAN-13 bzw.
-  Platzhalter.
-- **EPUB:** EPUB 3 mit `toc.ncx` für EPUB-2-Leser; ohne Typst-Satz, kein Commit; `break-before` im Stil.
-  Titelbild: gesetzte Vorderseite als PNG bis 1600 × 2560 Pixel; scheitert das, die Bilddatei mit Warnung
-  `COVER_RASTER_FAILED`. Sprache: Satz-Einstellung, sonst `#set text(lang: …)`, sonst Deutsch. Hinweiscodes:
+  `impressum_zeilen`. Order: half title, page 2 (series or empty), main title, imprint (note of the
+  German National Library, © line, edition, ISBN, Bible translation, picture credits, „Gesetzt mit Baruch“,
+  printer), dedication including a blank page. New books get the imprint template appended. Addresses: publisher after
+  the © line, printer behind „Druck:“, lines joined with a comma. Back: barcode EAN-13 or
+  placeholder.
+- **EPUB:** EPUB 3 with `toc.ncx` for EPUB 2 readers; without Typst typesetting, no commit; `break-before` in the style.
+  Cover image: the typeset front as PNG up to 1600 × 2560 pixels; if that fails, the image file with the warning
+  `COVER_RASTER_FAILED`. Language: typesetting setting, otherwise `#set text(lang: …)`, otherwise German. Hint codes:
   `ISLAND_OMITTED`, `IMAGE_NO_ALT`, `IMAGE_MISSING`, `ARGS_OMITTED`, `TEMPLATE_PAGEBREAK_MAPPED`,
-  `TEMPLATE_PAGEBREAK_UNMAPPED` (RPC `work.epub`, MCP `epub_export`, CLI stderr). Gleicher Stand, gleiche Bytes;
-  ohne Abschnitt 422; fremde Seite 403. Ein Verweis `@name` auf eine Abbildung zeigt „Abbildung n“; eine Fußnote
-  in einer Fußnote steht hinter ihrer äußeren. Profile der Vorschau: Apple Books (iPhone, iPad), Google Play
-  Books, „Kindle (über EPUB)“, „Kindle-App (über EPUB)“, wählbar tolino, Kobo, Thorium Reader, calibre – Annahmen
-  ohne Gerät; Popup-Fußnoten erscheinen als Kasten; unbekannte Reader/Dateien 404 mit Hinweis; Pfeiltasten in
-  einer Auswahlliste laden nicht neu (Enter bestätigt). Prüfung: `mimetype` als erster unkomprimierter Eintrag,
-  `META-INF/container.xml`, Paketdokument, Manifest, Spine, nav, NCX; Wohlgeformtheit mit `xmllint --noout
-  --nonet`, sonst quick-xml. EPUBCheck: `epubcheck` im PATH, sonst das eingestellte `epubcheck.jar` mit
-  `java -jar`; höchstens 3 Minuten, einer zur Zeit; MCP `epub_check` bekommt nur die eigene Prüfung.
-- **Stichwortzettel:** Markierung `// Stichwort: …` (Groß/Klein egal), sonst `*…*` und `#strong[…]`, sonst erster
-  Satz je Absatz. Kein Satzende nach Ziffer („1. Kor“) und nach Abkürzungen („z. B.“, „d. h.“, „u. a.“, „bzw.“,
-  „vgl.“, „usw.“, „ca.“, „Nr.“, „S.“, „Kap.“, „V.“, „etc.“, „ggf.“, „evtl.“ …). Nicht gezählt: Überschriften,
-  Kommentare, `#set`/`#show`/`#let`/`#import`/`#include`, Raw, Mathe, `#footnote[…]`, `#arbeit[…]`; tiefer als
-  32 Ebenen fällt weg; `@name` fällt weg (ein `@` mitten im Wort bleibt). Bibelstellen einheitlich, jede einmal.
-  A5 hoch Vorgabe 16 pt, Karten 14 pt. Fehler 409/422/503 wie beim PDF. Kommandozeile
+  `TEMPLATE_PAGEBREAK_UNMAPPED` (RPC `work.epub`, MCP `epub_export`, CLI stderr). Same state, same bytes;
+  without a section 422; foreign page 403. A reference `@name` to a figure shows „Abbildung n“; a footnote
+  in a footnote stands behind its outer one. Profiles of the preview: Apple Books (iPhone, iPad), Google Play
+  Books, „Kindle (über EPUB)“, „Kindle-App (über EPUB)“, selectable tolino, Kobo, Thorium Reader, calibre – assumptions
+  without a device; popup footnotes appear as a box; unknown readers/files 404 with a hint; arrow keys in
+  a selection list do not reload (Enter confirms). Check: `mimetype` as the first uncompressed entry,
+  `META-INF/container.xml`, package document, manifest, spine, nav, NCX; well-formedness with `xmllint --noout
+  --nonet`, otherwise quick-xml. EPUBCheck: `epubcheck` in the PATH, otherwise the configured `epubcheck.jar` with
+  `java -jar`; at most 3 minutes, one at a time; MCP `epub_check` gets only the own check.
+- **Keyword notes:** mark `// Stichwort: …` (case-insensitive), otherwise `*…*` and `#strong[…]`, otherwise the first
+  sentence per paragraph. No sentence end after a digit („1. Kor“) and after abbreviations („z. B.“, „d. h.“, „u. a.“, „bzw.“,
+  „vgl.“, „usw.“, „ca.“, „Nr.“, „S.“, „Kap.“, „V.“, „etc.“, „ggf.“, „evtl.“ …). Not counted: headings,
+  comments, `#set`/`#show`/`#let`/`#import`/`#include`, raw, maths, `#footnote[…]`, `#arbeit[…]`; deeper than
+  32 levels is dropped; `@name` is dropped (an `@` in the middle of a word stays). Bible references uniform, each once.
+  A5 portrait default 16 pt, cards 14 pt. Errors 409/422/503 as for the PDF. Command line
   `baruch-server export <id|slug> --stichwort DATEI [--format a5|karten] [--schrift PT] [--data ORDNER]`
-  („Stichwortzettel geschrieben: DATEI (n Seiten, m Bytes)“; falsche Kombinationen Exit 2).
-- **Word-Export:** Formatvorlagen „Überschrift 1–3“ (tiefere „Überschrift 4–6“), „Baruch Teil“, „Baruch ohne
-  Nummer 1–3“, „Zitat“, „Baruch Zitatquelle“, Zeichenvorlage „Baruch Zitat“; Tabellen aus
-  `#table(columns: …, […], …)` (auch `table.header`); Bilder PNG, JPEG, GIF eingebettet; Typst-Inseln mit
-  verborgenem Quelltext. Warnungen (RPC, CLI): `docx_typst_insel`, `docx_bild_fehlt`,
-  `docx_tabelle_vereinfacht`, `docx_weitere_vorschlaege`; die Seite im Browser liefert ohne Bericht.
-  Änderungsverfolgung: wortweise; neue/gestrichene Abbildung als Absatz; bei Tabellen bleibt das leere Gitter;
-  Seitenumbrüche nicht verfolgt; Ebenenwechsel einer Überschrift als gestrichen und neu. Ausgeblendete Fassungen
-  zählen nicht. Kommandozeile
-  `baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]`. Über MCP gibt es ihn nicht.
-- **Typst-Kommandozeile:** `baruch-typst compile buch.typ buch.pdf` bzw. `baruch-server typst compile …`
-  (`docs/Verteilung.md`, „Typst-Kommandozeile“).
+  („Stichwortzettel geschrieben: DATEI (n Seiten, m Bytes)“; wrong combinations exit 2).
+- **Word export:** styles „Überschrift 1–3“ (deeper „Überschrift 4–6“), „Baruch Teil“, „Baruch ohne
+  Nummer 1–3“, „Zitat“, „Baruch Zitatquelle“, character style „Baruch Zitat“; tables from
+  `#table(columns: …, […], …)` (also `table.header`); images PNG, JPEG, GIF embedded; Typst islands with
+  hidden source text. Warnings (RPC, CLI): `docx_typst_insel`, `docx_bild_fehlt`,
+  `docx_tabelle_vereinfacht`, `docx_weitere_vorschlaege`; the page in the browser delivers without a report.
+  Change tracking: word by word; a new/struck figure as a paragraph; for tables the empty grid stays;
+  page breaks not tracked; a level change of a heading as struck and new. Hidden revisions
+  do not count. Command line
+  `baruch-server export ID|SLUG --docx DATEI [--vorschlaege] [--data ORDNER]`. It does not exist through MCP.
+- **Typst command line:** `baruch-typst compile buch.typ buch.pdf` or `baruch-server typst compile …`
+  (`docs/Verteilung.md`, "Typst command line").
 
-### Austausch, Sicherung und Sicherheit (`austausch-sicherung.md`)
+### „Austausch, Sicherung und Sicherheit“ (`austausch-sicherung.md`)
 
-- **Austausch:** Format in `docs/Austauschformat.md`. Ausgeben `/werke/{id}/austausch` (ohne Werk zur Werkliste):
-  `.baruch` = ZIP-Container mit dem Werk als XML, den Bildern als eigene Dateien und einem Manifest mit Prüfsummen;
-  `.baruch.xml` = eine XML-Datei mit Bildern als Base64. Umfang auch: Grabsteine gelöschter Teile, Mindmap mit
-  Verbindungen (auch gelöschte) und gemerkten Lagen (Unterversion 2), Befunde samt Verlauf (Unterversion 4),
-  Glossar und Register (Unterversion 7), Verlauf der Fortschreibungen. Nicht darin: Schlüssel und Token,
-  Verbindungen (Modelle, MultiGPT, pgvector), Personas samt Modellen, offene Anträge, die berechnete Nähe, Bibel-
-  und Literaturtexte, Konten, Sitzungen, Freigaben, die Einstellungen „Fassungen“ und „Satzbild“, Marken zum
-  Ausblenden. Kommandozeile `baruch-server export ID|SLUG --baruch DATEI [--data ORDNER]` (endet `DATEI` auf
-  `.xml`, nur XML; vorhandene Datei Exit 1; mit `--out`, `--pdf`, `--stichwort` Exit 2; Ausgabe nennt Werk,
-  Kennung, Größe, SHA-256). RPC `work.exchange_export`, MCP `exchange_export` (nur lesend, höchstens 4 MiB).
-- **Einlesen:** `/austausch/einlesen`; Abweichungs-Links `/?work=W&key=K&rev=R`; Commit „Austausch aus
-  <Instanz>“. Eine Verbindung der Mindmap, die es schon gibt (gleiche Einfälle, gleiche Art), kommt nicht doppelt;
-  eine Lage nur für Einfälle ohne eigene. Wurde ein Punkt drüben über die Gliederung umbenannt, reist die Fassung
-  mit der neuen Überschrift mit: Hinweis „Umschalten genügt“ statt eines Antrags. Unbekanntes aus einer neueren
-  Datei wird nicht übernommen. Vorspulen nur für die eigene aktuelle Fassung und nur, wenn die Schritte der Datei
-  den neuen Text lückenlos ergeben; Fassungen von Personas oder MCP-Clients, Vorschläge und abgelöste Fassungen
-  werden nie überschrieben („abweichende Fassung“). Ein neuer Teil aus der Datei entsteht nach Zustimmung „mit
-  Kennung und n Fassungen“ genau wie drüben (Text, Herkunft, Status, Verlauf). Befunde, die es hier schon gibt,
-  behalten Status, Begründung und Verlauf („… 2 Einträge im Verlauf der Datei nicht übernommen“). Umschlag-Blöcke
-  kommen in Normalform an (Schriftname ohne Leerraum am Rand, Farbe klein, Zeilenenden `\n`); ein Block, den die
-  Prüfung des Editors ablehnt, wird übernommen und steht unter den Hinweisen. Passt die Überschrift einer Fassung
-  nicht zur Art ihres Punkts (`===` an einem Kapitel), steht ein Hinweis da. Kommandozeile
+- **Exchange:** format in `docs/Austauschformat.md`. Output `/werke/{id}/austausch` (without a work to the list of works):
+  `.baruch` = ZIP container with the work as XML, the images as files of their own and a manifest with checksums;
+  `.baruch.xml` = one XML file with the images as Base64. Scope also: tombstones of deleted parts, the mind map with
+  connections (also deleted ones) and remembered positions (minor version 2), findings including their history (minor version 4),
+  glossary and indexes (minor version 7), history of the amendments. Not in it: keys and tokens,
+  connections (models, MultiGPT, pgvector), personas including models, open requests, the computed nearness, Bible
+  and literature texts, accounts, sessions, shares, the settings „Fassungen“ and „Satzbild“, marks for
+  hiding. Command line `baruch-server export ID|SLUG --baruch DATEI [--data ORDNER]` (if `DATEI` ends in
+  `.xml`, XML only; an existing file exit 1; with `--out`, `--pdf`, `--stichwort` exit 2; the output names the work,
+  identifier, size, SHA-256). RPC `work.exchange_export`, MCP `exchange_export` (read only, at most 4 MiB).
+- **Reading in:** `/austausch/einlesen`; deviation links `/?work=W&key=K&rev=R`; commit „Austausch aus
+  <Instanz>“. A connection of the mind map that already exists (same ideas, same kind) does not come twice;
+  a position only for ideas without one of their own. If an item over there was renamed through the outline, the revision
+  travels along with the new heading: hint „Umschalten genügt“ instead of a request. Unknown things from a newer
+  file are not taken over. Fast-forwarding only for the own current revision and only when the steps of the file
+  yield the new text without gaps; revisions of personas or MCP clients, proposals and superseded revisions
+  are never overwritten („abweichende Fassung“). A new part from the file arises after approval „mit
+  Kennung und n Fassungen“ exactly as over there (text, origin, status, history). Findings that already exist here
+  keep status, reason and history („… 2 Einträge im Verlauf der Datei nicht übernommen“). Cover blocks
+  arrive in normal form (font name without whitespace at the edges, colour lower case, line ends `\n`); a block that the
+  check of the editor refuses is taken over and stands among the hints. If the heading of a revision does not fit
+  the kind of its item (`===` at a chapter), a hint stands there. Command line
   `baruch-server import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title TITEL] [--data ORDNER]`
-  (Werk schon da ohne `--abgleichen`: Exit 1; `--abgleichen` bei unbekanntem Werk: Exit 1; mit `.typ`: Exit 2).
-  Über MCP gibt es das Einlesen nicht.
-- **Instanz:** Kennung = UUID, beim ersten Start vergeben; Name ohne Zeilenumbrüche oder Tabs, Leerraum am Rand
-  fällt weg; ohne Namen „ohne Namen (3f2b8c1e)“ (erste 8 Zeichen der Kennung). Kennung des Werks (UUID) unter
+  (work already present without `--abgleichen`: exit 1; `--abgleichen` for an unknown work: exit 1; with `.typ`: exit 2).
+  Reading in does not exist through MCP.
+- **Instance:** identifier = UUID, assigned at the first start; name without line breaks or tabs, whitespace at the edges
+  is dropped; without a name „ohne Namen (3f2b8c1e)“ (first 8 characters of the identifier). Identifier of the work (UUID) under
   „Werk bearbeiten“.
-- **Sicherung:** Ordner `<Name>.sicherung-<JJJJ-MM-TT-HHMMSS>` (Ortszeit), Datenbank über `VACUUM INTO`, dazu
-  Spiegel, Einfälle und alles andere; symbolische Verknüpfungen werden übersprungen; eine zweite Sicherung in
-  derselben Sekunde scheitert; Grenze 10 Sicherungen; nach der Sicherung müssen 512 MiB frei bleiben. Adresse
-  nach dem Anlegen `?ok=sicherung`; „Sicherung angelegt“ steht nur einmal da. Nicht über MCP. Zurückspielen:
+- **Backup:** folder `<Name>.sicherung-<JJJJ-MM-TT-HHMMSS>` (local time), database through `VACUUM INTO`, plus
+  mirrors, ideas and everything else; symbolic links are skipped; a second backup in
+  the same second fails; limit 10 backups; after the backup 512 MiB must stay free. Address
+  after creating `?ok=sicherung`; „Sicherung angelegt“ stands there only once. Not through MCP. Restoring:
   `docs/Betrieb.md`.
-- **Sicherheit:** Schreibende Aufrufe (`/rpc`, `/act`, `/mcp`) nur von der eigenen Seite; andere `Origin` bzw.
-  `Sec-Fetch-Site` → 403 (Skripte ohne Browser schicken diese Kopfzeilen nicht). Ebenso 403 für Satz, Satz-Seiten
-  als Bild, Umschlag (Seite, Bild, PDF), Buch-PDF, Stichwortzettel-PDF und Mindmap als PDF, wenn eine fremde Seite
-  sie anstößt. Alle Seiten antworten nur unter IP-Adresse oder `localhost` (`http://127.0.0.1:8765/`,
-  `http://[::1]:8765/`, `http://localhost:8765/`); fremder Name (DNS-Rebinding) → 421. Unter einem Rechnernamen
-  nur mit `--allow-host NAME` / `BARUCH_ALLOWED_HOSTS` (genau der Name, beliebiger Port in `Host`; kein
-  Platzhalter, kein Port, keine IP – ungültig: Exit 2). Der Proxy muss `Host` unverändert durchreichen (sonst 403
-  „Origin passt nicht zu Host“); `X-Forwarded-*` wertet Baruch nicht aus. Unter einem erlaubten Namen gilt eine
-  Anfrage nie als „vom eigenen Rechner“ (`/mcp` dort immer mit Token, 401 ohne). Ohne Konten muss der Proxy den
-  Zugang schützen. Beispiele (nginx, Caddy), Probe und TLS zu pgvector (`PGSSLROOTCERT`): `docs/Betrieb.md`.
-  `/mcp` ohne Token nur von 127.0.0.1 bzw. ::1 (sonst 401); mit Token auch von anderen Rechnern, alles andere dort
-  403. Über MCP nur Vorschläge, Beiträge und Einfälle; Abschnitte nur über `key` (ein Aufruf mit `node` wird
-  abgelehnt, `docs/MCP.md`). Der Import liest nur gewöhnliche Dateien (FIFO oder Gerät werden vor dem Öffnen
-  abgelehnt).
-- **Datenordner:** Meldung zu Rechten mit Zahl (z. B. 0755); `chmod 700 <Ordner>` lässt nur den Besitzer hinein.
+- **Security:** writing calls (`/rpc`, `/act`, `/mcp`) only from the own page; another `Origin` or
+  `Sec-Fetch-Site` → 403 (scripts without a browser do not send these headers). Likewise 403 for typesetting, typeset pages
+  as images, cover (page, image, PDF), book PDF, keyword notes PDF and mind map as PDF, when a foreign page
+  triggers them. All pages answer only under an IP address or `localhost` (`http://127.0.0.1:8765/`,
+  `http://[::1]:8765/`, `http://localhost:8765/`); a foreign name (DNS rebinding) → 421. Under a host name
+  only with `--allow-host NAME` / `BARUCH_ALLOWED_HOSTS` (exactly the name, any port in `Host`; no
+  wildcard, no port, no IP – invalid: exit 2). The proxy must pass `Host` through unchanged (otherwise 403
+  „Origin passt nicht zu Host“); Baruch does not evaluate `X-Forwarded-*`. Under an allowed name a
+  request never counts as "from the own machine" (`/mcp` there always with a token, 401 without). Without accounts the proxy must protect
+  the access. Examples (nginx, Caddy), probe and TLS to pgvector (`PGSSLROOTCERT`): `docs/Betrieb.md`.
+  `/mcp` without a token only from 127.0.0.1 or ::1 (otherwise 401); with a token also from other machines, everything else there
+  403. Through MCP only proposals, posts and ideas; sections only through `key` (a call with `node` is
+  refused, `docs/MCP.md`). The import reads only ordinary files (FIFO or device are refused before opening).
+- **Data folder:** message about permissions with a number (e.g. 0755); `chmod 700 <Ordner>` lets only the owner in.
 
-### Einstellungen (`einstellungen.md`)
+### „Einstellungen“ (`einstellungen.md`)
 
-- **Adressen:** `/einstellungen/<seite>` (`darstellung`, `werk`, `assistenten`, `verbindungen`, `quellen`, `mcp`,
-  `daten`, mit Konten `konten`); die alte Adresse `/einstellungen/personas` leitet auf `assistenten`. Das Popup ist
-  bis 1480 px breit; ein abgelehntes Formular gilt nicht als gespeichert (Thema, Satzbild und Abzeichen der
-  Arbeitsseite werden dann nicht neu geholt). Abzeichen und Popup brauchen JavaScript.
-- **Cookies (`baruch_*`):** `baruch_work`, `baruch_editor`, `baruch_pv` (Vorschläge anfangs auf/zu),
-  `baruch_folded` (höchstens 200 Einträge `<key>-<rev>`), `baruch_band`, `baruch_laptop`, `baruch_lrail`,
-  `baruch_rrail`, `baruch_zoom`, dazu Spaltenbreiten, offener Bereich rechts, zugeklappte Kapitel und das Thema.
-- **Work language (Round 38, new notes are written in English):** block „Werksprache“ on the page
+- **Addresses:** `/einstellungen/<seite>` (`darstellung`, `werk`, `assistenten`, `verbindungen`, `quellen`, `mcp`,
+  `daten`, with accounts `konten`); the old address `/einstellungen/personas` redirects to `assistenten`. The popup is
+  up to 1480 px wide; a refused form does not count as saved (theme, typeset view and badges of the
+  work page are then not fetched anew). Badges and popup need JavaScript.
+- **Cookies (`baruch_*`):** `baruch_work`, `baruch_editor`, `baruch_pv` (proposals initially open/closed),
+  `baruch_folded` (at most 200 entries `<key>-<rev>`), `baruch_band`, `baruch_laptop`, `baruch_lrail`,
+  `baruch_rrail`, `baruch_zoom`, plus column widths, the open area on the right, collapsed chapters and the theme.
+- **Work language (Round 38):** block „Werksprache“ on the page
   `/einstellungen/werk` (`id="sprache"`, directly before the time keeper `id="zeit"`): a `<select name="language">`
   with „Deutsch“ (`de`) and „Englisch“ (`en`) and the button „Speichern“; a plain form, usable without JavaScript.
   Route `POST /einstellungen/werk/sprache` (fields `work`, `language`), answer 303 back to the page with
-  `ok=sprache#sprache`, on an invalid value `sprachfehler=1#sprache`; locked for editors (not in `LEKTOR_ROUTES`).
+  `ok=sprache#sprache`, on an invalid value `sprachfehler=1#sprache`; for an unknown or missing work `sprachfehler=werk#sprache`
+  (303 to `/einstellungen/werk?sprachfehler=werk#sprache`) with the message „Die Werksprache ließ sich nicht speichern: dieses
+  Werk gibt es nicht; nichts geändert.“ (nothing is changed); locked for Lektoren (not in `LEKTOR_ROUTES`).
   RPC `work.language` and `work.language_set` (only the human, not through `/act`, not through MCP); `work.get`,
   `work.meta`, `work.list` and MCP `list_works`/`outline` carry `language`. Stored only in the database
   (`work.language`, migration 0055), no commit in the mirror. The assistants answer in the work language; the
   language of the user interface does not change, and neither does the hyphenation language of the typesetting
   settings. Help page: `site/content/de/hilfe/einstellungen.md`.
-- **Werk:** gespeichert in SQLite und im Git-Spiegel. Abgleich-Schalter: Kästchen „Ja, die aktuellen Fassungen
-  dieses Werks dürfen nach MultiGPT“; das Schalten selbst schickt nichts.
-- **Assistenten** (SQLite, alle Werke): Tabs ohne JavaScript als `/einstellungen/assistenten?persona=<handle ohne
-  @>` (Anker `#persona-<handle>`; unbekanntes `?persona=` zeigt den ersten Tab mit Hinweis). Grenzen: Name 1–80,
-  Rolle und Modell 1–200 Zeichen, Kontext 1–10 000 000 Tokens, Prompt 1–8000 Zeichen, Farbe `#rrggbb` oder `#rgb`
-  (ein ausgefülltes Textfeld geht vor); ungültig 422. Palette: acht Farben nach der Reihenfolge der Personas;
-  Hintergründe werden auf mindestens 4,5 : 1 Kontrast gebracht (WCAG AA); Farben stehen nicht im Spiegel und
-  lassen sich über MCP nicht ändern. Bei Gleichstand des Kontexts gilt die frühere Persona. Warnungen „Modell …
-  ist unbekannt bei Eliezer“, „Alter Name: Alias → …“, Hinweis auf den Grafikspeicher bei verschiedenen Modellen,
-  „Modellliste nicht verfügbar: …“. Die Kontextlänge dient nur dem Kürzen; Baruch fordert nie eine an. Formulare:
-  `action=rag` (bis zu fünf Treffer `[R1]`…`[R5]`, der geprüfte Abschnitt ist nie darunter), `POST /websuche/act`,
-  `action=backend`, `action=bible` (Vorgabe: @belege an, Lektor aus). Wirksamer Kontext: Eliezer und Ollama
-  melden die Länge, OpenAI-kompatible Dienste nicht; bei Ollama zählt `num_ctx` aus dem Modelfile, sonst die Länge
-  des geladenen Modells, sonst 4096 Tokens. Beim Öffnen fragt Baruch keine Gegenstelle (nur der gezeigte Tab auf
-  Wunsch, höchstens 10 s, 60 s gemerkt); Beispiel „wirksam 4096 Tokens (Einstellung 32768), Gegenstelle meldet
+- **Work:** stored in SQLite and in the Git mirror. Reconciliation switch: checkbox „Ja, die aktuellen Fassungen
+  dieses Werks dürfen nach MultiGPT“; the switching itself sends nothing.
+- **Assistants** (SQLite, all works): tabs without JavaScript as `/einstellungen/assistenten?persona=<handle ohne
+  @>` (anchor `#persona-<handle>`; an unknown `?persona=` shows the first tab with a hint). Limits: name 1–80,
+  role and model 1–200 characters, context 1–10 000 000 tokens, prompt 1–8000 characters, colour `#rrggbb` or `#rgb`
+  (a filled-in text field takes precedence); invalid 422. Palette: eight colours in the order of the personas;
+  backgrounds are brought to at least 4.5 : 1 contrast (WCAG AA); colours do not stand in the mirror and
+  cannot be changed through MCP. On a tie of the context the earlier persona holds. Warnings „Modell …
+  ist unbekannt bei Eliezer“, „Alter Name: Alias → …“, a hint about the graphics memory for different models,
+  „Modellliste nicht verfügbar: …“. The context length serves only for shortening; Baruch never requests one. Forms:
+  `action=rag` (up to five hits `[R1]`…`[R5]`, the reviewed section is never among them), `POST /websuche/act`,
+  `action=backend`, `action=bible` (default: @belege on, lector off). Effective context: Eliezer and Ollama
+  report the length, OpenAI-compatible services do not; with Ollama `num_ctx` from the Modelfile counts, otherwise the length
+  of the loaded model, otherwise 4096 tokens. When opening, Baruch asks no peer (only the shown tab on
+  request, at most 10 s, remembered for 60 s); example „wirksam 4096 Tokens (Einstellung 32768), Gegenstelle meldet
   4096“.
-- **Verbindungen** (SQLite; Geheimnisse im Schlüsselbund, Dienst `baruch`):
+- **Connections** (SQLite; secrets in the keyring, service `baruch`):
 
-  | Verbindung | Felder | Geheimnis | Vorgabe |
+  | Connection | Fields | Secret | Default |
   |---|---|---|---|
-  | Eliezer (Modell-Backend) | Adresse | Schlüssel `baruch/eliezer` | `http://127.0.0.1:1234` |
-  | MultiGPT (MCP) | Adresse | Token `baruch/multigpt` | leer (= nicht eingerichtet); Platzhalter `https://multigpt.example/mcp/` |
-  | pgvector (PostgreSQL) | Rechner, Port, Datenbank, Benutzer, TLS (`disable`/`prefer`/`require`/`verify-full`); Tabelle (`tabelle` oder `schema.tabelle`), Spalten Text, Vektor, Sammlung, Dokument (Pflicht), Stelle, Titel, Adresse, Modell; Einbettungsmodell; Präfix der Anfrage | Passwort `baruch/pgvector` | Rechner leer, Port 5432, TLS `prefer`; `chunks`, `content`, `embedding`, `collection`, `document`, `nomic-embed-text` |
-  | LanceDB (lokal) | Ordner (relativ zum Datenordner oder absolut), Einbettungsmodell, Präfix der Anfrage und der Dokumente | – | `lancedb`, `nomic-embed-text` |
+  | Eliezer (model backend) | address | key `baruch/eliezer` | `http://127.0.0.1:1234` |
+  | MultiGPT (MCP) | address | token `baruch/multigpt` | empty (= not set up); placeholder `https://multigpt.example/mcp/` |
+  | pgvector (PostgreSQL) | host, port, database, user, TLS (`disable`/`prefer`/`require`/`verify-full`); table (`tabelle` or `schema.tabelle`), columns text, vector, collection, document (mandatory), position, title, address, model; embedding model; query prefix | password `baruch/pgvector` | host empty, port 5432, TLS `prefer`; `chunks`, `content`, `embedding`, `collection`, `document`, `nomic-embed-text` |
+  | LanceDB (local) | folder (relative to the data folder or absolute), embedding model, prefix of the query and of the documents | – | `lancedb`, `nomic-embed-text` |
 
-  MultiGPT hatte früher eine Intranet-Adresse als Vorgabe; seitdem ist sie leer. Der Platzhalter wird nie
-  gespeichert und nie angefragt; eine gespeicherte Adresse bleibt (keine Migration); wer nur die Vorgabe benutzt
-  hat, trägt die Adresse einmal ein. Ohne Adresse: Weg „aus“, Volltext „Keine Adresse für MultiGPT eingetragen
-  (Einstellungen → Verbindungen)“. Aufgaben-Präfixe (für nomic-embed-text `search_query: ` und
-  `search_document: `, das Leerzeichen gehört dazu; höchstens 64 Zeichen); ein geändertes Dokument-Präfix verlangt
-  „Index neu aufbauen“. TLS-Hinweis bei Passwort mit `prefer`/`disable`, milder bei `require`; nur `verify-full`
-  ohne Hinweis. Spaltennamen: Buchstaben, Ziffern, `_`, höchstens 63 Zeichen, bestätigt gegen
-  `information_schema`. Geheimnis: nicht leer, eine Zeile, höchstens 4096 Zeichen; gebunden an Schema, Rechner
-  und Port (pgvector: Rechner, Port, TLS) – sonst „Nicht geprüft: …“ bzw. „Schlüssel gilt für ein anderes Ziel;
-  nicht gesendet“. Adressen nur `http://`/`https://`, ohne Benutzerangaben und ohne Token in der Abfrage.
-  **Verbindung prüfen** (10 s gemeinsam, Antwort höchstens 1 MiB, keine Weiterleitung – eine Weiterleitung ist
-  ein Fehler, Geheimnisse gehen nie an ihr Ziel): Eliezer `GET <Adresse>/v1/models` mit `Authorization: Bearer`,
-  danach Abgleich der Modelle aller Personas (Liste 60 s gültig); MultiGPT MCP `initialize` (Protokoll
-  `2025-06-18`, Client `baruch`), `notifications/initialized`, `tools/list` mit `Mcp-Session-Id` über höchstens
-  10 Seiten (`nextCursor`), `list_collections`, JSON oder `text/event-stream`; pgvector Anmeldung (nie aus
-  `PGPASSWORD`/`~/.pgpass`), Version der Erweiterung `vector`, Tabelle, Sammlungen, Dimension, Modelle (Werte
-  gekürzt: Sammlungsnamen 200 Zeichen, höchstens 1000 Sammlungen); LanceDB Ordner, Tabellen, Einträge, Modell,
-  Dimension und Probe-Einbettung „Baruch prüft die Einbettung.“. HTTP 401: „Zugang verweigert … Schlüssel
-  baruch/… prüfen“. Kurztest: höchstens 16 Token, vorgewählt `google/gemma-4-26b-a4b`. Modell-Verbindungen
-  (Abschnitt `#modelle`): Arten Eliezer, OpenAI-kompatibel (`/v1/models`, `/v1/chat/completions`), Ollama;
-  Schlüssel `baruch/model-<id>`; „nach der Adresse“ lokal sind Loopback (`127.…`, `localhost`, `::1`), private
-  Adressen (`10.…`, `172.16–31.…`, `192.168.…`, `fd…`), Namen ohne Punkt und unter `.local`, `.lan`, `.internal`,
-  `.home.arpa`; je Verbindung eine Anfrage zur Zeit; ist Eliezer selbst extern, bettet Baruch nichts ein.
-  Formulare an `POST /einstellungen/verbindungen/act` bzw. `POST /einstellungen/modelle/act`, Antwort 303 mit
-  `?ok=<code>` / `?fehler=<code>[&kind=…]` / `?modellfehler=…`; in der Adresse stehen nie Eingaben.
-- **Bedeutungssuche (RAG):** Abschnitt `#rag`; Vorgabe ohne Wahl: LanceDB; eine Anfrage (RPC, MCP, Persona) kann
-  Wege nur weglassen. Sammlungen höchstens 100, je 1–200 Zeichen. Der lokale Index (Vorgabe
-  `<Datenordner>/lancedb`) bettet nur geänderte Absätze neu ein (über Eliezer, eigene Warteschlange, höchstens 32
-  Texte je Anfrage), holt beim Start alle Werke nach, merkt sich Modell und Dimension („Der Index ist mit dem
-  Einbettungsmodell … aufgebaut, eingestellt ist …“). Scheitert das Einbetten dreimal, bleiben Aufträge liegen
-  („n Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index neu aufbauen““); eine Suche
-  versucht es nicht erneut. Mit eigenem `--data` ohne gespeichertes Eliezer gibt es beim Start keine
-  Einbettungen. „Index neu aufbauen“ antwortet sofort und bricht einen hängenden Auftrag ab; nur der Mensch. Je
-  Suche alle Wege gleichzeitig (je 20 s). pgvector: Kosinus-Abstand, nur lesend. MultiGPT: `search_documents`,
+  MultiGPT formerly had an intranet address as its default; since then it is empty. The placeholder is never
+  stored and never requested; a stored address stays (no migration); whoever only used the default
+  enters the address once. Without an address: way „aus“, full text „Keine Adresse für MultiGPT eingetragen
+  (Einstellungen → Verbindungen)“. Task prefixes (for nomic-embed-text `search_query: ` and
+  `search_document: `, the space belongs to them; at most 64 characters); a changed document prefix requires
+  „Index neu aufbauen“. TLS hint for a password with `prefer`/`disable`, milder with `require`; only `verify-full`
+  without a hint. Column names: letters, digits, `_`, at most 63 characters, confirmed against
+  `information_schema`. Secret: not empty, one line, at most 4096 characters; bound to scheme, host
+  and port (pgvector: host, port, TLS) – otherwise „Nicht geprüft: …“ or „Schlüssel gilt für ein anderes Ziel;
+  nicht gesendet“. Addresses only `http://`/`https://`, without user information and without a token in the query.
+  **„Verbindung prüfen“** (10 s together, response at most 1 MiB, no redirect – a redirect is
+  an error, secrets never go to its target): Eliezer `GET <Adresse>/v1/models` with `Authorization: Bearer`,
+  afterwards a comparison of the models of all personas (list valid for 60 s); MultiGPT MCP `initialize` (protocol
+  `2025-06-18`, client `baruch`), `notifications/initialized`, `tools/list` with `Mcp-Session-Id` over at most
+  10 pages (`nextCursor`), `list_collections`, JSON or `text/event-stream`; pgvector login (never from
+  `PGPASSWORD`/`~/.pgpass`), version of the extension `vector`, table, collections, dimension, models (values
+  shortened: collection names 200 characters, at most 1000 collections); LanceDB folder, tables, entries, model,
+  dimension and probe embedding „Baruch prüft die Einbettung.“. HTTP 401: „Zugang verweigert … Schlüssel
+  baruch/… prüfen“. Short test: at most 16 tokens, preselected `google/gemma-4-26b-a4b`. Model connections
+  (section `#modelle`): kinds Eliezer, OpenAI-compatible (`/v1/models`, `/v1/chat/completions`), Ollama;
+  key `baruch/model-<id>`; local „nach der Adresse“ are loopback (`127.…`, `localhost`, `::1`), private
+  addresses (`10.…`, `172.16–31.…`, `192.168.…`, `fd…`), names without a dot and under `.local`, `.lan`, `.internal`,
+  `.home.arpa`; one request at a time per connection; if Eliezer itself is external, Baruch embeds nothing.
+  Forms to `POST /einstellungen/verbindungen/act` or `POST /einstellungen/modelle/act`, response 303 with
+  `?ok=<code>` / `?fehler=<code>[&kind=…]` / `?modellfehler=…`; inputs never stand in the address.
+- **Semantic search (RAG):** section `#rag`; default without a choice: LanceDB; a request (RPC, MCP, persona) can
+  only leave ways out. Collections at most 100, each 1–200 characters. The local index (default
+  `<Datenordner>/lancedb`) embeds only changed paragraphs anew (through Eliezer, its own queue, at most 32
+  texts per request), catches up on all works at start, remembers model and dimension („Der Index ist mit dem
+  Einbettungsmodell … aufgebaut, eingestellt ist …“). If embedding fails three times, jobs stay behind
+  (`n Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index neu aufbauen“`); a search
+  does not try again. With an own `--data` without a stored Eliezer there are no
+  embeddings at start. „Index neu aufbauen“ answers immediately and aborts a hanging job; only the human. Per
+  search all ways at the same time (20 s each). pgvector: cosine distance, read only. MultiGPT: `search_documents`,
   `read_document`.
-- **Quellen:** Titel 1–200 Zeichen, Adresse http/https; Links mit `rel="noopener noreferrer"`; MCP
-  `sources_list`; Formulare an `POST /einstellungen/quellen/act`. Eine Lesezeichenliste lässt sich nicht einlesen.
-- **MCP-Zugang:** gespeichert nur der SHA-256-Hash; Adresse `http://<Rechner>:<Port>/mcp`; Token `baruch_…`, Name
-  1–64 Zeichen; Autor `@mcp:<tokenname>` (aus `clientInfo` zählt nur die Version; die Tabelle nennt „früher
-  `@mcp:…`“, wenn die Namensregel früher einen anderen Autor ergab; abgelehnt werden Namen, die denselben Autor
-  ergäben wie ein vorhandener oder widerrufener Token oder mit „lokal-“ beginnen). Befehl:
+- **Sources:** title 1–200 characters, address http/https; links with `rel="noopener noreferrer"`; MCP
+  `sources_list`; forms to `POST /einstellungen/quellen/act`. A bookmark list cannot be read in.
+- **MCP access:** only the SHA-256 hash is stored; address `http://<Rechner>:<Port>/mcp`; token `baruch_…`, name
+  1–64 characters; author `@mcp:<tokenname>` (from `clientInfo` only the version counts; the table names „früher
+  `@mcp:…`“ when the name rule formerly yielded another author; refused are names that would yield the same author
+  as an existing or revoked token or that begin with „lokal-“). Command:
   `claude mcp add -s local --transport http baruch http://<IP>:8765/mcp --header "Authorization: Bearer <Token>"`.
-  Voraussetzung: `--listen 192.168.…:8765`; Ansprache über die IP-Adresse (sonst 421). Von anderen Rechnern ist
-  nur `/mcp` erreichbar (sonst 403 „Von anderen Rechnern nur /mcp mit Token.“); ein falscher Token wird auch lokal
-  abgelehnt (401). Formulare an `POST /einstellungen/mcp/act` (Erzeugen 200, Widerrufen 303 `?ok=widerrufen`).
-  Hinter einem Reverse-Proxy zeigt die Seite `https://<Name>/mcp` (`https` ist eine Annahme); Basic-Auth des Proxys
-  muss `/mcp` ausnehmen (`docs/Betrieb.md`).
-- **Daten:** EPUBCheck-Pfad absolut, Endung `.jar`, vorhandene Datei; `epubcheck` im PATH geht vor.
+  Precondition: `--listen 192.168.…:8765`; addressing through the IP address (otherwise 421). From other machines
+  only `/mcp` is reachable (otherwise 403 „Von anderen Rechnern nur /mcp mit Token.“); a wrong token is refused
+  locally as well (401). Forms to `POST /einstellungen/mcp/act` (creating 200, revoking 303 `?ok=widerrufen`).
+  Behind a reverse proxy the page shows `https://<Name>/mcp` (`https` is an assumption); basic auth of the proxy
+  must exempt `/mcp` (`docs/Betrieb.md`).
+- **Data:** EPUBCheck path absolute, extension `.jar`, an existing file; `epubcheck` in the PATH takes precedence.
 
-### Konten und Lektoren (`konten.md`)
+### „Konten und Lektoren“ (`konten.md`)
 
-- **Adressen:** `/einrichten` (nur am eigenen Rechner, sonst 403), `/anmelden`, `/konto`,
-  `/werke/<id>/mitwirkende`, Einstellungen → Konten. Mit Konten verlangen Seiten, Formulare und `/rpc` eine
-  Anmeldung; `/mcp` bleibt bei Tokens.
-- **Rechte:** einzige Stelle der Prüfung ist `roles` (`LEKTOR_ROUTES`, `LEKTOR_RPC`); alles nicht Erlaubte
-  antwortet 403 „Abgelehnt: …“. Herkunft `@lektorat:<name>`; jeder Vorschlag, Beitrag und Befund ist ein Commit.
-- **Gespeichert:** Passwort als Argon2id-Prüfwert, Sitzung als Hash; nicht im Austauschformat und nicht im
-  Spiegel. Das Sitzungs-Cookie schickt der Browser bei einem Sprung von außen nicht mit („Schon angemeldet?
-  Weiter“). Anmelden und Einrichten folgen dem Thema-Cookie ohne JavaScript.
-- **Kommandozeile:** `baruch-server passwort NAME [--data ORDNER]` liest das Passwort als eine Zeile von der
-  Eingabe, beendet alle Sitzungen und hebt die Sperre nach Fehlversuchen auf.
-- **„Am eigenen Rechner ohne Anmeldung“:** Steht ein Reverse-Proxy auf demselben Rechner, der `Host` umschreibt,
-  sähe jeder Besucher aus wie der eigene Rechner (`docs/Betrieb.md`).
-- Für Lektoren ist das Umschlagbild in der Werkliste kein Link; Einstellungen → Darstellung erreichen sie auch
-  ohne freigegebenes Werk. Offen: ob Lektoren das Buch als PDF lesen dürfen (zurzeit nicht).
+- **Addresses:** `/einrichten` (only at the own machine, otherwise 403), `/anmelden`, `/konto`,
+  `/werke/<id>/mitwirkende`, „Einstellungen → Konten“. With accounts, pages, forms and `/rpc` require a
+  login; `/mcp` stays with tokens.
+- **Permissions:** the only place of the check is `roles` (`LEKTOR_ROUTES`, `LEKTOR_RPC`); everything not allowed
+  answers 403 „Abgelehnt: …“. Origin `@lektorat:<name>`; every proposal, post and finding is a commit.
+- **Stored:** password as an Argon2id check value, session as a hash; not in the exchange format and not in the
+  mirror. The browser does not send the session cookie on a jump from outside („Schon angemeldet?
+  Weiter“). Login and setup follow the theme cookie without JavaScript.
+- **Command line:** `baruch-server passwort NAME [--data ORDNER]` reads the password as one line from the
+  input, ends all sessions and lifts the lockout after failed attempts.
+- **"At the own machine without a login":** if a reverse proxy on the same machine rewrites `Host`,
+  every visitor would look like the own machine (`docs/Betrieb.md`).
+- For Lektoren the cover image in the list of works is not a link; they reach „Einstellungen → Darstellung“ even
+  without a shared work. Open: whether Lektoren may read the book as a PDF (currently not).
 
-### Tasten und Maus (`tasten.md`)
+### „Tasten und Maus“ (`tasten.md`)
 
-- Die Mac-Spalte ist aus `crates/baruch-server/web/src` abgeleitet, nicht am Mac geprüft: `ctrlKey || metaKey` in
-  `panes.ts` (Strg+S), `wysiwyg.ts` (Strg+I, Strg+B, Strg+Enter), `search_keys.ts`, `threads.ts`, `xref.ts`,
-  `cover_editor.ts`, `mindmap.ts`, `zoom.ts` (nur Strg+0). Nur `ctrlKey`: das Mausrad in `zoom.ts`. Alt-Kürzel
-  mit `event.code`: Alt+E (`ideas.ts`, `mindmap.ts`), Alt+L in der Mindmap, Alt+C/W/R/L der Suche. Nur über
-  `event.key`: Alt+L für die Literatur (`literature.ts`) und Alt+, für die Einstellungen (`settings.ts`,
-  `aria-keyshortcuts="Alt+Comma"` in `base.html`) – am Mac erzeugt ⌥ dort ein anderes Zeichen, die Kürzel greifen
-  dann vermutlich nicht (Kandidat für eine Korrektur).
+- The Mac column is derived from `crates/baruch-server/web/src`, not checked on a Mac: `ctrlKey || metaKey` in
+  `panes.ts` (Ctrl+S), `wysiwyg.ts` (Ctrl+I, Ctrl+B, Ctrl+Enter), `search_keys.ts`, `threads.ts`, `xref.ts`,
+  `cover_editor.ts`, `mindmap.ts`, `zoom.ts` (only Ctrl+0). Only `ctrlKey`: the mouse wheel in `zoom.ts`. Alt shortcuts
+  with `event.code`: Alt+E (`ideas.ts`, `mindmap.ts`), Alt+L in the mind map, Alt+C/W/R/L of the search. Only through
+  `event.key`: Alt+L for the literature (`literature.ts`) and Alt+, for the settings (`settings.ts`,
+  `aria-keyshortcuts="Alt+Comma"` in `base.html`) – on the Mac ⌥ produces another character there, so the shortcuts
+  probably do not take effect (a candidate for a correction).
