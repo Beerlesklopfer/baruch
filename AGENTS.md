@@ -6,8 +6,14 @@ Free writing workshop (AGPL-3.0) for books and sermons. Plan: `docs/Plan.md`.
   interface is German and English through catalogs from Round 39 (until then German). Each work has its own
   work language (`de`|`en`); book output and persona answers follow it. Identifiers are English.
   Exceptions that stay German: the history files (`docs/Backlog.md`, `docs/Fahrplan.md`, `HANDOFF.md`,
-  `CHANGELOG.md`), `docs/schema/`, the user help under `site/content/de/` (English from Round 39b) and every text of
-  the user interface until the catalogs of Round 39a.
+  `CHANGELOG.md`), `docs/schema/`, the German user help under `site/content/de/` (its English translation lives in
+  `site/content/en/` since Round 39b) and every text of the user interface until the catalogs of Round 39a.
+- Catalogs (Round 39): interface texts come from `crates/baruch-server/locales/en/*.ftl` (base) and
+  `locales/de/*.ftl` (translation keeping the old German wording), one file per area, keys `<area>.<…>` (the first
+  segment names the file), the same keys and placeholders in both languages; templates call `t("…")`, widgets `t()`,
+  the server `i18n::t`/`tc`. Words that go into a book (`book.*`) live only in
+  `crates/baruch-core/locales/{en,de}/book.ftl` and follow the work language (`baruch_core::book_text::book_t`), never
+  the interface language.
 - Never commit, publish or print tokens or keys; keys belong in the keyring (`keyring`).
 - Only the user sets version numbers.
 - Push only after an explicit "ja" (yes) from the user.
@@ -33,8 +39,9 @@ Free writing workshop (AGPL-3.0) for books and sermons. Plan: `docs/Plan.md`.
 - Docs grow with the code (under `docs/`): developer entry point for usage (`docs/Bedienung.md`), structure
   (`docs/Architektur.md`), interfaces (`docs/RPC.md`, `docs/MCP.md` with every tool, stubs marked).
   Every change to the user interface, RPC or MCP updates the docs in the same commit.
-- Help: user help lives in `site/content/de/hilfe/`, operation in `site/content/de/betrieb.md`; `docs/Bedienung.md`
-  and `docs/Betrieb.md` are developer entry points.
+- Help: user help lives in `site/content/de/hilfe/` (German) and `site/content/en/hilfe/` (English, same file
+  names), operation in `site/content/de/betrieb.md` and `site/content/en/betrieb.md`; `docs/Bedienung.md` and
+  `docs/Betrieb.md` are developer entry points.
 - Revisions: each section has exactly one current revision (a mark that can be switched at any time); only the
   author changes or deletes, logged in the mirror; assistants and editors (Lektoren) only make suggestions. Without
   accounts, the human at their own machine is the author.

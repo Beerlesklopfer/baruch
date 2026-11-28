@@ -388,6 +388,8 @@ struct Slot {
 
 tokio::task_local! {
     static SLOT: Slot;
+    /// Round 39b: path and query of the running GET request (the way back of the language switch).
+    static PAGE: Option<String>;
 }
 
 /// Language of the running request; outside a request English.
@@ -399,6 +401,39 @@ pub fn current() -> Lang {
 /// (also outside a request). For the settings page and `settings.get`.
 pub fn chosen() -> Option<Lang> {
     SLOT.try_with(|slot| slot.chosen).ok().flatten()
+}
+
+/// Language of the running request, `None` outside a request (direct calls, background tasks, unit tests). Labels
+/// that other crates write in German keep that wording outside a request (Round 39b, e.g. `findings::status_label`).
+pub fn request_lang() -> Option<Lang> {
+    SLOT.try_with(|slot| slot.lang).ok()
+}
+
+/// Path of the running request if it is a GET of this server, with only the harmless query values of
+/// [`BACK_PARAMS`] (`/werke?work=2`); `None` for other methods (a form answer must not lead back to a POST address)
+/// and outside a request. The menu form of the language switch sends it as `back` (Round 39b), so the switch needs
+/// no Referer. Other query values (a search text, a target, a message code) never go back into the page.
+pub fn page_path() -> Option<String> {
+    PAGE.try_with(Clone::clone).ok().flatten()
+}
+
+/// Query parameters [`page_path`] keeps: the place in Baruch, never text from the address.
+pub const BACK_PARAMS: [&str; 5] = ["work", "key", "rev", "tab", "seite"];
+
+/// [`page_path`] of a path and query: the path plus the [`BACK_PARAMS`] whose value is short and plain (letters,
+/// digits, `-`, `_`).
+pub fn back_of(path: &str, query: Option<&str>) -> String {
+    let plain = |value: &str| {
+        !value.is_empty()
+            && value.len() <= 40
+            && value.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    };
+    let kept: Vec<&str> = query
+        .unwrap_or("")
+        .split('&')
+        .filter(|pair| pair.split_once('=').is_some_and(|(name, value)| BACK_PARAMS.contains(&name) && plain(value)))
+        .collect();
+    if kept.is_empty() { path.to_owned() } else { format!("{path}?{}", kept.join("&")) }
 }
 
 /// Runs `f` with `lang` as [`current`].
@@ -502,7 +537,9 @@ pub async fn layer(State(state): State<Arc<AppState>>, request: Request, next: N
     let cookie = cookie_lang(request.headers());
     let instance = if auth::accounts_exist(&state).await { None } else { stored(&state, None).await };
     let lang = resolve(request.headers(), instance);
-    SLOT.scope(Slot { lang, chosen: instance.or(cookie) }, next.run(request)).await
+    let page =
+        (request.method() == axum::http::Method::GET).then(|| back_of(request.uri().path(), request.uri().query()));
+    SLOT.scope(Slot { lang, chosen: instance.or(cookie) }, PAGE.scope(page, next.run(request))).await
 }
 
 /// Inner layer (inside `auth::gate`): the own setting of an account – for the author on the own machine the
@@ -579,13 +616,27 @@ fn template_t(state: &TemplateState, key: &str, kwargs: Kwargs) -> Result<Value,
     }
 }
 
-/// Registers the functions `t`, `ui_lang`, `widget_catalog` and the filters `ui_minutes`, `ui_day`, `ui_number` in
-/// an environment; called directly after every `Environment::new()`.
+/// Registers the functions `t`, `ui_lang`, `widget_catalog`, `help_url`, `page_path` and the filters `ui_minutes`,
+/// `ui_day`, `ui_number`, `scheme_ui` in an environment; called directly after every `Environment::new()`.
 pub fn install(env: &mut Environment<'_>) {
     env.add_function("t", template_t);
     env.add_function("ui_lang", |state: &TemplateState| template_lang(state).code());
     env.add_function("widget_catalog", |state: &TemplateState| {
         Value::from_safe_string(widget_catalog_json(template_lang(state)))
+    });
+    // Round 39b: address of the help in the page language (about::help_url); a fixed https address, not escaped so
+    // that the link reads like the literal it replaced.
+    env.add_function("help_url", |state: &TemplateState| {
+        Value::from_safe_string(crate::about::help_url(template_lang(state)).to_owned())
+    });
+    // Round 39b: the way back of the language switch (page_path), escaped for an attribute; empty outside a GET.
+    env.add_function("page_path", || {
+        Value::from_safe_string(page_path().map(|path| escape(&path)).unwrap_or_default())
+    });
+    // Round 39b: a scheme text of the store (German name, example or the word for no numbers) in the page language;
+    // an undefined value gives an empty text.
+    env.add_filter("scheme_ui", |state: &TemplateState, text: Value| {
+        text.as_str().map(|text| crate::numbering::scheme_text(template_lang(state), text)).unwrap_or_default()
     });
     env.add_filter("ui_minutes", |state: &TemplateState, stamp: String| {
         crate::localtime::ui_minutes(template_lang(state), &stamp)
@@ -601,6 +652,15 @@ pub fn install(env: &mut Environment<'_>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_way_back_keeps_only_the_place_and_never_text_from_the_address() {
+        assert_eq!(back_of("/werke", None), "/werke", "a path without query stays");
+        assert_eq!(back_of("/", Some("work=2&key=7&tab=buch")), "/?work=2&key=7&tab=buch", "the place is kept");
+        assert_eq!(back_of("/literatur", Some("q=Turm&work=2")), "/literatur?work=2", "a search text is dropped");
+        assert_eq!(back_of("/x", Some("ziel=%3Cb%3E&ok=1")), "/x", "a target or message code never comes back");
+        assert_eq!(back_of("/x", Some("work=%3Cscript")), "/x", "only plain values are kept");
+    }
 
     #[test]
     fn tags_are_read_by_their_primary_subtag() {

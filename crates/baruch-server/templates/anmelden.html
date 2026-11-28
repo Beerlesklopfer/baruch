@@ -41,6 +41,15 @@
   <p class="muted small">{{ t("accounts.sign_in.already") }} <a href="{{ next }}">{{ t("accounts.sign_in.continue") }}</a> {{ t("accounts.sign_in.already_help") }}</p>
   {%- endif %}
   <p class="muted small">{{ t("accounts.sign_in.forgotten_html", password_cmd=password_cmd) }}</p>
+  {#- Round 39b: language of the interface for a visitor who is not signed in (the switch is public, auth::PUBLIC_PATHS):
+      a plain form without JavaScript, back to this page with the target that passed safe_next (never the raw
+      address, which may name a foreign target). #}
+  <form class="konto-sprache small" method="post" action="/einstellungen/sprache" aria-label="{{ t("common.lang.label") }}">
+    <input type="hidden" name="back" value="/anmelden?next={{ next|urlencode }}">
+    <span class="muted">{{ t("common.lang.label") }}:</span>
+    <button class="btn" type="submit" name="lang" value="en" lang="en"{% if ui_lang() == "en" %} aria-current="true"{% endif %}>{{ t("common.lang.en") }}</button>
+    <button class="btn" type="submit" name="lang" value="de" lang="de"{% if ui_lang() == "de" %} aria-current="true"{% endif %}>{{ t("common.lang.de") }}</button>
+  </form>
 </main>
 </body>
 </html>

@@ -272,7 +272,13 @@ fn the_rules_for_agents_are_english_and_none_is_lost() {
         ("developer entry points", "what docs/Bedienung.md and docs/Betrieb.md are since Round 37"),
         ("Exceptions that stay German", "the rule names its exceptions (finding 4 of Round 38)"),
         ("catalogs of Round 39a", "the user interface stays German until the catalogs of Round 39a"),
-        ("site/content/de/` (English from Round 39b)", "the user help stays German until Round 39b"),
+        ("its English translation lives in", "the German user help has its English translation since Round 39b"),
+        ("`site/content/en/hilfe/`", "Round 39b: where the English user help lives"),
+        ("`crates/baruch-server/locales/en/*.ftl` (base)", "Round 39b: the English catalog is the base"),
+        ("translation keeping the old German wording", "Round 39b: German is the translation, wording kept"),
+        ("one file per area", "Round 39b: keys by area"),
+        ("`crates/baruch-core/locales/{en,de}/book.ftl`", "Round 39b: book words live in baruch-core"),
+        ("follow the work language", "Round 39b: book words follow the work language, not the interface"),
         ("`docs/schema/`", "the schema docs stay German"),
     ] {
         assert!(rules.contains(keyword), "AGENTS.md states the new rule – {why}: „{keyword}“");
@@ -287,8 +293,10 @@ fn the_rules_for_agents_are_english_and_none_is_lost() {
 fn the_readme_says_that_website_and_interface_are_german() {
     let readme = repo_file("README.md");
     assert!(
-        readme.contains("The website and the user interface are in German: <https://baruch.bernau.family/>"),
-        "an English reader learns before installing that the program itself is German (contract §3)"
+        readme.contains("The user interface is German and English")
+            && readme.contains("English <https://baruch.bernau.family/en/hilfe/>"),
+        "an English reader learns before installing which languages the program and its help speak (contract §3; \
+         Round 39b: both languages)"
     );
     for (anchor, heading) in [
         ("(#principles)", "\n## Principles\n"),

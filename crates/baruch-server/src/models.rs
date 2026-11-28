@@ -190,18 +190,28 @@ pub fn locality_warning(external: bool, url: &str) -> Option<String> {
         .then(|| crate::i18n::tc("system_msg.models.not_local", &[]))
 }
 
-/// Display „lokal“ or „extern“.
+/// Code „lokal“ or „extern“ (RPC field `locality`, attribute `data-locality`; the views compare it).
 pub fn locality(connection: &ModelConnection) -> &'static str {
     if connection.external { "extern" } else { "lokal" }
 }
 
-/// Display name of a kind.
-pub fn kind_title(kind: &str) -> &'static str {
+/// The locality of [`locality`] as a word in the language of the request (Round 39b; German equals the code). The
+/// templates show the same words (`settings.models.locality_*`); RPC keeps the code.
+pub fn locality_label(code: &str) -> String {
+    if code == "extern" {
+        crate::i18n::tc("settings.models.locality_external", &[])
+    } else {
+        crate::i18n::tc("settings.models.locality_local", &[])
+    }
+}
+
+/// Display name of a kind in the language of the request (product names stay; Round 39b).
+pub fn kind_title(kind: &str) -> String {
     match kind {
-        "eliezer" => "Eliezer",
-        "openai" => "OpenAI-kompatibel",
-        "ollama" => "Ollama",
-        _ => "unbekannt",
+        "eliezer" => "Eliezer".to_owned(),
+        "openai" => crate::i18n::tc("settings.models.kind_openai", &[]),
+        "ollama" => "Ollama".to_owned(),
+        _ => crate::i18n::tc("settings.models.kind_unknown", &[]),
     }
 }
 
@@ -1087,6 +1097,23 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn locality_and_kind_words_follow_the_language() {
+        use crate::i18n::{Lang, sync_scope};
+        sync_scope(Lang::De, || {
+            assert_eq!(super::locality_label("extern"), "extern", "German word equals the code");
+            assert_eq!(super::locality_label("lokal"), "lokal", "German word equals the code");
+            assert_eq!(super::kind_title("openai"), "OpenAI-kompatibel", "German kind name verbatim");
+        });
+        sync_scope(Lang::En, || {
+            assert_eq!(super::locality_label("extern"), "external", "English word for an external connection");
+            assert_eq!(super::locality_label("lokal"), "local", "English word for a local connection");
+            assert_eq!(super::kind_title("openai"), "OpenAI-compatible", "English kind name");
+            assert_eq!(super::kind_title("eliezer"), "Eliezer", "a product name stays");
+            assert_eq!(super::kind_title("x"), "unknown", "an unknown kind in English");
+        });
+    }
+
     #[test]
     fn the_max_tokens_cap_takes_only_positive_numbers() {
         assert_eq!(super::max_tokens_cap(Some(" 300 ")), Some(300), "Zahl mit Leerraum gilt");

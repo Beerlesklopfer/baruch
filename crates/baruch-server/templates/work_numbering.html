@@ -35,7 +35,7 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   <h1 class="pane-title">{{ t("works.numbering.heading", title=work.title) }}</h1>
-  <p class="small">{{ t("works.numbering.now_html", label=current.scheme_label) }}
+  <p class="small">{{ t("works.numbering.now_html", label=current.scheme_label|scheme_ui) }}
     {%- if current.scheme == "template" %} ({% if current.effective %}{{ t("works.numbering.pattern", pattern=current.effective) }}{% else %}{{ t("works.numbering.no_numbers") }}{% endif %}
     {%- if current.template is none %}{{ t("works.numbering.template_sets_none") }}{% endif %})
     {%- elif current.scheme == "custom" %} {{ t("works.numbering.custom", pattern=current.custom) }}{% endif %}.</p>

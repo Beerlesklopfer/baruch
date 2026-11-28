@@ -41,3 +41,11 @@ import_msg.docx.draft_unknown = Entwurf „{ $id }“ gibt es nicht (verworfen, 
 import_msg.docx.draft_busy = Entwurf „{ $id }“ wird gerade übernommen.
 import_msg.docx.draft_id = draft: 32 Kleinbuchstaben-Hex (aus docx_import.preview).
 import_msg.docx.delete_aborted = Löschen abgebrochen: { $detail }
+
+# Round 39b (rest_literals): the stored drafts of the Word import (src/docx_import/draft.rs).
+import_msg.docx_draft.invalid = ungültiger Entwurf
+import_msg.docx_draft.create = Entwurf lässt sich nicht anlegen: { $error }
+import_msg.docx_draft.write = Entwurf lässt sich nicht schreiben: { $error }
+import_msg.docx_draft.encode = Entwurf: { $error }
+import_msg.docx_draft.unreadable = Entwurf unlesbar: { $error }
+import_msg.docx_draft.source_missing = Datei des Entwurfs fehlt: { $error }

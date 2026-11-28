@@ -31,7 +31,7 @@ use minijinja::{Environment, Value, context};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
-use crate::i18n::tc;
+use crate::i18n::{self, Lang, tc};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 use crate::{AppState, mirror};
@@ -68,8 +68,8 @@ fn scheme_params(params: &Json) -> Result<(String, Option<String>), RpcError> {
 #[derive(Debug, Clone, Serialize)]
 pub struct SchemeRow {
     pub id: &'static str,
-    pub label: &'static str,
-    pub example: &'static str,
+    pub label: String,
+    pub example: String,
     /// The first [`PREVIEW_POINTS`] items of the outline.
     pub preview: Vec<NumberPreview>,
     /// Further items after the preview.
@@ -90,19 +90,79 @@ pub async fn scheme_rows(state: &AppState, work: WorkId, custom: Option<&str>) -
                 all.truncate(PREVIEW_POINTS);
                 (all, more, None)
             }
-            Err(StoreError::Numbering(message)) => (Vec::new(), 0, Some(message)),
+            Err(StoreError::Numbering(message)) => (Vec::new(), 0, Some(scheme_message(i18n::current(), &message))),
             Err(e) => return Err(e.into()),
         };
         rows.push(SchemeRow {
             id: scheme.id(),
-            label: scheme.label(),
-            example: scheme.example(),
+            label: scheme_label(i18n::current(), scheme),
+            example: scheme_example(i18n::current(), scheme),
             preview,
             more,
             error,
         });
     }
     Ok(rows)
+}
+
+// ---- Names in the interface language (Round 39b) ------------------------------------------------------------
+
+/// Catalog keys (name, example) of a scheme; the crate `baruch-typst` keeps its German labels, the server translates.
+fn scheme_keys(scheme: NumberingScheme) -> (&'static str, &'static str) {
+    use baruch_typst::scheme::Scheme;
+    match scheme {
+        Scheme::Template => ("outline.scheme.template", "outline.scheme.template_example"),
+        Scheme::Decimal => ("outline.scheme.decimal", "outline.scheme.decimal_example"),
+        Scheme::DecimalDot => ("outline.scheme.decimal_dot", "outline.scheme.decimal_dot_example"),
+        Scheme::Alphanumeric => ("outline.scheme.alphanumeric", "outline.scheme.alphanumeric_example"),
+        Scheme::ChapterRoman => ("outline.scheme.chapter_roman", "outline.scheme.chapter_roman_example"),
+        Scheme::ChapterArabic => ("outline.scheme.chapter_arabic", "outline.scheme.chapter_arabic_example"),
+        Scheme::PartsChapters => ("outline.scheme.parts_chapters", "outline.scheme.parts_chapters_example"),
+        Scheme::ChapterWords => ("outline.scheme.chapter_words", "outline.scheme.chapter_words_example"),
+        Scheme::Legal => ("outline.scheme.legal", "outline.scheme.legal_example"),
+        Scheme::Sermon => ("outline.scheme.sermon", "outline.scheme.sermon_example"),
+        Scheme::Book => ("outline.scheme.book", "outline.scheme.book_example"),
+        Scheme::None => ("outline.scheme.none", "outline.scheme.none_example"),
+        Scheme::Custom => ("outline.scheme.custom", "outline.scheme.custom_example"),
+    }
+}
+
+/// Name of a scheme in `lang` (German: verbatim [`NumberingScheme::label`]).
+pub fn scheme_label(lang: Lang, scheme: NumberingScheme) -> String {
+    i18n::t(lang, scheme_keys(scheme).0, &[])
+}
+
+/// Example of a scheme in `lang` (German: verbatim [`NumberingScheme::example`]).
+pub fn scheme_example(lang: Lang, scheme: NumberingScheme) -> String {
+    i18n::t(lang, scheme_keys(scheme).1, &[])
+}
+
+/// A scheme text the store hands over in German (`NumberingInfo::scheme_label`, `label`, `effective`) in `lang`: a
+/// scheme name, an example or „keine“ is translated, anything else (a pattern such as `I|1`) stays as it is. The
+/// filter `scheme_ui` of the templates (`i18n::install`).
+pub fn scheme_text(lang: Lang, text: &str) -> String {
+    for scheme in NumberingScheme::ALL {
+        if text == scheme.label() {
+            return scheme_label(lang, scheme);
+        }
+        if text == scheme.example() {
+            return scheme_example(lang, scheme);
+        }
+    }
+    if text == "keine" {
+        return i18n::t(lang, "outline.scheme.no_numbers", &[]);
+    }
+    text.to_owned()
+}
+
+/// The refusal of a scheme in `lang`: the missing own pattern is translated; the other checks of the pattern
+/// language come from `baruch-typst` in German and stay as they are (open, see docs/Backlog.md).
+pub fn scheme_message(lang: Lang, message: &str) -> String {
+    let missing = baruch_typst::scheme::Numbering::of_scheme(NumberingScheme::Custom, None, "").err();
+    if missing.as_deref() == Some(message) {
+        return i18n::t(lang, "outline.scheme.custom_missing", &[]);
+    }
+    message.to_owned()
 }
 
 /// Set the scheme (under the write lock) and log it in the mirror; answer like
@@ -256,7 +316,7 @@ pub(crate) async fn page_context(
         .iter()
         .map(|row| {
             context! {
-                id => row.id, label => row.label, example => row.example, more => row.more,
+                id => row.id, label => row.label.as_str(), example => row.example.as_str(), more => row.more,
                 error => row.error.as_deref(), preview => Value::from(Serde(&row.preview)),
                 checked => row.id == selected, current => row.id == current.scheme,
             }
@@ -373,5 +433,42 @@ mod tests {
         assert!(scheme_params(&json!({ "custom": "1.1" })).is_err(), "ohne scheme ein Fehler");
         assert!(scheme_params(&json!({ "scheme": "custom", "custom": 3 })).is_err(), "custom muss Text sein");
         assert!(handles("numbering.set") && !handles("outline.set_numbering"), "nur numbering.*");
+    }
+
+    #[test]
+    fn scheme_names_are_translated_and_german_stays_verbatim() {
+        for scheme in NumberingScheme::ALL {
+            assert_eq!(
+                scheme_label(Lang::De, scheme),
+                scheme.label(),
+                "German pages show the label of baruch-typst unchanged"
+            );
+            assert_eq!(scheme_example(Lang::De, scheme), scheme.example(), "the German example is verbatim too");
+            for (key, text) in [scheme_keys(scheme).0, scheme_keys(scheme).1]
+                .into_iter()
+                .zip([scheme_label(Lang::En, scheme), scheme_example(Lang::En, scheme)])
+            {
+                assert!(i18n::exists(key), "{key} is in the English catalog (otherwise the page shows the raw key)");
+                assert!(
+                    !text.contains(['ä', 'ö', 'ü', 'ß', '„']),
+                    "{key}: the English text carries no German letter: {text}"
+                );
+            }
+        }
+        assert_eq!(scheme_text(Lang::En, "Nur Kapitel römisch"), "Chapters only, Roman", "a stored name is translated");
+        assert_eq!(scheme_text(Lang::En, "keine"), "none", "the store's word for no numbers is translated");
+        assert_eq!(scheme_text(Lang::En, "I|1"), "I|1", "a pattern is no word and stays");
+        assert_eq!(scheme_text(Lang::De, "Nur Kapitel römisch"), "Nur Kapitel römisch", "German stays verbatim");
+    }
+
+    #[test]
+    fn the_missing_own_pattern_is_refused_in_the_interface_language() {
+        let german = baruch_typst::scheme::Numbering::of_scheme(NumberingScheme::Custom, None, "").unwrap_err();
+        assert_eq!(scheme_message(Lang::De, &german), german, "German keeps the message of baruch-typst verbatim");
+        assert!(
+            scheme_message(Lang::En, &german).starts_with("For “Own pattern” the pattern is missing"),
+            "English pages explain the missing pattern in English"
+        );
+        assert_eq!(scheme_message(Lang::En, "other"), "other", "other checks of the pattern stay as they come");
     }
 }

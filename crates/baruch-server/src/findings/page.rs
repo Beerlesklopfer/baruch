@@ -356,7 +356,7 @@ impl Counts {
         let mut parts: Vec<String> = FindingStatus::ALL
             .into_iter()
             .filter(|s| self.of(*s) > 0)
-            .map(|s| format!("{} {}", self.of(s), s.label()))
+            .map(|s| format!("{} {}", self.of(s), super::status_label(s)))
             .collect();
         if self.praise > 0 {
             parts.push(tc("findings_msg.matrix.praise", &[("count", self.praise.into())]));
@@ -1037,11 +1037,11 @@ async fn page_response(
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let statuses: Vec<Json> = FindingStatus::ALL
         .into_iter()
-        .map(|s| json!({ "value": s.as_db(), "label": s.label(), "sign": status_sign(s), "checked": filter.status.contains(&s) }))
+        .map(|s| json!({ "value": s.as_db(), "label": super::status_label(s), "sign": status_sign(s), "checked": filter.status.contains(&s) }))
         .collect();
     let kinds: Vec<Json> = FindingKind::ALL
         .into_iter()
-        .map(|k| json!({ "value": k.as_db(), "label": k.label(), "sign": kind_sign(k), "checked": filter.kind.contains(&k) }))
+        .map(|k| json!({ "value": k.as_db(), "label": super::kind_label(k), "sign": kind_sign(k), "checked": filter.kind.contains(&k) }))
         .collect();
     let ctx = context! {
         settings => Value::from(Serde(settings)),

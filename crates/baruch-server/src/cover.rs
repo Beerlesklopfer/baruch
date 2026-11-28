@@ -1187,44 +1187,47 @@ async fn page_response(
     let status =
         if editor.invalid_preview && status == StatusCode::OK { StatusCode::UNPROCESSABLE_ENTITY } else { status };
     // Preview: typeset the cover (cache of the typeset view by state), with the preview layout.
-    let (preview, facts, diagnostics, print, preview_error) = match build_wrap_for(state, work, editor.shown.as_ref())
-        .await
-    {
-        Ok(wrap) => {
-            let stand = baruch_render::stand(&wrap.source);
-            // Round 20c: spine = book pages / 2 sheets × thickness per sheet (cover pages in the book do not count).
-            let paper_mm = state.store.book_meta(work).await.map_or(0.1, |m| m.paper_mm);
-            let book_pages = wrap.pages.saturating_sub(wrap.cover_pages);
-            let facts = context! {
-                width => format_mm(wrap.width_mm), height => format_mm(wrap.height_mm),
-                spine => format_mm(wrap.spine_mm), bleed => format_mm(wrap.bleed_mm),
-                page_width => format_mm(wrap.page_width_mm), page_height => format_mm(wrap.page_height_mm),
-                pages => wrap.pages, cover_pages => wrap.cover_pages, book_pages => book_pages,
-                sheets => number_value(book_pages as f64 / 2.0).replace('.', ","),
-                sheet_mm => paper_text(paper_mm * 2.0),
-            };
-            match crate::typeset::compile(wrap.source, &stand, crate::typeset::COMPILE_TIMEOUT).await {
-                Ok((compiled, _)) => {
-                    let diagnostics: Vec<Jinja> = compiled
+    let (preview, facts, diagnostics, print, preview_error) =
+        match build_wrap_for(state, work, editor.shown.as_ref()).await {
+            Ok(wrap) => {
+                let stand = baruch_render::stand(&wrap.source);
+                // Round 20c: spine = book pages / 2 sheets × thickness per sheet (cover pages in the book do not count).
+                let paper_mm = state.store.book_meta(work).await.map_or(0.1, |m| m.paper_mm);
+                let book_pages = wrap.pages.saturating_sub(wrap.cover_pages);
+                let facts = context! {
+                    width => format_mm(wrap.width_mm), height => format_mm(wrap.height_mm),
+                    spine => format_mm(wrap.spine_mm), bleed => format_mm(wrap.bleed_mm),
+                    page_width => format_mm(wrap.page_width_mm), page_height => format_mm(wrap.page_height_mm),
+                    pages => wrap.pages, cover_pages => wrap.cover_pages, book_pages => book_pages,
+                    sheets => ui_decimal(book_pages as f64 / 2.0, 2),
+                    sheet_mm => ui_decimal(paper_mm * 2.0, 3),
+                };
+                match crate::typeset::compile(wrap.source, &stand, crate::typeset::COMPILE_TIMEOUT).await {
+                    Ok((compiled, _)) => {
+                        let diagnostics: Vec<Jinja> = compiled
                             .rendered
                             .diagnostics
                             .iter()
                             .map(|d| {
                                 context! {
-                                    label => if d.severity == baruch_render::Severity::Error { "Fehler" } else { "Warnung" },
+                                    label => if d.severity == baruch_render::Severity::Error {
+                                        tc("cover.page.diagnostic_error", &[])
+                                    } else {
+                                        tc("cover.page.diagnostic_warning", &[])
+                                    },
                                     message => d.message.as_str(), file => d.file.as_deref(), line => d.line,
                                 }
                             })
                             .collect();
-                    let image = (!compiled.rendered.pages.is_empty()).then(|| stand[..16].to_owned());
-                    let print = print_warnings(&compiled.rendered.print);
-                    (image, Some(facts), diagnostics, print, None)
+                        let image = (!compiled.rendered.pages.is_empty()).then(|| stand[..16].to_owned());
+                        let print = print_warnings(&compiled.rendered.print);
+                        (image, Some(facts), diagnostics, print, None)
+                    }
+                    Err(e) => (None, Some(facts), Vec::new(), Vec::new(), Some(e.message)),
                 }
-                Err(e) => (None, Some(facts), Vec::new(), Vec::new(), Some(e.message)),
             }
-        }
-        Err(e) => (None, None, Vec::new(), Vec::new(), Some(e.message)),
-    };
+            Err(e) => (None, None, Vec::new(), Vec::new(), Some(e.message)),
+        };
     let fonts = font_names().await;
     let ctx = context! {
         settings => page_settings(headers), work => context! { id => work, title => title },
@@ -1254,9 +1257,17 @@ fn print_warnings(print: &[baruch_render::PrintWarning]) -> Vec<String> {
     print.iter().map(|w| w.message.clone()).collect()
 }
 
-/// „12,3 mm“.
+/// „12,3 mm“ (German) or „12.3 mm“ (English): one decimal in the request language (Round 39b, `i18n::number`).
 fn format_mm(value: f64) -> String {
-    format!("{value:.1}").replace('.', ",")
+    crate::i18n::number(crate::i18n::current(), value, 1)
+}
+
+/// A number with at most `decimals` places and no trailing zeros, in the request language through
+/// `i18n::number` (Round 39b): sheets „12,5“ (German) or „12.5“ (English), „12“ for a whole number.
+fn ui_decimal(value: f64, decimals: usize) -> String {
+    let plain = format!("{value:.decimals$}");
+    let needed = plain.split_once('.').map_or(0, |(_, fraction)| fraction.trim_end_matches('0').len());
+    crate::i18n::number(crate::i18n::current(), value, needed)
 }
 
 /// Fields of a query or a form with notice (`hinweis` or `ok`).
@@ -1352,9 +1363,9 @@ pub const BLOCK_FIELDS: [&str; 13] = [
     "text",
 ];
 
-/// German name of a block with face: „Titel (Vorderseite)“.
+/// Name of a block with face in the language of the request: „Titel (Vorderseite)“, „Title (Front)“ (Round 39b).
 pub fn block_label(kind: CoverBlockKind) -> String {
-    format!("{} ({})", kind.label(), kind.face().label())
+    crate::cover_layout::kind_label_in(crate::i18n::current(), kind)
 }
 
 /// Name of a block field in the language of the request (messages, form).
@@ -1712,7 +1723,13 @@ pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, 
         if fw > 2.0 * safety && fh > 2.0 * safety {
             out.push((
                 "safety",
-                tc("cover_msg.guide.safety", &[("mm", local_decimal(safety).into()), ("face", face.label().into())]),
+                tc(
+                    "cover_msg.guide.safety",
+                    &[
+                        ("mm", local_decimal(safety).into()),
+                        ("face", crate::cover_layout::face_label_in(crate::i18n::current(), face).into()),
+                    ],
+                ),
                 ox + safety,
                 oy + safety,
                 fw - 2.0 * safety,
@@ -1772,8 +1789,11 @@ impl EditorState {
                     tc("cover_msg.editor.block_aria_hidden", &args)
                 };
                 context! {
-                    kind => kind.as_str(), label => label, name => kind.label(), face => kind.face().as_str(),
-                    face_label => kind.face().label(), aria => aria, stored => vb.stored,
+                    kind => kind.as_str(), label => label,
+                    name => crate::cover_layout::block_name_in(crate::i18n::current(), kind),
+                    face => kind.face().as_str(),
+                    face_label => crate::cover_layout::face_label_in(crate::i18n::current(), kind.face()),
+                    aria => aria, stored => vb.stored,
                     own_text => kind.own_text(), spine => kind.face() == CoverFace::Spine, visible => block.visible,
                     left => percent(left, wrap_w), top => percent(top, wrap_h),
                     width => percent(width, wrap_w), height => percent(height, wrap_h),
@@ -1800,8 +1820,12 @@ impl EditorState {
                 }
             })
             .collect();
-        let faces: Vec<Jinja> =
-            CoverFace::ALL.into_iter().map(|f| context! { name => f.as_str(), label => f.label() }).collect();
+        let faces: Vec<Jinja> = CoverFace::ALL
+            .into_iter()
+            .map(|f| {
+                context! { name => f.as_str(), label => crate::cover_layout::face_label_in(crate::i18n::current(), f) }
+            })
+            .collect();
         context! {
             available => true, error => self.error.as_deref(), preview => self.preview,
             layout_json => serde_json::to_string(view).unwrap_or_default(),
@@ -2145,6 +2169,21 @@ mod tests {
 
     fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
         list.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+    }
+
+    #[test]
+    fn sheets_and_millimetres_follow_the_request_language() {
+        use crate::i18n::{Lang, sync_scope};
+        sync_scope(Lang::De, || {
+            assert_eq!(ui_decimal(12.5, 2), "12,5", "German sheets keep the decimal comma (as before)");
+            assert_eq!(ui_decimal(12.0, 2), "12", "a whole number has no decimals");
+            assert_eq!(ui_decimal(0.25, 3), "0,25", "paper per sheet without trailing zeros");
+            assert_eq!(format_mm(12.34), "12,3", "German millimetres with one decimal and a comma");
+        });
+        sync_scope(Lang::En, || {
+            assert_eq!(ui_decimal(12.5, 2), "12.5", "English sheets with a decimal point (finding R39a: was 12,5)");
+            assert_eq!(format_mm(12.34), "12.3", "English millimetres with a point");
+        });
     }
 
     #[test]

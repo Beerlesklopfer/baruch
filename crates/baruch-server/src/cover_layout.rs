@@ -29,7 +29,7 @@ use serde_json::{Map, Value, json};
 use crate::AppState;
 use crate::asset_requests::Decided;
 use crate::cover_print::CoverWarning;
-use crate::i18n::tc;
+use crate::i18n::{self, Lang, tc};
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
@@ -118,9 +118,58 @@ pub(crate) async fn default_font(state: &AppState, work: WorkId) -> Result<Strin
 
 // ---- Blocks from JSON ------------------------------------------------------------------------------
 
-/// „Titel (Vorderseite)“.
+/// „Titel (Vorderseite)“: the German name of the crate, used by the commit texts of the mirror.
 pub fn kind_label(kind: CoverBlockKind) -> String {
     format!("{} ({})", kind.label(), kind.face().label())
+}
+
+// ---- Names in the interface language (Round 39b) ----------------------------------------------------------------
+
+/// Catalog key of a face (German verbatim [`CoverFace::label`]).
+fn face_key(face: CoverFace) -> &'static str {
+    match face {
+        CoverFace::Front => "cover.face.front",
+        CoverFace::Spine => "cover.face.spine",
+        CoverFace::Back => "cover.face.back",
+    }
+}
+
+/// Catalog key of a block kind (German verbatim [`CoverBlockKind::label`]).
+fn block_key(kind: CoverBlockKind) -> &'static str {
+    match kind {
+        CoverBlockKind::FrontTitle => "cover.block.front_title",
+        CoverBlockKind::FrontSubtitle => "cover.block.front_subtitle",
+        CoverBlockKind::FrontAuthor => "cover.block.front_author",
+        CoverBlockKind::FrontPublisher => "cover.block.front_publisher",
+        CoverBlockKind::FrontFree => "cover.block.front_free",
+        CoverBlockKind::SpineTitle => "cover.block.spine_title",
+        CoverBlockKind::SpineAuthor => "cover.block.spine_author",
+        CoverBlockKind::SpinePublisher => "cover.block.spine_publisher",
+        CoverBlockKind::SpineFree => "cover.block.spine_free",
+        CoverBlockKind::BackMotto => "cover.block.back_motto",
+        CoverBlockKind::BackBlurb => "cover.block.back_blurb",
+        CoverBlockKind::BackBio => "cover.block.back_bio",
+        CoverBlockKind::BackBarcode => "cover.block.back_barcode",
+        CoverBlockKind::BackPublisherPrice => "cover.block.back_publisher_price",
+        CoverBlockKind::BackFree => "cover.block.back_free",
+    }
+}
+
+/// Name of a face in `lang`.
+pub fn face_label_in(lang: Lang, face: CoverFace) -> String {
+    i18n::t(lang, face_key(face), &[])
+}
+
+/// Name of a block kind (without face) in `lang`.
+pub fn block_name_in(lang: Lang, kind: CoverBlockKind) -> String {
+    i18n::t(lang, block_key(kind), &[])
+}
+
+/// „Titel (Vorderseite)“ / „Title (Front)“ in `lang`; German equals [`kind_label`].
+pub fn kind_label_in(lang: Lang, kind: CoverBlockKind) -> String {
+    let block = block_name_in(lang, kind);
+    let face = face_label_in(lang, kind.face());
+    i18n::t(lang, "cover.block.with_face", &[("block", block.into()), ("face", face.into())])
 }
 
 /// Fields of a block in the JSON (contract 1.3); `stored` and `height_mm` from `cover.layout` are skipped.
@@ -166,8 +215,10 @@ pub fn parse_block(
             ));
         }
     };
-    let label =
-        tc("cover_msg.layout.block_label", &[("label", kind_label(kind).into()), ("kind", kind.as_str().into())]);
+    let label = tc(
+        "cover_msg.layout.block_label",
+        &[("label", kind_label_in(i18n::current(), kind).into()), ("kind", kind.as_str().into())],
+    );
     let wrong = |field: &str, what: &str| {
         tc(
             "cover_msg.layout.field",
@@ -374,9 +425,66 @@ fn all_fields(block: &CoverBlock) -> String {
     fields(block).into_iter().map(|(n, v)| format!("{n} {v}")).collect::<Vec<_>>().join(", ")
 }
 
-/// One line per block for the list of requests: „Titel (Vorderseite): x 5,0 mm, y 40,0 mm, …“.
+/// One line per block for the list of requests in the language of the request: „Titel (Vorderseite): x 5,0 mm,
+/// y 40,0 mm, …“ (German verbatim as the commit texts write it) or „Title (Front): x 5.0 mm, y 40.0 mm, …“.
 pub fn block_line(block: &CoverBlock) -> String {
-    format!("{}: {}", kind_label(block.kind), all_fields(block))
+    let lang = i18n::current();
+    if lang == Lang::De {
+        return format!("{}: {}", kind_label(block.kind), all_fields(block));
+    }
+    let fields: Vec<String> = ui_fields(lang, block).into_iter().map(|(n, v)| format!("{n} {v}")).collect();
+    format!("{}: {}", kind_label_in(lang, block.kind), fields.join(", "))
+}
+
+/// The fields of [`fields`] with names and words from the catalog and numbers through `i18n::number` (Round 39b).
+fn ui_fields(lang: Lang, block: &CoverBlock) -> Vec<(String, String)> {
+    let w = |key: &str| i18n::t(lang, key, &[]);
+    let n = |value: f64, decimals: usize| i18n::number(lang, value, decimals);
+    let align = match block.align {
+        CoverAlign::Left => "cover.block_line.align_left",
+        CoverAlign::Center => "cover.block_line.align_center",
+        CoverAlign::Right => "cover.block_line.align_right",
+        CoverAlign::Justify => "cover.block_line.align_justify",
+    };
+    let style = match block.style {
+        FontStyle::Normal => "cover.block_line.style_normal",
+        FontStyle::Bold => "cover.block_line.style_bold",
+        FontStyle::Italic => "cover.block_line.style_italic",
+    };
+    let backdrop = match block.backdrop {
+        Backdrop::None => "cover.block_line.backdrop_none",
+        Backdrop::Shadow => "cover.block_line.backdrop_shadow",
+        Backdrop::Gradient => "cover.block_line.backdrop_gradient",
+    };
+    let color = match block.color.as_str() {
+        "light" => w("cover.block_line.color_light"),
+        "dark" => w("cover.block_line.color_dark"),
+        other => other.to_owned(),
+    };
+    let mut out = vec![
+        ("x".to_owned(), format!("{} mm", n(block.x_mm, 1))),
+        ("y".to_owned(), format!("{} mm", n(block.y_mm, 1))),
+        (w("cover.block_line.width"), format!("{} mm", n(block.width_mm, 1))),
+        (w("cover.block_line.align"), w(align)),
+        (w("cover.block_line.size"), format!("{} pt", n(block.size_pt, 1))),
+        (w("cover.block_line.leading"), format!("{} em", n(block.leading_em, 2))),
+        (w("cover.block_line.color"), color),
+        (w("cover.block_line.font"), block.font.clone().unwrap_or_else(|| w("cover.block_line.font_template"))),
+        (w("cover.block_line.style"), w(style)),
+        (w("cover.block_line.backdrop"), w(backdrop)),
+        (w("cover.block_line.visible"), w(if block.visible { "cover.block_line.yes" } else { "cover.block_line.no" })),
+    ];
+    if let Some(direction) = block.direction {
+        let word = if direction == SpineDirection::Down { "cover.block_line.down" } else { "cover.block_line.up" };
+        out.push((w("cover.block_line.direction"), w(word)));
+    }
+    if let Some(text) = &block.text {
+        let line = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        let line =
+            if line.chars().count() > 60 { format!("{}…", line.chars().take(60).collect::<String>()) } else { line };
+        out.push((w("cover.block_line.text"), format!("\u{201c}{line}\u{201d}")));
+    }
+    out
 }
 
 /// Body per changed block: „Titel (Vorderseite): x 12,0 → 15,0 mm, …“. If a block was not in the
@@ -637,6 +745,37 @@ mod tests {
             direction: None,
             text: None,
         }
+    }
+
+    #[test]
+    fn faces_and_blocks_are_translated_and_german_stays_verbatim() {
+        for kind in CoverBlockKind::ALL {
+            assert_eq!(kind_label_in(Lang::De, kind), kind_label(kind), "German pages keep the name of the crate");
+            assert_eq!(block_name_in(Lang::De, kind), kind.label(), "German block name verbatim");
+            let english = kind_label_in(Lang::En, kind);
+            assert!(!english.contains(['ä', 'ö', 'ü', 'ß']), "{english}: the English name carries no German letter");
+        }
+        for face in CoverFace::ALL {
+            assert_eq!(face_label_in(Lang::De, face), face.label(), "German face verbatim");
+        }
+        assert_eq!(kind_label_in(Lang::En, CoverBlockKind::SpineAuthor), "Author (Spine)", "English name with face");
+    }
+
+    #[test]
+    fn the_block_line_follows_the_language_and_german_stays_the_commit_wording() {
+        let mut b = block();
+        b.text = Some("Ein Satz".into());
+        let german = crate::i18n::sync_scope(Lang::De, || block_line(&b));
+        assert_eq!(german, format!("{}: {}", kind_label(b.kind), all_fields(&b)), "German = the commit wording");
+        assert!(german.contains("x 12,0 mm"), "German decimal comma: {german}");
+        let english = crate::i18n::sync_scope(Lang::En, || block_line(&b));
+        assert!(english.starts_with("Title (Front): x 12.0 mm, y 20.0 mm, width 100.0 mm"), "English: {english}");
+        assert!(
+            english.contains("line spacing 0.65 em") && english.contains("colour light"),
+            "English words: {english}"
+        );
+        assert!(english.contains("text \u{201c}Ein Satz\u{201d}"), "the text is quoted in English quotes: {english}");
+        assert!(!english.contains(['ä', 'ö', 'ü', 'ß', '„']), "no German letter in the English line: {english}");
     }
 
     #[test]

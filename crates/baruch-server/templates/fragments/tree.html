@@ -40,7 +40,7 @@
   {%- set chosen = "vorlage" if numbering.scheme == "template" else ("keine" if numbering.scheme == "none" else (numbering.numbering or "")) %}
   {#- Round 7: the name of the matching scheme („Nur Kapitel römisch“), the raw pattern only in the title. #}
   <details class="outline-numbering-head">
-    <summary class="tool small" title="{{ t('editor.tree.numbering_title', scheme_label=numbering.scheme_label) }}{% if numbering.effective and numbering.scheme in ["template", "custom"] %}{{ t('editor.tree.numbering_pattern', effective=numbering.effective) }}{% endif %})">{{ t('editor.tree.numbers', label=numbering.label) }}</summary>
+    <summary class="tool small" title="{{ t('editor.tree.numbering_title', scheme_label=numbering.scheme_label|scheme_ui) }}{% if numbering.effective and numbering.scheme in ["template", "custom"] %}{{ t('editor.tree.numbering_pattern', effective=numbering.effective) }}{% endif %})">{{ t('editor.tree.numbers', label=numbering.label|scheme_ui) }}</summary>
     <form class="numbering-form" method="post" action="/gliederung/act" data-outline-numbering>
       <input type="hidden" name="method" value="outline.set_numbering">
       <input type="hidden" name="work" value="{{ work.id }}">

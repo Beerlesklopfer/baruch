@@ -1,8 +1,10 @@
 # Using Baruch
 
 **Usage is described in the help on the website:** <https://baruch.bernau.family/hilfe/> – in the repository the
-pages under [`site/content/de/hilfe/`](../site/content/de/hilfe/). It is the only description for users, in
-everyday language, step by step and with images. For operators the same holds for
+pages under [`site/content/de/hilfe/`](../site/content/de/hilfe/); the English translation (Round 39b) is
+<https://baruch.bernau.family/en/hilfe/> with the pages under [`site/content/en/hilfe/`](../site/content/en/hilfe/)
+(same file names). It is the only description for users, in everyday language, step by step and with images. The
+menu entry „Help“ of the interface opens the help in the interface language (`about::help_url`). For operators the same holds for
 [`site/content/de/betrieb.md`](../site/content/de/betrieb.md) (entry point: [`docs/Betrieb.md`](Betrieb.md)).
 
 This file now only contains:
@@ -17,8 +19,9 @@ Usage steps no longer stand here – never in both files.
 ## Rule for developers
 
 "Update the usage docs" (AGENTS.md: docs grow with the code) means since Round 37: **change the responsible help page under
-`site/content/de/hilfe/` in the same commit.** Technical matters of the same change go into the "Technical
-notes" below. For the help pages:
+`site/content/de/hilfe/` in the same commit.** Since Round 39b the English page of the same name under
+`site/content/en/hilfe/` changes in the same commit too (see "Adding a text in Round 39b" below). Technical matters
+of the same change go into the "Technical notes" below. For the help pages:
 
 - Everyday language: „Fassung“ instead of „Revision“, „Assistent“ (role) instead of „Persona“; explain technical terms (MCP, Token, SWORD, Typst,
   reverse proxy …) at their first occurrence in a half sentence. No round numbers, no file names of the
@@ -64,6 +67,41 @@ outputs follow the work, not the interface). To move a visible text into the cat
    widget catalog in the page head carries every `widget.*` key and text, so a check for raw keys or absent words
    strips `<script id="baruch-i18n">` first. `tests/round39a_pages.rs` walks every GET page of the router in en and
    de (raw keys, German letters on English pages outside its list of known exceptions).
+
+### Adding a text in Round 39b: interface key, book key, English help page
+
+Three kinds of text, three places. Which one a text belongs to depends on where it is read, not on who writes it.
+
+**An interface key** (menus, pages, messages; follows the interface language `i18n::Lang`):
+
+1. Pick the area file by the first segment of the key (`settings.typeset.field.font` lives in `settings.ftl`) and
+   add the line to `crates/baruch-server/locales/en/<area>.ftl` (English, the base) and
+   `crates/baruch-server/locales/de/<area>.ftl` (German translation; an existing German wording stays byte for
+   byte) at the same position. A new area is a new pair of files (example: `readers.ftl`, Round 39b).
+2. Call it with a complete string literal (`t("…")`, `i18n::tc("…")`, `t("widget.…")`); a key chosen at run time
+   (an enum of another crate) is mapped by an exhaustive `match` that names every key as a literal, so the orphan
+   check of `round39a_i18n` still sees it (pattern: `numbering::scheme_keys`, `typeset::ui_labels`,
+   `cover_layout::face_key`, `findings::status_label`, `epub_preview::profile_keys`).
+3. Labels of other crates (`baruch-typst`, `baruch-store`, `baruch-epub`) stay German in their crate (the mirror and
+   older tests quote them); the server translates them by identifier. A unit test pins that the German catalog
+   value equals the crate label, so German pages keep their wording.
+4. Checks: `round39a_i18n` (keys, placeables, literal finder), `round39b_literals` (catalog completeness per area,
+   no German in the English catalog except its listed exceptions, every entry of `scripts/i18n-literal-allow.txt`
+   under a `# reason:` comment), `round39a_pages` (every GET page in en and de).
+
+**A book key** (words that end up in a book or are read back from a model as a fact; follows the work language
+`baruch_core::WorkLanguage`, never the interface language): add `book.<area>.<name> = …` to
+`crates/baruch-core/locales/en/book.ftl` and `crates/baruch-core/locales/de/book.ftl` (one line per entry, plain
+text, placeholders `{ $name }`), call `baruch_core::book_text::book_t(work_language, "book.…", &[…])` and escape
+for the output format at the call site. `crates/baruch-server/locales` never gets a `book.ftl`. Example in the
+interface: the settings form proposes `book_t(work language, "book.draft.watermark")` as the watermark ("DRAFT" for
+an English work, "ENTWURF" for a German one).
+
+**An English help page:** the English page has exactly the file name of the German page
+(`site/content/de/hilfe/x.md` → `site/content/en/hilfe/x.md`), the same `{#anchor}` ids, the same `weight` and the
+same image calls (`name`/`datei` unchanged, English `alt` and `titel`); links go to `/en/…/`. Interface words in
+the English help are the values of `crates/baruch-server/locales/en/*.ftl`. Checks: `hugo --minify --panicOnWarning
+-s site` and `cargo test -p baruch-server --test server round39b_hilfe_en`.
 
 ## Where is what
 

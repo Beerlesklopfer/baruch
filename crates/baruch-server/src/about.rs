@@ -29,6 +29,16 @@ pub const REPOSITORY: &str = "https://github.com/Beerlesklopfer/baruch";
 pub const HOMEPAGE: &str = "https://baruch.bernau.family/";
 /// Help on the website (Round 37): target of the entry „Hilfe“ in the menu Baruch ▾ and on the page „Über Baruch“.
 pub const HELP_URL: &str = "https://baruch.bernau.family/hilfe/";
+/// English help on the website (Round 39b): the same pages under `/en/` (`site/content/en/hilfe/`).
+pub const HELP_URL_EN: &str = "https://baruch.bernau.family/en/hilfe/";
+
+/// Address of the help in the interface language: German [`HELP_URL`], English [`HELP_URL_EN`] (Round 39b).
+pub fn help_url(lang: crate::i18n::Lang) -> &'static str {
+    match lang {
+        crate::i18n::Lang::De => HELP_URL,
+        crate::i18n::Lang::En => HELP_URL_EN,
+    }
+}
 pub const LICENSE_TEXT: &str = include_str!("../../../LICENSE");
 
 /// File name of the third-party licences in every package.
@@ -103,7 +113,7 @@ async fn page(axum::extract::State(state): axum::extract::State<Arc<AppState>>, 
         license_id => LICENSE_ID,
         repository => REPOSITORY,
         homepage => HOMEPAGE,
-        help => HELP_URL,
+        help => help_url(crate::i18n::current()),
         release_url => release_url(),
         data_dir => state.data.display().to_string(),
         default_data_dir => baruch_store::default_data_dir().display().to_string(),
@@ -179,6 +189,17 @@ mod tests {
         std::fs::remove_file(&file).unwrap();
         std::fs::create_dir(&file).unwrap();
         assert_eq!(find_third_party(&win.join("baruch-server.exe")), None, "ein Ordner gleichen Namens zählt nicht");
+    }
+
+    #[test]
+    fn the_help_follows_the_interface_language() {
+        assert_eq!(help_url(crate::i18n::Lang::De), HELP_URL, "German interface: the German help pages");
+        assert_eq!(help_url(crate::i18n::Lang::En), HELP_URL_EN, "English interface: the English help pages");
+        assert_eq!(
+            HELP_URL_EN,
+            format!("{HOMEPAGE}en/hilfe/"),
+            "Hugo serves the English translation of /hilfe/ under /en/hilfe/ (same path, language prefix)"
+        );
     }
 
     #[test]

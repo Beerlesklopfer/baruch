@@ -29,10 +29,10 @@ use axum::response::{IntoResponse, Redirect, Response};
 use baruch_render::{Severity, Source};
 use baruch_store::{StoreError, WorkId};
 use baruch_typst::typeset::{
-    ChapterStart, DEFAULT_DRAFT_TEXT, DRAFT_OPACITY_PERCENT, Draft, DraftPlacement, FIELDS, FieldError,
-    FootnoteNumbering, FootnoteRestart, Footnotes, GlossaryPosition, INDEX_COLUMNS, IndexPages, MAX_DRAFT_NOTE_CHARS,
-    MAX_DRAFT_TEXT_CHARS, Margins, PageFormat, PageNumberPosition, PageNumberStart, PageNumbers, Paragraph, PartPage,
-    PartSide, RunningHead, TemplateConflict, TypesetSettings, field_label, preview_source, rules, template_conflicts,
+    ChapterStart, DRAFT_OPACITY_PERCENT, Draft, DraftPlacement, FIELDS, FieldError, FootnoteNumbering, FootnoteRestart,
+    Footnotes, GlossaryPosition, INDEX_COLUMNS, IndexPages, MAX_DRAFT_NOTE_CHARS, MAX_DRAFT_TEXT_CHARS, Margins,
+    PageFormat, PageNumberPosition, PageNumberStart, PageNumbers, Paragraph, PartPage, PartSide, RunningHead,
+    TemplateConflict, TypesetSettings, preview_source, rules, template_conflicts,
 };
 use minijinja::context;
 use minijinja::value::{Serde, Value as JinjaValue};
@@ -42,6 +42,9 @@ use serde_json::{Value, json};
 use super::WorkRetry;
 use crate::AppState;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
+use crate::typeset::ui_labels;
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
 
 /// A form of the block „Satz“ that was rejected or sent for preview: input, messages per field
 /// (`(field id or subfield such as "margins.inside_mm", message)`; "form" = the whole form) and – after
@@ -107,7 +110,7 @@ fn choice<T>(
             field,
             message: crate::i18n::tc(
                 "settings_msg.typeset.unknown_choice",
-                &[("field", field_label(field).into()), ("raw", raw.into())],
+                &[("field", ui_labels::field_label(crate::i18n::current(), field).into()), ("raw", raw.into())],
             ),
         });
     }
@@ -408,7 +411,8 @@ fn conflicts_json(conflicts: &[TemplateConflict]) -> Vec<Value> {
     conflicts
         .iter()
         .map(|c| {
-            json!({ "field": c.field, "label": field_label(c.field), "line": c.line, "text": c.text,
+            json!({ "field": c.field, "label": ui_labels::field_label(crate::i18n::current(), c.field),
+                    "line": c.line, "text": c.text,
                     "effect": c.effect, "message": c.message })
         })
         .collect()
@@ -441,9 +445,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
 
 // ---- Block -----------------------------------------------------------------------------------------
 
-/// `[{id, label}]` of a selection list.
-fn options<T: Copy>(all: &[T], id: impl Fn(T) -> &'static str, label: impl Fn(T) -> &'static str) -> Vec<JinjaValue> {
-    all.iter().map(|&v| context! { id => id(v), label => label(v) }).collect()
+/// `[{id, label}]` of a selection list `group` (the label in the interface language, Round 39b).
+fn options<T: Copy>(all: &[T], id: impl Fn(T) -> &'static str, group: &str) -> Vec<JinjaValue> {
+    let lang = crate::i18n::current();
+    all.iter().map(|&v| context! { id => id(v), label => ui_labels::choice_label(lang, group, id(v)) }).collect()
 }
 
 /// What the block knows about the work (from [`crate::typeset_settings::load`]) – separate, so that the drawing
@@ -455,6 +460,8 @@ pub(crate) struct BlockInput<'a> {
     pub retry: Option<&'a Retry>,
     /// Round 31c: indexes of the work for the checkboxes „Registerseiten“ ([`crate::glossary::registers`]).
     pub registers: &'a [baruch_typst::index::Register],
+    /// Round 39b: language of the work; the default watermark of the form follows it (`book.draft.watermark`).
+    pub language: WorkLanguage,
 }
 
 /// Checkboxes of the index pages: first the chosen indexes in their order (this keeps the typesetting order on
@@ -515,17 +522,21 @@ pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
         });
     }
     let template_rule = view.template_rule.as_ref().map(|r| {
-        context! { line => r.line, text => r.text.as_str(), chapter_start => r.chapter_start.label() }
+        let chapter_start = ui_labels::choice_label(crate::i18n::current(), "chapter_start", r.chapter_start.id());
+        context! { line => r.line, text => r.text.as_str(), chapter_start => chapter_start }
     });
-    let mut formats = options(PageFormat::ALL, PageFormat::id, PageFormat::label);
-    formats.push(context! { id => "custom", label => "eigenes Format" });
+    let mut formats = options(PageFormat::ALL, PageFormat::id, "page_format");
+    formats.push(context! {
+        id => "custom", label => ui_labels::choice_label(crate::i18n::current(), "page_format", "custom"),
+    });
     let preview = input.retry.and_then(|r| r.preview.as_ref()).map(|p| {
         context! {
             urls => p.urls.clone(), pages => p.pages, errors => p.errors, warnings => p.warnings,
             diagnostics => JinjaValue::from(Serde(&p.diagnostics)),
         }
     });
-    let labels: BTreeMap<&str, &str> = FIELDS.iter().copied().collect();
+    let labels: BTreeMap<&str, String> =
+        FIELDS.iter().map(|(id, _)| (*id, ui_labels::field_label(crate::i18n::current(), id))).collect();
     context! {
         work => input.work,
         v => values,
@@ -547,20 +558,20 @@ pub(crate) fn block_context(input: &BlockInput<'_>) -> JinjaValue {
         index_columns => (INDEX_COLUMNS.0..=INDEX_COLUMNS.1).collect::<Vec<u8>>(),
         default_index_columns => DEFAULT_INDEX_COLUMNS,
         opts => context! {
-            chapter_start => options(ChapterStart::ALL, ChapterStart::id, ChapterStart::label),
-            part_side => options(PartSide::ALL, PartSide::id, PartSide::label),
+            chapter_start => options(ChapterStart::ALL, ChapterStart::id, "chapter_start"),
+            part_side => options(PartSide::ALL, PartSide::id, "part_side"),
             page_format => formats,
-            paragraph => options(Paragraph::ALL, Paragraph::id, Paragraph::label),
-            page_number_position => options(PageNumberPosition::ALL, PageNumberPosition::id, PageNumberPosition::label),
-            page_number_start => options(PageNumberStart::ALL, PageNumberStart::id, PageNumberStart::label),
-            running_head => options(RunningHead::ALL, RunningHead::id, RunningHead::label),
-            footnote_numbering => options(FootnoteNumbering::ALL, FootnoteNumbering::id, FootnoteNumbering::label),
-            footnote_restart => options(FootnoteRestart::ALL, FootnoteRestart::id, FootnoteRestart::label),
-            glossary_page => options(GlossaryPosition::ALL, GlossaryPosition::id, GlossaryPosition::label),
-            draft_placement => options(DraftPlacement::ALL, DraftPlacement::id, DraftPlacement::label),
+            paragraph => options(Paragraph::ALL, Paragraph::id, "paragraph"),
+            page_number_position => options(PageNumberPosition::ALL, PageNumberPosition::id, "page_number_position"),
+            page_number_start => options(PageNumberStart::ALL, PageNumberStart::id, "page_number_start"),
+            running_head => options(RunningHead::ALL, RunningHead::id, "running_head"),
+            footnote_numbering => options(FootnoteNumbering::ALL, FootnoteNumbering::id, "footnote_numbering"),
+            footnote_restart => options(FootnoteRestart::ALL, FootnoteRestart::id, "footnote_restart"),
+            glossary_page => options(GlossaryPosition::ALL, GlossaryPosition::id, "glossary_page"),
+            draft_placement => options(DraftPlacement::ALL, DraftPlacement::id, "draft_placement"),
         },
         draft_defaults => context! {
-            text => DEFAULT_DRAFT_TEXT, opacity => Draft::default().opacity_percent,
+            text => book_t(input.language, "book.draft.watermark", &[]), opacity => Draft::default().opacity_percent,
             min_opacity => DRAFT_OPACITY_PERCENT.0, max_opacity => DRAFT_OPACITY_PERCENT.1,
             max_text => MAX_DRAFT_TEXT_CHARS, max_note => MAX_DRAFT_NOTE_CHARS,
         },
@@ -581,7 +592,14 @@ pub async fn block(
         crate::glossary::registers(state, work).await.unwrap_or_else(|_| baruch_typst::index::builtin_registers());
     super::render_template(
         "settings/werk_satz.html",
-        block_context(&BlockInput { work, view: &view, template: &template, retry, registers: &registers }),
+        block_context(&BlockInput {
+            work,
+            view: &view,
+            template: &template,
+            retry,
+            registers: &registers,
+            language: crate::work_language::of(state, work).await,
+        }),
     )
 }
 
@@ -900,6 +918,7 @@ mod tests {
                 template: "",
                 retry,
                 registers: &baruch_typst::index::builtin_registers(),
+                language: WorkLanguage::De,
             }),
         )
         .expect("Vorlage zeichnet")

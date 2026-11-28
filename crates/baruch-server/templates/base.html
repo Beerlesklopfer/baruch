@@ -71,16 +71,21 @@
           <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="{{ t('layout.band.settings_shortcut_title') }}" data-shortcut="Alt+,">{{ t('layout.band.settings') }}</a>
           {%- endif %}
           {#- R39A-S1 lang-switch begin #}
-          {#- Round 39a: language of the interface, a plain form (POST /einstellungen/sprache, back through the
-              Referer); without nur-autor, Lektors may switch too. #}
+          {#- Round 39a: language of the interface, a plain form (POST /einstellungen/sprache); without nur-autor,
+              Lektors may switch too. Round 39b: back = path of this GET page (i18n::page_path), so the switch needs no
+              Referer; without it (page answering a form) the switch falls back to the Referer. #}
           <form class="menu-item lang-switch" method="post" action="/einstellungen/sprache" role="none">
+            {%- if page_path() %}
+            <input type="hidden" name="back" value="{{ page_path() }}">
+            {%- endif %}
             <button type="submit" role="menuitem" name="lang" value="en" lang="en"{% if ui_lang() == "en" %} aria-current="true"{% endif %}>{{ t("common.lang.en") }}</button>
             <button type="submit" role="menuitem" name="lang" value="de" lang="de"{% if ui_lang() == "de" %} aria-current="true"{% endif %}>{{ t("common.lang.de") }}</button>
           </form>
           {#- R39A-S1 lang-switch end #}
-          {#- Round 37: help on the website (about::HELP_URL). An ordinary link into a new window, usable without
-              JavaScript, without nur-autor (Lektors see it too); no route, no entry in roles. #}
-          <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="{{ t('layout.band.help_title') }}">{{ t('layout.band.help') }}</a>
+          {#- Round 37: help on the website (about::help_url, Round 39b: German or English pages by the interface
+              language). An ordinary link into a new window, usable without JavaScript, without nur-autor (Lektors see
+              it too); no route, no entry in roles. #}
+          <a class="menu-item" role="menuitem" href="{{ help_url() }}" target="_blank" rel="noopener noreferrer" title="{{ t('layout.band.help_title') }}">{{ t('layout.band.help') }}</a>
           {#- Round 24: about Baruch (page /ueber, src/about.rs) – version, licence, source code. An ordinary link,
               reachable on every page and without JavaScript; the work stays in the cookie, the page does not need it.
               #}
