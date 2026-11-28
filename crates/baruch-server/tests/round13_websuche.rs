@@ -191,7 +191,7 @@ async fn an_unreachable_multigpt_gives_an_honest_note_and_the_order_still_runs()
     assert!(body.contains("Angabe prüfen: nicht belegt"), "ohne Seite gibt es keinen Beleg: {body}");
     let message = user(&h.model.calls()[0]).to_owned();
     assert!(message.contains("Hinweis: Websuche ausgefallen ("), "der Hinweis steht auch im Prompt: {message}");
-    assert!(web_block(&message).contains("- keine Seite abgerufen"), "der Block sagt, dass nichts abgerufen wurde");
+    assert!(web_block(&message).contains("- no page fetched"), "der Block sagt, dass nichts abgerufen wurde");
     assert!(h.mcp.requests().is_empty(), "der Nachbau ist nicht mehr eingetragen und bekommt nichts");
 }
 
@@ -230,12 +230,12 @@ async fn preferred_sources_are_searched_first_by_site_and_marked_by_host() {
     let day = today();
     assert!(
         block.contains(&format!(
-            "[W1] Lichtkunde: Das kreisende Feuer · {LIGHT} · abgerufen {day} · bevorzugte Quelle\n<<<seite\n"
+            "[W1] Lichtkunde: Das kreisende Feuer · {LIGHT} · fetched {day} · preferred source\n<<<seite\n"
         )),
         "Kopfzeile mit Titel der Seite, Adresse, Abrufdatum und Kennzeichnung: {block}"
     );
     assert!(
-        block.contains(&format!("[W2] Hafenchronik 1890 · {ARCHIVE} · abgerufen {day} · bevorzugte Quelle")),
+        block.contains(&format!("[W2] Hafenchronik 1890 · {ARCHIVE} · fetched {day} · preferred source")),
         "zweite bevorzugte Quelle: {block}"
     );
     assert!(

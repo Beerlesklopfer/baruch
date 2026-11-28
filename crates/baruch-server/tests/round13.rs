@@ -427,8 +427,8 @@ async fn belege_searches_the_preferred_source_first_checks_quotes_and_adopts_onl
     let message = user(&w.model.calls()[0]).to_owned();
     let block = &message[message.find(BLOCK_TITLE).expect("Block der Webseiten")..];
     assert!(
-        block.contains(&format!("[W1] Lichtkunde: Das kreisende Feuer · {LIGHT} · abgerufen"))
-            && block.lines().any(|l| l.starts_with("[W1] ") && l.ends_with(" · bevorzugte Quelle")),
+        block.contains(&format!("[W1] Lichtkunde: Das kreisende Feuer · {LIGHT} · fetched"))
+            && block.lines().any(|l| l.starts_with("[W1] ") && l.ends_with(" · preferred source")),
         "W1 ist die bevorzugte Quelle und als solche gekennzeichnet: {block}"
     );
     assert!(

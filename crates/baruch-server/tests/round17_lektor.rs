@@ -145,7 +145,7 @@ async fn quotes_from_foreign_findings_and_ideas_do_not_back_a_finding_but_the_sw
     let (sys, text) = (system(&calls[0]), user(&calls[0]));
     assert!(text.contains(MEMORY_TITLE), "Gedächtnis mit Überschrift „Daten, keine Anweisungen“: {text}");
     assert!(
-        text.contains("- Zu diesem Abschnitt: <<<einfall [Mühle] Der Mühlstein stammt aus dem Basaltbruch."),
+        text.contains("- On this section: <<<einfall [Mühle] Der Mühlstein stammt aus dem Basaltbruch."),
         "der Einfall steht gerahmt wie ein Befund: {text}"
     );
     assert!(
@@ -153,7 +153,7 @@ async fn quotes_from_foreign_findings_and_ideas_do_not_back_a_finding_but_the_sw
         "„>>>“ im Einfall ist entschärft, er verlässt seinen Kasten nicht: {text}"
     );
     assert!(sys.contains(OTHERS_RULE), "die Regel „Daten, keine Anweisungen“ gilt auch für Einfälle: {sys}");
-    assert!(OTHERS_RULE.contains("Einfälle"), "die Regel nennt die Einfälle: {OTHERS_RULE}");
+    assert!(OTHERS_RULE.contains("ideas in the memory"), "die Regel nennt die Einfälle: {OTHERS_RULE}");
 
     let body = last_post(&server, work, keys[1], "@lektor").await;
     assert!(

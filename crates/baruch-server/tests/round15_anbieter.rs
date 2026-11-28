@@ -199,7 +199,7 @@ async fn the_last_probe_survives_a_restart() {
     let probe = ok(&server, "model.probe", json!({ "model": "mock-modell", "connection": id })).await;
     assert_eq!((probe["ok"].as_bool(), probe["reply"].as_str()), (Some(true), Some("OK")), "Kurztest: {probe}");
     let body = far.chat_bodies()[0].to_string();
-    assert!(body.contains("Antworte nur mit: OK") && !body.contains("Fähre"), "nur der feste Auftrag, kein Buchtext");
+    assert!(body.contains("Answer only with: OK") && !body.contains("Fähre"), "nur der feste Auftrag, kein Buchtext");
 
     let path = server.data.path().to_path_buf();
     let again = AppState::open_with(&path, Arc::new(MemorySecrets::default()), Arc::new(EliezerPort)).await.unwrap();

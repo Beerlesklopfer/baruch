@@ -143,7 +143,7 @@ async fn a_persona_addressing_another_at_the_start_of_a_line_gets_exactly_one_re
     assert_eq!(calls.len(), 2, "Lektor und eine Relay-Antwort");
     let (lector_post, relay_post) = (list[1].id, list[2].id);
     assert!(
-        all_text(&calls[1]).contains(&format!("@lektor hat dich in Beitrag {lector_post} direkt angesprochen")),
+        all_text(&calls[1]).contains(&format!("@lektor addressed you directly in post {lector_post}")),
         "der Auftrag der Relay-Antwort kommt von Baruch und nennt den Beitrag: {}",
         all_text(&calls[1])
     );

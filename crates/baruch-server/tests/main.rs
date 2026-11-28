@@ -178,6 +178,7 @@ mod round37_hilfe;
 mod round38_abnahme;
 mod round38_doku;
 mod round38_sprache;
+mod round38c_prompts;
 mod round4;
 mod round5;
 mod round5_fixes;
