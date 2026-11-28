@@ -1,67 +1,67 @@
-# Satzbild-Editor (WYSIWYG)
+# Typeset view editor (WYSIWYG)
 
-Erster Schritt in Runde 5, Feinschliff in Runde 6 (Szenen und Arbeitsaufträge als eigene Blöcke, Labels an
-Überschriften, Bilder in Inseln, Darstellung nur aus Regeln der obersten Ebene, Vorgabe Satzbild), Fehler aus der
-Arbeit am Buch in Runde 7 (eine Überschrift ist immer eine Zeile, Titelregeln, Bilder als Bild), Vorschläge an
-ihrer Stelle und Satzbild als Vorgabe schon im Server-HTML in Runde 8, mehr Konstrukte statt Inseln, Inseln an
-Ort und Stelle und Befehle des Menübands in Runde 18b.
+First step in Round 5, polish in Round 6 (scenes and work assignments as blocks of their own, labels on
+headings, images in islands, display only from rules of the top level, typeset view as the default), bugs from the
+work on the book in Round 7 (a heading is always one line, title rules, images as images), proposals in
+their place and typeset view as the default already in the server HTML in Round 8, more constructs instead of islands, islands
+in place and commands of the ribbon in Round 18b.
 
-Ein Abschnitt lässt sich im **Satzbild** bearbeiten: so, wie er nach der Werkvorlage aussieht (Schrift,
-Größe, Farben, Einzug, Satzbreite, Kästen von `#szene` und `#arbeit`), statt im Typst-Quelltext. Die Quelle
-bleibt Typst; gespeichert wird wie bisher über das Editor-Formular (`outline.save`), jede Speicherung ist eine
-neue Fassung. Ohne JavaScript gibt es nur den Quelltext.
+A section can be edited in the **typeset view**: the way it looks according to the work template (font,
+size, colours, indent, text width, boxes of `#szene` and `#arbeit`), instead of in the Typst source. The source
+stays Typst; saving works as before through the editor form (`outline.save`), every save is a
+new revision. Without JavaScript there is only the source.
 
-Teile: die reine Crate `crates/baruch-wysiwyg` (Blöcke, Rundreise, HTML, Stil), das Server-Modul
-`crates/baruch-server/src/wysiwyg.rs` (RPC `wysiwyg.*`), das Widget `web/src/wysiwyg.ts`, der Stil
-`static/wysiwyg.css` und der Bereich im Editor (`templates/fragments/editor.html`, Werkzeugleiste
-`templates/fragments/edit_toolbar.html`). Seit dem Wunsch 2026-11-06 umfasst `div.wysiwyg` die Werkzeugleiste
-(fest oben), das Blatt `div.editor-body` (füllt den Editor und scrollt allein; darin das Editor-Formular mit
-Satzbild und Textfeld und der Lesefluss der Vorschläge) und die Statuszeile (Hinweise, „Speichern“ und – seit
-Runde 22 – „Als neue Fassung speichern“, beide mit `form="editor-form"`). Ohne JavaScript sind Werkzeugleiste,
-Satzbild und sein Hinweis `hidden`.
+Parts: the pure crate `crates/baruch-wysiwyg` (blocks, round trip, HTML, style), the server module
+`crates/baruch-server/src/wysiwyg.rs` (RPC `wysiwyg.*`), the widget `web/src/wysiwyg.ts`, the style
+`static/wysiwyg.css` and the area in the editor (`templates/fragments/editor.html`, toolbar
+`templates/fragments/edit_toolbar.html`). Since the wish of 2026-11-06 `div.wysiwyg` comprises the toolbar
+(fixed at the top), the sheet `div.editor-body` (fills the editor and scrolls on its own; in it the editor form with
+typeset view and text field and the reading flow of the proposals) and the status line (hints, „Speichern“ and – since
+Round 22 – „Als neue Fassung speichern“, both with `form="editor-form"`). Without JavaScript the toolbar,
+the typeset view and its hint are `hidden`.
 
-## Blockmodell
+## Block model
 
-`baruch_wysiwyg::parse(text)` zerlegt einen Abschnittstext in **Blöcke**. Jeder Block trägt seinen
-Quelltext `raw` **wörtlich**, samt der Leerzeilen dahinter; die Verkettung aller `raw` ist der Text, Byte
-für Byte. `parse` scheitert nie.
+`baruch_wysiwyg::parse(text)` splits a section text into **blocks**. Every block carries its
+source `raw` **literally**, including the empty lines behind it; the concatenation of all `raw` is the text, byte
+for byte. `parse` never fails.
 
-| Art (`kind`)  | Typst                                                         |
+| Kind (`kind`) | Typst                                                         |
 |---------------|---------------------------------------------------------------|
-| `heading`     | `=` bis `======` am Zeilenanfang (eine Zeile), `level` 1–6; `label`: ein Label allein auf der Zeile dahinter (`= Titel⏎<name>`) |
-| `paragraph`   | Fließtext bis zur Leerzeile                                   |
-| `list`        | `- …` (`ordered: false`) bzw. `+ …` (`ordered: true`), Folgezeilen eingerückt; Runde 18b: geschachtelt mit `depths` (siehe unten) |
-| `enum`        | Runde 18b: Aufzählung `1. …`; `start` = Nummer des ersten Punkts (Vorgabe 1), `items`, `depths` wie bei `list` |
-| `terms`       | Runde 18b: Begriffsliste `/ Begriff: Erklärung`; `items: [{term, desc}]` (je Inlines), ohne Schachtelung (Grenze, siehe unten) |
-| `quote`       | `#quote(block: …, attribution: […])[…]` als ganzer Absatz     |
-| `scene`       | `#szene[…]` bzw. `#szene(…)[…]` als ganzer Absatz (auch mehrzeilig, direkt hinter Überschrift und Label); `args` = Argumente wörtlich, `body` = Blöcke |
-| `work`        | `#arbeit[…]` bzw. `#arbeit(…)[…]`, wie `scene`                |
-| `part`        | Runde 14: Teil-Markierung `#heading(level: 1, numbering: none)[T] <baruch-part>` (eine Zeile, nur oberste Ebene); `title` = aufgelöster Titel |
-| `unnumbered`  | Runde 14: Markierung „ohne Nummer“ `#heading(level: N, numbering: none)[T] <baruch-unnumbered>`; `level` 1–3, `title` |
-| `island`      | alles, was sich nicht sicher abbilden lässt (siehe Inseln)    |
+| `heading`     | `=` to `======` at the start of a line (one line), `level` 1–6; `label`: a label alone on the line behind it (`= Titel⏎<name>`) |
+| `paragraph`   | running text up to the empty line                             |
+| `list`        | `- …` (`ordered: false`) or `+ …` (`ordered: true`), continuation lines indented; Round 18b: nested with `depths` (see below) |
+| `enum`        | Round 18b: enumeration `1. …`; `start` = number of the first item (default 1), `items`, `depths` as with `list` |
+| `terms`       | Round 18b: term list `/ Begriff: Erklärung`; `items: [{term, desc}]` (inlines each), without nesting (limit, see below) |
+| `quote`       | `#quote(block: …, attribution: […])[…]` as a whole paragraph  |
+| `scene`       | `#szene[…]` or `#szene(…)[…]` as a whole paragraph (also multi-line, directly behind heading and label); `args` = arguments literally, `body` = blocks |
+| `work`        | `#arbeit[…]` or `#arbeit(…)[…]`, like `scene`                 |
+| `part`        | Round 14: part marker `#heading(level: 1, numbering: none)[T] <baruch-part>` (one line, top level only); `title` = resolved title |
+| `unnumbered`  | Round 14: marker „ohne Nummer“ `#heading(level: N, numbering: none)[T] <baruch-unnumbered>`; `level` 1–3, `title` |
+| `island`      | everything that cannot be mapped safely (see islands)         |
 
-Im Fließtext (`inlines`, Kennung `t`):
+In running text (`inlines`, tag `t`):
 
 | `t`        | Typst                                                                   |
 |------------|-------------------------------------------------------------------------|
-| `text`     | Text, Maskierungen aufgelöst (`\#` → `#`, `\u{2014}` → —, `~` → geschütztes Leerzeichen) |
-| `soft`     | einfacher Zeilenumbruch im Quelltext (im Satz ein Leerzeichen)          |
-| `emph`     | `_…_` oder `#emph[…]`                                                   |
-| `strong`   | `*…*` oder `#strong[…]`                                                 |
+| `text`     | text, escapes resolved (`\#` → `#`, `\u{2014}` → —, `~` → non-breaking space) |
+| `soft`     | simple line break in the source (a space in the typeset text)           |
+| `emph`     | `_…_` or `#emph[…]`                                                     |
+| `strong`   | `*…*` or `#strong[…]`                                                   |
 | `footnote` | `#footnote[…]`                                                          |
-| `quote`    | `#quote[…]` im Satz                                                     |
+| `quote`    | `#quote[…]` within a sentence                                           |
 | `label`    | `<name>`                                                                |
-| `island`   | Typst-Insel im Satz (`raw` wörtlich)                                    |
-| `linebreak`| Runde 18b: erzwungener Zeilenumbruch `\` (vor Leerraum, Zeilenende oder am Ende; Leerzeichen dahinter gehören zu ihm) |
-| `link`     | Runde 18b: `#link("adresse")[Text]` → `{url, c}`; ohne Inhaltsblock `#link("adresse")` → `{url}` (angezeigt wird die Adresse) |
-| `ref`      | Runde 18b: Verweis `@ziel` bzw. `@ziel[Zusatz]` (auch `#ref(<ziel>)`, `#ref(<ziel>, supplement: […])`) → `{target, supplement?}`; `supplement` ist Typst-Markup wörtlich |
-| `xref`     | Runde 30a: Querverweis `#link(<kN>)[Text]` bzw. mit Seitenzahl `#link(<kN>)[Text, S.~#context counter(page).at(<kN>).first()]` → `{key, c, page}` (siehe „Querverweise“) |
+| `island`   | Typst island within a sentence (`raw` literally)                        |
+| `linebreak`| Round 18b: forced line break `\` (before whitespace, line end or at the end; spaces behind it belong to it) |
+| `link`     | Round 18b: `#link("adresse")[Text]` → `{url, c}`; without a content block `#link("adresse")` → `{url}` (the address is shown) |
+| `ref`      | Round 18b: reference `@ziel` or `@ziel[Zusatz]` (also `#ref(<ziel>)`, `#ref(<ziel>, supplement: […])`) → `{target, supplement?}`; `supplement` is Typst markup literally |
+| `xref`     | Round 30a: cross-reference `#link(<kN>)[Text]` or with a page number `#link(<kN>)[Text, S.~#context counter(page).at(<kN>).first()]` → `{key, c, page}` (see "Cross-references") |
 
-`_` und `*` zwischen zwei Wortzeichen sind Text (wie in Typst: `datei_name`).
+`_` and `*` between two word characters are text (as in Typst: `datei_name`).
 
-**JSON-Form der neuen Konstrukte (Runde 18b).** Alte Formen bleiben gültig: Eine Liste ohne `depths` hat alle
-Punkte oben, und ohne Schachtelung schreibt der Server `depths` nicht (Antworten wie bisher); `enum` ohne `start`
-beginnt bei 1. Beispiele:
+**JSON form of the new constructs (Round 18b).** Old forms stay valid: a list without `depths` has all
+items at the top, and without nesting the server does not write `depths` (answers as before); `enum` without `start`
+begins at 1. Examples:
 
 ```json
 {"kind": "list", "ordered": false, "items": [[{"t":"text","v":"Obst"}], [{"t":"text","v":"Äpfel"}], [{"t":"text","v":"Gemüse"}]], "depths": [0, 1, 0]}
@@ -70,284 +70,283 @@ beginnt bei 1. Beispiele:
 {"t": "linebreak"}   {"t": "link", "url": "https://example.org", "c": [{"t":"text","v":"Beispiel"}]}   {"t": "ref", "target": "abb-1", "supplement": "S. 3"}
 ```
 
-**Listen, Aufzählungen, Begriffslisten (Runde 18b).** Jede Zeile, die nach ihrem Einzug mit dem Zeichen der Liste
-beginnt (`-`, `+`, `N.` bzw. `/`), beginnt einen Punkt; die Tiefe folgt aus der Spalte des Zeichens (weiter rechts als
-der Punkt davor = eine Ebene tiefer, sonst die Ebene mit derselben Spalte). Andere Zeilen sind Folgezeilen und
-müssen weiter eingerückt sein als das Zeichen ihres Punkts. Eine Aufzählung zählt fortlaufend: oben ab `start`, jede
-geschachtelte Gruppe ab 1. Begriff ist der Text bis zum ersten Doppelpunkt außerhalb von Maskierungen, Labels,
-Verweisen, Raw, Formeln, `#`-Ausdrücken und Inhaltsblöcken. **Insel bleiben:** geschachtelte Punkte mit anderem
-Zeichen (`- a⏎  + b`), eine Spalte zwischen zwei Ebenen, Tabulatoren im Einzug, leere Punkte, springende Nummern
-(`1.`, `3.`), geschachtelte Begriffslisten, ein Begriff ohne Doppelpunkt, mehr als neun Ebenen. Erzeugt (`emit`)
-wird kanonisch: zwei Leerzeichen Einzug je Ebene, Folgezeilen eine Ebene tiefer, fortlaufende Nummern, im Begriff
-jeder `:` maskiert (`\:`), sonst endete der Begriff dort.
+**Lists, enumerations, term lists (Round 18b).** Every line that, after its indent, begins with the character of the list
+(`-`, `+`, `N.` or `/`) begins an item; the depth follows from the column of the character (further right than
+the item before = one level deeper, otherwise the level with the same column). Other lines are continuation lines and
+must be indented further than the character of their item. An enumeration counts continuously: at the top from `start`, every
+nested group from 1. The term is the text up to the first colon outside of escapes, labels,
+references, raw, formulas, `#` expressions and content blocks. **They stay islands:** nested items with a different
+character (`- a⏎  + b`), a column between two levels, tabs in the indent, empty items, jumping numbers
+(`1.`, `3.`), nested term lists, a term without a colon, more than nine levels. Generation (`emit`)
+is canonical: two spaces of indent per level, continuation lines one level deeper, continuous numbers, in the term
+every `:` escaped (`\:`), otherwise the term would end there.
 
-**Grenze: geschachtelte Begriffslisten** (geprüft in Runde 21b, bleiben Insel). `terms` hat keine `depths` wie `list`
-und `enum`: Eine Erklärung, die selbst eine Begriffsliste (oder Liste) enthält, wäre im Satzbild ein `<dd>` mit
-eigenem Block darin – das Modell (`Term { term, desc }` mit Inlines), `emit`/`serialize`, `html.rs`, die Rücklesung in
-`wysiwyg.ts` (`<dl>` → Blöcke) und der Eigenschaftstest müssten dafür gemeinsam um verschachtelte Blöcke wachsen. Die
-Insel ist verlustfrei (Text byte-gleich, im Quelltext bearbeitbar, im Satz richtig gesetzt); darum kein Umbau in 21b.
-In Runde 23 nicht umgesetzt, bleibt offen (in R24 nicht umgesetzt, Backlog „offen nach R24“; Backlog „Nach Runde 23 offen“; zusammen mit gemischten
-Listenzeichen, wenn das Satzbild verschachtelte Blöcke in Listenpunkten lernt).
+**Limit: nested term lists** (checked in Round 21b, they stay islands). `terms` has no `depths` like `list`
+and `enum`: an explanation that itself contains a term list (or list) would be a `<dd>` with
+a block of its own inside it in the typeset view – the model (`Term { term, desc }` with inlines), `emit`/`serialize`, `html.rs`, the reading back in
+`wysiwyg.ts` (`<dl>` → blocks) and the property test would have to grow nested blocks together for that. The
+island is lossless (text byte-identical, editable in the source, typeset correctly); hence no rebuild in 21b.
+Not implemented in Round 23, stays open (not implemented in R24, backlog „offen nach R24“; backlog „Nach Runde 23 offen“; together with mixed
+list characters, once the typeset view learns nested blocks in list items).
 
-**Umbruch und Zeilenende (Runde 21b):** Ein `Soft` direkt hinter einem `Linebreak` (`\` am Zeilenende) erscheint als
-leeres `<span class="ws-soft" data-after-break="1"></span>`: Typst verschluckt dieses Zeilenende, das Satzbild rückte
-die nächste Zeile sonst um ein Leerzeichen ein. Das Element bleibt, damit das Widget es weiter als `soft` zurückliest
-(der Text bleibt byte-gleich).
+**Break and line end (Round 21b):** a `Soft` directly behind a `Linebreak` (`\` at the end of a line) appears as an
+empty `<span class="ws-soft" data-after-break="1"></span>`: Typst swallows this line end; the typeset view would otherwise indent
+the next line by a space. The element stays so that the widget still reads it back as `soft`
+(the text stays byte-identical).
 
-**Verweise und Umbrüche erzeugen.** Ein Verweis steht als `@ziel`, wenn das Ziel mit Buchstabe, Ziffer oder `_`
-beginnt, nicht auf `.`/`:` endet und das Zeichen dahinter nicht zum Ziel gehören würde; sonst als `#ref(<ziel>)` (z. B.
-vor `x` oder `_`). Hinter einem erzwungenen Umbruch steht ein Leerzeichen, außer am Blockende und vor einem
-Zeilenende (`\]` bzw. `\_` wären Maskierungen). Ein `\` vor Leerraum ist auch beim Zerlegen in Zeilen ein Umbruch,
-kein Maskieren des Zeilenendes: Das Zeilenende dahinter beendet die Zeile weiterhin (wie in Typst).
+**Generating references and breaks.** A reference stands as `@ziel` if the target begins with a letter, digit or `_`,
+does not end in `.`/`:` and the character behind it would not belong to the target; otherwise as `#ref(<ziel>)` (e.g.
+before `x` or `_`). Behind a forced break stands a space, except at the end of the block and before a
+line end (`\]` or `\_` would be escapes). A `\` before whitespace is a break also when splitting into lines,
+not an escape of the line end: the line end behind it still ends the line (as in Typst).
 
-**Szenen und Arbeitsaufträge.** Eine Zeile, die genau ein `#szene…[…]` bzw. `#arbeit…[…]` ist, ist immer
-ein eigener Block und verbindet sich nicht mit Nachbarzeilen. Ihr Rumpf besteht aus eigenen Blöcken
-(Absatz, Liste, Zitat, Überschrift; was nicht abbildbar ist, bleibt Insel im Rumpf). Der gemeinsame Einzug
-des Rumpfs zählt beim Lesen nicht (eingerückte Listen werden Listen); die `raw` der Rumpf-Blöcke sind
-Stücke des Originals samt Einzug. Argumente vor dem Rumpf (`#szene(ort: [Hof])[…]`) stehen wörtlich in
-`args` und lassen sich nur im Quelltext ändern.
+**Scenes and work assignments.** A line that is exactly one `#szene…[…]` or `#arbeit…[…]` is always
+a block of its own and does not join neighbouring lines. Its body consists of blocks of its own
+(paragraph, list, quotation, heading; what cannot be mapped stays an island in the body). The common indent
+of the body does not count when reading (indented lists become lists); the `raw` of the body blocks are
+pieces of the original including the indent. Arguments before the body (`#szene(ort: [Hof])[…]`) stand literally in
+`args` and can only be changed in the source.
 
-**Labels.** Ein Label am Ende der Überschriftszeile steht in deren `inlines` (wie bisher). Ein Label allein
-auf der Zeile direkt hinter der Überschrift gehört ebenfalls zur Überschrift (`label`, `raw` umfasst beide
-Zeilen), nicht zu einem Absatz; hinter einem Absatz gehört es wie bisher zum Absatz.
+**Labels.** A label at the end of the heading line stands in its `inlines` (as before). A label alone
+on the line directly behind the heading also belongs to the heading (`label`, `raw` comprises both
+lines), not to a paragraph; behind a paragraph it belongs to the paragraph as before.
 
-## Inseln
+## Islands
 
-Eine **Typst-Insel** ist Quelltext, den das Satzbild nicht sicher abbilden kann. Er erscheint gelb
-hinterlegt mit `contenteditable="false"` und bleibt Zeichen für Zeichen erhalten, solange niemand ihn ändert. Im
-Satzbild kann man eine Insel **als Ganzes löschen** und seit Runde 18b **an Ort und Stelle bearbeiten**
-(Doppelklick, siehe „Inseln an Ort und Stelle“).
+A **Typst island** is source that the typeset view cannot map safely. It appears with a yellow
+background and `contenteditable="false"` and is preserved character for character as long as nobody changes it. In the
+typeset view an island can be **deleted as a whole** and, since Round 18b, **edited in place**
+(double click, see "Islands in place").
 
-- **Block-Inseln:** Code-Zeilen (`#let`, `#set`, `#show`, `#import`, `#if` …), Absätze nur aus Inseln
-  (`#pagebreak()`, Formel `$ … $` als Block, Raw-Block ```` ``` ````, Kommentarzeilen, ein Absatz nur aus `\`),
-  Listen mit gemischten Zeichen und die anderen unsicheren Listen (siehe oben), eingerückte Überschriften,
-  Leerzeilen am Anfang, und jeder Absatz, der etwas Unsicheres enthält: eckige Klammern ohne Maskierung, nicht
-  geschlossenes `_`, `*`, `$`, `` ` ``, `/*`, ein Schlüsselwort mitten im Satz. Seit Runde 18b keine Inseln mehr:
-  Aufzählungen `1.`, Begriffslisten `/ …`, geschachtelte Listen, der erzwungene Zeilenumbruch `\`.
-- **Inseln im Satz:** Formeln `$…$`, Raw `` `…` ``, Kommentare `// …` und `/* … */`,
-  eigene Funktionen und alle anderen `#`-Ausdrücke (`#box[…]`, `#zitat(…)`, ein `#link` mit mehr als einer
-  Adresse als Argument; `#link("…")[…]` und Verweise `@name` sind seit Runde 18b eigene Konstrukte), außerdem
-  Maskierungen, die als Text eine Kurzschreibweise würden: `\'` und `\"` (gerade statt typografischer
-  Anführungszeichen), `\-` (sonst `--`, `---`, `-?`), `\.` neben einem Punkt (sonst `...`), `\?` und eine
-  maskierte Ziffer hinter `-`. Andere Maskierungen (`\#`, `1\.` …) werden Text und beim Speichern wieder
-  maskiert.
-- **Zeilenenden:** Typst bricht auch bei U+2028, U+2029, U+0085, `\x0B` und `\x0C` um. Im Satzbild (Tippen,
-  Einfügen) und beim Erzeugen werden alle diese Zeichen in Absätzen zu Leerzeichen
-  (`baruch_typst::is_newline`); sonst stünde Text ungeschützt am Zeilenanfang (`= `, `- ` …). In einer
-  **Überschrift** beendet ein Zeilenende sie dagegen (siehe „Überschriften“ unten), und ein Titel mit
-  Zeilenende aus dem Baum oder einer Überschriftszeile wird abgelehnt (Runde 7, `baruch_store::check_title`;
-  vorher wurde er still zu einem Leerzeichen).
-- Eine Überschrift mit Kommentar (`== Titel // Notiz`) ist keine Insel: Der Kommentar gehört nicht zum Titel
-  und bleibt beim Speichern erhalten.
+- **Block islands:** code lines (`#let`, `#set`, `#show`, `#import`, `#if` …), paragraphs consisting only of islands
+  (`#pagebreak()`, formula `$ … $` as a block, raw block ```` ``` ````, comment lines, a paragraph consisting only of `\`),
+  lists with mixed characters and the other unsafe lists (see above), indented headings,
+  empty lines at the start, and every paragraph that contains something unsafe: square brackets without escaping, unclosed
+  `_`, `*`, `$`, `` ` ``, `/*`, a keyword in the middle of a sentence. No longer islands since Round 18b:
+  enumerations `1.`, term lists `/ …`, nested lists, the forced line break `\`.
+- **Islands within a sentence:** formulas `$…$`, raw `` `…` ``, comments `// …` and `/* … */`,
+  own functions and all other `#` expressions (`#box[…]`, `#zitat(…)`, a `#link` with more than one
+  address as argument; `#link("…")[…]` and references `@name` are constructs of their own since Round 18b), as well as
+  escapes that as text would become a shorthand: `\'` and `\"` (straight instead of typographic
+  quotation marks), `\-` (otherwise `--`, `---`, `-?`), `\.` next to a full stop (otherwise `...`), `\?` and an
+  escaped digit behind `-`. Other escapes (`\#`, `1\.` …) become text and are escaped again on saving.
+- **Line ends:** Typst also breaks at U+2028, U+2029, U+0085, `\x0B` and `\x0C`. In the typeset view (typing,
+  pasting) and when generating, all these characters in paragraphs become spaces
+  (`baruch_typst::is_newline`); otherwise text would stand unprotected at the start of a line (`= `, `- ` …). In a
+  **heading**, on the other hand, a line end ends it (see "Headings" below), and a title with a
+  line end from the tree or from a heading line is rejected (Round 7, `baruch_store::check_title`;
+  before, it silently became a space).
+- A heading with a comment (`== Titel // Notiz`) is not an island: the comment does not belong to the title
+  and is preserved on saving.
 
-### Inseln an Ort und Stelle (Runde 18b)
+### Islands in place (Round 18b)
 
-- **Bedienung:** Doppelklick auf eine Insel (auch auf ein Bild, eine Insel im Satz oder im Rumpf einer Szene) öffnet
-  an ihrer Stelle ein kleines Quelltextfeld (`.ws-island-edit`, Textfeld mit „Übernehmen“/„Abbrechen“).
-  Strg+Enter oder „Übernehmen“ (auch das Verlassen des Felds nach einer Änderung) übernimmt, Escape oder
-  „Abbrechen“ stellt die Insel wieder her. Tasten im Feld gehen nicht an das Satzbild (Enter teilt keinen Absatz).
-  Inseln in Vorschlägen (`.pv`) öffnen kein Feld.
-- **Speichern:** Eine geänderte Block-Insel (`data-edited="1"`, neuer Rohtext in `data-raw`) geht als
-  `{"replaces": i, "raw": "<Typst>"}` an `wysiwyg.serialize` (im Rumpf einer Szene in deren Rumpf-Anweisung); der
-  Server übernimmt den Text **wörtlich** (Leerraum am Ende entfällt, der Trenner des alten Blocks bleibt; im Rumpf
-  wird der Einzug des Rumpfs einheitlich gesetzt, auch vor jede Zeile eines Rohblocks ```` ``` ````; geschickt werden
-  darf der Text mit dem Einzug – wie in `data-raw`, die erste Zeile mit oder ohne – oder ganz ohne ihn: Er gilt
-  als mitgeschickt, wenn jede nicht leere Folgezeile mit ihm beginnt, sonst bleibt der Text, wie er ist, und der
-  Einzug eingerückter Codezeilen ändert sich nicht), ein leerer Text löscht die Insel. Eine Insel im Satz gehört zu
-  ihrem Absatz: Er wird mit der geänderten Insel neu erzeugt, die Insel steht darin wörtlich.
-- **Grenzen:** `{"raw": …}` ohne `replaces` (eine neue Insel) bleibt verboten (`NewIsland`), ein unbekannter oder
-  doppelter Index ist ein Fehler (-32602). Der Server prüft den neuen Rohtext nicht; was er bewirkt (auch eine neue
-  Überschrift), prüft wie immer die Gliederung beim Speichern.
+- **Usage:** a double click on an island (also on an image, an island within a sentence or in the body of a scene) opens
+  a small source field in its place (`.ws-island-edit`, text field with „Übernehmen“/„Abbrechen“).
+  Ctrl+Enter or „Übernehmen“ (also leaving the field after a change) accepts, Escape or
+  „Abbrechen“ restores the island. Keys in the field do not go to the typeset view (Enter splits no paragraph).
+  Islands in proposals (`.pv`) open no field.
+- **Saving:** a changed block island (`data-edited="1"`, new raw text in `data-raw`) goes as
+  `{"replaces": i, "raw": "<Typst>"}` to `wysiwyg.serialize` (in the body of a scene in its body instruction); the
+  server takes the text **literally** (trailing whitespace is dropped, the separator of the old block stays; in the body
+  the indent of the body is set uniformly, also before every line of a raw block ```` ``` ````; the text may be sent
+  with the indent – as in `data-raw`, the first line with or without it – or entirely without it: it counts
+  as sent along if every non-empty continuation line begins with it, otherwise the text stays as it is, and the
+  indent of indented code lines does not change), an empty text deletes the island. An island within a sentence belongs to
+  its paragraph: the paragraph is generated anew with the changed island, the island stands in it literally.
+- **Limits:** `{"raw": …}` without `replaces` (a new island) stays forbidden (`NewIsland`), an unknown or
+  duplicate index is an error (-32602). The server does not check the new raw text; what it causes (also a new
+  heading) is checked, as always, by the outline on saving.
 
-## Überschriften (Runde 7)
+## Headings (Round 7)
 
-Ursache des Fehlers „Absatz wird Titel“ (Backlog, Nacht 05./06.11.2026): Das Widget schickte eine Überschrift,
-hinter deren Titel ein einfacher Zeilenumbruch stand (Umschalt+Enter oder ein `<br>` des Browsers, danach der
-getippte oder eingefügte Absatz), als **einen** Überschriftsblock `{kind: heading, inlines: [Titel, soft,
-Absatz]}`. `emit` machte daraus eine einzige Überschriftszeile (`soft` in Überschriften → Leerzeichen), und
-`outline.save` übernahm die ganze Zeile als Titel des Gliederungspunkts. Belegt durch
-`crates/baruch-server/tests/round7_titles.rs` (scheitert ohne den Fix mit dem Titel „Laub Anna's Laube …“).
+Cause of the bug „Absatz wird Titel“ (backlog, night of 05/06 Nov 2026): the widget sent a heading
+whose title was followed by a simple line break (Shift+Enter or a `<br>` of the browser, then the
+typed or pasted paragraph) as **one** heading block `{kind: heading, inlines: [Titel, soft,
+Absatz]}`. `emit` made a single heading line out of it (`soft` in headings → space), and
+`outline.save` took the whole line as the title of the outline item. Proven by
+`crates/baruch-server/tests/round7_titles.rs` (fails without the fix with the title „Laub Anna's Laube …“).
 
-Seitdem:
+Since then:
 
-- Eine Überschrift ist **immer eine Zeile**: `emit` und `serialize` beenden sie am ersten Zeilenumbruch der
-  obersten Ebene (`Inline::Soft` oder ein Zeilenende im Text); was dahinter steht, wird ein eigener Absatz
-  darunter (Umbrüche am Anfang zählen nicht). Label und Kommentar der Originalzeile bleiben an der
-  Überschrift. Nur echte Überschriftszeilen (Spalte 0, 1–3 `=`, dann Leerzeichen/Tab, wie
-  `baruch_typst::parse`) liefern Titel.
-- Das Widget schickt eine solche Überschrift selbst schon geteilt (Überschrift + neuer Absatz); Umschalt+Enter
-  und Einfügen mehrerer Zeilen beginnen in einer Überschrift einen neuen Absatz; Rückschritt am Anfang eines
-  Absatzes hinter einer Überschrift bzw. Entf am Ende einer Überschrift ziehen den Absatz nicht in die
-  Überschrift (ein leerer Absatz entfällt).
-- **Titelregeln** (Server, `baruch_store::check_title`): leer, nur Leerraum, ein Zeilenumbruch oder mehr als
-  200 Zeichen → abgelehnt (-32602), nichts gespeichert. Das Widget prüft vor dem Übertragen ins Textfeld
-  dieselben Regeln mit derselben Meldung („Ein Gliederungspunkt braucht einen Titel.“, „Der Titel darf
-  keinen Zeilenumbruch enthalten.“, „Der Titel ist zu lang (höchstens 200 Zeichen, hier N).“); maßgeblich
-  bleibt der Server. Ein ganzer Absatz, der versehentlich in die Überschriftszeile geraten ist, scheitert
-  so an der Länge.
+- A heading is **always one line**: `emit` and `serialize` end it at the first line break of the
+  top level (`Inline::Soft` or a line end in the text); what stands behind it becomes a paragraph of its own
+  below it (breaks at the start do not count). Label and comment of the original line stay with the
+  heading. Only real heading lines (column 0, 1–3 `=`, then space/tab, like
+  `baruch_typst::parse`) deliver titles.
+- The widget already sends such a heading split itself (heading + new paragraph); Shift+Enter
+  and pasting several lines begin a new paragraph in a heading; Backspace at the start of a
+  paragraph behind a heading or Delete at the end of a heading do not pull the paragraph into the
+  heading (an empty paragraph is dropped).
+- **Title rules** (server, `baruch_store::check_title`): empty, only whitespace, a line break or more than
+  200 characters → rejected (-32602), nothing stored. Before transferring into the text field the widget checks
+  the same rules with the same message („Ein Gliederungspunkt braucht einen Titel.“, „Der Titel darf
+  keinen Zeilenumbruch enthalten.“, „Der Titel ist zu lang (höchstens 200 Zeichen, hier N).“); the server
+  stays authoritative. A whole paragraph that got into the heading line by mistake thus fails
+  on the length.
 
-## Markdown-Überschriften (Nutzer 2026-11-07)
+## Markdown headings (user 2026-11-07)
 
-Eine Zeile, die mit 1–6 `#` und einem Leerzeichen beginnt, ist eine Überschrift dieser Ebene. Maßgeblich ist
-die Regel des Servers, `baruch_typst::markdown` (`markdown_headings`, Tabellentest mit allen Ausnahmen): Er
-wendet sie beim Speichern des Menschen an (`outline.save`, `outline.check`, die Rückfrage vor dem Teilen,
-`revision.save`, seit Runde 18b auch `revision.update` (Fassung ändern), auch ohne JavaScript) und beim Übernehmen eines Vorschlags (`revision.accept`); danach gleicht
-`outline_save` die Gliederung ab wie bei einer getippten `=`-Zeile.
+A line that begins with 1–6 `#` and a space is a heading of that level. Authoritative is
+the rule of the server, `baruch_typst::markdown` (`markdown_headings`, table test with all exceptions): it
+applies it when the human saves (`outline.save`, `outline.check`, the query before splitting,
+`revision.save`, since Round 18b also `revision.update` (change revision), also without JavaScript) and when a proposal is accepted (`revision.accept`); afterwards
+`outline_save` aligns the outline as with a typed `=` line.
 
-- `#` → `=`, `##` → `==`, `###` → `===`; `####` bis `######` werden auf `===` **begrenzt** (die Gliederung hat
-  drei Überschriftsebenen; ob die Ebene an der Stelle passt, prüft wie immer die Gliederung beim Speichern).
-- Titel wörtlich wie in einer `=`-Zeile, schließende Folge ` ##` und Leerraum am Ende entfallen; `# ` ohne Titel
-  bleibt.
-- **Nicht umgewandelt:** `\#` am Anfang, Raute in Anführungszeichen (`'# …'`, `"# …"`, „…“), Typst-Code
-  (`#heading(…)`, `#set`, `#let` – nach der Raute kein Leerzeichen), eingerückte Zeilen, Zeilen in Raw-Blöcken,
-  Kommentaren, Strings und offenen Klammern (Inhaltsblöcke wie `#quote[…]`) – dieselben Stellen, an denen auch
-  eine `=`-Zeile keine Überschrift ist –, und die Werkvorlage (sie läuft nicht durch die Regel).
-- **Live im Widget** (`web/src/markdown.ts`, dieselben Fälle, im Zweifel keine Umwandlung): im Quelltext beim
-  Enter am Ende bzw. in der Zeile (der Cursor bleibt an seiner Stelle im Titel, dann der Zeilenumbruch) und beim
-  Verlassen des Textfelds für alle Zeilen; im Satzbild wird ein Absatz, dessen Text mit `# ` … beginnt, beim
-  Enter (und spätestens vor dem Übertragen ins Textfeld) zum Überschriftsblock der Ebene, die Rauten
-  verschwinden, der Cursor bleibt im Titel. Im Satzbild schreibt `emit` eine getippte Raute sonst als `\#`
-  (Text), darum wandelt hier nur das Widget um.
-- **Vorschläge** von Assistenten bleiben, wie sie geschrieben sind (keine Umwandlung, keine Gliederung).
-  Übernimmt der Mensch einen Vorschlag mit Markdown-Überschriften, bleibt der Vorschlag im Revisionsbaum
-  unverändert; darauf folgt eine Fassung des Menschen mit den umgewandelten Überschriften (weitere Überschriften
-  werden neue Punkte, die Übernahme ist die Bestätigung). Geht das nicht, bleibt es beim Übernommenen und
-  `markdown` in der Antwort sagt, warum.
+- `#` → `=`, `##` → `==`, `###` → `===`; `####` to `######` are **capped** at `===` (the outline has
+  three heading levels; whether the level fits at the place is checked, as always, by the outline on saving).
+- Title literally as in a `=` line, a closing sequence ` ##` and trailing whitespace are dropped; `# ` without a title
+  stays.
+- **Not converted:** `\#` at the start, a hash in quotation marks (`'# …'`, `"# …"`, „…“), Typst code
+  (`#heading(…)`, `#set`, `#let` – no space after the hash), indented lines, lines in raw blocks,
+  comments, strings and open brackets (content blocks such as `#quote[…]`) – the same places where
+  a `=` line is not a heading either –, and the work template (it does not run through the rule).
+- **Live in the widget** (`web/src/markdown.ts`, the same cases, when in doubt no conversion): in the source on
+  Enter at the end or within the line (the cursor stays at its place in the title, then the line break) and on
+  leaving the text field for all lines; in the typeset view a paragraph whose text begins with `# ` … becomes, on
+  Enter (and at the latest before transferring into the text field), a heading block of that level, the hashes
+  disappear, the cursor stays in the title. In the typeset view `emit` otherwise writes a typed hash as `\#`
+  (text), which is why only the widget converts here.
+- **Proposals** of assistants stay as they are written (no conversion, no outline).
+  If the human accepts a proposal with Markdown headings, the proposal stays unchanged in the revision tree;
+  it is followed by a revision of the human with the converted headings (further headings
+  become new items, the acceptance is the confirmation). If that does not work, the acceptance stays as it is and
+  `markdown` in the answer says why.
 
-## Teile und „ohne Nummer“ (Runde 14)
+## Parts and „ohne Nummer“ (Round 14)
 
-- **Erkennen:** Eine Zeile ist ein `part`- bzw. `unnumbered`-Block genau dann, wenn `baruch_typst::parse` sie
-  als Teil (`level` 0) bzw. als Überschrift mit `numbered: false` liest – also nur in der kanonischen Form
-  (`docs/Architektur.md` „Teile im Typst-Text“), nicht eingerückt, nur auf oberster Ebene (im Rumpf einer
-  Szene ist dieselbe Zeile eine Insel, wie sie auch für `baruch_typst` Text ist). Die Zeile ist immer ein
-  eigener Block wie eine Überschrift; ein Kommentar dahinter gehört zu `raw`, nicht zum Titel.
-- **Behalten:** `{keep: i}` übernimmt die Zeile wörtlich (Maskierungen, Kommentar).
-- **Ändern:** `{replaces: i, block: {kind: "part", title}}` baut die Zeile mit `baruch_typst::part_line` neu
-  (`heading_line(0, …)`: ein Kommentar der alten Zeile bleibt, auch wenn sie eine `=`-Zeile war);
-  `{kind: "unnumbered", level, title}` mit `unnumbered_line` (ersetzt sie eine Markierung „ohne Nummer“, bleibt
-  deren Kommentar). Ein neuer Block (`replaces: null`) ergibt die Markierung ohne Kommentar. Für jeden Titel gilt
-  `parse(emit(k)) == k` (Eigenschaftstest `random_markers_read_back_unchanged`).
-- **Teil im Kapiteltext (Runde 18b, festgelegt):** Das Satzbild bietet keinen Teil an. `wysiwyg.serialize` lehnt einen
-  **neuen** Teil-Block (`replaces: null`) und das Umwandeln eines anderen Blocks in einen Teil ab
-  (`WysiwygError::NewPart`, -32602 „Einen Teil legt man in der Gliederung an, nicht im Satzbild.“); einen vorhandenen
-  Teil umbenennen geht weiter. Schreibt der Mensch die Teil-Markierung im Quelltext als weitere Überschrift in einen
-  Kapiteltext, verlangt `outline.check` die Rückfrage zum Teilen; ohne Bestätigung speichert `outline.save` nichts,
-  mit Bestätigung (`split`) entsteht der Teil (Aktion des Menschen). Test:
+- **Recognising:** a line is a `part` or `unnumbered` block exactly when `baruch_typst::parse` reads it
+  as a part (`level` 0) or as a heading with `numbered: false` – so only in the canonical form
+  (`docs/Architektur.md`, the section on parts in the Typst text), not indented, only at the top level (in the body of a
+  scene the same line is an island, just as it is text for `baruch_typst`). The line is always a
+  block of its own like a heading; a comment behind it belongs to `raw`, not to the title.
+- **Keeping:** `{keep: i}` takes the line literally (escapes, comment).
+- **Changing:** `{replaces: i, block: {kind: "part", title}}` rebuilds the line with `baruch_typst::part_line`
+  (`heading_line(0, …)`: a comment of the old line stays, even if it was a `=` line);
+  `{kind: "unnumbered", level, title}` with `unnumbered_line` (if it replaces a marker „ohne Nummer“, its
+  comment stays). A new block (`replaces: null`) yields the marker without a comment. For every title
+  `parse(emit(k)) == k` holds (property test `random_markers_read_back_unchanged`).
+- **Part in the chapter text (Round 18b, decided):** the typeset view offers no part. `wysiwyg.serialize` rejects a
+  **new** part block (`replaces: null`) and converting another block into a part
+  (`WysiwygError::NewPart`, -32602 „Einen Teil legt man in der Gliederung an, nicht im Satzbild.“); renaming an existing
+  part still works. If the human writes the part marker in the source as a further heading into a
+  chapter text, `outline.check` demands the query about splitting; without confirmation `outline.save` stores nothing,
+  with confirmation (`split`) the part comes into being (an action of the human). Test:
   `crates/baruch-server/tests/round18_konstrukte.rs`
   (`a_part_block_in_a_chapter_text_is_refused_in_the_satzbild_and_needs_confirmation_in_outline_save`).
 - **HTML:** `<div class="ws-block ws-part" data-b="i" data-kind="part" data-level="0" role="heading"
-  aria-level="1" title="Teil (Markierung im Typst-Text)">Titel</div>` bzw. `class="ws-block ws-unnumbered"
-  data-kind="unnumbered" data-level="N" role="heading" aria-level="N"`; der Titel steht als Klartext (maskiert),
-  „Teil“ bzw. „ohne Nummer“ setzt das Stylesheet über `::before`/`::after` (`static/wysiwyg.css`), damit es
-  nicht in den Titel gerät.
-- **Widget:** `kindOf` liest `data-kind=part|unnumbered` mit dem Textinhalt als Titel (`markerTitle`:
-  Zeilenenden und geschützte Leerzeichen → Leerzeichen); Teil und „ohne Nummer“ verhalten sich wie
-  Überschriften (`isTitleKind`: Enter und Einfügen mehrerer Zeilen beginnen einen Absatz dahinter,
-  `guardHeadingMerge`, Titelregeln in `headingProblem`). Das Absatzformat lässt sich für sie nicht wählen
-  (Meldung); Teile legt man in der Gliederung an, nicht im Satzbild.
-- **Ohne JavaScript** bleibt das Textfeld mit der Markierung wörtlich; Speichern wie bisher.
+  aria-level="1" title="Teil (Markierung im Typst-Text)">Titel</div>` or `class="ws-block ws-unnumbered"
+  data-kind="unnumbered" data-level="N" role="heading" aria-level="N"`; the title stands as plain text (escaped),
+  „Teil“ or „ohne Nummer“ is set by the stylesheet through `::before`/`::after` (`static/wysiwyg.css`) so that it
+  does not get into the title.
+- **Widget:** `kindOf` reads `data-kind=part|unnumbered` with the text content as the title (`markerTitle`:
+  line ends and non-breaking spaces → spaces); part and „ohne Nummer“ behave like
+  headings (`isTitleKind`: Enter and pasting several lines begin a paragraph behind them,
+  `guardHeadingMerge`, title rules in `headingProblem`). The paragraph format cannot be chosen for them
+  (message); parts are created in the outline, not in the typeset view.
+- **Without JavaScript** the text field keeps the marker literally; saving as before.
 
-## Rundreise
+## Round trip
 
-Laden und Speichern ohne Änderung ergibt **denselben Text, Byte für Byte**. Dafür baut
-`baruch_wysiwyg::serialize(original, edits)` den Text aus Anweisungen:
+Loading and saving without a change yields **the same text, byte for byte**. For that
+`baruch_wysiwyg::serialize(original, edits)` builds the text from instructions:
 
-- `{"keep": i}`: Block `i` des Originals wörtlich (samt seiner Leerzeilen). Das Widget schickt `keep` für
-  **jeden Block ohne Eingabe**; ein unberührter Block wird also nie neu erzeugt.
-- `{"replaces": i, "block": {…}}`: Block `i` neu erzeugen (kanonisches Typst, `baruch_wysiwyg::emit`), mit
-  den Leerzeilen des alten Blocks dahinter. Eine bearbeitete Überschrift behält Label und Kommentar der
-  Originalzeile (wie `baruch_typst::heading_line`; das Label nur, wenn die neue keins trägt).
-- `{"replaces": null, "block": {…}}`: neuer Block, danach eine Leerzeile.
-- `{"replaces": i, "body": [Anweisungen]}`: nur im Rumpf der Szene bzw. Arbeit `i` ändern, mit denselben
-  Regeln für die Blöcke des Rumpfs (Indizes im Rumpf). Rahmen (`#szene(…)[`, `]`), Argumente und Leerraum
-  bleiben wörtlich; neu erzeugte Blöcke bekommen den Einzug des Rumpfs. Der Einzug der ersten Zeile des
-  Rumpfs gehört zum ersten Block und wandert mit ihm, wenn davor eingefügt oder umgestellt wird (sonst
-  stünde seine erste Zeile in Spalte 0 und eine Liste würde geschachtelt). So ändert die Bearbeitung eines
-  Absatzes in einer Szene nur ihn. Kein Rumpf (Absatz, Insel …) → Fehler.
-- Eine bearbeitete Überschrift behält auch ihre Labelzeile wörtlich; trägt der neue Block ein anderes
-  `label`, steht dort `<neu>`.
-- Eine Überschrift mit Zeilenumbruch endet dort; der Rest wird ein Absatz dahinter (Runde 7, siehe oben).
-- Nicht genannte Blöcke sind gelöscht. Ein Block, der leer herauskommt, entfällt. Folgen zwei Stücke nicht
-  wie im Original aufeinander, steht dazwischen mindestens eine Leerzeile.
-- `{"replaces": i, "raw": "…"}` (Runde 18b): Quelltext von Block `i` wörtlich ersetzen (Insel an Ort und Stelle,
-  siehe oben), mit dem Trenner des alten Blocks; leer = gelöscht.
-- Fehler (`WysiwygError`, deutsch): unbekannter Index, ein Index mehrfach (auch `keep` und `replaces`),
-  eine Insel als neuer Block (auch `{"raw": …}` ohne `replaces`) oder eine als Block bearbeitete Insel, eine
-  Rumpf-Anweisung für einen Block ohne Rumpf, ein neuer oder umgewandelter Teil (Runde 18b, `NewPart`).
+- `{"keep": i}`: block `i` of the original literally (including its empty lines). The widget sends `keep` for
+  **every block without input**; an untouched block is thus never generated anew.
+- `{"replaces": i, "block": {…}}`: generate block `i` anew (canonical Typst, `baruch_wysiwyg::emit`), with
+  the empty lines of the old block behind it. An edited heading keeps label and comment of the
+  original line (like `baruch_typst::heading_line`; the label only if the new one carries none).
+- `{"replaces": null, "block": {…}}`: new block, followed by an empty line.
+- `{"replaces": i, "body": [instructions]}`: change only within the body of scene or work assignment `i`, with the same
+  rules for the blocks of the body (indices within the body). Frame (`#szene(…)[`, `]`), arguments and whitespace
+  stay literal; newly generated blocks get the indent of the body. The indent of the first line of the
+  body belongs to the first block and moves with it when something is inserted before it or rearranged (otherwise
+  its first line would stand in column 0 and a list would become nested). So editing a
+  paragraph in a scene changes only that paragraph. No body (paragraph, island …) → error.
+- An edited heading also keeps its label line literally; if the new block carries a different
+  `label`, `<neu>` stands there.
+- A heading with a line break ends there; the rest becomes a paragraph behind it (Round 7, see above).
+- Blocks not named are deleted. A block that comes out empty is dropped. If two pieces do not follow each other
+  as in the original, at least one empty line stands between them.
+- `{"replaces": i, "raw": "…"}` (Round 18b): replace the source of block `i` literally (island in place,
+  see above), with the separator of the old block; empty = deleted.
+- Errors (`WysiwygError`, German): unknown index, an index more than once (also `keep` and `replaces`),
+  an island as a new block (also `{"raw": …}` without `replaces`) or an island edited as a block, a
+  body instruction for a block without a body, a new or converted part (Round 18b, `NewPart`).
 
-Kanonisches Typst (`emit`): Sonderzeichen werden maskiert (`\#`, `\*`, `\_`, `\$`, `\@`, `\<`, `\[` …), am
-Zeilenanfang auch `=`, `-`, `+`, `/` und `1.`; ein geschütztes Leerzeichen wird `~`; `_…_`/`*…*` nur an
-Wortgrenzen und nicht in sich selbst geschachtelt, sonst `#emph[…]`/`#strong[…]`; hinter einem `#`-Ausdruck
-wird `(` und `.name` maskiert; Listenpunkte mit zwei Leerzeichen Einzug in Folgezeilen; `#szene[…]` und
-`#arbeit[…]` mehrzeilig, `#quote(…)[…]` mit einem einzeiligen Absatz in einer Zeile.
+Canonical Typst (`emit`): special characters are escaped (`\#`, `\*`, `\_`, `\$`, `\@`, `\<`, `\[` …), at the
+start of a line also `=`, `-`, `+`, `/` and `1.`; a non-breaking space becomes `~`; `_…_`/`*…*` only at
+word boundaries and not nested in themselves, otherwise `#emph[…]`/`#strong[…]`; behind a `#` expression
+`(` and `.name` are escaped; list items with two spaces of indent in continuation lines; `#szene[…]` and
+`#arbeit[…]` multi-line, `#quote(…)[…]` with a single-line paragraph on one line.
 
-Belegt durch Tests in `crates/baruch-wysiwyg/tests/`:
-- `roundtrip.rs`: alle Testdateien aller Crates (`crates/*/tests/data/*.typ`, nur gelesen) und die eigenen
-  `tests/data/satzbild.typ` (alle Konstrukte und Inseln) und `tests/data/szenen.typ` (Überschriften mit
-  Label, Szenen mit mehreren Absätzen und Fußnote, Arbeitsauftrag mit Liste, Bildinsel), beide frei
-  erfunden, ganz und je Abschnitt;
-- `blocks.rs`: Szenen, Arbeitsaufträge, Labels und Rumpf-Anweisungen (nur der bearbeitete Absatz ändert
-  sich), Einfügen mehrerer Absätze mit den Anweisungen, die das Widget schickt;
-- `serialize.rs` (Runde 7): eine Überschrift mit Zeilenumbruch endet dort, auch neu eingefügt und mit
-  Label/Kommentar; `html.rs`: Bild-Inseln als `ws-figure` mit maskierten Attributen, byte-gleich bei `keep`;
-- `emit.rs`: `parse(emit(k)) == k` für jede Art außer der Insel, dazu ein Eigenschaftstest mit fester Saat über
-  2000 zufällige kanonische Blöcke (mehr mit `WS_CASES=…`, andere Saat mit `WS_SEED=…`), seit Runde 18b mit
-  Aufzählungen, Begriffslisten, geschachtelten Listen, Umbrüchen, Links und Verweisen; die Lücke des Generators
-  (Leerraum am Anfang einer Hervorhebung in einer Überschrift, `canonical_heading`) ist mit dem Fall aus dem Backlog
-  als eigener Test geschlossen;
-- `konstrukte.rs` (Runde 18b): Erkennen, byte-gleich unberührt, kanonisch bearbeitet, unsichere Listen als Insel,
-  alte JSON-Formen, `Edit::Raw` (auch im Rumpf einer Szene), mehrere Bilder, HTML der neuen Konstrukte;
-- `align.rs` (Runde 8): Ausrichtung zweier Fassungen nach Blöcken, siehe „Vorschläge an ihrer Stelle“;
-- `serialize.rs`, `html.rs`, `style.rs`; dazu `crates/baruch-server/tests/wysiwyg.rs` über alle Fassungen des
-  Beispielwerks (im Quelltext und gesät) und die Exporte, `crates/baruch-server/tests/satzbild.rs` für den
-  Feinschliff (Bild-Adresse, Abbildung als Bild und byte-gleich gespeichert, Stil, Seite ohne JavaScript,
-  Widget mit Titelprüfung), `crates/baruch-server/tests/round7_titles.rs` für „Absatz wird Titel“ und die
-  Titelregeln auf allen Wegen (RPC, Formular, MCP).
+Proven by tests in `crates/baruch-wysiwyg/tests/`:
+- `roundtrip.rs`: all test files of all crates (`crates/*/tests/data/*.typ`, only read) and the own
+  `tests/data/satzbild.typ` (all constructs and islands) and `tests/data/szenen.typ` (headings with
+  label, scenes with several paragraphs and a footnote, work assignment with a list, image island), both freely
+  invented, whole and per section;
+- `blocks.rs`: scenes, work assignments, labels and body instructions (only the edited paragraph changes),
+  pasting several paragraphs with the instructions that the widget sends;
+- `serialize.rs` (Round 7): a heading with a line break ends there, also when newly inserted and with
+  label/comment; `html.rs`: image islands as `ws-figure` with escaped attributes, byte-identical with `keep`;
+- `emit.rs`: `parse(emit(k)) == k` for every kind except the island, plus a property test with a fixed seed over
+  2000 random canonical blocks (more with `WS_CASES=…`, another seed with `WS_SEED=…`), since Round 18b with
+  enumerations, term lists, nested lists, breaks, links and references; the gap of the generator
+  (whitespace at the start of an emphasis in a heading, `canonical_heading`) is closed with the case from the backlog
+  as a test of its own;
+- `konstrukte.rs` (Round 18b): recognising, byte-identical when untouched, canonical when edited, unsafe lists as islands,
+  old JSON forms, `Edit::Raw` (also in the body of a scene), several images, HTML of the new constructs;
+- `align.rs` (Round 8): alignment of two revisions by blocks, see "Proposals in their place";
+- `serialize.rs`, `html.rs`, `style.rs`; plus `crates/baruch-server/tests/wysiwyg.rs` over all revisions of the
+  sample work (in the source and seeded) and the exports, `crates/baruch-server/tests/satzbild.rs` for the
+  polish (image address, figure as an image and stored byte-identically, style, page without JavaScript,
+  widget with title check), `crates/baruch-server/tests/round7_titles.rs` for „Absatz wird Titel“ and the
+  title rules on all paths (RPC, form, MCP).
 
-## Vorschläge an ihrer Stelle (Runde 8)
+## Proposals in their place (Round 8)
 
-Offene Vorschläge stehen nicht mehr als Liste unter dem Editor, sondern **an der Stelle, die sie ändern**: im
-Satzbild, im Quelltext-Lesemodus und in der Vorschau, in der Farbe der Persona, einklappbar zu einer farbigen
-Linie genau dort.
+Open proposals no longer stand as a list under the editor but **at the place they change**: in the
+typeset view, in the source reading mode and in the preview, in the colour of the persona, collapsible to a coloured
+line exactly there.
 
-**Ausrichtung** (`baruch_wysiwyg::align(base, proposal) -> Vec<Hunk>`, rein, scheitert nie): Beide Texte werden
-mit `parse` in oberste Blöcke zerlegt und nach der längsten gemeinsamen Teilfolge verglichen. Gleich sind zwei
-Blöcke, wenn ihr `raw` ohne Leerraum am Ende byte-gleich ist (die Leerzeilen hinter einem Block gehören zu
-seinem `raw`; sonst meldete jedes Anhängen den bisher letzten Block als geändert). Jede zusammenhängende Folge
-ungleicher Blöcke ist ein `Hunk { kind, base, proposal }` mit Indexbereichen der Blöcke:
+**Alignment** (`baruch_wysiwyg::align(base, proposal) -> Vec<Hunk>`, pure, never fails): both texts are
+split into top-level blocks with `parse` and compared by the longest common subsequence. Two
+blocks are equal if their `raw` without trailing whitespace is byte-identical (the empty lines behind a block belong to
+its `raw`; otherwise every appending would report the previously last block as changed). Every contiguous sequence
+of unequal blocks is a `Hunk { kind, base, proposal }` with index ranges of the blocks:
 
 | `kind`     | `base`                | `proposal`         |
 |------------|-----------------------|--------------------|
-| `Changed`  | nicht leer            | nicht leer         |
-| `Inserted` | leer; `base.start` = Block, vor dem eingefügt wird (am Ende die Blockzahl) | nicht leer |
-| `Removed`  | nicht leer            | leer               |
+| `Changed`  | not empty             | not empty          |
+| `Inserted` | empty; `base.start` = block before which it is inserted (at the end the number of blocks) | not empty |
+| `Removed`  | not empty             | empty              |
 
-Zwischen den Stücken stehen auf beiden Seiten gleich viele, paarweise gleiche Blöcke (auch null: Stücke dürfen
-aneinanderstoßen). Über 4 Mio. Vergleiche (Blockzahl × Blockzahl) gilt alles als ein Stück.
+Between the pieces stand equally many, pairwise equal blocks on both sides (also zero: pieces may
+abut). Above 4 million comparisons (number of blocks × number of blocks) everything counts as one piece.
 
-**Ähnliche Blöcke (Runde 18c):** Die längste gemeinsame Teilfolge kennt nur gleiche Blöcke; ein umformulierter
-Absatz neben einem eingefügten wurde so ein einziges „geändert“-Stück über beide. Ein „geändert“-Stück mit
-**ungleich vielen** Blöcken beider Seiten wird darum nach Ähnlichkeit zerlegt: Wort-Dice (2 · gemeinsame Wörter /
-alle Wörter, klein geschrieben, mit Vielfachheit) ≥ 0,5 gilt als „umformuliert“; die Paare werden monoton mit
-der größten Summe der Ähnlichkeiten gewählt. Paare werden „geändert“ (aufeinander folgende Paare bleiben ein
-Stück), was dazwischen nur auf einer Seite steht, „eingefügt“ bzw. „entfernt“, was auf beiden Seiten ungepaart
-steht, bleibt „geändert“. Bei gleich vielen Blöcken (paarweise ersetzt), ohne ähnliches Paar oder über 10 000
-Vergleichen im Stück bleibt es, wie es war. Beispiel: „Im Beet stehen Kohlköpfe.“ → „Im Beet stehen heute
-Kohlköpfe.“ + neuer Absatz dahinter ergibt `Changed(2..3, 2..3)` und `Inserted(3..3, 3..4)`. `hunk_html_with(base, proposal, &hunk, &bilder)` zeigt ein
-Stück im Satzbild: `<div class="ws-diff-doc" data-kind="changed|inserted|removed">`, die Blöcke der Basis in
-`div.ws-del`, die des Vorschlags in `div.ws-ins` (wie `diff_html_with`, ohne `data-b`, Bilder wie dort).
-Tests: `crates/baruch-wysiwyg/tests/align.rs` (geändert; eingefügt am Anfang, in der Mitte, am Ende; entfernt;
-mehrere Stücke; Satzbild; Eigenschaftstest mit fester Saat über 1500 Fälle, `WS_SEED`/`WS_CASES`; Runde 18c:
-umformuliert + eingefügt bzw. + entfernt als zwei Stücke).
+**Similar blocks (Round 18c):** the longest common subsequence knows only equal blocks; a reworded
+paragraph next to an inserted one thus became a single "changed" piece over both. A "changed" piece with
+**unequal numbers** of blocks on the two sides is therefore split by similarity: word Dice (2 · common words /
+all words, lower case, with multiplicity) ≥ 0.5 counts as "reworded"; the pairs are chosen monotonically with
+the largest sum of similarities. Pairs become "changed" (consecutive pairs stay one
+piece), what stands between them on one side only becomes "inserted" or "removed", what stands unpaired on both sides
+stays "changed". With equally many blocks (replaced pairwise), without a similar pair or above 10 000
+comparisons in the piece it stays as it was. Example: „Im Beet stehen Kohlköpfe.“ → „Im Beet stehen heute
+Kohlköpfe.“ + a new paragraph behind it yields `Changed(2..3, 2..3)` and `Inserted(3..3, 3..4)`. `hunk_html_with(base, proposal, &hunk, &bilder)` shows a
+piece in the typeset view: `<div class="ws-diff-doc" data-kind="changed|inserted|removed">`, the blocks of the basis in
+`div.ws-del`, those of the proposal in `div.ws-ins` (like `diff_html_with`, without `data-b`, images as there).
+Tests: `crates/baruch-wysiwyg/tests/align.rs` (changed; inserted at the start, in the middle, at the end; removed;
+several pieces; typeset view; property test with a fixed seed over 1500 cases, `WS_SEED`/`WS_CASES`; Round 18c:
+reworded + inserted or + removed as two pieces).
 
-**Basis** ist die **gezeigte** Fassung (im Editor offen, meist die aktuelle) – das ist, was „Übernehmen“
-ersetzt. Beruht der Vorschlag auf einer anderen Fassung, nennt der Kopf sie („· auf Fassung m“). Ist die
-gezeigte Fassung selbst ein offener Vorschlag, stehen seine Stücke gegen seine Basis (Elternteil, sonst die
-aktuelle) an ihrer Stelle in ihm, mit dem Vermerk „Unterschied zu Fassung b (aktuell) · gezeigt“. Gleicht ein
-Vorschlag der gezeigten Fassung, steht er als ein Stück am Ende („gleicht der gezeigten Fassung“), damit
-Übernehmen/Verwerfen bleiben.
+**Basis** is the **shown** revision (open in the editor, mostly the current one) – that is what „Übernehmen“
+replaces. If the proposal rests on another revision, the header names it („· auf Fassung m“). If the
+shown revision is itself an open proposal, its pieces against its basis (parent, otherwise the
+current one) stand at their place within it, with the note „Unterschied zu Fassung b (aktuell) · gezeigt“. If a
+proposal equals the shown revision, it stands as one piece at the end („gleicht der gezeigten Fassung“) so that
+„Übernehmen“/„Verwerfen“ remain.
 
-**HTML** (`templates/fragments/proposals.html`, Kontext `InlineView` aus `view.rs`): je Stück
+**HTML** (`templates/fragments/proposals.html`, context `InlineView` from `view.rs`): per piece
 
 ```html
 <details class="pv pc" data-pv="<key>-<rev>" data-pv-at="<b>" data-pv-gap="<g>"
@@ -358,427 +357,427 @@ Vorschlag der gezeigten Fassung, steht er als ein Stück am Ende („gleicht der
 </details>
 ```
 
-`at` ist der erste betroffene Block der gezeigten Fassung (`data-b` aus `wysiwyg.parse`), bei eingefügten der
-Block, vor dem eingefügt wird; `gap` die Lücke, in der das Stück steht (vor Block `gap`, also hinter einem
-geänderten oder entfernten Block, am Ende die Blockzahl). Der **Kopf steht nur einmal**, in der Linie
-(`summary`); „Teil i/k“ nur bei mehreren Stücken. Mehrere Vorschläge an derselben Stelle stehen untereinander
-in Persona-Reihenfolge, darin nach Nummer; Autoren ohne Persona am Ende. Die Formulare (`revision.accept` bzw.
-`revision.reject` an `/act` mit `work`, `node`, `key`, `rev`, `view`, `lq`, unverändert) stehen **einmal je
-Vorschlag** außerhalb der Stücke (`div.pv-forms`); die Knöpfe zeigen über das Attribut `form` darauf. So bleiben
-sie gültig, wenn das Widget die Stücke ins Satzbild setzt, das im Editor-Formular liegt (Formulare lassen sich
-nicht schachteln, und `outline.ts` hielte ein Absenden darin für Speichern). Das Cookie `baruch_folded`
-(`<key>-<rev>`) klappt alle Stücke eines Vorschlags ein; der gezeigte Vorschlag bleibt offen (`pv-shown`).
+`at` is the first affected block of the shown revision (`data-b` from `wysiwyg.parse`), for inserted ones the
+block before which it is inserted; `gap` the gap in which the piece stands (before block `gap`, i.e. behind a
+changed or removed block, at the end the number of blocks). The **header stands only once**, in the line
+(`summary`); „Teil i/k“ only with several pieces. Several proposals at the same place stand one below the other
+in persona order, within that by number; authors without a persona at the end. The forms (`revision.accept` or
+`revision.reject` to `/act` with `work`, `node`, `key`, `rev`, `view`, `lq`, unchanged) stand **once per
+proposal** outside the pieces (`div.pv-forms`); the buttons point to them through the attribute `form`. So they stay
+valid when the widget puts the pieces into the typeset view, which lies in the editor form (forms cannot be
+nested, and `outline.ts` would take a submission in it for saving). The cookie `baruch_folded`
+(`<key>-<rev>`) collapses all pieces of a proposal; the shown proposal stays open (`pv-shown`).
 
-**Lesefluss im Editor:** `<section class="pv-flow" data-widget="proposals" data-key="K" data-rev="R">` unter dem
-Editor-Formular (also unter dem Textfeld), nur wenn es offene Vorschläge gibt: die Formulare, die gezeigte Fassung
-blockweise als Quelltext (`<pre class="pv-src" data-b="i">raw</pre>`) und die Stücke an ihrer Stelle. Die
-**Leiste** (Anzahl, „Alle einklappen“) steht seit Runde 18c **vor** dem Lesefluss als eigenes Kind des Blatts
-(`<div class="pv-bar pv-bar-editor" data-pv-bar="K">`); CSS (`proposals.css`) rückt sie mit `order: -1` ganz nach
-oben und lässt sie beim Scrollen kleben. So bleibt „Alle einklappen“ auch bei offenem Satzbild sichtbar, wenn
-`wysiwyg.ts` den Lesefluss verbirgt (früher stand die Leiste im verborgenen Lesefluss); `proposals.ts` findet den
-Knopf über `data-pv-bar` beim Geschwister des Leseflusses, `wysiwyg.ts` bleibt unverändert. In der Vorschau steht
-die Leiste weiter im Abschnitt. Der **Zeilen-Diff** eines Stücks vergleicht die Blöcke ohne Leerraum am Ende
-(Runde 18c): Die Leerzeile hinter einem Block gehört zu seinem `raw` und stand sonst als leere „−“-Zeile am Ende. Ohne JavaScript und im Quelltext ist das die Ansicht der
-Vorschläge (Zeilen-Diff). Mit JavaScript und offenem Satzbild setzt `wysiwyg.ts` jedes Stück als nicht
-bearbeitbares Geschwister (`contenteditable="false"`) vor den Block `[data-b=gap]` des Satzbilds (am Ende
-dahinter) und verbirgt den Lesefluss; im Satzbild zeigt das Stück sein Satzbild (`pv-satz`), nicht den
-Zeilen-Diff (nur CSS). Beim Wechsel in den Quelltext und vor jedem neuen Satzbild kommen die Stücke an ihren
-Platz im Lesefluss zurück. `editsOf`, `blocksIn` und `markSelection` übergehen `.pv`; Speichern ändert dadurch
-nichts.
+**Reading flow in the editor:** `<section class="pv-flow" data-widget="proposals" data-key="K" data-rev="R">` below the
+editor form (i.e. below the text field), only if there are open proposals: the forms, the shown revision
+block by block as source (`<pre class="pv-src" data-b="i">raw</pre>`) and the pieces at their place. Since Round 18c the
+**bar** (count, „Alle einklappen“) stands **before** the reading flow as a child of the sheet of its own
+(`<div class="pv-bar pv-bar-editor" data-pv-bar="K">`); CSS (`proposals.css`) moves it to the very top with `order: -1`
+and makes it stick while scrolling. So „Alle einklappen“ stays visible even with an open typeset view when
+`wysiwyg.ts` hides the reading flow (before, the bar stood in the hidden reading flow); `proposals.ts` finds the
+button through `data-pv-bar` at the sibling of the reading flow, `wysiwyg.ts` stays unchanged. In the preview
+the bar still stands in the section. The **line diff** of a piece compares the blocks without trailing whitespace
+(Round 18c): the empty line behind a block belongs to its `raw` and otherwise stood as an empty "−" line at the end. Without JavaScript and in the source this is the view of the
+proposals (line diff). With JavaScript and an open typeset view, `wysiwyg.ts` puts every piece as a non-editable
+sibling (`contenteditable="false"`) before the block `[data-b=gap]` of the typeset view (at the end
+behind it) and hides the reading flow; in the typeset view the piece shows its typeset view (`pv-satz`), not the
+line diff (CSS only). When switching to the source and before every new typeset view the pieces return to their
+place in the reading flow. `editsOf`, `blocksIn` and `markSelection` skip `.pv`; saving therefore changes
+nothing.
 
-**Vorschau** (`view=preview`): je Abschnitt des Kapitels `div.pv-section` mit seinen Blöcken als Zeilen
-(`h1`–`h3`, `p`) und den Stücken (nur Zeilen-Diff) zwischen den Blöcken an ihrer Stelle, Basis ist die dort
-gezeigte (aktuelle oder probeweise gesetzte) Fassung.
+**Preview** (`view=preview`): per section of the chapter a `div.pv-section` with its blocks as lines
+(`h1`–`h3`, `p`) and the pieces (line diff only) between the blocks at their place; the basis is the revision shown
+there (current or set on trial).
 
-**Farben:** Auf dem stets hellen Blatt (Satzbild, Vorschau) stehen die Stücke in den hellen Werten
-(`--pc-line`, `--pc-light`), sonst je Thema `--pc-line` bzw. `--pc-line-dark`. Beide Linien erreichen
-mindestens 3:1 gegen die Fläche ihres Themas (WCAG 1.4.11, `crate::personas::style`, `MIN_LINE_CONTRAST`),
-`--pc-line` zugleich gegen das Blatt des dunklen Themas (`--sheet: #f4f1ea`, `DARK_SHEET`):
-reicht die Farbe nicht, wird sie für hell abgedunkelt, für dunkel aufgehellt (in Schritten von 5 %).
+**Colours:** on the always light sheet (typeset view, preview) the pieces stand in the light values
+(`--pc-line`, `--pc-light`), otherwise per theme `--pc-line` or `--pc-line-dark`. Both lines reach
+at least 3:1 against the surface of their theme (WCAG 1.4.11, `crate::personas::style`, `MIN_LINE_CONTRAST`),
+`--pc-line` at the same time against the sheet of the dark theme (`--sheet: #f4f1ea`, `DARK_SHEET`):
+if the colour does not suffice, it is darkened for light and lightened for dark (in steps of 5 %).
 
-## Satzbild als Vorgabe (Runde 8)
+## Typeset view as the default (Round 8)
 
-Fehler aus der Sichtprüfung: Nach dem Laden war auf allen Bildschirmfotos „Quelltext“ aktiv, obwohl die Vorgabe
-„satz“ ist. **Ursache** (Code, Stand development f601260): Der Server lieferte immer `aria-pressed="true"` bei
-„Satzbild“ und ein **leeres** Satzbild. `wysiwyg.ts` rief beim Einhängen zuerst `show(state, root)` mit
-`open = false` – das drückt „Quelltext“, verbirgt Werkzeuge und Blatt und zeigt das Textfeld – und öffnete das
-Satzbild erst in `openSheet` nach zwei RPC-Antworten (`wysiwyg.parse`, `wysiwyg.style`). Das Laden der Seite
-(Ereignis `load`) wartet nicht auf diese `fetch`-Aufrufe; ein Bildschirmfoto direkt nach dem Laden
-(`firefox --screenshot`) zeigt darum den Zwischenzustand „Quelltext“. Ein Fehler beim Öffnen hätte ihn
-dauerhaft gemacht, ein Fehler war aber nicht nötig.
+Bug from the visual check: after loading, „Quelltext“ was active on all screenshots although the default
+is „satz“. **Cause** (code, state development f601260): the server always delivered `aria-pressed="true"` on
+„Satzbild“ and an **empty** typeset view. On mounting, `wysiwyg.ts` first called `show(state, root)` with
+`open = false` – that presses „Quelltext“, hides tools and sheet and shows the text field – and opened the
+typeset view only in `openSheet` after two RPC answers (`wysiwyg.parse`, `wysiwyg.style`). Loading the page
+(event `load`) does not wait for these `fetch` calls; a screenshot directly after loading
+(`firefox --screenshot`) therefore shows the intermediate state „Quelltext“. An error on opening would have made it
+permanent, but no error was needed.
 
-**Behebung:** Der Server zeichnet den Zustand selbst: `Settings.editor` (`satz` | `quelltext`, aus dem Cookie
-`baruch_editor`, Vorgabe `satz`) setzt `aria-pressed`, `data-ws-start` und – bei „quelltext“ – `hidden` an
-Werkzeugen, Hinweis und Blatt. Bei „satz“ steht das Satzbild der gezeigten Fassung fertig im Blatt
-(`<div … data-ws-sheet … data-ws-ready>…</div>`, dasselbe HTML wie `wysiwyg.parse`, mit Bildern). Das Widget
-übernimmt es beim Einhängen sofort (`adoptSheet`), ohne Zwischenzustand; der Stil der Werkvorlage kommt per
-`wysiwyg.style` nach. Liefert das Textfeld nicht denselben Text wie die Fassung (ein Zeilenumbruch direkt am
-Anfang, den der Browser hinter `<textarea>` streicht, oder `\r`), fehlt `data-ws-ready`, und das Widget öffnet
-das Satzbild wie bisher über RPC – ohne vorher auf Quelltext umzuschalten (nur das Textfeld ist kurz
-verborgen; scheitert das Öffnen, kommt der Quelltext). `#fundstelle` und das Cookie „quelltext“ öffnen den
-Quelltext wie bisher. Test: `crates/baruch-server/tests/round8_inline.rs`
-(`the_server_already_renders_the_satzbild_as_default_and_the_source_only_on_request`, scheitert ohne die
-Behebung an `data-ws-start`/`data-ws-ready`).
+**Fix:** the server draws the state itself: `Settings.editor` (`satz` | `quelltext`, from the cookie
+`baruch_editor`, default `satz`) sets `aria-pressed`, `data-ws-start` and – with „quelltext“ – `hidden` on
+tools, hint and sheet. With „satz“ the typeset view of the shown revision stands finished in the sheet
+(`<div … data-ws-sheet … data-ws-ready>…</div>`, the same HTML as `wysiwyg.parse`, with images). The widget
+adopts it immediately on mounting (`adoptSheet`), without an intermediate state; the style of the work template follows through
+`wysiwyg.style`. If the text field does not deliver the same text as the revision (a line break directly at the
+start, which the browser strips behind `<textarea>`, or `\r`), `data-ws-ready` is missing, and the widget opens
+the typeset view as before through RPC – without switching to the source first (only the text field is briefly
+hidden; if opening fails, the source comes). `#fundstelle` and the cookie „quelltext“ open the
+source as before. Test: `crates/baruch-server/tests/round8_inline.rs`
+(`the_server_already_renders_the_satzbild_as_default_and_the_source_only_on_request`, fails without the
+fix on `data-ws-start`/`data-ws-ready`).
 
-**Lange Abschnitte (Runde 18c):** Über 64 KiB Text (`view::READY_SHEET_MAX`, Bytes) setzt der Server das Satzbild
-nicht vorab ins HTML – es verdoppelte den Text (Textfeld, Blatt, mit Vorschlägen auch Lesefluss). Dann fehlt
-`data-ws-ready`, und das Widget holt das Satzbild wie oben über `wysiwyg.parse`, ohne vorher den Quelltext zu zeigen.
+**Long sections (Round 18c):** above 64 KiB of text (`view::READY_SHEET_MAX`, bytes) the server does not put the typeset view
+into the HTML in advance – it doubled the text (text field, sheet, with proposals also the reading flow). Then
+`data-ws-ready` is missing, and the widget fetches the typeset view as above through `wysiwyg.parse`, without showing the source first.
 
-**Stil schon im HTML (Runde 18c):** Der Editor bringt `<style id="ws-style" data-work="W">` mit (CSS aus
-`sheet::sheet_css_for`: Werkvorlage, überschrieben mit den Satzbild-Einstellungen des Werks, siehe unten), damit
-das Blatt nach dem Laden nicht Schrift und Größe wechselt; `wysiwyg.ts` übernimmt ein vorhandenes `#ws-style` mit
-gleichem `data-work` (Runde 18b).
+**Style already in the HTML (Round 18c):** the editor brings along `<style id="ws-style" data-work="W">` (CSS from
+`sheet::sheet_css_for`: work template, overridden with the typeset view settings of the work, see below) so that
+the sheet does not change font and size after loading; `wysiwyg.ts` adopts an existing `#ws-style` with
+the same `data-work` (Round 18b).
 
-**Verhaltenstest (Runde 18c):** `crates/baruch-server/tests/round18_satzbild.rs`
-(`satzbild_as_default_behaves_right_in_the_real_widgets_without_a_browser`) lässt die übersetzten Widgets
-`wysiwyg.js`, `proposals.js` und `sheet.js` in Node 20 auf einem kleinen nachgebauten DOM gegen das Editor-HTML
-von `ui.render` laufen – ohne Browser, ohne Netz (`fetch` ist nachgebaut und zählt die RPC-Aufrufe). Belegt wird
-das Verhalten: ohne Cookie ist das Satzbild schon beim Einhängen offen (Textfeld verborgen, „Satzbild“ gedrückt,
-kein `wysiwyg.parse`), die Stücke stehen im Satzbild, der Lesefluss ist verborgen und „Alle einklappen“ sichtbar;
-mit Cookie „quelltext“ bleibt das Textfeld offen; ohne vorab gesetztes Satzbild holt das Widget es per
-`wysiwyg.parse` und öffnet es danach. Nachgebaut ist nur, was die Widgets beim Einhängen brauchen (Selektoren mit
-Tag, `#id`, `.klasse`, `[a]`, `[a=b]`, Nachfahre, Kind, `:scope`); was fehlt, meldet der Test als Fehler im
-Nachbau. Ohne `node` wird er mit „ÜBERSPRUNGEN“ übersprungen.
+**Behaviour test (Round 18c):** `crates/baruch-server/tests/round18_satzbild.rs`
+(`satzbild_as_default_behaves_right_in_the_real_widgets_without_a_browser`) runs the compiled widgets
+`wysiwyg.js`, `proposals.js` and `sheet.js` in Node 20 on a small mocked DOM against the editor HTML
+of `ui.render` – without a browser, without network (`fetch` is mocked and counts the RPC calls). The test proves
+the behaviour: without a cookie the typeset view is already open on mounting (text field hidden, „Satzbild“ pressed,
+no `wysiwyg.parse`), the pieces stand in the typeset view, the reading flow is hidden and „Alle einklappen“ visible;
+with the cookie „quelltext“ the text field stays open; without a typeset view set in advance the widget fetches it through
+`wysiwyg.parse` and opens it afterwards. Only what the widgets need on mounting is mocked (selectors with
+tag, `#id`, `.klasse`, `[a]`, `[a=b]`, descendant, child, `:scope`); what is missing, the test reports as an error in
+the mock. Without `node` it is skipped with „ÜBERSPRUNGEN“.
 
-## Darstellung nach der Werkvorlage
+## Display according to the work template
 
-`baruch_wysiwyg::sheet_style(vorlage)` liest aus der Werkvorlage nur Regeln der **obersten Ebene** (Kommentare
-und Raw-Text zählen nicht; die letzte Regel gewinnt, auch mehrere `#set` in einer Zeile). Regeln in
-`#show …: it => […]`, in `#show: …`-Rümpfen, in Funktionsrümpfen (`#let f() = { set par(…) }`), in `#if`
-oder in anderen Ausdrücken gelten nur für einen Teil des Dokuments und zählen nicht; ebenso wenig
-`#show footnote: set text(size: …)` (nur `emph`, `strong` und `heading` mit ihren eigenen Feldern):
+`baruch_wysiwyg::sheet_style(vorlage)` reads from the work template only rules of the **top level** (comments
+and raw text do not count; the last rule wins, also several `#set` on one line). Rules in
+`#show …: it => […]`, in `#show: …` bodies, in function bodies (`#let f() = { set par(…) }`), in `#if`
+or in other expressions hold only for part of the document and do not count; nor does
+`#show footnote: set text(size: …)` (only `emph`, `strong` and `heading` with their own fields):
 
-| Regel                                         | Feld                         | CSS-Variable              |
+| Rule                                          | Field                        | CSS variable              |
 |-----------------------------------------------|------------------------------|---------------------------|
 | `#set text(font:, size:, fill:)`              | `font`, `size`, `fill`       | `--ws-font`, `--ws-size`, `--ws-fill` |
 | `#set par(first-line-indent:, leading:, justify:)` | `indent`, `leading`, `justify` | `--ws-indent`, `--ws-leading`, `--ws-justify` |
-| `#set page(width:)` bzw. `paper:`             | `width`                      | `--ws-width`              |
+| `#set page(width:)` or `paper:`               | `width`                      | `--ws-width`              |
 | `#show emph: set text(fill:)`                 | `emph_fill`                  | `--ws-emph-fill`          |
 | `#show strong: set text(fill:)`               | `strong_fill`                | `--ws-strong-fill`        |
 | `#show heading: set text(font:, fill:)`       | `heading_font`, `heading_fill` | `--ws-heading-font`, `--ws-heading-fill` |
 | `#let szene(…) = block/rect/box(fill:, inset:, stroke:)` | `scene`           | `--ws-scene-fill/-inset/-stroke` |
 | `#let arbeit(…) = …`                          | `work`                       | `--ws-work-fill/-inset/-stroke` |
 
-Farben: `rgb("#…")`, `rgb(r, g, b)` (auch Prozent), `luma(n)`, `cmyk(…)` und die Farbnamen von Typst;
-Längen in pt, mm, cm, in, em. Was sich nicht übersetzen lässt (z. B. `red.lighten(20%)`), fehlt; dann gilt
-die Vorgabe aus `wysiwyg.css`. `sheet_css` schreibt nur Werte aus sicheren Zeichen (Buchstaben, Ziffern,
-` #%.,()-+_"'`, Anführungszeichen nur paarig – nie `<`, `;`, `{`, `}`, `\`), darum darf das Ergebnis unmaskiert in
-ein `<style>`-Element.
+Colours: `rgb("#…")`, `rgb(r, g, b)` (also percent), `luma(n)`, `cmyk(…)` and the colour names of Typst;
+lengths in pt, mm, cm, in, em. What cannot be translated (e.g. `red.lighten(20%)`) is missing; then
+the default from `wysiwyg.css` holds. `sheet_css` writes only values of safe characters (letters, digits,
+` #%.,()-+_"'`, quotation marks only in pairs – never `<`, `;`, `{`, `}`, `\`), therefore the result may go unescaped into
+a `<style>` element.
 
-**Satzbild-Einstellungen je Werk (Runde 18c):** Einstellungen → Werk → „Satzbild“ (RPC `work.sheet`,
-`work.sheet_set`, Store `work_sheet`, Migration 0044) überschreiben feldweise, was die Vorlage hergibt:
-`sheet_style_over(sheet_style(vorlage), einstellungen)` – jedes gesetzte Feld gewinnt, der Rest bleibt aus der
-Vorlage. Felder: `font`, `heading_font`, `size`, `fill`, `heading_fill`, `width` und `background` (Blattfarbe,
-`SheetStyle.background` → `--ws-background`; die Vorlage liefert sie nie, das Blatt bleibt sonst hell; `sheet.css`
-liest sie). `wysiwyg.style`, das `<style id="ws-style">` im Editor und `work.sheet` rechnen über dieselbe Funktion
-(`crate::sheet::sheet_style_for`) und liefern dasselbe CSS. Die Einstellungen gelten **nur im Satzbild des
-Browsers**: Typst-Satz, PDF und Export lesen `work_sheet` nie (byte-gleich, Test). Nach dem Speichern in den
-Einstellungen (`baruch:settings-changed`) holt `sheet.ts` `work.sheet` und ersetzt den Inhalt von `#ws-style`.
+**Typeset view settings per work (Round 18c):** „Einstellungen → Werk → Satzbild“ (RPC `work.sheet`,
+`work.sheet_set`, store `work_sheet`, migration 0044) override field by field what the template provides:
+`sheet_style_over(sheet_style(vorlage), einstellungen)` – every set field wins, the rest stays from the
+template. Fields: `font`, `heading_font`, `size`, `fill`, `heading_fill`, `width` and `background` (sheet colour,
+`SheetStyle.background` → `--ws-background`; the template never delivers it, the sheet otherwise stays light; `sheet.css`
+reads it). `wysiwyg.style`, the `<style id="ws-style">` in the editor and `work.sheet` compute through the same function
+(`crate::sheet::sheet_style_for`) and deliver the same CSS. The settings hold **only in the typeset view of the
+browser**: Typst typesetting, PDF and export never read `work_sheet` (byte-identical, test). After saving in the
+settings (`baruch:settings-changed`) `sheet.ts` fetches `work.sheet` and replaces the content of `#ws-style`.
 
 ## RPC
 
-Alle Methoden lesen nur (keine Schreibsperre), nur über `POST /rpc` – nicht über `/act`, nicht über MCP.
-`work` fehlt → Vorgabewerk. Fehler über `INVALID_PARAMS` (-32602).
+All methods only read (no write lock), only through `POST /rpc` – not through `/act`, not over MCP.
+`work` missing → default work. Errors through `INVALID_PARAMS` (-32602).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---------|-----------|----------|
-| `wysiwyg.parse` | `{work?, body}` | `{blocks, html}`: Blöcke (wie oben, mit `raw`) und HTML des Satzbilds (Bilder in Inseln, siehe unten) |
-| `wysiwyg.serialize` | `{work?, body, edits}` | `{body}`; ungültige Anweisungen → -32602 mit deutscher Meldung; Runde 18b auch `{replaces, raw}` (Insel an Ort und Stelle) |
-| `wysiwyg.style` | `{work?}` | `{css, style}` aus der Werkvorlage (`Store::work_template`) |
-| `wysiwyg.diff` | `{work?, key\|node, rev, base?}` | `{html, base}`: Fassung `rev` gegen `base`; fehlt `base`, ihr Elternteil (`based_on`), sonst die aktuelle; Bilder wie bei `parse` |
+| `wysiwyg.parse` | `{work?, body}` | `{blocks, html}`: blocks (as above, with `raw`) and HTML of the typeset view (images in islands, see below) |
+| `wysiwyg.serialize` | `{work?, body, edits}` | `{body}`; invalid instructions → -32602 with a German message; Round 18b also `{replaces, raw}` (island in place) |
+| `wysiwyg.style` | `{work?}` | `{css, style}` from the work template (`Store::work_template`) |
+| `wysiwyg.diff` | `{work?, key\|node, rev, base?}` | `{html, base}`: revision `rev` against `base`; if `base` is missing, its parent (`based_on`), otherwise the current one; images as with `parse` |
 
-HTML (`render_html`): je Block `<div class="ws-block" data-b="i" data-kind="…">` (Überschrift mit
-`data-level`, Liste mit `data-ordered`, Zitat mit `data-block`; Rumpf in `div.ws-body`, Herkunft in
-`div.ws-attribution`), Inseln mit `contenteditable="false"` und `data-raw`, Fließtext als `em`, `strong`,
-`span.ws-footnote`, `q.ws-quote`, `span.ws-label`, `span.ws-soft`, `span.ws-nbsp`, `span.ws-island`. Jeder
-Text ist maskiert. Das Label hinter einer Überschrift steht als
-`span.ws-label.ws-heading-label[data-heading-label]` (nicht bearbeitbar) am Ende des Überschriftsblocks, die
-Argumente einer Szene als `div.ws-args[data-raw]` (nicht bearbeitbar) vor ihrem Rumpf.
+HTML (`render_html`): per block `<div class="ws-block" data-b="i" data-kind="…">` (heading with
+`data-level`, list with `data-ordered`, quotation with `data-block`; body in `div.ws-body`, attribution in
+`div.ws-attribution`), islands with `contenteditable="false"` and `data-raw`, running text as `em`, `strong`,
+`span.ws-footnote`, `q.ws-quote`, `span.ws-label`, `span.ws-soft`, `span.ws-nbsp`, `span.ws-island`. Every
+text is escaped. The label behind a heading stands as
+`span.ws-label.ws-heading-label[data-heading-label]` (not editable) at the end of the heading block, the
+arguments of a scene as `div.ws-args[data-raw]` (not editable) before its body.
 
-Runde 18b: Aufzählung `div.ws-block[data-kind=enum][data-start=N]` mit `<ol start="N">`, Begriffsliste
-`div.ws-block[data-kind=terms]` mit `<dl><dt>Begriff</dt><dd>Erklärung</dd>…</dl>`, geschachtelte Punkte als Liste
-im `<li>` des Punkts davor (gleiches Listenelement), Umbruch `<span class="ws-linebreak" contenteditable="false"
-data-linebreak="1">↵<br></span>`, Link `<a class="ws-link" data-url="…" href="…">Text</a>` (Text bearbeitbar;
-`href` nur bei `http://`, `https://`, `mailto:`; ohne Text `data-bare="1"` und nicht bearbeitbar), Verweis
+Round 18b: enumeration `div.ws-block[data-kind=enum][data-start=N]` with `<ol start="N">`, term list
+`div.ws-block[data-kind=terms]` with `<dl><dt>Begriff</dt><dd>Erklärung</dd>…</dl>`, nested items as a list
+in the `<li>` of the item before (same list element), break `<span class="ws-linebreak" contenteditable="false"
+data-linebreak="1">↵<br></span>`, link `<a class="ws-link" data-url="…" href="…">Text</a>` (text editable;
+`href` only with `http://`, `https://`, `mailto:`; without text `data-bare="1"` and not editable), reference
 `<button type="button" class="ws-ref" contenteditable="false" tabindex="-1" data-target="…" data-supplement="…">@ziel</button>`
-(`type="button"`: schickt das Editor-Formular nicht ab). Der Titel einer Block-Insel lautet „Typst-Insel: Doppelklick
-öffnet den Quelltext an Ort und Stelle“, der eines Bilds „Bild – Doppelklick öffnet den Quelltext an Ort und Stelle“.
+(`type="button"`: does not submit the editor form). The title of a block island reads „Typst-Insel: Doppelklick
+öffnet den Quelltext an Ort und Stelle“, that of an image „Bild – Doppelklick öffnet den Quelltext an Ort und Stelle“.
 
-**Bilder** (Schnittstelle zu „images“, Runde 7: als Bild statt als Typst-Insel):
-`baruch_wysiwyg::image_path(raw)` liefert das String-Literal im ersten Argument des ersten `image(`-Aufrufs,
-auch in `#figure(image("…"), …)`, außerhalb von Kommentaren, Raw-Text und Formeln (berechnete Pfade nicht).
-Runde 18b: `image_paths(raw)` liefert die Pfade **aller** `image(`-Aufrufe; das Satzbild zeigt jedes Bild einer
-Insel (vorher nur das erste), Unterschrift und Alternativtext-Zeile wie beim ersten Bild. Runde 21b: Mit mehreren
-Bildern nennt die Unterschrift ohne `caption:` jedes Bild (Alternativtext, sonst Pfad, getrennt durch „ · “), und
-darunter steht immer `<span class="ws-alt ws-paths">Bilder: Pfad · Pfad</span>` (vorher nur der erste Pfad).
-`render_html_with(doc, &bilder)` bzw. `diff_html_with(alt, neu, &bilder)` zeigen jede Insel mit Bildpfad, für
-die der Rückruf `Some(ImageRef { src, alt })` liefert, **als Bild** und ohne sichtbaren Rohtext:
+**Images** (interface to "images", Round 7: as an image instead of a Typst island):
+`baruch_wysiwyg::image_path(raw)` delivers the string literal in the first argument of the first `image(` call,
+also in `#figure(image("…"), …)`, outside of comments, raw text and formulas (computed paths not).
+Round 18b: `image_paths(raw)` delivers the paths of **all** `image(` calls; the typeset view shows every image of an
+island (before only the first), caption and alternative text line as with the first image. Round 21b: with several
+images the caption without `caption:` names every image (alternative text, otherwise path, separated by " · "), and
+below it there is always `<span class="ws-alt ws-paths">Bilder: Pfad · Pfad</span>` (before only the first path).
+`render_html_with(doc, &bilder)` or `diff_html_with(alt, neu, &bilder)` show every island with an image path for
+which the callback delivers `Some(ImageRef { src, alt })` **as an image** and without visible raw text:
 
-- Block-Insel: `<div class="ws-block ws-figure" data-b="i" data-kind="island" data-image="1"
+- Block island: `<div class="ws-block ws-figure" data-b="i" data-kind="island" data-image="1"
   contenteditable="false" data-raw="…" title="Bild – Quelltext nur im Quelltext bearbeitbar"><img
-  class="ws-image" src="…" alt="…" loading="eager"><span class="ws-caption">…</span></div>`; die Unterschrift
-  ist `caption: […]` bzw. `caption: "…"` wörtlich, sonst der Alternativtext, sonst der Pfad.
-- Insel im Satz: `<span class="ws-island ws-inline-image" contenteditable="false" title="Bild – …"
+  class="ws-image" src="…" alt="…" loading="eager"><span class="ws-caption">…</span></div>`; the caption
+  is `caption: […]` or `caption: "…"` literally, otherwise the alternative text, otherwise the path.
+- Island within a sentence: `<span class="ws-island ws-inline-image" contenteditable="false" title="Bild – …"
   data-raw="…"><img …></span>`.
 
-Alle Attribute sind maskiert. Die Insel bleibt eine Insel (`data-kind="island"`, nicht bearbeitbar, als
-Ganzes löschbar); das Widget schickt sie als `keep`, beim Speichern bleibt sie byte-gleich. Ohne Bild vom
-Rückruf bleibt die Insel wie bisher (Rohtext in `code.ws-raw`). `render_html(doc)` ist
-`render_html_with(doc, &|_| None)` und zeigt keine Bilder. Der Server (`wysiwyg::image_ref`) nimmt `src =
-/werke/{work}/bilder/pfad?p=<Pfad, prozentkodiert>` mit dem Pfad in Normalform
-(`baruch_store::normalize_asset_path`: `./bilder/a.png` und `/bilder/a.png` → `bilder/a.png`; seit Runde 18b ohne
-führendes `/`, vorher `p=%2Fbilder%2F…`) und den
-Alternativtext der aktuellen Fassung (`wysiwyg::image_alts`, ebenfalls nach Normalform). Ausgeliefert wird
-das Bild nur über diese vorhandene Route (`nosniff`, CSP `sandbox`); sie findet `/bilder/a.png`,
-`bilder/a.png` und `./bilder/a.png` gleich, `..` nie. Diff (`diff_html`): Blöcke nach der längsten gemeinsamen Teilfolge über `raw` (ohne
-Leerraum am Ende), gleiche in `div.ws-same`, entfernte in `div.ws-del`, neue in `div.ws-ins`.
+All attributes are escaped. The island stays an island (`data-kind="island"`, not editable, deletable as a
+whole); the widget sends it as `keep`, on saving it stays byte-identical. Without an image from the
+callback the island stays as before (raw text in `code.ws-raw`). `render_html(doc)` is
+`render_html_with(doc, &|_| None)` and shows no images. The server (`wysiwyg::image_ref`) takes `src =
+/werke/{work}/bilder/pfad?p=<Pfad, prozentkodiert>` with the path in normal form
+(`baruch_store::normalize_asset_path`: `./bilder/a.png` and `/bilder/a.png` → `bilder/a.png`; since Round 18b without
+a leading `/`, before `p=%2Fbilder%2F…`) and the
+alternative text of the current revision (`wysiwyg::image_alts`, likewise by normal form). The image is delivered
+only through this existing route (`nosniff`, CSP `sandbox`); it finds `/bilder/a.png`,
+`bilder/a.png` and `./bilder/a.png` alike, `..` never. Diff (`diff_html`): blocks by the longest common subsequence over `raw` (without
+trailing whitespace), equal ones in `div.ws-same`, removed ones in `div.ws-del`, new ones in `div.ws-ins`.
 
-## Menüband (Runde 18a, seit Runde 33 angedockt)
+## Ribbon (Round 18a, docked since Round 33)
 
-**Seit Runde 33 dockt die Leiste in das Menüband der Seite an** (`docs/Architektur.md`, „Runde 33 – Menüband“):
-Sie steht weiter im Fragment des Editors (`templates/fragments/edit_toolbar.html`, `div[data-edit-toolbar][hidden]`
-in `div.wysiwyg`) und wird von `ui.render` mit neu gezeichnet; das Widget `band-dock` (`web/src/band.ts`, Marke am
-Ende von `fragments/editor.html`) hängt sie nach jedem Einhängen in den Andockplatz `div[data-band-dock]` des Kopfs.
-Sie hat zwei Teile: `data-band-part="start"` (Gruppen **Text**: Satzbild | Quelltext; **Absatz**: Absatzformat, K, F;
-**Fassung**: ‹ n/m ›, Speichern, Als neue Fassung; **Assistenten**: Prüfen, Vorschlag) für den Reiter Start und
-`data-band-part="einfuegen"` (**Einfügen**: die Formate unten; **Bild**; **Register und Glossar**) für den Reiter
-Einfügen. Ohne JavaScript bleibt sie verborgen am Blatt; es gibt dann wie bisher Textfeld und Statuszeile.
+**Since Round 33 the toolbar docks into the ribbon of the page** (`docs/Architektur.md`, "Round 33 – Ribbon"):
+it still stands in the fragment of the editor (`templates/fragments/edit_toolbar.html`, `div[data-edit-toolbar][hidden]`
+in `div.wysiwyg`) and is redrawn along by `ui.render`; the widget `band-dock` (`web/src/band.ts`, mark at the
+end of `fragments/editor.html`) hangs it, after every mounting, into the docking place `div[data-band-dock]` of the header.
+It has two parts: `data-band-part="start"` (groups „Text“: „Satzbild“ | „Quelltext“; „Absatz“: paragraph format, „K“, „F“;
+„Fassung“: ‹ n/m ›, „Speichern“, „Als neue Fassung“; „Assistenten“: „Prüfen“, „Vorschlag“) for the tab „Start“ and
+`data-band-part="einfuegen"` („Einfügen“: the formats below; „Bild“; „Register und Glossar“) for the tab
+„Einfügen“. Without JavaScript it stays hidden at the sheet; there are then, as before, text field and status line.
 
-Folgen für die Widgets: Nach dem Andocken liegt die Leiste nicht mehr unter `div.wysiwyg`. `wysiwyg.ts`, `ribbon.ts`
-und `context_menu.ts` verbinden sich beim Einhängen (vor dem Andocken) mit ihrem Editor; was später in die Leiste
-greift (der Umschalter Satzbild/Quelltext in `show`), nimmt `editToolbar(root)` aus `widgets.ts`. „Speichern“ und „Als
-neue Fassung“ im Band gehören über `form="editor-form"` zum Formular im Blatt; maßgeblich (Beschriftung
-„Gespeichert“/„Speichern“, gesperrt ohne Änderung) bleibt der Knopf der Statuszeile (`submitButton` überspringt die
-Knöpfe der Leiste). Während des Speicherns sperrt `lockEditor` auch den Andockplatz. Im Quelltext zeigt die Gruppe
-Absatz statt der Werkzeuge den Hinweis „nur im Satzbild“ (`data-ws-source-note`).
+Consequences for the widgets: after docking, the toolbar no longer lies under `div.wysiwyg`. `wysiwyg.ts`, `ribbon.ts`
+and `context_menu.ts` connect to their editor on mounting (before docking); what reaches into the toolbar later
+(the switch „Satzbild“/„Quelltext“ in `show`) takes `editToolbar(root)` from `widgets.ts`. „Speichern“ and „Als
+neue Fassung“ in the band belong to the form in the sheet through `form="editor-form"`; authoritative (label
+„Gespeichert“/„Speichern“, disabled without a change) stays the button of the status line (`submitButton` skips the
+buttons of the toolbar). While saving, `lockEditor` also locks the docking place. In the source the group
+„Absatz“ shows the hint „nur im Satzbild“ (`data-ws-source-note`) instead of the tools.
 
-Die Leiste ist das **Menüband für das Bearbeiten** (`templates/fragments/edit_toolbar.html`,
-Widget `ribbon` in `web/src/ribbon.ts`, Stil `static/ribbon.css` und `static/band.css`). Es behält alle Haken, die
-`wysiwyg.ts` liest (`data-edit-toolbar hidden`, `data-ws-mode`, `data-ws-tools`, `data-ws-format`,
-`data-ws-cmd="italic|bold"`; `data-ws-hint` in der Statuszeile); im Teil „einfuegen“ steht
+The toolbar is the **ribbon for editing** (`templates/fragments/edit_toolbar.html`,
+widget `ribbon` in `web/src/ribbon.ts`, style `static/ribbon.css` and `static/band.css`). It keeps all hooks that
+`wysiwyg.ts` reads (`data-edit-toolbar hidden`, `data-ws-mode`, `data-ws-tools`, `data-ws-format`,
+`data-ws-cmd="italic|bold"`; `data-ws-hint` in the status line); in the part "einfuegen" stands
 `div.ribbon-formats[data-widget=ribbon]`:
 
-- je Format der Werkvorlage ein Knopf `button[data-ribbon-cmd=<WsCommandName>][data-ribbon-snippet]` aus
-  `crate::ribbon::formats` (RPC `ribbon.formats`): `scene`/`work` nur, wenn die Vorlage `#let szene`/`#let arbeit`
-  definiert, seit Runde 19b `scripture` („Bibelstelle“) nur mit `#let bibelstelle(…)` bzw. `#let bibel(…)` und
-  `cite` („Literaturverweis“) nur mit `#bibliography(` in der Vorlage, dann immer `footnote`, `quote`, `list`,
-  `enum`, `terms`, `break`, `link` (seit Runde 30a `xref`);
-- `button[data-ribbon-image]` („Bild“): öffnet nur `details[data-image-insert]` (Formular von Runde 18c).
+- per format of the work template a button `button[data-ribbon-cmd=<WsCommandName>][data-ribbon-snippet]` from
+  `crate::ribbon::formats` (RPC `ribbon.formats`): `scene`/`work` only if the template defines `#let szene`/`#let arbeit`,
+  since Round 19b `scripture` („Bibelstelle“) only with `#let bibelstelle(…)` or `#let bibel(…)` and
+  `cite` („Literaturverweis“) only with `#bibliography(` in the template, then always `footnote`, `quote`, `list`,
+  `enum`, `terms`, `break`, `link` (since Round 30a `xref`);
+- `button[data-ribbon-image]` („Bild“): only opens `details[data-image-insert]` (form of Round 18c).
 
-**Formate der Vorlage für Stellen und Literatur (Runde 19b):**
+**Formats of the template for references and literature (Round 19b):**
 
-| Vorlage enthält | Knopf | Quelltext (Snippet) | Satzbild (`baruch:ws-command`) |
+| Template contains | Button | Source (snippet) | Typeset view (`baruch:ws-command`) |
 |---|---|---|---|
-| `#let bibelstelle(…)` bzw. `#let bibel(…)` | Bibelstelle | `#bibelstelle[]` bzw. `#bibel[]`, Cursor in den Klammern | `scripture`, `arg` = `{"fn": "bibelstelle"}`; das Satzbild fragt nach der Stelle und setzt die Insel `span.ws-island[data-raw="#bibelstelle[Joh 3,16]"]` (nur als Ganzes änderbar) |
-| `#bibliography(` (nicht in einer Kommentarzeile) | Literaturverweis | `@`, Cursor dahinter | `cite`, `arg` = Schlüssel (fehlt: das Satzbild fragt); setzt `button.ws-ref[data-target]` wie ein `@schlüssel` aus dem Quelltext |
+| `#let bibelstelle(…)` or `#let bibel(…)` | „Bibelstelle“ | `#bibelstelle[]` or `#bibel[]`, cursor in the brackets | `scripture`, `arg` = `{"fn": "bibelstelle"}`; the typeset view asks for the reference and sets the island `span.ws-island[data-raw="#bibelstelle[Joh 3,16]"]` (changeable only as a whole) |
+| `#bibliography(` (not in a comment line) | „Literaturverweis“ | `@`, cursor behind it | `cite`, `arg` = key (missing: the typeset view asks); sets `button.ws-ref[data-target]` like an `@schlüssel` from the source |
 
-Die reinen Bausteine stehen in `web/src/ws_command.ts` (importiert nichts): `scriptureFunction(snippet)` holt den
-Namen aus `#name[]`, `scriptureSource(fn, stelle)` baut `#fn[stelle]` und maskiert Markup-Zeichen wie `needs_escape`
-in `baruch-wysiwyg` (`\ # * _ $ @ < > [ ] ` ~`, Zeilenumbruch → Leerzeichen, höchstens 200 Zeichen), `citeKey(text)`
-prüft den Schlüssel wie ein Typst-Label (Buchstaben, Ziffern, `_ - : .`; `@` vorn und Satzpunkt hinten entfallen).
-Gespeichert wird wie immer über `wysiwyg.serialize`: die Insel wörtlich, der Verweis als `@schlüssel` (bzw.
-`#ref(<schlüssel>)`, wenn ein Zeichen eines Labels folgt). Annahme: die Funktion der Vorlage nimmt die Stelle als
-Inhalt (`[…]`); eine Vorlage, deren Funktion einen String erwartet, braucht den Quelltext.
+The pure building blocks stand in `web/src/ws_command.ts` (imports nothing): `scriptureFunction(snippet)` takes the
+name from `#name[]`, `scriptureSource(fn, stelle)` builds `#fn[stelle]` and escapes markup characters like `needs_escape`
+in `baruch-wysiwyg` (`\ # * _ $ @ < > [ ] ~` and the backtick, line break → space, at most 200 characters), `citeKey(text)`
+checks the key like a Typst label (letters, digits, `_ - : .`; `@` at the front and a full stop at the end are dropped).
+Saving works as always through `wysiwyg.serialize`: the island literally, the reference as `@schlüssel` (or
+`#ref(<schlüssel>)` if a label character follows). Assumption: the function of the template takes the reference as
+content (`[…]`); a template whose function expects a string needs the source.
 
-**Satzbild offen** (`div.wysiwyg[data-ws-open]`): Der Knopf ruft `sendWsCommand(root, cmd)` aus
-`web/src/ws_command.ts` (Ereignis `baruch:ws-command` an `div.wysiwyg`, ohne bubbles). Setzt `wysiwyg.ts`
-`handled = true`, ist der Befehl ausgeführt; bleibt `handled` `false`, zeigt `ribbon.ts` einen Hinweis
-(`baruch:toast`, „… geht im Satzbild noch nicht – bitte im Quelltext einfügen“). **Quelltext:** `ribbon.ts` fügt
-`snippet` selbst an `selectionStart` ins Textfeld ein (`execCommand("insertText")`, sonst `setRangeText` + `input`);
-Blockformate beginnen an einem Zeilenanfang, eine Markierung wandert in den Inhalt (`[…]`), der Cursor steht im
-Inhalt. Kein Import zwischen `ribbon.ts` und `wysiwyg.ts`.
+**Typeset view open** (`div.wysiwyg[data-ws-open]`): the button calls `sendWsCommand(root, cmd)` from
+`web/src/ws_command.ts` (event `baruch:ws-command` at `div.wysiwyg`, without bubbles). If `wysiwyg.ts` sets
+`handled = true`, the command is executed; if `handled` stays `false`, `ribbon.ts` shows a hint
+(`baruch:toast`, „… geht im Satzbild noch nicht – bitte im Quelltext einfügen“). **Source:** `ribbon.ts` inserts
+`snippet` itself at `selectionStart` into the text field (`execCommand("insertText")`, otherwise `setRangeText` + `input`);
+block formats begin at the start of a line, a selection moves into the content (`[…]`), the cursor stands in the
+content. No import between `ribbon.ts` and `wysiwyg.ts`.
 
-Dasselbe Fragment hat mit `satz_page` noch den Zweig für die Satz-Seite (seit Runde 33 stehen deren Knöpfe als
-Gruppen im Reiter Buch; der Zweig entfällt nach dem Zusammenführen der Runde): das Menüband der Satz-Seite (`/werke/{id}/satz`, `div.ribbon-satz
-[data-ribbon-satz]`, ohne `hidden`, ohne JavaScript): Zurück, PDF, ‹ › mit `aria-label`, „Satz abbrechen“ als
-Formular (`docs/Bedienung.md`, „Satz (Typst-Vorschau)“).
+With `satz_page` the same fragment still has the branch for the typesetting page (since Round 33 its buttons stand as
+groups in the tab „Buch“; the branch is dropped after the merge of the round): the ribbon of the typesetting page (`/werke/{id}/satz`, `div.ribbon-satz
+[data-ribbon-satz]`, without `hidden`, without JavaScript): back, PDF, ‹ › with `aria-label`, „Satz abbrechen“ as a
+form (`docs/Bedienung.md`, „Satz (Typst-Vorschau)“).
 
-## Bedienung
+## Usage
 
-- **Klick auf einen Abschnitt** öffnet ihn im Satzbild (Vorgabe), auch nach jedem Neuzeichnen (Gliederung,
-  `baruch:navigate`, `ui.render`). Der Umschalter **Satzbild | Quelltext** über dem Text wechselt; nur diese
-  ausdrückliche Wahl setzt das Cookie `baruch_editor` (`satz` bzw. `quelltext`), und nur `quelltext` öffnet
-  den Editor im Quelltext. Kommt man beim Laden der Seite über einen Treffer der Literatursuche
-  (`#fundstelle`), beginnt dieser erste Editor im Quelltext, weil die Markierung dort steht; spätere Klicks
-  öffnen wieder das Satzbild.
-- Im Quelltext füllt das Textfeld das Blatt (das Satzbild ist `hidden`); offen füllt das Satzbild das Blatt.
-  Werkzeugleiste und Statuszeile scrollen nicht mit.
-- Tippen wie in einer Textverarbeitung: **Enter** beginnt einen neuen Absatz (in Listen einen neuen Punkt),
-  **Umschalt+Enter** einen einfachen Zeilenumbruch (in einer Überschrift einen neuen Absatz: eine Überschrift
-  ist immer eine Zeile), **Strg+I** hebt hervor, **Strg+B** setzt fett (auch über
-  die Knöpfe *K* und **F**), die Auswahl **Absatz / Überschrift 1–3** ändert das Format des Blocks am Cursor.
-  Ein Absatz, der mit `# `, `## ` … beginnt, wird beim Enter eine Überschrift dieser Ebene (Markdown, siehe
-  oben).
-  Einfügen nimmt nur Text; Leerzeilen im eingefügten Text trennen Absätze (jedes weitere Stück wird ein
-  neuer Absatz, in Listen bleibt alles ein Punkt).
-- **Szenen und Arbeitsaufträge** stehen als Kasten da; jeder Absatz darin ist einzeln bearbeitbar (Enter
-  teilt ihn, wie draußen). Gespeichert wird nur der bearbeitete Absatz neu, der Rest der Szene bleibt
-  Zeichen für Zeichen. Argumente (`#szene(ort: …)`) und das Label einer Überschrift stehen grau bzw. gelb
-  da und bleiben beim Bearbeiten erhalten.
-- **Bilder** aus `#image(…)`/`#figure(image(…))` erscheinen als Bild mit Unterschrift (Bild von der Seite
-  „Bilder“ des Werks, auch bei Pfaden mit `./`), nicht als Typst-Rohtext; ein feiner Rand beim Überfahren zeigt,
-  dass sie sich nur im Quelltext ändern oder als Ganzes löschen lassen.
-- **Strg+S** speichert (wie im Quelltext). Vor dem Speichern überträgt das Widget das Satzbild ins Textfeld;
-  danach gelten dieselben Regeln wie im Quelltext (Überschriftszeile bestimmt Titel und Ebene, Teilen und
-  Zusammenführen nach Rückfrage). Ein leerer, mehrzeiliger oder über 200 Zeichen langer Titel wird mit einer
-  Meldung abgewiesen, nichts gespeichert. Ungespeicherter Text im Satzbild löst dieselbe Rückfrage aus wie im
-  Quelltext.
-- Gelb hinterlegt: **Typst-Inseln**; im Satzbild als Ganzes löschbar und seit Runde 18b per **Doppelklick** an Ort
-  und Stelle als Quelltext bearbeitbar (Strg+Enter übernimmt, Escape bricht ab).
-- **Runde 18b:** Aufzählungen (`1.`), Begriffslisten (Begriff fett, Erklärung eingerückt; Enter beginnt einen neuen
-  Eintrag), geschachtelte Listen, erzwungene Umbrüche (↵), Links (Text bearbeitbar, Adresse im Titel) und Verweise
-  (`@ziel` als Schaltfläche; ein Klick zeigt das Label im Abschnitt, ändern nur im Quelltext) stehen im Satzbild
-  statt als Insel. Die Knöpfe des Menübands (Szene, Arbeitsauftrag, Fußnote, Zitat, Liste, Aufzählung,
-  Begriffsliste, Umbruch, Link) wirken bei offenem Satzbild am Cursor: Fußnote, Zitat und Link umschließen die
-  Auswahl (sonst ein markierter Platzhalter), Liste/Aufzählung/Begriffsliste machen aus dem Absatz am Cursor eine
-  (Liste ↔ Aufzählung wechselt), Szene und Arbeitsauftrag nehmen den Block am Cursor in ihren Rumpf (an einer
-  Überschrift oder Insel entsteht eine leere dahinter). Geht ein Befehl an der Stelle nicht, sagt eine Meldung warum.
-- **Vorschläge** stehen an ihrer Stelle (Runde 8, siehe oben): bei offenem Satzbild direkt beim Block, den
-  sie ändern, mit dem Unterschied im Satzbild (entfernt rot durchgestrichen, neu grün, fertig vom Server über
-  `hunk_html_with`), im Quelltext und ohne JavaScript im Lesefluss unter dem Textfeld mit dem zeilenweisen
-  Diff. Ein Klick auf die farbige Linie klappt einen Vorschlag auf oder zu (alle seine Stücke).
-- **Fassung ändern** bleibt Quelltext; seit Runde 18b werden Markdown-Überschriften auch dort umgewandelt (eine
-  weitere Überschrift lehnt „Fassung ändern“ ab wie eine getippte `=`-Zeile).
-- **Ohne JavaScript** ist der Satzbild-Bereich verborgen; es gibt nur das Textfeld, das wie bisher an
-  `/gliederung/act` geht.
+- **A click on a section** opens it in the typeset view (default), also after every redraw (outline,
+  `baruch:navigate`, `ui.render`). The switch „Satzbild | Quelltext“ above the text switches; only this
+  explicit choice sets the cookie `baruch_editor` (`satz` or `quelltext`), and only `quelltext` opens
+  the editor in the source. If one arrives on loading the page through a hit of the literature search
+  (`#fundstelle`), this first editor begins in the source because the highlight stands there; later clicks
+  open the typeset view again.
+- In the source the text field fills the sheet (the typeset view is `hidden`); when open, the typeset view fills the sheet.
+  Toolbar and status line do not scroll along.
+- Typing as in a word processor: **Enter** begins a new paragraph (in lists a new item),
+  **Shift+Enter** a simple line break (in a heading a new paragraph: a heading
+  is always one line), **Ctrl+I** emphasises, **Ctrl+B** sets bold (also through
+  the buttons *K* and **F**), the choice „Absatz / Überschrift 1–3“ changes the format of the block at the cursor.
+  A paragraph that begins with `# `, `## ` … becomes a heading of that level on Enter (Markdown, see
+  above).
+  Pasting takes text only; empty lines in the pasted text separate paragraphs (every further piece becomes a
+  new paragraph, in lists everything stays one item).
+- **Scenes and work assignments** stand there as a box; every paragraph in it can be edited on its own (Enter
+  splits it, as outside). Only the edited paragraph is saved anew, the rest of the scene stays
+  character for character. Arguments (`#szene(ort: …)`) and the label of a heading stand there in grey or yellow
+  and are preserved while editing.
+- **Images** from `#image(…)`/`#figure(image(…))` appear as an image with a caption (image from the page
+  „Bilder“ of the work, also with paths with `./`), not as raw Typst text; a fine border on hovering shows
+  that they can only be changed in the source or deleted as a whole.
+- **Ctrl+S** saves (as in the source). Before saving, the widget transfers the typeset view into the text field;
+  afterwards the same rules hold as in the source (the heading line determines title and level, splitting and
+  merging after a query). An empty, multi-line or longer than 200 characters title is rejected with a
+  message, nothing stored. Unsaved text in the typeset view triggers the same query as in the
+  source.
+- Yellow background: **Typst islands**; deletable as a whole in the typeset view and, since Round 18b, editable as source in place by
+  **double click** (Ctrl+Enter accepts, Escape cancels).
+- **Round 18b:** enumerations (`1.`), term lists (term bold, explanation indented; Enter begins a new
+  entry), nested lists, forced breaks (↵), links (text editable, address in the title) and references
+  (`@ziel` as a button; a click shows the label in the section, changing only in the source) stand in the typeset view
+  instead of as islands. The buttons of the ribbon (scene, work assignment, footnote, quotation, list, enumeration,
+  term list, break, link) act at the cursor when the typeset view is open: footnote, quotation and link enclose the
+  selection (otherwise a selected placeholder), list/enumeration/term list turn the paragraph at the cursor into one
+  (list ↔ enumeration switches), scene and work assignment take the block at the cursor into their body (at a
+  heading or island an empty one arises behind it). If a command does not work at that place, a message says why.
+- **Proposals** stand at their place (Round 8, see above): with an open typeset view directly at the block that
+  they change, with the difference in the typeset view (removed struck through in red, new in green, ready-made by the server through
+  `hunk_html_with`), in the source and without JavaScript in the reading flow below the text field with the line-by-line
+  diff. A click on the coloured line expands or collapses a proposal (all its pieces).
+- **„Fassung ändern“** stays source; since Round 18b Markdown headings are converted there as well (a
+  further heading is rejected by „Fassung ändern“ like a typed `=` line).
+- **Without JavaScript** the typeset view area is hidden; there is only the text field, which goes to
+  `/gliederung/act` as before.
 
-## Technik im Widget
+## Technology in the widget
 
-- `wysiwyg.ts` hängt sich an `div.wysiwyg[data-widget=wysiwyg]` im Editor-Formular, übernimmt das fertige
-  Satzbild des Servers (`data-ws-ready`, Runde 8) oder holt `wysiwyg.parse`, dazu `wysiwyg.style` (eingefügt
-  als `<style id="ws-style">`) und zeigt das Satzbild (`contenteditable`). Danach setzt `placeProposals` die
-  Stücke der Vorschläge aus `section.pv-flow` an ihre Stelle (`returnProposals` holt sie zurück).
-- Jede Eingabe markiert alle berührten Blöcke (`data-dirty="1"`, auch geschachtelte im Rumpf einer Szene),
-  setzt `form.dataset.dirty = "1"` und gibt den Speichern-Knopf frei. Neue Blöcke (Enter) haben kein
-  `data-b`; ein vom Browser kopierter Index gilt beim zweiten Mal als neu. Blöcke im Rumpf einer Szene
-  bzw. Arbeit nummeriert das Widget beim Öffnen (`data-n`); für eine bearbeitete Szene schickt es eine
-  Rumpf-Anweisung `{"replaces": i, "body": […]}`.
-- Vor dem Speichern löst `outline.ts` am Formular `baruch:before-save` aus; das Widget legt dann ein Promise in
-  `detail.wait`, das `wysiwyg.serialize` ruft, das Ergebnis ins Textfeld schreibt und `input` auslöst.
-  Abgeschickt wird immer das Textfeld. Als Rückfall (solange niemand das Ereignis auslöst) fängt das Widget
-  das Absenden im Fenster ab, überträgt und schickt erneut ab.
-- **Runde 22 (Fortschreiben):** Das Editor-Formular trägt das versteckte Feld `mode=auto`; „Speichern“ (erster
-  Knopf des Formulars – `submitButton` nimmt ihn für „Gespeichert“/„Speichern“) schreibt die eigene aktuelle Fassung
-  fort, solange keine Regel eine neue Fassung verlangt, „Als neue Fassung speichern“ schickt `as_new=1` (der Server
-  bzw. `workspace.ts` macht daraus `mode: "new"`). Beim erneuten Absenden nach dem Übertragen des Satzbilds geht der
-  auslösende Knopf mit (`form.requestSubmit(submitter)` in `wysiwyg.ts` und `outline.ts`), damit `as_new` nicht
-  verloren geht; Strg+S löst wie bisher ohne Knopf aus (also „Speichern“, Modus „auto“). Nach dem Speichern zeigt
-  `workspace.ts` „Gespeichert: fortgeschrieben (Stand k).“ bzw. „Gespeichert: neue Fassung n (Grund).“; ohne
-  JavaScript steht dieselbe Rückmeldung nach der Weiterleitung im Editor-Kopf (`saved=…` in der Adresse).
-- `wysiwyg.ts` importiert nichts aus `outline.ts`.
-- **Quelltext ohne Speichern (Runde 17, Vertrag §2.6):** Wer den vollständigen Quelltext braucht, ohne zu speichern
-  (z. B. die Live-Zählung in `timing.ts`, die Prüfanzeige `scripture_check.ts`), löst am Editor-Formular
-  `baruch:serialize-text` mit `detail: { wait: Promise<string>[] }` aus. Ist das Satzbild offen, legt `wysiwyg.ts`
-  ein Promise in `wait`: ohne Eingabe seit dem letzten Übertragen das Textfeld, sonst `wysiwyg.serialize` mit
-  denselben Anweisungen wie beim Speichern – aber ohne Markdown-Überschriften umzuwandeln, ohne das Textfeld zu
-  schreiben und ohne `touched` zu ändern. Ist niemand zuständig (Quelltext-Ansicht), bleibt `wait` leer; der
-  Auslöser nimmt dann das Textfeld.
-- **Markierungen der Prüfanzeige (Runde 17c):** Das Widget `scripture-check` (Statuszeile, `web/src/scripture_check.ts`)
-  markiert geprüfte Zitate im Satzbild **nur** über die CSS Custom Highlight API (`CSS.highlights`, Namen
-  `bibel-stimmt` und `bibel-weicht`, Stil in `static/pruefung.css`): Es legt `Range`-Objekte über vorhandene
-  Textknoten (gesucht wird der Zitattext, Leerraum zählt als ein Zeichen; Vorschläge `.pv` zählen nicht) und ändert
-  das DOM des Satzbilds nicht – `editsOf` sieht also keine Änderung, Speichern bleibt byte-gleich. Jede Eingabe
-  löscht die Markierung. Ohne Highlight-API gibt es nur die Liste.
-- Überschriften (Runde 7): `inlinesOf(…, heading = true)` macht aus Zeilenenden im Text Umbrüche,
-  `splitHeading` teilt am ersten (wie `split_heading` im Server), `headingEdits` schickt Überschrift + neuen
-  Absatz; `headingProblem` prüft vor `wysiwyg.serialize` die Titelregeln (Ebene 1–3) und bricht das Speichern
-  mit der Meldung ab; `guardHeadingMerge` (an `beforeinput`) fängt Rückschritt/Entf an der Grenze
-  Überschrift ↔ Absatz ab. `ws-figure` und `ws-inline-image` sind Inseln wie alle anderen.
-- **`guardHeadingMerge` über Vorschläge (Runde 18b):** Der Nachbar eines Blocks ist der nächste Block davor bzw.
-  dahinter, Stücke der Vorschläge (`details.pv`) dazwischen zählen nicht (`blockNeighbour`). Vorher war der Nachbar
-  das `<details>`, und Rückschritt am Anfang des Absatzes zog ihn doch in die Überschrift (Gutachten R8). Nachbau über
-  RPC und Prüfung der Stelle im Widget: `round18_konstrukte.rs`
-  (`a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guard`); im Browser nur von Hand prüfbar.
-- **Befehle des Menübands (Runde 18b, Vertrag R18-S1):** `baruch:ws-command` am Bereich `div.wysiwyg` (ohne
-  bubbles, `web/src/ws_command.ts`, eingefroren): Bei offenem Satzbild setzt das Widget `detail.handled = true` und
-  führt den Befehl aus (`runCommand`, alle `WsCommandName`: `scene`, `work`, `footnote`, `quote`, `list`, `enum`,
-  `terms`, `break`, `link`; `arg` = Adresse beim Link bzw. Text des Platzhalters, ohne Adresse fragt ein Dialog);
-  bei geschlossenem Satzbild bleibt `handled` `false`, und das Menüband fügt den Typst-Text selbst ins Textfeld ein.
-  Die Auswahl im Satzbild merkt sich das Widget (`selectionchange`), damit ein Klick ins Menüband sie nicht verliert.
-- **Cursorstelle (Runde 18b):** `baruch:ws-caret` (am Bereich oder am Editor-Formular): Bei offenem Satzbild legt das
-  Widget genau ein Promise in `detail.wait` mit `{body, offset}` – `body` wie bei `baruch:serialize-text`, `offset` die
-  UTF-16-Länge des Texts, den dieselben Anweisungen bis einschließlich des obersten Blocks am Cursor ergeben (ein
-  Zeilenanfang hinter seinen Leerzeilen; ohne Cursor oder hinter dem letzten Block das Ende). Zwei Aufrufe
-  `wysiwyg.serialize` (Text und Präfix); Ablauf über RPC belegt in `round18_konstrukte.rs`.
-- **Stil vom Server (Runde 18b):** Steht schon ein `<style id="ws-style" data-work="W">` mit dem Werk des Editors im
-  Dokument (Satzbild je Werk, `fragments/editor.html`), übernimmt `applyStyle` es ohne `wysiwyg.style`; andere
-  `#ws-style` (anderer Werke) entfallen. Sonst holt es den Stil wie bisher per RPC (eine Anfrage je Werk zugleich).
+- `wysiwyg.ts` attaches to `div.wysiwyg[data-widget=wysiwyg]` in the editor form, adopts the finished
+  typeset view of the server (`data-ws-ready`, Round 8) or fetches `wysiwyg.parse`, plus `wysiwyg.style` (inserted
+  as `<style id="ws-style">`), and shows the typeset view (`contenteditable`). Afterwards `placeProposals` puts the
+  pieces of the proposals from `section.pv-flow` at their place (`returnProposals` fetches them back).
+- Every input marks all touched blocks (`data-dirty="1"`, also nested ones in the body of a scene),
+  sets `form.dataset.dirty = "1"` and enables the save button. New blocks (Enter) have no
+  `data-b`; an index copied by the browser counts as new the second time. Blocks in the body of a scene
+  or work assignment are numbered by the widget on opening (`data-n`); for an edited scene it sends a
+  body instruction `{"replaces": i, "body": […]}`.
+- Before saving, `outline.ts` fires `baruch:before-save` at the form; the widget then puts a promise into
+  `detail.wait` that calls `wysiwyg.serialize`, writes the result into the text field and fires `input`.
+  The text field is always what is submitted. As a fallback (as long as nobody fires the event) the widget intercepts
+  the submission in the window, transfers and submits again.
+- **Round 22 (amending):** the editor form carries the hidden field `mode=auto`; „Speichern“ (first
+  button of the form – `submitButton` takes it for „Gespeichert“/„Speichern“) amends the own current revision
+  as long as no rule demands a new revision, „Als neue Fassung speichern“ sends `as_new=1` (the server
+  or `workspace.ts` turns that into `mode: "new"`). On submitting again after transferring the typeset view, the
+  triggering button goes along (`form.requestSubmit(submitter)` in `wysiwyg.ts` and `outline.ts`) so that `as_new` does not
+  get lost; Ctrl+S triggers without a button as before (i.e. „Speichern“, mode "auto"). After saving,
+  `workspace.ts` shows „Gespeichert: fortgeschrieben (Stand k).“ or „Gespeichert: neue Fassung n (Grund).“; without
+  JavaScript the same feedback stands in the editor header after the redirect (`saved=…` in the address).
+- `wysiwyg.ts` imports nothing from `outline.ts`.
+- **Source without saving (Round 17, contract §2.6):** whoever needs the complete source without saving
+  (e.g. the live count in `timing.ts`, the check display `scripture_check.ts`) fires at the editor form
+  `baruch:serialize-text` with `detail: { wait: Promise<string>[] }`. If the typeset view is open, `wysiwyg.ts` puts
+  a promise into `wait`: without input since the last transfer the text field, otherwise `wysiwyg.serialize` with
+  the same instructions as on saving – but without converting Markdown headings, without writing the text field
+  and without changing `touched`. If nobody is responsible (source view), `wait` stays empty; the
+  trigger then takes the text field.
+- **Highlights of the check display (Round 17c):** the widget `scripture-check` (status line, `web/src/scripture_check.ts`)
+  highlights checked quotations in the typeset view **only** through the CSS Custom Highlight API (`CSS.highlights`, names
+  `bibel-stimmt` and `bibel-weicht`, style in `static/pruefung.css`): it lays `Range` objects over existing
+  text nodes (the quotation text is searched, whitespace counts as one character; proposals `.pv` do not count) and does not change
+  the DOM of the typeset view – `editsOf` thus sees no change, saving stays byte-identical. Every input
+  clears the highlight. Without the Highlight API there is only the list.
+- Headings (Round 7): `inlinesOf(…, heading = true)` turns line ends in the text into breaks,
+  `splitHeading` splits at the first one (like `split_heading` in the server), `headingEdits` sends heading + new
+  paragraph; `headingProblem` checks the title rules (level 1–3) before `wysiwyg.serialize` and aborts saving
+  with the message; `guardHeadingMerge` (on `beforeinput`) intercepts Backspace/Delete at the boundary
+  heading ↔ paragraph. `ws-figure` and `ws-inline-image` are islands like all others.
+- **`guardHeadingMerge` across proposals (Round 18b):** the neighbour of a block is the next block before or
+  behind it; pieces of proposals (`details.pv`) in between do not count (`blockNeighbour`). Before, the neighbour was
+  the `<details>`, and Backspace at the start of the paragraph did pull it into the heading (review R8). Mock through
+  RPC and check of the place in the widget: `round18_konstrukte.rs`
+  (`a_proposal_between_heading_and_paragraph_does_not_disarm_the_merge_guard`); in the browser only checkable by hand.
+- **Commands of the ribbon (Round 18b, contract R18-S1):** `baruch:ws-command` at the area `div.wysiwyg` (without
+  bubbles, `web/src/ws_command.ts`, frozen): with an open typeset view the widget sets `detail.handled = true` and
+  executes the command (`runCommand`, all `WsCommandName`: `scene`, `work`, `footnote`, `quote`, `list`, `enum`,
+  `terms`, `break`, `link`; `arg` = address with the link or text of the placeholder, without an address a dialog asks);
+  with a closed typeset view `handled` stays `false`, and the ribbon inserts the Typst text into the text field itself.
+  The widget remembers the selection in the typeset view (`selectionchange`) so that a click into the ribbon does not lose it.
+- **Cursor position (Round 18b):** `baruch:ws-caret` (at the area or at the editor form): with an open typeset view the
+  widget puts exactly one promise into `detail.wait` with `{body, offset}` – `body` as with `baruch:serialize-text`, `offset` the
+  UTF-16 length of the text that the same instructions yield up to and including the top-level block at the cursor (a
+  line start behind its empty lines; without a cursor or behind the last block the end). Two calls of
+  `wysiwyg.serialize` (text and prefix); the course through RPC is proven in `round18_konstrukte.rs`.
+- **Style from the server (Round 18b):** if a `<style id="ws-style" data-work="W">` with the work of the editor already stands in the
+  document (typeset view per work, `fragments/editor.html`), `applyStyle` adopts it without `wysiwyg.style`; other
+  `#ws-style` (of other works) are dropped. Otherwise it fetches the style through RPC as before (one request per work at a time).
 
-## Querverweise (Runde 30a)
+## Cross-references (Round 30a)
 
-Ein **Querverweis** zeigt auf einen Gliederungspunkt über dessen feste Sprungmarke `<k{key}>`
-(`baruch_typst::xref::key_label`). Die Sprungmarken stehen nur im Export, im Spiegel und im Satz, nicht in den
-Fassungen (siehe `docs/Architektur.md`, „Querverweise“).
+A **cross-reference** points to an outline item through its fixed anchor `<k{key}>`
+(`baruch_typst::xref::key_label`). The anchors stand only in the export, in the mirror and in the typesetting, not in the
+revisions (see `docs/Architektur.md`, "Cross-references (Round 30a)").
 
-- **Form im Text** (`baruch_typst::xref::xref_snippet`): `#link(<k103>)[die Einleitung]`; mit Seitenzahl
-  `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]`. Kein `@k103`: Überschriften ohne
-  Nummer lassen sich in Typst nicht mit `@` referenzieren.
-- **Blockmodell:** `parse` erkennt beide Formen als `Inline::Xref {key, c, page}` (JSON `{"t": "xref", "key": 103,
-  "c": [...], "page": true}`). Erkannt wird nur ein kanonisches Label `k` + Ziffern ohne führende Null und genau dieser
-  Seitenzahl-Zusatz mit demselben Schlüssel. Ein leerer Linktext, ein anderes Label oder ein anderer Zusatz bleiben
-  Insel (`#link(<hafen>)[…]` wie bisher). `emit` schreibt die Form von `xref_snippet`; `emit`/`parse` ergeben eine
-  Rundreise (Eigenschaftstest `tests/xref.rs`, Saat `WS_SEED`, Fälle `WS_CASES`).
-- **Satzbild:** `render_html` setzt einen `span.ws-xref` mit `data-key` und `data-page`, darin den bearbeitbaren
-  Linktext, bei Seitenzahl einen nicht bearbeitbaren `span.ws-xref-page` („, S. …“).
-  - `wysiwyg.ts` liest den Block ohne den Zusatz zurück.
-  - Der Befehl `xref` (`ws_command.ts`, `arg` = JSON `{key, text, page}`) fügt ihn an der Cursorstelle ein.
-  - Strg+Klick springt zum Ziel, ein Klick zeigt „Öffnen | Bearbeiten“ (`xref.ts`).
-- **Sprungmarken im Export:** Eine `=`-Überschrift bekommt ` <kN>` vor einem Kommentar. Eine Überschrift mit eigenem
-  Label (Teil `<baruch-part>`, „ohne Nummer“ `<baruch-unnumbered>`, Label des Menschen am Zeilenende oder allein auf
-  der Zeile darunter) behält ihr Label; darunter steht die Ankerzeile `#metadata("baruch-key") <kN>` (hinter einer
-  Label-Zeile). Typst kennt nur ein Label je Element.
-- **Messung** (`crates/baruch-render/tests/xref.rs`): `#link(<kN>)` und `counter(page).at(<kN>)` lösen bei beiden
-  Formen auf, und Typst prüft per `#context assert`, dass jede Sprungmarke auf der Seite ihrer Überschrift liegt.
-  - **Ausnahme Teil im Satz:** Mit der Teil-Regel (`part_page_rule`, Umbruch nach dem Teil) läge die Ankerzeile
-    hinter der Teil-Zeile auf der Folgeseite (belegt).
-  - Der Satz setzt sie darum vor die Teil-Zeile, als `#pagebreak(weak: true, to: "odd")#metadata("baruch-key")
-    <kN>` (`part_anchors_for_typesetting`). Der Umbruch der Regel entfällt danach, die Seitenzahl bleibt gleich.
-  - Ein Verweis auf eine fehlende Sprungmarke ist in Typst ein Fehler mit dem Label in der Meldung. Darum macht der
-    Satz kaputte Verweise zu bloßem Text, und die Druckprüfung nennt sie.
-- **Einlesen:** Der Import entfernt Sprungmarke und Ankerzeile (`strip_section`) und setzt die Verweise auf die
-  neuen Schlüssel um (`remap_keys`).
+- **Form in the text** (`baruch_typst::xref::xref_snippet`): `#link(<k103>)[die Einleitung]`; with a page number
+  `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]`. No `@k103`: headings without a
+  number cannot be referenced with `@` in Typst.
+- **Block model:** `parse` recognises both forms as `Inline::Xref {key, c, page}` (JSON `{"t": "xref", "key": 103,
+  "c": [...], "page": true}`). Only a canonical label `k` + digits without a leading zero and exactly this
+  page-number addition with the same key are recognised. An empty link text, another label or another addition stay
+  islands (`#link(<hafen>)[…]` as before). `emit` writes the form of `xref_snippet`; `emit`/`parse` make a
+  round trip (property test `tests/xref.rs`, seed `WS_SEED`, cases `WS_CASES`).
+- **Typeset view:** `render_html` sets a `span.ws-xref` with `data-key` and `data-page`, in it the editable
+  link text, with a page number a non-editable `span.ws-xref-page` („, S. …“).
+  - `wysiwyg.ts` reads the block back without the addition.
+  - The command `xref` (`ws_command.ts`, `arg` = JSON `{key, text, page}`) inserts it at the cursor position.
+  - Ctrl+click jumps to the target, a click shows „Öffnen | Bearbeiten“ (`xref.ts`).
+- **Anchors in the export:** a `=` heading gets ` <kN>` before a comment. A heading with its own
+  label (part `<baruch-part>`, „ohne Nummer“ `<baruch-unnumbered>`, label of the human at the end of the line or alone on
+  the line below) keeps its label; below it stands the anchor line `#metadata("baruch-key") <kN>` (behind a
+  label line). Typst knows only one label per element.
+- **Measurement** (`crates/baruch-render/tests/xref.rs`): `#link(<kN>)` and `counter(page).at(<kN>)` resolve with both
+  forms, and Typst checks through `#context assert` that every anchor lies on the page of its heading.
+  - **Exception part in the typesetting:** with the part rule (`part_page_rule`, break after the part) the anchor line
+    behind the part line would lie on the following page (proven).
+  - The typesetting therefore puts it before the part line, as `#pagebreak(weak: true, to: "odd")#metadata("baruch-key")
+    <kN>` (`part_anchors_for_typesetting`). The break of the rule is then dropped, the page number stays the same.
+  - A reference to a missing anchor is an error in Typst with the label in the message. Therefore the
+    typesetting turns broken references into plain text, and the print check names them.
+- **Reading in:** the import removes anchor and anchor line (`strip_section`) and rewrites the references to the
+  new keys (`remap_keys`).
 
-## EPUB-Abbildung (Runde 20a)
+## EPUB mapping (Round 20a)
 
-Das EPUB (`crates/baruch-epub`, `xhtml.rs`) nimmt dasselbe Blockmodell wie das Satzbild: `baruch_wysiwyg::parse` je
-Abschnittstext (aktuelle Fassung wie im Export, mit Sprungmarke `<kN>`), dann eine eigene XHTML-Abbildung – nicht
-`render_html` (das schreibt Editor-HTML mit `contenteditable`, `data-raw` und Widget-Klassen) und nicht typst-html.
+The EPUB (`crates/baruch-epub`, `xhtml.rs`) takes the same block model as the typeset view: `baruch_wysiwyg::parse` per
+section text (current revision as in the export, with anchor `<kN>`), then an XHTML mapping of its own – not
+`render_html` (that writes editor HTML with `contenteditable`, `data-raw` and widget classes) and not typst-html.
 
-| Blockmodell | XHTML im EPUB |
+| Block model | XHTML in the EPUB |
 |---|---|
-| Überschrift des Abschnitts (`=`, Teil, „ohne Nummer“) | `<h1>`–`<h3 id="k{key}">`, davor `<span class="baruch-number">` mit der Nummer des Gliederungsschemas; Teil `<h1 class="baruch-part-title">` |
-| weitere Überschrift im Text | `<h{Ebene}>` (höchstens `<h6>`), mit Label als `id="lbl-…"` |
-| Absatz, `Soft` | `<p>`, Zeilenumbruch im Quelltext bleibt Leerraum |
+| heading of the section (`=`, part, „ohne Nummer“) | `<h1>`–`<h3 id="k{key}">`, before it `<span class="baruch-number">` with the number of the outline scheme; part `<h1 class="baruch-part-title">` |
+| further heading in the text | `<h{level}>` (at most `<h6>`), with a label as `id="lbl-…"` |
+| paragraph, `Soft` | `<p>`, a line break in the source stays whitespace |
 | `_…_`, `*…*`, `\` | `<em>`, `<strong>`, `<br/>` |
-| Liste `-`/`+`, Aufzählung `1.` | `<ul>`/`<ol>`, geschachtelt wie im Satzbild, `start` ab der ersten Nummer |
-| Begriffsliste | `<dl><dt>…</dt><dd>…</dd></dl>` |
-| Blockzitat, Zitat im Satz | `<blockquote class="baruch-quote">` mit `<footer class="baruch-attribution">`, `<q>` |
-| `#szene[…]`, `#arbeit[…]` | `<section class="baruch-scene">`, `<section class="baruch-work">`; Argumente (`ort: […]`) fallen weg, Warnung `ARGS_OMITTED` |
-| `#link("…")[…]` | `<a href>` nur für `http`, `https`, `mailto`, sonst nur der Text |
-| Querverweis `#link(<kN>)[…]` | `<a class="baruch-xref" href="k{Kapitel}.xhtml#kN">`; unbekannter Schlüssel → Text, Warnung `XREF_UNKNOWN` |
-| Verweis `@name`, `@kN` | Link auf das Label bzw. die Überschrift (Text = Überschrift), sonst Text |
-| Label `<name>` | `<span id="lbl-name"></span>` (Sprungmarken `<kN>` tragen die Überschriften) |
-| `#footnote[…]` | Popup: `<sup><a epub:type="noteref" href="#fnN">` + `<aside epub:type="footnote" id="fnN">` in `ol.baruch-footnotes` am Dateiende; Endnoten: Verweis nach `notes.xhtml#fnN`, dort mit Rückverweis |
-| Insel mit `image("…")` (Block) | `<figure class="baruch-figure"><img alt="…"/><figcaption>` aus `caption:` |
-| Insel mit `image("…")` (im Satz) | `<img class="baruch-inline-image" alt="…"/>` |
+| list `-`/`+`, enumeration `1.` | `<ul>`/`<ol>`, nested as in the typeset view, `start` from the first number |
+| term list | `<dl><dt>…</dt><dd>…</dd></dl>` |
+| block quotation, quotation within a sentence | `<blockquote class="baruch-quote">` with `<footer class="baruch-attribution">`, `<q>` |
+| `#szene[…]`, `#arbeit[…]` | `<section class="baruch-scene">`, `<section class="baruch-work">`; arguments (`ort: […]`) are dropped, warning `ARGS_OMITTED` |
+| `#link("…")[…]` | `<a href>` only for `http`, `https`, `mailto`, otherwise only the text |
+| cross-reference `#link(<kN>)[…]` | `<a class="baruch-xref" href="k{Kapitel}.xhtml#kN">`; unknown key → text, warning `XREF_UNKNOWN` |
+| reference `@name`, `@kN` | link to the label or the heading (text = heading), otherwise text |
+| label `<name>` | `<span id="lbl-name"></span>` (the headings carry the anchors `<kN>`) |
+| `#footnote[…]` | popup: `<sup><a epub:type="noteref" href="#fnN">` + `<aside epub:type="footnote" id="fnN">` in `ol.baruch-footnotes` at the end of the file; endnotes: reference to `notes.xhtml#fnN`, there with a back reference |
+| island with `image("…")` (block) | `<figure class="baruch-figure"><img alt="…"/><figcaption>` from `caption:` |
+| island with `image("…")` (within a sentence) | `<img class="baruch-inline-image" alt="…"/>` |
 | `` `Code` `` | `<code>` |
-| Maskierung `\x` als Insel | das Zeichen |
-| Kommentar, Ankerzeile `#metadata("baruch-key") <kN>` | nichts, ohne Warnung (Ankerzeile → `id`, falls noch frei) |
-| jede andere Insel (`#set`, `#let`, Formeln, eigene Funktionen) | nichts, Warnung `ISLAND_OMITTED` mit Schlüssel und Auszug |
+| escape `\x` as an island | the character |
+| comment, anchor line `#metadata("baruch-key") <kN>` | nothing, without a warning (anchor line → `id`, if still free) |
+| every other island (`#set`, `#let`, formulas, own functions) | nothing, warning `ISLAND_OMITTED` with key and excerpt |
 
-Alternativtext eines Bilds: `alt: "…"` im Typst-Text, sonst der Alternativtext der Bildangaben; leer → `alt=""` und
-Warnung `IMAGE_NO_ALT`. Ein Pfad ohne Bild im Werk erscheint als „Bild fehlt: <Pfad>“ (Warnung `IMAGE_MISSING`).
-Aller Text wird maskiert (`escape_text`); nichts aus dem Werk wird als HTML übernommen.
+Alternative text of an image: `alt: "…"` in the Typst text, otherwise the alternative text of the image metadata; empty → `alt=""` and
+warning `IMAGE_NO_ALT`. A path without an image in the work appears as „Bild fehlt: <Pfad>“ (warning `IMAGE_MISSING`).
+All text is escaped (`escape_text`); nothing from the work is taken over as HTML.
 
-## Registermarken und Kontextmenü (Runde 31c)
+## Index marks and context menu (Round 31c)
 
-Eine **Registermarke** steht im Typst-Text direkt hinter dem markierten Wort, kanonisch
+An **index mark** stands in the Typst text directly behind the marked word, canonically
 `#metadata((register: "stichwort", term: "Gnade"[, sub: "…"][, see: "…"][, also: "…"]))<baruch-idx>`
-(`baruch_typst::index::mark_source`, gelesen von `parse_mark`). Im Blockmodell ist sie `Inline::IndexMark { mark }`, in
-JSON `{"t": "index_mark", "mark": {"register": "…", "term": "…", …}}` (leere Zusätze fehlen, unbekannte Felder lehnt der
-Server ab). Eine Marke mit Leerzeichen vor dem Label oder anderer Schlüsselfolge ist keine Marke, sondern bleibt Insel.
+(`baruch_typst::index::mark_source`, read by `parse_mark`). In the block model it is `Inline::IndexMark { mark }`, in
+JSON `{"t": "index_mark", "mark": {"register": "…", "term": "…", …}}` (empty additions are missing, unknown fields are rejected by the
+server). A mark with a space before the label or another key order is not a mark but stays an island.
 
-Im Satzbild (`render_html`) erscheint sie als leeres, nicht tippbares Element
+In the typeset view (`render_html`) it appears as an empty element that cannot be typed into
 
 ```html
 <span class="ws-index-mark" contenteditable="false" role="img" tabindex="-1"
@@ -787,57 +786,57 @@ Im Satzbild (`render_html`) erscheint sie als leeres, nicht tippbares Element
       data-raw="#metadata((…))&lt;baruch-idx&gt;"></span>
 ```
 
-- **Dezent:** Das kleine Zeichen (⁘, im Personenregister blau) kommt nur aus dem Stil (`::before` in `wysiwyg.css`); das
-  Element hat keinen Textknoten, darum bleiben Text, Suche, Markierung und Zitatprüfung des Absatzes unberührt.
-- **Beschreibung:** `title`/`aria-label` = `baruch_wysiwyg::index_mark_label` („Registereintrag im {Register}: {Stichwort}
-  › {Unterstichwort}; siehe: …; siehe auch: …“; eigene Register als „Register „slug““). `markLabel` in `ws_command.ts`
-  folgt derselben Regel (Node-Vergleichstest).
-- **Zurück:** `wysiwyg.ts` liest `span.ws-index-mark` aus den `data-*`-Feldern als `index_mark` (vor der Prüfung auf
-  Inseln); der Server schreibt sie mit `emit` kanonisch. Ein unberührter Block bleibt `keep` und byte-gleich; ein Block,
-  in dem eine Marke gesetzt, geändert oder entfernt wurde, wird neu erzeugt – bei kanonischem Text ändert sich nur die
-  Marke (Test `baruch-wysiwyg/tests/index_mark.rs`).
-- **Setzen, ändern, entfernen** nur über den Befehl `index_mark` (`baruch:ws-command`, `arg` = JSON
-  `{op: "add" | "edit" | "remove", mark?}`), den das Kontextmenü schickt: `add` setzt die Marke hinter das Ende der
-  Auswahl (Leerraum am Ende zählt nicht) bzw. hinter das Wort am Cursor; nicht in Überschrift, Teil, „ohne Nummer“,
-  Insel, Verweis, Label oder einer anderen Marke (Meldung). `edit`/`remove` wirken auf die Marke, die das Kontextmenü
-  vorher mit `data-ctx-target` bezeichnet. Danach ist der Editor ungespeichert; gespeichert wird mit „Speichern“ als
-  neue Fassung des Menschen.
-- **Doppelklick** auf eine Marke öffnet „Registereintrag bearbeiten“.
+- **Discreet:** the small sign (⁘, blue in the index of persons) comes only from the style (`::before` in `wysiwyg.css`); the
+  element has no text node, therefore text, search, highlighting and quotation check of the paragraph stay untouched.
+- **Description:** `title`/`aria-label` = `baruch_wysiwyg::index_mark_label` (`Registereintrag im {Register}: {Stichwort}
+  › {Unterstichwort}; siehe: …; siehe auch: …`; own indexes as `Register „slug“`). `markLabel` in `ws_command.ts`
+  follows the same rule (Node comparison test).
+- **Back:** `wysiwyg.ts` reads `span.ws-index-mark` from the `data-*` fields as `index_mark` (before the check for
+  islands); the server writes it canonically with `emit`. An untouched block stays `keep` and byte-identical; a block
+  in which a mark was set, changed or removed is generated anew – with canonical text only the
+  mark changes (test `baruch-wysiwyg/tests/index_mark.rs`).
+- **Setting, changing, removing** only through the command `index_mark` (`baruch:ws-command`, `arg` = JSON
+  `{op: "add" | "edit" | "remove", mark?}`), which the context menu sends: `add` sets the mark behind the end of the
+  selection (trailing whitespace does not count) or behind the word at the cursor; not in a heading, part, „ohne Nummer“,
+  island, reference, label or another mark (message). `edit`/`remove` act on the mark that the context menu
+  designated before with `data-ctx-target`. Afterwards the editor is unsaved; saving with „Speichern“ creates a
+  new revision of the human.
+- **Double click** on a mark opens „Registereintrag bearbeiten“.
 
-**Kontextmenü** (`web/src/context_menu.ts`, Widget `context-menu` auf der Menüband-Gruppe „Register und Glossar“):
+**Context menu** (`web/src/context_menu.ts`, widget `context-menu` on the ribbon group „Register und Glossar“):
 
-- Öffnen im Satzbild und im Quelltext-Textfeld mit Rechtsklick, Kontextmenü-Taste oder Umschalt+F10 (`opensMenu`), oder
-  über den Link „Markierung …“ der Statuszeile. Schickt der Browser nach der Taste zusätzlich `contextmenu`, öffnet es
-  nicht doppelt.
-- ARIA-Menümuster: `div.ctx-menu[role=menu]` mit `button[role=menuitem]` (roving `tabindex`), Pfeil ab/auf laufen um,
-  Pos1/Ende, Enter/Leertaste lösen aus, Escape und Tab schließen; der Fokus (und im Textfeld die Auswahl) geht zurück
+- Opening in the typeset view and in the source text field with a right click, the context menu key or Shift+F10 (`opensMenu`), or
+  through the link „Markierung …“ of the status line. If the browser additionally sends `contextmenu` after the key, it does not
+  open twice.
+- ARIA menu pattern: `div.ctx-menu[role=menu]` with `button[role=menuitem]` (roving `tabindex`), arrow down/up wrap around,
+  Home/End, Enter/Space trigger, Escape and Tab close; the focus (and in the text field the selection) goes back
   (`menuKey`).
-- Einträge: „In Glossar aufnehmen …“ (Dialog mit Begriff = markiertes Wort, kurze/ausführliche Erklärung, Varianten und
-  Bibelstellen je Zeile, Quelle → RPC `glossary.add`, Meldungen des Servers im Dialog), „In Register aufnehmen …“
-  (Stichwort, Unterstichwort, Register aus `index.registers` – ohne Antwort die eingebauten –, siehe, siehe auch → Marke
-  wie oben bzw. im Quelltext `markSource` hinter das Wort, `markInSource` mit denselben Verboten wie oben),
-  „Im Glossar nachschlagen“ (RPC `glossary.lookup`, Popup mit Begriffen, Varianten, Erklärungen und Link auf
-  `/werke/{id}/glossar#begriff-{id}`); auf einer Marke (Rechtsklick auf sie, Cursor direkt daneben, im Textfeld Cursor
-  in ihr) zusätzlich „Registereintrag bearbeiten …“ und „… entfernen“.
-- Menüband: dieselben Aktionen als Knöpfe (`data-ctx-action`) und „Register“ (Knopf `[data-index-toggle]` mit `aria-expanded`, Escape schließt), das beim
-  Aufklappen alle Registereinträge des Abschnitts listet – aus den Marken des Satzbilds bzw. des Textfelds (`findMarks`),
-  also auch ungespeicherte; ein Klick springt zur Marke.
-- Ohne JavaScript ist das Menüband verborgen; der Link „Markierung …“ führt auf `/werke/{id}/markierung?key=K&rev=R` mit
-  denselben drei Aktionen als Formularen (`docs/Bedienung.md`).
+- Entries: „In Glossar aufnehmen …“ (dialog with term = marked word, short/long explanation, variants and
+  Bible references one per line, source → RPC `glossary.add`, messages of the server in the dialog), „In Register aufnehmen …“
+  (headword, sub-headword, index from `index.registers` – without an answer the built-in ones –, see, see also → mark
+  as above or in the source `markSource` behind the word, `markInSource` with the same prohibitions as above),
+  „Im Glossar nachschlagen“ (RPC `glossary.lookup`, popup with terms, variants, explanations and a link to
+  `/werke/{id}/glossar#begriff-{id}`); on a mark (right click on it, cursor directly next to it, in the text field cursor
+  in it) additionally „Registereintrag bearbeiten …“ and „… entfernen“.
+- Ribbon: the same actions as buttons (`data-ctx-action`) and „Register“ (button `[data-index-toggle]` with `aria-expanded`, Escape closes), which on
+  expanding lists all index entries of the section – from the marks of the typeset view or of the text field (`findMarks`),
+  so also unsaved ones; a click jumps to the mark.
+- Without JavaScript the ribbon is hidden; the link „Markierung …“ leads to `/werke/{id}/markierung?key=K&rev=R` with
+  the same three actions as forms (`docs/Bedienung.md`).
 
-## Zitatblock (Runde 23)
+## Quotation block (Round 23)
 
-`baruch_wysiwyg::parse` liest eine logische Zeile, die genau ein `#quote(block: true, …)[…]` ist, als eigenes Stück
-(wie `#szene[…]`/`#arbeit[…]`): Eine Zeile direkt dahinter ist ein eigener Absatz, eine Zeile direkt davor beendet
-ihren Absatz – wie Typst setzt. Bis Runde 22 wurde ein Zitatblock mit der Stellenangabe in der Folgezeile zu einer
-Code-Insel. `#quote[…]`, `block: false` und unlesbare Argumente bleiben Teil ihres Absatzes. Unberührte Blöcke gehen
-byte-gleich zurück (`serialize`).
+`baruch_wysiwyg::parse` reads a logical line that is exactly one `#quote(block: true, …)[…]` as a piece of its own
+(like `#szene[…]`/`#arbeit[…]`): a line directly behind it is a paragraph of its own, a line directly before it ends
+its paragraph – as Typst typesets it. Until Round 22 a quotation block with the reference in the following line became a
+code island. `#quote[…]`, `block: false` and unreadable arguments stay part of their paragraph. Untouched blocks go back
+byte-identically (`serialize`).
 
-Der Knopf „Zitat“ (`ribbon::QUOTE_SNIPPET`) fügt `#quote(block: true)[]` ein – seit Runde 36 ohne die Folgezeile
-„– “ für die Stellenangabe (ungefüllt blieb ein einzelner Gedankenstrich im Buch; die Stellenangabe schreibt der Autor
-selbst in die Zeile unter dem Block) –, mit genau einer Leerzeile davor und danach (vorhandene zählen mit), Cursor im Rumpf; mit einer Auswahl wandert die
-Auswahl in den Rumpf. Nicht `attribution: []`: Eine leere `attribution` setzt in Typst 0.15.1 eine Zeile mit dem
-Geviertstrich (gemessen in `crates/baruch-render/tests/quote_attribution.rs`). Im Satzbild entsteht ohne Auswahl
-dasselbe als eigener Block hinter dem Absatz am Cursor; mit Auswahl bleibt es beim Zitat im Fließtext. Ohne JavaScript
-gibt es das Menüband nicht; der von Hand geschriebene Block wird genauso gelesen. Tests: `baruch-wysiwyg/tests/zitat.rs`,
-`round23_web::widgets::the_quote_button_inserts_the_block…`, Abnahme `round23_abnahme.rs`.
+The button „Zitat“ (`ribbon::QUOTE_SNIPPET`) inserts `#quote(block: true)[]` – since Round 36 without the following line
+"– " for the reference (left unfilled, a single dash remained in the book; the author writes the reference
+themselves in the line below the block) –, with exactly one empty line before and after it (existing ones count), cursor in the body; with a selection the
+selection moves into the body. Not `attribution: []`: an empty `attribution` sets, in Typst 0.15.1, a line with the
+em dash (measured in `crates/baruch-render/tests/quote_attribution.rs`). In the typeset view, without a selection,
+the same arises as a block of its own behind the paragraph at the cursor; with a selection it stays a quotation in running text. Without JavaScript
+there is no ribbon; a block written by hand is read the same way. Tests: `baruch-wysiwyg/tests/zitat.rs`,
+`round23_web::widgets::the_quote_button_inserts_the_block…`, acceptance test `round23_abnahme.rs`.

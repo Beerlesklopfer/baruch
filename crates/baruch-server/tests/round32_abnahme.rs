@@ -577,7 +577,7 @@ fn the_documentation_names_word_and_quitting_and_no_stub_is_left() {
         ("site/content/de/hilfe/erste-schritte.md", &["Baruch beenden…"][..]),
         ("docs/Bedienung.md", &["/werke/<id>/word", "@word:"][..]),
         ("docs/RPC.md", &["docx_import.preview", "docx_import.apply", "work.docx_export", "/beenden"][..]),
-        ("docs/MCP.md", &["Word-Import", "Word-Export", "Baruch beenden gibt es weder über RPC noch über MCP"][..]),
+        ("docs/MCP.md", &["Word import", "Word export", "Quitting Baruch exists neither over RPC nor over MCP"][..]),
         ("docs/Architektur.md", &["`baruch-docx`", "docx_import", "docx_export", "shutdown.rs"][..]),
         ("README.md", &["Word (.docx)", "--docx", "Baruch beenden"][..]),
         ("CHANGELOG.md", &["Word-Import", "Word-Export", "Baruch beenden"][..]),

@@ -1,46 +1,46 @@
-# Austauschformat
+# Exchange format
 
-Ein Werk zieht mit allen Fassungen, Einfällen, Beiträgen, Bildern, seiner Gedankenkarte, der Umschlag-Anordnung, den
-Satzbild-Einstellungen, seinen Befunden, den Satz-Einstellungen und seinem Glossar von einer Baruch-Instanz zur anderen
-(Runde 26, Karte seit Runde 25, Umschlag-Anordnung, Anschriften und Satzbild seit Runde 27, Befunde und alte
-Beitragsfassungen seit Runde 28, Querverweise und Varianten seit Runde 30, Satz-Einstellungen seit Runde 29, Glossar und
-eigene Register seit Runde 31, Fortschreibungen, Entwurf und Stand übernommener Befunde seit Runde 22, Baum der Mindmap
-an den Einfällen seit Runde 34). Namensraum
-`urn:baruch:werk:1`, Unterversion 9; Schema `docs/schema/baruch-werk-1-u9.xsd`. Die Schemata der Unterversionen 1 bis
-8 (`docs/schema/baruch-werk-1.xsd`, `baruch-werk-1-u2.xsd` … `baruch-werk-1-u8.xsd`) bleiben eingefroren (byte-gleich,
-Tests in `crates/baruch-exchange/tests/xsd.rs`); jede gültige Datei der Unterversionen 1 bis 8 ist auch nach dem
-u9-Schema gültig.
+A work moves with all its revisions, ideas, posts, images, its idea map, the cover layout, the
+typeset view settings, its findings, the typesetting settings and its glossary from one Baruch instance to another
+(Round 26, map since Round 25, cover layout, addresses and typeset view since Round 27, findings and old
+post revisions since Round 28, cross-references and variants since Round 30, typesetting settings since Round 29, glossary and
+own indexes since Round 31, amendments, draft and state of adopted findings since Round 22, tree of the mind map
+on the ideas since Round 34). Namespace
+`urn:baruch:werk:1`, minor version 9; schema `docs/schema/baruch-werk-1-u9.xsd`. The schemas of minor versions 1 to
+8 (`docs/schema/baruch-werk-1.xsd`, `baruch-werk-1-u2.xsd` … `baruch-werk-1-u8.xsd`) stay frozen (byte-identical,
+tests in `crates/baruch-exchange/tests/xsd.rs`); every valid file of minor versions 1 to 8 is also valid under the
+u9 schema.
 
 > **Round 38:** the current minor version is **10** (schema `docs/schema/baruch-werk-1-u10.xsd`, the u9 schema is
 > frozen as well); see "Work language (minor version 10, Round 38)" at the end. From Round 38 on, new sections of
-> this document are written in English; the sections before it stay German until they are translated as a whole.
+> this document were written in English; since Round 38c the whole document is English.
 
-## 1 Überblick, Container und was nicht im Format steht
+## 1 Overview, container and what is not in the format
 
-Eine Austauschdatei trägt **ein ganzes Werk** von einer Baruch-Instanz zu einer anderen (Laptop ↔ Rechner zu
-Hause, Sicherung für später, Weitergabe an jemanden mit eigenem Baruch). Jedes Stück darin hat eine weltweit
-eindeutige Kennung (UUID, §3); so erkennt die empfangende Instanz beim Einlesen, was sie schon kennt (§4).
+An exchange file carries **a whole work** from one Baruch instance to another (laptop ↔ computer at
+home, backup for later, handing on to someone with their own Baruch). Every piece in it has a globally
+unique identifier (UUID, §3); so the receiving instance recognises on reading in what it already knows (§4).
 
-Ausgeben: Seite **Buch → Ausgabe → Austausch: Ausgeben** (Menüband) (`/werke/{id}/austausch`), RPC `work.exchange_export`,
-Kommandozeile `baruch-server export ID|SLUG --baruch DATEI`, MCP `exchange_export` (nur lesend). Einlesen nur
-durch den Menschen (Seite, RPC, Kommandozeile), nie über MCP.
+Exporting: page „Buch → Ausgabe → Austausch: Ausgeben“ (ribbon) (`/werke/{id}/austausch`), RPC `work.exchange_export`,
+command line `baruch-server export ID|SLUG --baruch DATEI`, MCP `exchange_export` (read-only). Reading in only
+by the human (page, RPC, command line), never over MCP.
 
-**Zwei Formen** mit demselben XML:
+**Two forms** with the same XML:
 
-| Form | Datei | Medientyp | Bilder |
+| Form | File | Media type | Images |
 |---|---|---|---|
-| Container (Vorgabe) | `<slug>.baruch` | `application/vnd.baruch.werk+zip` | eigene Dateien im ZIP |
-| Nur XML | `<slug>.baruch.xml` | `application/vnd.baruch.werk+xml` | Base64 in `<daten>` |
+| Container (default) | `<slug>.baruch` | `application/vnd.baruch.werk+zip` | own files in the ZIP |
+| XML only | `<slug>.baruch.xml` | `application/vnd.baruch.werk+xml` | Base64 in `<daten>` |
 
-**Container `.baruch`** ist ein ZIP wie bei EPUB und ODF, die Einträge stehen in fester Reihenfolge:
+**Container `.baruch`** is a ZIP as with EPUB and ODF; the entries stand in a fixed order:
 
-1. `mimetype` – unkomprimiert (STORED), Inhalt genau `application/vnd.baruch.werk+zip` ohne Zeilenende, ohne
-   Zusatzfeld im Kopf. Der Typ steht damit ab Byte 38 lesbar in der Datei, ohne Entpacken.
-2. `werk.xml` – das Werk (DEFLATE); jede Bildfassung verweist mit `datei="bilder/…"` auf ihren Eintrag.
-3. `bilder/<fassungs-uuid>.<ext>` – je Bildfassung eine Datei, `ext` ∈ `png|jpg|gif|webp|svg`; Rasterbilder
-   STORED (schon komprimiert), SVG DEFLATE. Die Bytes sind genau die Bytes des Bilds.
-4. `MANIFEST.xml` – zuletzt (DEFLATE): jeder Eintrag außer `mimetype` und dem Manifest selbst mit SHA-256
-   (Kleinbuchstaben-Hex) und Bytezahl.
+1. `mimetype` – uncompressed (STORED), content exactly `application/vnd.baruch.werk+zip` without a line end, without
+   an extra field in the header. The type is thus readable in the file from byte 38 on, without unpacking.
+2. `werk.xml` – the work (DEFLATE); every image revision points to its entry with `datei="bilder/…"`.
+3. `bilder/<fassungs-uuid>.<ext>` – one file per image revision, `ext` ∈ `png|jpg|gif|webp|svg`; raster images
+   STORED (already compressed), SVG DEFLATE. The bytes are exactly the bytes of the image.
+4. `MANIFEST.xml` – last (DEFLATE): every entry except `mimetype` and the manifest itself with SHA-256
+   (lower-case hex) and byte count.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -50,103 +50,103 @@ durch den Menschen (Seite, RPC, Kommandozeile), nie über MCP.
 </manifest>
 ```
 
-Die Ausgabe ist **deterministisch**: Dasselbe Werk im selben Stand ergibt byte-gleiches XML und ZIP (jeder
-ZIP-Eintrag trägt den festen Zeitstempel 1980-01-01 00:00:00 und die Rechte 0644; nur `<ausgabe zeit>`
-ändert sich von Ausgabe zu Ausgabe).
+The output is **deterministic**: the same work in the same state yields byte-identical XML and ZIP (every
+ZIP entry carries the fixed timestamp 1980-01-01 00:00:00 and the permissions 0644; only `<ausgabe zeit>`
+changes from export to export).
 
-**Nicht im Format** (bewusst):
+**Not in the format** (deliberately):
 
-- Schlüssel, Token und Geheimnisse; Verbindungen zu Diensten (Eliezer, MultiGPT, pgvector, LanceDB) – nicht zu
-  verwechseln mit den Verbindungen der Gedankenkarte zwischen Einfällen, die im Format stehen (`<karte>`).
-- Die **Nähe** der Gedankenkarte (aus Einbettungen und Schlagwörtern berechnet, nie gespeichert).
-- Personas samt Modellen und Rollen-Prompts – nur ihre Handles (`@lektor`) als Herkunft. Das Modell einer
-  **Fassung** (`modell`) steht als Herkunft der Fassung darin, nicht die Einstellung der Persona.
-- Offene Anträge (Gliederung und Bilder), Belege der Websuche (`web_evidence`), RAG-Zuordnungen und der
-  Suchindex.
-- Bibel-, Kommentar- und Literaturtexte: nur Modulnamen (`<bibelmodul>`, `<quellen>`) und Stellen im Text.
-- Zahlen-ids, `slug` und die berechnete Nummer eines Punkts (`node.number`); die Quelle eines Typst-Imports.
-- Seit Runde 30 (Migration 0047) bleiben lokal: das Protokoll des werkweiten Ersetzens (`replace_batch`, keine uuid,
-  wie die Sync-Zustände) und der Auftrag eines Beitrags (`post.request`/`chat_thread_post.request`, nur für
-  „wiederholen“). Was ab Unterversion 5 mitreist (Lösungen, Varianten, Grundlage und Verknüpfungen von Beiträgen,
-  Schlüssel der Punkte), regelt §6.
-- Seit Unterversion 3 (Runde 27) reisen die Satzbild-Einstellungen mit (`<satzbild>`, §2); davor galt nach dem
-  Einlesen die Werkvorlage.
-- Seit Unterversion 6 (Runde 29) reisen die Satz-Einstellungen mit (`<satz>`, Abschnitt „Satz-Einstellungen
-  (Unterversion 6)“); der erzeugte Regelblock „// Baruch: Satz“ selbst steht nicht in der Datei.
-- Seit Runde 22: die Einstellung **„Fassungen“** (Einstellungen → Werk → Fassungen, Tabelle `work_revision_policy`:
-  Fortschreiben an/aus, Schwelle der großen Änderung, Zeitgrenze) – sie ist Arbeitsweise der Instanz wie die offenen
-  Anträge und reist nicht mit (Test `the_revision_policy_is_not_in_the_exchange_format`). Was davon im Werk sichtbar
-  wird, reist dagegen mit: Fortschreibungen und Stände (Abschnitt „Fortschreibungen, Entwurf und Stand
-  (Unterversion 8)“). Ebenso nicht im Format: das Wasserzeichen als Typst-Regel (nur die Einstellung `<entwurf/>`).
+- Keys, tokens and secrets; connections to services (Eliezer, MultiGPT, pgvector, LanceDB) – not to be
+  confused with the connections of the idea map between ideas, which are in the format (`<karte>`).
+- The **proximity** of the idea map (computed from embeddings and keywords, never stored).
+- Personas with their models and role prompts – only their handles (`@lektor`) as origin. The model of a
+  **revision** (`modell`) stands in it as the origin of the revision, not the setting of the persona.
+- Open requests (outline and images), evidence of the web search (`web_evidence`), RAG assignments and the
+  search index.
+- Bible, commentary and literature texts: only module names (`<bibelmodul>`, `<quellen>`) and references in the text.
+- Numeric ids, `slug` and the computed number of an item (`node.number`); the source of a Typst import.
+- Since Round 30 (migration 0047) these stay local: the log of the work-wide replace (`replace_batch`, no uuid,
+  like the sync states) and the job of a post (`post.request`/`chat_thread_post.request`, only for
+  „wiederholen“). What travels along from minor version 5 on (solutions, variants, basis and links of posts,
+  keys of the items) is governed by §6.
+- Since minor version 3 (Round 27) the typeset view settings travel along (`<satzbild>`, §2); before that the
+  work template held after reading in.
+- Since minor version 6 (Round 29) the typesetting settings travel along (`<satz>`, section "Typesetting settings
+  (minor version 6)"); the generated rule block „// Baruch: Satz“ itself is not in the file.
+- Since Round 22: the setting **„Fassungen“** („Einstellungen → Werk → Fassungen“, table `work_revision_policy`:
+  amending on/off, threshold of the big change, time limit) – it is a way of working of the instance like the open
+  requests and does not travel along (test `the_revision_policy_is_not_in_the_exchange_format`). What of it becomes visible
+  in the work does travel along, though: amendments and states (section "Amendments, draft and state
+  (minor version 8)"). Likewise not in the format: the watermark as a Typst rule (only the setting `<entwurf/>`).
 
-**Nutzerfragen mit Vorgabe** (2026-11-08, blockieren nichts):
+**User questions with a default** (2026-11-08, block nothing):
 
-1. *Soll das Format auch die Autorenbibliothek (Titel, Zitate, Hervorhebungen) tragen?* – Vorgabe: **nein**,
-   dafür später ein eigenes Format.
-2. *Soll der Abgleich später direkt zwischen zwei Instanzen über das Netz gehen, ohne Datei?* – Vorgabe:
-   **später**, mit denselben Elementen wie hier.
+1. *Should the format also carry the author library (titles, quotations, highlights)?* – default: **no**,
+   a format of its own later instead.
+2. *Should the synchronisation later go directly between two instances over the network, without a file?* – default:
+   **later**, with the same elements as here.
 
-## 2 Elemente
+## 2 Elements
 
-Maßgeblich ist seit Runde 29 das XSD `docs/schema/baruch-werk-1-u6.xsd` (Satz-Einstellungen `<satz>`, Grabsteinart
-`satz`, siehe „Satz-Einstellungen (Unterversion 6)“ unten; die Schemata u1 bis u5 sind eingefroren). In Runde 30 galt
-`docs/schema/baruch-werk-1-u5.xsd` (globale Elemente `<werk>` und `<manifest>`); Ausgaben ohne `<satz>` werden in
-älteren Tests weiter mit `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u5.xsd DATEI` geprüft (Test `the_u5_schema_accepts_a_u4_file_and_the_frozen_u4_schema_too`:
-eine Datei der Unterversion 4 besteht u5 und u4). Bis Runde 28 galt `docs/schema/baruch-werk-1-u4.xsd`
-(`baruch-exchange/tests/xsd.rs`, Server `tests/round26_export.rs`, `round26_roundtrip.rs`, `round28_befunde.rs`;
-`round25_widget.rs`; `round27_daten.rs` prüft gegen das u3-Schema, sein Werk hat keine Befunde). Das
-u4-Schema nimmt auch jede gültige Datei der Unterversionen 1 bis 3 an (Test
-`the_u3_schema_accepts_every_valid_file_of_versions_one_and_two`, prüft seit Runde 28 gegen u4 und u3).
-Die Beispiele stammen aus dem erfundenen Beispielwerk `baruch_exchange::sample` (gekürzt mit `…`).
+Since Round 29 the authoritative XSD is `docs/schema/baruch-werk-1-u6.xsd` (typesetting settings `<satz>`, tombstone kind
+`satz`, see "Typesetting settings (minor version 6)" below; the schemas u1 to u5 are frozen). In Round 30
+`docs/schema/baruch-werk-1-u5.xsd` held (global elements `<werk>` and `<manifest>`); outputs without `<satz>` are still checked in
+older tests with `xmllint --noout --nonet --schema docs/schema/baruch-werk-1-u5.xsd DATEI` (test `the_u5_schema_accepts_a_u4_file_and_the_frozen_u4_schema_too`:
+a file of minor version 4 passes u5 and u4). Until Round 28 `docs/schema/baruch-werk-1-u4.xsd` held
+(`baruch-exchange/tests/xsd.rs`, server `tests/round26_export.rs`, `round26_roundtrip.rs`, `round28_befunde.rs`;
+`round25_widget.rs`; `round27_daten.rs` checks against the u3 schema, its work has no findings). The
+u4 schema also accepts every valid file of minor versions 1 to 3 (test
+`the_u3_schema_accepts_every_valid_file_of_versions_one_and_two`, checks against u4 and u3 since Round 28).
+The examples come from the invented sample work `baruch_exchange::sample` (shortened with `…`).
 
-**Allgemeine Regeln**
+**General rules**
 
-- UTF-8, XML 1.0, keine DTD, keine Entitäten außer `&amp; &lt; &gt; &quot; &apos;` und Zeichenreferenzen.
-- Namensraum `urn:baruch:werk:1` = Hauptversion; `version="3"` an `<werk>` und `<manifest>` = Unterversion
-  (§6). Ein Leser lehnt einen anderen Namensraum ab.
-- Die Reihenfolge der Kinder ist fest (`xs:sequence`); Elemente mit `?` dürfen fehlen, mit `*` beliebig oft,
-  mit `+` mindestens einmal.
-- **Text ist exakt:** Text steht immer in einem Element ohne Kinder; der Leser trimmt nie. Leerraum *zwischen*
-  Elementen (Zeilenumbruch, Einrückung um zwei Leerzeichen) hat keine Bedeutung. Der Schreiber maskiert `&`, `<`,
-  `>` (so steht nie `]]>` im Text) und `\r` als `&#13;` (ein wörtliches `\r\n` würde jeder Parser zu `\n`
-  machen); in Attributen zusätzlich `"` und Tab, Zeilenumbruch, `\r` als `&#9;`, `&#10;`, `&#13;`.
-- **Verbotene Steuerzeichen** (in XML 1.0 auch als Referenz unzulässig, z. B. U+0001): Ein Textelement
-  (XSD-Typ `Text`) steht dann ganz als Base64 der UTF-8-Bytes mit `kodierung="base64"`; in einem Attribut ist
-  das ein Fehler beim Ausgeben, der das Feld nennt (z. B. `werk/gliederung/punkt/fassung/@autor`).
+- UTF-8, XML 1.0, no DTD, no entities except `&amp; &lt; &gt; &quot; &apos;` and character references.
+- Namespace `urn:baruch:werk:1` = major version; `version="3"` at `<werk>` and `<manifest>` = minor version
+  (§6). A reader rejects a different namespace.
+- The order of the children is fixed (`xs:sequence`); elements with `?` may be missing, with `*` occur any number of times,
+  with `+` at least once.
+- **Text is exact:** text always stands in an element without children; the reader never trims. Whitespace *between*
+  elements (line break, indentation by two spaces) has no meaning. The writer escapes `&`, `<`,
+  `>` (so `]]>` never stands in the text) and `\r` as `&#13;` (every parser would turn a literal `\r\n` into `\n`);
+  in attributes additionally `"` and tab, line break, `\r` as `&#9;`, `&#10;`, `&#13;`.
+- **Forbidden control characters** (in XML 1.0 inadmissible even as a reference, e.g. U+0001): a text element
+  (XSD type `Text`) then stands entirely as Base64 of the UTF-8 bytes with `kodierung="base64"`; in an attribute that is
+  an error on export that names the field (e.g. `werk/gliederung/punkt/fassung/@autor`).
 
   ```xml
   <text kodierung="base64">PT0gRGVyIEVpbWVyCgpEZXIgRWltZXIgAWtsaXJydCBsZWlzZSBhbSBSYW5kIGRlcyBCcnVubmVucy4K</text>
   ```
 
-- Kennungen: UUID kanonisch klein `8-4-4-4-12` (§3). Zeiten so, wie sie gespeichert sind
-  (`2026-01-05T09:00:00.000Z`, UTC). Wahrheitswerte `true`/`false`.
+- Identifiers: UUID canonical lower case `8-4-4-4-12` (§3). Times as they are stored
+  (`2026-01-05T09:00:00.000Z`, UTC). Booleans `true`/`false`.
 
-**`<werk>`** – Wurzel. Attribute `version` (Unterversion, heute `6`), `uuid` (Werk), `art` (`buch` | `predigt`).
-Kinder in dieser Reihenfolge: `ausgabe`, `angaben`, `buch?`, `vorlage`, `gliederung`, `einfaelle?`, `faeden?`,
-`bilder?`, `geloescht?`, `karte?`. Leere optionale Teile schreibt Baruch nicht.
+**`<werk>`** – root. Attributes `version` (minor version, today `6`), `uuid` (work), `art` (`buch` | `predigt`).
+Children in this order: `ausgabe`, `angaben`, `buch?`, `vorlage`, `gliederung`, `einfaelle?`, `faeden?`,
+`bilder?`, `geloescht?`, `karte?`. Baruch does not write empty optional parts.
 
 ```xml
 <werk xmlns="urn:baruch:werk:1" version="3" uuid="26000000-0000-4000-8000-000000000001" art="buch">
 ```
 
-**`<ausgabe>`** – wer wann ausgegeben hat: `zeit`, `instanz` (UUID der Instanz), `instanzname` (leer = ohne
-Namen, angezeigt als „ohne Namen (26000000)“), `programm` (Programm und Version).
+**`<ausgabe>`** – who exported when: `zeit`, `instanz` (UUID of the instance), `instanzname` (empty = without a
+name, shown as „ohne Namen (26000000)“), `programm` (program and version).
 
 ```xml
 <ausgabe zeit="2026-01-08T19:00:00.000Z" instanz="26000000-0000-4000-8000-000000000002" instanzname="Probeinstanz" programm="baruch 0.0.1"/>
 ```
 
-**`<angaben>`** – Werkangaben: `<titel>`, `<untertitel>`, `<autor>`, `<zielgruppe>`, `<bibel>` (Übersetzung als
-Text; immer vorhanden, auch leer), `<angelegt>`, `<geaendert>?`, `<schema name>` (Gliederungsschema `template`,
+**`<angaben>`** – work metadata: `<titel>`, `<untertitel>`, `<autor>`, `<zielgruppe>`, `<bibel>` (translation as
+text; always present, also empty), `<angelegt>`, `<geaendert>?`, `<schema name>` (outline scheme `template`,
 `decimal`, `decimal_dot`, `alphanumeric`, `chapter_roman`, `chapter_arabic`, `parts_chapters`, `chapter_words`,
-`legal`, `sermon`, `book`, `none`, `custom`) mit eigenem `<muster>?`, `<bibelmodul>?` (SWORD-Bibel des Werks),
-`<quellen>?` mit `<quelle art="kommentar|lexikon">Modul</quelle>*`, `<sprechdauer woerter-je-minute
-ziel-sekunden?/>?` (Zeitwächter) und ab Unterversion 3 `<satzbild/>?` (Satzbild-Einstellungen des Werks, Tabelle
-`work_sheet`, Runde 18c; nur mit mindestens einer Einstellung). Attribute von `<satzbild>`, je optional (fehlt =
-aus der Werkvorlage), Werte wie gespeichert: `schrift`, `schrift-ueberschriften` (Schriftlisten), `groesse`,
-`satzbreite` (Länge mit Einheit `pt|mm|cm|em`), `farbe`, `farbe-ueberschriften`, `blattfarbe` (`#rrggbb`). Beim
-Einlesen prüft Baruch die Werte wie beim Speichern (`SheetSettings::normalized`); was nicht durchgeht, wird nicht
-übernommen und steht unter „Nicht übernommen“.
+`legal`, `sermon`, `book`, `none`, `custom`) with its own `<muster>?`, `<bibelmodul>?` (SWORD Bible of the work),
+`<quellen>?` with `<quelle art="kommentar|lexikon">Modul</quelle>*`, `<sprechdauer woerter-je-minute
+ziel-sekunden?/>?` (time keeper) and from minor version 3 on `<satzbild/>?` (typeset view settings of the work, table
+`work_sheet`, Round 18c; only with at least one setting). Attributes of `<satzbild>`, each optional (missing =
+from the work template), values as stored: `schrift`, `schrift-ueberschriften` (font lists), `groesse`,
+`satzbreite` (length with unit `pt|mm|cm|em`), `farbe`, `farbe-ueberschriften`, `blattfarbe` (`#rrggbb`). On
+reading in, Baruch checks the values as on saving (`SheetSettings::normalized`); what does not pass is not
+adopted and stands under „Nicht übernommen“.
 
 ```xml
 <angaben>
@@ -170,32 +170,32 @@ Einlesen prüft Baruch die Werte wie beim Speichern (`SheetSettings::normalized`
 </angaben>
 ```
 
-**`<buch>?`** – Buchangaben, nur wenn das Werk welche hat. Attribute `titelbereich` (`oben` | `mitte` | `unten`),
-`titelei`, `umschlagseiten` (Wahrheitswerte), `papier-mm`, `beschnitt-mm` (Zahlen), `umschlag?` und
-`autorenfoto?` (UUID des **Bilds**, nicht der Fassung), `geaendert?`. Kinder (Text, immer vorhanden): `<verlag>`,
+**`<buch>?`** – book metadata, only if the work has any. Attributes `titelbereich` (`oben` | `mitte` | `unten`),
+`titelei`, `umschlagseiten` (booleans), `papier-mm`, `beschnitt-mm` (numbers), `umschlag?` and
+`autorenfoto?` (UUID of the **image**, not of the revision), `geaendert?`. Children (text, always present): `<verlag>`,
 `<ort>`, `<jahr>`, `<auflage>`, `<isbn>`, `<preis>`, `<reihe>`, `<druckerei>`, `<bibelvermerk>`,
-`<bildnachweis>`, `<widmung>`, `<klappentext>`, `<vita>`; ab Unterversion 3 danach `<verlag-anschrift>` und
-`<druckerei-anschrift>` (mehrzeilig, höchstens 500 Zeichen; Baruch schreibt beide immer, fehlen sie, gelten sie als
-leer) und `<umschlag>?` mit der Umschlag-Anordnung (nur wenn es Blöcke gibt). Hat ein Werk Blöcke, aber keine
-Buchangaben, steht `<buch>` mit den Vorgaben (Titel oben, ohne Titelei, Umschlagseiten an, 0,1 mm Papier, 3 mm
-Beschnitt) da.
+`<bildnachweis>`, `<widmung>`, `<klappentext>`, `<vita>`; from minor version 3 on followed by `<verlag-anschrift>` and
+`<druckerei-anschrift>` (multi-line, at most 500 characters; Baruch always writes both, if they are missing they count as
+empty) and `<umschlag>?` with the cover layout (only if there are blocks). If a work has blocks but no
+book metadata, `<buch>` stands there with the defaults (title at the top, without front matter, cover pages on, 0.1 mm paper, 3 mm
+bleed).
 
-**`<umschlag>`** (ab Unterversion 3) mit `<block>*` – je Art höchstens ein Block (Vertrag Runde 27). Attribute:
-`uuid`, `art` (Fläche und Block, Tabelle unten), `x-mm`, `y-mm` (linke obere Ecke des Blockrahmens in mm ab der
-Schnittkante der eigenen Fläche, ohne Beschnitt, −50 bis 1000; negativ = im Beschnitt), `breite-mm` (Breite in
-Leserichtung, 1 bis 1000; beim Rücken die senkrechte Ausdehnung), `ausrichtung` (`links` | `mitte` | `rechts` |
-`blocksatz`), `groesse-pt` (4 bis 200), `zeilenabstand-em` (0 bis 3), `farbe` (`hell` = weiß | `dunkel` | `#rrggbb`
-klein), `schrift?` (Familienname aus Buchstaben, Ziffern, Leerzeichen, `- _ .`, höchstens 200 Zeichen; fehlt = Schrift
-der Werkvorlage), `schnitt` (`normal` | `fett` | `kursiv`), `hintergrund` (`kein` | `schatten` | `verlauf`),
-`sichtbar` (Wahrheitswert), `richtung?` (nur und immer auf dem Rücken: `abwaerts` = von oben nach unten lesbar,
-`aufwaerts` = von unten nach oben), `geaendert`. Kind `<text>?` (eigener Text, höchstens 1000 Zeichen) nur bei den
-Arten mit eigenem Text (Freitexte und Motto); alle anderen nehmen ihren Text aus Werk und Buchangaben.
+**`<umschlag>`** (from minor version 3 on) with `<block>*` – at most one block per kind (contract Round 27). Attributes:
+`uuid`, `art` (area and block, table below), `x-mm`, `y-mm` (top left corner of the block frame in mm from the
+trim edge of its own area, without bleed, −50 to 1000; negative = in the bleed), `breite-mm` (width in
+reading direction, 1 to 1000; on the spine the vertical extent), `ausrichtung` (`links` | `mitte` | `rechts` |
+`blocksatz`), `groesse-pt` (4 to 200), `zeilenabstand-em` (0 to 3), `farbe` (`hell` = white | `dunkel` | `#rrggbb`
+lower case), `schrift?` (family name of letters, digits, spaces, `- _ .`, at most 200 characters; missing = font
+of the work template), `schnitt` (`normal` | `fett` | `kursiv`), `hintergrund` (`kein` | `schatten` | `verlauf`),
+`sichtbar` (boolean), `richtung?` (only and always on the spine: `abwaerts` = readable from top to bottom,
+`aufwaerts` = from bottom to top), `geaendert`. Child `<text>?` (own text, at most 1000 characters) only with the
+kinds with their own text (free texts and motto); all others take their text from the work and the book metadata.
 
-| `art` | Datenbank (`cover_block.kind`) | Block |
+| `art` | Database (`cover_block.kind`) | Block |
 |---|---|---|
-| `vorderseite-titel`, `vorderseite-untertitel`, `vorderseite-autor`, `vorderseite-verlag`, `vorderseite-freitext` | `front_title`, `front_subtitle`, `front_author`, `front_publisher`, `front_free` | Vorderseite: Titel, Untertitel, Autor, Verlag, Freitext (mit `<text>`) |
-| `ruecken-titel`, `ruecken-autor`, `ruecken-verlag`, `ruecken-freitext` | `spine_title`, `spine_author`, `spine_publisher`, `spine_free` | Rücken: Titel, Autor, Verlag, Freitext (mit `<text>`) |
-| `rueckseite-motto`, `rueckseite-klappentext`, `rueckseite-vita`, `rueckseite-strichcode`, `rueckseite-verlag-preis`, `rueckseite-freitext` | `back_motto`, `back_blurb`, `back_bio`, `back_barcode`, `back_publisher_price`, `back_free` | Rückseite: Motto/Bibelwort (mit `<text>`), Klappentext, Kurzbiografie mit Foto, ISBN mit Strichcode, Verlag und Preis, Freitext (mit `<text>`) |
+| `vorderseite-titel`, `vorderseite-untertitel`, `vorderseite-autor`, `vorderseite-verlag`, `vorderseite-freitext` | `front_title`, `front_subtitle`, `front_author`, `front_publisher`, `front_free` | front: title, subtitle, author, publisher, free text (with `<text>`) |
+| `ruecken-titel`, `ruecken-autor`, `ruecken-verlag`, `ruecken-freitext` | `spine_title`, `spine_author`, `spine_publisher`, `spine_free` | spine: title, author, publisher, free text (with `<text>`) |
+| `rueckseite-motto`, `rueckseite-klappentext`, `rueckseite-vita`, `rueckseite-strichcode`, `rueckseite-verlag-preis`, `rueckseite-freitext` | `back_motto`, `back_blurb`, `back_bio`, `back_barcode`, `back_publisher_price`, `back_free` | back: motto/Bible verse (with `<text>`), blurb, short biography with photo, ISBN with barcode, publisher and price, free text (with `<text>`) |
 
 ```xml
   <verlag-anschrift>Probeverlag
@@ -215,9 +215,9 @@ zweite Zeile</text>
 </buch>
 ```
 
-Was das XSD nicht prüft, prüft der Leser in Rust (`read/check.rs`): je Art höchstens ein Block, `richtung` genau auf
-dem Rücken, `<text>` nur bei eigenem Text und höchstens 1000 Zeichen, Anschriften höchstens 500 Zeichen, keine Kennung
-doppelt (auch kein Grabstein für einen vorhandenen Block).
+What the XSD does not check, the reader checks in Rust (`read/check.rs`): at most one block per kind, `richtung` exactly on
+the spine, `<text>` only with own text and at most 1000 characters, addresses at most 500 characters, no identifier
+twice (also no tombstone for an existing block).
 
 ```xml
 <buch titelbereich="mitte" titelei="true" umschlagseiten="false" papier-mm="0.1" beschnitt-mm="3" umschlag="26000000-0000-4000-8000-00000000003c" geaendert="2026-01-08T17:00:00.000Z">
@@ -237,8 +237,8 @@ doppelt (auch kein Grabstein für einen vorhandenen Block).
 </buch>
 ```
 
-**`<vorlage>`** – Werkvorlage: `<text>` (aktueller Text, `work.template`) und alle Fassungen `<fassung uuid
-nummer autor angelegt>` mit `<notiz>?` (nur wenn nicht leer) und `<text>`.
+**`<vorlage>`** – work template: `<text>` (current text, `work.template`) and all revisions `<fassung uuid
+nummer autor angelegt>` with `<notiz>?` (only if not empty) and `<text>`.
 
 ```xml
 <vorlage>
@@ -254,17 +254,17 @@ nummer autor angelegt>` mit `<notiz>?` (nur wenn nicht leer) und `<text>`.
 </vorlage>
 ```
 
-**`<gliederung>`** – die Wurzeln der Gliederung als `<punkt>*` in Reihenfolge.
+**`<gliederung>`** – the roots of the outline as `<punkt>*` in order.
 
-**`<punkt uuid art nummeriert>`** – Gliederungspunkt: `art` `teil` | `kapitel` | `abschnitt`, `nummeriert`
-(`false` = „ohne Nummer“; die Nummer selbst wird beim Einlesen berechnet). Kinder: `<titel>`, alle Fassungen
-`<fassung>+` nach Nummer, die Beiträge des Abschnitts-Chats `<beitrag>*`, dann die Unterpunkte `<punkt>*`.
+**`<punkt uuid art nummeriert>`** – outline item: `art` `teil` | `kapitel` | `abschnitt`, `nummeriert`
+(`false` = „ohne Nummer“; the number itself is computed on reading in). Children: `<titel>`, all revisions
+`<fassung>+` by number, the posts of the section chat `<beitrag>*`, then the sub-items `<punkt>*`.
 
-**`<fassung>` im Punkt** – Attribute `uuid`, `nummer` (Nummer in der ausgebenden Instanz, nach Löschen mit
-Lücken), `status` (`aktuell` | `vorschlag` | `verworfen` | `abgeloest`; genau eine `aktuell` je Punkt),
-`autor-art` (`mensch` | `assistent`), `autor` (Name bzw. Persona-Handle), `modell?` (nur beim Assistenten: Modell
-der Fassung als Herkunft), `basis?` (UUID der Elternfassung im selben Punkt), `angelegt`, `geaendert?`. Kinder
-`<notiz>?` und `<text>` (Typst-Text samt Überschrift, exakt).
+**`<fassung>` in the item** – attributes `uuid`, `nummer` (number in the exporting instance, with gaps after
+deletions), `status` (`aktuell` | `vorschlag` | `verworfen` | `abgeloest`; exactly one `aktuell` per item),
+`autor-art` (`mensch` | `assistent`), `autor` (name or persona handle), `modell?` (only with the assistant: model
+of the revision as origin), `basis?` (UUID of the parent revision in the same item), `angelegt`, `geaendert?`. Children
+`<notiz>?` and `<text>` (Typst text including the heading, exact).
 
 ```xml
 <punkt uuid="26000000-0000-4000-8000-00000000000b" art="kapitel" nummeriert="true">
@@ -284,13 +284,13 @@ der Fassung als Herkunft), `basis?` (UUID der Elternfassung im selben Punkt), `a
 </punkt>
 ```
 
-**`<beitrag>` im Punkt** – Beitrag im Abschnitts-Chat: `uuid`, `position` (Reihenfolge ab 1, lückenlos – nicht
-die interne Position), `autor` (Name, `@handle` oder `@mcp:<client>`), `angelegt`, ab Unterversion 4 `geaendert?`
-(Zeit der letzten Bearbeitung, fehlt = nie bearbeitet). Kinder `<text>`, `<quelle>*` und
-`<bezug punkt fassung?>Zitat</bezug>*` (Verweis über die UUID des Punkts und, falls es die Fassung gibt, ihre UUID),
-ab Unterversion 4 danach `<alte-fassung uuid gueltig-ab ersetzt bearbeitet-von>` mit `<text>` je alter Fassung,
-älteste zuerst (Tabelle `post_version`; `gueltig-ab` = seit wann diese Fassung galt, `ersetzt` = wann sie ersetzt
-wurde, `bearbeitet-von` = wer bearbeitet hat).
+**`<beitrag>` in the item** – post in the section chat: `uuid`, `position` (order from 1, without gaps – not
+the internal position), `autor` (name, `@handle` or `@mcp:<client>`), `angelegt`, from minor version 4 on `geaendert?`
+(time of the last edit, missing = never edited). Children `<text>`, `<quelle>*` and
+`<bezug punkt fassung?>Zitat</bezug>*` (reference through the UUID of the item and, if the revision exists, its UUID),
+from minor version 4 on followed by `<alte-fassung uuid gueltig-ab ersetzt bearbeitet-von>` with `<text>` per old revision,
+oldest first (table `post_version`; `gueltig-ab` = since when this revision held, `ersetzt` = when it was
+replaced, `bearbeitet-von` = who edited).
 
 ```xml
 <beitrag uuid="26000000-0000-4000-8000-00000000001f" position="2" autor="Hanna Probe" angelegt="2026-01-07T12:00:00.000Z" geaendert="2026-01-07T13:00:00.000Z">
@@ -310,13 +310,13 @@ wurde, `bearbeitet-von` = wer bearbeitet hat).
 </beitrag>
 ```
 
-**`<einfaelle>?`** mit `<einfall>*` – alle Einfälle des Werks, auch gelöschte. Attribute `uuid`, `status`
+**`<einfaelle>?`** with `<einfall>*` – all ideas of the work, also deleted ones. Attributes `uuid`, `status`
 (`offen` | `erledigt`), `erledigt-als?` (`gliederung` | `beitrag` | `persona` | `notiz`), `herkunft-art`
-(`mensch` | `persona` | `mcp`), `herkunft` (Name, `@handle`, `@mcp:<client>`), `angelegt`, `geaendert`,
-`geloescht?` (weich gelöscht seit), `bezug?` (UUID des Punkts), ab Unterversion 9 `titel?`, `eltern?`, `platz?`,
-`hauptthema?` (Baum der Mindmap, siehe „Baum der Mindmap (Unterversion 9, Runde 34)“). Kinder `<schlagwort>*`, `<notiz>`, `<zitat>`,
-`<quelle>`, `<bibelstelle>` (immer vorhanden, auch leer) und `<erledigt-ref>?` (freier Verweis; ein „key N“ der
-Datenbank steht als UUID des Punkts darin, der Rest wörtlich).
+(`mensch` | `persona` | `mcp`), `herkunft` (name, `@handle`, `@mcp:<client>`), `angelegt`, `geaendert`,
+`geloescht?` (softly deleted since), `bezug?` (UUID of the item), from minor version 9 on `titel?`, `eltern?`, `platz?`,
+`hauptthema?` (tree of the mind map, see "Tree of the mind map (minor version 9, Round 34)"). Children `<schlagwort>*`, `<notiz>`, `<zitat>`,
+`<quelle>`, `<bibelstelle>` (always present, also empty) and `<erledigt-ref>?` (free reference; a "key N" of the
+database stands in it as the UUID of the item, the rest literally).
 
 ```xml
 <einfall uuid="26000000-0000-4000-8000-000000000028" status="offen" herkunft-art="mensch" herkunft="Hanna Probe" angelegt="2026-01-06T09:00:00.000Z" geaendert="2026-01-06T09:00:00.000Z" bezug="26000000-0000-4000-8000-00000000000c">
@@ -329,9 +329,9 @@ Datenbank steht als UUID des Punkts darin, der Rest wörtlich).
 </einfall>
 ```
 
-**`<faeden>?`** mit `<faden uuid angelegt-von angelegt geaendert>*` – Fäden ohne Abschnitt: `<titel>` und
-`<beitrag uuid position autor angelegt>*` mit `<text>` und `<quelle>*` (`position` ab 1); ab Unterversion 4 wie im
-Punkt `geaendert?` und `<alte-fassung>*` am Ende.
+**`<faeden>?`** with `<faden uuid angelegt-von angelegt geaendert>*` – threads without a section: `<titel>` and
+`<beitrag uuid position autor angelegt>*` with `<text>` and `<quelle>*` (`position` from 1); from minor version 4 on, as in the
+item, `geaendert?` and `<alte-fassung>*` at the end.
 
 ```xml
 <faden uuid="26000000-0000-4000-8000-000000000032" angelegt-von="@lektor" angelegt="2026-01-07T14:00:00.000Z" geaendert="2026-01-07T15:00:00.000Z">
@@ -343,13 +343,13 @@ Punkt `geaendert?` und `<alte-fassung>*` am Ende.
 </faden>
 ```
 
-**`<bilder>?`** mit `<bild uuid name angelegt>*` – Bilder des Werks: `<pfad>*` (Pfade, unter denen Vorlage und
-Texte das Bild nennen, sortiert) und alle Fassungen `<fassung>+`. Attribute der Bildfassung: `uuid`, `nummer`,
-`basis?` (UUID der Elternfassung), `mime` (`image/png` | `image/jpeg` | `image/gif` | `image/webp` |
-`image/svg+xml`), `bytes`, `sha256` (über die Rohbytes), `status` (`aktuell` | `abgeloest`), `autor`,
-`angelegt`, `geaendert?` und im Container `datei` (Eintrag im ZIP). Kinder `<unterschrift>`, `<alt>`,
-`<notiz>?` und im Nur-XML `<daten>` (Rohbytes als Base64, ohne Zeilenumbruch). Genau eines von `datei` und
-`<daten>` steht da.
+**`<bilder>?`** with `<bild uuid name angelegt>*` – images of the work: `<pfad>*` (paths under which the template and
+texts name the image, sorted) and all revisions `<fassung>+`. Attributes of the image revision: `uuid`, `nummer`,
+`basis?` (UUID of the parent revision), `mime` (`image/png` | `image/jpeg` | `image/gif` | `image/webp` |
+`image/svg+xml`), `bytes`, `sha256` (over the raw bytes), `status` (`aktuell` | `abgeloest`), `autor`,
+`angelegt`, `geaendert?` and in the container `datei` (entry in the ZIP). Children `<unterschrift>`, `<alt>`,
+`<notiz>?` and in the XML-only form `<daten>` (raw bytes as Base64, without line breaks). Exactly one of `datei` and
+`<daten>` is present.
 
 ```xml
 <bild uuid="26000000-0000-4000-8000-00000000003c" name="brunnen.png" angelegt="2026-01-06T10:00:00.000Z">
@@ -362,16 +362,16 @@ Texte das Bild nennen, sortiert) und alle Fassungen `<fassung>+`. Attribute der 
 </bild>
 ```
 
-Im Nur-XML statt `datei=…` am Ende der Fassung:
+In the XML-only form, instead of `datei=…`, at the end of the revision:
 `<daten>iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mM4YKn9HwAFBQIkh/EstQAAAABJRU5ErkJggg==</daten>`.
 
-**`<geloescht>?`** mit `<eintrag uuid art zeit/>*` – Grabsteine: hier gelöschte Stücke des Werks (§3), `art`
+**`<geloescht>?`** with `<eintrag uuid art zeit/>*` – tombstones: pieces of the work deleted here (§3), `art`
 `werk` | `punkt` | `fassung` | `vorlage` | `beitrag` | `einfall` | `faden` | `faden-beitrag` | `bild` |
-`bildfassung`, ab Unterversion 2 `verbindung` | `lage` (in einer Datei mit `version="1"` sind diese beiden ein
-Fehler), ab Unterversion 3 `umschlag-block` (in einer Datei mit `version="1"` oder `"2"` ein Fehler) und ab
-Unterversion 4 `befund` | `befund-status` | `beitrag-fassung` (in einer Datei mit `version` 1 bis 3 ein Fehler), ab
-Unterversion 6 `satz` (in einer Datei mit `version` 1 bis 5 ein Fehler), ab Unterversion 7 `glossar-begriff` |
-`register` und ab Unterversion 8 `fortschreibung` (in einer Datei mit `version` 1 bis 7 ein Fehler).
+`bildfassung`, from minor version 2 on `verbindung` | `lage` (in a file with `version="1"` these two are an
+error), from minor version 3 on `umschlag-block` (in a file with `version="1"` or `"2"` an error) and from
+minor version 4 on `befund` | `befund-status` | `beitrag-fassung` (in a file with `version` 1 to 3 an error), from
+minor version 6 on `satz` (in a file with `version` 1 to 5 an error), from minor version 7 on `glossar-begriff` |
+`register` and from minor version 8 on `fortschreibung` (in a file with `version` 1 to 7 an error).
 
 ```xml
 <geloescht>
@@ -379,19 +379,19 @@ Unterversion 6 `satz` (in einer Datei mit `version` 1 bis 5 ein Fehler), ab Unte
 </geloescht>
 ```
 
-**`<karte>?`** – die Gedankenkarte des Werks (ab Unterversion 2, Runde 25), am Ende von `<werk>` und nur, wenn es
-mindestens eine Verbindung oder Lage gibt: erst alle `<verbindung>`, dann alle `<lage>`. Verweise laufen über die
-UUIDs der Einfälle dieses Werks (`<einfaelle>`); Verbindungen gibt es **nur zwischen Einfällen** (nicht zu Punkten
-oder Beiträgen).
+**`<karte>?`** – the idea map of the work (from minor version 2 on, Round 25), at the end of `<werk>` and only if there is
+at least one connection or position: first all `<verbindung>`, then all `<lage>`. References run through the
+UUIDs of the ideas of this work (`<einfaelle>`); connections exist **only between ideas** (not to items
+or posts).
 
-- **`<verbindung>`** – Attribute `uuid`, `von`, `nach` (UUIDs der Einfälle), `art` (`fuehrt-weiter` |
-  `gehoert-zu` | `beispiel-fuer` | `widerspricht`; in der Oberfläche „führt weiter“, „gehört zu“, „Beispiel für“,
-  „widerspricht“), `herkunft-art` (`mensch` | `persona` | `mcp`), `herkunft` (Name, `@handle`, `@mcp:<client>`),
-  `angelegt`, `geaendert`, `geloescht?` (weich gelöscht seit; wiederherstellbar, die Verbindung bleibt im
-  Format). Kind `<notiz>` (höchstens 500 Zeichen, ohne Steuerzeichen außer Zeilenumbruch; leer als `<notiz/>`).
-  `widerspricht` ist ungerichtet: Die Reihenfolge von `von`/`nach` trägt keine Bedeutung (Baruch speichert und
-  schreibt das Paar in der Reihenfolge seiner Einfälle); die übrigen Arten sind gerichtet. Je Paar und Art steht
-  höchstens eine Verbindung im Dokument (bei `widerspricht` auch nicht umgekehrt).
+- **`<verbindung>`** – attributes `uuid`, `von`, `nach` (UUIDs of the ideas), `art` (`fuehrt-weiter` |
+  `gehoert-zu` | `beispiel-fuer` | `widerspricht`; in the user interface „führt weiter“, „gehört zu“, „Beispiel für“,
+  „widerspricht“), `herkunft-art` (`mensch` | `persona` | `mcp`), `herkunft` (name, `@handle`, `@mcp:<client>`),
+  `angelegt`, `geaendert`, `geloescht?` (softly deleted since; restorable, the connection stays in the
+  format). Child `<notiz>` (at most 500 characters, without control characters except line break; empty as `<notiz/>`).
+  `widerspricht` is undirected: the order of `von`/`nach` carries no meaning (Baruch stores and
+  writes the pair in the order of its ideas); the other kinds are directed. Per pair and kind at most
+  one connection stands in the document (with `widerspricht` not reversed either).
 
   ```xml
   <verbindung uuid="26000000-0000-4000-8000-000000000096" von="26000000-0000-4000-8000-000000000028" nach="26000000-0000-4000-8000-000000000029" art="fuehrt-weiter" herkunft-art="mensch" herkunft="Hanna Probe" angelegt="2026-01-07T19:00:00.000Z" geaendert="2026-01-07T19:00:00.000Z">
@@ -403,40 +403,40 @@ oder Beiträgen).
   </verbindung>
   ```
 
-- **`<lage/>`** – gespeicherte Lage eines Einfalls auf der Karte dieses Werks (der Mensch hat ihn dorthin
-  gezogen): Attribute `uuid`, `einfall` (UUID des Einfalls), `x`, `y` (SVG-Benutzereinheiten der Karte, das Werk
-  steht bei 0,0; kürzeste Darstellung, die beim Lesen genau dieselbe Zahl ergibt, endlich und höchstens
-  ±1 000 000), `geaendert`. Je Einfall höchstens eine Lage. Lagen sind reine Anzeige (kein Spiegel-Commit).
+- **`<lage/>`** – stored position of an idea on the map of this work (the human dragged it
+  there): attributes `uuid`, `einfall` (UUID of the idea), `x`, `y` (SVG user units of the map, the work
+  stands at 0,0; shortest representation that yields exactly the same number on reading, finite and at most
+  ±1 000 000), `geaendert`. At most one position per idea. Positions are pure display (no mirror commit).
 
   ```xml
   <lage uuid="26000000-0000-4000-8000-000000000098" einfall="26000000-0000-4000-8000-000000000028" x="120.5" y="0.30000000000000004" geaendert="2026-01-07T22:00:00.000Z"/>
   <lage uuid="26000000-0000-4000-8000-000000000099" einfall="26000000-0000-4000-8000-000000000029" x="-1000000" y="-80.25" geaendert="2026-01-07T23:00:00.000Z"/>
   ```
 
-- Grabsteine der Karte stehen wie alle in `<geloescht>`: `<eintrag uuid="…" art="verbindung" zeit="…"/>` bzw.
+- Tombstones of the map stand, like all of them, in `<geloescht>`: `<eintrag uuid="…" art="verbindung" zeit="…"/>` or
   `art="lage"`.
 
-**`<befunde>?`** – die Befunde des Werks (ab Unterversion 4, Runde 28), ganz am Ende von `<werk>` (nach `<karte>`)
-und nur, wenn es welche gibt: `<befund>*` in der Reihenfolge ihrer Anlage. Ein Befund ist ein Punkt aus der Antwort
-einer Persona (`docs/Bedienung.md`, „Befunde“).
+**`<befunde>?`** – the findings of the work (from minor version 4 on, Round 28), at the very end of `<werk>` (after `<karte>`)
+and only if there are any: `<befund>*` in the order of their creation. A finding is an item from the answer
+of a persona (`docs/Bedienung.md`, „Befunde“).
 
-- **`<befund>`** – Attribute `uuid`, `art` (`lob` | `hinweis` | `kritisch`), `status` (`offen` | `uebernommen` |
-  `verworfen` | `verschoben` | `erledigt`; in der Oberfläche „offen“, „übernommen“, „verworfen“, „verschoben“,
-  „erledigt ohne Änderung“), `persona` (Autor der Antwort, 1 bis 200 Zeichen), `stelle` (Stelle in der Antwort, ab
-  0), `punkt?` (UUID des Abschnitts; fehlt bei Fäden und gelöschten Abschnitten), `beitrag?` bzw. `faden-beitrag?`
-  (UUID der Herkunft, nie beides; fehlt, wenn der Beitrag gelöscht ist), `fassung?` (UUID der Fassung bei
-  „übernommen“, Pflicht), `ziel-punkt?` bzw. `ziel-einfall?` (Ziel bei „verschoben“, genau eins), `gleicht?` (UUID
-  des Befunds, dem dieser gleicht – „angehängt“, zählt nicht als offen), `angelegt`, `geaendert`. Kinder `<text>`
-  (nicht leer, höchstens 4000 Zeichen), `<zitat>?` (wörtliches Zitat, höchstens 2000), `<pruefvermerk>?` (Vermerk
-  der Zitat- und Stellenprüfung, z. B. „(nicht im Text belegt)“, höchstens 200), `<begruendung>?` (Pflicht bei
-  „verworfen“, höchstens 2000), `<sammelt befund="…"/>*` (Sammelvorschlag des Lektors: UUIDs der zusammengefassten
-  Befunde) und `<status-eintrag>*` (Verlauf, älteste zuerst). Fassung und Ziel stehen als Kennung da, auch wenn es sie
-  in der Datei nicht mehr gibt (wie in der Datenbank ohne Fremdschlüssel).
-- **`<status-eintrag>`** – eine Statusänderung des Menschen oder ein Vorschlag eines Assistenten: `uuid`, `status`,
-  `herkunft-art` (`mensch` | `persona` | `mcp`), `herkunft`, `vorschlag` (`true` = Vorschlag; ohne Vorschlag setzt
-  nur der Mensch), `fassung?`, `ziel-punkt?`, `ziel-einfall?`, `entscheidung?` (`bestaetigt` | `abgelehnt` |
-  `veraltet`, nur bei Vorschlägen, mit `entschieden` und `entschieden-von`), `angelegt`; Kinder `<begruendung>?` und
-  `<notiz>?`. Die Erstanlage eines Befunds hat keinen Eintrag.
+- **`<befund>`** – attributes `uuid`, `art` (`lob` | `hinweis` | `kritisch`), `status` (`offen` | `uebernommen` |
+  `verworfen` | `verschoben` | `erledigt`; in the user interface „offen“, „übernommen“, „verworfen“, „verschoben“,
+  „erledigt ohne Änderung“), `persona` (author of the answer, 1 to 200 characters), `stelle` (position in the answer, from
+  0), `punkt?` (UUID of the section; missing for threads and deleted sections), `beitrag?` or `faden-beitrag?`
+  (UUID of the origin, never both; missing if the post is deleted), `fassung?` (UUID of the revision with
+  „übernommen“, mandatory), `ziel-punkt?` or `ziel-einfall?` (target with „verschoben“, exactly one), `gleicht?` (UUID
+  of the finding this one equals – „angehängt“, does not count as open), `angelegt`, `geaendert`. Children `<text>`
+  (not empty, at most 4000 characters), `<zitat>?` (literal quotation, at most 2000), `<pruefvermerk>?` (note
+  of the quotation and reference check, e.g. „(nicht im Text belegt)“, at most 200), `<begruendung>?` (mandatory with
+  „verworfen“, at most 2000), `<sammelt befund="…"/>*` (collective proposal of the lector: UUIDs of the summarised
+  findings) and `<status-eintrag>*` (history, oldest first). Revision and target stand there as identifiers, even if they
+  no longer exist in the file (as in the database without a foreign key).
+- **`<status-eintrag>`** – a status change by the human or a proposal by an assistant: `uuid`, `status`,
+  `herkunft-art` (`mensch` | `persona` | `mcp`), `herkunft`, `vorschlag` (`true` = proposal; without a proposal only
+  the human sets it), `fassung?`, `ziel-punkt?`, `ziel-einfall?`, `entscheidung?` (`bestaetigt` | `abgelehnt` |
+  `veraltet`, only with proposals, with `entschieden` and `entschieden-von`), `angelegt`; children `<begruendung>?` and
+  `<notiz>?`. The first creation of a finding has no entry.
 
 ```xml
 <befunde>
@@ -457,14 +457,14 @@ Zweite Zeile.</begruendung>
 </befunde>
 ```
 
-**`<manifest version>`** mit `<datei pfad sha256 bytes/>+` – nur im Container (`MANIFEST.xml`, Beispiel in §1).
+**`<manifest version>`** with `<datei pfad sha256 bytes/>+` – only in the container (`MANIFEST.xml`, example in §1).
 
-## 3 Kennungen und Grabsteine
+## 3 Identifiers and tombstones
 
-**Kennungen.** Jedes Stück, das zwischen Instanzen wandert, trägt eine weltweit eindeutige Kennung (UUID) in
-kanonischer Kleinschreibung `8-4-4-4-12`, z. B. `3f2b8c1e-9a47-4d2e-b5c3-0e1f2a3b4c5d`:
+**Identifiers.** Every piece that moves between instances carries a globally unique identifier (UUID) in
+canonical lower case `8-4-4-4-12`, e.g. `3f2b8c1e-9a47-4d2e-b5c3-0e1f2a3b4c5d`:
 
-| Element im XML | Tabelle | Art im Grabstein (`<eintrag art>` / Datenbank) |
+| Element in the XML | Table | Kind in the tombstone (`<eintrag art>` / database) |
 | --- | --- | --- |
 | `<werk uuid>` | `work` | `werk` / `work` |
 | `<punkt uuid>` | `node` | `punkt` / `node` |
@@ -476,34 +476,34 @@ kanonischer Kleinschreibung `8-4-4-4-12`, z. B. `3f2b8c1e-9a47-4d2e-b5c3-0e1f2a3
 | `<faden>/<beitrag uuid>` | `chat_thread_post` | `faden-beitrag` / `thread_post` |
 | `<bild uuid>` | `asset` | `bild` / `asset` |
 | `<bild>/<fassung uuid>` | `asset_revision` | `bildfassung` / `asset_revision` |
-| `<karte>/<verbindung uuid>` (ab Unterversion 2) | `idea_link` | `verbindung` / `idea_link` |
-| `<karte>/<lage uuid>` (ab Unterversion 2) | `idea_map_pos` | `lage` / `idea_map_pos` |
-| `<buch>/<umschlag>/<block uuid>` (ab Unterversion 3) | `cover_block` | `umschlag-block` / `cover_block` |
-| `<befunde>/<befund uuid>` (ab Unterversion 4) | `finding` | `befund` / `finding` |
-| `<befund>/<status-eintrag uuid>` (ab Unterversion 4) | `finding_status` | `befund-status` / `finding_status` |
-| `<beitrag>/<alte-fassung uuid>` (ab Unterversion 4, Abschnitt und Faden) | `post_version` | `beitrag-fassung` / `post_version` |
-| `<angaben>/<satz uuid>` (ab Unterversion 6) | `work_typeset` | `satz` / `work_typeset` |
-| `<glossar>/<begriff uuid>`, `<eigene-register>/<register uuid>` (ab Unterversion 7) | `glossary_term`, `index_register` | `glossar-begriff` / `glossary_term`, `register` / `index_register` |
-| `<fassung>/<fortschreibung uuid>` (ab Unterversion 8) | `revision_amend` | `fortschreibung` / `revision_amend` |
+| `<karte>/<verbindung uuid>` (from minor version 2) | `idea_link` | `verbindung` / `idea_link` |
+| `<karte>/<lage uuid>` (from minor version 2) | `idea_map_pos` | `lage` / `idea_map_pos` |
+| `<buch>/<umschlag>/<block uuid>` (from minor version 3) | `cover_block` | `umschlag-block` / `cover_block` |
+| `<befunde>/<befund uuid>` (from minor version 4) | `finding` | `befund` / `finding` |
+| `<befund>/<status-eintrag uuid>` (from minor version 4) | `finding_status` | `befund-status` / `finding_status` |
+| `<beitrag>/<alte-fassung uuid>` (from minor version 4, section and thread) | `post_version` | `beitrag-fassung` / `post_version` |
+| `<angaben>/<satz uuid>` (from minor version 6) | `work_typeset` | `satz` / `work_typeset` |
+| `<glossar>/<begriff uuid>`, `<eigene-register>/<register uuid>` (from minor version 7) | `glossary_term`, `index_register` | `glossar-begriff` / `glossary_term`, `register` / `index_register` |
+| `<fassung>/<fortschreibung uuid>` (from minor version 8) | `revision_amend` | `fortschreibung` / `revision_amend` |
 
-- **Vergabe:** Neue Zeilen bekommen ihre UUID in der Datenbank (Trigger `<Tabelle>_uuid_fill`, Version 4,
-  zufällig, Variante 10). Das gilt für jeden Weg: Anlegen, Typst-Import (auch mit Bildern), Beispielwerk,
-  Gliederung (auch durch Assistenten), Speichern, Vorschläge, Beiträge, Einfälle, Fäden, Bilder und neue
-  Fassungen der Werkvorlage. Beim Einlesen behält ein Stück die UUID aus der Datei; abweichende Fassungen
-  bekommen eine abgeleitete UUID Version 8 (siehe §4).
-- **Unveränderlich:** Verschieben, Umbenennen, Ebene, Nummer an/aus, Umschalten, Übernehmen, Ändern einer
-  Fassung und Umschalten eines Bilds behalten jede UUID. Ein umbenannter Punkt bleibt derselbe Punkt.
-- **Intern** bleiben die Zahlen (`id`, `key`, `seq`, Fassungsnummer): Im XML verweist alles über UUIDs, z. B.
-  `<bezug punkt="…" fassung="…">` oder `basis="…"`.
-- **Instanz:** Jede Baruch-Instanz hat eine eigene Kennung (`store_meta.instance_uuid`, beim ersten Start
-  vergeben) und einen frei wählbaren Namen (`store_meta.instance_name`, Vorgabe leer). Beide stehen in
-  `<ausgabe instanz="…" instanzname="…">`. Ohne Namen zeigt Baruch „ohne Namen (<erste 8 Zeichen>)“, z. B.
-  „ohne Namen (3f2b8c1e)“. Einstellen: Einstellungen → Daten oder RPC `instance.set_name`.
+- **Assignment:** new rows get their UUID in the database (trigger `<Tabelle>_uuid_fill`, version 4,
+  random, variant 10). That holds for every path: creating, Typst import (also with images), sample work,
+  outline (also by assistants), saving, proposals, posts, ideas, threads, images and new
+  revisions of the work template. On reading in, a piece keeps the UUID from the file; differing revisions
+  get a derived UUID version 8 (see §4).
+- **Immutable:** moving, renaming, level, number on/off, switching, accepting, changing a
+  revision and switching an image keep every UUID. A renamed item stays the same item.
+- **Internal** stay the numbers (`id`, `key`, `seq`, revision number): in the XML everything refers through UUIDs, e.g.
+  `<bezug punkt="…" fassung="…">` or `basis="…"`.
+- **Instance:** every Baruch instance has its own identifier (`store_meta.instance_uuid`, assigned on the first start)
+  and a freely chosen name (`store_meta.instance_name`, default empty). Both stand in
+  `<ausgabe instanz="…" instanzname="…">`. Without a name Baruch shows „ohne Namen (<erste 8 Zeichen>)“, e.g.
+  „ohne Namen (3f2b8c1e)“. Setting it: „Einstellungen → Daten“ or RPC `instance.set_name`.
 
-**Grabsteine.** Wer eine Zeile mit UUID löscht (Fassung, Beitrag, Bildfassung, Bild, Gliederungspunkt samt
-Fassungen und Beiträgen, ganzes Werk samt Punkten, Fassungen, Vorlagenfassungen und Fäden), hinterlässt in
-`uuid_tombstone` einen Eintrag mit UUID, Art, Werk-UUID und Zeitpunkt. Das Ausgeben schreibt die Grabsteine
-des Werks als
+**Tombstones.** Whoever deletes a row with a UUID (revision, post, image revision, image, outline item with its
+revisions and posts, whole work with its items, revisions, template revisions and threads) leaves an entry in
+`uuid_tombstone` with UUID, kind, work UUID and time. Exporting writes the tombstones
+of the work as
 
 ```xml
 <geloescht>
@@ -511,340 +511,340 @@ des Werks als
 </geloescht>
 ```
 
-- Beim **Abgleichen** legt die Instanz nichts wieder an, wofür sie einen Grabstein hat, und zeigt es in der
-  Vorschau als „hier gelöscht“. Beim **Einlesen als neues Werk** gelten Grabsteine nicht.
-- Ein Einfall wird nur weich gelöscht (`geloescht="…"` am `<einfall>`, wiederherstellbar) und hat darum keinen
-  Grabstein. Ebenso eine Verbindung der Karte (`geloescht="…"` an `<verbindung>`); ihr Grabstein (`verbindung`)
-  entsteht praktisch nur, wenn ein Einfall hart gelöscht wird (Kaskade). Eine Lage hinterlässt einen Grabstein
-  (`lage`), wenn der Mensch die Anordnung zurücksetzt (die Lagen werden dann gelöscht) oder das Werk gelöscht wird.
-  Ein Umschlag-Block hinterlässt einen Grabstein (`umschlag-block`), wenn der Mensch die Umschlag-Anordnung ganz oder
-  für eine Fläche zurücksetzt (auch über die Schnellwahl) oder das Werk gelöscht wird; Ändern eines Blocks behält
-  seine Zeile und Kennung. Befunde, ihre Verlaufseinträge und alte Beitragsfassungen hinterlassen Grabsteine
-  (`befund`, `befund-status`, `beitrag-fassung`), wenn sie gelöscht werden – auch in der Kaskade, wenn ihr Werk,
-  ihr Befund bzw. ihr Beitrag gelöscht wird (Migration 0046); ein gelöschter Beitrag lässt seine Befunde stehen
-  (ohne Herkunft). Wird ein Werk gelöscht, bleiben seine Einfälle als Einfälle ohne Werk erhalten (ebenfalls ohne
-  Grabstein, die Kennung bleibt). Wird das Werk später aus seiner Datei wieder eingelesen (neu oder abgleichen),
-  bekommt es diese Einfälle zurück: Werk und Bezug werden gesetzt, ihr Inhalt bleibt, wie er hier ist; die
-  Vorschau nennt sie „Einfall ohne Werk, wieder zugeordnet“ (Test
+- When **synchronising**, the instance creates nothing again for which it has a tombstone, and shows it in the
+  preview as „hier gelöscht“. When **reading in as a new work**, tombstones do not hold.
+- An idea is only deleted softly (`geloescht="…"` at the `<einfall>`, restorable) and therefore has no
+  tombstone. Likewise a connection of the map (`geloescht="…"` at `<verbindung>`); its tombstone (`verbindung`)
+  practically only arises when an idea is deleted hard (cascade). A position leaves a tombstone
+  (`lage`) when the human resets the arrangement (the positions are then deleted) or the work is deleted.
+  A cover block leaves a tombstone (`umschlag-block`) when the human resets the cover layout entirely or
+  for one area (also through the quick choice) or the work is deleted; changing a block keeps
+  its row and identifier. Findings, their history entries and old post revisions leave tombstones
+  (`befund`, `befund-status`, `beitrag-fassung`) when they are deleted – also in the cascade when their work,
+  their finding or their post is deleted (migration 0046); a deleted post leaves its findings standing
+  (without origin). If a work is deleted, its ideas stay as ideas without a work (likewise without a
+  tombstone, the identifier stays). If the work is later read in again from its file (new or synchronising),
+  it gets these ideas back: work and reference are set, their content stays as it is here; the
+  preview calls them „Einfall ohne Werk, wieder zugeordnet“ (test
   `a_deleted_work_comes_back_from_its_own_file_and_gets_its_ideas_back`).
-- Der Store selbst schaut nie in die Grabsteine; sie zählen nur beim Abgleich.
+- The store itself never looks into the tombstones; they only count during synchronisation.
 
-## 4 Einlesen und Abgleich
+## 4 Reading in and synchronisation
 
-Einlesen ist eine Aktion des Menschen (Formular, RPC, Kommandozeile; **nicht** über MCP). Es schaltet nie um,
-überschreibt nie und löscht nie; Gliederungsänderungen werden Anträge. Code: Lesen in
-`baruch-exchange/src/read.rs` (Untermodule `read/{dom,map,archive,check}.rs`), Planen und Schreiben in
-`baruch-store/src/exchange_apply.rs`, Wege in `baruch-server/src/exchange/import.rs`.
+Reading in is an action of the human (form, RPC, command line; **not** over MCP). It never switches,
+never overwrites and never deletes; outline changes become requests. Code: reading in
+`baruch-exchange/src/read.rs` (submodules `read/{dom,map,archive,check}.rs`), planning and writing in
+`baruch-store/src/exchange_apply.rs`, paths in `baruch-server/src/exchange/import.rs`.
 
-**Ablauf.** Erst die **Vorschau**: Die Datei wird gelesen und geprüft (§5), dann plant der Store das Einlesen in
-einer Transaktion, die am Ende zurückgerollt wird – die Vorschau ist also genau das, was „Übernehmen“ täte, und
-schreibt nichts. „Übernehmen“ verlangt die Prüfsumme (SHA-256) der gezeigten Datei, liest sie neu, plant neu (der
-Vorschau wird nicht vertraut) und schreibt unter der Schreibsperre in **einer** Transaktion (`BEGIN IMMEDIATE`);
-am Ende prüft `load::work` das Werk in derselben Transaktion. Danach genau **ein** Commit im Spiegel mit dem
-Betreff „Austausch aus <Instanz>: …“ (Autor „Austausch aus <Instanz>“, Trailer `Baruch-Action: exchange-import`,
-`Baruch-Exchange-Instance`, `Baruch-Exchange-File`); die Bedeutungssuche wird wie beim Typst-Import benachrichtigt.
-Ein Abgleich, der nichts hinzufügt und keinen Antrag stellt, macht keinen Commit. `<Instanz>` ist der
-Instanzname aus `<ausgabe>`, sonst die ersten 8 Zeichen ihrer Kennung. Der Leser säubert den Namen
-(`baruch_exchange::clean_instance_name`): Steuerzeichen und Leerraum werden ein Leerzeichen, `<` und `>` werden
-`‹` und `›` (Git lehnt sie im Autor ab), gekürzt auf 80 Zeichen wie lokal.
+**Course.** First the **preview**: the file is read and checked (§5), then the store plans the reading in within
+a transaction that is rolled back at the end – the preview is therefore exactly what „Übernehmen“ would do, and
+writes nothing. „Übernehmen“ requires the checksum (SHA-256) of the shown file, reads it anew, plans anew (the
+preview is not trusted) and writes under the write lock in **one** transaction (`BEGIN IMMEDIATE`);
+at the end `load::work` checks the work in the same transaction. Afterwards exactly **one** commit in the mirror with the
+subject „Austausch aus <Instanz>: …“ (author „Austausch aus <Instanz>“, trailers `Baruch-Action: exchange-import`,
+`Baruch-Exchange-Instance`, `Baruch-Exchange-File`); the semantic search is notified as with the Typst import.
+A synchronisation that adds nothing and files no request makes no commit. `<Instanz>` is the
+instance name from `<ausgabe>`, otherwise the first 8 characters of its identifier. The reader cleans the name
+(`baruch_exchange::clean_instance_name`): control characters and whitespace become a space, `<` and `>` become
+`‹` and `›` (Git rejects them in the author), shortened to 80 characters as locally.
 
-**Modus.** Die Werk-UUID entscheidet: hier unbekannt → **neu** (Grabsteine zählen dabei nicht), bekannt →
-**abgleichen**. Wer den falschen Modus verlangt, bekommt eine Ablehnung (RPC -32000, Formular 409, CLI Exit 1).
+**Mode.** The work UUID decides: unknown here → **new** (tombstones do not count for this), known →
+**synchronise**. Whoever asks for the wrong mode gets a rejection (RPC -32000, form 409, CLI exit 1).
 
-### Neu
+### New
 
-Das Werk entsteht mit allen Kennungen, Nummern, Status, Zeiten und der Markierung „aktuell“ aus der Datei:
-Werkangaben samt Schema und eigenem Muster, Vorlage (aktueller Text und alle Fassungen), Gliederung (Nummern
-`node.number` rechnet die Gliederung wie beim Laden), Fassungen mit Basis, Beiträge mit Quellen und Bezügen,
-Einfälle (gelöschte bleiben gelöscht, mit Zeitpunkt), Fäden, Bilder mit Pfaden und allen Fassungen, Umschlag und
-Autorenfoto, Anschriften, die Umschlag-Anordnung (alle Blöcke mit ihren Kennungen und Zeiten), die
-Satzbild-Einstellungen, Sprechdauer, Bibelmodul, SWORD-Quellen, die Gedankenkarte (alle Verbindungen, auch gelöschte, und
-alle Lagen mit ihren Kennungen; `widerspricht` wird so gespeichert, dass der kleinere Einfall vorn steht), alte
-Fassungen bearbeiteter Beiträge und Fadenbeiträge samt `geaendert`, die Befunde mit Status, Begründung, Fassung,
-Ziel, Sammlung und Verlauf (`gleicht` über die Kennung, nachdem alle Befunde stehen) und die Grabsteinliste der
-Datei. Titelregeln wie beim
-Typst-Import: Ein vergebener Titel wird abgelehnt (in der Vorschau unter „Nicht übernommen“), mit `title` geht
-es unter eigenem Titel. Ein Bild, dessen Bytes die Prüfung wie beim Hochladen nicht bestehen (höchstens 8 MiB,
-Typ an den ersten Bytes erkannt und gleich dem angegebenen), kommt nicht mit und steht unter „Nicht
-übernommen“. Ein Bezug ohne Fassung wird `rev = 0`; ein `erledigt-ref`, der mit der Kennung eines Punkts beginnt,
-wird wieder „key <Schlüssel hier>…“ (Gegenstück zur Ausgabe).
+The work comes into being with all identifiers, numbers, statuses, times and the mark „aktuell“ from the file:
+work metadata with scheme and own pattern, template (current text and all revisions), outline (the numbers
+`node.number` are computed by the outline as when loading), revisions with basis, posts with sources and references,
+ideas (deleted ones stay deleted, with their time), threads, images with paths and all revisions, cover and
+author photo, addresses, the cover layout (all blocks with their identifiers and times), the
+typeset view settings, speaking time, Bible module, SWORD sources, the idea map (all connections, also deleted ones, and
+all positions with their identifiers; `widerspricht` is stored so that the smaller idea stands first), old
+revisions of edited posts and thread posts with `geaendert`, the findings with status, reasoning, revision,
+target, collection and history (`gleicht` through the identifier, after all findings stand) and the tombstone list of the
+file. Title rules as with the
+Typst import: a title already taken is rejected (in the preview under „Nicht übernommen“), with `title` it
+works under a title of its own. An image whose bytes do not pass the check as on uploading (at most 8 MiB,
+type recognised from the first bytes and equal to the stated one) does not come along and stands under „Nicht
+übernommen“. A reference without a revision becomes `rev = 0`; an `erledigt-ref` that begins with the identifier of an item
+becomes „key <Schlüssel hier>…“ again (counterpart to the export).
 
-### Abgleichen (Regeln F6)
+### Synchronising (rules F6)
 
-Es kommt nur hinzu, was fehlt. Jede vorhandene Zeile bleibt in allen Spalten, wie sie war (Ausnahme: Stelle,
-Elternteil-Stelle, Reihenfolge und Nummer der Punkte sowie `last_rev`, die das Anlegen eines Punkts bzw. einer
-Fassung neu rechnet; geprüft im Test `merging_never_overwrites_an_existing_row`).
+Only what is missing is added. Every existing row stays as it was in all columns (exception: position,
+parent position, order and number of the items as well as `last_rev`, which creating an item or a
+revision recomputes; checked in the test `merging_never_overwrites_an_existing_row`).
 
-- **(a) Unbekannter Punkt:** an seiner Stelle angelegt – hinter dem vorigen Geschwister aus der Datei, das es hier
-  unter demselben Elternteil gibt, sonst als erstes Kind des Elternteils –, mit **genau** seinen Fassungen aus der
-  Datei (keine zusätzliche Fassung 1). Bekäme er dort ein anderes Elternteil oder übernähme er vorhandene Punkte,
-  wird er nicht angelegt (Hinweis). Ein **neuer Teil**, unter den vorhandene Kapitel wandern würden, wird ein
-  Antrag `Add`, dem der Mensch zustimmt (AGENTS.md). Seit Runde 22 trägt der Antrag die **Kennung des Teils und
-  alle seine Fassungen** (Nummer, Text, Herkunft, Status, Basis, Stand, Fortschreibungen; die Vorschau sagt „Antrag mit
-  Kennung und n Fassung(en)“, der Antrag „… (mit Kennung und n Fassungen) …“). Beim Zustimmen entsteht der Teil mit
-  genau dieser Kennung und genau diesen Fassungen (die Kapitel wandern wie bisher darunter, ein Spiegel-Commit); ein
-  späterer Abgleich mit derselben Datei erkennt ihn wieder und meldet nichts. Gibt es die Kennung inzwischen hier, ist
-  der Antrag veraltet; Ablehnen legt nichts an und hinterlässt keinen Grabstein. Unterpunkte eines nicht angelegten
-  Punkts kommen nicht (sie wandern erst mit der Zustimmung unter den Teil, wenn es die Kapitel hier schon gibt).
-- **(b) Bekannter Punkt:** anderer Titel → Antrag `Rename`, außer eine hier vorhandene oder eben angelegte Fassung
-  trägt den Titel der Datei schon (dann ein Hinweis mit Link auf diese Fassung: Umschalten genügt). Anderer Ort
-  (anderes Elternteil oder andere Reihenfolge unter den Punkten, die beide Seiten kennen) → Antrag `Move` hinter
-  das vorige Geschwister, sonst vor das nächste, sonst unter das Elternteil. Andere Ebene 1–3 → `SetLevel`,
-  anders nummeriert → `SetNumbered`. Geht der Probelauf des Antrags nicht oder ist derselbe Antrag schon offen,
-  wird nur die Abweichung gelistet. Ein Punkt, der in der Datei fehlt (oder dort gelöscht ist), ergibt nur einen
-  Hinweis – nie einen Antrag zum Löschen.
-- **(c) Unbekannte Fassung:** angehängt mit neuer lokaler Nummer (`last_rev + 1`), Basis über die Kennung
-  (fehlt die Elternfassung, wird sie Wurzel). Status: `vorschlag` → Vorschlag, `verworfen` → verworfen,
-  `aktuell` oder `abgeloest` → abgelöst. **Nie** wird eine eingelesene Fassung aktuell. Hat der Punkt hier schon
-  eine Fassung mit genau demselben Text, wird nichts angelegt (Inhaltsgleichheit, siehe „Hin und her“ unten).
-- **(d0) Vorspulen (seit Runde 22, Unterversion 8):** Sind die Fortschreibungen einer bekannten Fassung hier ein echtes
-  Präfix der eingelesenen (dieselben Kennungen in derselben Reihenfolge, Stand hier = Zahl der Schritte hier) und ist der
-  Text hier genau der Text der Datei an dieser Stelle (nach dem letzten gemeinsamen Schritt bzw. vor dem ersten), wird
-  die Fassung **vorgespult**: Die fehlenden Schritte kommen mit ihren Kennungen dazu, Text und Stand folgen der Datei;
-  Nummer, Status und Herkunft bleiben. Die Vorschau zählt sie als „Fortschreibungen“ (`AddCounts.amends`) und meldet
-  „Fassung n: vorgespult von Stand k auf Stand m“ (Hinweis); der Commit des Einlesens enthält es. Vorgespult wird
-  (Nachbesserung R22) nur, was auch lokal fortgeschrieben werden darf – die **aktuelle Fassung des Menschen** (hier
-  aktuell und vom Menschen, in der Datei vom Menschen); Fassungen von Personas oder MCP-Clients, Vorschläge,
-  übernommene, verworfene und abgelöste Fassungen werden nie an Ort und Stelle umgeschrieben. Und nur, wenn die
-  fehlenden Schritte die Änderung **lückenlos** wiedergeben: erster fehlender Schritt `<vorher>` = Text hier, jedes
-  `<vorher>` = `<nachher>` des vorigen, letztes `<nachher>` = Text der Fassung in der Datei. Das Lesen prüft das nicht
-  (das Ändern über den Baum ändert einen Text ohne Schritt, eine gültige Datei kann Lücken haben); passt es nicht,
-  gilt (d).
-- **(d) Bekannte Fassung mit anderem Text:** Es entsteht eine weitere Fassung mit der abgeleiteten Kennung
-  `derive(original, text)`, Basis = die Fassung hier, Status nach (c), Notiz mit dem Zusatz
-  „(Austausch: abweichende Fassung aus <Instanz>)“. Gibt es die abgeleitete Kennung schon oder hat der Punkt hier
-  schon eine Fassung mit genau diesem Text, geschieht nichts (ein wiederholtes Einlesen legt nichts doppelt an). Andere Notiz oder ein anderer Stand „aktuell“: nur ein Hinweis
-  mit Link `/?work=W&key=K&rev=R`.
-- **(e) Vorlage:** Fassungen mit unbekannter Kennung werden angehängt (nächste Nummer); der aktuelle Vorlagentext
-  `work.template` bleibt, eine Abweichung ist ein Hinweis.
-- **(f) Einfälle, Beiträge (samt Bezügen), Fäden und Fadenbeiträge, Bilder und Bildfassungen** mit unbekannter
-  Kennung kommen dazu (Beiträge und Fadenbeiträge hinten an, Bilder durch die Prüfung wie beim Hochladen,
-  Namenskollision → freier Name `-2`, `-3` … wie beim Import; eingelesene Bildfassungen eines bekannten Bilds
-  werden abgelöst, nie aktuell). Bekannte mit anderem Inhalt: nur ein Hinweis.
-- **(g) Werkangaben, Buchangaben (samt Anschriften), Satzbild-Einstellungen, Sprechdauer, Bibelmodul,
-  SWORD-Quellen:** Fehlt die Zeile hier ganz, wird sie aus der Datei angelegt (Hinweis); sonst bei Abweichung nur ein
-  Hinweis.
-- **(i) Umschlag-Anordnung** (Runde 27): Ein Block mit unbekannter Kennung kommt dazu, wenn es hier für (Werk, Art)
-  noch keinen Block gibt – **lokal gewinnt**, sonst ein Hinweis „hier gibt es schon einen Block dieser Art“. Eine
-  bekannte Kennung wird nie überschrieben (andere Werte: Hinweis „weicht ab“). Hat der Block hier einen Grabstein
-  (zurückgesetzt), kommt er nicht wieder („Hier gelöscht“). Die Vorschau zählt „Blöcke der Umschlag-Anordnung“
-  (`AddCounts.cover_blocks`, auch in `total()`).
-- **(j) Befunde und alte Beitragsfassungen** (Runde 28): Ein Befund mit unbekannter Kennung kommt dazu, wenn seine
-  Herkunft (Beitrag bzw. Fadenbeitrag) hier zum Werk gehört, kein Grabstein besteht und diese Stelle der Antwort hier
-  noch frei ist – sonst ein Hinweis (etwa „diese Stelle der Antwort ist hier schon Befund 12 (unter anderer
-  Kennung)“, wenn beide Instanzen denselben Beitrag selbst zerlegt haben). Er bringt Status, Begründung, Fassung,
-  Ziel und seinen Verlauf mit. Ein **bekannter** Befund wird nie überschrieben: Weicht sein Status ab, gibt es nur
-  einen Hinweis, und Verlaufseinträge der Datei kommen nicht dazu – den Status setzt hier der Mensch. Alte Fassungen
-  mit unbekannter Kennung kommen dazu, auch zu einem bekannten Beitrag (sie sind nur Verlauf). Die Vorschau zählt
-  „Befunde“, „Einträge im Verlauf der Befunde“ und „alte Fassungen von Beiträgen“ (`AddCounts.findings`,
-  `finding_entries`, `post_versions`, auch in `total()`).
-- **(h) Gedankenkarte** (Runde 25): Eine Verbindung mit unbekannter Kennung kommt dazu, wenn beide Einfälle hier
-  zum Werk gehören (auch eben eingelesene); fehlt einer, ist das nur ein Hinweis. Gibt es hier schon dasselbe Paar
-  mit derselben Art unter anderer Kennung (aktiv oder gelöscht; `widerspricht` in beiden Richtungen), kommt sie
-  nicht doppelt (Hinweis). Eine bekannte Kennung wird nie überschrieben (andere Notiz, anderer Stand „gelöscht“:
-  Hinweis). Eine Lage kommt nur, wenn es hier für (Werk, Einfall) keine gibt – **lokal gewinnt**; eine bekannte
-  Lage bleibt, wie sie hier ist, ohne Hinweis (reine Anzeige). Die Vorschau zählt „Verbindungen der Gedankenkarte“
-  und „Lagen auf der Gedankenkarte“ (`AddCounts.links`, `AddCounts.positions`, auch in `total()`).
-- **Grabsteine:** Was hier einen Grabstein hat (`uuid_tombstone`), wird nicht wieder angelegt und steht in der
-  Vorschau unter „Hier gelöscht“ – auch Verbindungen, Lagen, Umschlag-Blöcke, Befunde, ihre Verlaufseinträge und alte
-  Beitragsfassungen (eine zurückgesetzte Anordnung kommt
-  so nicht über die Datei der anderen Seite zurück). Was die Datei als gelöscht meldet und hier lebt, bleibt (Hinweis).
-- **Herkunft der Anträge:** Mensch „Austausch: <Instanz>“, Notiz „Austausch aus Instanz <uuid>, Datei <sha256>“.
+- **(a) Unknown item:** created at its place – behind the previous sibling from the file that exists here
+  under the same parent, otherwise as the first child of the parent –, with **exactly** its revisions from the
+  file (no additional revision 1). If it would get a different parent there or take over existing items,
+  it is not created (hint). A **new part** under which existing chapters would move becomes a
+  request `Add` that the human approves (AGENTS.md). Since Round 22 the request carries the **identifier of the part and
+  all its revisions** (number, text, origin, status, basis, state, amendments; the preview says „Antrag mit
+  Kennung und n Fassung(en)“, the request „… (mit Kennung und n Fassungen) …“). On approval the part comes into being with
+  exactly this identifier and exactly these revisions (the chapters move under it as before, one mirror commit); a
+  later synchronisation with the same file recognises it again and reports nothing. If the identifier exists here in the meantime,
+  the request is outdated; rejecting creates nothing and leaves no tombstone. Sub-items of an item that was not created
+  do not come (they only move under the part with the approval if the chapters already exist here).
+- **(b) Known item:** another title → request `Rename`, unless a revision present here or just created
+  already carries the title of the file (then a hint with a link to this revision: switching suffices). Another place
+  (another parent or another order among the items both sides know) → request `Move` behind
+  the previous sibling, otherwise before the next one, otherwise under the parent. Another level 1–3 → `SetLevel`,
+  numbered differently → `SetNumbered`. If the trial run of the request does not work or the same request is already open,
+  only the difference is listed. An item that is missing in the file (or deleted there) yields only a
+  hint – never a request to delete.
+- **(c) Unknown revision:** appended with a new local number (`last_rev + 1`), basis through the identifier
+  (if the parent revision is missing, it becomes a root). Status: `vorschlag` → proposal, `verworfen` → discarded,
+  `aktuell` or `abgeloest` → superseded. A revision read in **never** becomes current. If the item here already has
+  a revision with exactly the same text, nothing is created (equality of content, see "Back and forth" below).
+- **(d0) Fast-forward (since Round 22, minor version 8):** if the amendments of a known revision here are a true
+  prefix of those read in (the same identifiers in the same order, state here = number of steps here) and the
+  text here is exactly the text of the file at this point (after the last common step or before the first one),
+  the revision is **fast-forwarded**: the missing steps are added with their identifiers, text and state follow the file;
+  number, status and origin stay. The preview counts them as „Fortschreibungen“ (`AddCounts.amends`) and reports
+  „Fassung n: vorgespult von Stand k auf Stand m“ (hint); the commit of the reading in contains it. Only what may also be amended
+  locally is fast-forwarded (follow-up R22) – the **current revision of the human** (here
+  current and by the human, in the file by the human); revisions by personas or MCP clients, proposals,
+  accepted, discarded and superseded revisions are never rewritten in place. And only if the
+  missing steps reproduce the change **without gaps**: first missing step `<vorher>` = text here, every
+  `<vorher>` = `<nachher>` of the previous one, last `<nachher>` = text of the revision in the file. Reading does not check that
+  (changing through the tree changes a text without a step, a valid file can have gaps); if it does not fit,
+  (d) holds.
+- **(d) Known revision with a different text:** a further revision arises with the derived identifier
+  `derive(original, text)`, basis = the revision here, status according to (c), note with the addition
+  „(Austausch: abweichende Fassung aus <Instanz>)“. If the derived identifier exists already or the item here
+  already has a revision with exactly this text, nothing happens (a repeated reading in creates nothing twice). Another note or another state „aktuell“: only a hint
+  with the link `/?work=W&key=K&rev=R`.
+- **(e) Template:** revisions with an unknown identifier are appended (next number); the current template text
+  `work.template` stays, a difference is a hint.
+- **(f) Ideas, posts (with references), threads and thread posts, images and image revisions** with an unknown
+  identifier are added (posts and thread posts at the end, images through the check as on uploading,
+  name collision → free name `-2`, `-3` … as with the import; image revisions read in for a known image
+  are superseded, never current). Known ones with different content: only a hint.
+- **(g) Work metadata, book metadata (with addresses), typeset view settings, speaking time, Bible module,
+  SWORD sources:** if the row is missing here entirely, it is created from the file (hint); otherwise, on a difference, only a
+  hint.
+- **(i) Cover layout** (Round 27): a block with an unknown identifier is added if there is no block here for (work, kind)
+  yet – **local wins**, otherwise a hint „hier gibt es schon einen Block dieser Art“. A
+  known identifier is never overwritten (other values: hint „weicht ab“). If the block has a tombstone here
+  (reset), it does not come back („Hier gelöscht“). The preview counts „Blöcke der Umschlag-Anordnung“
+  (`AddCounts.cover_blocks`, also in `total()`).
+- **(j) Findings and old post revisions** (Round 28): a finding with an unknown identifier is added if its
+  origin (post or thread post) belongs to the work here, no tombstone exists and this position of the answer here
+  is still free – otherwise a hint (such as „diese Stelle der Antwort ist hier schon Befund 12 (unter anderer
+  Kennung)“ if both instances split the same post themselves). It brings along status, reasoning, revision,
+  target and its history. A **known** finding is never overwritten: if its status differs, there is only
+  a hint, and history entries of the file are not added – the human sets the status here. Old revisions
+  with an unknown identifier are added, also to a known post (they are only history). The preview counts
+  „Befunde“, „Einträge im Verlauf der Befunde“ and „alte Fassungen von Beiträgen“ (`AddCounts.findings`,
+  `finding_entries`, `post_versions`, also in `total()`).
+- **(h) Idea map** (Round 25): a connection with an unknown identifier is added if both ideas belong to the work here
+  (also ones just read in); if one is missing, that is only a hint. If the same pair
+  with the same kind already exists here under a different identifier (active or deleted; `widerspricht` in both directions), it does
+  not come twice (hint). A known identifier is never overwritten (another note, another state „gelöscht“:
+  hint). A position only comes if there is none here for (work, idea) – **local wins**; a known
+  position stays as it is here, without a hint (pure display). The preview counts „Verbindungen der Gedankenkarte“
+  and „Lagen auf der Gedankenkarte“ (`AddCounts.links`, `AddCounts.positions`, also in `total()`).
+- **Tombstones:** what has a tombstone here (`uuid_tombstone`) is not created again and stands in the
+  preview under „Hier gelöscht“ – also connections, positions, cover blocks, findings, their history entries and old
+  post revisions (a reset layout thus does not come
+  back through the file of the other side). What the file reports as deleted and lives here stays (hint).
+- **Origin of the requests:** human „Austausch: <Instanz>“, note „Austausch aus Instanz <uuid>, Datei <sha256>“.
 
-**Abgeleitete Kennung.** `derive(original, text)` = die ersten 16 Bytes von
-`SHA-256("baruch-fassung:" ‖ original ‖ ":" ‖ sha256_hex(text))`, darin Version 8 (Byte 6 = `0x8_`) und Variante
-10 (Byte 8 = `0b10xx_xxxx`), kanonisch klein als 8-4-4-4-12 (`baruch_store::exchange_apply::derive_uuid`).
-Beispiel: Original `26000000-0000-4000-8000-00000000006f`, Text `Ein Text` → die Hex-Stellen 1–12, 14–16 und
-18–32 (ohne Striche) sind die des Hashs, Stelle 13 ist `8`, Stelle 17 eine von `8 9 a b`.
+**Derived identifier.** `derive(original, text)` = the first 16 bytes of
+`SHA-256("baruch-fassung:" ‖ original ‖ ":" ‖ sha256_hex(text))`, in it version 8 (byte 6 = `0x8_`) and variant
+10 (byte 8 = `0b10xx_xxxx`), canonical lower case as 8-4-4-4-12 (`baruch_store::exchange_apply::derive_uuid`).
+Example: original `26000000-0000-4000-8000-00000000006f`, text `Ein Text` → the hex digits 1–12, 14–16 and
+18–32 (without dashes) are those of the hash, digit 13 is `8`, digit 17 one of `8 9 a b`.
 
-**Beispiel.** Beide Rechner haben das Werk aus derselben Datei; „Das Rad“ hat dort die Fassungen 1 (aktuell)
-und 2. Auf Rechner B ändert der Mensch den Text der Fassung 1 und zählt „Die Speichen“ ohne Nummer; B gibt aus, A
-liest mit „abgleichen“ ein: A bekommt Fassung 3 (abgelöst, Basis 1, Kennung `derive(<Kennung von Fassung 1>,
-<Text von B>)`, Notiz mit Zusatz), Fassung 1 bleibt aktuell, dazu ein Antrag „„Die Speichen“ ohne Nummer zählen“
-von „Austausch: B“. Ein zweiter Durchgang mit derselben Datei fügt nichts hinzu und stellt keinen Antrag.
-Benennt der Mensch auf B einen Punkt in der Gliederung um, entsteht dort eine neue Fassung mit der neuen
-Überschrift; auf A kommt sie als abgelöste Fassung an, und statt eines Antrags steht ein Hinweis „Umschalten
-genügt“ da (Regel b).
+**Example.** Both computers have the work from the same file; „Das Rad“ has the revisions 1 (current)
+and 2 there. On computer B the human changes the text of revision 1 and counts „Die Speichen“ without a number; B exports, A
+reads in with „abgleichen“: A gets revision 3 (superseded, basis 1, identifier `derive(<Kennung von Fassung 1>,
+<Text von B>)`, note with the addition), revision 1 stays current, plus a request `„Die Speichen“ ohne Nummer zählen`
+from „Austausch: B“. A second pass with the same file adds nothing and files no request.
+If the human on B renames an item in the outline, a new revision with the new heading arises there;
+on A it arrives as a superseded revision, and instead of a request a hint „Umschalten
+genügt“ stands there (rule b).
 
-**Hin und her.** Bearbeitet B eine gemeinsame Fassung X an Ort und Stelle (Text ändern statt neuer Fassung),
-bekommt A beim Abgleich die abgeleitete Fassung D(X, neu), B beim Rückweg D(X, alt) – so hat jede Seite beide
-Texte, nichts geht verloren. Weitere Kopien entstehen nicht: D(X, neu) hat auf B denselben Text wie X und wird
-dort übersprungen, ebenso D(X, alt) auf A. Danach kommt nichts mehr hinzu (Test
-`merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_texts`). Die Zusage „nichts doppelt“ gilt
-damit je Kennung **und** je Text eines Punkts.
+**Back and forth.** If B edits a shared revision X in place (changing the text instead of a new revision),
+A gets the derived revision D(X, new) on synchronisation, B on the way back D(X, old) – so each side has both
+texts, nothing gets lost. No further copies arise: D(X, new) has the same text on B as X and is
+skipped there, likewise D(X, old) on A. After that nothing more is added (test
+`merging_back_and_forth_after_an_in_place_edit_creates_no_duplicate_texts`). The promise "nothing twice" thus holds
+per identifier **and** per text of an item.
 
-**Ältere Datei.** Der Abgleich kennt keine gemeinsame Basis: Jede Abweichung der Gliederung gilt so, als hätte die
-andere Seite geändert. Liest man eine **ältere** Datei ein (etwa die eigene Ausgabe von gestern), entstehen darum
-Anträge, eigene Änderungen an Nummer, Ebene, Ort oder Titel zurückzunehmen (Titel nur, wenn keine Fassung den
-alten Titel trägt). Es sind nur Anträge – nichts ändert sich ohne Bestätigung; im Zweifel ablehnen. Fassungen,
-Einfälle, Beiträge und Bilder sind davon nicht betroffen (sie kommen nur hinzu).
+**Older file.** The synchronisation knows no common basis: every difference of the outline counts as if the
+other side had changed it. If one reads in an **older** file (say one's own export from yesterday), requests therefore arise
+to undo one's own changes to number, level, place or title (title only if no revision carries the
+old title). They are only requests – nothing changes without confirmation; when in doubt, reject. Revisions,
+ideas, posts and images are not affected (they are only added).
 
-Offen (nach Runde 26): Abgleich direkt übers Netz (Nutzerfrage 2); „als Kopie einlesen“ (neue Kennungen) gibt es noch
-nicht. (Erledigt in Runde 22: Ein neuer Teil, der Kapitel übernähme, reist im Antrag mit Kennung und Fassungen.)
+Open (after Round 26): synchronisation directly over the network (user question 2); „als Kopie einlesen“ (new identifiers) does not exist
+yet. (Done in Round 22: a new part that would take over chapters travels in the request with its identifier and revisions.)
 
-## 5 Sicherheit und Grenzen
+## 5 Security and limits
 
-Bei **jedem** Fehler wird nichts geschrieben (keine Zeile, kein Antrag, kein Commit, keine Eingangsdatei). Code:
-`baruch-exchange/src/read/` (Tests `crates/baruch-exchange/tests/read.rs`).
+On **every** error nothing is written (no row, no request, no commit, no incoming file). Code:
+`baruch-exchange/src/read/` (tests `crates/baruch-exchange/tests/read.rs`).
 
 **XML** (`read/dom.rs`):
-- Keine DTD: `<!DOCTYPE …>` → „Unsicheres XML“ (damit greifen weder „Billion Laughs“ noch externe Entitäten;
-  nichts wird aufgelöst oder geladen). Keine Verarbeitungsanweisung außer der XML-Deklaration. Nur die fünf
-  vordefinierten Entitäten (`&lt; &gt; &amp; &apos; &quot;`) und Zeichenreferenzen; jede andere Referenz →
-  „Unsicheres XML“. In XML 1.0 verbotene Zeichen (auch als `&#1;`) → XML-Fehler. Nur UTF-8.
-- Text exakt: nie getrimmt; Zeilenenden wie XML 1.0 (`\r\n`, `\r` → `\n`; ein echtes `\r` steht als `&#13;`).
-  In Attributwerten werden Tab, Zeilenumbruch und Wagenrücklauf zu Leerzeichen, als Zeichenreferenz bleiben sie.
-  `kodierung="base64"` an einem Textelement wird entschlüsselt (UTF-8), `<daten>` ist Base64 (Leerraum erlaubt).
-- Namensraum `urn:baruch:werk:1` ist Pflicht; ein anderer `urn:baruch:…` → „Version … wird nicht unterstützt“,
-  ein fremder oder fehlender → „Keine Austauschdatei“. Eine höhere Unterversion (`version="3"`) wird gelesen;
-  die Vorschau sagt es, und Unbekanntes steht als Pfad in `unknown` (`werk/angaben/farbe`, Attribute als
-  `…/@name`, Text als `…/#text`, fremde Namensräume als `{ns}name`, ein unbekanntes Kind der Karte als
-  `werk/karte/<name>`). Übernommen wird davon nichts. `<karte>` liest der Leser erst ab `version="2"`; in einer
-  Datei mit `version="1"` steht es als `werk/karte` in `unknown`. Ebenso `<satzbild>`, `<verlag-anschrift>`,
-  `<druckerei-anschrift>` und `<umschlag>` erst ab `version="3"` (davor `werk/angaben/satzbild`,
-  `werk/buch/verlag-anschrift` … in `unknown`), `<befunde>`, `geaendert` und `<alte-fassung>` an Beiträgen erst ab
-  `version="4"` (davor `werk/befunde`, `…/beitrag/@geaendert`, `…/beitrag/alte-fassung` in `unknown`).
-- Pflichtelemente und -attribute fehlen → XML-Fehler mit Pfad (z. B. „Pflichtelement fehlt: werk/angaben/titel“).
-- Danach `validate`: kanonische UUIDs, keine Kennung doppelt (auch kein Grabstein für ein vorhandenes Stück),
-  Verweise (Basis im selben Punkt bzw. Bild mit kleinerer Nummer, Bezüge, Umschlag), je Punkt und Bild genau eine
-  aktuelle Fassung, gültige Ebenen, Prüfsumme der Bildbytes; Karte: Verbindungen und Lagen nur zu Einfällen des
-  Dokuments, kein Selbstbezug, kein Paar mit derselben Art doppelt, Notiz höchstens 500 Zeichen ohne Steuerzeichen
-  außer Zeilenumbruch, je Einfall höchstens eine Lage, Koordinaten endlich (sonst XML-Fehler) und höchstens
-  ±1 000 000; Umschlag (ab Unterversion 3): je Art höchstens ein Block, Grenzen wie oben, `richtung` genau auf dem
-  Rücken, `<text>` nur bei eigenem Text, Schriftnamen nach der Regel der Satzbild-Schriften, Anschriften höchstens 500
-  Zeichen; Befunde (ab Unterversion 4): Punkt, Beitrag und Fadenbeitrag aus dem Dokument (nie Beitrag und Fadenbeitrag
-  zugleich), `gleicht` auf einen anderen Befund des Dokuments, Grenzen wie die CHECKs der Migration 0046 (Text nicht
-  leer und höchstens 4000, Zitat 2000, Prüfvermerk 200, Begründung und Notiz 2000, Persona 1–200 Zeichen),
-  „verworfen“ nur mit Begründung, „übernommen“ nur mit Fassung, „verschoben“ mit genau einem Ziel – für den Befund und
-  jeden Verlaufseintrag; ohne Vorschlag setzt nur der Mensch, eine Entscheidung nur zu einem Vorschlag und genau mit
-  `entschieden`; alte Fassungen mit eigener Kennung.
+- No DTD: `<!DOCTYPE …>` → „Unsicheres XML“ (so neither "Billion Laughs" nor external entities take effect;
+  nothing is resolved or loaded). No processing instruction except the XML declaration. Only the five
+  predefined entities (`&lt; &gt; &amp; &apos; &quot;`) and character references; every other reference →
+  „Unsicheres XML“. Characters forbidden in XML 1.0 (also as `&#1;`) → XML error. UTF-8 only.
+- Text exact: never trimmed; line ends as in XML 1.0 (`\r\n`, `\r` → `\n`; a real `\r` stands as `&#13;`).
+  In attribute values tab, line break and carriage return become spaces; as character references they stay.
+  `kodierung="base64"` at a text element is decoded (UTF-8), `<daten>` is Base64 (whitespace allowed).
+- The namespace `urn:baruch:werk:1` is mandatory; another `urn:baruch:…` → „Version … wird nicht unterstützt“,
+  a foreign or missing one → „Keine Austauschdatei“. A higher minor version (`version="3"`) is read;
+  the preview says so, and unknown things stand as a path in `unknown` (`werk/angaben/farbe`, attributes as
+  `…/@name`, text as `…/#text`, foreign namespaces as `{ns}name`, an unknown child of the map as
+  `werk/karte/<name>`). Nothing of it is adopted. The reader reads `<karte>` only from `version="2"` on; in a
+  file with `version="1"` it stands as `werk/karte` in `unknown`. Likewise `<satzbild>`, `<verlag-anschrift>`,
+  `<druckerei-anschrift>` and `<umschlag>` only from `version="3"` on (before that `werk/angaben/satzbild`,
+  `werk/buch/verlag-anschrift` … in `unknown`), `<befunde>`, `geaendert` and `<alte-fassung>` at posts only from
+  `version="4"` on (before that `werk/befunde`, `…/beitrag/@geaendert`, `…/beitrag/alte-fassung` in `unknown`).
+- Mandatory elements and attributes missing → XML error with a path (e.g. „Pflichtelement fehlt: werk/angaben/titel“).
+- Afterwards `validate`: canonical UUIDs, no identifier twice (also no tombstone for an existing piece),
+  references (basis in the same item or image with a smaller number, references, cover), per item and image exactly one
+  current revision, valid levels, checksum of the image bytes; map: connections and positions only to ideas of the
+  document, no self-reference, no pair with the same kind twice, note at most 500 characters without control characters
+  except line break, per idea at most one position, coordinates finite (otherwise XML error) and at most
+  ±1 000 000; cover (from minor version 3 on): at most one block per kind, limits as above, `richtung` exactly on the
+  spine, `<text>` only with own text, font names by the rule of the typeset view fonts, addresses at most 500
+  characters; findings (from minor version 4 on): item, post and thread post from the document (never post and thread post
+  at once), `gleicht` to another finding of the document, limits like the CHECKs of migration 0046 (text not
+  empty and at most 4000, quotation 2000, check note 200, reasoning and note 2000, persona 1–200 characters),
+  „verworfen“ only with a reasoning, „übernommen“ only with a revision, „verschoben“ with exactly one target – for the finding and
+  every history entry; without a proposal only the human sets, a decision only on a proposal and exactly with
+  `entschieden`; old revisions with their own identifier.
 
 **ZIP** (`read/archive.rs`):
-- Erster Eintrag `mimetype` am Dateianfang, unkomprimiert, genau `application/vnd.baruch.werk+zip`.
-- Namen nur `mimetype`, `werk.xml`, `MANIFEST.xml`, `bilder/<uuid>.<png|jpg|gif|webp|svg>`; abgelehnt werden
-  absolute Pfade, `..`, Backslash, Laufwerk, Steuerzeichen, Doppel (das Zentralverzeichnis wird selbst gezählt),
-  Verknüpfungen, Ordner, verschlüsselte Einträge und jede Kompression außer STORED und DEFLATE.
-- Entpackt wird mit `take(Grenze + 1)`; den Größen im Kopf wird nicht getraut (ZIP-Bombe, gelogene Kopfgröße).
-  Grenzen je Eintrag, für `werk.xml` und in Summe.
-- Jeder Eintrag außer `mimetype` und dem Manifest steht im Manifest und umgekehrt; SHA-256 und Bytezahl müssen
-  stimmen („Prüfsumme stimmt nicht: <Eintrag>“). Jede Bildfassung mit `datei` nennt genau ihren Eintrag
-  `bilder/<fassungs-uuid>.<ext>`; ein Bild im Archiv ohne Fassung wird abgelehnt.
+- First entry `mimetype` at the start of the file, uncompressed, exactly `application/vnd.baruch.werk+zip`.
+- Names only `mimetype`, `werk.xml`, `MANIFEST.xml`, `bilder/<uuid>.<png|jpg|gif|webp|svg>`; rejected are
+  absolute paths, `..`, backslash, drive, control characters, duplicates (the central directory is counted itself),
+  links, folders, encrypted entries and every compression other than STORED and DEFLATE.
+- Unpacking uses `take(Grenze + 1)`; the sizes in the header are not trusted (ZIP bomb, lying header size).
+  Limits per entry, for `werk.xml` and in total.
+- Every entry except `mimetype` and the manifest stands in the manifest and vice versa; SHA-256 and byte count must
+  match („Prüfsumme stimmt nicht: <Eintrag>“). Every image revision with `datei` names exactly its entry
+  `bilder/<fassungs-uuid>.<ext>`; an image in the archive without a revision is rejected.
 
-**Grenzen** (`baruch_exchange::Limits::DEFAULT`):
+**Limits** (`baruch_exchange::Limits::DEFAULT`):
 
-| Grenze | Vorgabe |
+| Limit | Default |
 |---|---|
-| ganze Datei | 128 MiB |
-| entpackt in Summe | 256 MiB |
-| ein Eintrag entpackt | 64 MiB |
-| Einträge im ZIP | 4096 |
-| `werk.xml` bzw. `.baruch.xml` | 64 MiB |
-| Tiefe der Elemente | 32 |
-| Elemente | 500 000 |
-| Attribute je Element | 32 |
-| Bytes je Text bzw. Attributwert | 16 MiB |
+| whole file | 128 MiB |
+| unpacked in total | 256 MiB |
+| one entry unpacked | 64 MiB |
+| entries in the ZIP | 4096 |
+| `werk.xml` or `.baruch.xml` | 64 MiB |
+| depth of the elements | 32 |
+| elements | 500 000 |
+| attributes per element | 32 |
+| bytes per text or attribute value | 16 MiB |
 
-Wege: Formular bis 128 MiB + 1 MiB (`UPLOAD_LIMIT`, darüber 413), RPC bis `works::RPC_BODY_LIMIT` (32 MiB +
-64 KiB als Base64, also etwa 24 MiB Datei), Kommandozeile bis 128 MiB. Die Eingangsdatei zwischen Vorschau und
-Übernehmen liegt unter `<data>/austausch-eingang/<sha256>` (nur Namen aus 64 Hex-Zeichen), wird nach dem
-Übernehmen – auch nach einer Ablehnung – gelöscht und nach 24 Stunden weggeräumt.
+Paths: form up to 128 MiB + 1 MiB (`UPLOAD_LIMIT`, above it 413), RPC up to `works::RPC_BODY_LIMIT` (32 MiB +
+64 KiB as Base64, so about a 24 MiB file), command line up to 128 MiB. The incoming file between preview and
+„Übernehmen“ lies under `<data>/austausch-eingang/<sha256>` (only names of 64 hex characters), is deleted after
+accepting – also after a rejection – and cleared away after 24 hours.
 
-## 6 Unterversionen und Erweiterung
+## 6 Minor versions and extension
 
-- **Unterversion statt neuer Namensraum:** Verträgliche Erweiterungen (neue optionale Elemente oder Attribute)
-  zählen `version` hoch, der Namensraum `urn:baruch:werk:1` bleibt. Nur eine unverträgliche Änderung bekäme einen
-  neuen Namensraum (`urn:baruch:werk:2`), den ein heutiger Leser ablehnt.
-- **Unterversion 2 (Runde 25, Gedankenkarte)** füllt das in Unterversion 1 vorgesehene `<karte>` am Ende von
-  `<werk>` mit Verbindungen **zwischen Einfällen** und den Lagen von Einfällen (§2). Berichtigung gegenüber der
-  Ankündigung aus Runde 26: Verbindungen zu Punkten oder Beiträgen gibt es nicht; ein Einfall hängt über `bezug`
-  an seinem Punkt. Dazu die Grabsteinarten `verbindung` und `lage`. Schema: `docs/schema/baruch-werk-1-u2.xsd`
-  (`<karte>` festgelegt statt lax, `GrabsteinArt` erweitert); `docs/schema/baruch-werk-1.xsd` bleibt für
-  Unterversion 1 unverändert. Eine Ausgabe mit Karte besteht wegen der neuen Grabsteinarten nicht immer das
-  eingefrorene v1-Schema, wohl aber das u2-Schema.
-- **Unterversion 3 (Runde 27, Umschlag-Editor und Impressum)** bringt in `<buch>` nach `<vita>` die Anschriften
-  `<verlag-anschrift>` und `<druckerei-anschrift>` (Pflichtangaben im Impressum) und `<umschlag>` mit den Blöcken der
-  Umschlag-Anordnung (§2), in `<angaben>` nach `<sprechdauer>` `<satzbild/>` mit den Satzbild-Einstellungen (Punkt
-  aus „Nach Runde 18 offen“) und die Grabsteinart `umschlag-block`. Alles sind neue optionale Elemente am Ende ihrer
-  Folge. Schema: `docs/schema/baruch-werk-1-u3.xsd`; `baruch-werk-1-u2.xsd` und `baruch-werk-1.xsd` bleiben
-  unverändert. Eine Ausgabe der Unterversion 3 besteht die älteren Schemata nicht (neue Elemente), eine Datei der
-  Unterversion 1 oder 2 besteht das u3-Schema.
-- **Unterversion 4 (Runde 28, Befunde)** bringt `<befunde>` am Ende von `<werk>` (Befunde mit Statusverlauf), an
-  `<beitrag>` (Abschnitt und Faden) `geaendert` und `<alte-fassung>*` am Ende und die Grabsteinarten `befund`,
-  `befund-status`, `beitrag-fassung`. Alles sind neue optionale Elemente bzw. Attribute am Ende ihrer Folge. Schema:
-  `docs/schema/baruch-werk-1-u4.xsd`; die Schemata der Unterversionen 1 bis 3 bleiben unverändert. Eine Ausgabe mit
-  Befunden oder bearbeiteten Beiträgen besteht die älteren Schemata nicht, eine Datei der Unterversionen 1 bis 3
-  besteht das u4-Schema.
-- **Unterversion 5 (Runde 30, Lösungen, Varianten, Chat)** bringt (keine neue Grabsteinart):
-  - an `<befund>` nach dem Statusverlauf `<loesung zitat="…" ersatz="…" schritt="…"/>*` (je Attribut optional; eine
-    Lösung braucht Zitat mit Ersatz oder einen Schritt, prüft der Leser);
-  - an `<fassung>` einer Variante `variante-gruppe` (UUID), `variante` (A, B, C) und `variante-zeile` (höchstens 300
-    Zeichen) und nach `<text>` je umgesetztem Befund `<setzt-um befund="uuid"/>` (nur Befunde des Dokuments; gelöschte
-    fallen beim Schreiben weg);
-  - an `<punkt>` `schluessel` – der feste Schlüssel des Punkts in der ausgebenden Instanz. Er ist nötig, weil
-    Querverweise im Text `#link(<kN>)` auf diesen Schlüssel zeigen (Runde 30a); beim Einlesen setzt Baruch sie über
-    `baruch_typst::xref::remap_keys` auf die hiesigen Schlüssel um (Zuordnung `schluessel` → Kennung → Schlüssel hier,
-    nur in Fassungen, die das Einlesen anlegt). Annahme gegenüber dem Vertrag R30 §4.3, der `schluessel` nicht nennt:
-    ohne ihn ließe sich §3.3 „Austausch u5 bildet die Schlüssel um“ nicht erfüllen. Folge: zwei Ausgaben desselben
-    Werks aus zwei Instanzen unterscheiden sich außer in `<ausgabe>` auch in `schluessel`;
-  - an `<beitrag>` (Abschnitt und Faden) `grundlage-fassung` (UUID der geprüften Fassung desselben Punkts; im Faden
-    nie), `grundlage` (Kopfzeile „geprüft: …“, höchstens 300 Zeichen), `antwort-auf` und `wiederholt` (UUIDs eines
-    anderen Beitrags derselben Stelle; ein Ziel an anderer Stelle, etwa nach dem Verschieben, fällt beim Schreiben
-    weg) und `relay-von` (Persona, 1 bis 200 Zeichen).
-  Lokal bleiben der Auftrag eines Beitrags (`request`) und das Protokoll `replace_batch`. Beim Einlesen setzt ein
-  Nachlauf diese Teile nur auf den Zeilen, die das Einlesen selbst angelegt hat (`exchange_apply::apply_u5`):
-  bekannte Fassungen, Beiträge und Befunde bleiben beim Abgleichen unverändert, auch wenn die Datei andere Werte
-  trägt; eine abweichende Fassung, die eine abgeleitete Kennung bekommt, bleibt ohne Variante. Schema:
-  `docs/schema/baruch-werk-1-u5.xsd`; die Schemata der Unterversionen 1 bis 4 bleiben unverändert (SHA-256 im Test).
-- **Dieser Leser** (Unterversion 5) liest die Teile der Unterversion 5 erst ab 5 (in 1 bis 4 als
+- **Minor version instead of a new namespace:** compatible extensions (new optional elements or attributes)
+  count `version` up, the namespace `urn:baruch:werk:1` stays. Only an incompatible change would get a
+  new namespace (`urn:baruch:werk:2`), which a reader of today rejects.
+- **Minor version 2 (Round 25, idea map)** fills the `<karte>` foreseen in minor version 1 at the end of
+  `<werk>` with connections **between ideas** and the positions of ideas (§2). Correction compared with the
+  announcement from Round 26: connections to items or posts do not exist; an idea hangs on its item through `bezug`.
+  Plus the tombstone kinds `verbindung` and `lage`. Schema: `docs/schema/baruch-werk-1-u2.xsd`
+  (`<karte>` fixed instead of lax, `GrabsteinArt` extended); `docs/schema/baruch-werk-1.xsd` stays unchanged for
+  minor version 1. Because of the new tombstone kinds an output with a map does not always pass the
+  frozen v1 schema, but it does pass the u2 schema.
+- **Minor version 3 (Round 27, cover editor and imprint)** brings into `<buch>` after `<vita>` the addresses
+  `<verlag-anschrift>` and `<druckerei-anschrift>` (mandatory statements in the imprint) and `<umschlag>` with the blocks of the
+  cover layout (§2), into `<angaben>` after `<sprechdauer>` `<satzbild/>` with the typeset view settings (item
+  from „Nach Runde 18 offen“) and the tombstone kind `umschlag-block`. All of these are new optional elements at the end of their
+  sequence. Schema: `docs/schema/baruch-werk-1-u3.xsd`; `baruch-werk-1-u2.xsd` and `baruch-werk-1.xsd` stay
+  unchanged. An output of minor version 3 does not pass the older schemas (new elements), a file of
+  minor version 1 or 2 passes the u3 schema.
+- **Minor version 4 (Round 28, findings)** brings `<befunde>` at the end of `<werk>` (findings with status history), at
+  `<beitrag>` (section and thread) `geaendert` and `<alte-fassung>*` at the end, and the tombstone kinds `befund`,
+  `befund-status`, `beitrag-fassung`. All of these are new optional elements or attributes at the end of their sequence. Schema:
+  `docs/schema/baruch-werk-1-u4.xsd`; the schemas of minor versions 1 to 3 stay unchanged. An output with
+  findings or edited posts does not pass the older schemas, a file of minor versions 1 to 3
+  passes the u4 schema.
+- **Minor version 5 (Round 30, solutions, variants, chat)** brings (no new tombstone kind):
+  - at `<befund>` after the status history `<loesung zitat="…" ersatz="…" schritt="…"/>*` (each attribute optional; a
+    solution needs a quotation with a replacement or a step, which the reader checks);
+  - at `<fassung>` of a variant `variante-gruppe` (UUID), `variante` (A, B, C) and `variante-zeile` (at most 300
+    characters) and after `<text>` per implemented finding `<setzt-um befund="uuid"/>` (only findings of the document; deleted ones
+    are dropped on writing);
+  - at `<punkt>` `schluessel` – the fixed key of the item in the exporting instance. It is needed because
+    cross-references in the text `#link(<kN>)` point to this key (Round 30a); on reading in, Baruch rewrites them through
+    `baruch_typst::xref::remap_keys` to the keys here (mapping `schluessel` → identifier → key here,
+    only in revisions that the reading in creates). Assumption compared with the contract R30 §4.3, which does not name `schluessel`:
+    without it §3.3 „Austausch u5 bildet die Schlüssel um“ could not be fulfilled. Consequence: two outputs of the same
+    work from two instances differ, besides in `<ausgabe>`, also in `schluessel`;
+  - at `<beitrag>` (section and thread) `grundlage-fassung` (UUID of the reviewed revision of the same item; in the thread
+    never), `grundlage` (header line „geprüft: …“, at most 300 characters), `antwort-auf` and `wiederholt` (UUIDs of
+    another post at the same place; a target at another place, say after moving, is dropped on writing)
+    and `relay-von` (persona, 1 to 200 characters).
+  The job of a post (`request`) and the log `replace_batch` stay local. On reading in, a
+  post-pass sets these parts only on the rows that the reading in itself created (`exchange_apply::apply_u5`):
+  known revisions, posts and findings stay unchanged when synchronising, even if the file carries other values;
+  a differing revision that gets a derived identifier stays without a variant. Schema:
+  `docs/schema/baruch-werk-1-u5.xsd`; the schemas of minor versions 1 to 4 stay unchanged (SHA-256 in the test).
+- **This reader** (minor version 5) reads the parts of minor version 5 only from 5 on (in 1 to 4 they are reported as
   `werk/befunde/befund/loesung`, `…/punkt/@schluessel`, `…/fassung/@variante…`, `…/fassung/setzt-um`,
-  `…/beitrag/@grundlage…`, `@antwort-auf`, `@wiederholt`, `@relay-von` gemeldet und nicht übernommen; Test
-  `files_of_version_four_leave_the_u5_parts_unknown_and_still_read`); eine Ausgabe der Unterversion 4 liest er ohne
-  Hinweis. Ein Leser der Unterversion 4 (Runde 28) liest eine Datei der Unterversion 5 wie eine höhere Unterversion:
-  Lösungen, Varianten, Schlüssel und Beitrags-Metadaten gehen dabei verloren, sonst nichts.
-- **Der Leser der Unterversion 4** las `version="1"` bis `"3"` wie bisher und die Teile der Unterversion 4 erst ab
-  4 (in 1 bis 3 als `werk/befunde`, `…/beitrag/@geaendert`, `…/beitrag/alte-fassung` gemeldet und nicht übernommen;
-  die Grabsteine `befund`, `befund-status`, `beitrag-fassung` sind dort ein Fehler; Test
-  `files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones`). Für die älteren Teile gilt: `<karte>` erst ab 2 (in 1 als
-  `werk/karte` gemeldet), die Teile der Unterversion 3 erst ab 3 (in 1 und 2 als `werk/angaben/satzbild`,
-  `werk/buch/verlag-anschrift`, `werk/buch/druckerei-anschrift`, `werk/buch/umschlag` gemeldet und nicht übernommen);
-  ein Grabstein einer Art, die die Unterversion der Datei noch nicht kennt (`verbindung`/`lage` in 1,
-  `umschlag-block` in 1 oder 2), ist ein Fehler. Eine Ausgabe der Unterversion 2 ohne die neuen Teile liest er ohne
-  Hinweis (Test `files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone`). Eine noch höhere
-  Unterversion (`version="5"`) liest er wie 4, meldet Unbekanntes (z. B. `werk/karte/kante`) als Hinweis und
-  übernimmt davon nichts (§4).
-- **Neue Aufzählungswerte** sind keine verträgliche Erweiterung – mit einer Ausnahme: eine neue Art von
-  Grabstein (`<eintrag art="…">`). Dieser Leser meldet eine ihm unbekannte Art bei `version` > 4 als unbekannt
-  (`werk/geloescht/eintrag/@art=„wolke“`) und überspringt nur diesen Grabstein; in `version="1"` bis `"4"`
-  bleibt ein unbekannter Wert ein Fehler (Test
-  `an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_version_one`). Jeder andere neue
-  Wert (z. B. eine weitere Art von Verbindung) braucht ein neues Element oder Attribut, das ein älterer Leser als
-  unbekannt meldet, statt einen vorhandenen Wert zu erweitern.
-- **Ein Leser der Unterversion 1** (Runde 26) liest eine Datei der Unterversion 2: Er meldet `werk/karte` als
-  unbekannt und überspringt die Grabsteine `verbindung` und `lage` (§6 dort); Werk, Fassungen, Einfälle und Bilder
-  übernimmt er wie bisher. Die Karte geht dabei verloren, sonst nichts.
-- **Ein Leser der Unterversion 2** (Runde 25/26) liest eine Datei der Unterversion 3 wie eine höhere Unterversion: Er
-  meldet `werk/angaben/satzbild`, `werk/buch/verlag-anschrift`, `werk/buch/druckerei-anschrift` und
-  `werk/buch/umschlag` als unbekannt und überspringt die Grabsteine `umschlag-block`; alles andere übernimmt er wie
-  bisher. Umschlag-Anordnung, Anschriften und Satzbild gehen dabei verloren, sonst nichts.
-- **Ein Leser der Unterversion 3** (Runde 27) liest eine Datei der Unterversion 4 wie eine höhere Unterversion: Er
-  meldet `werk/befunde`, `…/beitrag/@geaendert` und `…/beitrag/alte-fassung` als unbekannt und überspringt die
-  Grabsteine `befund`, `befund-status`, `beitrag-fassung`; Befunde und alte Beitragsfassungen gehen dabei verloren,
-  sonst nichts (der Text eines bearbeiteten Beitrags ist der jetzige).
-- **Der Schreiber** schreibt immer die eigene Unterversion (heute `version="6"`, auch im Manifest; bis Runde 30 `5`) – auch für ein
-  Dokument, das aus einer höheren Unterversion gelesen wurde; was er nicht kennt, steht nicht im Modell und wird
-  nicht mitgeschrieben.
-- Neue Elemente kommen ans Ende ihrer Folge oder als optionale Elemente, damit ältere Leser die Reihenfolge der
-  bekannten Kinder behalten.
+  `…/beitrag/@grundlage…`, `@antwort-auf`, `@wiederholt`, `@relay-von` and not adopted; test
+  `files_of_version_four_leave_the_u5_parts_unknown_and_still_read`); it reads an output of minor version 4 without a
+  hint. A reader of minor version 4 (Round 28) reads a file of minor version 5 like a higher minor version:
+  solutions, variants, keys and post metadata are lost in the process, nothing else.
+- **The reader of minor version 4** read `version="1"` to `"3"` as before and the parts of minor version 4 only from
+  4 on (in 1 to 3 reported as `werk/befunde`, `…/beitrag/@geaendert`, `…/beitrag/alte-fassung` and not adopted;
+  the tombstones `befund`, `befund-status`, `beitrag-fassung` are an error there; test
+  `files_of_version_three_leave_findings_unknown_and_refuse_their_tombstones`). For the older parts: `<karte>` only from 2 on (in 1 reported as
+  `werk/karte`), the parts of minor version 3 only from 3 on (in 1 and 2 reported as `werk/angaben/satzbild`,
+  `werk/buch/verlag-anschrift`, `werk/buch/druckerei-anschrift`, `werk/buch/umschlag` and not adopted);
+  a tombstone of a kind that the minor version of the file does not know yet (`verbindung`/`lage` in 1,
+  `umschlag-block` in 1 or 2) is an error. It reads an output of minor version 2 without the new parts without a
+  hint (test `files_of_version_two_leave_the_new_parts_unknown_and_refuse_the_new_tombstone`). An even higher
+  minor version (`version="5"`) it reads like 4, reports unknown things (e.g. `werk/karte/kante`) as a hint and
+  adopts nothing of them (§4).
+- **New enumeration values** are no compatible extension – with one exception: a new kind of
+  tombstone (`<eintrag art="…">`). This reader reports a kind unknown to it with `version` > 4 as unknown
+  (`werk/geloescht/eintrag/@art=„wolke“`) and skips only this tombstone; in `version="1"` to `"4"`
+  an unknown value stays an error (test
+  `an_unknown_tombstone_kind_is_skipped_in_a_newer_minor_version_but_refused_in_version_one`). Every other new
+  value (e.g. another kind of connection) needs a new element or attribute that an older reader reports as
+  unknown, instead of extending an existing value.
+- **A reader of minor version 1** (Round 26) reads a file of minor version 2: it reports `werk/karte` as
+  unknown and skips the tombstones `verbindung` and `lage` (§6 there); it adopts work, revisions, ideas and images
+  as before. The map is lost in the process, nothing else.
+- **A reader of minor version 2** (Round 25/26) reads a file of minor version 3 like a higher minor version: it
+  reports `werk/angaben/satzbild`, `werk/buch/verlag-anschrift`, `werk/buch/druckerei-anschrift` and
+  `werk/buch/umschlag` as unknown and skips the tombstones `umschlag-block`; everything else it adopts as
+  before. Cover layout, addresses and typeset view are lost in the process, nothing else.
+- **A reader of minor version 3** (Round 27) reads a file of minor version 4 like a higher minor version: it
+  reports `werk/befunde`, `…/beitrag/@geaendert` and `…/beitrag/alte-fassung` as unknown and skips the
+  tombstones `befund`, `befund-status`, `beitrag-fassung`; findings and old post revisions are lost in the process,
+  nothing else (the text of an edited post is the present one).
+- **The writer** always writes its own minor version (today `version="6"`, also in the manifest; until Round 30 `5`) – also for a
+  document that was read from a higher minor version; what it does not know is not in the model and is
+  not written along.
+- New elements come at the end of their sequence or as optional elements, so that older readers keep the order of the
+  known children.
 
-## Satz-Einstellungen (Unterversion 6, Runde 29a)
+## Typesetting settings (minor version 6, Round 29a)
 
-Besitz: satz-daten. Seit Runde 29 reisen die Satz-Einstellungen eines Werks mit (Tabelle `work_typeset`, Migration
-0048; Datenmodell `baruch_typst::typeset::TypesetSettings`). Unterversion **6**: Der Schreiber schreibt `version="6"`
-(auch im Manifest; das ersetzt „heute `version="5"`“ in §6), XSD `docs/schema/baruch-werk-1-u6.xsd`. Die Schemata
-der Unterversionen 1 bis 5 bleiben byte-unverändert (SHA-256 im Test `the_frozen_v1_and_u2_schemas_are_byte_unchanged`);
-eine Datei der Unterversion 5 besteht u6 und u5, eine Ausgabe mit `<satz>` besteht u5 nicht.
+Owner: satz-daten. Since Round 29 the typesetting settings of a work travel along (table `work_typeset`, migration
+0048; data model `baruch_typst::typeset::TypesetSettings`). Minor version **6**: the writer writes `version="6"`
+(also in the manifest; this replaces "today `version="5"`" in §6), XSD `docs/schema/baruch-werk-1-u6.xsd`. The schemas
+of minor versions 1 to 5 stay byte-unchanged (SHA-256 in the test `the_frozen_v1_and_u2_schemas_are_byte_unchanged`);
+a file of minor version 5 passes u6 and u5, an output with `<satz>` does not pass u5.
 
-**Element.** In `<angaben>` als letztes Kind hinter `<satzbild/>`, nur wenn das Werk Satz-Einstellungen hat:
+**Element.** In `<angaben>` as the last child behind `<satzbild/>`, only if the work has typesetting settings:
 
 ```xml
 <satz uuid="…" geaendert="2026-11-09T10:00:00.000Z" geaendert-von="Autor"
@@ -856,21 +856,21 @@ eine Datei der Unterversion 5 besteht u6 und u5, eine Ausgabe mit `<satz>` beste
       schusterjungen-hurenkinder="true" verweis-seitenzahl="true"/>
 ```
 
-Pflicht sind `uuid` (Kennung der Zeile; bleibt bei jeder Änderung gleich), `geaendert` (Zeitpunkt der letzten
-Änderung, wie gespeichert) und `geaendert-von` (Name des Menschen, darf leer sein). Jedes Feld ist ein optionales
-Attribut; **fehlt es, gilt die Werkvorlage** (wie `None` im Modell). Vokabular (Wörter aus
-`baruch_exchange::typeset`, im XSD als Aufzählungen):
+Mandatory are `uuid` (identifier of the row; stays the same with every change), `geaendert` (time of the last
+change, as stored) and `geaendert-von` (name of the human, may be empty). Every field is an optional
+attribute; **if it is missing, the work template holds** (like `None` in the model). Vocabulary (words from
+`baruch_exchange::typeset`, enumerations in the XSD):
 
-| Feld (JSON) | Attribut(e) | Werte |
+| Field (JSON) | Attribute(s) | Values |
 | --- | --- | --- |
 | `chapter_start` | `kapitelanfang` | `fortlaufend`, `neue-seite`, `rechte-seite` |
 | `part_page` | `teil-seite` + `teil-rueckseite-leer` | `rechts`, `beliebig` + `true`/`false` |
-| `page_format` | `seitenformat` (+ `seite-breite-mm`, `seite-hoehe-mm` nur bei `eigenes`) | `a5`, `120x190`, `135x215`, `a4`, `eigenes` |
-| `margins` | `rand-innen-mm`, `rand-aussen-mm`, `rand-oben-mm`, `rand-unten-mm`, `bundsteg-mm` | Zahlen (mm) |
-| `font` | `grundschrift` | Familienname |
-| `font_size_pt` | `schriftgroesse-pt` | Zahl (pt) |
-| `leading_em` | `zeilenabstand-em` | Zahl (em) |
-| `paragraph` | `absatz` + `absatz-em` | `einzug`, `abstand` + Zahl (em) |
+| `page_format` | `seitenformat` (+ `seite-breite-mm`, `seite-hoehe-mm` only with `eigenes`) | `a5`, `120x190`, `135x215`, `a4`, `eigenes` |
+| `margins` | `rand-innen-mm`, `rand-aussen-mm`, `rand-oben-mm`, `rand-unten-mm`, `bundsteg-mm` | numbers (mm) |
+| `font` | `grundschrift` | family name |
+| `font_size_pt` | `schriftgroesse-pt` | number (pt) |
+| `leading_em` | `zeilenabstand-em` | number (em) |
+| `paragraph` | `absatz` + `absatz-em` | `einzug`, `abstand` + number (em) |
 | `justify` | `blocksatz` | `true`/`false` |
 | `hyphenate` | `silbentrennung` | `true`/`false` |
 | `lang` | `sprache` | `de`, `en`, `de-CH` … (`[a-z]{2,3}(-[A-Z]{2})?`) |
@@ -880,49 +880,49 @@ Attribut; **fehlt es, gilt die Werkvorlage** (wie `None` im Modell). Vokabular (
 | `widows_orphans` | `schusterjungen-hurenkinder` | `true`/`false` |
 | `xref_with_page` | `verweis-seitenzahl` | `true`/`false` |
 
-Zahlen stehen in der kürzesten genauen Form (`f64::to_string`: `20`, `10.5`). Zusammengesetzte Felder stehen ganz
-oder gar nicht da; eine halbe Angabe (etwa vier der fünf Ränder, `teil-seite` ohne `teil-rueckseite-leer`, Maße ohne
-`seitenformat="eigenes"`) und ein fremdes Wort lehnt der Leser mit dem Pfad ab (`werk/angaben/satz/@bundsteg-mm: …`,
-`ExchangeError::Xml`), damit kein Feld still verloren geht. Die Grenzen (Ränder 5–80 mm, Schriftgröße 6–24 pt …)
-prüft nicht der Leser, sondern das Einlesen mit `TypesetSettings::validate` (nach `normalized`).
+Numbers stand in the shortest exact form (`f64::to_string`: `20`, `10.5`). Composite fields stand there entirely
+or not at all; the reader rejects half a statement (say four of the five margins, `teil-seite` without `teil-rueckseite-leer`, dimensions without
+`seitenformat="eigenes"`) and a foreign word with the path (`werk/angaben/satz/@bundsteg-mm: …`,
+`ExchangeError::Xml`), so that no field gets lost silently. The limits (margins 5–80 mm, font size 6–24 pt …)
+are not checked by the reader but by the reading in with `TypesetSettings::validate` (after `normalized`).
 
-**Grabstein.** Zurückgesetzte Satz-Einstellungen hinterlassen einen Grabstein `<eintrag art="satz">` (Datenbank
-`uuid_tombstone.kind = 'work_typeset'`, mit der Werk-uuid, auch beim Löschen des Werks über den Kaskaden-Trigger).
-Die Art gibt es erst ab Unterversion 6: in einer Datei mit `version="1"` bis `"5"` ist sie ein Fehler (wie
-`umschlag-block` vor 3). Ein Leser der Unterversion 6 meldet `<satz>` in einer Datei der Unterversionen 1 bis 5 als
-`werk/angaben/satz` und übernimmt es nicht; ein Leser der Unterversion 5 (Runde 30) liest eine Datei der
-Unterversion 6 wie eine höhere Unterversion: er meldet `werk/angaben/satz`, überspringt den Grabstein `satz`, und nur
-die Satz-Einstellungen gehen dabei verloren.
+**Tombstone.** Reset typesetting settings leave a tombstone `<eintrag art="satz">` (database
+`uuid_tombstone.kind = 'work_typeset'`, with the work uuid, also when the work is deleted, through the cascade trigger).
+The kind exists only from minor version 6 on: in a file with `version="1"` to `"5"` it is an error (like
+`umschlag-block` before 3). A reader of minor version 6 reports `<satz>` in a file of minor versions 1 to 5 as
+`werk/angaben/satz` and does not adopt it; a reader of minor version 5 (Round 30) reads a file of
+minor version 6 like a higher minor version: it reports `werk/angaben/satz`, skips the tombstone `satz`, and only
+the typesetting settings are lost in the process.
 
-**Einlesen (Regel „ohne stillen Verlust“).**
+**Reading in (rule „ohne stillen Verlust“).**
 
-- *Neu:* Die Satz-Einstellungen entstehen mit Kennung, `geaendert` und `geaendert-von` aus der Datei; die Grabsteine
-  `satz` kommen wie alle anderen in die Grabsteinliste. Im Bericht zählen sie als `added.typeset` (Stück `satz`).
-- *Abgleichen:* Fehlen hier Satz-Einstellungen und gibt es für ihre Kennung hier keinen Grabstein, kommen sie aus der
-  Datei (Setzen erreicht so die andere Instanz). Sonst wird **nie überschrieben**: Weichen sie ab (gleiche oder
-  andere Kennung), nennt ein Hinweis (`kind: "satz"`, Aktion „Hinweis“) die abweichenden Felder mit ihren
-  Bezeichnungen und trägt beide Stände vollständig als JSON (`here`, `there`) – die Werte der Datei gehen also nicht
-  still verloren, der Mensch übernimmt sie bei Bedarf in Einstellungen → Werk → Satz. Ist ihre Kennung hier
-  zurückgesetzt (Grabstein), stehen sie unter „hier gelöscht“ und kommen nicht wieder. Ein Grabstein `satz` der Datei
-  lässt die Einstellungen hier stehen (Hinweis „In … gelöscht, hier vorhanden – bleibt“, wie bei allen Grabsteinen).
-- Ungültige Werte (`TypesetSettings::validate`) werden nicht übernommen und stehen unter „Nicht übernommen“
-  (`refusals`, „Satz-Einstellungen: Schriftgröße: 6 bis 24 pt – nicht übernommen“); das übrige Werk kommt trotzdem.
-- Belegt in `crates/baruch-store/tests/typeset.rs` (`exchange_carries_the_settings_and_merging_never_overwrites_silently`)
-  und `crates/baruch-server/tests/round29_daten.rs` (`two_instances_exchange_set_change_and_reset_without_silent_loss`:
-  Setzen, Ändern, Zurücksetzen über zwei bzw. drei Instanzen).
+- *New:* the typesetting settings come into being with identifier, `geaendert` and `geaendert-von` from the file; the tombstones
+  `satz` go into the tombstone list like all others. In the report they count as `added.typeset` (piece `satz`).
+- *Synchronising:* if typesetting settings are missing here and there is no tombstone here for their identifier, they come from the
+  file (setting them thus reaches the other instance). Otherwise **never overwritten**: if they differ (same or
+  different identifier), a hint (`kind: "satz"`, action „Hinweis“) names the differing fields with their
+  labels and carries both states completely as JSON (`here`, `there`) – so the values of the file are not
+  silently lost; the human adopts them if needed in „Einstellungen → Werk → Satz“. If their identifier was
+  reset here (tombstone), they stand under „hier gelöscht“ and do not come back. A tombstone `satz` of the file
+  leaves the settings here standing (hint „In … gelöscht, hier vorhanden – bleibt“, as with all tombstones).
+- Invalid values (`TypesetSettings::validate`) are not adopted and stand under „Nicht übernommen“
+  (`refusals`, „Satz-Einstellungen: Schriftgröße: 6 bis 24 pt – nicht übernommen“); the rest of the work comes nevertheless.
+- Proven in `crates/baruch-store/tests/typeset.rs` (`exchange_carries_the_settings_and_merging_never_overwrites_silently`)
+  and `crates/baruch-server/tests/round29_daten.rs` (`two_instances_exchange_set_change_and_reset_without_silent_loss`:
+  setting, changing, resetting across two or three instances).
 
-Der Regelblock „// Baruch: Satz“ im Export (`snapshot::head`) ist kein Teil des Austauschformats: Die Datei trägt die
-Einstellungen, nicht die erzeugten Typst-Regeln; die Werkvorlage in `<vorlage>` bleibt ohne Block.
+The rule block „// Baruch: Satz“ in the export (`snapshot::head`) is not part of the exchange format: the file carries the
+settings, not the generated Typst rules; the work template in `<vorlage>` stays without the block.
 
-## Glossar und eigene Register (Unterversion 7, Runde 31a)
+## Glossary and own indexes (minor version 7, Round 31a)
 
-Besitz: glossar-daten. Seit Runde 31 reisen das Glossar (Tabellen `glossary_term`, `glossary_variant`, Migration 0049)
-und die eigenen Register (`index_register`) mit, dazu die Register/Glossar-Felder der Satz-Einstellungen. Unterversion
-**7**: Der Schreiber schreibt `version="7"` (auch im Manifest; das ersetzt „heute `version="6"`“ oben), XSD
-`docs/schema/baruch-werk-1-u7.xsd`. Die Schemata der Unterversionen 1 bis 6 bleiben byte-unverändert (SHA-256 im Test,
-u6 neu dazu); eine Datei der Unterversion 6 besteht u7 und u6, eine Ausgabe mit `<glossar>` besteht u6 nicht.
+Owner: glossar-daten. Since Round 31 the glossary (tables `glossary_term`, `glossary_variant`, migration 0049)
+and the own indexes (`index_register`) travel along, plus the index/glossary fields of the typesetting settings. Minor version
+**7**: the writer writes `version="7"` (also in the manifest; this replaces "today `version="6"`" above), XSD
+`docs/schema/baruch-werk-1-u7.xsd`. The schemas of minor versions 1 to 6 stay byte-unchanged (SHA-256 in the test,
+u6 newly added); a file of minor version 6 passes u7 and u6, an output with `<glossar>` does not pass u6.
 
-**Elemente.** Am Ende von `<werk>` hinter `<befunde>`, nur wenn vorhanden:
+**Elements.** At the end of `<werk>` behind `<befunde>`, only if present:
 
 ```xml
 <eigene-register>
@@ -941,65 +941,65 @@ u6 neu dazu); eine Datei der Unterversion 6 besteht u7 und u6, eine Ausgabe mit 
 </glossar>
 ```
 
-- `<register>`: Kennung `[a-z][a-z0-9-]{0,31}`, nie eine eingebaute (`stichwort`, `personen`, `bibel` – die stehen nie
-  in der Datei), je Werk eindeutig, höchstens 13; Titel 1–80 Zeichen. Die Reihenfolge der Elemente ist die Reihenfolge
-  der Register.
-- `<begriff>`: `status` `angenommen` oder `vorgeschlagen`, `herkunft` (Name des Menschen bzw. Handle der Persona oder
-  des MCP-Clients), `angelegt`, optional `geaendert` und `geaendert-von`. `<wort>` ist Pflicht, `<kurz>`,
-  `<ausfuehrlich>`, `<quelle>` nur, wenn gesetzt; je Variante ein `<variante>`, je Bibelstelle ein `<bibelstelle>`
-  (höchstens 32 je Begriff; Text wie gespeichert, also normalisiert). Alle Textelemente sind vom Typ `Text` (Base64 bei
-  verbotenen Zeichen). Unter den angenommenen Begriffen ist jeder Schlüssel (`term_key`: NFC, Leerraum, klein) nur
-  einmal erlaubt (prüft der Leser); ein Vorschlag darf denselben Schlüssel haben.
-- `<satz>` trägt zusätzlich (fehlend = aus):
+- `<register>`: identifier `[a-z][a-z0-9-]{0,31}`, never a built-in one (`stichwort`, `personen`, `bibel` – they never stand
+  in the file), unique per work, at most 13; title 1–80 characters. The order of the elements is the order
+  of the indexes.
+- `<begriff>`: `status` `angenommen` or `vorgeschlagen`, `herkunft` (name of the human or handle of the persona or
+  of the MCP client), `angelegt`, optionally `geaendert` and `geaendert-von`. `<wort>` is mandatory, `<kurz>`,
+  `<ausfuehrlich>`, `<quelle>` only if set; one `<variante>` per variant, one `<bibelstelle>` per Bible reference
+  (at most 32 per term; text as stored, i.e. normalised). All text elements are of type `Text` (Base64 with
+  forbidden characters). Among the accepted terms every key (`term_key`: NFC, whitespace, lower case) is allowed only
+  once (the reader checks this); a proposal may have the same key.
+- `<satz>` additionally carries (missing = off):
 
-| Feld (JSON) | Attribut(e) | Werte |
+| Field (JSON) | Attribute(s) | Values |
 | --- | --- | --- |
 | `glossary_page` | `glossarseite` | `vor-registern`, `nach-registern` |
-| `index_pages` | `registerseiten` + `registerseiten-spalten` | Kennungen durch Leerzeichen (1–16) + `1`–`3` |
+| `index_pages` | `registerseiten` + `registerseiten-spalten` | identifiers separated by spaces (1–16) + `1`–`3` |
 | `glossary_first_mention` | `glossar-erste-erwaehnung` | `true`/`false` |
 
-  `registerseiten` steht nur zusammen mit `registerseiten-spalten` (sonst Fehler mit Pfad); die Werte prüft das Einlesen
-  mit `TypesetSettings::validate`.
-- **Nicht im Format:** Registervorschläge (`index_proposal`) – sie sind Arbeitsablauf der Instanz (wie offene
-  Anträge) und tragen keine Kennung. Registermarken im Text (`#metadata((…))<baruch-idx>`) reisen als Teil der Fassungen.
+  `registerseiten` stands only together with `registerseiten-spalten` (otherwise an error with the path); the reading in checks the values
+  with `TypesetSettings::validate`.
+- **Not in the format:** index proposals (`index_proposal`) – they are a workflow of the instance (like open
+  requests) and carry no identifier. Index marks in the text (`#metadata((…))<baruch-idx>`) travel as part of the revisions.
 
-**Grabsteine.** Gelöschte bzw. verworfene Begriffe hinterlassen `<eintrag art="glossar-begriff">` (Datenbank
-`glossary_term`), gelöschte eigene Register `<eintrag art="register">` (`index_register`), beide mit der Werk-uuid
-(auch beim Löschen des Werks). Die Arten gibt es erst ab Unterversion 7: in einer Datei mit `version="1"` bis `"6"` sind
-sie ein Fehler. Ein Leser der Unterversion 7 meldet in einer Datei der Unterversionen 1 bis 6 `werk/eigene-register`,
-`werk/glossar` und die vier neuen Attribute von `<satz>` (`werk/angaben/satz/@glossarseite` …) als unbekannt und
-übernimmt sie nicht (Test `files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones`). Ein Leser der
-Unterversion 6 (Runde 29) liest eine Datei der Unterversion 7 wie eine höhere Unterversion: Er meldet diese Teile,
-überspringt die neuen Grabsteine, und nur Glossar, eigene Register und die neuen Satz-Felder gehen dabei verloren.
+**Tombstones.** Deleted or discarded terms leave `<eintrag art="glossar-begriff">` (database
+`glossary_term`), deleted own indexes `<eintrag art="register">` (`index_register`), both with the work uuid
+(also when the work is deleted). The kinds exist only from minor version 7 on: in a file with `version="1"` to `"6"` they
+are an error. A reader of minor version 7 reports in a file of minor versions 1 to 6 `werk/eigene-register`,
+`werk/glossar` and the four new attributes of `<satz>` (`werk/angaben/satz/@glossarseite` …) as unknown and
+does not adopt them (test `files_of_version_six_leave_the_u7_parts_unknown_and_refuse_their_tombstones`). A reader of
+minor version 6 (Round 29) reads a file of minor version 7 like a higher minor version: it reports these parts,
+skips the new tombstones, and only the glossary, own indexes and the new typesetting fields are lost in the process.
 
-**Einlesen.**
+**Reading in.**
 
-- *Neu:* Register und Begriffe (angenommen und vorgeschlagen) entstehen mit Kennung, Herkunft, Status und Zeiten aus der
-  Datei; im Bericht `added.registers` und `added.glossary_terms` (Stücke `register`, `glossar-begriff`).
-- *Abgleichen (abgleichen statt doppeln):* Eine bekannte Kennung wird **nie überschrieben** (Abweichung: Hinweis mit
-  beiden Ständen). Eine unbekannte Kennung kommt dazu – außer es gibt hier schon ein Register derselben Kennung
-  (`kennung`) bzw. einen Begriff mit demselben Schlüssel (ein angenommener blockt jeden, ein Vorschlag blockt einen
-  weiteren Vorschlag): dann ein Hinweis, kein Doppel. Hat die Kennung hier einen Grabstein, steht sie unter „hier
-  gelöscht“ und kommt nicht wieder; bei schon 13 eigenen Registern steht ein neues unter „Nicht übernommen“. Begriffe
-  mit Feldern außerhalb der Längengrenzen (`MAX_GLOSSARY_*` je Begriff) stehen unter „Nicht übernommen“, der Rest
-  kommt. Seit Runde 23 geprüft (siehe „Runde 23 – Härtung“ am Ende; vorher offen, Gutachten R31): die Zahl der Begriffe je Werk (`MAX_GLOSSARY_TERMS`) und die Länge
-  eines Registertitels (`MAX_REGISTER_TITLE_CHARS`) – eine Datei kann beides überschreiten.
-- Belegt in `crates/baruch-exchange/tests/{read,write,xsd}.rs`, `crates/baruch-store/tests/exchange_apply.rs`
+- *New:* indexes and terms (accepted and proposed) come into being with identifier, origin, status and times from the
+  file; in the report `added.registers` and `added.glossary_terms` (pieces `register`, `glossar-begriff`).
+- *Synchronising (matching instead of doubling):* a known identifier is **never overwritten** (difference: hint with
+  both states). An unknown identifier is added – unless there is already an index with the same identifier here
+  (`kennung`) or a term with the same key (an accepted one blocks every other, a proposal blocks another
+  proposal): then a hint, no duplicate. If the identifier has a tombstone here, it stands under „hier
+  gelöscht“ and does not come back; with 13 own indexes already, a new one stands under „Nicht übernommen“. Terms
+  with fields outside the length limits (`MAX_GLOSSARY_*` per term) stand under „Nicht übernommen“, the rest
+  comes. Checked since Round 23 (see "Round 23 – Hardening" at the end; open before, review R31): the number of terms per work (`MAX_GLOSSARY_TERMS`) and the length
+  of an index title (`MAX_REGISTER_TITLE_CHARS`) – a file can exceed both.
+- Proven in `crates/baruch-exchange/tests/{read,write,xsd}.rs`, `crates/baruch-store/tests/exchange_apply.rs`
   (`a_new_import_carries_registers_and_glossary_and_dumps_them_back`,
-  `merging_the_glossary_matches_instead_of_doubling_and_never_overwrites`) und
+  `merging_the_glossary_matches_instead_of_doubling_and_never_overwrites`) and
   `crates/baruch-server/tests/round31_glossar.rs` (`two_instances_exchange_glossary_and_registers_without_doubling`).
 
-## Fortschreibungen, Entwurf und Stand (Unterversion 8, Runde 22)
+## Amendments, draft and state (minor version 8, Round 22)
 
-Besitz: spiegel-entwurf. Seit Runde 22 schreibt der Mensch seine eigene aktuelle Fassung beim Speichern im Editor
-**fort**, statt jedes Mal eine neue Fassung anzulegen (Vertrag R22 §2.1; Tabelle `revision_amend`, Spalten
-`revision.amend_seq`/`based_on_amend`, Migration 0050). Dazu kommen der Entwurf als Satz-Einstellung (Wasserzeichen
-der Ausgaben) und der Stand, in dem ein Befund übernommen wurde. Unterversion **8**: Der Schreiber schreibt
-`version="8"` (auch im Manifest; das ersetzt „heute `version="7"`“ oben), XSD `docs/schema/baruch-werk-1-u8.xsd`. Die
-Schemata der Unterversionen 1 bis 7 bleiben byte-unverändert (SHA-256 im Test, u7 neu dazu); eine Datei der
-Unterversion 7 besteht u8 und u7, eine Ausgabe mit Fortschreibungen oder Entwurf besteht u7 nicht.
+Owner: spiegel-entwurf. Since Round 22 the human **amends** their own current revision on saving in the editor
+instead of creating a new revision every time (contract R22 §2.1; table `revision_amend`, columns
+`revision.amend_seq`/`based_on_amend`, migration 0050). Added are the draft as a typesetting setting (watermark
+of the outputs) and the state in which a finding was adopted. Minor version **8**: the writer writes
+`version="8"` (also in the manifest; this replaces "today `version="7"`" above), XSD `docs/schema/baruch-werk-1-u8.xsd`. The
+schemas of minor versions 1 to 7 stay byte-unchanged (SHA-256 in the test, u7 newly added); a file of
+minor version 7 passes u8 and u7, an output with amendments or a draft does not pass u7.
 
-**Fassung.** An `<fassung>` im Punkt zwei optionale Attribute und am Ende (hinter `<setzt-um>`) die Schritte:
+**Revision.** At `<fassung>` in the item two optional attributes and at the end (behind `<setzt-um>`) the steps:
 
 ```xml
 <fassung uuid="…6f" nummer="1" status="aktuell" autor-art="mensch" autor="Hanna Probe" angelegt="…" stand="3">
@@ -1019,23 +1019,23 @@ Zweiter Entwurf &amp; &lt;mehr&gt;.
 <fassung uuid="…71" nummer="3" status="vorschlag" autor-art="assistent" autor="@lektor" modell="…" basis="…6f" angelegt="…" beruht-stand="2">…</fassung>
 ```
 
-- `stand` = `revision.amend_seq` (Zahl der Schritte; fehlt = 0, nie fortgeschrieben), `beruht-stand` =
-  `revision.based_on_amend` (Stand der Basis, auf dem ein Vorschlag beruht; fehlt = ohne). Stand 0 (Basis nie
-  fortgeschrieben) schreibt Baruch nicht – gleichbedeutend mit „fehlt“; so bleiben Dateien ohne Fortschreibung auch nach
-  den älteren Schemata gültig (Integrator R22).
-- `<fortschreibung>`: `uuid` (Kennung des Schritts), `seq` (ab 1, lückenlos), `art` (`amend` = Fortschreibung des
-  Menschen, `undo` = Rücknahme über den Verlauf; die Wörter nennt der Vertrag R22 §2.11, gleich den Datenbankwerten),
-  `undo-von` (nur und immer bei `undo`: der Schritt, dessen Stand vorher wiederhergestellt wurde, kleiner als `seq`),
-  `autor` (Mensch), `zeit`; Kinder `<vorher>` und `<nachher>` (Text vor und nach dem Schritt, Typ `Text`, also Base64 bei
-  verbotenen Zeichen).
-- Der Leser prüft (`read/check.rs`): Kennungen eindeutig im Dokument, Schritte lückenlos ab 1, `undo-von` genau bei
-  `undo` und kleiner als `seq`, `stand` gleich der Zahl der Schritte.
+- `stand` = `revision.amend_seq` (number of steps; missing = 0, never amended), `beruht-stand` =
+  `revision.based_on_amend` (state of the basis on which a proposal rests; missing = without). Baruch does not write state 0 (basis never
+  amended) – it means the same as "missing"; so files without amendments stay valid under
+  the older schemas as well (integrator R22).
+- `<fortschreibung>`: `uuid` (identifier of the step), `seq` (from 1, without gaps), `art` (`amend` = amendment by the
+  human, `undo` = undoing through the history; the words are named by contract R22 §2.11, equal to the database values),
+  `undo-von` (only and always with `undo`: the step whose previous state was restored, smaller than `seq`),
+  `autor` (human), `zeit`; children `<vorher>` and `<nachher>` (text before and after the step, type `Text`, i.e. Base64 with
+  forbidden characters).
+- The reader checks (`read/check.rs`): identifiers unique in the document, steps without gaps from 1, `undo-von` exactly with
+  `undo` and smaller than `seq`, `stand` equal to the number of steps.
 
-**Befund.** `<befund>` und `<status-eintrag>` tragen optional `stand` (`finding.adopted_amend` bzw.
-`finding_status.adopted_amend`): Stand der Fassung, als der Befund übernommen wurde (Anzeige „Fassung n · Stand k“);
-geschrieben nur, wenn größer 0.
+**Finding.** `<befund>` and `<status-eintrag>` optionally carry `stand` (`finding.adopted_amend` or
+`finding_status.adopted_amend`): state of the revision when the finding was adopted (display „Fassung n · Stand k“);
+written only if greater than 0.
 
-**Entwurf.** `<satz>` hat optional das Kind `<entwurf/>` (Satz-Einstellung `draft`, Vertrag R22 §2.9):
+**Draft.** `<satz>` optionally has the child `<entwurf/>` (typesetting setting `draft`, contract R22 §2.9):
 
 ```xml
 <satz uuid="…" geaendert="…" geaendert-von="Hanna Probe" kapitelanfang="rechte-seite" …>
@@ -1043,125 +1043,125 @@ geschrieben nur, wenn größer 0.
 </satz>
 ```
 
-| Feld (JSON `draft`) | Attribut | Werte |
+| Field (JSON `draft`) | Attribute | Values |
 | --- | --- | --- |
-| `text` | `text` (Pflicht) | 1–40 Zeichen, ohne Steuerzeichen |
-| `note` | `zusatz` (fehlt = leer) | bis 120 Zeichen |
-| `date` | `datum` (fehlt = `false`) | `true`/`false` – das Datum selbst steht nie in der Datei (Tag der Ausgabe) |
-| `opacity_percent` | `deckkraft` (Pflicht) | 5–50 (Prozent) |
-| `placement` | `lage` (Pflicht) | `diagonal`, `kopfzeile`, `fusszeile` |
-| `cover` | `umschlag` (fehlt = `false`) | `true`/`false` (Wasserzeichen auch auf dem Umschlag-PDF) |
+| `text` | `text` (mandatory) | 1–40 characters, without control characters |
+| `note` | `zusatz` (missing = empty) | up to 120 characters |
+| `date` | `datum` (missing = `false`) | `true`/`false` – the date itself never stands in the file (day of the output) |
+| `opacity_percent` | `deckkraft` (mandatory) | 5–50 (percent) |
+| `placement` | `lage` (mandatory) | `diagonal`, `kopfzeile`, `fusszeile` |
+| `cover` | `umschlag` (missing = `false`) | `true`/`false` (watermark also on the cover PDF) |
 
-Ohne Entwurf bleibt `<satz/>` leer wie in Unterversion 7. Die Grenzen prüft wie bei allen Satz-Einstellungen nicht der
-Leser, sondern das Einlesen (`TypesetSettings::validate`, sonst „Nicht übernommen“). Die Typst-Regel des Wasserzeichens
-steht nie in der Datei.
+Without a draft `<satz/>` stays empty as in minor version 7. As with all typesetting settings, the limits are checked not by the
+reader but by the reading in (`TypesetSettings::validate`, otherwise „Nicht übernommen“). The Typst rule of the watermark
+never stands in the file.
 
-**Grabstein.** `<eintrag art="fortschreibung">` (Datenbank `uuid_tombstone.kind = 'revision_amend'`): Schritte werden
-nie einzeln gelöscht, nur mit ihrer Fassung bzw. ihrem Werk (Kaskaden-Trigger der Migration 0050); dann hinterlässt
-jeder Schritt einen Grabstein mit der Werk-uuid. Die Art gibt es erst ab Unterversion 8: in einer Datei mit `version="1"`
-bis `"7"` ist sie ein Fehler.
+**Tombstone.** `<eintrag art="fortschreibung">` (database `uuid_tombstone.kind = 'revision_amend'`): steps are
+never deleted individually, only with their revision or their work (cascade trigger of migration 0050); then
+every step leaves a tombstone with the work uuid. The kind exists only from minor version 8 on: in a file with `version="1"`
+to `"7"` it is an error.
 
-**Ältere Leser.** Ein Leser der Unterversion 8 meldet in einer Datei der Unterversionen 1 bis 7
+**Older readers.** A reader of minor version 8 reports in a file of minor versions 1 to 7
 `…/fassung/fortschreibung`, `…/fassung/@stand`, `…/fassung/@beruht-stand`, `werk/angaben/satz/entwurf`,
-`werk/befunde/befund/@stand` und `…/status-eintrag/@stand` als unbekannt und übernimmt sie nicht (Test
-`files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombstone`). Ein Leser der Unterversion 7
-(Runde 31) liest eine Datei der Unterversion 8 wie eine höhere Unterversion: Er meldet diese Teile, überspringt den
-Grabstein `fortschreibung`, und nur Verlauf, Stände und Entwurf gehen dabei verloren – der Text jeder Fassung ist der
-fortgeschriebene.
+`werk/befunde/befund/@stand` and `…/status-eintrag/@stand` as unknown and does not adopt them (test
+`files_of_version_seven_leave_the_u8_parts_unknown_and_refuse_the_amend_tombstone`). A reader of minor version 7
+(Round 31) reads a file of minor version 8 like a higher minor version: it reports these parts, skips the
+tombstone `fortschreibung`, and only history, states and draft are lost in the process – the text of every revision is the
+amended one.
 
-**Einlesen.**
+**Reading in.**
 
-- *Neu:* Fassungen kommen mit Stand, Stand der Basis und allen Schritten (Kennungen aus der Datei; Querverweise in
-  `<vorher>`/`<nachher>` werden wie der Text der Fassung auf die hiesigen Schlüssel umgesetzt), Befunde und
-  Verlaufseinträge mit ihrem Stand, die Satz-Einstellungen mit dem Entwurf. Im Bericht zählen die Schritte als
-  `added.amends` (Stück `fortschreibung`).
-- *Abgleichen:* Eine neu eingelesene Fassung (Regel a, c) bringt ihren Verlauf mit; eine abweichende Fassung mit
-  abgeleiteter Kennung (Regel d) bleibt ohne Verlauf. Eine bekannte Fassung wird nach Regel (d0) vorgespult oder bleibt,
-  wie sie ist. Ist eine Kennung eines Schritts hier schon vergeben oder begraben, kommt der Verlauf dieser Fassung nicht
-  mit (Hinweis), die Fassung selbst schon (Stand 0).
-- Ein neuer Teil, der vorhandene Kapitel übernähme, wird ein Antrag mit Kennung und Fassungen (Regel a).
-- Belegt in `crates/baruch-exchange/tests/{read,write,xsd}.rs` (`version_eight_carries_amends_stands_and_the_draft_exactly`,
+- *New:* revisions come with state, state of the basis and all steps (identifiers from the file; cross-references in
+  `<vorher>`/`<nachher>` are rewritten to the keys here like the text of the revision), findings and
+  history entries with their state, the typesetting settings with the draft. In the report the steps count as
+  `added.amends` (piece `fortschreibung`).
+- *Synchronising:* a newly read-in revision (rule a, c) brings its history along; a differing revision with a
+  derived identifier (rule d) stays without history. A known revision is fast-forwarded according to rule (d0) or stays
+  as it is. If an identifier of a step is already taken or buried here, the history of this revision does not come
+  along (hint), the revision itself does (state 0).
+- A new part that would take over existing chapters becomes a request with identifier and revisions (rule a).
+- Proven in `crates/baruch-exchange/tests/{read,write,xsd}.rs` (`version_eight_carries_amends_stands_and_the_draft_exactly`,
   `validate_refuses_amends_with_gaps_wrong_undo_or_a_wrong_stand`, `a_u8_output_with_amends_draft_and_stands_passes_the_u8_schema_but_not_the_frozen_u7`),
-  `crates/baruch-store/tests/exchange_u8.rs` (neu einlesen und zurück, Vorspulen, abweichend, Antrag mit Kennung
-  zustimmen und ablehnen, „Fassungen“ nicht im Format) und `crates/baruch-server/tests/round22_abgleich.rs` (zwei
-  Instanzen byte-gleich bis auf `<ausgabe>` und Schlüssel, Zustimmung mit Spiegel-Commit und erneutem Abgleich).
+  `crates/baruch-store/tests/exchange_u8.rs` (reading in new and back, fast-forward, differing, approving and rejecting a request
+  with identifier, „Fassungen“ not in the format) and `crates/baruch-server/tests/round22_abgleich.rs` (two
+  instances byte-identical except for `<ausgabe>` and keys, approval with a mirror commit and another synchronisation).
 
-## Runde 23 – Härtung (keine neue Unterversion)
+## Round 23 – Hardening (no new minor version)
 
-Das Format bleibt bei Unterversion 8; geändert sind nur Regeln des Einlesens.
+The format stays at minor version 8; only rules of the reading in have changed.
 
-- Zu Unterversion 7: „**Grenzen.** Der Titel eines eigenen Registers hat – in einer Zeile,
-  Leerraum zusammengezogen – höchstens 80 Zeichen (`baruch_typst::index::MAX_REGISTER_TITLE_CHARS`); das prüfen der
-  Leser (`check_u7`) und das Einlesen (`exchange_apply::check_u7_limits`, `insert_register`). Ein Werk hat höchstens
-  5000 Glossarbegriffe, Vorschläge mitgezählt (`baruch_store::MAX_GLOSSARY_TERMS`): Beim Einlesen als neues Werk zählt
-  die Datei, beim Abgleichen der Bestand hier zusammen mit den Begriffen, die dazukämen (`insert_term`). Eine
-  Überschreitung lehnt das ganze Einlesen mit deutscher Meldung ab; es bleibt nichts geschrieben (eine Transaktion).“
-- Regel (j), Satz zu bekannten Befunden: „Ein **bekannter** Befund wird nie überschrieben: Status, Begründung und
-  Verlauf bleiben, wie sie hier sind – der Verlauf ist das Protokoll der Entscheidungen dieser Instanz, und ein offener
-  Vorschlag aus der Datei würde sonst hier zu einer Entscheidung, die niemand gestellt hat. Weicht der Status ab oder
-  hat die Datei Einträge im Verlauf, die hier fehlen, steht ein Hinweis da, der ihre Zahl nennt.“
-- Unterversion 5, letzter Satz zu Varianten: „… eine abweichende Fassung, die eine abgeleitete Kennung bekommt, trägt
-  die Variante der Datei (Gruppe, Etikett, Zeile, Befunde) – seit Runde 23.“
-- Umschlag (Regel zu Blöcken): „Blöcke werden in Normalform gespeichert und verglichen (`check_cover_block`); lehnt
-  die Prüfung einen Block ab, wird er unverändert übernommen und als Hinweis gemeldet.“
-- Unterversion 8, Vorspulen: „Vorgespult wird nur, wenn alle Überschriftszeilen des Texts (Zeilen mit `=` oder `#heading(` am Anfang) gleich bleiben;
-  sonst kommt die Fassung der Datei wie vor Runde 22 als abweichende Fassung.“
-- Neu unter „Hinweise beim Einlesen“: „Passt die Überschrift einer eben eingelesenen aktuellen Fassung nicht zur Art
-  ihres Punkts (Kapitel Ebene 1, Abschnitt 2, unter einem Abschnitt 3; Teile ungeprüft), meldet das Einlesen einen
-  Hinweis; der Text bleibt exakt. `validate` selbst kennt keine Hinweise und bleibt unverändert.“
+- On minor version 7: "**Limits.** The title of an own index has – on one line,
+  whitespace collapsed – at most 80 characters (`baruch_typst::index::MAX_REGISTER_TITLE_CHARS`); the
+  reader (`check_u7`) and the reading in (`exchange_apply::check_u7_limits`, `insert_register`) check this. A work has at most
+  5000 glossary terms, proposals included (`baruch_store::MAX_GLOSSARY_TERMS`): when reading in as a new work the
+  file counts, when synchronising the stock here together with the terms that would be added (`insert_term`). Exceeding it
+  rejects the whole reading in with a German message; nothing stays written (one transaction)."
+- Rule (j), sentence on known findings: "A **known** finding is never overwritten: status, reasoning and
+  history stay as they are here – the history is the log of the decisions of this instance, and an open
+  proposal from the file would otherwise become a decision here that nobody made. If the status differs or
+  the file has entries in the history that are missing here, a hint stands there that names their number."
+- Minor version 5, last sentence on variants: "… a differing revision that gets a derived identifier carries
+  the variant of the file (group, label, line, findings) – since Round 23."
+- Cover (rule on blocks): "Blocks are stored and compared in normal form (`check_cover_block`); if
+  the check rejects a block, it is adopted unchanged and reported as a hint."
+- Minor version 8, fast-forward: "Fast-forwarding happens only if all heading lines of the text (lines with `=` or `#heading(` at the start) stay the same;
+  otherwise the revision of the file comes, as before Round 22, as a differing revision."
+- New under "Hints on reading in": "If the heading of a current revision just read in does not match the kind
+  of its item (chapter level 1, section 2, under a section 3; parts unchecked), the reading in reports a
+  hint; the text stays exact. `validate` itself knows no hints and stays unchanged."
 
-## Baum der Mindmap (Unterversion 9, Runde 34)
+## Tree of the mind map (minor version 9, Round 34)
 
-Besitz: mindmap_daten. Seit Runde 34 bilden die Einfälle eines Werks einen Baum (die Mindmap; Migration 0052, Spalten
-`idea.title`, `idea.parent_id`, `idea.position`, `idea.main_topic`). Unterversion **9**: Der Schreiber schreibt
-`version="9"` (auch im Manifest; das ersetzt „`version="8"`“ oben), XSD `docs/schema/baruch-werk-1-u9.xsd`. Die
-Schemata der Unterversionen 1 bis 8 bleiben byte-unverändert (SHA-256 im Test, u8 neu dazu); eine Datei der
-Unterversion 8 besteht u9 und u8, eine Ausgabe mit Baum besteht u8 nicht.
+Owner: mindmap_daten. Since Round 34 the ideas of a work form a tree (the mind map; migration 0052, columns
+`idea.title`, `idea.parent_id`, `idea.position`, `idea.main_topic`). Minor version **9**: the writer writes
+`version="9"` (also in the manifest; this replaces "`version="8"`" above), XSD `docs/schema/baruch-werk-1-u9.xsd`. The
+schemas of minor versions 1 to 8 stay byte-unchanged (SHA-256 in the test, u8 newly added); a file of
+minor version 8 passes u9 and u8, an output with a tree does not pass u8.
 
-**Einfall.** `<einfall>` trägt vier weitere, wahlfreie Attribute:
+**Idea.** `<einfall>` carries four further optional attributes:
 
-| Attribut | Bedeutung | fehlt = |
+| Attribute | Meaning | missing = |
 |---|---|---|
-| `titel` | Titel des Knotens in der Mindmap, höchstens 200 Zeichen (`idea.title`) | leer |
-| `eltern` | UUID des Eltern-Einfalls im selben Werk (`idea.parent_id`) | kein Elternknoten |
-| `platz` | Reihenfolge unter Geschwistern, ganze Zahl (`idea.position`); bei Gleichstand nach Anlage | 0 |
-| `hauptthema` | `true`: freies Hauptthema direkt am Werk (`idea.main_topic`); nur ohne `eltern` und `bezug` | nein |
+| `titel` | title of the node in the mind map, at most 200 characters (`idea.title`) | empty |
+| `eltern` | UUID of the parent idea in the same work (`idea.parent_id`) | no parent node |
+| `platz` | order among siblings, integer (`idea.position`); on a tie by creation | 0 |
+| `hauptthema` | `true`: free main topic directly at the work (`idea.main_topic`); only without `eltern` and `bezug` | no |
 
-Der Schreiber gibt jedes der vier nur aus, wenn es von der Vorgabe abweicht – ein Werk ohne Baum sieht in
-Unterversion 9 aus wie in 8 (und besteht auch das u8-Schema). Der Platz eines Einfalls folgt einer Regel: mit `eltern`
-Unterknoten dieses Einfalls (`bezug` ist dann nur der Link zum Abschnitt); sonst mit `bezug` am Kapitel des Punkts;
-sonst mit `hauptthema` am Werk; sonst liegt er **in der Wolke** neben der Mindmap (Ablage für Einfälle ohne Platz).
+The writer outputs each of the four only if it differs from the default – a work without a tree looks in
+minor version 9 as in 8 (and passes the u8 schema as well). The place of an idea follows a rule: with `eltern`
+a sub-node of this idea (`bezug` is then only the link to the section); otherwise with `bezug` at the chapter of the item;
+otherwise with `hauptthema` at the work; otherwise it lies **in the cloud** beside the mind map (storage for ideas without a place).
 
 ```xml
 <einfall uuid="26000000-0000-4000-8000-000000000029" status="erledigt" erledigt-als="beitrag" herkunft-art="persona" herkunft="@lektor" angelegt="2026-01-06T10:00:00.000Z" geaendert="2026-01-07T12:00:00.000Z" titel="Lampe am Seil" eltern="26000000-0000-4000-8000-000000000028" platz="2">
 ```
 
-**Leser.** `read` liest die Attribute ab `version="9"`. In einer Datei der Unterversionen 1 bis 8 bleiben sie
-ungelesen und stehen in `unknown` (`werk/einfaelle/einfall/@titel` …); alles Übrige der Datei wird gelesen. `validate`
-prüft: Titel höchstens 200 Zeichen, `eltern` eine UUID und nicht der Einfall selbst. Ein `eltern`, das auf keinen
-Einfall des Dokuments zeigt, ist **kein** Formatfehler.
+**Reader.** `read` reads the attributes from `version="9"` on. In a file of minor versions 1 to 8 they stay
+unread and stand in `unknown` (`werk/einfaelle/einfall/@titel` …); everything else of the file is read. `validate`
+checks: title at most 200 characters, `eltern` a UUID and not the idea itself. An `eltern` that points to no
+idea of the document is **not** a format error.
 
-**Einlesen** (neu und abgleichen) in zwei Schritten: erst alle Einfälle (mit Titel, Platz und Hauptthema), dann die
-Elternknoten (`exchange_apply::link_idea_parents`) – der Elternknoten darf in der Datei hinter dem Kind stehen. Ein
-Einfall wird **ohne Elternknoten** übernommen (er bleibt an seinem Bezug bzw. liegt in der Wolke), mit einem Hinweis
-im Bericht, wenn
+**Reading in** (new and synchronising) in two steps: first all ideas (with title, place and main topic), then the
+parent nodes (`exchange_apply::link_idea_parents`) – the parent node may stand behind the child in the file. An
+idea is adopted **without a parent node** (it stays at its reference or lies in the cloud), with a hint
+in the report, if
 
-- es den Elternknoten hier im Werk nicht gibt (unbekannte Kennung oder Einfall eines anderen Werks),
-- der Elternknoten gelöscht ist, der Einfall selbst aber nicht (ein mit seinem Elternknoten gelöschter Unterknoten
-  behält die Bindung, damit Wiederherstellen ihn mitnimmt),
-- die Kette der Elternknoten einen Kreis bildet oder tiefer als 32 Einfälle wäre.
+- the parent node does not exist here in the work (unknown identifier or idea of another work),
+- the parent node is deleted but the idea itself is not (a sub-node deleted with its parent node
+  keeps the binding so that restoring takes it along),
+- the chain of parent nodes forms a cycle or would be deeper than 32 ideas.
 
-Beim **Abgleichen** kommen neue Einfälle samt ihrem Baum dazu; ein hier schon bekannter Einfall bleibt, wie er ist
-(lokal gewinnt) – weicht sein Titel ab, steht „Titel weicht ab (bleibt)“ als Hinweis im Bericht; Elternknoten und
-Reihenfolge bekannter Einfälle gelten als Anordnung dieser Instanz und werden nicht verglichen. Der Titel steht im
-Volltextindex der Einfälle (Spalte `words` von `idea_fts`), auch nach dem Einlesen.
+When **synchronising**, new ideas are added together with their tree; an idea already known here stays as it is
+(local wins) – if its title differs, „Titel weicht ab (bleibt)“ stands as a hint in the report; parent nodes and
+order of known ideas count as the arrangement of this instance and are not compared. The title is in the
+full-text index of the ideas (column `words` of `idea_fts`), also after reading in.
 
-**Ältere Leser.** Ein Leser der Unterversion 8 (0.9.0) liest eine Datei der Unterversion 9 wie jede höhere
-Unterversion: Er meldet die vier Attribute als unbekannt und übernimmt die Einfälle ohne Baum.
+**Older readers.** A reader of minor version 8 (0.9.0) reads a file of minor version 9 like every higher
+minor version: it reports the four attributes as unknown and adopts the ideas without a tree.
 
-Tests: `crates/baruch-exchange/tests/read.rs` (Abschnitt „Unterversion 9“), `xsd.rs` (u9 besteht, u8 eingefroren),
-`crates/baruch-store/tests/exchange_u9.rs` (einlesen, ausgeben, lösen mit Hinweis, Datei der Unterversion 8),
-`crates/baruch-server/tests/round34_daten.rs` (Rundreise zwischen zwei Instanzen).
+Tests: `crates/baruch-exchange/tests/read.rs` (section "Sub-version 9 (Round 34)"), `xsd.rs` (u9 passes, u8 frozen),
+`crates/baruch-store/tests/exchange_u9.rs` (reading in, exporting, detaching with a hint, file of minor version 8),
+`crates/baruch-server/tests/round34_daten.rs` (round trip between two instances).
 
 ## Work language (minor version 10, Round 38)
 

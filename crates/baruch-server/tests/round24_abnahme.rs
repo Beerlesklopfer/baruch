@@ -245,16 +245,16 @@ fn the_current_tree_names_no_private_machine_and_no_third_party() {
 #[test]
 fn the_interface_docs_name_the_token_rule_behind_a_proxy() {
     let mcp = repo_file("docs/MCP.md");
-    let access = mcp.split("\n## Zugang").nth(1).expect("Abschnitt „Zugang“ in docs/MCP.md");
+    let access = mcp.split("\n## Access").nth(1).expect("section „Access“ in docs/MCP.md");
     let access = access.split("\n## ").next().unwrap();
     assert!(
         access.contains("--allow-host") && access.contains("BARUCH_ALLOWED_HOSTS"),
-        "der Abschnitt Zugang nennt, womit zusätzliche Rechnernamen erlaubt werden"
+        "the section Access names how additional host names are allowed"
     );
     assert!(
-        access.contains("nur mit Token") && access.contains("docs/Betrieb.md"),
-        "der Abschnitt Zugang sagt, dass /mcp unter einem solchen Namen auch von Loopback einen Token braucht, \
-         und verweist auf die Betriebsanleitung"
+        access.contains("only with a token") && access.contains("docs/Betrieb.md"),
+        "the section Access says that /mcp under such a name needs a token even from loopback, \
+         and points to the operating guide"
     );
     let rpc = repo_file("docs/RPC.md");
     assert!(
