@@ -209,8 +209,12 @@ fn the_history_files_announce_english_and_stay_german_below() {
         .expect("CHANGELOG.md keeps the heading „Unveröffentlicht“ (other tests look for it)");
     let first = unreleased.lines().find(|l| l.starts_with("### ")).expect("a section below „Unveröffentlicht“");
     assert_eq!(
-        first, "### User interface in English and German (Round 39a)",
+        first, "### Book outputs in the work language, English website and help (Round 39b)",
         "the newest round is the first section below „Unveröffentlicht“"
+    );
+    assert!(
+        unreleased.contains("\n### User interface in English and German (Round 39a)\n"),
+        "the section of Round 39a stays below „Unveröffentlicht“, after the newer round"
     );
     assert!(
         unreleased.contains("\n### English as the primary language (Round 38)\n"),

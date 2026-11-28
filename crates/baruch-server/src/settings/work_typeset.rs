@@ -381,10 +381,11 @@ pub(crate) async fn preview(state: &AppState, work: WorkId, settings: &TypesetSe
     let mut main = preview_source(&settings, &template, &title);
     // Round 22: with a draft the preview carries the watermark as well – behind the work template, before the rule
     // block (`preview_source` = template + "\n" + rules + …; the page rules complement each other).
+    let lang = crate::work_language::of(state, work).await;
     if let Some(draft) = &settings.draft
         && main.is_char_boundary(template.len() + 1)
     {
-        main.insert_str(template.len() + 1, &crate::typeset::draft_rule_for(draft));
+        main.insert_str(template.len() + 1, &crate::typeset::draft_rule_for_in(draft, lang));
     }
     let source = Source { main, files };
     let stand = baruch_render::stand(&source);

@@ -308,7 +308,10 @@ pub async fn prepare_with(state: &AppState, work: WorkId, draft: Option<bool>) -
     let source = Source { main: map.typst.clone(), files };
     let settings = state.store.work_typeset(work).await?.map(|t| t.settings).unwrap_or_default();
     let (source, map) = match effective_draft(settings.draft.as_ref(), draft) {
-        Some(d) => crate::cover::insert_parts(source, map, &draft_rule_for(&d), "", Vec::new()),
+        Some(d) => {
+            let lang = crate::work_language::of(state, work).await;
+            crate::cover::insert_parts(source, map, &draft_rule_for_in(&d, lang), "", Vec::new())
+        }
         None => (source, map),
     };
     // Frame (cover, front matter) before the state: it is part of what is typeset.
@@ -350,8 +353,14 @@ pub fn draft_today() -> String {
 
 /// Rule of the watermark with today's date if `draft.date` is set.
 pub fn draft_rule_for(draft: &Draft) -> String {
+    draft_rule_for_in(draft, baruch_core::WorkLanguage::De)
+}
+
+/// Like [`draft_rule_for`] in the work language `lang` (Round 39b integration): the stored default text and the
+/// date line come from the book catalog (`DRAFT` in an English work); German stays byte-equal.
+pub fn draft_rule_for_in(draft: &Draft, lang: baruch_core::WorkLanguage) -> String {
     let date = draft.date.then(draft_today);
-    baruch_typst::typeset::draft_rule(draft, date.as_deref())
+    baruch_typst::typeset::draft_rule_in(draft, date.as_deref(), lang)
 }
 
 /// Stored draft of the work (typeset setting `draft`).

@@ -8,6 +8,31 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### Book outputs in the work language, English website and help (Round 39b)
+
+- **Book outputs follow the work language:** EPUB, PDF (book, cover, front matter, notes sheet, draft watermark),
+  Word and the Typst export of an English work carry English labels and generated words (contents, cover, title
+  page, glossary, index, figure, footnote back links, "p." in cross references, "DRAFT", numbering words such as
+  "Part I", "Chapter One", "para.", "no.", imprint lines). One book catalog in `baruch-core`
+  (`crates/baruch-core/locales/{en,de}/book.ftl`, `baruch_core::book_text`). The book language tag (EPUB
+  `dc:language`, DOCX `w:lang`, Typst `#set text(lang: "en")`) follows the typesetting setting, else the work
+  language. German works produce byte-equal output (golden fixtures in the crate tests).
+- **Read-back words:** Baruch writes the markers it reads back (scripture check, claims, web check, chat footer) in
+  the work language and recognises both languages in every work.
+- **Website in English:** every page of baruch.bernau.family exists in English under `/en/` (help, installation,
+  operation, MCP, licence, legal notice), with a plain language switch and `hreflang` links; the English help
+  shows English screenshots (`site/static/bilder/en/`). The interface menu links the help of the interface
+  language.
+- **Screenshot tool:** `site/tools/bildschirmfotos.py --lang de|en` takes the pictures in either language (English
+  sample work "A Year on Gull Holm"); a missing light picture stops the site build in both languages.
+- **Interface:** numbering schemes, typesetting fields, cover blocks, finding states, EPUB reader profiles and model
+  connection kinds are translated on English pages; language form on the sign-in and setup pages; the menu form
+  returns to the same place; "Revisions" instead of "Versions" in the English settings.
+- **Still German (planned later):** mirror commit texts, idea-map exports, register titles stored as user data,
+  exchange-format names, new works' preset texts, and the server modules `rag/**`, `multigpt.rs`, `pgvector.rs`,
+  `import.rs`, `archive.rs`, `markdown_import`, `pdf_import`; WYSIWYG serialisation writes "S." in new cross
+  references of an English work.
+
 ### User interface in English and German (Round 39a)
 
 - **Two languages:** the user interface speaks English and German. Without a choice Baruch follows the browser

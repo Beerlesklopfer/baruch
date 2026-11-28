@@ -1577,3 +1577,21 @@ Since Round 38c the whole file is English.
   `round39a_i18n` then proves it (every finding listed, no stale entry).
 - **What is still German:** `tests/round39a_pages.rs` walks every GET page in en and de; its `KNOWN_GERMAN` names
   every German piece left on English pages with its source. Fixing one means removing its entry.
+
+## Round 39b – Book outputs in the work language, English website
+
+- **Book words:** every word Baruch writes INTO a book output comes from `baruch_core::book_text::book_t(work_language,
+  …)` (`crates/baruch-core/locales/{en,de}/book.ftl`), never from the interface catalogs. Old functions stay as the
+  German case and get an `_in` twin with a `WorkLanguage` (`of_scheme_in`, `draft_rule_in`, `frame_parts_in`,
+  `typeset::draft_rule_for_in`, `verify::check_in`, …); a server call site that builds book output from a work must
+  use the `_in` form with `crate::work_language::of(state, work)`. Recognition (reading back) accepts both languages.
+- **German stays byte-equal:** golden fixtures under `crates/*/tests/data/round39b/` were written once with the S1
+  code; never regenerate them (`BARUCH_BLESS_R39B` was only for that first commit). A failing golden test means German
+  output changed.
+- **Hugo, two languages:** 0.168 rejects `languageName` (deprecated, fatal with `--panicOnWarning`); use `label`. Use
+  `hugo.Sites.Default` instead of `site.Sites`. English pages have the German path under `content/en/`; picture
+  paths go through the partial `bildpfad.html`, and a missing light picture is a build error in both languages, so the
+  English pictures (`bildschirmfotos.py --fotos --lang en`) must exist before `ci-site.sh` passes.
+- **Exceptions of the page walk:** a `KNOWN_GERMAN` entry may hide several sources with the same words (Round 39b:
+  "über EPUB" stood both for the reader choice and for the reader warnings of `baruch-epub` `check.rs`). Remove an
+  entry only after the page walk passes without it.

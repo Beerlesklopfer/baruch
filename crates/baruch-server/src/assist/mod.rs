@@ -658,7 +658,14 @@ pub async fn run_inputs(
         Some(count) => bible_facts::mark_unknown_sources(&text, count),
         None => text,
     };
-    let checked = prepared.web.as_ref().map(|research| crate::websearch::verify::check(&text, research));
+    // Round 39b integration: the web-check additions in the work language (recognition accepts both).
+    let checked = match prepared.web.as_ref() {
+        Some(research) => {
+            let language = crate::work_language::of(state, order.work).await;
+            Some(crate::websearch::verify::check_in(&text, research, language))
+        }
+        None => None,
+    };
     let text = checked.as_ref().map_or(text, |c| c.text.clone());
     let mut sources = order.sources.clone();
     sources.extend(bible_facts::cited_sources(&text, &prepared.bible_labels));

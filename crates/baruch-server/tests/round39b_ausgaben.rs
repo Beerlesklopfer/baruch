@@ -343,3 +343,68 @@ fn the_web_evidence_note_follows_the_work_language_and_both_are_recognised() {
     let again = check_in(&check(answer, &research).text, &research, En).text;
     assert!(!again.contains("(unbekannte Quelle) (unknown source)"), "a German addition is recognised: {again}");
 }
+
+// ---- Integration of Round 39b: server call sites that the tasks could not own ------------------------------------
+
+/// The typeset source of a work with front matter (printer line in the imprint) and a draft watermark with the
+/// default text, as the book PDF typesets it.
+async fn framed_draft_source(server: &common::Server, work: i64) -> String {
+    let store = &server.state.store;
+    let edit =
+        baruch_store::BookEdit { front_matter: Some(true), printer: Some("Dune Press".into()), ..Default::default() };
+    store.set_book_meta(work, &edit).await.expect("the book details are valid");
+    let settings = baruch_typst::typeset::TypesetSettings {
+        draft: Some(baruch_typst::typeset::Draft::default()),
+        ..Default::default()
+    };
+    store.set_work_typeset(work, &settings, "Erin").await.expect("typeset settings are valid");
+    baruch_server::typeset::prepare_with(&server.state, work, None).await.expect("the work is prepared").source.main
+}
+
+#[tokio::test]
+async fn the_book_pdf_of_an_english_work_has_an_english_watermark_and_front_matter() {
+    use baruch_core::WorkLanguage::{De, En};
+    use baruch_core::book_text::book_t;
+    let server = common::open().await;
+    let english = framed_draft_source(&server, english_work(&server).await).await;
+    let printer_en = book_t(En, "book.imprint.printer", &[("printer", "Dune Press")]);
+    let printer_de = book_t(De, "book.imprint.printer", &[("printer", "Dune Press")]);
+    assert!(
+        english.contains("DRAFT") && !english.contains("ENTWURF"),
+        "the default watermark of an English work is the English catalog word (typeset::draft_rule_for_in)"
+    );
+    assert!(
+        english.contains(&printer_en) && !english.contains(&printer_de),
+        "the imprint of the front matter follows the work language (cover::frame calls frame_parts_in): {english}"
+    );
+
+    let store = &server.state.store;
+    let german = store.import_typst(&source("Das Gartenhaus"), "gartenhaus.typ", "Erika").await.expect("import").work;
+    let german = framed_draft_source(&server, german).await;
+    assert!(
+        german.contains("ENTWURF") && !german.contains("DRAFT"),
+        "a German work keeps the German watermark (German output unchanged)"
+    );
+    assert!(german.contains(&printer_de), "a German work keeps the German imprint line");
+}
+
+#[tokio::test]
+async fn the_epub_check_page_names_the_readers_in_the_interface_language() {
+    let server = common::open().await;
+    let work = english_work(&server).await;
+    let page = |lang: &'static str| {
+        let request = axum::http::Request::get(format!("/werke/{work}/epub/pruefung"))
+            .body(axum::body::Body::empty())
+            .expect("request");
+        server.send(common::with_lang(request, lang))
+    };
+    let (status, _, english) = page("en").await;
+    assert_eq!(status, axum::http::StatusCode::OK, "the EPUB check page opens: {english}");
+    assert!(
+        english.contains("> Kindle (via EPUB)") && !english.contains("> Kindle (über EPUB)"),
+        "the reader choice uses epub_preview::reader_name (English catalog) on an English page (the finding messages \
+         of baruch-epub's check stay German, see KNOWN_GERMAN in round39a_pages)"
+    );
+    let (_, _, german) = page("de").await;
+    assert!(german.contains("> Kindle (über EPUB)"), "German pages keep the crate names of baruch-epub");
+}

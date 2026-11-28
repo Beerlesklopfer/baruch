@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-28, Round 39a "User interface German and English" **closed** (catalogs en/de, templates, widgets and server messages through `t()`, language switch without JavaScript, singular forms; integration `a543263`, follow-up `b7ef2be`, PM close with a full run); Round 38c "Developer docs and model texts in English, rest" **integrated** (nine developer documents English as a whole, model task texts English, four low findings of Round 38 done; integration `8e9823b`, no review of its own, housekeeping ended with the PM close of Round 39a); Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-28, Round 39b "User interface German and English, outputs and help" **integrated** (book outputs in the work language, website and help in English with English pictures, rest of the literals; integration on `development`, not pushed); Round 39a "User interface German and English" **closed** (catalogs en/de, templates, widgets and server messages through `t()`, language switch without JavaScript, singular forms; integration `a543263`, follow-up `b7ef2be`, PM close with a full run); Round 38c "Developer docs and model texts in English, rest" **integrated** (nine developer documents English as a whole, model task texts English, four low findings of Round 38 done; integration `8e9823b`, no review of its own, housekeeping ended with the PM close of Round 39a); Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -6,6 +6,42 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Round 39b "User interface German and English, outputs and help" integrated** (2026-11-28, integrator, on
+  `development`; contract `965b45f`, S1 `5c5a821`; branches `team/r39b-ausgaben` `bffe2bc`, `-hilfe_en_1` `aad8a3f`,
+  `-hilfe_en_2` `3d5d9aa`, `-fotos_tool` `0d95c94`, `-rest_literals` `32f0606` merged with `--no-ff` in task order,
+  no conflict; then the integration commit; not pushed). Version unchanged 0.9.0, CHANGELOG under „Unveröffentlicht“.
+  No migration (store 0055, library 0108), no route, RPC method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
+  **Delivered:** book outputs (EPUB, PDF/Typst numbering words, back matter, imprint, cover and front matter, notes
+  sheet, DOCX, draft watermark, read-back words) follow the work language through one book catalog
+  (`crates/baruch-core/locales/{en,de}/book.ftl`); German output byte-equal against golden fixtures. Website and help
+  in English (`site/content/en/`, 26 pages, language switch and `hreflang` without JavaScript), 104 English pictures
+  under `site/static/bilder/en/` (4.0 MB), `bildschirmfotos.py --lang de|en`, a missing light picture stops the site
+  build. Interface: other-crate labels translated, language form on sign-in/setup, `back` in the menu form, help link
+  per language, "Revisions".
+  **Integrator:** wired the call sites nobody owned (`typeset::draft_rule_for_in` for book PDF, cover PDF and
+  typesetting preview; `cover::frame` → `frame_parts_in`; cover sources in the work language with the English
+  language rule, `cover::cover_settings`; `assist::run` → `verify::check_in`; EPUB check page reader names in the
+  interface language); tests for it in `round39b_ausgaben.rs`, completeness check in `round39b_hilfe_en.rs`,
+  English-picture presence test in `round39b_bilder.rs`; `round38_doku` expects Round 39b as the newest CHANGELOG
+  section; stale allow entry removed. English pictures taken with `bildschirmfotos.py --fotos --lang en --server
+  target/debug/baruch-server --sword /var/tmp/baruch-hilfe/sword-en --temp /var/tmp/baruch-hilfe` (invented
+  "SampleBible" with Ps 119:105 in KJV wording, written by a temporary `baruch_sword::fixture` example, not
+  committed); contact sheets looked at, only `/var/tmp/...` paths, no user name.
+  **Checks:** full run in the main folder after `cargo clean -p` of all 16 workspace crates: exit 0, 225 results
+  "ok", **3752 passed**, 0 failed, 2 ignored (server bundle 1716, pgvector tests ran); after the pictures the narrow
+  run `round39b round37 every_test_file_is_bundled` 56 passed. fmt, clippy `-D warnings`, `check-comments-only.py
+  --umlaute`, `ci-selftest.sh` (104 assertions) green; `hugo --minify --panicOnWarning` builds DE 25 / EN 24 pages,
+  `site-check.py` and `ci-site.sh` without finding; `bildschirmfotos.py --abgleich` de and en: nothing missing;
+  `--pruefen --lang en` 104/104. Visual check `.claude/sicht/r39b/` (not in the repository): contact sheets of all
+  English pictures (`bogen/`), English website home, help pages and the language switch, typesetting page of an
+  English work with and without the watermark "DRAFT", EPUB preview and EPUB check page. Headless Firefox screenshots
+  of the help pages show the alt text instead of lazily loaded pictures in both languages (screenshot timing; the
+  pictures are served with 200).
+  **Open (details in `docs/Backlog.md`, "Round 39b – integrated"):** WYSIWYG serialisation writes `S.` in new cross
+  references of English works; date of the draft line German format; reader warnings of `baruch-epub` and other crate
+  messages German; priority-4 server modules (`rag/**`, `multigpt.rs`, `pgvector.rs`, `import.rs`, `archive.rs`,
+  `markdown_import`, `pdf_import`) German; preset texts of new works German; shortcode words (`fingerabdruck`,
+  `release`, `taste`) German on English pages; catalog wording Lektor/Lector, "versions".
 - **Round 39a "User interface German and English" closed** (2026-11-28; PM close: full run in the main folder
   after `cargo clean -p` of all 16 workspace crates exit 0, 218 results "ok", **3674 passed**, 0 failed, 2 ignored,
   server bundle 1682, pgvector tests ran; `grep -rn "STUB:" crates` 5 as before. Review with five findings: the
@@ -2440,6 +2476,11 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. After Round 39b (integrated, **no migration**): the service of the user is not touched. Next: review and PM close
+   of Round 39b (remove the worktrees `wf_b51eb61c-fd2-{40..44}` with their `target/`), then the rest round after
+   Round 37 and the release 0.9.1. The English website appears only with the fast-forward to `main`. To look at in
+   the own browser: `hugo server -s site` → `/en/` and the switch "Deutsch"/"English"; pictures in
+   `.claude/sicht/r39b/`.
 0. After Round 39a (closed, **no migration**, one new route `POST /einstellungen/sprache`): the service of the user
    is not touched. To look at in the own browser: the switch in „Baruch ▾“ and under Settings → Display; pictures
    in `.claude/sicht/r39a/` (work page, editor, outline, settings, dialog „New work“ in en and de, work page en

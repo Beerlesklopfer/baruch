@@ -131,6 +131,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R38b | **Closed 2026-11-28** (≈ 250 min from `174c996` to the integration `36a9e2d`, of which 111 for the contract; review with two low findings, no follow-up; PM close exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt); eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
 | R38c | **Integrated 2026-11-28** (≈ 115 min from `0dc0e09` to the integration commit; S1 `4136ba2`; six developers in two waves, three of them reported before their test runs had finished, so the integrator committed their finished working trees; full run exit 0, 3597 passed, 0 failed, 2 ignored, 218 results "ok"; details under "Round 38c – integrated"). Plan as it was: Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models; the low review findings of Round 38 | skills_plan · mcp_austausch_wysiwyg · rpc_doku · architektur_1 · architektur_2 · modell_texte (two waves) | 120 |
 | R39a | **Closed 2026-11-28** (≈ 245 min from `8e9823b` with review, follow-up `b7ef2be` and PM close; integration `a543263`; PM close exit 0, 3674 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1682, pgvector tests ran; S1 `3828d0c`, six developers in two waves: templates_1/2/3, widgets, messages_1/2; merged with `--no-ff`, conflicts only in `tests/main.rs`, the allow list and one test helper; integrator added the page walk `round39a_pages`; details under "Round 39a – integrated"). User interface English (base) and German: Fluent catalogs, `t()` in templates, widgets and server messages, language switch without JavaScript, store messages via `store_text.rs` | templates_1 · templates_2 · templates_3 · widgets · messages_1 · messages_2 | 180 |
+| R39b | **Integrated 2026-11-28** (from S1 `5c5a821`; five developers in two waves; book outputs in the work language, website and help in English with English pictures, rest of the literals; details in "Round 39b – integrated") | ausgaben · hilfe_en_1 · hilfe_en_2 · fotos_tool · rest_literals | 240 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1815,6 +1816,55 @@ The review after the integration reported five findings. Follow-up `b7ef2be` and
 - **Found in the follow-up, open:** `src/cover.rs` (about line 1203) builds the sheet count with
   `.replace('.', ",")`, so English shows „12,5 sheets“ – should go through `i18n::number`. Texts written as
   „relation(s)“ and „quotation(s)“ read correctly for any number but could get real singular forms.
+
+## Round 39b – integrated (2026-11-28)
+
+Contract "User interface German and English, outputs and help": base `965b45f`, S1 `5c5a821`, five branches
+`team/r39b-<id>` merged with `--no-ff` in task order (ausgaben `bffe2bc`, hilfe_en_1 `aad8a3f`, hilfe_en_2 `3d5d9aa`,
+fotos_tool `0d95c94`, rest_literals `32f0606`), no conflict. No migration (store 0055, library 0108), no route, RPC
+method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
+
+- **Delivered:** book outputs in the work language with one book catalog in `baruch-core` (EPUB, Typst/PDF
+  numbering words, back matter, imprint, cover/front matter, notes sheet, DOCX, draft watermark, read-back words;
+  German byte-equal against golden fixtures); the website in English (`site/content/en/`, 26 pages, language switch,
+  `hreflang`), English screenshots under `site/static/bilder/en/` taken by the integrator; `bildschirmfotos.py
+  --lang`; other-crate labels translated in the server; language form on sign-in and setup pages, `back` field in
+  the menu form; help link per interface language; "Revisions" in the English settings.
+- **Integrator:** wired the call sites nobody owned (see `docs/Architektur.md`, "Integration (Round 39b)"):
+  `typeset::draft_rule_for_in` (book PDF, cover PDF, typesetting preview), `cover::frame` → `frame_parts_in`, cover
+  sources → `wrap_source_with_rules_in`/`front_source_with_rules_in` with `cover::cover_settings` (English language
+  rule), `assist::run` → `websearch::verify::check_in`, `epub_check.rs` reader names → `epub_preview::reader_name`
+  (last `KNOWN_GERMAN` entry "über EPUB" removed), English `export.epub_preview.kindle_html` aligned (exception in
+  `round39b_literals` removed); completeness check in `round39b_hilfe_en.rs`; stale allow entry `<kSchlüssel>`
+  removed; tests for the wiring in `round39b_ausgaben.rs`.
+- **Contract wording to fix in later contracts:** the server integration test target is `--test server` (not
+  `main`); Hugo 0.168 rejects `languageName` (deprecated), the config uses `label`.
+- **Open – still German in an English work** (planned for the rest round after 0.9.1 unless noted):
+  - `baruch-wysiwyg` `emit.rs`/`parse.rs` use `xref_snippet` (`, S.~`): a new cross reference written by the WYSIWYG
+    serialisation gets `S.` in an English work, and an English `, p.~` suffix is parsed as link text (round-trips
+    verbatim). Needs a language on `Inline::Xref` or a work-language parameter for `serialize`.
+  - the date of the draft line (`typeset::draft_today`, `28.11.2026`) in every work language.
+  - mirror commit texts, idea-map exports (`idea_map/files/**`), register titles stored as user data, exchange-format
+    names, comment lines of generated Typst/CSS, web-check `Quellen:`/failure lines, `baruch_scripture` messages
+    and `bibles::module_note`, preset texts of new works (sermon preset, „Erstes Kapitel“, `baruch-store/works.rs`),
+    the built-in sample work of `baruch-core` (shows in the English pictures `start-werkliste`,
+    `installation-erster-start`); the typeset view shows the German index-mark title „Registereintrag im
+    Stichwortregister“; changing the work language makes no mirror commit.
+  - English numbering scheme names in `baruch-typst/src/scheme.rs` are translated in the server; the pattern-check
+    refusals other than the missing pattern stay German, as do `cover_print.rs` block labels in print warnings and
+    `typeset_settings.rs` RPC field labels.
+- **Open – interface (priority 4 of rest_literals, not converted, whole files German):** `src/rag/**`,
+  `connections/multigpt.rs`, `connections/pgvector.rs`, `import.rs`, `archive.rs`, `markdown_import/**`,
+  `pdf_import/**` (their `KNOWN_GERMAN` entries stay). About 19 test files compare their German texts, and the CLI
+  and `spawn_blocking` paths run outside a request scope.
+- **Open – catalog wording:** en `accounts_msg.menu.lektor` and `editor.assistants.lector_badge` say "Lektor",
+  other keys "Lector"; en `layout.band.exchange` "Exchange: Write out" vs. `export.exchange.heading` "Exchange:
+  output"; en "Hide older versions up to" / "show all versions again" still say "versions"; bold/italic buttons
+  read K/F in English (`edit_toolbar.html`). The English help quotes them as they are.
+- **Open – shortcodes:** `fingerabdruck.html`, `release.html` (German default text) and `taste.html` ("Mac:")
+  print German words on English pages; `scripts/site-check.py` checks the "no github.com link in the help" rule
+  only for `hilfe/`, not for `en/hilfe/`. External link in English `impressum.md` points to the English GitHub
+  privacy statement (`docs.github.com/en/…`), a deliberate deviation of hilfe_en_1.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 

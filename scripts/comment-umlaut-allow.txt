@@ -573,4 +573,3 @@ crates/baruch-wysiwyg/src/html.rs	„Öffnen | Bearbeiten“	quoted German menu 
 crates/baruch-wysiwyg/src/lib.rs	`/ Begriff: Erklärung`	Typst sample input (code span)
 crates/baruch-wysiwyg/src/lib.rs	`#szene(ort: [Küche])[…]`	Typst sample input (code span)
 site/tools/bildschirmfotos.py	„Zitate prüfen“	quoted German user-interface text or sample input
-site/tools/bildschirmfotos.py	<kSchlüssel>	German user-interface label or placeholder kept verbatim

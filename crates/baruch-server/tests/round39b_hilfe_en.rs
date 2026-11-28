@@ -6,7 +6,7 @@
 //! (Hugo pairs translations by path): same `weight` and non-text front matter, no `aliases`, the same `{#anchor}`
 //! ids, the same pictures in the same order (each with an English `alt`), no German letters or German quotation
 //! marks in prose, and internal links under `/en/`. The completeness check (every German page has an English page)
-//! is added by the integrator after both hilfe branches are merged.
+//! was added by the integrator after both hilfe branches were merged.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -215,6 +215,20 @@ fn every_english_page_translates_a_german_page_of_the_same_path() {
         }
     }
     assert!(problems.is_empty(), "English pages do not match their German originals:\n{}", problems.join("\n"));
+}
+
+/// Added at the Round 39b integration: every German page has its English translation, so the language switch never
+/// falls back to the English home page and no part of the help is missing in English.
+#[test]
+fn every_german_page_has_an_english_page() {
+    let de = markdown_files(&content_dir("de"));
+    let en: BTreeSet<String> = markdown_files(&content_dir("en")).into_iter().collect();
+    assert!(de.len() >= 20, "the German site has its pages (guards against a wrong content path): {de:?}");
+    let missing: Vec<&String> = de.iter().filter(|path| !en.contains(*path)).collect();
+    assert!(
+        missing.is_empty(),
+        "German pages without an English translation (same relative path under content/en): {missing:?}"
+    );
 }
 
 #[test]

@@ -246,13 +246,28 @@ pub async fn frame(
         layout,
         template_functions: tc::template_functions(&template),
     };
-    let parts = tc::frame_parts(&info, &opts);
+    // Round 39b integration: labels of cover pages and front matter in the work language (German byte-equal).
+    let lang = crate::work_language::of(state, work).await;
+    let parts = tc::frame_parts_in(&info, &opts, lang);
     Ok(insert_parts(source, map, &parts.front, &parts.back, extras.files))
 }
 
 /// Typeset settings of the work (Round 29); without a row the default (everything from the work template).
 pub(crate) async fn typeset_settings(state: &AppState, work: WorkId) -> Result<TypesetSettings, StoreError> {
     Ok(state.store.work_typeset(work).await?.map(|t| t.settings).unwrap_or_default())
+}
+
+/// Typeset settings for the cover sources (Round 39b integration): [`typeset_settings`] plus the book language
+/// rule of the typeset book (`baruch_store` `snapshot::rule_settings`): an English work without its own `lang`
+/// setting gets `lang: "en"`, so the cover text rules carry `#set text(lang: "en")`. German works unchanged
+/// (byte-equal sources and cache states).
+pub(crate) async fn cover_settings(state: &AppState, work: WorkId) -> Result<TypesetSettings, StoreError> {
+    let mut settings = typeset_settings(state, work).await?;
+    let own = settings.lang.as_deref().map(str::trim).is_some_and(|l| !l.is_empty());
+    if !own && crate::work_language::of(state, work).await == baruch_core::WorkLanguage::En {
+        settings.lang = Some(baruch_core::WorkLanguage::En.as_str().to_owned());
+    }
+    Ok(settings)
 }
 
 /// Template that determines the page size of the book (Round 29): work template and behind it the rule block of
@@ -447,7 +462,7 @@ pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&Cove
         None => state.store.cover_layout(work).await?,
     };
     let template = state.store.work_template(work).await?;
-    let settings = typeset_settings(state, work).await?;
+    let settings = cover_settings(state, work).await?;
     let rules = cover_text_rules(&template, &settings);
     let layout =
         if layout.is_empty() { None } else { Some(resolve_fonts(layout, book_font(&template, &settings)).await) };
@@ -462,7 +477,8 @@ pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&Cove
         author_photo: extras.photo,
         layout,
     };
-    let main = tc::wrap_source_with_rules(&info, &opts, &rules);
+    let lang = crate::work_language::of(state, work).await;
+    let main = tc::wrap_source_with_rules_in(&info, &opts, &rules, lang);
     Ok(Wrap {
         source: Source { main, files: extras.files },
         spine_mm: spine,
@@ -495,7 +511,7 @@ pub async fn block_heights(
     let info = book_info(state, work, &meta).await?;
     let extras = extras(state, work, &meta, true).await?;
     let template = state.store.work_template(work).await?;
-    let settings = typeset_settings(state, work).await?;
+    let settings = cover_settings(state, work).await?;
     let resolved = resolve_fonts(CoverLayout { blocks: blocks.to_vec() }, book_font(&template, &settings)).await;
     let refs = tc::BlockRefs { photo: extras.photo.as_deref(), barcode: extras.barcode.as_deref() };
     let has_content: Vec<bool> = resolved.blocks.iter().map(|b| tc::block_has_content(&info, b, &refs)).collect();
@@ -538,7 +554,7 @@ pub async fn front_cover_source(state: &AppState, work: WorkId) -> Result<Source
     let info = book_info(state, work, &meta).await.map_err(|e| e.to_string())?;
     let extras = extras(state, work, &meta, false).await.map_err(|e| e.to_string())?;
     let template = state.store.work_template(work).await.map_err(|e| e.to_string())?;
-    let settings = typeset_settings(state, work).await.map_err(|e| e.to_string())?;
+    let settings = cover_settings(state, work).await.map_err(|e| e.to_string())?;
     let assets: Vec<(String, Vec<u8>)> = state
         .store
         .export_assets(work)
@@ -565,7 +581,8 @@ pub async fn front_cover_source(state: &AppState, work: WorkId) -> Result<Source
         author_photo: None,
         layout,
     };
-    let main = tc::front_source_with_rules(&info, &opts, &cover_text_rules(&template, &settings));
+    let lang = crate::work_language::of(state, work).await;
+    let main = tc::front_source_with_rules_in(&info, &opts, &cover_text_rules(&template, &settings), lang);
     Ok(Source { main, files: extras.files })
 }
 
@@ -597,7 +614,8 @@ async fn cover_pdf(state: &AppState, work: WorkId, draft: Option<bool>) -> Resul
     let mut wrap = build_wrap_for(state, work, None).await?;
     let stored = crate::typeset::stored_draft(state, work).await?;
     if let Some(d) = crate::typeset::cover_draft(stored.as_ref(), draft) {
-        wrap.source.main.insert_str(0, &crate::typeset::draft_rule_for(&d));
+        let lang = crate::work_language::of(state, work).await;
+        wrap.source.main.insert_str(0, &crate::typeset::draft_rule_for_in(&d, lang));
     }
     let pdf = to_pdf(work, wrap.source.clone()).await?;
     Ok((format!("{slug}-umschlag.pdf"), wrap, pdf))

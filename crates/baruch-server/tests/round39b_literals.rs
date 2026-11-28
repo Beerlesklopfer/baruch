@@ -26,11 +26,6 @@ const GERMAN: [char; 9] = ['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß', '„', '‚
 /// is allowed (the owner of the file may have changed it meanwhile); a key that does not exist fails.
 const ENGLISH_EXCEPTIONS: &[(&str, &str)] = &[
     ("export.word.styles", "names the Word style names the exported file really contains (Überschrift 1–3)"),
-    (
-        "export.epub_preview.kindle_html",
-        "quotes the German reader profile names; export.ftl belongs to ausgaben, the names read „via EPUB“ in English \
-         since Round 39b (to align)",
-    ),
     ("settings.mcp.name_rules_html", "shows how an umlaut is transcribed in an author name (ü → ue)"),
     ("works.delete.mirror_html", "quotes the commit text the Git mirror writes (mirror texts stay German)"),
 ];

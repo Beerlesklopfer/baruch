@@ -6816,3 +6816,21 @@ entry „Help“ the help in the interface language, the about page uses it as `
 section and page ids, form and query values, route paths, the handle `@alle`, the quotation characters of the
 finder), each group under a `# reason:` comment (`tests/round39b_literals.rs`). Catalog completeness per area and
 the English catalog without German (except listed exceptions) are checked there as well.
+
+
+
+
+
+
+### Integration (Round 39b)
+
+Written by the integrator. Server call sites that no task owned now pass the work language: `typeset::draft_rule_for_in`
+(book PDF via `prepare_with`, cover PDF, preview of the typesetting settings; `draft_rule_for` stays the German case),
+`cover::frame` calls `frame_parts_in`, the print-shop cover and the EPUB cover front call `wrap_source_with_rules_in` and
+`front_source_with_rules_in`, and `cover::cover_settings` adds the language rule of `snapshot::rule_settings`
+(`lang: "en"` for an English work without its own setting) to the cover text rules; German works keep byte-equal
+sources. `assist::run` calls `websearch::verify::check_in` with the work language. `epub_check.rs` shows the reader
+profiles through `epub_preview::reader_name` (interface language). `tests/round39b_hilfe_en.rs` gained the
+completeness check (every German page has an English page). Still German: the date of the draft line (`28.11.2026`,
+`typeset::draft_today`) and new cross references written by the WYSIWYG serialisation (`baruch-wysiwyg` `emit.rs`
+uses `xref_snippet`, `Inline::Xref` carries no language).

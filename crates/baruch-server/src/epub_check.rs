@@ -440,7 +440,9 @@ fn epubcheck_view(status: &EpubcheckStatus, available: Option<&EpubcheckTool>) -
 
 /// Context of `fragments/epub_check_panel.html`.
 fn panel_context(work: WorkId, checked: &Checked) -> Jinja {
-    let names: BTreeMap<&str, &str> = PROFILES.iter().map(|p| (p.slug, p.name)).collect();
+    // Round 39b integration: reader names in the language of the request (German = the crate names).
+    let names: BTreeMap<&str, String> =
+        PROFILES.iter().map(|p| (p.slug, crate::epub_preview::reader_name(p))).collect();
     let rows: Vec<Jinja> = checked
         .report
         .findings
@@ -449,14 +451,14 @@ fn panel_context(work: WorkId, checked: &Checked) -> Jinja {
             context! {
                 severity => severity_label(f.severity), class => severity_class(f.severity), code => f.code.as_str(),
                 message => f.message.as_str(), path => f.path.as_deref(),
-                reader => f.reader.as_deref().map(|r| names.get(r).copied().unwrap_or(r)),
+                reader => f.reader.as_deref().map(|r| names.get(r).cloned().unwrap_or_else(|| r.to_owned())),
             }
         })
         .collect();
     context! {
         work => work, summary => Jinja::from(Serde(checked.summary)), findings => rows,
         xml_tool => xml_tool_label(&checked.report.xml_tool),
-        readers => checked.readers.iter().map(|r| r.name).collect::<Vec<_>>(),
+        readers => checked.readers.iter().map(|r| crate::epub_preview::reader_name(r)).collect::<Vec<_>>(),
     }
 }
 
@@ -537,7 +539,7 @@ async fn page(
         .iter()
         .map(|p| {
             context! {
-                slug => p.slug, name => p.name, required => p.required,
+                slug => p.slug, name => crate::epub_preview::reader_name(p), required => p.required,
                 checked => readers.iter().any(|r| r.slug == p.slug),
             }
         })

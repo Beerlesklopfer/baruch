@@ -293,3 +293,66 @@ fn the_english_sample_work_mirrors_the_german_one_and_contains_no_german_text() 
         );
     }
 }
+
+/// The `name="…"`/`datei="…"` values of every shortcode call `{{< kind … >}}` in a page.
+fn shortcode_values(page: &str, kind: &str, field: &str) -> Vec<String> {
+    let open = format!("{{{{< {kind} ");
+    let key = format!("{field}=\"");
+    let mut out = Vec::new();
+    for call in page.split(&open).skip(1) {
+        let call = call.split(">}}").next().unwrap_or("");
+        if let Some(rest) = call.split(&key).nth(1)
+            && let Some(value) = rest.split('"').next()
+        {
+            out.push(value.to_owned());
+        }
+    }
+    out
+}
+
+/// Added at the Round 39b integration, after the integrator took the English pictures (contract §4.4): every picture an
+/// English page shows exists in the English folder, light always and dark wherever the German picture has a dark
+/// variant, so the site build (`errorf` for a missing light picture) and the dark theme work in English as in German.
+#[test]
+fn every_picture_of_an_english_page_exists_in_the_english_folder() {
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../site");
+    let en_dir = root.join("content/en");
+    let mut pages = Vec::new();
+    let mut stack = vec![en_dir.clone()];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{} lesen: {e}", dir.display())) {
+            let path = entry.expect("directory entry").path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if path.extension().is_some_and(|e| e == "md") {
+                pages.push(path);
+            }
+        }
+    }
+    assert!(pages.len() >= 20, "the English pages are found (guards against a wrong path): {}", pages.len());
+    let static_dir = root.join("static/bilder");
+    let mut missing = Vec::new();
+    let mut seen = 0;
+    for page in &pages {
+        let text = std::fs::read_to_string(page).expect("page is UTF-8");
+        let mut files: Vec<String> =
+            shortcode_values(&text, "hilfebild", "name").into_iter().map(|n| format!("hilfe/{n}.png")).collect();
+        files.extend(shortcode_values(&text, "bild", "datei"));
+        for file in files {
+            seen += 1;
+            if !static_dir.join("en").join(&file).is_file() {
+                missing.push(format!("{} uses bilder/en/{file}", page.display()));
+            }
+            let dark = file.replace(".png", "-dunkel.png");
+            if static_dir.join(&dark).is_file() && !static_dir.join("en").join(&dark).is_file() {
+                missing.push(format!("{} has a German dark variant, bilder/en/{dark} is missing", page.display()));
+            }
+        }
+    }
+    assert!(seen >= 90, "the picture calls of the English pages are found (the help shows about a hundred): {seen}");
+    assert!(
+        missing.is_empty(),
+        "English pictures missing (bildschirmfotos.py --fotos --lang en):\n{}",
+        missing.join("\n")
+    );
+}
