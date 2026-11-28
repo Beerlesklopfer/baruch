@@ -7,16 +7,16 @@
     map_href, outline_href, workspace.
     Contents from the file (titles, notes, hints) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
-{% block title %}Mindmap einlesen · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Mindmap einlesen · {{ title }}{% endblock %}
+{% block title %}{{ t("ideas.read_in.window_title", title=title) }}{% endblock %}
+{% block page_title %}{{ t("ideas.read_in.page_title", title=title) }}{% endblock %}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Einlesen</summary><div class="band-items" role="group" aria-label="Einlesen">
-    <a class="btn" href="{{ form_href }}"{% if mode == "form" %} aria-current="page"{% endif %}>Andere Datei …</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_read_in") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_read_in") }}">
+    <a class="btn" href="{{ form_href }}"{% if mode == "form" %} aria-current="page"{% endif %}>{{ t("ideas.read_in.other_file") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ map_href }}">Mindmap</a>
-    <a class="btn" href="{{ outline_href }}">Gliederungsansicht</a>
-    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ map_href }}">{{ t("ideas.mindmap") }}</a>
+    <a class="btn" href="{{ outline_href }}">{{ t("ideas.outline_view") }}</a>
+    <a class="btn" href="{{ workspace }}">{{ t("ideas.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -27,44 +27,41 @@
 
   {%- if mode == "form" %}
   <form class="mmg-upload" action="{{ form_href }}" method="post" enctype="multipart/form-data">
-    <h1 class="pane-title">Mindmap einlesen</h1>
-    <p class="muted small">Baruch liest eine Mindmap aus XMind (.xmind), FreeMind oder Freeplane (.mm) und zeigt
-      zuerst eine Vorschau. Angelegt wird erst, wenn du die Vorschau bestätigst. Die Datei bleibt auf diesem Rechner.
-      Übernommen werden Titel, Notizen, Schlagwörter (Etiketten), Reihenfolge und Beziehungen; Bilder, Stile und
-      Marker nicht. Das Hauptthema der Datei wird nicht selbst zum Einfall.</p>
-    <label>Datei (.xmind oder .mm, höchstens {{ max_mib }} MiB, {{ max_nodes }} Knoten, {{ max_depth }} Ebenen)
+    <h1 class="pane-title">{{ t("ideas.read_in.heading") }}</h1>
+    <p class="muted small">{{ t("ideas.read_in.intro") }}</p>
+    <label>{{ t("ideas.read_in.file", mib=max_mib, nodes=max_nodes, depth=max_depth) }}
       <input type="file" name="file" accept=".xmind,.mm,application/vnd.xmind.workbook,application/x-freemind" required>
     </label>
-    <label>Wohin
+    <label>{{ t("ideas.read_in.where") }}
       <select name="parent">
-        <option value="">als Hauptthemen ans Werk (eigene Hauptäste)</option>
+        <option value="">{{ t("ideas.read_in.as_main_topics") }}</option>
         {%- for p in parents %}
-        <option value="{{ p.id }}"{% if p.selected %} selected{% endif %}>unter {{ p.label }}</option>
+        <option value="{{ p.id }}"{% if p.selected %} selected{% endif %}>{{ t("ideas.read_in.under", label=p.label) }}</option>
         {%- endfor %}
       </select>
     </label>
-    <button class="btn primary" type="submit">Vorschau zeigen</button>
+    <button class="btn primary" type="submit">{{ t("ideas.read_in.show_preview") }}</button>
   </form>
   {%- else %}
   <section class="mmg-preview" data-import-preview data-count="{{ preview.count }}">
-    <h1 class="pane-title">Vorschau: {{ preview.title or "(ohne Titel)" }}</h1>
-    <p>{{ preview.count }} Knoten{% if preview.links %}, {{ preview.links }} Beziehung(en){% endif %} –
-      {% if parent_label %}werden Unterknoten von „{{ parent_label }}“{% else %}werden Hauptthemen am Werk (eigene Hauptäste der Mindmap){% endif %}.
-      Noch ist nichts angelegt.</p>
+    <h1 class="pane-title">{{ t("ideas.read_in.preview", title=preview.title or t("ideas.read_in.untitled")) }}</h1>
+    <p>{{ t("ideas.read_in.nodes", count=preview.count) }}{% if preview.links %}{{ t("ideas.read_in.links", count=preview.links) }}{% endif %} –
+      {% if parent_label %}{{ t("ideas.read_in.become_children", parent=parent_label) }}{% else %}{{ t("ideas.read_in.become_main") }}{% endif %}.
+      {{ t("ideas.read_in.nothing_yet") }}</p>
     {%- if preview.warnings %}
-    <ul class="mmg-warnings" aria-label="Hinweise">
+    <ul class="mmg-warnings" aria-label="{{ t("ideas.read_in.warnings") }}">
       {%- for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}
     </ul>
     {%- endif %}
     <form class="mmg-form" action="{{ apply_href }}" method="post">
       <input type="hidden" name="tree" value="{{ preview.json }}">
       <input type="hidden" name="parent" value="{{ parent or "" }}">
-      <button class="btn primary" type="submit">Anlegen</button>
-      <a class="btn" href="{{ form_href }}">Verwerfen</a>
+      <button class="btn primary" type="submit">{{ t("ideas.read_in.create") }}</button>
+      <a class="btn" href="{{ form_href }}">{{ t("ideas.map.dismiss") }}</a>
     </form>
     <ul class="mmg-list">
     {%- for n in preview.nodes recursive %}
-      <li class="mmg-node mmg-idea"><span class="mmg-title">{{ n.title }}</span>{% if n.cloud and not parent_label %} <span class="badge mmg-cloud-mark" title="Lag in der Wolke der Datei und kommt wieder in die Wolke">Wolke</span>{% endif %}
+      <li class="mmg-node mmg-idea"><span class="mmg-title">{{ n.title }}</span>{% if n.cloud and not parent_label %} <span class="badge mmg-cloud-mark" title="{{ t("ideas.read_in.cloud_hint") }}">{{ t("ideas.cloud") }}</span>{% endif %}
         {%- if n.words %} <span class="muted small">{{ n.words | join(", ") }}</span>{% endif %}
         {%- if n.note %}<div class="mmg-note small">{{ n.note }}</div>{% endif %}
         {%- if n.children %}<ul class="mmg-list">{{ loop(n.children) }}</ul>{% endif %}

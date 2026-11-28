@@ -23,50 +23,50 @@
     preview with/without watermark through ?entwurf=1|0, does not change the setting), watermarked (the preview carries
     it). -#}
 {% extends "base.html" %}
-{% block title %}Satz – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Satz{% if section %} · {{ section }}{% endif %}{% endblock %}
+{% block title %}{{ t("export.typeset.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("export.typeset.page_title", title=work.title) }}{% if section %} · {{ section }}{% endif %}{% endblock %}
 {#- Round 18a: no main.js – the page needs no widget (ribbon made of links and one form). #}
 {% block scripts %}{% endblock %}
 {#- Round 33 (ribbon, contract §7): controls of the typeset page as groups in the tab „Buch“ – ordinary links and
     one form, usable without JavaScript. #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-ribbon-satz data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+  <details class="band-group" data-ribbon-satz data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ back }}">{{ t("export.back_to_work") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Herunterladen</summary><div class="band-items" role="group" aria-label="Herunterladen">
-    <a class="btn" href="/werke/{{ work.id }}/pdf" download title="Das ganze Werk als PDF (Werkvorlage, aktuelle Fassungen, Bilder)">PDF herunterladen</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("export.typeset.download") }}</summary><div class="band-items" role="group" aria-label="{{ t("export.typeset.download") }}">
+    <a class="btn" href="/werke/{{ work.id }}/pdf" download title="{{ t("export.typeset.pdf_hint") }}">{{ t("export.typeset.pdf") }}</a>
   </div></details>
   {%- if total %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Seiten</summary><div class="band-items" role="group" aria-label="Seiten">
-    {%- if previous %}<a class="btn" href="{{ previous }}" rel="prev" aria-label="Vorige Seite" title="Vorige Seite">‹</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Vorige Seite (dies ist die erste)">‹</span>{% endif %}
-    <span class="typeset-at">Seite {{ shown }} von {{ total }}</span>
-    {%- if next %}<a class="btn" href="{{ next }}" rel="next" aria-label="Nächste Seite" title="Nächste Seite">›</a>{% else %}<span class="btn" aria-disabled="true" aria-label="Nächste Seite (dies ist die letzte)">›</span>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("export.typeset.pages") }}</summary><div class="band-items" role="group" aria-label="{{ t("export.typeset.pages") }}">
+    {%- if previous %}<a class="btn" href="{{ previous }}" rel="prev" aria-label="{{ t("export.typeset.previous") }}" title="{{ t("export.typeset.previous") }}">‹</a>{% else %}<span class="btn" aria-disabled="true" aria-label="{{ t("export.typeset.previous_none") }}">‹</span>{% endif %}
+    <span class="typeset-at">{{ t("export.typeset.page_of", shown=shown, total=total) }}</span>
+    {%- if next %}<a class="btn" href="{{ next }}" rel="next" aria-label="{{ t("export.typeset.next") }}" title="{{ t("export.typeset.next") }}">›</a>{% else %}<span class="btn" aria-disabled="true" aria-label="{{ t("export.typeset.next_none") }}">›</span>{% endif %}
   </div></details>
   {%- endif %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Satzlauf</summary><div class="band-items" role="group" aria-label="Satzlauf">
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("export.typeset.run") }}</summary><div class="band-items" role="group" aria-label="{{ t("export.typeset.run") }}">
     <form class="typeset-cancel" method="post" action="/werke/{{ work.id }}/satz/abbrechen">
       {%- if key %}
       <input type="hidden" name="key" value="{{ key }}">
       {%- endif %}
-      <button class="btn" type="submit" title="Laufenden Typst-Satz dieses Werks abbrechen (auch einen, der noch wartet)">Satz abbrechen</button>
+      <button class="btn" type="submit" title="{{ t("export.typeset.cancel_hint") }}">{{ t("export.typeset.cancel") }}</button>
     </form>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page typeset-page">
-  <h1 class="pane-title">Satz mit Typst</h1>
+  <h1 class="pane-title">{{ t("export.typeset.heading") }}</h1>
   {#- Round 22: watermark „Entwurf“ – links do not change the setting (three-valued switch ?entwurf=1|0). #}
   {%- if draft_links %}
   <p class="typeset-draft small" id="entwurf">
-    {%- if watermarked %}<span class="badge warning">Entwurf</span> Die Vorschau zeigt das Wasserzeichen. {% endif %}
-    <a class="btn" href="{{ draft_links.pdf_draft }}" download title="Buch-PDF mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist">Als Entwurf herunterladen</a>
-    {%- if draft_links.pdf_plain %} <a class="btn" href="{{ draft_links.pdf_plain }}" download title="Buch-PDF ohne Wasserzeichen; die Satz-Einstellung bleibt, wie sie ist">Ohne Wasserzeichen herunterladen</a>{% endif %}
+    {%- if watermarked %}<span class="badge warning">{{ t("export.typeset.draft") }}</span> {{ t("export.typeset.watermarked") }} {% endif %}
+    <a class="btn" href="{{ draft_links.pdf_draft }}" download title="{{ t("export.typeset.draft_hint") }}">{{ t("export.typeset.download_draft") }}</a>
+    {%- if draft_links.pdf_plain %} <a class="btn" href="{{ draft_links.pdf_plain }}" download title="{{ t("export.typeset.plain_hint") }}">{{ t("export.typeset.download_plain") }}</a>{% endif %}
     <a href="{{ draft_links.toggle }}">{{ draft_links.toggle_label }}</a>
   </p>
   {%- endif %}
   {%- if cancelled_notice %}
-  <p class="notice warning" role="status">{{ cancelled_notice }}{% if idle %} Es wurde nicht neu gesetzt.{% else %} Gezeigt wird der zuletzt gesetzte Stand.{% endif %} <a href="{{ restart }}">Neu setzen</a></p>
+  <p class="notice warning" role="status">{{ cancelled_notice }}{% if idle %} {{ t("export.typeset.not_reset") }}{% else %} {{ t("export.typeset.last_state") }}{% endif %} <a href="{{ restart }}">{{ t("export.typeset.restart") }}</a></p>
   {%- endif %}
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
@@ -74,26 +74,26 @@
   {%- if (not error or pdf_error) and not idle %}
   {%- if not pdf_error %}
   <p class="muted small typeset-facts">
-    {%- if total %}{{ total }} {% if total == 1 %}Seite{% else %}Seiten{% endif %}{% else %}keine Seiten{% endif %}
-    · {{ errors }} Fehler
-    · {{ warnings }} {% if warnings == 1 %}Warnung{% else %}Warnungen{% endif %}
-    · {% if cached %}aus dem Zwischenspeicher{% else %}gesetzt in {{ millis }} ms{% endif %}</p>
+    {%- if total %}{{ t("export.typeset.page_count", count=total) }}{% else %}{{ t("export.typeset.no_pages") }}{% endif %}
+    · {{ t("export.typeset.errors", count=errors) }}
+    · {{ t("export.typeset.warnings", count=warnings) }}
+    · {% if cached %}{{ t("export.typeset.cached") }}{% else %}{{ t("export.typeset.millis", millis=millis) }}{% endif %}</p>
   {%- endif %}
   {%- if diagnostics %}
   <section class="typeset-diagnostics" aria-labelledby="typeset-diagnostics-title">
-    <h2 id="typeset-diagnostics-title" class="pane-title">Meldungen</h2>
+    <h2 id="typeset-diagnostics-title" class="pane-title">{{ t("export.typeset.messages") }}</h2>
     <ul>
     {%- for d in diagnostics %}
       <li class="typeset-diagnostic {{ d.severity }}">
         <span class="badge {% if d.severity == "error" %}danger{% else %}warning{% endif %}">{{ d.label }}</span>
         <span class="typeset-message">{{ d.message }}</span>
         <span class="muted small typeset-where">
-          {%- if d.line %}Zeile {{ d.line }}{% if d.column %}, Spalte {{ d.column }}{% endif %}{% endif %}
-          {%- if d.file %} in {{ d.file }}{% endif %}
-          {%- if d.section %} · {% if d.href %}<a href="{{ d.href }}">{{ d.section }}</a>{% else %}{{ d.section }}{% endif %}{% if d.section_line %}, Zeile {{ d.section_line }}{% endif %}{% endif %}
+          {%- if d.line %}{{ t("export.typeset.line", line=d.line) }}{% if d.column %}{{ t("export.typeset.column", column=d.column) }}{% endif %}{% endif %}
+          {%- if d.file %} {{ t("export.typeset.in_file", file=d.file) }}{% endif %}
+          {%- if d.section %} · {% if d.href %}<a href="{{ d.href }}">{{ d.section }}</a>{% else %}{{ d.section }}{% endif %}{% if d.section_line %}{{ t("export.typeset.comma_line", line=d.section_line) }}{% endif %}{% endif %}
         </span>
         {%- for h in d.hints %}
-        <span class="muted small typeset-hint">Hinweis: {{ h }}</span>
+        <span class="muted small typeset-hint">{{ t("export.typeset.hint", hint=h) }}</span>
         {%- endfor %}
       </li>
     {%- endfor %}
@@ -103,55 +103,55 @@
   {%- if not pdf_error %}
   {#- Print check (Round 11): missing images and raster images below 300 dpi at their typeset size. #}
   <section class="typeset-print card" id="druckpruefung" aria-labelledby="druckpruefung-title">
-    <h2 id="druckpruefung-title" class="pane-title">Druckprüfung</h2>
+    <h2 id="druckpruefung-title" class="pane-title">{{ t("export.typeset.print_check") }}</h2>
     {%- if missing or print or imprint or broken or conflicts or template_rule %}
     <ul>
     {%- if template_rule %}
-      <li class="typeset-diagnostic warning typeset-template-rule" data-chapter-start="{{ template_rule.chapter_start }}"><span class="badge warning">Vorlage</span>
-        <span class="typeset-message">Die Werkvorlage bestimmt den Kapitelanfang selbst ({{ template_rule.label }}, Zeile {{ template_rule.line }}): <code>{{ template_rule.text }}</code></span>
-        <a class="small" href="{{ typeset_settings_href }}">In den Satz-Einstellungen übernehmen und die Zeile entfernen</a></li>
+      <li class="typeset-diagnostic warning typeset-template-rule" data-chapter-start="{{ template_rule.chapter_start }}"><span class="badge warning">{{ t("export.typeset.badge_template") }}</span>
+        <span class="typeset-message">{{ t("export.typeset.template_rule", label=template_rule.label, line=template_rule.line) }} <code>{{ template_rule.text }}</code></span>
+        <a class="small" href="{{ typeset_settings_href }}">{{ t("export.typeset.adopt_rule") }}</a></li>
     {%- endif %}
     {%- for c in conflicts %}
-      <li class="typeset-diagnostic {% if c.effect == "ineffective" %}error{% else %}warning{% endif %} typeset-conflict" data-field="{{ c.field }}" data-effect="{{ c.effect }}"><span class="badge {% if c.effect == "ineffective" %}danger{% else %}warning{% endif %}">Satz</span>
+      <li class="typeset-diagnostic {% if c.effect == "ineffective" %}error{% else %}warning{% endif %} typeset-conflict" data-field="{{ c.field }}" data-effect="{{ c.effect }}"><span class="badge {% if c.effect == "ineffective" %}danger{% else %}warning{% endif %}">{{ t("export.typeset.badge_typeset") }}</span>
         <span class="typeset-message">{{ c.message }}</span>
-        <span class="muted small"><code>{{ c.text }}</code> · <a href="{{ typeset_settings_href }}">Satz-Einstellungen</a></span></li>
+        <span class="muted small"><code>{{ c.text }}</code> · <a href="{{ typeset_settings_href }}">{{ t("export.typeset.settings") }}</a></span></li>
     {%- endfor %}
     {%- for b in broken %}
-      <li class="typeset-diagnostic error typeset-xref" data-label="{{ b.label }}"><span class="badge danger">Verweis</span>
-        <span class="typeset-message">Kaputter Querverweis {{ b.label }} in {{ b.section }}: „{{ b.text }}“ (im Satz nur als Text)</span>
-        <a class="small" href="{{ b.href|safe }}" data-jump>zur Stelle</a> · <a class="small" href="/verweise?work={{ work.id }}">Querverweise prüfen</a></li>
+      <li class="typeset-diagnostic error typeset-xref" data-label="{{ b.label }}"><span class="badge danger">{{ t("export.typeset.badge_xref") }}</span>
+        <span class="typeset-message">{{ t("export.typeset.broken_xref", label=b.label, section=b.section, text=b.text) }}</span>
+        <a class="small" href="{{ b.href|safe }}" data-jump>{{ t("export.typeset.to_place") }}</a> · <a class="small" href="/verweise?work={{ work.id }}">{{ t("export.typeset.check_xrefs") }}</a></li>
     {%- endfor %}
     {%- for path in missing %}
-      <li class="typeset-diagnostic error typeset-missing"><span class="badge danger">Fehlt</span>
-        <span class="typeset-message">Bild fehlt: {{ path }}</span>
-        <a class="small" href="{{ images_href }}">Bilder hochladen oder Pfad zuordnen</a></li>
+      <li class="typeset-diagnostic error typeset-missing"><span class="badge danger">{{ t("export.typeset.badge_missing") }}</span>
+        <span class="typeset-message">{{ t("export.typeset.image_missing", path=path) }}</span>
+        <a class="small" href="{{ images_href }}">{{ t("export.typeset.upload_or_assign") }}</a></li>
     {%- endfor %}
     {%- for p in print %}
       <li class="typeset-diagnostic warning typeset-dpi"><span class="badge warning">{{ p.dpi | int }} dpi</span>
         <span class="typeset-message">{{ p.message }}</span>
-        <span class="muted small">Seite {{ p.page }} · {{ p.width_px }} × {{ p.height_px }} Pixel</span></li>
+        <span class="muted small">{{ t("export.typeset.dpi_where", page=p.page, width=p.width_px, height=p.height_px) }}</span></li>
     {%- endfor %}
     {%- for w in imprint %}
-      <li class="typeset-diagnostic warning typeset-imprint" data-code="{{ w.code }}"><span class="badge warning">Impressum</span>
+      <li class="typeset-diagnostic warning typeset-imprint" data-code="{{ w.code }}"><span class="badge warning">{{ t("export.typeset.badge_imprint") }}</span>
         <span class="typeset-message">{{ w.message }}</span>
-        <span class="muted small">üblich nach den Landespressegesetzen, keine Rechtsberatung · <a href="/einstellungen/werk?work={{ work.id }}#buchangaben">Buchangaben</a></span></li>
+        <span class="muted small">{{ t("export.typeset.imprint_hint") }} · <a href="/einstellungen/werk?work={{ work.id }}#buchangaben">{{ t("export.typeset.book_details") }}</a></span></li>
     {%- endfor %}
     </ul>
     {%- else %}
-    <p class="muted small">Alle Bilder sind da; kein Rasterbild liegt unter {{ min_dpi }} dpi.</p>
+    <p class="muted small">{{ t("export.typeset.all_fine", dpi=min_dpi) }}</p>
     {%- endif %}
   </section>
   {%- endif %}
   {%- if image %}
-  <nav class="typeset-nav" aria-label="Seiten des Kapitels">
+  <nav class="typeset-nav" aria-label="{{ t("export.typeset.chapter_pages") }}">
     {#- ‹ › and „Seite n von m“ stand in the ribbon (Round 33: tab „Buch“, group „Seiten“). #}
-    <span class="typeset-chapter">{% if section %}Kapitel{% else %}Seiten{% endif %}:
+    <span class="typeset-chapter">{% if section %}{{ t("export.typeset.chapter") }}{% else %}{{ t("export.typeset.pages") }}{% endif %}:
     {%- for p in chapter_pages %}
       {% if p.current %}<a class="page current" aria-current="page" href="{{ p.href }}">{{ p.number }}</a>{% else %}<a class="page" href="{{ p.href }}">{{ p.number }}</a>{% endif %}
     {%- endfor %}</span>
   </nav>
   <figure class="typeset-sheet">
-    <img src="{{ image }}" alt="Seite {{ shown }} von {{ total }}">
+    <img src="{{ image }}" alt="{{ t("export.typeset.page_of", shown=shown, total=total) }}">
   </figure>
   {%- endif %}
   {%- endif %}

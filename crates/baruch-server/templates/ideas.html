@@ -9,22 +9,22 @@
     filter.mode, rag (available, ways_line, message) or rag_note (without a chosen work), fts_href (the same
     search verbatim); hits of the semantic search carry rag_snippet (text, escaped) and percent. -#}
 {% extends "base.html" %}
-{% block title %}Einfälle – Baruch{% endblock %}
-{% block page_title %}Einfälle{% endblock %}
+{% block title %}{{ t("ideas.list.window_title") }}{% endblock %}
+{% block page_title %}{{ t("ideas.list.heading") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   {%- if map_href %}
   {#- Round 25: idea map of this work (only with a chosen work). #}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
-    <a class="btn idea-map-link" href="{{ map_href }}" title="Die Einfälle dieses Werks als Mindmap um Kapitel und Teile, mit der Wolke daneben">Mindmap</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.see_also") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.see_also") }}">
+    <a class="btn idea-map-link" href="{{ map_href }}" title="{{ t("ideas.list.map_hint") }}">{{ t("ideas.mindmap") }}</a>
   </div></details>
   {%- endif %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
     {%- if workspace %}
-    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+    <a class="btn" href="{{ workspace }}">{{ t("ideas.back_to_work") }}</a>
     {%- else %}
-    <a class="btn" href="/">Zurück</a>
+    <a class="btn" href="/">{{ t("common.back") }}</a>
     {%- endif %}
   </div></details>
 {% endblock %}
@@ -36,79 +36,79 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Einfälle{% if filter.deleted %} – gelöscht{% endif %}</h1>
+  <h1 class="pane-title">{{ t("ideas.list.heading") }}{% if filter.deleted %} {{ t("ideas.list.heading_deleted") }}{% endif %}</h1>
 
-  <form class="idea-filter" method="get" action="/einfaelle" role="search" aria-label="Einfälle filtern">
-    <label>Werk
+  <form class="idea-filter" method="get" action="/einfaelle" role="search" aria-label="{{ t("ideas.list.filter_label") }}">
+    <label>{{ t("ideas.work") }}
       <select name="work">
-        <option value="all"{% if filter.work == "all" %} selected{% endif %}>alle</option>
-        <option value="none"{% if filter.work == "none" %} selected{% endif %}>ohne Werk</option>
+        <option value="all"{% if filter.work == "all" %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="none"{% if filter.work == "none" %} selected{% endif %}>{{ t("ideas.without_work") }}</option>
         {%- for w in works %}
         <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
         {%- endfor %}
       </select></label>
-    <label>Status
+    <label>{{ t("ideas.list.status") }}
       <select name="status">
-        <option value="all"{% if filter.status == "all" %} selected{% endif %}>alle</option>
-        <option value="open"{% if filter.status == "open" %} selected{% endif %}>offen</option>
-        <option value="done"{% if filter.status == "done" %} selected{% endif %}>verarbeitet</option>
+        <option value="all"{% if filter.status == "all" %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="open"{% if filter.status == "open" %} selected{% endif %}>{{ t("ideas.open") }}</option>
+        <option value="done"{% if filter.status == "done" %} selected{% endif %}>{{ t("ideas.done") }}</option>
       </select></label>
-    <label>Schlagwort <input type="text" name="word" value="{{ filter.word }}" size="14"></label>
-    <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="18" placeholder="Wörter suchen"></label>
+    <label>{{ t("ideas.list.keyword") }} <input type="text" name="word" value="{{ filter.word }}" size="14"></label>
+    <label>{{ t("ideas.list.search") }} <input type="search" name="q" value="{{ filter.q }}" size="18" placeholder="{{ t("ideas.list.search_placeholder") }}"></label>
     <fieldset class="idea-mode">
-      <legend>Suche nach</legend>
-      <label class="inline"><input type="radio" name="mode" value="fts"{% if filter.mode != "rag" %} checked{% endif %}> Wortlaut (FTS)</label>
-      <label class="inline"><input type="radio" name="mode" value="rag"{% if filter.mode == "rag" %} checked{% endif %}> Bedeutung (RAG)</label>
+      <legend>{{ t("ideas.list.search_by") }}</legend>
+      <label class="inline"><input type="radio" name="mode" value="fts"{% if filter.mode != "rag" %} checked{% endif %}> {{ t("ideas.list.mode_fts") }}</label>
+      <label class="inline"><input type="radio" name="mode" value="rag"{% if filter.mode == "rag" %} checked{% endif %}> {{ t("ideas.list.mode_rag") }}</label>
     </fieldset>
     {%- if filter.deleted %}<input type="hidden" name="deleted" value="1">{% endif %}
-    <button class="btn" type="submit">Filtern</button>
+    <button class="btn" type="submit">{{ t("ideas.list.filter") }}</button>
     {%- if filter.deleted %}
-    <a class="btn" href="{{ present_href }}">Vorhandene zeigen</a>
+    <a class="btn" href="{{ present_href }}">{{ t("ideas.list.show_present") }}</a>
     {%- else %}
-    <a class="btn" href="{{ deleted_href }}">Gelöschte zeigen</a>
+    <a class="btn" href="{{ deleted_href }}">{{ t("ideas.list.show_deleted") }}</a>
     {%- endif %}
   </form>
 
-  <section class="idea-cloud" aria-label="Schlagwörter">
+  <section class="idea-cloud" aria-label="{{ t("ideas.list.keywords") }}">
     {%- for w in cloud %}
     <a class="idea-word size-{{ w.size }}{% if w.active %} active{% endif %}" href="{{ w.href }}"{% if w.active %} aria-current="true"{% endif %}>{{ w.word }} <span class="muted tiny">{{ w.count }}</span></a>
     {%- else %}
-    <span class="muted small">Noch keine Schlagwörter.</span>
+    <span class="muted small">{{ t("ideas.list.no_keywords") }}</span>
     {%- endfor %}
-    {%- if filter.word %}<a class="small" href="{{ all_words }}">alle Schlagwörter</a>{% endif %}
+    {%- if filter.word %}<a class="small" href="{{ all_words }}">{{ t("ideas.list.all_keywords") }}</a>{% endif %}
   </section>
 
-  <section class="idea-list" aria-label="Einfälle">
+  <section class="idea-list" aria-label="{{ t("ideas.list.heading") }}">
     {%- if rag_note %}<p class="notice small" role="status" data-rag-note>{{ rag_note }}</p>{% endif %}
     {%- if rag %}
-    <p class="muted small">Treffer der Bedeutungssuche nach „{{ filter.q }}“:</p>
+    <p class="muted small">{{ t("ideas.list.rag_hits", query=filter.q) }}</p>
     {%- if rag.ways_line %}<p class="idea-ways tiny" data-ways>{{ rag.ways_line }}</p>{% endif %}
     {%- if not rag.available %}
-    <p class="notice small" role="status" data-rag-missing>{{ rag.message }} <a href="{{ fts_href }}" data-fts-link>Dieselbe Suche im Wortlaut (FTS)</a></p>
+    <p class="notice small" role="status" data-rag-missing>{{ rag.message }} <a href="{{ fts_href }}" data-fts-link>{{ t("ideas.list.same_search_fts") }}</a></p>
     {%- endif %}
-    {%- elif searched %}<p class="muted small">Treffer der Volltextsuche nach „{{ filter.q }}“:</p>{% endif %}
+    {%- elif searched %}<p class="muted small">{{ t("ideas.list.fts_hits", query=filter.q) }}</p>{% endif %}
     {#- Round 19c: weak hits of the semantic search (i.weak) after the others, collapsed in <details>. #}
     {%- macro card(i, weak_label) %}
     <article class="idea-card{% if not i.open %} done{% endif %}{% if i.deleted %} deleted{% endif %}{% if i.weak %} weak-hit{% endif %}" id="einfall-{{ i.id }}" data-origin="{{ i.origin_kind }}">
       <header class="idea-card-head">
-        <a class="idea-title" href="{{ i.href }}">Einfall {{ i.id }}</a>
+        <a class="idea-title" href="{{ i.href }}">{{ t("ideas.idea_number", id=i.id) }}</a>
         {%- if i.title %}<strong class="idea-node-title">{{ i.title }}</strong>{% endif %}
-        {%- if i.cloud %}<span class="badge idea-place" title="Ohne Platz in der Mindmap">Wolke</span>
-        {%- elif i.parent is not none %}<span class="badge idea-place" title="Unterknoten in der Mindmap">unter Einfall {{ i.parent }}</span>{% endif %}
+        {%- if i.cloud %}<span class="badge idea-place" title="{{ t("ideas.list.cloud_hint") }}">{{ t("ideas.cloud") }}</span>
+        {%- elif i.parent is not none %}<span class="badge idea-place" title="{{ t("ideas.list.child_hint") }}">{{ t("ideas.list.under_idea", id=i.parent) }}</span>{% endif %}
         {%- for w in i.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
         <span class="grow"></span>
-        {%- if i.deleted %}<span class="badge warning">gelöscht {{ i.deleted }}</span>
-        {%- elif i.open %}<span class="badge warning">offen</span>
-        {%- else %}<span class="badge success">verarbeitet{% if i.done_label %} als {{ i.done_label }}{% endif %}</span>{% endif %}
+        {%- if i.deleted %}<span class="badge warning">{{ t("ideas.deleted_at", date=i.deleted) }}</span>
+        {%- elif i.open %}<span class="badge warning">{{ t("ideas.open") }}</span>
+        {%- else %}<span class="badge success">{{ t("ideas.done") }}{% if i.done_label %} {{ t("ideas.done_as", label=i.done_label) }}{% endif %}</span>{% endif %}
       </header>
       {%- if i.snippet %}<p class="idea-snippet small">{{ i.snippet }}</p>{% endif %}
-      {%- if i.rag_snippet is defined %}<p class="idea-snippet small" data-rag-hit>{{ i.rag_snippet }} <span class="muted tiny">Ähnlichkeit {{ i.percent }} %{% if i.weak %} <span class="weak-label" data-weak-label>{{ weak_label }}</span>{% endif %}</span></p>{% endif %}
+      {%- if i.rag_snippet is defined %}<p class="idea-snippet small" data-rag-hit>{{ i.rag_snippet }} <span class="muted tiny">{{ t("ideas.list.similarity", percent=i.percent) }}{% if i.weak %} <span class="weak-label" data-weak-label>{{ weak_label }}</span>{% endif %}</span></p>{% endif %}
       {%- if i.note %}<p class="idea-note">{{ i.note }}</p>{% endif %}
       {%- if i.quote %}<blockquote class="idea-quote small">{{ i.quote }}</blockquote>{% endif %}
       <footer class="muted tiny">
-        {%- if i.work_title %}{{ i.work_title }}{% else %}ohne Werk{% endif %}
-        {%- if i.node_title is not none %} · {% if i.node_href %}<a href="{{ i.node_href }}">Abschnitt „{{ i.node_title }}“</a>{% else %}Abschnitt „{{ i.node_title }}“{% endif %}{% endif %}
-        {%- if i.source %} · Quelle: {{ i.source }}{% endif %}
+        {%- if i.work_title %}{{ i.work_title }}{% else %}{{ t("ideas.without_work") }}{% endif %}
+        {%- if i.node_title is not none %} · {% if i.node_href %}<a href="{{ i.node_href }}">{{ t("ideas.section_quoted", title=i.node_title) }}</a>{% else %}{{ t("ideas.section_quoted", title=i.node_title) }}{% endif %}{% endif %}
+        {%- if i.source %} · {{ t("ideas.source_is", source=i.source) }}{% endif %}
         {%- if i.bible %} · {{ i.bible }}{% endif %}
         · {{ i.origin }} · {{ i.created }}
       </footer>
@@ -116,12 +116,12 @@
     {%- endmacro %}
     {%- for i in ideas %}{% if not i.weak %}{{ card(i, weak_label) }}{% endif %}
     {%- else %}
-    <p class="muted">{% if searched %}Keine Treffer.{% else %}Keine Einfälle für diesen Filter.{% endif %}</p>
+    <p class="muted">{% if searched %}{{ t("ideas.list.no_hits") }}{% else %}{{ t("ideas.list.none_for_filter") }}{% endif %}</p>
     {%- endfor %}
     {%- if weak_count %}
-    {%- if weak_count == ideas | length %}<p class="muted small" data-only-weak>Nur schwache Treffer.</p>{% endif %}
+    {%- if weak_count == ideas | length %}<p class="muted small" data-only-weak>{{ t("ideas.list.only_weak") }}</p>{% endif %}
     <details class="weak-hits" data-weak-hits>
-      <summary class="small">{{ weak_count }} schwache{% if weak_count == 1 %}r{% endif %} Treffer</summary>
+      <summary class="small">{{ t("ideas.list.weak_hits", count=weak_count) }}</summary>
       {%- for i in ideas %}{% if i.weak %}{{ card(i, weak_label) }}{% endif %}{% endfor %}
     </details>
     {%- endif %}
@@ -129,24 +129,24 @@
 
   {%- if not filter.deleted %}
   <form class="work-form idea-new" method="post" action="/einfaelle/act">
-    <h2 class="pane-title">Neuer Einfall</h2>
+    <h2 class="pane-title">{{ t("ideas.list.new") }}</h2>
     <input type="hidden" name="method" value="idea.create">
     <div class="work-fields">
-      <label>Titel (Knoten der Mindmap) <input type="text" name="title" maxlength="200" placeholder="wahlfrei"></label>
-      <label>Schlagwörter (durch Komma getrennt; Titel oder Schlagwort ist Pflicht) <input type="text" name="words" placeholder="z. B. Laube, Rosen"></label>
-      <label>Werk
+      <label>{{ t("ideas.list.new_title") }} <input type="text" name="title" maxlength="200" placeholder="{{ t("ideas.optional") }}"></label>
+      <label>{{ t("ideas.list.new_words") }} <input type="text" name="words" placeholder="{{ t("ideas.words_example") }}"></label>
+      <label>{{ t("ideas.work") }}
         <select name="work">
-          <option value="none"{% if filter.work == "none" or filter.work == "all" %} selected{% endif %}>ohne Werk</option>
+          <option value="none"{% if filter.work == "none" or filter.work == "all" %} selected{% endif %}>{{ t("ideas.without_work") }}</option>
           {%- for w in works %}
           <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
           {%- endfor %}
         </select></label>
-      <label>Quelle <input type="text" name="source" maxlength="200"></label>
-      <label>Bibelstelle <input type="text" name="bible" maxlength="200" placeholder="z. B. Hld 2,12"></label>
+      <label>{{ t("ideas.source") }} <input type="text" name="source" maxlength="200"></label>
+      <label>{{ t("ideas.bible") }} <input type="text" name="bible" maxlength="200" placeholder="{{ t("ideas.bible_example") }}"></label>
     </div>
-    <label>Gedanke <textarea name="note" rows="3" maxlength="4000"></textarea></label>
-    <label>Markierter Text <textarea name="quote" rows="2" maxlength="4000"></textarea></label>
-    <button class="btn primary" type="submit">Festhalten</button>
+    <label>{{ t("ideas.thought") }} <textarea name="note" rows="3" maxlength="4000"></textarea></label>
+    <label>{{ t("ideas.quote") }} <textarea name="quote" rows="2" maxlength="4000"></textarea></label>
+    <button class="btn primary" type="submit">{{ t("ideas.list.capture") }}</button>
   </form>
   {%- endif %}
 </main>

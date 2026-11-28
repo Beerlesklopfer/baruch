@@ -19,44 +19,44 @@
   {%- if c.pending_json and c.pending_json.question %}
   {%- set p = c.pending_json %}
   {#- Round 22: query of a persona about a finished finding – yes/no = finding.decide confirm 1/0. #}
-  <div class="fd-pending fd-question" data-finding-pending="{{ p.id }}" data-finding-question role="group" aria-label="Rückfrage zu Befund {{ c.ref }}">
-    <p class="small"><span class="badge primary" title="Rückfrage einer Persona">Rückfrage</span>
-      {{ p.actor_label }}: <strong>{% if p.note %}{{ p.note }}{% else %}Befund {{ c.id }} scheint erledigt – als erledigt markieren?{% endif %}</strong>
+  <div class="fd-pending fd-question" data-finding-pending="{{ p.id }}" data-finding-question role="group" aria-label="{{ t("findings.card.question_label", ref=c.ref) }}">
+    <p class="small"><span class="badge primary" title="{{ t("findings.card.question_hint") }}">{{ t("findings.card.question") }}</span>
+      {{ p.actor_label }}: <strong>{% if p.note %}{{ p.note }}{% else %}{{ t("findings.card.question_default", id=c.id) }}{% endif %}</strong>
       <span class="muted tiny">{{ p.time }}</span></p>
     <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="1">
-      <button class="btn small success" type="submit">Ja, erledigt</button>
+      <button class="btn small success" type="submit">{{ t("findings.card.yes_done") }}</button>
     </form>
     <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="0">
-      <button class="btn small" type="submit">Nein, noch offen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.no_open") }}</button>
     </form>
   </div>
   {%- elif c.pending_json %}
   {%- set p = c.pending_json %}
   <div class="fd-pending" data-finding-pending="{{ p.id }}">
-    <p class="small"><span class="badge warning" title="offener Vorschlag eines Assistenten">Vorschlag</span>
-      {{ p.actor_label }} schlägt vor: <strong>{{ p.status_sign }} {{ p.words }}</strong>{% if p.note %} – „{{ p.note }}“{% endif %}
+    <p class="small"><span class="badge warning" title="{{ t("findings.card.proposal_hint") }}">{{ t("findings.card.proposal") }}</span>
+      {{ t("findings.card.proposes", actor=p.actor_label) }} <strong>{{ p.status_sign }} {{ p.words }}</strong>{% if p.note %} {{ t("findings.dash_quote", text=p.note) }}{% endif %}
       <span class="muted tiny">{{ p.time }}</span></p>
     <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="1">
-      <button class="btn small success" type="submit">Bestätigen</button>
+      <button class="btn small success" type="submit">{{ t("findings.card.confirm") }}</button>
     </form>
     <form class="fd-inline{{ na }}" method="post" action="/werke/befunde/act" data-finding-form>
       {{- hidden(work_id, back, "finding.decide") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="entry" value="{{ p.id }}">
       <input type="hidden" name="confirm" value="0">
-      <button class="btn small" type="submit">Verwerfen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.reject") }}</button>
     </form>
   </div>
   {%- endif %}
@@ -64,81 +64,81 @@
 {%- macro status_forms(c, work_id, back, targets, draft, na="") %}
   {%- set mine = draft and draft.id == c.id %}
   <details class="fd-forms{{ na }}"{% if mine %} open{% endif %}>
-    <summary class="small">{% if c.status == "open" %}Status setzen …{% else %}Status ändern …{% endif %}</summary>
+    <summary class="small">{% if c.status == "open" %}{{ t("findings.card.set_status") }}{% else %}{{ t("findings.card.change_status") }}{% endif %}</summary>
     {%- if c.key is not none and c.revisions %}
-    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} übernommen">
+    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="{{ t("findings.card.adopted_label", ref=c.ref) }}">
       {{- hidden(work_id, back, "finding.set_status") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="status" value="adopted">
-      <label class="small">✓ übernommen in
+      <label class="small">{{ t("findings.card.adopted_in") }}
         <select name="rev" required>
           {%- for r in c.revisions %}<option value="{{ r.number }}"{% if (mine and draft.rev == r.number ~ "") or (not (mine and draft.rev) and r.current) %} selected{% endif %}>{{ r.label }}</option>{% endfor %}
         </select></label>
-      <button class="btn small" type="submit">Übernommen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.adopted") }}</button>
     </form>
     {%- endif %}
-    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} verwerfen">
+    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="{{ t("findings.card.reject_label", ref=c.ref) }}">
       {{- hidden(work_id, back, "finding.set_status") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="status" value="rejected">
-      <label class="small">✗ verworfen, weil (Pflicht)
+      <label class="small">{{ t("findings.card.rejected_because") }}
         <textarea name="reason" rows="2" maxlength="2000" required>{% if mine and draft.status == "rejected" %}{{ draft.reason }}{% endif %}</textarea></label>
-      <button class="btn small" type="submit">Verwerfen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.reject") }}</button>
     </form>
-    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} verschieben">
+    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="{{ t("findings.card.defer_label", ref=c.ref) }}">
       {{- hidden(work_id, back, "finding.set_status") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="status" value="deferred">
-      <label class="small">→ verschoben nach Abschnitt
+      <label class="small">{{ t("findings.card.deferred_to_section") }}
         <select name="target_key">
           <option value="">–</option>
-          {%- for t in targets %}<option value="{{ t.key }}"{% if mine and draft.target_key == t.key ~ "" %} selected{% endif %}>{{ t.label }}</option>{% endfor %}
+          {%- for target in targets %}<option value="{{ target.key }}"{% if mine and draft.target_key == target.key ~ "" %} selected{% endif %}>{{ target.label }}</option>{% endfor %}
         </select></label>
-      <label class="small">oder in Einfall Nr. <input type="number" name="target_idea" min="1" step="1" size="5" value="{% if mine %}{{ draft.target_idea }}{% endif %}"></label>
-      <label class="small">Notiz <input type="text" name="reason" maxlength="2000" value="{% if mine and draft.status == "deferred" %}{{ draft.reason }}{% endif %}"></label>
-      <span class="muted tiny">Genau ein Ziel: ein Abschnitt oder ein Einfall.</span>
-      <button class="btn small" type="submit">Verschieben</button>
+      <label class="small">{{ t("findings.card.or_idea") }} <input type="number" name="target_idea" min="1" step="1" size="5" value="{% if mine %}{{ draft.target_idea }}{% endif %}"></label>
+      <label class="small">{{ t("findings.card.note") }} <input type="text" name="reason" maxlength="2000" value="{% if mine and draft.status == "deferred" %}{{ draft.reason }}{% endif %}"></label>
+      <span class="muted tiny">{{ t("findings.card.one_target") }}</span>
+      <button class="btn small" type="submit">{{ t("findings.card.defer") }}</button>
     </form>
-    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} erledigt">
+    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="{{ t("findings.card.done_label", ref=c.ref) }}">
       {{- hidden(work_id, back, "finding.set_status") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="status" value="done">
-      <label class="small">= erledigt ohne Änderung, Notiz <input type="text" name="reason" maxlength="2000" value="{% if mine and draft.status == "done" %}{{ draft.reason }}{% endif %}"></label>
-      <button class="btn small" type="submit">Erledigt</button>
+      <label class="small">{{ t("findings.card.done_note") }} <input type="text" name="reason" maxlength="2000" value="{% if mine and draft.status == "done" %}{{ draft.reason }}{% endif %}"></label>
+      <button class="btn small" type="submit">{{ t("findings.card.done") }}</button>
     </form>
     {%- if c.status != "open" %}
-    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="Befund {{ c.ref }} wieder öffnen">
+    <form class="fd-form" method="post" action="/werke/befunde/act" data-finding-form aria-label="{{ t("findings.card.reopen_label", ref=c.ref) }}">
       {{- hidden(work_id, back, "finding.set_status") }}
       <input type="hidden" name="id" value="{{ c.id }}">
       <input type="hidden" name="status" value="open">
-      <button class="btn small" type="submit">○ Wieder öffnen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.reopen") }}</button>
     </form>
     {%- endif %}
   </details>
 {%- endmacro %}
 {%- macro solutions(c, back, na="") %}
   {%- if c.solution_views %}
-    <form class="fd-solutions{{ na }}" method="post" action="/loesungen/act" aria-label="Lösungen zu Befund {{ c.ref }}">
+    <form class="fd-solutions{{ na }}" method="post" action="/loesungen/act" aria-label="{{ t("findings.card.solutions_label", ref=c.ref) }}">
       <input type="hidden" name="method" value="solution.adopt">
       <input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="key" value="{{ c.key }}">
       <input type="hidden" name="finding" value="{{ c.id }}">
       <input type="hidden" name="back" value="{{ back }}">
-      <p class="small"><strong>Lösung{% if c.solution_views | length != 1 %}en{% endif %}</strong></p>
+      <p class="small"><strong>{{ t("findings.card.solutions", count=c.solution_views | length) }}</strong></p>
       <ul class="sol-list small">
         {%- for s in c.solution_views %}
         <li class="sol-item{% if s.adoptable %} adoptable{% endif %}">
           {%- if s.adoptable %}<label><input type="checkbox" name="picks" value="{{ s.index }}"{% if loop.length == 1 %} checked{% endif %}> {% endif %}
-          {%- if s.replacement %}<span class="sol-instead">statt „{{ s.quote }}“</span> <span class="sol-better">besser „{{ s.replacement }}“</span>
-          {%- else %}<span class="sol-step">Schritt: {{ s.step }}</span>{% if s.quote %} <span class="muted">(bei „{{ s.quote }}“)</span>{% endif %}{% endif %}
+          {%- if s.replacement %}<span class="sol-instead">{{ t("findings.card.instead", quote=s.quote) }}</span> <span class="sol-better">{{ t("findings.card.better", replacement=s.replacement) }}</span>
+          {%- else %}<span class="sol-step">{{ t("findings.card.step", step=s.step) }}</span>{% if s.quote %} <span class="muted">{{ t("findings.card.at_quote", quote=s.quote) }}</span>{% endif %}{% endif %}
           {%- if s.adoptable %}</label>{% endif %}
         </li>
         {%- endfor %}
       </ul>
-      {%- if c.adoptable and c.key is not none %}<button class="btn small primary" type="submit">Als Vorschlag übernehmen</button>{% endif %}
+      {%- if c.adoptable and c.key is not none %}<button class="btn small primary" type="submit">{{ t("findings.card.adopt_as_proposal") }}</button>{% endif %}
     </form>
   {%- elif c.kind == "critical" %}
-    <p class="fd-nosolution tiny muted">ohne Lösungsvorschlag</p>
+    <p class="fd-nosolution tiny muted">{{ t("findings.card.no_solution") }}</p>
   {%- endif %}
 {%- endmacro %}
 {#- Round 35: `na` is empty or " nur-autor" (page Befunde): the forms for the status, for the decision and for the
@@ -147,28 +147,28 @@
 {%- macro card(c, work_id, back, targets, draft, with_section, na="") %}
   <article class="fd-card fd-{{ c.status }} fd-kind-{{ c.kind }}" id="befund-{{ c.id }}" data-finding="{{ c.id }}" data-status="{{ c.status }}" data-kind="{{ c.kind }}" data-persona="{{ c.persona }}">
     <header class="fd-head small">
-      <a class="fd-ref" href="{{ c.url }}" title="Befund {{ c.id }} einzeln">{{ c.ref }}</a>
-      <span class="fd-kind" title="Art: {{ c.kind_label }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
-      <span class="fd-status badge" title="Status: {{ c.status_label }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
+      <a class="fd-ref" href="{{ c.url }}" title="{{ t("findings.card.single", id=c.id) }}">{{ c.ref }}</a>
+      <span class="fd-kind" title="{{ t("findings.card.kind_is", label=c.kind_label) }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
+      <span class="fd-status badge" title="{{ t("findings.card.status_is", label=c.status_label) }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
       <span class="fd-persona">{{ c.persona }}</span>
-      {%- if with_section %}{% if c.node_url %} · <a href="{{ c.node_url }}">{{ c.node_label }}</a>{% else %} · <span class="muted">ohne Abschnitt</span>{% endif %}{% endif %}
+      {%- if with_section %}{% if c.node_url %} · <a href="{{ c.node_url }}">{{ c.node_label }}</a>{% else %} · <span class="muted">{{ t("findings.without_section") }}</span>{% endif %}{% endif %}
       <span class="muted tiny">{{ c.time }}</span>
-      {%- if c.post_url %} <a class="tiny" href="{{ c.post_url }}">Beitrag</a>{% endif %}
-      {%- if c.place_url %} <a class="tiny fd-place" href="{{ c.place_url }}" data-jump title="Die Stelle im Abschnitt öffnen{% if c.quote %} und das Zitat markieren{% endif %}">zur Stelle</a>{% endif %}
+      {%- if c.post_url %} <a class="tiny" href="{{ c.post_url }}">{{ t("findings.post") }}</a>{% endif %}
+      {%- if c.place_url %} <a class="tiny fd-place" href="{{ c.place_url }}" data-jump title="{% if c.quote %}{{ t("findings.place_hint_quote") }}{% else %}{{ t("findings.place_hint") }}{% endif %}">{{ t("findings.to_place") }}</a>{% endif %}
     </header>
     <div class="fd-body">{% if c.body_html %}{{ c.body_html | safe }}{% else %}<p>{{ c.body }}</p>{% endif %}</div>
-    {%- if c.quote %}<blockquote class="fd-quote small">{% if c.place_url %}<a href="{{ c.place_url }}" data-jump title="Stelle im Abschnitt anspringen">„{{ c.quote }}“</a>{% else %}„{{ c.quote }}“{% endif %}{% if c.quote_check %} <span class="muted tiny">({{ c.quote_check }})</span>{% endif %}</blockquote>{% endif %}
+    {%- if c.quote %}<blockquote class="fd-quote small">{% if c.place_url %}<a href="{{ c.place_url }}" data-jump title="{{ t("findings.jump_hint") }}">{{ t("findings.quoted", text=c.quote) }}</a>{% else %}{{ t("findings.quoted", text=c.quote) }}{% endif %}{% if c.quote_check %} <span class="muted tiny">({{ c.quote_check }})</span>{% endif %}</blockquote>{% endif %}
     {{- solutions(c, back, na) }}
-    {%- if c.reason %}<p class="fd-reason small">Begründung: {{ c.reason }}</p>{% endif %}
+    {%- if c.reason %}<p class="fd-reason small">{{ t("findings.card.reason", reason=c.reason) }}</p>{% endif %}
     {%- if c.summary %}
-    <div class="fd-summary small"><strong>Sammelvorschlag von {{ c.persona }}</strong> zu
-      {%- for s in c.summary %}{% if s.missing %} <span class="muted">(Ursprung fehlt)</span>{% else %} <a href="{{ s.url }}" title="{{ s.persona }}: {{ s.label }} ({{ s.status_label }})">{{ s.ref }}</a>{% endif %}{% if not loop.last %},{% endif %}{% endfor %}</div>
+    <div class="fd-summary small"><strong>{{ t("findings.card.summary_by", persona=c.persona) }}</strong> {{ t("findings.card.summary_on") }}
+      {%- for s in c.summary %}{% if s.missing %} <span class="muted">{{ t("findings.card.origin_missing") }}</span>{% else %} <a href="{{ s.url }}" title="{{ s.persona }}: {{ s.label }} ({{ s.status_label }})">{{ s.ref }}</a>{% endif %}{% if not loop.last %},{% endif %}{% endfor %}</div>
     {%- endif %}
     {{- decide_forms(c, work_id, back, na) }}
     {{- status_forms(c, work_id, back, targets, draft, na) }}
     {%- if c.attached %}
     <details class="fd-attached small">
-      <summary>{{ c.attached | length }} angehängt (gleichen diesem Befund, zählen nicht als offen)</summary>
+      <summary>{{ t("findings.card.attached", count=c.attached | length) }}</summary>
       <ul>
         {%- for a in c.attached %}
         <li id="befund-{{ a.id }}"><a href="{{ a.url }}">{{ a.ref }}</a> <span aria-hidden="true">{{ a.kind_sign }}</span> {{ a.kind_label }} · {{ a.persona }} · <span class="muted tiny">{{ a.time }}</span> – {{ a.body }}</li>
@@ -182,38 +182,38 @@
 {%- set fp = findings_panel %}
 <details class="acc" name="right" data-section="befunde"{% if settings.accordion == "befunde" %} open{% endif %}>
   <summary class="acc-head">
-    <span class="acc-title">Befunde</span>
+    <span class="acc-title">{{ t("findings.panel.title") }}</span>
     {%- if fp.open %}
-    <span class="badge warning findings-open" data-findings-open="{{ fp.open }}" title="{{ fp.open }} offene Befunde in diesem Abschnitt">{{ fp.open }} offen</span>
+    <span class="badge warning findings-open" data-findings-open="{{ fp.open }}" title="{{ t("findings.panel.open_hint", count=fp.open) }}">{{ t("findings.open_count", count=fp.open) }}</span>
     {%- endif %}
-    {%- if fp.pending %}<span class="badge primary" title="offene Vorschläge der Assistenten">{{ fp.pending }} Vorschlag{% if fp.pending != 1 %}e{% endif %}</span>{% endif %}
-    <span class="muted small acc-sub">{{ fp.total }} insgesamt</span>
+    {%- if fp.pending %}<span class="badge primary" title="{{ t("findings.panel.pending_hint") }}">{{ t("findings.panel.pending", count=fp.pending) }}</span>{% endif %}
+    <span class="muted small acc-sub">{{ t("findings.panel.total", count=fp.total) }}</span>
   </summary>
   <div class="acc-body findings-panel" data-widget="findings" data-findings-panel data-work="{{ work.id }}" data-zoom-zone="findings">
-    <p class="small"><a href="{{ fp.page_url }}">Alle Befunde dieses Abschnitts</a> · <a href="/werke/{{ work.id }}/befunde">Übersicht übers Werk</a></p>
+    <p class="small"><a href="{{ fp.page_url }}">{{ t("findings.panel.all_of_section") }}</a> · <a href="/werke/{{ work.id }}/befunde">{{ t("findings.panel.overview") }}</a></p>
     {%- if fp.cards and node is defined and node %}
-    <form class="fd-variants small" method="post" action="/loesungen/act" aria-label="Lösungen der offenen Befunde in Varianten umsetzen">
+    <form class="fd-variants small" method="post" action="/loesungen/act" aria-label="{{ t("findings.panel.variants_label") }}">
       <input type="hidden" name="method" value="solution.variants">
       <input type="hidden" name="work" value="{{ work.id }}">
       <input type="hidden" name="key" value="{{ node.key }}">
-      <label>Lektor schreibt <select name="count"><option value="2" selected>2</option><option value="3">3</option></select> Varianten aus den offenen Befunden</label>
-      <button class="btn small" type="submit">Lösungen umsetzen</button>
+      <label>{{ t("findings.panel.lector_writes") }} <select name="count"><option value="2" selected>2</option><option value="3">3</option></select> {{ t("findings.panel.variants_from_open") }}</label>
+      <button class="btn small" type="submit">{{ t("findings.panel.apply_solutions") }}</button>
     </form>
     {%- endif %}
     {%- if fp.cards %}
     {%- for c in fp.cards %}{{ card(c, work.id, fp.back, fp.targets, none, false) }}{% endfor %}
     {%- else %}
-    <p class="muted small">Keine offenen Befunde in diesem Abschnitt.</p>
+    <p class="muted small">{{ t("findings.panel.none_open") }}</p>
     {%- endif %}
     {%- if fp.decided %}
     <details class="fd-decided">
-      <summary class="small">{{ fp.decided | length }} entschieden (übernommen, verworfen, verschoben, erledigt)</summary>
+      <summary class="small">{{ t("findings.panel.decided", count=fp.decided | length) }}</summary>
       {%- for c in fp.decided %}{{ card(c, work.id, fp.back, fp.targets, none, false) }}{% endfor %}
     </details>
     {%- endif %}
     {%- if fp.praise %}
     <details class="fd-praise">
-      <summary class="small">{{ fp.praise | length }} Lob (ausgeblendet)</summary>
+      <summary class="small">{{ t("findings.panel.praise", count=fp.praise | length) }}</summary>
       {%- for c in fp.praise %}{{ card(c, work.id, fp.back, fp.targets, none, false) }}{% endfor %}
     </details>
     {%- endif %}

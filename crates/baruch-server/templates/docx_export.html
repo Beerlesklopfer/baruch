@@ -2,44 +2,37 @@
     sends by GET to /werke/{id}/word.docx (checkbox vorschlaege=1) and works without JavaScript. Context: settings,
     work {id, title, slug}, sections_with_proposals (sections with an open proposal), open_proposals (number). -#}
 {% extends "base.html" %}
-{% block title %}Word-Export – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Word-Export{% endblock %}
+{% block title %}{{ t("export.word.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("export.word.page_title", title=work.title) }}{% endblock %}
 {#- Ribbon (Round 33): actions of the page as a group in the tab „Buch“ (details/summary with ordinary links). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("export.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page docx-export-page">
-  <h1 class="pane-title">Word-Export</h1>
-  <p>Das Werk <strong>{{ work.title }}</strong> als Word-Datei (<code>{{ work.slug }}.docx</code>) für den Verlag: Titelei,
-    dann alle Abschnitte in Lesereihenfolge mit ihrer <strong>aktuellen Fassung</strong>.</p>
+  <h1 class="pane-title">{{ t("export.word.heading") }}</h1>
+  <p>{{ t("export.word.intro_html", title=work.title, slug=work.slug) }}</p>
   <ul class="docx-export-list">
-    <li>Überschriften tragen die Formatvorlagen „Überschrift 1–3“, Teile „Baruch Teil“, Überschriften ohne Nummer
-      „Baruch ohne Nummer 1–3“.</li>
-    <li>Fußnoten sind echte Fußnoten, Bilder (PNG, JPEG, GIF) sind eingebettet und tragen ihren Alternativtext.</li>
-    <li>Was Word nicht abbilden kann (Typst-Funktionen, Formeln, Bilder in anderen Formaten), steht als sichtbarer
-      Quelltext in einem grau hinterlegten Feld. Nichts geht still verloren; solche Stellen nennt der Export über
-      RPC und Kommandozeile als Warnung.</li>
-    <li>Der Export ändert nichts am Werk.</li>
+    <li>{{ t("export.word.styles") }}</li>
+    <li>{{ t("export.word.footnotes") }}</li>
+    <li>{{ t("export.word.unmapped") }}</li>
+    <li>{{ t("export.word.unchanged") }}</li>
   </ul>
   <form class="work-form docx-export-form" method="get" action="/werke/{{ work.id }}/word.docx">
-    <label class="check"><input type="checkbox" name="vorschlaege" value="1"> Offene Vorschläge als Änderungsverfolgung mitgeben</label>
+    <label class="check"><input type="checkbox" name="vorschlaege" value="1"> {{ t("export.word.with_proposals") }}</label>
     <p class="muted docx-export-note">
       {%- if open_proposals %}
-      Zurzeit {% if open_proposals == 1 %}ist 1 Vorschlag{% else %}sind {{ open_proposals }} Vorschläge{% endif %} offen, in
-      {% if sections_with_proposals == 1 %}1 Abschnitt{% else %}{{ sections_with_proposals }} Abschnitten{% endif %}.
+      {{ t("export.word.open_proposals", proposals=open_proposals, sections=sections_with_proposals) }}
       {%- else %}
-      Zurzeit ist kein Vorschlag offen; die Datei ist mit und ohne Häkchen dieselbe.
+      {{ t("export.word.no_open_proposals") }}
       {%- endif %}
-      Je Abschnitt steht der jüngste offene Vorschlag als Einfügung und Löschung in der Datei, mit der Persona als
-      Bearbeiter; die aktuelle Fassung bleibt der Ausgangstext. Weitere offene Vorschläge desselben Abschnitts stehen
-      nicht in der Datei.
+      {{ t("export.word.proposals_hint") }}
     </p>
-    <button class="btn primary" type="submit">Word-Datei herunterladen</button>
+    <button class="btn primary" type="submit">{{ t("export.word.download") }}</button>
   </form>
-  <p class="muted">Ob die Datei in Word oder LibreOffice so aussieht wie gedacht, zeigt erst das Öffnen dort.</p>
+  <p class="muted">{{ t("export.word.check_hint") }}</p>
 </main>
 {% endblock %}

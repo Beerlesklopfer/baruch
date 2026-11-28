@@ -6,15 +6,15 @@
     in {% block content %}, which the settings page „Werk“ shows as well (crate::settings, render_block).
     back (only there): return after saving, as a hidden field. -#}
 {% extends "base.html" %}
-{% block title %}{{ work.title }} ändern – Baruch{% endblock %}
-{% block page_title %}{{ work.title }} ändern{% endblock %}
+{% block title %}{{ t("works.edit.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("works.edit.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/werke">Werke</a>
-    <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/werke">{{ t("works.list.heading") }}</a>
+    <a class="btn" href="{{ back_url }}">{{ t("works.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -23,57 +23,57 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Werk ändern</h1>
-  <p class="muted small">Ordnername im Spiegel: <code>works/{{ work.slug }}/</code> (bleibt beim Umbenennen).
-    {%- if work.source_name %} Importiert aus <code>{{ work.source_name }}</code>.{% endif %}</p>
-  <p class="muted small" data-work-uuid>Kennung des Werks (UUID, für den Austausch zwischen Instanzen; nicht änderbar):
+  <h1 class="pane-title">{{ t("works.edit.heading") }}</h1>
+  <p class="muted small">{{ t("works.edit.folder_html", slug=work.slug) }}
+    {%- if work.source_name %} {{ t("works.edit.imported_from_html", source=work.source_name) }}{% endif %}</p>
+  <p class="muted small" data-work-uuid>{{ t("works.edit.uuid") }}
     <code>{{ work.uuid }}</code></p>
   <form class="work-form wide" action="/werke/act" method="post">
     <input type="hidden" name="action" value="update">
     <input type="hidden" name="work" value="{{ work.id }}">
     {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     <div class="work-fields">
-      <label>Titel <input type="text" name="title" value="{{ values.title }}" required></label>
-      <label>Untertitel <input type="text" name="subtitle" value="{{ values.subtitle }}"></label>
-      <label>Autor <input type="text" name="author" value="{{ values.author }}"></label>
-      <label>Art
+      <label>{{ t("works.edit.title") }} <input type="text" name="title" value="{{ values.title }}" required></label>
+      <label>{{ t("works.edit.subtitle") }} <input type="text" name="subtitle" value="{{ values.subtitle }}"></label>
+      <label>{{ t("works.list.col_author") }} <input type="text" name="author" value="{{ values.author }}"></label>
+      <label>{{ t("works.list.col_kind") }}
         <select name="kind">
-          <option value="book"{% if values.kind != "sermon" %} selected{% endif %}>Buch</option>
-          <option value="sermon"{% if values.kind == "sermon" %} selected{% endif %}>Predigt</option>
+          <option value="book"{% if values.kind != "sermon" %} selected{% endif %}>{{ t("works.edit.kind_book") }}</option>
+          <option value="sermon"{% if values.kind == "sermon" %} selected{% endif %}>{{ t("works.edit.kind_sermon") }}</option>
         </select>
       </label>
-      <label>Zielgruppe <input type="text" name="audience" value="{{ values.audience }}"></label>
-      <label>Bibelübersetzung <input type="text" name="bible" value="{{ values.bible }}"></label>
+      <label>{{ t("works.edit.audience") }} <input type="text" name="audience" value="{{ values.audience }}"></label>
+      <label>{{ t("works.edit.bible") }} <input type="text" name="bible" value="{{ values.bible }}"></label>
     </div>
-    <label>Werkvorlage <span class="muted small">(alles vor der ersten Überschrift: #set, #show, #let …; aktuell Fassung {{ work.template_rev }})</span>
+    <label>{{ t("works.edit.template") }} <span class="muted small">{{ t("works.edit.template_hint", rev=work.template_rev) }}</span>
       <textarea name="template" rows="14" spellcheck="false">{{ values.template }}</textarea>
     </label>
-    <label>Notiz zur neuen Fassung der Werkvorlage <input type="text" name="note" value="{{ values.note }}"></label>
-    <p class="muted small">Eine geänderte Werkvorlage wird eine neue Fassung; die alten bleiben unten lesbar.</p>
-    <button class="btn primary" type="submit">Speichern</button>
+    <label>{{ t("works.edit.note") }} <input type="text" name="note" value="{{ values.note }}"></label>
+    <p class="muted small">{{ t("works.edit.note_hint") }}</p>
+    <button class="btn primary" type="submit">{{ t("common.save") }}</button>
   </form>
 
   <section class="template-revisions" aria-labelledby="template-revisions-title">
-    <h2 class="pane-title" id="template-revisions-title">Fassungen der Werkvorlage</h2>
+    <h2 class="pane-title" id="template-revisions-title">{{ t("works.edit.revisions") }}</h2>
     <ul class="template-list">
     {%- for r in revisions %}
       <li{% if r.current %} class="is-current"{% endif %}>
-        {%- if r.current %}<strong>Fassung {{ r.number }}</strong> <span class="badge success">aktuell</span>
-        {%- else %}<a href="/werke/{{ work.id }}/bearbeiten?vorlage={{ r.number }}"{% if r.shown %} aria-current="true"{% endif %}>Fassung {{ r.number }}</a>{% endif %}
+        {%- if r.current %}<strong>{{ t("works.edit.revision", number=r.number) }}</strong> <span class="badge success">{{ t("works.edit.current") }}</span>
+        {%- else %}<a href="/werke/{{ work.id }}/bearbeiten?vorlage={{ r.number }}"{% if r.shown %} aria-current="true"{% endif %}>{{ t("works.edit.revision", number=r.number) }}</a>{% endif %}
         <span class="muted small">· {{ r.author }} · {{ r.created }}{% if r.note %} · {{ r.note }}{% endif %}</span>
       </li>
     {%- endfor %}
     </ul>
     {%- if old %}
-    <h3 class="pane-title">Fassung {{ old.number }} (nur lesen)</h3>
+    <h3 class="pane-title">{{ t("works.edit.revision_read_only", number=old.number) }}</h3>
     <pre class="template-old">{{ old.body }}</pre>
     {%- endif %}
   </section>
 
-  <p><a class="btn" href="/werke/{{ work.id }}/export" download>Als Typst-Datei exportieren</a>
-     <a class="btn danger" href="/werke/{{ work.id }}/loeschen">Werk löschen…</a>
-     <a class="btn" href="/werke/{{ work.id }}/nummerierung">Gliederungsschema…</a>
-     <a class="btn" href="/werke/{{ work.id }}/bilder">Bilder…</a></p>
+  <p><a class="btn" href="/werke/{{ work.id }}/export" download>{{ t("works.edit.export_typst") }}</a>
+     <a class="btn danger" href="/werke/{{ work.id }}/loeschen">{{ t("works.edit.delete") }}</a>
+     <a class="btn" href="/werke/{{ work.id }}/nummerierung">{{ t("works.edit.numbering") }}</a>
+     <a class="btn" href="/werke/{{ work.id }}/bilder">{{ t("works.edit.images") }}</a></p>
 {%- endblock %}
 </main>
 {% endblock %}

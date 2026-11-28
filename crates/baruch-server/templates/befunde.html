@@ -11,14 +11,14 @@
     matrix, history, detail, cell, old, old_total, old_limit (Round 23a: note on the cap), older_days, summaries,
     targets, many, notice, error, draft. -#}
 {% extends "base.html" %}
-{% block title %}Befunde · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Befunde · {{ title }}{% endblock %}
+{% block title %}{{ t("findings.page.window_title", title=title) }}{% endblock %}
+{% block page_title %}{{ t("findings.page.page_title", title=title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ workspace }}">{{ t("findings.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -27,154 +27,152 @@
   <div data-findings-main>
   {%- if notice %}<p class="notice" role="status">{{ notice }}</p>{% endif %}
   {%- if error %}<p class="notice error" role="alert">{{ error }}</p>{% endif %}
-  <h1 class="pane-title">Befunde in „{{ title }}“</h1>
-  <p class="muted small">Befunde sind die einzelnen Punkte aus den Antworten der Personas. Den Status setzt nur der Mensch;
-    Assistenten schlagen höchstens vor. Offen zählt, was weder entschieden noch an einen gleichen Befund angehängt noch
-    Lob ist – dieselbe Zahl steht als Abzeichen „k offen“ in der Gliederung und im Editorkopf.</p>{#- Round 35: form
+  <h1 class="pane-title">{{ t("findings.page.heading", title=title) }}</h1>
+  <p class="muted small">{{ t("findings.page.intro") }}</p>{#- Round 35: form
     only for Lektors (finding.add without key through POST /lektorat/act, without JavaScript); konten_ui::apply cuts it
     out for everyone else, the cards carry their author forms as nur-autor. -#}
-<!--NUR-LEKTOR--><form class="fd-form lektor-finding nur-lektor" method="post" action="/lektorat/act" aria-label="Anmerkung zum Buch schreiben">
+<!--NUR-LEKTOR--><form class="fd-form lektor-finding nur-lektor" method="post" action="/lektorat/act" aria-label="{{ t("findings.page.book_note_submit") }}">
     <input type="hidden" name="method" value="finding.add">
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="back" value="befunde">
-    <strong>Befund schreiben: Anmerkung zum Buch</strong>
-    <span class="muted small">Eine Anmerkung zum ganzen Buch, ohne Abschnitt. Befunde zu einem Abschnitt schreibst du auf der Arbeitsseite (rechts unter „Befunde“). Über den Status entscheidet der Autor.</span>
-    <label class="small">Art <select name="kind"><option value="hint" selected>Hinweis</option><option value="critical">Kritisch</option><option value="praise">Lob</option></select></label>
-    <label class="small">Anmerkung <textarea name="body" rows="3" maxlength="4000" required aria-label="Text der Anmerkung"></textarea></label>
-    <button class="btn small primary" type="submit">Anmerkung zum Buch schreiben</button>
+    <strong>{{ t("findings.page.book_note_heading") }}</strong>
+    <span class="muted small">{{ t("findings.page.book_note_hint") }}</span>
+    <label class="small">{{ t("findings.kind") }} <select name="kind"><option value="hint" selected>{{ t("findings.kind_hint") }}</option><option value="critical">{{ t("findings.kind_critical") }}</option><option value="praise">{{ t("findings.kind_praise") }}</option></select></label>
+    <label class="small">{{ t("findings.page.book_note_label") }} <textarea name="body" rows="3" maxlength="4000" required aria-label="{{ t("findings.page.book_note_text") }}"></textarea></label>
+    <button class="btn small primary" type="submit">{{ t("findings.page.book_note_submit") }}</button>
   </form><!--/NUR-LEKTOR-->
 
-  <form class="fd-filter" method="get" action="{{ base }}" role="search" aria-label="Befunde filtern" data-findings-filter>
-    <fieldset class="fd-filter-group"><legend class="small">Status</legend>
+  <form class="fd-filter" method="get" action="{{ base }}" role="search" aria-label="{{ t("findings.page.filter_label") }}" data-findings-filter>
+    <fieldset class="fd-filter-group"><legend class="small">{{ t("findings.status") }}</legend>
       {%- for s in statuses %}
       <label class="inline small"><input type="checkbox" name="status" value="{{ s.value }}"{% if s.checked %} checked{% endif %}> <span aria-hidden="true">{{ s.sign }}</span> {{ s.label }}</label>
       {%- endfor %}
     </fieldset>
-    <fieldset class="fd-filter-group"><legend class="small">Art</legend>
+    <fieldset class="fd-filter-group"><legend class="small">{{ t("findings.kind") }}</legend>
       {%- for k in kinds %}
       <label class="inline small"><input type="checkbox" name="kind" value="{{ k.value }}"{% if k.checked %} checked{% endif %}> {{ k.label }}</label>
       {%- endfor %}
     </fieldset>
     <label class="small">Persona
       <select name="persona">
-        <option value=""{% if not filter.persona %} selected{% endif %}>alle</option>
+        <option value=""{% if not filter.persona %} selected{% endif %}>{{ t("findings.page.all") }}</option>
         {%- for p in personas %}<option value="{{ p }}"{% if filter.persona == p %} selected{% endif %}>{{ p }}</option>{% endfor %}
       </select></label>
-    <label class="small">seit <input type="date" name="since" value="{{ filter.since or '' }}"></label>
-    <label class="small">vor dem <input type="date" name="until" value="{{ filter.until or '' }}" title="bis ausschließlich diesem Tag"></label>
-    <label class="small">älter als <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ filter.older_than_days if filter.older_than_days is not none else '' }}"> Tage</label>
-    <label class="inline small"><input type="checkbox" name="include_praise" value="1"{% if filter.include_praise %} checked{% endif %}> Lob zeigen</label>
-    <button class="btn" type="submit">Anwenden</button>
-    {%- if filter.active %}<a class="btn" href="{{ reset }}">Filter aufheben</a>{% endif %}
-    <a class="small fd-praise-toggle" href="{{ praise_toggle }}">{% if filter.include_praise %}Lob ausblenden{% else %}Lob einblenden{% endif %}</a>
+    <label class="small">{{ t("findings.page.since") }} <input type="date" name="since" value="{{ filter.since or '' }}"></label>
+    <label class="small">{{ t("findings.page.until") }} <input type="date" name="until" value="{{ filter.until or '' }}" title="{{ t("findings.page.until_hint") }}"></label>
+    <label class="small">{{ t("findings.page.older_than") }} <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ filter.older_than_days if filter.older_than_days is not none else '' }}"> {{ t("findings.page.days") }}</label>
+    <label class="inline small"><input type="checkbox" name="include_praise" value="1"{% if filter.include_praise %} checked{% endif %}> {{ t("findings.page.show_praise") }}</label>
+    <button class="btn" type="submit">{{ t("findings.page.apply") }}</button>
+    {%- if filter.active %}<a class="btn" href="{{ reset }}">{{ t("findings.page.clear_filter") }}</a>{% endif %}
+    <a class="small fd-praise-toggle" href="{{ praise_toggle }}">{% if filter.include_praise %}{{ t("findings.page.praise_hide") }}{% else %}{{ t("findings.page.praise_show") }}{% endif %}</a>
   </form>
 
-  <section class="fd-matrix-section" aria-label="Matrix Kapitel mal Persona">
-    <h2 class="pane-title">Matrix: Kapitel × Persona <span class="badge warning" title="offene Befunde im Werk (Abzeichen)">{{ matrix.open_findings }} offen</span></h2>
-    <p class="fd-legend small" aria-label="Zeichen">Zeichen: ○ offen · ✓ übernommen · ✗ verworfen · → verschoben · = erledigt ohne Änderung{% if filter.include_praise %} · + Lob{% endif %}. Kapitel mit {{ many }} oder mehr offenen Befunden sind hervorgehoben.</p>
+  <section class="fd-matrix-section" aria-label="{{ t("findings.page.matrix_label") }}">
+    <h2 class="pane-title">{{ t("findings.page.matrix_heading") }} <span class="badge warning" title="{{ t("findings.open_in_work") }}">{{ t("findings.open_count", count=matrix.open_findings) }}</span></h2>
+    <p class="fd-legend small" aria-label="{{ t("findings.page.signs") }}">{{ t("findings.page.legend") }}{% if filter.include_praise %} {{ t("findings.page.legend_praise") }}{% endif %}{{ t("findings.page.legend_many", count=many) }}</p>
     {%- if matrix.truncated %}
-    <p class="notice warning small fd-truncated" role="status">Gekappt: Die Matrix zählt nur die neuesten {{ view_limit }} von {{ matrix.truncated }} Befunden im Filter; die Abzeichen zählen alle. Ein engerer Filter (Zeitraum, Persona, Status) zeigt den Rest.</p>
+    <p class="notice warning small fd-truncated" role="status">{{ t("findings.page.truncated", limit=view_limit, total=matrix.truncated) }}</p>
     {%- endif %}
     {%- if matrix.total.solution_words %}
-    <p class="fd-solutions-total small" data-solved="{{ matrix.total.solved }}" data-unsolved="{{ matrix.total.unsolved }}">Lösungen: {{ matrix.total.solution_words }} (ohne Lob; je Zeile in der Summe als „mit/ohne“).</p>
+    <p class="fd-solutions-total small" data-solved="{{ matrix.total.solved }}" data-unsolved="{{ matrix.total.unsolved }}">{{ t("findings.page.solutions", words=matrix.total.solution_words) }}</p>
     {%- endif %}
     {%- if matrix.personas %}
     <div class="fd-matrix-wrap">
     <table class="fd-matrix" data-findings-matrix>
-      <thead><tr><th scope="col">Kapitel</th>{% for p in matrix.personas %}<th scope="col">{{ p }}</th>{% endfor %}<th scope="col">Summe</th></tr></thead>
+      <thead><tr><th scope="col">{{ t("findings.page.chapter") }}</th>{% for p in matrix.personas %}<th scope="col">{{ p }}</th>{% endfor %}<th scope="col">{{ t("findings.page.sum") }}</th></tr></thead>
       {%- for g in matrix.groups %}
       <tbody class="fd-group fd-group-{{ g.kind }}">
         <tr class="fd-group-head"><th scope="rowgroup" colspan="{{ matrix.personas | length + 2 }}">{% if g.number %}<span class="num">{{ g.number }}</span> {% endif %}{{ g.title }}</th></tr>
         {%- for r in g.rows %}
         <tr class="fd-row{% if r.many %} fd-many{% endif %}{% if r.part %} fd-part-row{% endif %}" data-key="{{ r.key if r.key is not none else '' }}" data-open-badge="{{ r.open_badge }}">
-          <th scope="row" class="fd-row-head">{% if r.node_url %}<a href="{{ r.node_url }}">{% if r.number %}<span class="num">{{ r.number }}</span> {% endif %}{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}{% if r.many %} <span class="badge warning" title="viele offene Befunde">viele offen</span>{% endif %}</th>
+          <th scope="row" class="fd-row-head">{% if r.node_url %}<a href="{{ r.node_url }}">{% if r.number %}<span class="num">{{ r.number }}</span> {% endif %}{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}{% if r.many %} <span class="badge warning" title="{{ t("findings.page.many_hint") }}">{{ t("findings.page.many") }}</span>{% endif %}</th>
           {%- for c in r.cells %}
           <td class="fd-cell heat-{{ c.heat }}{% if c.selected %} selected{% endif %}" data-open="{{ c.open }}" data-total="{{ c.total }}" title="{{ c.words }}">{% if c.url %}<a href="{{ c.url }}" data-findings-cell aria-label="{{ r.title }}, {{ matrix.personas[loop.index0] }}: {{ c.words }}">{{ c.label }}</a>{% else %}<span aria-label="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></span>{% endif %}</td>
           {%- endfor %}
-          <td class="fd-cell fd-sum heat-{{ r.total.heat }}{% if r.total.selected %} selected{% endif %}" data-open="{{ r.total.open }}" title="{{ r.total.words }}">{% if r.total.url %}<a href="{{ r.total.url }}" data-findings-cell aria-label="{{ r.title }}, alle Personas: {{ r.total.words }}">{{ r.total.label }}</a>{% else %}<span aria-hidden="true">{{ r.total.label }}</span><span class="visually-hidden">{{ r.total.words }}</span>{% endif %}{% if r.total.solution_words %} <span class="fd-sol tiny" title="{{ r.total.solution_words }}" aria-label="{{ r.total.solution_words }}">{{ r.total.solved }}/{{ r.total.unsolved }}</span>{% endif %}</td>
+          <td class="fd-cell fd-sum heat-{{ r.total.heat }}{% if r.total.selected %} selected{% endif %}" data-open="{{ r.total.open }}" title="{{ r.total.words }}">{% if r.total.url %}<a href="{{ r.total.url }}" data-findings-cell aria-label="{{ r.title }}, {{ t("findings.page.all_personas", words=r.total.words) }}">{{ r.total.label }}</a>{% else %}<span aria-hidden="true">{{ r.total.label }}</span><span class="visually-hidden">{{ r.total.words }}</span>{% endif %}{% if r.total.solution_words %} <span class="fd-sol tiny" title="{{ r.total.solution_words }}" aria-label="{{ r.total.solution_words }}">{{ r.total.solved }}/{{ r.total.unsolved }}</span>{% endif %}</td>
         </tr>
         {%- endfor %}
-        <tr class="fd-group-sum"><th scope="row">Summe {{ g.title }}</th>{% for c in g.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ g.total.open }}" title="{{ g.total.words }}"><span aria-hidden="true">{{ g.total.label }}</span><span class="visually-hidden">{{ g.total.words }}</span></td></tr>
+        <tr class="fd-group-sum"><th scope="row">{{ t("findings.page.sum_of", title=g.title) }}</th>{% for c in g.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ g.total.open }}" title="{{ g.total.words }}"><span aria-hidden="true">{{ g.total.label }}</span><span class="visually-hidden">{{ g.total.words }}</span></td></tr>
       </tbody>
       {%- endfor %}
-      <tfoot><tr class="fd-total"><th scope="row">Gesamt</th>{% for c in matrix.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ matrix.total.open }}" title="{{ matrix.total.words }}"><span aria-hidden="true">{{ matrix.total.label }}</span><span class="visually-hidden">{{ matrix.total.words }}</span></td></tr></tfoot>
+      <tfoot><tr class="fd-total"><th scope="row">{{ t("findings.page.total") }}</th>{% for c in matrix.totals %}<td class="fd-cell" data-open="{{ c.open }}" title="{{ c.words }}"><span aria-hidden="true">{{ c.label }}</span><span class="visually-hidden">{{ c.words }}</span></td>{% endfor %}<td class="fd-cell fd-sum" data-open="{{ matrix.total.open }}" title="{{ matrix.total.words }}"><span aria-hidden="true">{{ matrix.total.label }}</span><span class="visually-hidden">{{ matrix.total.words }}</span></td></tr></tfoot>
     </table>
     </div>
     {%- else %}
-    <p class="muted">Keine Befunde{% if filter.active %} für diesen Filter{% endif %}. Befunde entstehen aus den Antworten der Personas (Prüfen, Chat, Fäden).</p>
+    <p class="muted">{{ t("findings.page.none") }}{% if filter.active %} {{ t("findings.page.none_for_filter") }}{% endif %}{{ t("findings.page.none_after") }}</p>
     {%- endif %}
   </section>
 
   {%- if detail %}
-  <section class="fd-detail" id="befund" aria-label="Einzelner Befund">
+  <section class="fd-detail" id="befund" aria-label="{{ t("findings.page.single") }}">
     {%- if detail.missing %}
-    <p class="notice error" role="alert">Befund {{ detail.missing }} gibt es in diesem Werk nicht.</p>
+    <p class="notice error" role="alert">{{ t("findings.page.missing", ref=detail.missing) }}</p>
     {%- else %}
-    <h2 class="pane-title">Befund {{ detail.card.ref }}</h2>
+    <h2 class="pane-title">{{ t("findings.page.finding", ref=detail.card.ref) }}</h2>
     {{ fp.card(detail.card, work.id, here, targets, draft, true, " nur-autor") }}
     {%- if detail.similar %}
-    <p class="small">Angehängt an <a href="{{ detail.similar.url }}">{{ detail.similar.ref }}</a> ({{ detail.similar.persona }}: {{ detail.similar.status_words }}) – zählt nicht als offen.</p>
+    <p class="small">{{ t("findings.page.attached_to") }} <a href="{{ detail.similar.url }}">{{ detail.similar.ref }}</a> ({{ detail.similar.persona }}: {{ detail.similar.status_words }}) {{ t("findings.page.not_open") }}</p>
     {%- endif %}
-    <h3 class="small">Verlauf</h3>
+    <h3 class="small">{{ t("findings.page.history") }}</h3>
     {%- if detail.history %}
     <ol class="fd-history small">
       {%- for e in detail.history %}
-      <li><span aria-hidden="true">{{ e.status_sign }}</span> {{ e.words }}{% if e.reason %} – „{{ e.reason }}“{% endif %} · {{ e.actor_label }}{% if e.proposed %} (Vorschlag{% if e.decision_label %}, {{ e.decision_label }}{% if e.decided_by %} von {{ e.decided_by }}{% endif %}{% else %}, offen{% endif %}){% endif %}{% if e.note %} – Notiz: {{ e.note }}{% endif %} <span class="muted tiny">{{ e.time }}</span></li>
+      <li><span aria-hidden="true">{{ e.status_sign }}</span> {{ e.words }}{% if e.reason %} {{ t("findings.dash_quote", text=e.reason) }}{% endif %} · {{ e.actor_label }}{% if e.proposed %} ({{ t("findings.page.proposal") }}{% if e.decision_label %}, {{ e.decision_label }}{% if e.decided_by %} {{ t("findings.by", name=e.decided_by) }}{% endif %}{% else %}{{ t("findings.page.still_open") }}{% endif %}){% endif %}{% if e.note %} {{ t("findings.page.note", note=e.note) }}{% endif %} <span class="muted tiny">{{ e.time }}</span></li>
       {%- endfor %}
     </ol>
     {%- else %}
-    <p class="muted small">Noch keine Änderung (angelegt {{ detail.card.time }}).</p>
+    <p class="muted small">{{ t("findings.page.no_change", time=detail.card.time) }}</p>
     {%- endif %}
     {%- endif %}
   </section>
   {%- endif %}
 
   {%- if cell %}
-  <section class="fd-cell-list" id="zelle" aria-label="Befunde der Zelle">
+  <section class="fd-cell-list" id="zelle" aria-label="{{ t("findings.page.cell_label") }}">
     {%- if cell.missing %}
-    <p class="notice error" role="alert">Abschnitt {{ cell.missing }} gibt es in diesem Werk nicht (mehr).</p>
+    <p class="notice error" role="alert">{{ t("findings.page.cell_missing", key=cell.missing) }}</p>
     {%- else %}
-    <h2 class="pane-title">Befunde in <a href="{{ cell.node_url }}">{{ cell.label }}</a>{% if cell.persona %} von {{ cell.persona }}{% endif %} ({{ cell.count }})</h2>
-    <p class="small"><a href="{{ base }}{% if filter.query %}?{{ filter.query }}{% endif %}">Zurück zur ganzen Matrix</a></p>
-    {%- for c in cell.cards %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine Befunde in dieser Zelle.</p>{% endfor %}
+    <h2 class="pane-title">{{ t("findings.page.cell_in") }} <a href="{{ cell.node_url }}">{{ cell.label }}</a>{% if cell.persona %} {{ t("findings.by", name=cell.persona) }}{% endif %} ({{ cell.count }})</h2>
+    <p class="small"><a href="{{ base }}{% if filter.query %}?{{ filter.query }}{% endif %}">{{ t("findings.page.back_to_matrix") }}</a></p>
+    {%- for c in cell.cards %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">{{ t("findings.page.cell_empty") }}</p>{% endfor %}
     {%- endif %}
   </section>
   {%- endif %}
 
   {%- if not detail and not cell %}
-  <section class="fd-old" id="offen-aelter" aria-label="Offen, älter als {{ older_days }} Tage">
-    <h2 class="pane-title">Offen, älter als {{ older_days }} Tage ({{ old | length }})</h2>
+  <section class="fd-old" id="offen-aelter" aria-label="{{ t("findings.page.old_label", days=older_days) }}">
+    <h2 class="pane-title">{{ t("findings.page.old_heading", days=older_days, count=old | length) }}</h2>
     <form class="fd-inline small" method="get" action="{{ base }}" data-findings-filter>
-      <label>älter als <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ older_days }}"> Tage</label>
-      <button class="btn small" type="submit">Zeigen</button>
+      <label>{{ t("findings.page.older_than") }} <input type="number" name="older_than_days" min="0" max="3650" step="1" size="4" value="{{ older_days }}"> {{ t("findings.page.days") }}</label>
+      <button class="btn small" type="submit">{{ t("findings.page.show") }}</button>
     </form>
     {#- Round 23a: above the limit the oldest findings are missing from the list – the page now says so. #}
     {%- if old_total > old_limit %}
-    <p class="notice" role="status" data-old-truncated>Es gibt {{ old_total }} offene Befunde, die älter sind; gezeigt sind die {{ old_limit }} neuesten davon. Die älteren stehen in der Matrix (Zelle anklicken) oder erscheinen mit einer größeren Zahl bei „älter als … Tage“.</p>
+    <p class="notice" role="status" data-old-truncated>{{ t("findings.page.old_truncated", total=old_total, limit=old_limit) }}</p>
     {%- endif %}
-    {%- for c in old %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine offenen Befunde, die älter sind.</p>{% endfor %}
+    {%- for c in old %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">{{ t("findings.page.old_none") }}</p>{% endfor %}
   </section>
 
-  <section class="fd-summaries" id="sammelvorschlaege" aria-label="Sammelvorschläge">
-    <h2 class="pane-title">Sammelvorschläge ({{ summaries | length }})</h2>
-    <p class="muted small">Beim RFC fasst der Lektor die Befunde der anderen zusammen – nur als Vorschlag mit Verweis auf die Ursprünge.</p>
-    {%- for c in summaries %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">Keine Sammelvorschläge.</p>{% endfor %}
+  <section class="fd-summaries" id="sammelvorschlaege" aria-label="{{ t("findings.page.summaries") }}">
+    <h2 class="pane-title">{{ t("findings.page.summaries_heading", count=summaries | length) }}</h2>
+    <p class="muted small">{{ t("findings.page.summaries_hint") }}</p>
+    {%- for c in summaries %}{{ fp.card(c, work.id, here, targets, draft, true, " nur-autor") }}{% else %}<p class="muted small">{{ t("findings.page.summaries_none") }}</p>{% endfor %}
   </section>
 
-  <section class="fd-history-section" id="verlauf" aria-label="Verlauf je Kapitel">
-    <h2 class="pane-title">Verlauf je Kapitel</h2>
+  <section class="fd-history-section" id="verlauf" aria-label="{{ t("findings.page.history_per_chapter") }}">
+    <h2 class="pane-title">{{ t("findings.page.history_per_chapter") }}</h2>
     {%- if history %}
     <table class="fd-history-table small">
-      <thead><tr><th scope="col">Kapitel</th><th scope="col">✓ eingeflossen</th><th scope="col">✗ verworfen</th><th scope="col">→ verschoben</th><th scope="col">= erledigt</th><th scope="col">In Fassungen</th></tr></thead>
+      <thead><tr><th scope="col">{{ t("findings.page.chapter") }}</th><th scope="col">{{ t("findings.page.col_adopted") }}</th><th scope="col">{{ t("findings.page.col_rejected") }}</th><th scope="col">{{ t("findings.page.col_deferred") }}</th><th scope="col">{{ t("findings.page.col_done") }}</th><th scope="col">{{ t("findings.page.col_revisions") }}</th></tr></thead>
       <tbody>
       {%- for h in history %}
         <tr><th scope="row"><a href="{{ base }}?key={{ h.key }}#zelle">{{ h.label }}</a></th><td>{{ h.total.adopted }}</td><td>{{ h.total.rejected }}</td><td>{{ h.total.deferred }}</td><td>{{ h.total.done }}</td>
-          <td>{% for a in h.revisions %}<span class="fd-adopted-in">{{ a.label }}, Fassung {{ a.rev }}: {% for id in a.findings %}<a href="{{ base }}?befund={{ id }}">[B{{ id }}]</a>{% if a.stands[loop.index0] %} <span class="fd-stand" title="Stand der Fortschreibung beim Übernehmen">· Stand {{ a.stands[loop.index0] }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% if not loop.last %}; {% endif %}{% else %}<span class="muted">–</span>{% endfor %}</td></tr>
+          <td>{% for a in h.revisions %}<span class="fd-adopted-in">{{ a.label }}, {{ t("findings.page.revision", rev=a.rev) }}: {% for id in a.findings %}<a href="{{ base }}?befund={{ id }}">[B{{ id }}]</a>{% if a.stands[loop.index0] %} <span class="fd-stand" title="{{ t("findings.page.stand_hint") }}">{{ t("findings.page.stand", stand=a.stands[loop.index0]) }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% if not loop.last %}; {% endif %}{% else %}<span class="muted">–</span>{% endfor %}</td></tr>
       {%- endfor %}
       </tbody>
     </table>
     {%- else %}
-    <p class="muted small">Noch keine entschiedenen Befunde.</p>
+    <p class="muted small">{{ t("findings.page.history_none") }}</p>
     {%- endif %}
   </section>
   {%- endif %}

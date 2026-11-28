@@ -4,37 +4,37 @@
     Context: settings, work {id, title, slug}, mode_label, instance, add [(kind, number)], add_total, requests (number),
     deviations [{label, here, there, action, href?}], report (ExchangeReport), commit?, mirror?. -#}
 {% extends "base.html" %}
-{% block title %}Austausch übernommen – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}Austausch übernommen{% endblock %}
+{% block title %}{{ t("export.exchange_done.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("export.exchange_done.page_title") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">
-    <a class="btn" href="/?work={{ work.id }}">Zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("export.next") }}</summary><div class="band-items" role="group" aria-label="{{ t("export.next") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("export.to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page exchange-done-page" data-work="{{ work.id }}">
-  <h1 class="pane-title">„{{ work.title }}“: {{ mode_label }} übernommen</h1>
-  <p role="status">Aus <strong>{{ instance }}</strong>.
-    {%- if add_total == 0 %} Nichts kam hinzu.{% else %} Hinzu:
+  <h1 class="pane-title">{{ t("export.exchange_done.heading", title=work.title, mode=mode_label) }}</h1>
+  <p role="status">{{ t("export.exchange_done.from_html", instance=instance) }}
+    {%- if add_total == 0 %} {{ t("export.exchange_done.nothing_added") }}{% else %} {{ t("export.exchange_done.added") }}
     {%- for item in add %} {{ item[1] }} {{ item[0] }}{% if not loop.last %},{% endif %}{% endfor %}.{% endif %}
-    {%- if commit %} Im Spiegel als Commit <code>{{ commit }}</code> eingetragen.{% endif %}</p>
+    {%- if commit %} {{ t("export.exchange_done.commit_html", commit=commit) }}{% endif %}</p>
   {%- if mirror %}
-  <p class="notice error" role="alert">Spiegel: {{ mirror }} (das Werk ist trotzdem übernommen).</p>
+  <p class="notice error" role="alert">{{ t("export.exchange_done.mirror", error=mirror) }}</p>
   {%- endif %}
   {%- for refusal in report.refusals %}
-  <p class="notice" role="status">Nicht übernommen: {{ refusal }}</p>
+  <p class="notice" role="status">{{ t("export.exchange_done.refused", refusal=refusal) }}</p>
   {%- endfor %}
   {%- if requests %}
-  <p><a class="btn primary" href="/gliederung?work={{ work.id }}#antraege">{{ requests }} {% if requests == 1 %}Antrag{% else %}Anträge{% endif %} zur Gliederung ansehen</a></p>
+  <p><a class="btn primary" href="/gliederung?work={{ work.id }}#antraege">{{ t("export.exchange_done.requests", count=requests) }}</a></p>
   {%- endif %}
   {%- if deviations %}
   <section>
-    <h2 class="pane-title">Abweichungen ({{ deviations | length }})</h2>
+    <h2 class="pane-title">{{ t("export.exchange.deviations", count=deviations | length) }}</h2>
     <table class="exchange-deviations">
-      <thead><tr><th>Was</th><th>Hier</th><th>Dort</th><th>Folge</th></tr></thead>
+      <thead><tr><th>{{ t("export.exchange.col_what") }}</th><th>{{ t("export.exchange.col_here") }}</th><th>{{ t("export.exchange.col_there") }}</th><th>{{ t("export.exchange.col_action") }}</th></tr></thead>
       <tbody>
         {%- for d in deviations %}
         <tr>
@@ -49,8 +49,8 @@
   </section>
   {%- endif %}
   {%- if report.deleted_here %}
-  <p class="muted">Hier gelöscht und nicht wieder angelegt: {{ report.deleted_here | length }}.</p>
+  <p class="muted">{{ t("export.exchange_done.deleted_here", count=report.deleted_here | length) }}</p>
   {%- endif %}
-  <p><a href="/?work={{ work.id }}">Zum Werk</a> · <a href="/austausch/einlesen?work={{ work.id }}">Weitere Datei einlesen</a></p>
+  <p><a href="/?work={{ work.id }}">{{ t("export.to_work") }}</a> · <a href="/austausch/einlesen?work={{ work.id }}">{{ t("export.exchange_done.read_another") }}</a></p>
 </main>
 {% endblock %}

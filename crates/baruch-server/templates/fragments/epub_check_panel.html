@@ -4,18 +4,18 @@
     error?, summary {errors, warnings, infos}, findings [{severity, class, code, message, path?, reader?}],
     xml_tool (text), readers [name], panel? -#}
 <section class="epub-check-panel" id="epub-pruefung" aria-labelledby="epub-pruefung-titel" data-epub-check>
-  <h2 class="pane-title" id="epub-pruefung-titel">EPUB-Prüfung</h2>
+  <h2 class="pane-title" id="epub-pruefung-titel">{{ t("export.epub_panel.heading") }}</h2>
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- else %}
   <p class="epub-check-summary" data-epub-check-summary>
-    {%- if summary.errors == 0 %}<strong>Keine Fehler.</strong>{% else %}<strong>{{ summary.errors }} Fehler</strong>{% endif %}
-    · {{ summary.warnings }} {% if summary.warnings == 1 %}Warnung{% else %}Warnungen{% endif %}
-    · {{ summary.infos }} {% if summary.infos == 1 %}Hinweis{% else %}Hinweise{% endif %}
-    <span class="muted small">(Wohlgeformtheit: {{ xml_tool }}; Reader: {{ readers|join(", ") }})</span></p>
+    {%- if summary.errors == 0 %}<strong>{{ t("export.epub_panel.no_errors") }}</strong>{% else %}<strong>{{ t("export.epub_panel.errors", count=summary.errors) }}</strong>{% endif %}
+    · {{ t("export.epub_panel.warnings", count=summary.warnings) }}
+    · {{ t("export.epub_panel.infos", count=summary.infos) }}
+    <span class="muted small">{{ t("export.epub_panel.tools", xml=xml_tool, readers=readers|join(", ")) }}</span></p>
   {%- if findings %}
   <table class="epub-check-table">
-    <thead><tr><th scope="col">Art</th><th scope="col">Meldung</th><th scope="col">Ort</th><th scope="col">Code</th></tr></thead>
+    <thead><tr><th scope="col">{{ t("export.epub_panel.col_kind") }}</th><th scope="col">{{ t("export.epub_panel.col_message") }}</th><th scope="col">{{ t("export.epub_panel.col_place") }}</th><th scope="col">Code</th></tr></thead>
     <tbody>
     {%- for f in findings %}
       <tr class="epub-check-{{ f.class }}"><td>{{ f.severity }}</td>
@@ -26,10 +26,10 @@
     </tbody>
   </table>
   {%- else %}
-  <p class="muted small">Keine Befunde.</p>
+  <p class="muted small">{{ t("export.epub_panel.no_findings") }}</p>
   {%- endif %}
   {%- endif %}
   {%- if panel %}
-  <p class="small"><a href="/werke/{{ work }}/epub/pruefung">Ganzer Prüfbericht, EPUBCheck ausführen …</a></p>
+  <p class="small"><a href="/werke/{{ work }}/epub/pruefung">{{ t("export.epub_panel.full_report") }}</a></p>
   {%- endif %}
 </section>

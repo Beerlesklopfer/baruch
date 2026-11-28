@@ -7,12 +7,12 @@
     (answer of docx_import.apply), report_title, back_url.
     Contents from the file (titles, names, text samples, warnings) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
-{% block title %}Word-Datei importieren – Baruch{% endblock %}
-{% block page_title %}Word-Datei importieren{% endblock %}
+{% block title %}{{ t("export.word_import.window_title") }}{% endblock %}
+{% block page_title %}{{ t("export.word_import.page_title") }}{% endblock %}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/werke">Werke</a>
-    {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/werke">{{ t("export.works") }}</a>
+    {%- if back_url %}<a class="btn" href="{{ back_url }}">{{ t("export.back_to_work") }}</a>{% endif %}
   </div></details>
 {% endblock %}
 {% block body %}
@@ -23,62 +23,60 @@
 
   {%- if mode == "form" %}
   <form class="docx-import-form" action="/werke/import/word/vorschau" method="post" enctype="multipart/form-data">
-    <h1 class="pane-title">Word-Datei lesen</h1>
-    <p class="muted small">Baruch liest die Datei und zeigt Gliederung, Bearbeiter und Warnungen. Angelegt wird erst,
-      wenn du die Vorschau bestätigst. Die Datei bleibt auf diesem Rechner.</p>
-    <label>Datei (.docx, höchstens {{ max_mib }} MiB)
+    <h1 class="pane-title">{{ t("export.word_import.heading") }}</h1>
+    <p class="muted small">{{ t("export.word_import.intro") }}</p>
+    <label>{{ t("export.word_import.file", mib=max_mib) }}
       <input type="file" name="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required>
     </label>
-    <label>Titel <span class="muted small">(leer: aus der Datei)</span>
+    <label>{{ t("export.title") }} <span class="muted small">{{ t("export.word_import.title_hint") }}</span>
       <input type="text" name="title" value="{{ title_value }}" autocomplete="off">
     </label>
-    <button class="btn primary" type="submit">Lesen und Vorschau zeigen</button>
+    <button class="btn primary" type="submit">{{ t("export.word_import.read") }}</button>
   </form>
-  <p class="muted small">Das alte Format .doc liest Baruch nicht – in Word als .docx speichern. Typst oder Markdown?
-    <a href="/werke/neu">Neues Werk / Importieren …</a></p>
+  <p class="muted small">{{ t("export.word_import.doc_hint") }}
+    <a href="/werke/neu">{{ t("export.word_import.new_work") }}</a></p>
 
   {%- elif mode == "preview" %}
   <section class="docx-import-preview" data-draft="{{ preview.draft }}">
-    <h1 class="pane-title">Vorschau: {{ preview.file_name }}</h1>
-    <p class="docx-import-rule" data-rule><strong>Änderungen und Kommentare werden nie zur aktuellen Fassung.</strong>
-      Fassung 1 jedes Abschnitts ist der Stand vor allen verfolgten Änderungen; die Änderungen jedes Bearbeiters
-      werden offene Vorschläge, Kommentare werden Beiträge am Abschnitt der kommentierten Stelle.</p>
-    <p class="docx-import-counts" data-counts>{{ preview.sections | length }} Abschnitt{% if preview.sections | length != 1 %}e{% endif %},
-      <span data-comments="{{ preview.comments }}">{{ preview.comments }} Kommentar{% if preview.comments != 1 %}e{% endif %}</span>,
-      {{ preview.footnotes }} Fußnote{% if preview.footnotes != 1 %}n{% endif %},
-      {{ preview.images }} Bild{% if preview.images != 1 %}er{% endif %}.</p>
+    <h1 class="pane-title">{{ t("export.word_import.preview", name=preview.file_name) }}</h1>
+    <p class="docx-import-rule" data-rule><strong>{{ t("export.word_import.rule") }}</strong>
+      {{ t("export.word_import.rule_more") }}</p>
+    <p class="docx-import-counts" data-counts>{{ t("export.word_import.sections", count=preview.sections | length) }},
+      <span data-comments="{{ preview.comments }}">{{ t("export.word_import.comments", count=preview.comments) }}</span>,
+      {{ t("export.word_import.footnotes", count=preview.footnotes) }},
+      {{ t("export.word_import.images", count=preview.images) }}.</p>
 
     {%- if preview.warnings %}
-    <h2 class="pane-title">Hinweise</h2>
-    <ul class="docx-import-warnings" aria-label="Hinweise">
+    <h2 class="pane-title">{{ t("export.notes") }}</h2>
+    <ul class="docx-import-warnings" aria-label="{{ t("export.notes") }}">
       {%- for w in preview.warnings %}
       <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
 
-    <h2 class="pane-title">Bearbeiter</h2>
+    <h2 class="pane-title">{{ t("export.word_import.editors") }}</h2>
     {%- if preview.editors %}
     <table class="docx-import-editors">
-      <thead><tr><th scope="col">Name in Word</th><th scope="col">in Baruch</th><th scope="col">Einfügungen</th>
-        <th scope="col">Löschungen</th><th scope="col">Vorschläge (Abschnitte)</th></tr></thead>
+      <thead><tr><th scope="col">{{ t("export.word_import.col_name") }}</th><th scope="col">{{ t("export.word_import.col_baruch") }}</th><th scope="col">{{ t("export.word_import.col_insertions") }}</th>
+        <th scope="col">{{ t("export.word_import.col_deletions") }}</th><th scope="col">{{ t("export.word_import.col_proposals") }}</th></tr></thead>
       <tbody>
         {%- for e in preview.editors %}
-        <tr data-editor="{{ e.handle }}"><td>{% if e.name %}{{ e.name }}{% else %}<em>ohne Namen</em>{% endif %}</td>
+        <tr data-editor="{{ e.handle }}"><td>{% if e.name %}{{ e.name }}{% else %}<em>{{ t("export.word_import.no_name") }}</em>{% endif %}</td>
           <td><code>{{ e.handle }}</code></td><td>{{ e.insertions }}</td><td>{{ e.deletions }}</td><td>{{ e.sections }}</td></tr>
         {%- endfor %}
       </tbody>
     </table>
     {%- else %}
-    <p class="muted small">Die Datei enthält keine verfolgten Änderungen.</p>
+    <p class="muted small">{{ t("export.word_import.no_changes") }}</p>
     {%- endif %}
 
-    <h2 class="pane-title">Gliederung</h2>
+    <h2 class="pane-title">{{ t("export.word_import.outline") }}</h2>
     <ol class="docx-import-outline">
       {%- for s in preview.sections %}
       <li class="docx-import-level-{{ s.level }}" data-level="{{ s.level }}">
-        <span class="docx-import-title">{% if s.level == 0 %}Teil: {% endif %}{{ s.title }}</span>
-        <span class="muted tiny">{% if s.level == 0 %}Teil{% else %}Ebene {{ s.level }}{% endif %}{% if not s.numbered %} · ohne Nummer{% endif %} · {{ s.chars }} Zeichen</span>
+        <span class="docx-import-title">{% if s.level == 0 %}{{ t("export.word_import.part_prefix") }} {% endif %}{{ s.title }}</span>
+        <span class="muted tiny">{% if s.level == 0 %}{{ t("export.word_import.part") }}{% else %}{{ t("export.word_import.level", level=s.level) }}{% endif %}{% if not s.numbered %} · {{ t("export.word_import.unnumbered") }}{% endif %} · {{ t("export.word_import.chars", count=s.chars) }}</span>
         {%- if s.sample %}
         <p class="docx-import-sample muted small">{{ s.sample }}</p>
         {%- endif %}
@@ -88,32 +86,31 @@
 
     <form class="docx-import-apply" action="/werke/import/word/uebernehmen" method="post">
       <input type="hidden" name="draft" value="{{ preview.draft }}">
-      <h2 class="pane-title">Übernehmen</h2>
-      <label>Titel <input type="text" name="title" value="{{ values.title }}" required></label>
+      <h2 class="pane-title">{{ t("export.word_import.apply") }}</h2>
+      <label>{{ t("export.title") }} <input type="text" name="title" value="{{ values.title }}" required></label>
       <label class="docx-import-check"><input type="checkbox" name="changes" value="1"{% if values.changes %} checked{% endif %}>
-        verfolgte Änderungen als offene Vorschläge anlegen</label>
+        {{ t("export.word_import.changes_as_proposals") }}</label>
       <label class="docx-import-check"><input type="checkbox" name="comments" value="1"{% if values.comments %} checked{% endif %}>
-        Kommentare als Beiträge anlegen</label>
-      <button class="btn primary" type="submit">Als Werk übernehmen</button>
+        {{ t("export.word_import.comments_as_posts") }}</label>
+      <button class="btn primary" type="submit">{{ t("export.word_import.adopt") }}</button>
     </form>
     <form class="docx-import-discard" action="/werke/import/word/verwerfen" method="post">
       <input type="hidden" name="draft" value="{{ preview.draft }}">
-      <button class="btn" type="submit">Verwerfen</button>
-      <span class="muted small">löscht den Entwurf; nichts wird angelegt.</span>
+      <button class="btn" type="submit">{{ t("export.discard") }}</button>
+      <span class="muted small">{{ t("export.word_import.discard_hint") }}</span>
     </form>
   </section>
 
   {%- else %}
   <section class="docx-import-report" data-work="{{ report.work }}">
-    <h1 class="pane-title">Übernommen: {{ report_title }}</h1>
-    <p>Das Werk ist angelegt: {{ report.sections }} Abschnitte, {{ report.proposals }} offene Vorschläge,
-      {{ report.posts }} Beiträge. Beim Übernehmen ist etwas aufgefallen:</p>
-    <ul class="docx-import-warnings" aria-label="Hinweise">
+    <h1 class="pane-title">{{ t("export.word_import.adopted", title=report_title) }}</h1>
+    <p>{{ t("export.word_import.report", sections=report.sections, proposals=report.proposals, posts=report.posts) }}</p>
+    <ul class="docx-import-warnings" aria-label="{{ t("export.notes") }}">
       {%- for w in report.warnings %}
       <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
       {%- endfor %}
     </ul>
-    <p><a class="btn primary" href="/?work={{ report.work }}">Zum Werk</a></p>
+    <p><a class="btn primary" href="/?work={{ report.work }}">{{ t("export.to_work") }}</a></p>
   </section>
   {%- endif %}
 </main>

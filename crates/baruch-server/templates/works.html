@@ -4,18 +4,18 @@
     settings, works, notice, back_url (link back to a work, missing without works). Round 22: button „Archiv“
     (/werke/archiv, restore deleted works). -#}
 {% extends "base.html" %}
-{% block title %}Werke – Baruch{% endblock %}
-{% block page_title %}Werke{% endblock %}
+{% block title %}{{ t("works.list.window_title") }}{% endblock %}
+{% block page_title %}{{ t("works.list.heading") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">Werke</summary><div class="band-items" role="group" aria-label="Werke">
-    <a class="btn primary" href="/werke/neu">Neues Werk oder Import…</a>
-    <a class="btn" href="/werke/archiv" title="Gelöschte Werke ansehen und wiederherstellen">Archiv</a>
+  <details class="band-group" data-nur-autor data-band-group open><summary class="band-group-label">{{ t("works.list.heading") }}</summary><div class="band-items" role="group" aria-label="{{ t("works.list.heading") }}">
+    <a class="btn primary" href="/werke/neu">{{ t("works.list.new") }}</a>
+    <a class="btn" href="/werke/archiv" title="{{ t("works.list.archive_hint") }}">{{ t("works.list.archive") }}</a>
   </div></details>
   {%- if back_url %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ back_url }}">{{ t("works.back_to_work") }}</a>
   </div></details>
   {%- endif %}
 {% endblock %}
@@ -24,18 +24,18 @@
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
-  <h1 class="pane-title">Werke</h1>
+  <h1 class="pane-title">{{ t("works.list.heading") }}</h1>
   {%- if works %}
   <table class="works-table">
     <thead>
-      <tr><th scope="col" class="works-cover"><span class="visually-hidden">Umschlag</span></th><th scope="col">Titel</th><th scope="col">Autor</th><th scope="col">Art</th>
-          <th scope="col" class="number">Abschnitte</th><th scope="col" class="number">Offene Vorschläge</th>
-          <th scope="col">Zuletzt geändert</th><th scope="col"><span class="visually-hidden">Aktionen</span></th></tr>
+      <tr><th scope="col" class="works-cover"><span class="visually-hidden">{{ t("works.list.col_cover") }}</span></th><th scope="col">{{ t("works.list.col_title") }}</th><th scope="col">{{ t("works.list.col_author") }}</th><th scope="col">{{ t("works.list.col_kind") }}</th>
+          <th scope="col" class="number">{{ t("works.list.col_sections") }}</th><th scope="col" class="number">{{ t("works.list.col_proposals") }}</th>
+          <th scope="col">{{ t("works.list.col_updated") }}</th><th scope="col"><span class="visually-hidden">{{ t("works.list.col_actions") }}</span></th></tr>
     </thead>
     <tbody>
     {%- for w in works %}
       <tr>
-        <td class="works-cover">{% if w.cover %}{% if lektor %}<img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48">{% else %}<a href="/werke/{{ w.id }}/umschlag"><img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or ('Umschlag von ' ~ w.title) }}" loading="lazy" width="48"></a>{% endif %}{% endif %}</td>
+        <td class="works-cover">{% if w.cover %}{% if lektor %}<img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or t("works.list.cover_alt", title=w.title) }}" loading="lazy" width="48">{% else %}<a href="/werke/{{ w.id }}/umschlag"><img src="/werke/{{ w.id }}/bilder/{{ w.cover.name }}/vorschau?b=320" alt="{{ w.cover.alt or t("works.list.cover_alt", title=w.title) }}" loading="lazy" width="48"></a>{% endif %}{% endif %}</td>
         <td><a href="/?work={{ w.id }}"><strong>{{ w.title }}</strong></a>
           {%- if w.subtitle %}<br><span class="muted small">{{ w.subtitle }}</span>{% endif %}</td>
         <td>{{ w.author or "–" }}</td>
@@ -44,18 +44,18 @@
         <td class="number">{{ w.proposals }}</td>
         <td class="small">{{ w.updated or w.created }}</td>
         <td class="works-actions">
-          <a class="btn" href="/?work={{ w.id }}">Öffnen</a>
-          <a class="btn nur-autor" href="/werke/{{ w.id }}/bearbeiten">Ändern</a>
-          <a class="btn nur-autor" href="/werke/{{ w.id }}/export" download>Export</a>
-          <a class="btn nur-autor" href="/werke/{{ w.id }}/pdf" download title="Das Buch als PDF herunterladen">PDF</a>
-          <a class="btn danger nur-autor" href="/werke/{{ w.id }}/loeschen">Löschen</a>
+          <a class="btn" href="/?work={{ w.id }}">{{ t("works.list.open") }}</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/bearbeiten">{{ t("works.list.edit") }}</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/export" download>{{ t("works.list.export") }}</a>
+          <a class="btn nur-autor" href="/werke/{{ w.id }}/pdf" download title="{{ t("works.list.pdf_hint") }}">PDF</a>
+          <a class="btn danger nur-autor" href="/werke/{{ w.id }}/loeschen">{{ t("common.delete") }}</a>
         </td>
       </tr>
     {%- endfor %}
     </tbody>
   </table>
   {%- else %}
-  <p class="muted nur-autor">Noch kein Werk. Lege eins an oder importiere eine Typst- oder Markdown-Datei (auch als ZIP oder Ordner mit Bildern): <a href="/werke/neu">Neues Werk oder Import…</a></p><!--NUR-LEKTOR--><p class="muted nur-lektor">Noch kein Werk freigegeben. Der Autor gibt Werke einzeln frei (Seite „Mitwirkende“ des Werks).</p><!--/NUR-LEKTOR-->
+  <p class="muted nur-autor">{{ t("works.list.empty") }} <a href="/werke/neu">{{ t("works.list.new") }}</a></p><!--NUR-LEKTOR--><p class="muted nur-lektor">{{ t("works.list.empty_lektor") }}</p><!--/NUR-LEKTOR-->
   {%- endif %}
 </main>
 {% endblock %}

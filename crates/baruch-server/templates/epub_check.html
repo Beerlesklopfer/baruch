@@ -4,23 +4,23 @@
     work {id, title}, panel (finished HTML of the report)?, epubcheck {kind, title, text}?, error?, readers [{slug,
     name, required, checked}], endnotes, ran (EPUBCheck was requested). -#}
 {% extends "base.html" %}
-{% block title %}EPUB prüfen – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: EPUB prüfen{% endblock %}
+{% block title %}{{ t("export.epub_check.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("export.epub_check.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
   <details class="band-group" data-band-group open><summary class="band-group-label">EPUB</summary><div class="band-items" role="group" aria-label="EPUB">
-    <a class="btn" href="/werke/{{ work.id }}/epub" download>EPUB herunterladen</a>
-    <a class="btn" href="/werke/{{ work.id }}/epub/vorschau">EPUB-Vorschau</a>
+    <a class="btn" href="/werke/{{ work.id }}/epub" download>{{ t("export.epub.download") }}</a>
+    <a class="btn" href="/werke/{{ work.id }}/epub/vorschau">{{ t("export.epub.preview") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("export.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page epub-check-page">
-  <h1 class="pane-title">EPUB prüfen</h1>
+  <h1 class="pane-title">{{ t("export.epub_check.heading") }}</h1>
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
@@ -28,15 +28,15 @@
     <fieldset>
       <legend>Reader</legend>
       {%- for r in readers %}
-      <label class="check"><input type="checkbox" name="leser" value="{{ r.slug }}"{% if r.checked %} checked{% endif %}> {{ r.name }}{% if r.required %} <span class="muted tiny">(Pflicht)</span>{% endif %}</label>
+      <label class="check"><input type="checkbox" name="leser" value="{{ r.slug }}"{% if r.checked %} checked{% endif %}> {{ r.name }}{% if r.required %} <span class="muted tiny">{{ t("export.epub.required") }}</span>{% endif %}</label>
       {%- endfor %}
     </fieldset>
-    <label>Fußnoten
+    <label>{{ t("export.epub.footnotes") }}
       <select name="fussnoten">
-        <option value="popup"{% if not endnotes %} selected{% endif %}>als Popup (Vorgabe)</option>
-        <option value="endnoten"{% if endnotes %} selected{% endif %}>als Endnoten</option>
+        <option value="popup"{% if not endnotes %} selected{% endif %}>{{ t("export.epub.as_popup") }}</option>
+        <option value="endnoten"{% if endnotes %} selected{% endif %}>{{ t("export.epub_check.as_endnotes") }}</option>
       </select></label>
-    <button class="btn" type="submit">Neu prüfen</button>
+    <button class="btn" type="submit">{{ t("export.epub_check.recheck") }}</button>
   </form>
   {%- if panel %}{{ panel|safe }}{% endif %}
   <section class="epub-check-epubcheck" id="epubcheck" aria-labelledby="epubcheck-titel">
@@ -50,10 +50,8 @@
       <input type="hidden" name="leser" value="{{ r.slug }}">
       {%- endif %}{% endfor %}
       <input type="hidden" name="fussnoten" value="{% if endnotes %}endnoten{% else %}popup{% endif %}">
-      <p class="small">EPUBCheck ist das Prüfprogramm der W3C-Gemeinschaft. Baruch nutzt „epubcheck“ aus dem PATH oder
-        ein epubcheck.jar unter einem eingestellten Pfad (Einstellungen → <a href="/einstellungen/daten#epubcheck">Daten</a>,
-        braucht Java) und lädt nie etwas herunter. Ein Lauf dauert einige Sekunden.</p>
-      <button class="btn primary" type="submit">EPUBCheck ausführen</button>
+      <p class="small">{{ t("export.epub_check.epubcheck_before") }} <a href="/einstellungen/daten#epubcheck">{{ t("export.epub_check.epubcheck_link") }}</a>{{ t("export.epub_check.epubcheck_after") }}</p>
+      <button class="btn primary" type="submit">{{ t("export.epub_check.run") }}</button>
     </form>
   </section>
 </main>

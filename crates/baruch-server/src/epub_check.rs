@@ -709,8 +709,10 @@ mod tests {
             },
             readers: default_readers(),
         };
-        let html = render("fragments/epub_check_panel.html", context! { panel => true, ..panel_context(7, &checked) })
-            .unwrap();
+        let html = crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            render("fragments/epub_check_panel.html", context! { panel => true, ..panel_context(7, &checked) })
+        })
+        .unwrap();
         assert!(!html.contains("<script>"), "Meldungen werden maskiert: {html}");
         assert!(html.contains("&lt;script&gt;alert(1)&lt;&#x2f;script&gt; &amp; mehr"), "maskierter Text: {html}");
         assert!(html.contains("X&lt;1&gt;") && html.contains("&quot;a&quot;"), "Code und Pfad maskiert: {html}");

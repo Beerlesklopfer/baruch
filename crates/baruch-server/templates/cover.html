@@ -14,17 +14,17 @@
     GET, apply by POST /werke/umschlag/anordnung). The widget cover-editor (web/src/cover_editor.ts) makes the
     frames draggable and saves through RPC. -#}
 {% extends "base.html" %}
-{% block title %}Umschlag – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Umschlag{% endblock %}
+{% block title %}{{ t("cover.page.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("cover.page.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Herunterladen</summary><div class="band-items" role="group" aria-label="Herunterladen">
-    <a class="btn" href="/werke/{{ work.id }}/umschlag.pdf" download>Umschlag-PDF</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("cover.page.download") }}</summary><div class="band-items" role="group" aria-label="{{ t("cover.page.download") }}">
+    <a class="btn" href="/werke/{{ work.id }}/umschlag.pdf" download>{{ t("cover.page.pdf") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("cover.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -32,37 +32,35 @@
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
-  <h1 class="pane-title">Umschlag</h1>
+  <h1 class="pane-title">{{ t("cover.page.heading") }}</h1>
   {%- if preview_error %}
   <p class="notice error" role="alert">{{ preview_error }}</p>
   {%- endif %}
   {%- if facts %}
-  <p class="muted small cover-facts">Gesamt {{ facts.width }} × {{ facts.height }} mm · Seite {{ facts.page_width }} × {{ facts.page_height }} mm
-    · Rücken {{ facts.spine }} mm = {{ facts.book_pages }} Buchseiten ({{ facts.sheets }} Blatt) × {{ facts.sheet_mm }} mm je Blatt{% if facts.cover_pages %} (die {{ facts.cover_pages }} Umschlagseiten im Satz zählen nicht){% endif %}
-    · Beschnitt {{ facts.bleed }} mm</p>
+  <p class="muted small cover-facts">{{ t("cover.page.facts", width=facts.width, height=facts.height, page_width=facts.page_width, page_height=facts.page_height, spine=facts.spine, book_pages=facts.book_pages, sheets=facts.sheets, sheet_mm=facts.sheet_mm) }}{% if facts.cover_pages %} {{ t("cover.page.facts_cover_pages", count=facts.cover_pages) }}{% endif %}
+    {{ t("cover.page.facts_bleed", bleed=facts.bleed) }}</p>
   {%- endif %}
   {%- if editor.available %}
   <section class="cover-editor" id="anordnung" aria-labelledby="anordnung-titel" data-widget="cover-editor" data-work="{{ work.id }}" data-layout="{{ editor.layout_json }}">
-    <h2 class="pane-title" id="anordnung-titel">Anordnung der Blöcke</h2>
+    <h2 class="pane-title" id="anordnung-titel">{{ t("cover.editor.heading") }}</h2>
     {%- if editor.error %}
     <p class="notice error" role="alert" data-cover-error>{{ editor.error }}</p>
     {%- endif %}
     {%- if editor.preview %}
-    <p class="notice" role="status" data-cover-preview>Vorschau – noch nicht gespeichert. „Anordnung übernehmen“ speichert diese Werte.</p>
+    <p class="notice" role="status" data-cover-preview>{{ t("cover.editor.preview_notice") }}</p>
     {%- endif %}
-    <p class="muted small" id="anordnung-hilfe">Koordinaten in mm ab der Schnittkante (oben links) der eigenen Fläche; negative Werte ragen in den Beschnitt.
-      <span class="cover-js-only">Rahmen ziehen verschiebt, die Griffe an den Ecken ändern die Breite. Tastatur: Rahmen mit Tab wählen, Pfeiltasten 0,5 mm (mit Umschalt 5 mm),
-      Strg+←/→ Breite, Strg+Z rückgängig, Strg+S speichern. Beim Ziehen rastet der Rahmen an den Hilfslinien ein.</span></p>
-    <div class="cover-editor-toolbar cover-js-only" role="toolbar" aria-label="Umschlag-Editor">
-      <button class="btn" type="button" data-cover-undo disabled>Rückgängig</button>
-      <button class="btn primary" type="button" data-cover-save disabled>Speichern</button>
-      <button class="btn" type="button" data-cover-tone aria-pressed="false" title="Farbe des gewählten Blocks zwischen hell und dunkel umschalten">Hell/Dunkel</button>
+    <p class="muted small" id="anordnung-hilfe">{{ t("cover.editor.help") }}
+      <span class="cover-js-only">{{ t("cover.editor.help_js") }}</span></p>
+    <div class="cover-editor-toolbar cover-js-only" role="toolbar" aria-label="{{ t("cover.editor.toolbar") }}">
+      <button class="btn" type="button" data-cover-undo disabled>{{ t("cover.editor.undo") }}</button>
+      <button class="btn primary" type="button" data-cover-save disabled>{{ t("common.save") }}</button>
+      <button class="btn" type="button" data-cover-tone aria-pressed="false" title="{{ t("cover.editor.tone_hint") }}">{{ t("cover.editor.tone") }}</button>
       <span class="small muted" role="status" aria-live="polite" data-cover-status></span>
     </div>
     <div class="cover-editor-body">
       <div class="cover-stage" data-cover-stage style="aspect-ratio: {{ editor.ratio }}">
         {%- if preview %}
-        <img class="cover-stage-image" data-cover-image src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}{% if preview_query %}&amp;{{ preview_query|safe }}{% endif %}" alt="Umschlag: Rückseite, Rücken und Vorderseite{% if editor.preview %} (Vorschau){% endif %}">
+        <img class="cover-stage-image" data-cover-image src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}{% if preview_query %}&amp;{{ preview_query|safe }}{% endif %}" alt="{{ t("cover.image_alt") }}{% if editor.preview %} {{ t("cover.editor.preview_mark") }}{% endif %}">
         {%- endif %}
         <div class="cover-guides" aria-hidden="true">
           {%- for g in editor.guides %}
@@ -70,7 +68,7 @@
           {%- endfor %}
         </div>
         {%- for b in editor.blocks %}
-        <div class="cover-block{% if b.spine %} is-spine{% endif %}{% if not b.visible %} is-hidden{% endif %}{% if b.stored %} is-stored{% endif %}" data-cover-block="{{ b.kind }}" data-face="{{ b.face }}" tabindex="0" role="group" aria-roledescription="verschiebbarer Block" aria-label="{{ b.aria }}" aria-describedby="anordnung-hilfe" style="left: {{ b.left }}; top: {{ b.top }}; width: {{ b.width }}; height: {{ b.height }}">
+        <div class="cover-block{% if b.spine %} is-spine{% endif %}{% if not b.visible %} is-hidden{% endif %}{% if b.stored %} is-stored{% endif %}" data-cover-block="{{ b.kind }}" data-face="{{ b.face }}" tabindex="0" role="group" aria-roledescription="{{ t("cover.editor.block_role") }}" aria-label="{{ b.aria }}" aria-describedby="anordnung-hilfe" style="left: {{ b.left }}; top: {{ b.top }}; width: {{ b.width }}; height: {{ b.height }}">
           <span class="cover-block-name">{{ b.label }}</span>
           <span class="cover-handle handle-start cover-js-only" data-cover-handle="start" aria-hidden="true"></span>
           <span class="cover-handle handle-end cover-js-only" data-cover-handle="end" aria-hidden="true"></span>
@@ -80,8 +78,8 @@
       <form class="cover-layout-form" method="post" action="/werke/umschlag/anordnung" data-cover-form>
         <input type="hidden" name="work" value="{{ work.id }}">
         <input type="hidden" name="back" value="{{ editor.back|safe }}">
-        <p class="muted small">{% if editor.stored %}Das Werk hat eine eigene Anordnung.{% else %}Noch keine eigene Anordnung: Es gelten die Vorgaben (Titelbereich {% if editor.area == "top" %}oben{% elif editor.area == "middle" %}Mitte{% else %}unten{% endif %}).{% endif %}
-          Vorgabeschrift: {{ editor.default_font }}.</p>
+        <p class="muted small">{% if editor.stored %}{{ t("cover.editor.own_layout") }}{% else %}{{ t("cover.editor.defaults_before") }} {% if editor.area == "top" %}{{ t("cover.area.top") }}{% elif editor.area == "middle" %}{{ t("cover.area.middle") }}{% else %}{{ t("cover.area.bottom") }}{% endif %}{{ t("cover.editor.defaults_after") }}{% endif %}
+          {{ t("cover.editor.default_font", font=editor.default_font) }}</p>
         <datalist id="cover-fonts">
           {%- for f in editor.fonts %}
           <option value="{{ f }}">
@@ -89,56 +87,56 @@
         </datalist>
         {%- for b in editor.blocks %}
         <details class="cover-block-fields" data-cover-fields="{{ b.kind }}" id="felder-{{ b.kind }}"{% if loop.first %} open{% endif %}>
-          <summary>{{ b.label }}{% if not b.stored %} <span class="muted small">(Vorgabe)</span>{% endif %}{% if not b.visible %} <span class="muted small">– verborgen</span>{% endif %}</summary>
+          <summary>{{ b.label }}{% if not b.stored %} <span class="muted small">{{ t("cover.editor.default_mark") }}</span>{% endif %}{% if not b.visible %} <span class="muted small">{{ t("cover.editor.hidden_mark") }}</span>{% endif %}</summary>
           <div class="cover-field-grid">
             <label>x (mm) <input type="number" name="b.{{ b.kind }}.x_mm" value="{{ b.values.x_mm }}" step="0.1" min="-50" max="1000" data-field="x_mm"></label>
             <label>y (mm) <input type="number" name="b.{{ b.kind }}.y_mm" value="{{ b.values.y_mm }}" step="0.1" min="-50" max="1000" data-field="y_mm"></label>
-            <label>Breite (mm) <input type="number" name="b.{{ b.kind }}.width_mm" value="{{ b.values.width_mm }}" step="0.1" min="1" max="1000" data-field="width_mm"></label>
-            <label>Schriftgröße (pt) <input type="number" name="b.{{ b.kind }}.size_pt" value="{{ b.values.size_pt }}" step="0.5" min="4" max="200" data-field="size_pt"></label>
-            <label>Zeilenabstand (em) <input type="number" name="b.{{ b.kind }}.leading_em" value="{{ b.values.leading_em }}" step="0.05" min="0" max="3" data-field="leading_em"></label>
-            <label>Ausrichtung
+            <label>{{ t("cover.editor.width") }} <input type="number" name="b.{{ b.kind }}.width_mm" value="{{ b.values.width_mm }}" step="0.1" min="1" max="1000" data-field="width_mm"></label>
+            <label>{{ t("cover.editor.size") }} <input type="number" name="b.{{ b.kind }}.size_pt" value="{{ b.values.size_pt }}" step="0.5" min="4" max="200" data-field="size_pt"></label>
+            <label>{{ t("cover.editor.leading") }} <input type="number" name="b.{{ b.kind }}.leading_em" value="{{ b.values.leading_em }}" step="0.05" min="0" max="3" data-field="leading_em"></label>
+            <label>{{ t("cover.editor.align") }}
               <select name="b.{{ b.kind }}.align" data-field="align">
-                <option value="left"{% if b.values.align == "left" %} selected{% endif %}>links</option>
-                <option value="center"{% if b.values.align == "center" %} selected{% endif %}>Mitte</option>
-                <option value="right"{% if b.values.align == "right" %} selected{% endif %}>rechts</option>
-                <option value="justify"{% if b.values.align == "justify" %} selected{% endif %}>Blocksatz</option>
+                <option value="left"{% if b.values.align == "left" %} selected{% endif %}>{{ t("cover.editor.align_left") }}</option>
+                <option value="center"{% if b.values.align == "center" %} selected{% endif %}>{{ t("cover.area.middle") }}</option>
+                <option value="right"{% if b.values.align == "right" %} selected{% endif %}>{{ t("cover.editor.align_right") }}</option>
+                <option value="justify"{% if b.values.align == "justify" %} selected{% endif %}>{{ t("cover.editor.align_justify") }}</option>
               </select></label>
-            <label>Farbe <input type="text" name="b.{{ b.kind }}.color" value="{{ b.values.color }}" maxlength="7" list="cover-colors" placeholder="light, dark oder #rrggbb" data-field="color"></label>
-            <label>Schrift <input type="text" name="b.{{ b.kind }}.font" value="{{ b.values.font }}" maxlength="200" list="cover-fonts" placeholder="{{ editor.default_font }}" data-field="font"></label>
-            <label>Schnitt
+            <label>{{ t("cover.editor.color") }} <input type="text" name="b.{{ b.kind }}.color" value="{{ b.values.color }}" maxlength="7" list="cover-colors" placeholder="{{ t("cover.editor.color_placeholder") }}" data-field="color"></label>
+            <label>{{ t("cover.editor.font") }} <input type="text" name="b.{{ b.kind }}.font" value="{{ b.values.font }}" maxlength="200" list="cover-fonts" placeholder="{{ editor.default_font }}" data-field="font"></label>
+            <label>{{ t("cover.editor.style") }}
               <select name="b.{{ b.kind }}.style" data-field="style">
-                <option value="normal"{% if b.values.style == "normal" %} selected{% endif %}>normal</option>
-                <option value="bold"{% if b.values.style == "bold" %} selected{% endif %}>fett</option>
-                <option value="italic"{% if b.values.style == "italic" %} selected{% endif %}>kursiv</option>
+                <option value="normal"{% if b.values.style == "normal" %} selected{% endif %}>{{ t("cover.editor.style_normal") }}</option>
+                <option value="bold"{% if b.values.style == "bold" %} selected{% endif %}>{{ t("cover.editor.style_bold") }}</option>
+                <option value="italic"{% if b.values.style == "italic" %} selected{% endif %}>{{ t("cover.editor.style_italic") }}</option>
               </select></label>
-            <label>Hintergrund
+            <label>{{ t("cover.editor.backdrop") }}
               <select name="b.{{ b.kind }}.backdrop" data-field="backdrop">
-                <option value="none"{% if b.values.backdrop == "none" %} selected{% endif %}>keiner</option>
-                <option value="shadow"{% if b.values.backdrop == "shadow" %} selected{% endif %}>Schatten</option>
-                <option value="gradient"{% if b.values.backdrop == "gradient" %} selected{% endif %}>Verlauf</option>
+                <option value="none"{% if b.values.backdrop == "none" %} selected{% endif %}>{{ t("cover.editor.backdrop_none") }}</option>
+                <option value="shadow"{% if b.values.backdrop == "shadow" %} selected{% endif %}>{{ t("cover.editor.backdrop_shadow") }}</option>
+                <option value="gradient"{% if b.values.backdrop == "gradient" %} selected{% endif %}>{{ t("cover.editor.backdrop_gradient") }}</option>
               </select></label>
-            <label>Sichtbar
+            <label>{{ t("cover.editor.visible") }}
               <select name="b.{{ b.kind }}.visible" data-field="visible">
-                <option value="1"{% if b.values.visible == "1" %} selected{% endif %}>ja</option>
-                <option value="0"{% if b.values.visible != "1" %} selected{% endif %}>nein</option>
+                <option value="1"{% if b.values.visible == "1" %} selected{% endif %}>{{ t("cover.editor.yes") }}</option>
+                <option value="0"{% if b.values.visible != "1" %} selected{% endif %}>{{ t("cover.editor.no") }}</option>
               </select></label>
             {%- if b.spine %}
-            <label>Laufrichtung
+            <label>{{ t("cover.editor.direction") }}
               <select name="b.{{ b.kind }}.direction" data-field="direction">
-                <option value="down"{% if b.values.direction != "up" %} selected{% endif %}>von oben nach unten</option>
-                <option value="up"{% if b.values.direction == "up" %} selected{% endif %}>von unten nach oben</option>
+                <option value="down"{% if b.values.direction != "up" %} selected{% endif %}>{{ t("cover.editor.direction_down") }}</option>
+                <option value="up"{% if b.values.direction == "up" %} selected{% endif %}>{{ t("cover.editor.direction_up") }}</option>
               </select></label>
             {%- endif %}
           </div>
           {%- if b.own_text %}
-          <label class="cover-field-text">Text <textarea name="b.{{ b.kind }}.text" rows="3" maxlength="1000" data-field="text">{{ b.values.text }}</textarea></label>
+          <label class="cover-field-text">{{ t("cover.editor.text") }} <textarea name="b.{{ b.kind }}.text" rows="3" maxlength="1000" data-field="text">{{ b.values.text }}</textarea></label>
           {%- endif %}
         </details>
         {%- endfor %}
         <datalist id="cover-colors"><option value="light"><option value="dark"></datalist>
         <div class="cover-layout-actions">
-          <button class="btn primary" type="submit" name="action" value="save">Anordnung übernehmen</button>
-          <button class="btn" type="submit" formmethod="get" formaction="/werke/{{ work.id }}/umschlag#anordnung" formnovalidate>Vorschau ohne Speichern</button>
+          <button class="btn primary" type="submit" name="action" value="save">{{ t("cover.editor.apply") }}</button>
+          <button class="btn" type="submit" formmethod="get" formaction="/werke/{{ work.id }}/umschlag#anordnung" formnovalidate>{{ t("cover.editor.preview_without_saving") }}</button>
         </div>
       </form>
     </div>
@@ -148,10 +146,10 @@
         <input type="hidden" name="back" value="{{ editor.back|safe }}">
         <input type="hidden" name="action" value="quick">
         <fieldset class="cover-area">
-          <legend class="small">Schnellwahl Titelbereich (setzt die Vorderseite zurück)</legend>
-          <button class="btn" type="submit" name="area" value="top" data-cover-quick="top">oben</button>
-          <button class="btn" type="submit" name="area" value="middle" data-cover-quick="middle">Mitte</button>
-          <button class="btn" type="submit" name="area" value="bottom" data-cover-quick="bottom">unten</button>
+          <legend class="small">{{ t("cover.editor.quick") }}</legend>
+          <button class="btn" type="submit" name="area" value="top" data-cover-quick="top">{{ t("cover.area.top") }}</button>
+          <button class="btn" type="submit" name="area" value="middle" data-cover-quick="middle">{{ t("cover.area.middle") }}</button>
+          <button class="btn" type="submit" name="area" value="bottom" data-cover-quick="bottom">{{ t("cover.area.bottom") }}</button>
         </fieldset>
       </form>
       <form class="cover-form" method="post" action="/werke/umschlag/anordnung" data-cover-reset-form>
@@ -159,46 +157,46 @@
         <input type="hidden" name="back" value="{{ editor.back|safe }}">
         <input type="hidden" name="action" value="reset">
         <fieldset class="cover-area">
-          <legend class="small">Anordnung zurücksetzen (keine Fläche gewählt = alle)</legend>
+          <legend class="small">{{ t("cover.editor.reset_legend") }}</legend>
           {%- for f in editor.faces %}
           <label><input type="checkbox" name="faces" value="{{ f.name }}"> {{ f.label }}</label>
           {%- endfor %}
         </fieldset>
-        <button class="btn danger" type="submit" data-cover-reset>Anordnung zurücksetzen</button>
+        <button class="btn danger" type="submit" data-cover-reset>{{ t("cover.editor.reset") }}</button>
       </form>
     </div>
   </section>
   {%- else %}
   <section class="cover-editor" id="anordnung" aria-labelledby="anordnung-titel">
-    <h2 class="pane-title" id="anordnung-titel">Anordnung der Blöcke</h2>
+    <h2 class="pane-title" id="anordnung-titel">{{ t("cover.editor.heading") }}</h2>
     {%- if editor.error %}
     <p class="notice error" role="alert" data-cover-error>{{ editor.error }}</p>
     {%- endif %}
-    <p class="muted small">Ohne gesetzten Umschlag kein Editor: {{ editor.reason }}</p>
+    <p class="muted small">{{ t("cover.editor.unavailable", reason=editor.reason) }}</p>
   </section>
   {%- endif %}
   {%- if preview and not editor.available %}
   <figure class="cover-preview">
-    <img src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}" alt="Umschlag: Rückseite, Rücken und Vorderseite">
-    <figcaption class="muted small">Links die Rückseite, in der Mitte der Rücken, rechts die Vorderseite; außen der Beschnitt.</figcaption>
+    <img src="/werke/{{ work.id }}/umschlag.svg?stand={{ preview }}" alt="{{ t("cover.image_alt") }}">
+    <figcaption class="muted small">{{ t("cover.page.caption") }}</figcaption>
   </figure>
   {%- endif %}
   <section class="cover-check" id="druckpruefung" aria-labelledby="druckpruefung-titel">
-    <h2 class="pane-title" id="druckpruefung-titel">Druckprüfung</h2>
+    <h2 class="pane-title" id="druckpruefung-titel">{{ t("cover.page.print_check") }}</h2>
     {%- if diagnostics or print_warnings or editor.warnings %}
     <ul data-cover-warnings>
     {%- for w in editor.warnings %}
       <li data-cover-warning="{{ w.code }}"{% if w.kind %} data-block="{{ w.kind }}"{% endif %}>{{ w.message }}</li>
     {%- endfor %}
     {%- for d in diagnostics %}
-      <li>{{ d.label }}: {{ d.message }}{% if d.file %} ({{ d.file }}{% if d.line %}, Zeile {{ d.line }}{% endif %}){% endif %}</li>
+      <li>{{ d.label }}: {{ d.message }}{% if d.file %} ({{ d.file }}{% if d.line %}{{ t("cover.page.line", line=d.line) }}{% endif %}){% endif %}</li>
     {%- endfor %}
     {%- for w in print_warnings %}
       <li>{{ w }}</li>
     {%- endfor %}
     </ul>
     {%- else %}
-    <p class="muted small">Keine Meldungen beim Satz des Umschlags.</p>
+    <p class="muted small">{{ t("cover.page.no_messages") }}</p>
     {%- endif %}
   </section>
 {{ panel|safe }}

@@ -515,7 +515,13 @@ async fn pages_show_the_cover_groups_preview_and_pdf_links() {
     assert!(svg.starts_with("<svg"), "eine SVG-Seite");
 
     // minijinja escapes „/“ in values as &#x2f; (the browser reads it as „/“).
-    let panel = baruch_server::cover::assets_panel(&server.state, work).await.unwrap().replace("&#x2f;", "/");
+    let panel = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::cover::assets_panel(&server.state, work),
+    )
+    .await
+    .unwrap()
+    .replace("&#x2f;", "/");
     assert!(
         panel.contains("id=\"umschlag\"") && panel.contains(&format!("value=\"/werke/{work}/bilder\"")),
         "Block für die Seite „Bilder“"

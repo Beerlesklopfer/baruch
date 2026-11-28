@@ -6359,6 +6359,35 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
 
 #### templates_2
 
+- **Converted templates (29):** works (`works.html`, `works_archive.html`, `work_edit.html`, `work_delete.html`,
+  `work_numbering.html`, `import_report.html`), ideas and mind map (`ideas.html`, `idea.html`, `karte.html`,
+  `karte_einlesen.html`, `karte_gliederung.html`), findings (`befunde.html`, `fragments/findings_panel.html`,
+  `fragments/finding_block.html`), cover (`cover.html`, `fragments/cover_panel.html`), images (`assets.html`,
+  `asset.html`, `fragments/asset_requests.html`) and export/import (`docx_export.html`, `docx_import.html`,
+  `epub_check.html`, `fragments/epub_check_panel.html`, `epub_preview.html`, `exchange.html`, `exchange_done.html`,
+  `exchange_import.html`, `exchange_preview.html`, `typeset.html`). Every visible German text, title, aria-label,
+  placeholder and string literal of an expression (e.g. the button labels of `asset_requests.html`, the fallback
+  „(ohne Titel)“) goes through `t()`; markup, attribute order and the S1 blocks are unchanged.
+- **Stems:** `works` (also the import report), `ideas`, `findings`, `cover`, `assets`, `export`; area-wide words sit
+  at the top of each file (`works.back_to_work`, `findings.open_count`, …), page texts under `<stem>.<page>.*`.
+  Sentences around links are split into `…_before`/`…_link`/`…_after` keys; inline `<code>`/`<strong>` texts are
+  `_html` keys with escaped arguments. Former template conditionals for singular/plural (`Abschnitt{% if n != 1
+  %}e{% endif %}`, `{% if n == 1 %}Seite{% else %}Seiten{% endif %}`) are Fluent selectors on `$count`; numbers are
+  passed as numbers.
+- **Book outputs untouched:** the cover, EPUB, Word and typesetting pages translate only their interface. Values
+  that come from Rust (`{{ notice }}`, kind labels of the exchange counts, diagnostics, dates) stay variables for
+  the messages tasks; Word style names („Überschrift 1–3“, „Baruch Teil“) and the mirror commit text „Werk gelöscht“
+  are quoted unchanged in the English text, because they name what the file or the mirror really contains.
+- **Loop variables:** `karte_gliederung.html` and `fragments/findings_panel.html` called a loop variable `t`, which
+  hid the function `t()`; the loops now use `target`.
+- **Allow list:** the 639 lines of these templates are gone; left are only the ribbon tab identifiers
+  `{% block band_tab %}buch{% endblock %}` (not shown text; the finder reads the bare word as a stop word), listed with
+  a reason.
+- **Tests:** `tests/round39a_templates_2.rs` fetches 21 pages in en and de (`<html lang>`, no raw key of the six
+  stems, a German sample only in de and its English text only in en), the findings accordion of the work page, the
+  plural selectors and German spot checks. Unit tests that render these templates outside a request pin German with
+  `i18n::sync_scope(Lang::De, …)`.
+
 #### templates_3
 
 #### widgets

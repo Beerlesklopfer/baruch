@@ -647,12 +647,13 @@ async fn the_finding_block_shows_kind_status_buttons_solutions_and_adopt() {
     let all = findings_of_post(&t, post).await;
     let card = baruch_server::findings::view::card(t.work, &work, &all[0], &all);
     let env = baruch_server::view::environment();
-    let html = env
-        .render_str(
+    let html = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        env.render_str(
             "{% from \"fragments/finding_block.html\" import finding_block %}{{ finding_block(card) }}",
             minijinja::context! { card => minijinja::Value::from(minijinja::value::Serde(&card)) },
         )
-        .expect("das Makro rendert");
+    })
+    .expect("das Makro rendert");
     assert!(html.contains("<span aria-hidden=\"true\">!</span> kritisch"), "Art mit Zeichen und Wort: {html}");
     assert!(html.contains("value=\"finding.set_status\""), "Status mit Knöpfen (ohne JavaScript): {html}");
     assert!(html.contains("✓ übernommen in Fassung 1") && html.contains("= erledigt"), "Statusknöpfe: {html}");
