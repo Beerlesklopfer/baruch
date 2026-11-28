@@ -8,6 +8,12 @@ Free writing workshop (AGPL-3.0) for books and sermons. Plan: `docs/Plan.md`.
   Exceptions that stay German: the history files (`docs/Backlog.md`, `docs/Fahrplan.md`, `HANDOFF.md`,
   `CHANGELOG.md`), `docs/schema/`, the German user help under `site/content/de/` (its English translation lives in
   `site/content/en/` since Round 39b) and every text of the user interface until the catalogs of Round 39a.
+- Translations of the developer docs (Round 39d): the nine documents Architektur, RPC, MCP, Austauschformat,
+  WYSIWYG, Betrieb, Verteilung, Plan, Bedienung exist additionally in German under `docs/de/` (published at /docs/ of
+  the German site). The English file under `docs/` is the source of truth; whoever changes it updates the translation
+  in the same commit, or `scripts/check-doc-lag.py` reports the lag (informational). `docs/de/` is German by design
+  (allowed-German area of `scripts/check-doc-language.py` and `round38_doku`); nothing else weakens. Backlog,
+  Fahrplan, HANDOFF, CHANGELOG and `docs/schema/` are not translated.
 - Catalogs (Round 39): interface texts come from `crates/baruch-server/locales/en/*.ftl` (base) and
   `locales/de/*.ftl` (translation keeping the old German wording), one file per area, keys `<area>.<…>` (the first
   segment names the file), the same keys and placeholders in both languages; templates call `t("…")`, widgets `t()`,

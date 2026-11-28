@@ -7,6 +7,13 @@ not is under [State of verification](#state-of-verification) and [Open](#open).
 **In short:** a tag `v<Version>` suffices. GitHub builds the packages, continues the APT repository, creates the
 release and delivers the website and the repository through GitHub Pages. There is no manual step "upload" any more.
 
+## German section of the documentation
+
+`site/tools/docs_pages.py` also builds the German section /docs/ from `docs/de/` (Architektur from its parts
+`docs/de/Architektur.part<N>.md`), next to the English /en/docs/. `scripts/check-doc-lag.py` reports translations that
+follow an older commit of their English source (informational), and `scripts/ci-site.sh` runs both the generator for
+both languages and the lag check.
+
 ## Overview
 
 | Package | File in the release | Built by | State |

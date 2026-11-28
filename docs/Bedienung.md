@@ -16,6 +16,12 @@ This file now only contains:
 
 Usage steps no longer stand here – never in both files.
 
+## German translation of the developer docs
+
+Since Round 39d the nine developer documents (this file included) also exist in German under `docs/de/`, published
+at /docs/ of the German site. The English file under `docs/` stays the source of truth: whoever changes it updates the
+translation in the same commit, or `scripts/check-doc-lag.py` reports the lag (informational).
+
 ## Rule for developers
 
 "Update the usage docs" (AGENTS.md: docs grow with the code) means since Round 37: **change the responsible help page under
