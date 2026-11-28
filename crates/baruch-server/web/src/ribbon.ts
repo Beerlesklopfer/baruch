@@ -20,6 +20,7 @@
 // snippet (`arg` = JSON `{fn}`), „Literaturverweis“ (`cite`) inserts `@` in the source text; the typeset view asks
 // for passage or key itself (ws_command.ts).
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 import { scriptureFunction, sendWsCommand, type WsCommandName } from "./ws_command.js";
 
@@ -187,13 +188,13 @@ register("ribbon", (group) => {
         const fn = cmd === "scripture" ? scriptureFunction(button.dataset.ribbonSnippet ?? "") : null;
         const arg = fn ? JSON.stringify({ fn }) : undefined;
         if (!sendWsCommand(root, cmd, arg)) {
-          hint(`„${label}“ geht im Satzbild noch nicht – bitte im Quelltext einfügen (Knopf „Quelltext“).`);
+          hint(t("widget.ribbon.not_in_sheet", { label }));
         }
         return;
       }
       const area = root.querySelector<HTMLTextAreaElement>("textarea[name=body]");
       if (!area || area.hidden) {
-        hint(`„${label}“: kein Textfeld zum Einfügen gefunden.`);
+        hint(t("widget.ribbon.no_field", { label }));
         return;
       }
       insertIntoArea(area, button.dataset.ribbonSnippet ?? "", cmd);
@@ -202,7 +203,7 @@ register("ribbon", (group) => {
   group.querySelector<HTMLButtonElement>("[data-ribbon-image]")?.addEventListener("click", () => {
     const details = root.querySelector<HTMLDetailsElement>("details[data-image-insert]");
     if (!details) {
-      hint("„Bild“: Das Einfügen von Bildern ist hier nicht verfügbar.");
+      hint(t("widget.ribbon.no_image"));
       return;
     }
     details.open = true;

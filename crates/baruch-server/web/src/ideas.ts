@@ -10,6 +10,7 @@
 // - Enter saves through RPC idea.create (Shift+Enter: new line in the thought), Escape closes;
 //   afterwards focus and selection return to the old place.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -56,11 +57,11 @@ function picked(spot: Spot): { quote: string; source: string } {
   if (!element) return { quote: "", source: "" };
   if (element.closest("#literature")) {
     const title = element.closest(".library-title")?.querySelector("cite")?.textContent?.trim();
-    return { quote: text, source: title ? `Literatur: ${title}` : "Literatur" };
+    return { quote: text, source: title ? t("widget.ideas.source_titled", { title }) : t("widget.ideas.source") };
   }
   if (element.closest(".source-document")) {
     const title = document.querySelector(".source-head cite, .source-head h1")?.textContent?.trim();
-    return { quote: text, source: title ? `Literatur: ${title}` : "Literatur" };
+    return { quote: text, source: title ? t("widget.ideas.source_titled", { title }) : t("widget.ideas.source") };
   }
   if (element.closest(".wysiwyg, #pane-editor")) return { quote: text, source: "" };
   return { quote: "", source: "" };
@@ -145,7 +146,7 @@ register("idea-capture", (element) => {
     const text = (name: string) => String(data.get(name) ?? "");
     if (text("words").trim() === "") {
       words?.focus();
-      if (status) status.textContent = "Bitte mindestens ein Schlagwort.";
+      if (status) status.textContent = t("widget.ideas.words_missing");
       return;
     }
     busy = true;
@@ -160,8 +161,8 @@ register("idea-capture", (element) => {
       });
       form.reset();
       dialog.close();
-      toast(`Einfall ${result.idea.id} festgehalten.`, true);
-      if (result.mirror) toast(`Git-Spiegel: ${result.mirror}`, false);
+      toast(t("widget.ideas.created", { id: result.idea.id }), true);
+      if (result.mirror) toast(t("widget.ideas.mirror", { commit: result.mirror }), false);
     } catch (error) {
       if (status) status.textContent = String((error as Error)?.message ?? error);
     } finally {

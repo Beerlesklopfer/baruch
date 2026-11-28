@@ -10,6 +10,13 @@
 // - `baruch:ws-caret`: with the typeset view open wysiwyg.ts puts ONE promise into `detail.wait` (source text and
 //   block boundary at the cursor), e.g. for the image at the cursor position.
 
+import { t } from "./i18n.js";
+
+
+
+
+
+
 // Round 19b: `scripture` (Bible passage following the work template, `arg` = JSON `{fn, text?}`: `fn` = function name
 // of the template, e.g. „bibelstelle“; without `text` the typeset view asks for the passage) and `cite` (literature
 // reference `@schlüssel`, `arg` = key; without it the typeset view asks). The pure building blocks for this stand
@@ -109,9 +116,9 @@ export interface IndexMarkCommand {
 
 /** Built-in indexes with title (like `builtin_registers`). */
 export const BUILTIN_REGISTERS: readonly { slug: string; title: string }[] = [
-  { slug: "stichwort", title: "Stichwortregister" },
-  { slug: "personen", title: "Personenregister" },
-  { slug: "bibel", title: "Bibelstellenregister" },
+  { slug: "stichwort", get title() { return t("widget.ws_command.register_stichwort"); } },
+  { slug: "personen", get title() { return t("widget.ws_command.register_personen"); } },
+  { slug: "bibel", get title() { return t("widget.ws_command.register_bibel"); } },
 ];
 
 /** Longest field of a mark in characters (`MAX_MARK_FIELD_CHARS`). */
@@ -137,20 +144,20 @@ export function cleanMark(mark: IndexMark): IndexMark {
 /** Message like `IndexMark::validate`, `null` = valid. */
 export function validateMark(mark: IndexMark): string | null {
   if (!validRegisterSlug(mark.register)) {
-    return `Register „${mark.register}“: keine gültige Kennung (Kleinbuchstabe am Anfang, dann Kleinbuchstaben, Ziffern oder Bindestrich, höchstens 32 Zeichen).`;
+    return t("widget.ws_command.bad_slug", { slug: mark.register });
   }
-  if (mark.term.trim() === "") return "Stichwort: darf nicht leer sein.";
+  if (mark.term.trim() === "") return t("widget.ws_command.term_empty");
   const fields: [string, string | undefined][] = [
-    ["Stichwort", mark.term],
-    ["Unterstichwort", mark.sub],
-    ["siehe", mark.see],
-    ["siehe auch", mark.also],
-    ["Sortierschlüssel", mark.sort],
+    [t("widget.ws_command.field_term"), mark.term],
+    [t("widget.ws_command.field_sub"), mark.sub],
+    [t("widget.ws_command.field_see"), mark.see],
+    [t("widget.ws_command.field_also"), mark.also],
+    [t("widget.ws_command.field_sort"), mark.sort],
   ];
   for (const [label, value] of fields) {
     const text = value ?? "";
-    if ([...text].length > MAX_MARK_FIELD_CHARS) return `${label}: höchstens ${MAX_MARK_FIELD_CHARS} Zeichen.`;
-    if (/\p{Cc}/u.test(text)) return `${label}: ohne Zeilenumbruch und Steuerzeichen.`;
+    if ([...text].length > MAX_MARK_FIELD_CHARS) return t("widget.ws_command.too_long", { label, max: MAX_MARK_FIELD_CHARS });
+    if (/\p{Cc}/u.test(text)) return t("widget.ws_command.control_chars", { label });
   }
   return null;
 }
@@ -184,15 +191,15 @@ export function markSource(mark: IndexMark): string {
 export function registerTitle(slug: string, titles: Record<string, string> = {}): string {
   const builtin = BUILTIN_REGISTERS.find((r) => r.slug === slug);
   if (builtin) return builtin.title;
-  return titles[slug] ?? `Register „${slug}“`;
+  return titles[slug] ?? t("widget.ws_command.register_named", { slug });
 }
 
 /** Description of a mark (title/aria-label) like `index_mark_label` in baruch-wysiwyg. */
 export function markLabel(mark: IndexMark): string {
-  let label = `Registereintrag im ${registerTitle(mark.register)}: ${mark.term}`;
+  let label = t("widget.ws_command.mark_label", { register: registerTitle(mark.register), term: mark.term });
   if (mark.sub) label += ` › ${mark.sub}`;
-  if (mark.see) label += `; siehe: ${mark.see}`;
-  if (mark.also) label += `; siehe auch: ${mark.also}`;
+  if (mark.see) label += `; ${t("widget.ws_command.mark_see", { see: mark.see })}`;
+  if (mark.also) label += `; ${t("widget.ws_command.mark_also", { also: mark.also })}`;
   return label;
 }
 
@@ -319,10 +326,10 @@ export function markRefusal(text: string, pos: number): string | null {
   const lineEndAt = text.indexOf("\n", pos);
   const line = text.slice(lineStart, lineEndAt < 0 ? text.length : lineEndAt);
   if (/^\s*=/.test(line) || line.includes("<baruch-part>") || line.includes("<baruch-unnumbered>")) {
-    return "In einer Überschriftszeile steht keine Registermarke; bitte ein Wort im Fließtext wählen.";
+    return t("widget.ws_command.refuse_heading");
   }
-  if (text.slice(lineStart, pos).includes("//")) return "In einem Kommentar steht keine Registermarke.";
-  if (findMarks(text).some((m) => m.start < pos && pos < m.end)) return "Hier steht schon eine Registermarke.";
+  if (text.slice(lineStart, pos).includes("//")) return t("widget.ws_command.refuse_comment");
+  if (findMarks(text).some((m) => m.start < pos && pos < m.end)) return t("widget.ws_command.refuse_inside");
   return null;
 }
 
@@ -338,13 +345,13 @@ export function markInSource(
   const problem = validateMark(clean);
   if (problem) return { error: problem };
   const word = markedWord(text, start, end);
-  if (word.word === "") return { error: "Bitte ein Wort markieren oder den Cursor in ein Wort setzen." };
+  if (word.word === "") return { error: t("widget.ws_command.no_word") };
   const refusal = markRefusal(text, word.end);
   if (refusal) return { error: refusal };
   // Never the same mark twice behind the same word (like `mark_word` in the server, follow-up fix R31).
   for (let pos = word.end, found = parseMarkAt(text, pos); found; pos = found.end, found = parseMarkAt(text, pos)) {
     if (MARK_KEYS.every((k) => (found!.mark[k] ?? "") === (clean[k] ?? ""))) {
-      return { error: "Dieses Wort trägt diese Registermarke schon; nichts geändert." };
+      return { error: t("widget.ws_command.duplicate") };
     }
   }
   const insert = markSource(clean);

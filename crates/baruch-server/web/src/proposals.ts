@@ -10,6 +10,7 @@
 // in the bar before the reading flow (`[data-pv-bar=<key>]`, Round 18c) and thus stays visible with the typeset view
 // open.
 
+import { t } from "./i18n.js";
 import { register, store } from "./widgets.js";
 
 const MAX_FOLDED = 200;
@@ -80,7 +81,7 @@ register("proposals", (root) => {
       labels.delete(label);
       return;
     }
-    all.textContent = items().some((item) => item.open) ? "Alle einklappen" : "Alle aufklappen";
+    all.textContent = items().some((item) => item.open) ? t("widget.proposals.collapse_all") : t("widget.proposals.expand_all");
   };
   labels.add(label);
   all.hidden = false;

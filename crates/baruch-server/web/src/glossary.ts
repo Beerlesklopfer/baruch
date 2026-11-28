@@ -7,6 +7,7 @@
 // (case and accents do not count, `matches`); Escape empties it. All forms stay normal
 // forms (POST …/act, 303/422).
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 /// Comparison form: lower case, without accents (NFD without characters of category M), whitespace to one space.
@@ -36,7 +37,7 @@ if (typeof document !== "undefined") {
         row.hidden = !ok;
         if (ok) shown++;
       });
-      if (count) count.textContent = input.value.trim() === "" ? "" : `${shown} von ${rows.length}`;
+      if (count) count.textContent = input.value.trim() === "" ? "" : t("widget.glossary.shown_of", { shown, count: rows.length });
     };
     input.addEventListener("input", apply);
     input.addEventListener("keydown", (event) => {

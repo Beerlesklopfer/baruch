@@ -3,6 +3,7 @@
 // behaviour when mounting. The server supplies finished HTML (also usable without JavaScript);
 // after every exchange of an area `mount` mounts the widgets in it anew.
 
+import { t } from "./i18n.js";
 import { capturePlace, restorePlace, type Place } from "./place.js";
 
 export type Mount = (element: HTMLElement) => void;
@@ -61,7 +62,7 @@ export function editToolbar(root: ParentNode | null = null): HTMLElement | null 
 /// (links, change of revision, rearranging the outline, other forms, work selection). `true` = go on.
 export function leaveEditor(): boolean {
   const editor = document.querySelector<HTMLElement>("[data-widget=editor]");
-  return editor?.dataset.dirty !== "1" || confirm("Ungespeicherte Änderung verwerfen?");
+  return editor?.dataset.dirty !== "1" || confirm(t("widget.widgets.discard"));
 }
 
 /// Round 23a (code review web-1): while a save of the editor is running (reconcile the typeset view, `outline.check`,

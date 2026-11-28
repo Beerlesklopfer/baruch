@@ -18,6 +18,7 @@
 // (also unsaved). No import of wysiwyg.ts: commands to the typeset view only through `baruch:ws-command`
 // (ws_command.ts).
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 import {
@@ -44,14 +45,14 @@ export interface MenuItem {
 /// Entries of the context menu; on a mark „bearbeiten“ and „entfernen“ are added.
 export function menuItems(onMark: boolean): MenuItem[] {
   const items: MenuItem[] = [
-    { action: "glossary_add", label: "In Glossar aufnehmen …" },
-    { action: "index_add", label: "In Register aufnehmen …" },
-    { action: "glossary_lookup", label: "Im Glossar nachschlagen" },
+    { action: "glossary_add", label: t("widget.context_menu.glossary_add_item") },
+    { action: "index_add", label: t("widget.context_menu.index_add_item") },
+    { action: "glossary_lookup", label: t("widget.context_menu.glossary_lookup_item") },
   ];
   if (onMark) {
     items.push(
-      { action: "index_edit", label: "Registereintrag bearbeiten …" },
-      { action: "index_remove", label: "Registereintrag entfernen" },
+      { action: "index_edit", label: t("widget.context_menu.index_edit_item") },
+      { action: "index_remove", label: t("widget.context_menu.index_remove_item") },
     );
   }
   return items;
@@ -114,7 +115,7 @@ export function glossaryParams(fields: Record<string, string>): Record<string, u
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line !== "");
-  if (get("term") === "") return { error: "Begriff: darf nicht leer sein." };
+  if (get("term") === "") return { error: t("widget.context_menu.term_empty") };
   return {
     term: get("term"),
     short: get("short"),
@@ -141,8 +142,8 @@ export function markFromData(data: Record<string, string | undefined>): IndexMar
 export function entryLine(mark: IndexMark, titles: Record<string, string> = {}): string {
   let line = `${registerTitle(mark.register, titles)}: ${mark.term}`;
   if (mark.sub) line += ` › ${mark.sub}`;
-  if (mark.see) line += ` (siehe: ${mark.see})`;
-  if (mark.also) line += ` (siehe auch: ${mark.also})`;
+  if (mark.see) line += ` (${t("widget.context_menu.entry_see", { see: mark.see })})`;
+  if (mark.also) line += ` (${t("widget.context_menu.entry_also", { also: mark.also })})`;
   return line;
 }
 
@@ -254,7 +255,7 @@ if (typeof document !== "undefined") {
     // ---- Menu ----
     const menu = element("div", { className: "ctx-menu", hidden: true });
     menu.setAttribute("role", "menu");
-    menu.setAttribute("aria-label", "Register und Glossar");
+    menu.setAttribute("aria-label", t("widget.context_menu.menu_label"));
     root.append(menu);
     const items = () => Array.from(menu.querySelectorAll<HTMLButtonElement>("[role=menuitem]"));
     const focusItem = (index: number) => {
@@ -282,15 +283,15 @@ if (typeof document !== "undefined") {
         }
       }
     };
-    const openMenu = (t: Target, x: number, y: number) => {
+    const openMenu = (tg: Target, x: number, y: number) => {
       menu.replaceChildren();
-      for (const item of menuItems(t.mark !== null)) {
+      for (const item of menuItems(tg.mark !== null)) {
         const button = element("button", { type: "button", className: "ctx-item", tabIndex: -1 }, item.label);
         button.setAttribute("role", "menuitem");
         button.dataset.ctxAction = item.action;
         button.addEventListener("click", () => {
           closeMenu(false);
-          void run(item.action, t);
+          void run(item.action, tg);
         });
         menu.append(button);
       }
@@ -335,9 +336,9 @@ if (typeof document !== "undefined") {
         return;
       }
       returnFocus = from;
-      const t = target(event.target instanceof Element ? event.target : null);
+      const tg = target(event.target instanceof Element ? event.target : null);
       event.preventDefault();
-      openMenu(t, event.clientX, event.clientY);
+      openMenu(tg, event.clientX, event.clientY);
     };
     const onKey = (event: KeyboardEvent, from: HTMLElement) => {
       if (!opensMenu(event)) return;
@@ -364,9 +365,9 @@ if (typeof document !== "undefined") {
     opener?.addEventListener("click", (event) => {
       event.preventDefault();
       returnFocus = sheetOpen() ? sheet : area;
-      const t = target(null);
+      const tg = target(null);
       const rect = opener.getBoundingClientRect();
-      openMenu(t, rect.left, rect.top - 8 - 5 * 32);
+      openMenu(tg, rect.left, rect.top - 8 - 5 * 32);
     });
 
     // ---- Ribbon ----
@@ -416,7 +417,7 @@ if (typeof document !== "undefined") {
     const buttons = (form: HTMLFormElement, ok: string): HTMLButtonElement => {
       const row = element("div", { className: "ctx-buttons" });
       const submit = element("button", { type: "submit", className: "btn primary" }, ok);
-      const cancel = element("button", { type: "button", className: "btn" }, "Abbrechen");
+      const cancel = element("button", { type: "button", className: "btn" }, t("widget.context_menu.cancel"));
       cancel.addEventListener("click", () => form.closest("dialog")?.close());
       row.append(submit, cancel);
       form.append(row);
@@ -462,11 +463,11 @@ if (typeof document !== "undefined") {
         select.append(element("option", { value: start.register, selected: true }, registerTitle(start.register)));
       }
       form.append(
-        field("Stichwort", input("term", start.term, true)),
-        field("Unterstichwort", input("sub", start.sub ?? "")),
-        field("Register", select),
-        field("siehe", input("see", start.see ?? "")),
-        field("siehe auch", input("also", start.also ?? "")),
+        field(t("widget.context_menu.field_term"), input("term", start.term, true)),
+        field(t("widget.context_menu.field_sub"), input("sub", start.sub ?? "")),
+        field(t("widget.context_menu.field_register"), select),
+        field(t("widget.context_menu.field_see"), input("see", start.see ?? "")),
+        field(t("widget.context_menu.field_also"), input("also", start.also ?? "")),
       );
       buttons(form, ok);
       form.addEventListener("submit", (event) => {
@@ -502,19 +503,19 @@ if (typeof document !== "undefined") {
       areaSelection = [start + text.length, start + text.length];
     };
 
-    const run = async (action: MenuAction, t: Target): Promise<void> => {
+    const run = async (action: MenuAction, tg: Target): Promise<void> => {
       switch (action) {
         case "glossary_add": {
-          const { box, form, error } = dialog("In Glossar aufnehmen");
+          const { box, form, error } = dialog(t("widget.context_menu.glossary_add_title"));
           form.append(
-            field("Begriff", element("input", { type: "text", name: "term", value: t.word, maxLength: 200, required: true })),
-            field("Kurze Erklärung", element("input", { type: "text", name: "short", maxLength: 500 })),
-            field("Ausführliche Erklärung", element("textarea", { name: "long", rows: 4 })),
-            field("Varianten (je Zeile eine)", element("textarea", { name: "variants", rows: 2 })),
-            field("Bibelstellen (je Zeile eine)", element("textarea", { name: "bible_refs", rows: 2 })),
-            field("Quelle", element("input", { type: "text", name: "source", maxLength: 500 })),
+            field(t("widget.context_menu.field_glossary_term"), element("input", { type: "text", name: "term", value: tg.word, maxLength: 200, required: true })),
+            field(t("widget.context_menu.field_short"), element("input", { type: "text", name: "short", maxLength: 500 })),
+            field(t("widget.context_menu.field_long"), element("textarea", { name: "long", rows: 4 })),
+            field(t("widget.context_menu.field_variants"), element("textarea", { name: "variants", rows: 2 })),
+            field(t("widget.context_menu.field_bible_refs"), element("textarea", { name: "bible_refs", rows: 2 })),
+            field(t("widget.context_menu.field_source"), element("input", { type: "text", name: "source", maxLength: 500 })),
           );
-          const submit = buttons(form, "Aufnehmen");
+          const submit = buttons(form, t("widget.context_menu.glossary_add_ok"));
           form.addEventListener("submit", (event) => {
             event.preventDefault();
             const params = glossaryParams(fieldsOf(form));
@@ -527,7 +528,7 @@ if (typeof document !== "undefined") {
             call<{ term: Term }>("glossary.add", { work, ...params })
               .then((answer) => {
                 box.close();
-                toast(`„${answer.term?.term ?? params.term}“ steht jetzt im Glossar.`);
+                toast(t("widget.context_menu.glossary_added", { term: String(answer.term?.term ?? params.term) }));
               })
               .catch((e: Error) => {
                 error.textContent = e.message;
@@ -540,33 +541,33 @@ if (typeof document !== "undefined") {
           return;
         }
         case "glossary_lookup": {
-          if (t.word === "") {
-            toast("Bitte ein Wort markieren oder den Cursor in ein Wort setzen.");
+          if (tg.word === "") {
+            toast(t("widget.context_menu.no_word"));
             restoreFocus();
             return;
           }
-          const { box, form, error } = dialog(`Im Glossar: ${t.word}`);
+          const { box, form, error } = dialog(t("widget.context_menu.lookup_title", { word: tg.word }));
           box.classList.add("ctx-lookup");
           const body = element("div", { className: "ctx-lookup-body" });
           body.setAttribute("aria-live", "polite");
-          body.textContent = "Suche …";
+          body.textContent = t("widget.context_menu.searching");
           form.append(body);
-          const close = element("button", { type: "submit", className: "btn" }, "Schließen");
+          const close = element("button", { type: "submit", className: "btn" }, t("widget.context_menu.close"));
           form.append(close);
           box.showModal();
           close.focus();
           try {
-            const answer = await call<{ terms: Term[] }>("glossary.lookup", { work, word: t.word });
+            const answer = await call<{ terms: Term[] }>("glossary.lookup", { work, word: tg.word });
             body.replaceChildren();
             if (answer.terms.length === 0) {
-              body.append(element("p", { className: "small" }, `„${t.word}“ steht nicht im Glossar.`));
+              body.append(element("p", { className: "small" }, t("widget.context_menu.not_in_glossary", { word: tg.word })));
             }
             for (const term of answer.terms) {
               const item = element("article", { className: "ctx-term" });
               const head = element("h4");
               head.append(element("a", { href: termUrl(work, term.id) }, term.term));
               item.append(head);
-              if (term.variants.length) item.append(element("p", { className: "muted small" }, `auch: ${term.variants.join(", ")}`));
+              if (term.variants.length) item.append(element("p", { className: "muted small" }, t("widget.context_menu.variants", { list: term.variants.join(", ") })));
               if (term.short) item.append(element("p", { className: "small" }, term.short));
               if (term.long) item.append(element("p", { className: "small ctx-long" }, term.long));
               if (term.bible_refs.length) item.append(element("p", { className: "muted small" }, term.bible_refs.join("; ")));
@@ -581,20 +582,20 @@ if (typeof document !== "undefined") {
         }
         case "index_add": {
           const inSource = (mark: IndexMark) => {
-            const [start, end] = t.kind === "area" ? [t.start, t.end] : areaSelection;
+            const [start, end] = tg.kind === "area" ? [tg.start, tg.end] : areaSelection;
             return markInSource(area.value, start, end, mark);
           };
           await markDialog(
-            "In Register aufnehmen",
-            "Marke setzen",
-            { register: "stichwort", term: t.word },
+            t("widget.context_menu.index_add_title"),
+            t("widget.context_menu.index_add_ok"),
+            { register: "stichwort", term: tg.word },
             (mark) => {
-              if (t.kind === "sheet" && sheetOpen()) return null;
+              if (tg.kind === "sheet" && sheetOpen()) return null;
               const put = inSource(mark);
               return "error" in put ? put.error : null;
             },
             (mark) => {
-              if (t.kind === "sheet" && sendWsCommand(root, "index_mark", JSON.stringify({ op: "add", mark }))) return;
+              if (tg.kind === "sheet" && sendWsCommand(root, "index_mark", JSON.stringify({ op: "add", mark }))) return;
               const put = inSource(mark);
               if ("error" in put) {
                 toast(put.error, "warn");
@@ -608,14 +609,14 @@ if (typeof document !== "undefined") {
         }
         case "index_edit":
         case "index_remove": {
-          if (!t.mark) return;
-          if (t.kind === "sheet") {
-            const markEl = t.mark;
+          if (!tg.mark) return;
+          if (tg.kind === "sheet") {
+            const markEl = tg.mark;
             const send = (op: "edit" | "remove", mark?: IndexMark) => {
               markEl.setAttribute("data-ctx-target", "1");
               const handled = sendWsCommand(root, "index_mark", JSON.stringify({ op, mark }));
               markEl.removeAttribute("data-ctx-target");
-              return handled ? null : "Das Satzbild ist nicht offen.";
+              return handled ? null : t("widget.context_menu.sheet_closed");
             };
             if (action === "index_remove") {
               const problem = send("remove");
@@ -624,10 +625,10 @@ if (typeof document !== "undefined") {
               return;
             }
             await markDialog(
-              "Registereintrag bearbeiten",
-              "Übernehmen",
+              t("widget.context_menu.index_edit_title"),
+              t("widget.context_menu.apply"),
               markFromData(markEl.dataset),
-              () => (sheetOpen() ? null : "Das Satzbild ist nicht offen."),
+              () => (sheetOpen() ? null : t("widget.context_menu.sheet_closed")),
               (mark) => {
                 const problem = send("edit", mark);
                 if (problem) toast(problem, "warn");
@@ -635,15 +636,15 @@ if (typeof document !== "undefined") {
             );
             return;
           }
-          const found = t.mark;
+          const found = tg.mark;
           if (action === "index_remove") {
             returnFocus = area;
             replaceInArea(found.start, found.end, "");
             return;
           }
           await markDialog(
-            "Registereintrag bearbeiten",
-            "Übernehmen",
+            t("widget.context_menu.index_edit_title"),
+            t("widget.context_menu.apply"),
             found.mark,
             () => null,
             (mark) => {
@@ -688,7 +689,7 @@ if (typeof document !== "undefined") {
           });
         }
       }
-      if (!box.hasChildNodes()) box.append(element("p", { className: "muted small" }, "Keine Registereinträge in diesem Abschnitt."));
+      if (!box.hasChildNodes()) box.append(element("p", { className: "muted small" }, t("widget.context_menu.no_entries")));
     };
   });
 }

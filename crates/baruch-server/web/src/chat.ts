@@ -35,6 +35,7 @@
 //   redirect to the chat with the answer remains. The thread uses the same query (`thread.since`, threads.ts).
 // - `a[data-jump]` in posts opens jump.ts (suchen-verweise); this widget does not touch them.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -115,8 +116,8 @@ function markNew(chat: HTMLElement): void {
     if (author && !author.querySelector(".post-new-label")) {
       const label = document.createElement("span");
       label.className = "badge post-new-label";
-      label.textContent = "neu";
-      label.title = "Neu seit dem letzten Besuch dieses Abschnitts";
+      label.textContent = t("widget.chat.new_badge");
+      label.title = t("widget.chat.new_title");
       author.append(" ", label);
     }
     fresh += 1;
@@ -125,9 +126,9 @@ function markNew(chat: HTMLElement): void {
   if (badge && fresh > 0) {
     const note = document.createElement("span");
     note.className = "chat-new";
-    note.textContent = ` · ${fresh} neu`;
+    note.textContent = ` · ${t("widget.chat.new_count", { count: fresh })}`;
     badge.append(note);
-    badge.title = `${badge.title} · ${fresh} neu seit dem letzten Besuch`;
+    badge.title = `${badge.title} · ${t("widget.chat.new_since", { count: fresh })}`;
   }
   const newest = latest(created, seen[id]);
   if (newest === undefined) {
@@ -204,7 +205,7 @@ export function enableCopy(root: ParentNode): void {
       if (!item) return;
       void copyText(postText(item)).then((ok) => {
         const before = button.textContent;
-        button.textContent = ok ? "Kopiert" : "Kopieren ging nicht – Text markieren";
+        button.textContent = ok ? t("widget.chat.copied") : t("widget.chat.copy_failed");
         window.setTimeout(() => (button.textContent = before), 1500);
       });
     });
@@ -274,7 +275,7 @@ function olderItem(post: PagePost): HTMLElement {
   if (post.edited) {
     const edited = document.createElement("span");
     edited.className = "muted tiny post-edited";
-    edited.textContent = " bearbeitet";
+    edited.textContent = ` ${t("widget.chat.edited")}`;
     author.append(edited);
   }
   const body = document.createElement("div");
@@ -282,7 +283,7 @@ function olderItem(post: PagePost): HTMLElement {
   body.textContent = post.body;
   const tools = document.createElement("div");
   tools.className = "post-tools";
-  for (const [attr, label] of [["data-post-copy", "Kopieren"], ["data-post-quote", "Zitieren"]]) {
+  for (const [attr, label] of [["data-post-copy", t("widget.chat.copy")], ["data-post-quote", t("widget.chat.quote")]]) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "tool small";
@@ -294,7 +295,7 @@ function olderItem(post: PagePost): HTMLElement {
   const open = document.createElement("a");
   open.className = "tool small";
   open.href = post.url;
-  open.textContent = "Beitrag öffnen";
+  open.textContent = t("widget.chat.open_post");
   tools.append(open);
   box.append(author, body, tools);
   item.append(box);
@@ -318,7 +319,7 @@ function enableOlder(chat: HTMLElement, work: number, key: number): void {
         chat.scrollTop += chat.scrollHeight - height;
         if (page.older > 0 && page.posts.length > 0) {
           link.dataset.before = String(page.posts[0].id);
-          link.textContent = `Ältere Beiträge (${page.older}) …`;
+          link.textContent = t("widget.chat.older", { count: page.older });
         } else {
           link.remove();
         }
@@ -337,7 +338,7 @@ export const POLL_MS = 3000;
 
 /// Question before deleting.
 export function deleteQuestion(id: number, author: string): string {
-  return `Beitrag ${id} von ${author} löschen? Der Spiegel hält ihn im Lösch-Commit fest.`;
+  return t("widget.chat.delete_question", { id, author });
 }
 
 /// ✕ per post: confirmation, RPC `post.delete`, remove the post (once per link).
@@ -380,10 +381,11 @@ export type SinceAnswer = {
 
 /// Line „@lektor schreibt …“ (several with „und“).
 export function typingLine(typing: { persona: string }[]): string {
-  const names = [...new Set(typing.map((t) => t.persona))];
+  const names = [...new Set(typing.map((p) => p.persona))];
   if (names.length === 0) return "";
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} und ${names[names.length - 1]}`;
-  return `${list} ${names.length === 1 ? "schreibt" : "schreiben"} …`;
+  if (names.length === 1) return t("widget.chat.typing_one", { name: names[0] });
+  const list = `${names.slice(0, -1).join(", ")} ${t("widget.chat.and")} ${names[names.length - 1]}`;
+  return t("widget.chat.typing_many", { names: list });
 }
 
 /// Errors that have not been shown yet (key from time and persona), and the keys afterwards.

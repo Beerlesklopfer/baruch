@@ -310,7 +310,12 @@ async fn a_book_shows_no_times_until_it_gets_a_target_but_rpc_and_mcp_always_rep
     let (_, page) = server.get(&format!("/?work={book}")).await;
     assert!(page.contains("outline-timing"), "mit Zielzeit zeigt auch ein Buch die Gesamtzeit");
     assert!(page.contains("editor-timing"), "mit Zielzeit zeigt auch ein Buch die Zeit im Editorkopf");
-    assert!(!page.contains("Zielzeit überschritten um"), "90 Wörter bei 110/min liegen unter 30 Minuten");
+    // Round 39a: the widget catalog in the page head carries every widget text; only the shown page counts.
+    let shown = match page.split_once("id=\"baruch-i18n\">") {
+        Some((head, rest)) => format!("{head}{}", &rest[rest.find("</script>").unwrap()..]),
+        None => page.clone(),
+    };
+    assert!(!shown.contains("Zielzeit überschritten um"), "90 Wörter bei 110/min liegen unter 30 Minuten");
 
     let mcp = mcp_tool(&server, "work_timing", json!({ "work": book })).await;
     assert_eq!(mcp["result"]["isError"], false, "work_timing gelingt: {mcp}");

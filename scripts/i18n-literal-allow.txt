@@ -42,241 +42,23 @@ crates/baruch-server/templates/settings/werk.html	aus
 crates/baruch-server/templates/settings/werk.html	werk
 crates/baruch-server/templates/sync.html	aus
 crates/baruch-server/templates/work_numbering.html	/einstellungen/werk /werke/ /nummerierung
-crates/baruch-server/web/src/assist.ts	: Antwort wird neu angefordert ( ) …
-crates/baruch-server/web/src/assist.ts	Abbrechen
-crates/baruch-server/web/src/assist.ts	Abgebrochen. Dein Beitrag und schon fertige Antworten sind gespeichert; die laufende Antwort nicht.
-crates/baruch-server/web/src/assist.ts	nicht gespeichert
-crates/baruch-server/web/src/assist.ts	wartet auf das Modell …
-crates/baruch-server/web/src/band.ts	Keine Persona ist aktiv – einrichten unter Einstellungen → Assistenten.
-crates/baruch-server/web/src/band.ts	Nichts zu speichern – der Text ist unverändert.
-crates/baruch-server/web/src/chat.ts	Beitrag von löschen? Der Spiegel hält ihn im Lösch-Commit fest.
-crates/baruch-server/web/src/chat.ts	Beitrag öffnen
-crates/baruch-server/web/src/chat.ts	Kopieren ging nicht – Text markieren
-crates/baruch-server/web/src/chat.ts	Neu seit dem letzten Besuch dieses Abschnitts
-crates/baruch-server/web/src/chat.ts	neu
-crates/baruch-server/web/src/chat.ts	und
-crates/baruch-server/web/src/chat.ts	· neu
-crates/baruch-server/web/src/chat.ts	· neu seit dem letzten Besuch
-crates/baruch-server/web/src/chat.ts	Ältere Beiträge ( ) …
-crates/baruch-server/web/src/commentaries.ts	alle aufklappen
-crates/baruch-server/web/src/commentaries.ts	alle zuklappen
-crates/baruch-server/web/src/consent.ts	Nicht ausgeführt ( ):
-crates/baruch-server/web/src/context_menu.ts	(siehe auch: )
 crates/baruch-server/web/src/context_menu.ts	/werke/ /glossar#begriff-
-crates/baruch-server/web/src/context_menu.ts	Abbrechen
-crates/baruch-server/web/src/context_menu.ts	Ausführliche Erklärung
-crates/baruch-server/web/src/context_menu.ts	Begriff: darf nicht leer sein.
-crates/baruch-server/web/src/context_menu.ts	Bibelstellen (je Zeile eine)
-crates/baruch-server/web/src/context_menu.ts	Bitte ein Wort markieren oder den Cursor in ein Wort setzen.
-crates/baruch-server/web/src/context_menu.ts	Das Satzbild ist nicht offen.
-crates/baruch-server/web/src/context_menu.ts	Keine Registereinträge in diesem Abschnitt.
-crates/baruch-server/web/src/context_menu.ts	Kurze Erklärung
-crates/baruch-server/web/src/context_menu.ts	Quelle
-crates/baruch-server/web/src/context_menu.ts	Register und Glossar
-crates/baruch-server/web/src/context_menu.ts	Schließen
-crates/baruch-server/web/src/context_menu.ts	Varianten (je Zeile eine)
-crates/baruch-server/web/src/context_menu.ts	auch:
-crates/baruch-server/web/src/context_menu.ts	siehe auch
-crates/baruch-server/web/src/context_menu.ts	Übernehmen
-crates/baruch-server/web/src/context_menu.ts	„ “ steht jetzt im Glossar.
-crates/baruch-server/web/src/context_menu.ts	„ “ steht nicht im Glossar.
 crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?
 crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?t=
 crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag?ok=anordnung#anordnung
-crates/baruch-server/web/src/cover_editor.ts	Anordnung zurücksetzen ( )? Die Vorgaben gelten dann wieder.
-crates/baruch-server/web/src/cover_editor.ts	Blöcke
-crates/baruch-server/web/src/cover_editor.ts	Druckprüfung: Hinweis – Seite neu laden zeigt sie.
-crates/baruch-server/web/src/cover_editor.ts	Erst einen Block wählen.
-crates/baruch-server/web/src/cover_editor.ts	Nichts rückgängig zu machen.
-crates/baruch-server/web/src/cover_editor.ts	Nichts zu speichern.
-crates/baruch-server/web/src/cover_editor.ts	Rückgängig: .
-crates/baruch-server/web/src/cover_editor.ts	Ungespeicherte Änderungen der Anordnung verwerfen?
-crates/baruch-server/web/src/cover_editor.ts	Zurücksetzen
-crates/baruch-server/web/src/cover_editor.ts	die ganze Anordnung
-crates/baruch-server/web/src/cover_editor.ts	die gewählten Flächen
-crates/baruch-server/web/src/findings.ts	Antwort ohne Befunde
-crates/baruch-server/web/src/ideas.ts	Bitte mindestens ein Schlagwort.
-crates/baruch-server/web/src/jump.ts	Den letzten Sprung wiederholen
-crates/baruch-server/web/src/jump.ts	Vorwärts →
-crates/baruch-server/web/src/jump.ts	Zur Ausgangsstelle des Sprungs (Alt+←)
-crates/baruch-server/web/src/jump.ts	Zur Stelle im Chat zurück (Alt+←)
-crates/baruch-server/web/src/jump.ts	Zurück zum Chat
-crates/baruch-server/web/src/jump.ts	← Zurück
 crates/baruch-server/web/src/literature.ts	/quelle?title= & &highlight=
-crates/baruch-server/web/src/literature.ts	Abschnitt fehlt: Die Dokumentansicht aus einem Abschnitt heraus öffnen.
-crates/baruch-server/web/src/literature.ts	Abschnitt wählen: Die Literatur aus einem Abschnitt heraus öffnen, dann den Text an die Persona geben.
-crates/baruch-server/web/src/literature.ts	Art der Hervorhebung
-crates/baruch-server/web/src/literature.ts	Die Persona antwortet …
-crates/baruch-server/web/src/literature.ts	Ähnliches suchen
 crates/baruch-server/web/src/mention.ts	@alle
-crates/baruch-server/web/src/mention.ts	auch: „ , …“ am Satzanfang
-crates/baruch-server/web/src/mention.ts	wie
 crates/baruch-server/web/src/menu.ts	nur-autor
-crates/baruch-server/web/src/mindmap.ts	Abbrechen
-crates/baruch-server/web/src/mindmap.ts	Beispiel für
-crates/baruch-server/web/src/mindmap.ts	Beziehung gelöst.
-crates/baruch-server/web/src/mindmap.ts	Beziehung gewählt: Entf löst sie (wiederherstellbar mit Strg+Z).
-crates/baruch-server/web/src/mindmap.ts	Beziehung lösen
-crates/baruch-server/web/src/mindmap.ts	Das Bild ließ sich nicht neu holen (Server antwortet ).
-crates/baruch-server/web/src/mindmap.ts	Das Bild ließ sich nicht neu holen (keine Mindmap in der Antwort).
-crates/baruch-server/web/src/mindmap.ts	Der Server hat keinen neuen Einfall gemeldet.
-crates/baruch-server/web/src/mindmap.ts	Diese Beziehung gibt es schon; nichts geändert.
-crates/baruch-server/web/src/mindmap.ts	Dieser Einfall liegt schon in der Wolke.
-crates/baruch-server/web/src/mindmap.ts	Ein Einfall lässt sich nicht unter seinen eigenen Unterknoten hängen.
-crates/baruch-server/web/src/mindmap.ts	Einfall angelegt . Titel eingeben, Enter übernimmt.
-crates/baruch-server/web/src/mindmap.ts	Einfall „ “ gelöscht.
-crates/baruch-server/web/src/mindmap.ts	Einfall „ “ löschen? (wiederherstellbar)
-crates/baruch-server/web/src/mindmap.ts	Ganze Mindmap zeigen (0)
-crates/baruch-server/web/src/mindmap.ts	In die Wolke legen lassen sich nur Einfälle.
-crates/baruch-server/web/src/mindmap.ts	Klick wählt, Doppelklick oder F2 benennt um. Tab: Unterknoten, Enter: Geschwister, Entf: löschen,
-crates/baruch-server/web/src/mindmap.ts	Leertaste: klappen, Pfeile: wandern, Strg+Z: rückgängig, Alt+L: verbinden, Alt+E: neuer Einfall in der Wolke.
-crates/baruch-server/web/src/mindmap.ts	Löschen
-crates/baruch-server/web/src/mindmap.ts	Löschen lassen sich nur Einfälle; Teile und Kapitel ändert die Gliederung (Antrag).
-crates/baruch-server/web/src/mindmap.ts	Löschen: zuerst einen Einfall wählen.
-crates/baruch-server/web/src/mindmap.ts	Nichts zurückzunehmen.
-crates/baruch-server/web/src/mindmap.ts	Notiz (Beschriftung der Linie)
-crates/baruch-server/web/src/mindmap.ts	Rückgängig
-crates/baruch-server/web/src/mindmap.ts	Titel des Einfalls (Enter übernimmt, Esc verwirft)
-crates/baruch-server/web/src/mindmap.ts	Umbenannt in „ “.
-crates/baruch-server/web/src/mindmap.ts	Umbenennen lassen sich nur Einfälle; Werk, Teile und Kapitel heißen wie in der Gliederung.
-crates/baruch-server/web/src/mindmap.ts	Umbenennen: zuerst einen Einfall wählen.
-crates/baruch-server/web/src/mindmap.ts	Umhängen
-crates/baruch-server/web/src/mindmap.ts	Verbinden geht nur zwischen zwei verschiedenen Einfällen.
-crates/baruch-server/web/src/mindmap.ts	Verbinden von „ “: jetzt den zweiten Einfall wählen (Klick oder Pfeile und Enter; Esc bricht ab).
-crates/baruch-server/web/src/mindmap.ts	Verbinden: zuerst einen Einfall wählen.
-crates/baruch-server/web/src/mindmap.ts	Vergrößern (+)
-crates/baruch-server/web/src/mindmap.ts	Ziehen hängt um: auf einen Knoten, zwischen Geschwister oder in die Wolke. Strg+Mausrad, +, − und 0 zoomen.
-crates/baruch-server/web/src/mindmap.ts	Zurückgenommen: .
-crates/baruch-server/web/src/mindmap.ts	führt weiter
-crates/baruch-server/web/src/mindmap.ts	gehört zu
-crates/baruch-server/web/src/mindmap.ts	in der Wolke
-crates/baruch-server/web/src/mindmap.ts	„ “ hängt jetzt an „ “.
-crates/baruch-server/web/src/mindmap.ts	„ “ ist jetzt Hauptthema am Werk.
-crates/baruch-server/web/src/mindmap.ts	„ “ ist jetzt Unterknoten von „ “.
-crates/baruch-server/web/src/mindmap.ts	„ “ liegt jetzt in der Wolke.
-crates/baruch-server/web/src/mindmap.ts	„ “ steht jetzt „ “.
-crates/baruch-server/web/src/mindmap.ts	„ “ verbinden mit „ “
-crates/baruch-server/web/src/outline.ts	Abschnitt
-crates/baruch-server/web/src/outline.ts	Der Gliederungspunkt hat Unterpunkte; erst verschieben oder löschen.
-crates/baruch-server/web/src/outline.ts	Der Text enthält neue Überschriften: .\nAbschnitt teilen und speichern?
-crates/baruch-server/web/src/outline.ts	Der Text hat keine Überschrift mehr.
-crates/baruch-server/web/src/outline.ts	Der Titel darf keinen Zeilenumbruch enthalten.
-crates/baruch-server/web/src/outline.ts	Der Titel ist zu lang (höchstens 200 Zeichen, hier ).
-crates/baruch-server/web/src/outline.ts	Diese Überschriften ergeben keine gültige Gliederung.
-crates/baruch-server/web/src/outline.ts	Ein Gliederungspunkt braucht einen Titel.
-crates/baruch-server/web/src/outline.ts	Kapitel
-crates/baruch-server/web/src/outline.ts	Nicht in den eigenen Teilbaum.
-crates/baruch-server/web/src/outline.ts	Titel des „ “
-crates/baruch-server/web/src/outline.ts	Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).
-crates/baruch-server/web/src/outline.ts	\nZusammenführen und speichern?
 crates/baruch-server/web/src/outline.ts	keine
-crates/baruch-server/web/src/outline.ts	„ “ mit allen Fassungen und Beiträgen löschen?\nDer Text bleibt im Git-Spiegel lesbar.
-crates/baruch-server/web/src/outline.ts	„ “ · Ebene ( )
 crates/baruch-server/web/src/persona_tabs.ts	/einstellungen/assistenten
-crates/baruch-server/web/src/proposals.ts	Alle aufklappen
-crates/baruch-server/web/src/proposals.ts	Alle einklappen
 crates/baruch-server/web/src/quote_find.ts	“”\"«»‘’‹›'
 crates/baruch-server/web/src/quote_find.ts	„“\"»«‚‘‹›'
-crates/baruch-server/web/src/ribbon.ts	„ “ geht im Satzbild noch nicht – bitte im Quelltext einfügen (Knopf „Quelltext“).
-crates/baruch-server/web/src/ribbon.ts	„ “: kein Textfeld zum Einfügen gefunden.
-crates/baruch-server/web/src/ribbon.ts	„Bild“: Das Einfügen von Bildern ist hier nicht verfügbar.
-crates/baruch-server/web/src/rpc.ts	Gespeichert: neue Fassung ( ).
-crates/baruch-server/web/src/rpc.ts	Gespeichert: neue Fassung .
-crates/baruch-server/web/src/rpc.ts	Nichts zu speichern: Der Text ist unverändert.
 crates/baruch-server/web/src/rpc.ts	alle
 crates/baruch-server/web/src/rpc.ts	fassungen
-crates/baruch-server/web/src/scripture_check.ts	Als Seite öffnen
-crates/baruch-server/web/src/scripture_check.ts	Bibel nicht lesbar:
-crates/baruch-server/web/src/scripture_check.ts	Das Werk hat keine Bibel: Der Wortlaut bleibt ungeprüft.
-crates/baruch-server/web/src/scripture_check.ts	Ergebnis der Zitatprüfung
-crates/baruch-server/web/src/scripture_check.ts	Geprüft von Baruch mit (Versifikation )
-crates/baruch-server/web/src/scripture_check.ts	Keine Bibelstelle gefunden.
-crates/baruch-server/web/src/scripture_check.ts	Prüfung nicht möglich:
-crates/baruch-server/web/src/scripture_check.ts	nicht prüfbar
-crates/baruch-server/web/src/scripture_check.ts	ungeprüft
-crates/baruch-server/web/src/scripture_check.ts	· Markierung im Satzbild braucht einen neueren Browser.
-crates/baruch-server/web/src/scripture_check.ts	· Zitat(e) im Satzbild nicht eindeutig gefunden (nur in der Liste)
-crates/baruch-server/web/src/scripture_check.ts	„ “
-crates/baruch-server/web/src/search.ts	<a class="small" data-ss-full href="/suche">Vorschau und Ersetzen …</a></form><p class="small muted" data-ss-summary></p><ul class="ss-tree" data-ss-tree></ul>
-crates/baruch-server/web/src/search.ts	<div class="ss-head"><strong>Im Werk suchen</strong> <button type="button" class="btn" data-ss-close aria-label="Schließen">✕</button></div>
-crates/baruch-server/web/src/search.ts	<form class="ss-form" data-ss-form><input type="search" name="q" placeholder="Suchen" aria-label="Suchen" maxlength="500">
-crates/baruch-server/web/src/search.ts	<label class="small"><input type="checkbox" name="re" value="1"> .*</label> <button type="submit" class="btn">Suchen</button>
-crates/baruch-server/web/src/search.ts	Die Suche brauchte länger als 2 s und wurde abgebrochen.
-crates/baruch-server/web/src/search.ts	Ersetzt (noch nicht gespeichert).
-crates/baruch-server/web/src/search.ts	Erst im Quelltext Text markieren, dann die Suche öffnen und „In Markierung“ einschalten.
-crates/baruch-server/web/src/search.ts	Im Werk suchen
-crates/baruch-server/web/src/search.ts	Keine Treffer
-crates/baruch-server/web/src/search.ts	Stellen ersetzt (noch nicht gespeichert).
 crates/baruch-server/web/src/settings.ts	/einstellungen
 crates/baruch-server/web/src/settings.ts	/einstellungen/
-crates/baruch-server/web/src/settings.ts	Einstellungen ließen sich nicht laden:
-crates/baruch-server/web/src/settings.ts	Speichern fehlgeschlagen:
-crates/baruch-server/web/src/sheet.ts	Als eigener Block an der gewählten Stelle; ungespeicherte Änderungen gehen mit.
-crates/baruch-server/web/src/sheet.ts	an der Cursorstelle
 crates/baruch-server/web/src/sheet.ts	werk
 crates/baruch-server/web/src/threads.ts	#beitrag-
-crates/baruch-server/web/src/timing.ts	Zielzeit überschritten
-crates/baruch-server/web/src/timing.ts	Zielzeit überschritten um
-crates/baruch-server/web/src/toast.ts	Hinweis schließen
-crates/baruch-server/web/src/toast.ts	Nur als Zusammenfassung gesehen ( )
-crates/baruch-server/web/src/toast.ts	Schließen
-crates/baruch-server/web/src/typeset_settings.ts	: keine Zahl
-crates/baruch-server/web/src/typeset_settings.ts	: unbekannte Wahl „ “
-crates/baruch-server/web/src/typeset_settings.ts	Entwurf: unbekannte Wahl „ “
-crates/baruch-server/web/src/typeset_settings.ts	Erste Erwähnung im Glossar auszeichnen
-crates/baruch-server/web/src/typeset_settings.ts	Fußnoten
-crates/baruch-server/web/src/typeset_settings.ts	Ränder
-crates/baruch-server/web/src/typeset_settings.ts	Ränder: alle vier Ränder angeben oder alle leer
-crates/baruch-server/web/src/typeset_settings.ts	Seitenformat: Breite und Höhe angeben
-crates/baruch-server/web/src/typeset_settings.ts	Verweis mit Seitenzahl
-crates/baruch-server/web/src/typeset_settings.ts	Vorschau mit Mustertext: Seiten
-crates/baruch-server/web/src/variants.ts	Übrige Varianten verwerfen
-crates/baruch-server/web/src/widgets.ts	Ungespeicherte Änderung verwerfen?
-crates/baruch-server/web/src/works.ts	aus dem Dateinamen
-crates/baruch-server/web/src/ws_command.ts	: höchstens Zeichen.
-crates/baruch-server/web/src/ws_command.ts	: ohne Zeilenumbruch und Steuerzeichen.
-crates/baruch-server/web/src/ws_command.ts	; siehe auch:
-crates/baruch-server/web/src/ws_command.ts	Bitte ein Wort markieren oder den Cursor in ein Wort setzen.
-crates/baruch-server/web/src/ws_command.ts	Dieses Wort trägt diese Registermarke schon; nichts geändert.
-crates/baruch-server/web/src/ws_command.ts	Hier steht schon eine Registermarke.
-crates/baruch-server/web/src/ws_command.ts	In einem Kommentar steht keine Registermarke.
-crates/baruch-server/web/src/ws_command.ts	In einer Überschriftszeile steht keine Registermarke; bitte ein Wort im Fließtext wählen.
-crates/baruch-server/web/src/ws_command.ts	Register „ “
-crates/baruch-server/web/src/ws_command.ts	Register „ “: keine gültige Kennung (Kleinbuchstabe am Anfang, dann Kleinbuchstaben, Ziffern oder Bindestrich, höchstens 32 Zeichen).
-crates/baruch-server/web/src/ws_command.ts	Sortierschlüssel
-crates/baruch-server/web/src/ws_command.ts	Stichwort: darf nicht leer sein.
-crates/baruch-server/web/src/ws_command.ts	siehe auch
-crates/baruch-server/web/src/wysiwyg.ts	Abbrechen
-crates/baruch-server/web/src/wysiwyg.ts	Bitte zuerst den Cursor in einen Absatz setzen.
-crates/baruch-server/web/src/wysiwyg.ts	Bitte zuerst ein Wort im Satzbild markieren.
-crates/baruch-server/web/src/wysiwyg.ts	Das Absatzformat lässt sich nur für Absätze und Überschriften wählen.
-crates/baruch-server/web/src/wysiwyg.ts	Der Titel darf keinen Zeilenumbruch enthalten.
-crates/baruch-server/web/src/wysiwyg.ts	Der Titel ist zu lang (höchstens Zeichen, hier ).
-crates/baruch-server/web/src/wysiwyg.ts	Die Registermarke steht nicht mehr im Satzbild.
-crates/baruch-server/web/src/wysiwyg.ts	Diese Bibelstelle lässt sich so nicht einfügen (höchstens 200 Zeichen, Funktion der Vorlage nötig).
-crates/baruch-server/web/src/wysiwyg.ts	Dieses Wort trägt diese Registermarke schon; nichts geändert.
-crates/baruch-server/web/src/wysiwyg.ts	Ein Gliederungspunkt braucht einen Titel.
-crates/baruch-server/web/src/wysiwyg.ts	Eine Liste wird keine Begriffsliste; bitte einen Absatz wählen.
-crates/baruch-server/web/src/wysiwyg.ts	Fußnote
-crates/baruch-server/web/src/wysiwyg.ts	Hier lässt sich keine Registermarke setzen; bitte ein Wort im Fließtext wählen.
-crates/baruch-server/web/src/wysiwyg.ts	Hier steht schon eine Szene bzw. ein Arbeitsauftrag.
-crates/baruch-server/web/src/wysiwyg.ts	In einer Überschriftszeile oder Typst-Insel steht keine Registermarke; bitte ein Wort im Fließtext wählen.
-crates/baruch-server/web/src/wysiwyg.ts	Liste, Aufzählung und Begriffsliste entstehen aus einem Absatz (Cursor hineinsetzen).
-crates/baruch-server/web/src/wysiwyg.ts	Quelltext der Typst-Insel
-crates/baruch-server/web/src/wysiwyg.ts	Schlüssel des Literaturverweises (z. B. mueller2020):
-crates/baruch-server/web/src/wysiwyg.ts	Teile und Punkte ohne Nummer ändert die Gliederung oder der Quelltext, nicht das Absatzformat.
-crates/baruch-server/web/src/wysiwyg.ts	Ungültiger Schlüssel (Buchstaben, Ziffern, _ - : .).
-crates/baruch-server/web/src/wysiwyg.ts	Verweis auf < > (nur im Quelltext änderbar)
-crates/baruch-server/web/src/wysiwyg.ts	Verweis auf < > – das Ziel steht nicht in diesem Abschnitt; ändern nur im Quelltext.
-crates/baruch-server/web/src/wysiwyg.ts	Übernehmen
-crates/baruch-server/web/src/xref.ts	<button type="submit" class="btn" value="cancel">Abbrechen</button></p></form>
-crates/baruch-server/web/src/xref.ts	<label><input type="checkbox" data-xref-page> mit Seitenzahl („S. n“)</label>
-crates/baruch-server/web/src/xref.ts	<label>Ziel suchen <input type="search" data-xref-q placeholder="Titel oder Nummer" autocomplete="off"></label>
-crates/baruch-server/web/src/xref.ts	<p><button type="submit" class="btn primary" data-xref-ok value="ok">Einfügen</button>
-crates/baruch-server/web/src/xref.ts	Bitte ein Ziel wählen.
-crates/baruch-server/web/src/xref.ts	Querverweis einfügen
-crates/baruch-server/web/src/xref.ts	Zum Ziel springen (Strg+Klick)
-crates/baruch-server/web/src/xref.ts	Öffnen
 # templates_2: identifiers that are not shown text. The ribbon tab name `{% block band_tab %}buch{% endblock %}`
 # (the finder reads the bare word „buch“, on typeset.html together with the „·“ of the page title), the CSS class
 # " nur-autor" handed to a macro, the accordion id data-section="befunde" and formaction addresses below /werke/.
@@ -301,3 +83,8 @@ crates/baruch-server/templates/settings.html	· ansicht
 # reason: state value of data-sync-upload, not shown text
 # reason: page id in data-settings-page-body, not shown text
 # reason: state value of data-sync-upload, not shown text
+# reason (widgets): route paths and anchors of the server (German URLs), not shown text
+# reason (widgets): the persona handle @alle, a name the user types in the chat
+# reason (widgets): CSS class of the server pages, not shown text
+# reason (widgets): form and query values the server reads (outline numbering, revision filter, settings page), not shown text
+# reason (widgets): the quotation marks the quotation finder recognises (a character set), not shown text

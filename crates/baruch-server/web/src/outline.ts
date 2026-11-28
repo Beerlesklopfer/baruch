@@ -29,6 +29,7 @@
 // Round 22: the triggering button (`submitter`, e.g. „Als neue Fassung speichern“ with `as_new=1`) goes along on
 // submitting again (`requestSubmit(submitter)`) so that the workspace knows the mode.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { editorLocked, leaveEditor, lockEditor, register } from "./widgets.js";
 
@@ -49,17 +50,33 @@ interface HeadingCheck {
   message: string | null;
 }
 
-const levelNames = ["Teil", "Kapitel", "Abschnitt", "Unterabschnitt"];
-const placeWords: Record<Place, string> = { before: "vor", after: "hinter", into: "unter" };
-const keepsLevel = "Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).";
+/// Catalog keys of the level names (part, chapter, section, subsection).
+const levelNames = [
+  "widget.outline.level_part",
+  "widget.outline.level_chapter",
+  "widget.outline.level_section",
+  "widget.outline.level_subsection",
+];
+/// Drop hint per place: „vor/hinter/unter „Titel“ · Ebene n (Name)“.
+const judgeKeys: Record<Place, string> = {
+  before: "widget.outline.judge_before",
+  after: "widget.outline.judge_after",
+  into: "widget.outline.judge_into",
+};
+/// Label of the title field of a new item: [part, item] per place.
+const addKeys: Record<Place, [string, string]> = {
+  before: ["widget.outline.add_part_before", "widget.outline.add_item_before"],
+  after: ["widget.outline.add_part_after", "widget.outline.add_item_after"],
+  into: ["widget.outline.add_part_into", "widget.outline.add_item_into"],
+};
 
 /// Title rules like `baruch_store::check_title` (Round 7; the server stays authoritative): message or `null`.
 function titleProblem(title: string): string | null {
   const trimmed = title.trim();
-  if (trimmed === "") return "Ein Gliederungspunkt braucht einen Titel.";
-  if (/[\n\r\v\f\u0085\u2028\u2029]/.test(trimmed)) return "Der Titel darf keinen Zeilenumbruch enthalten.";
+  if (trimmed === "") return t("widget.outline.title_empty");
+  if (/[\n\r\v\f\u0085\u2028\u2029]/.test(trimmed)) return t("widget.outline.title_newline");
   const count = [...trimmed].length;
-  if (count > 200) return `Der Titel ist zu lang (höchstens 200 Zeichen, hier ${count}).`;
+  if (count > 200) return t("widget.outline.title_long", { max: 200, count });
   return null;
 }
 
@@ -119,14 +136,15 @@ interface Verdict {
 /// under one level higher), not into the own subtree.
 function judge(dragged: HTMLElement, target: HTMLElement, place: Place): Verdict {
   if (dragged === target || dragged.contains(target)) {
-    return { ok: false, text: "Nicht in den eigenen Teilbaum." };
+    return { ok: false, text: t("widget.outline.own_subtree") };
   }
   const level = levelOf(dragged);
   const targetLevel = levelOf(target);
   const keeps = place === "into" ? targetLevel + 1 === level : targetLevel === level;
-  if (!keeps) return { ok: false, text: keepsLevel };
+  if (!keeps) return { ok: false, text: t("widget.outline.keeps_level") };
   const title = target.dataset.title ?? "";
-  return { ok: true, text: `${placeWords[place]} „${title}“ · Ebene ${level} (${levelNames[level] ?? ""})` };
+  const name = levelNames[level];
+  return { ok: true, text: t(judgeKeys[place], { title, level, name: name ? t(name) : "" }) };
 }
 
 const marks = ["drop-before", "drop-after", "drop-into", "drop-invalid"];
@@ -174,7 +192,7 @@ function startRename(root: HTMLElement, item: HTMLElement): void {
   const row = rowOf(item);
   if (!entry || !row || row.querySelector(".outline-rename")) return;
   const title = item.dataset.title ?? "";
-  const input = field(title, "Neuer Titel", "outline-rename");
+  const input = field(title, t("widget.outline.new_title"), "outline-rename");
   entry.hidden = true;
   row.draggable = false;
   entry.after(input);
@@ -229,8 +247,7 @@ function startAdd(root: HTMLElement, item: HTMLElement, place: Place, part = fal
   const title = item.dataset.title ?? "";
   const holder = document.createElement("li");
   holder.className = "outline-new";
-  const what = part ? "neuen Teils" : "neuen Punkts";
-  const input = field("", `Titel des ${what} ${placeWords[place]} „${title}“`, "");
+  const input = field("", t(addKeys[place][part ? 0 : 1], { title }), "");
   holder.append(input);
   if (place === "before") item.before(holder);
   else if (place === "after") item.after(holder);
@@ -277,11 +294,11 @@ function startAdd(root: HTMLElement, item: HTMLElement, place: Place, part = fal
 /// Deleting with a confirmation; the server demands `confirm: true`.
 function askDelete(root: HTMLElement, item: HTMLElement): void {
   if (item.dataset.children !== undefined) {
-    notify("Der Gliederungspunkt hat Unterpunkte; erst verschieben oder löschen.");
+    notify(t("widget.outline.has_children"));
     return;
   }
   const title = item.dataset.title ?? "";
-  if (!confirm(`„${title}“ mit allen Fassungen und Beiträgen löschen?\nDer Text bleibt im Git-Spiegel lesbar.`)) return;
+  if (!confirm(t("widget.outline.delete_question", { title }))) return;
   void act(Number(root.dataset.work), "outline.delete", { node: nodeOf(item), key: keyOf(item), confirm: true });
 }
 
@@ -619,16 +636,16 @@ async function checkedSubmit(form: HTMLFormElement, submitter: HTMLElement | nul
     return;
   }
   if (!check.valid) {
-    notify(check.message ?? "Diese Überschriften ergeben keine gültige Gliederung.");
+    notify(check.message ?? t("widget.outline.invalid_headings"));
     return;
   }
   const extra: [string, string][] = [];
   if (check.split.length > 0) {
-    if (!confirm(`Der Text enthält neue Überschriften: ${check.split.join(", ")}.\nAbschnitt teilen und speichern?`)) return;
+    if (!confirm(t("widget.outline.split_question", { headings: check.split.join(", ") }))) return;
     extra.push(["split", "1"]);
   }
   if (check.merge) {
-    if (!confirm(`${check.message ?? "Der Text hat keine Überschrift mehr."}\nZusammenführen und speichern?`)) return;
+    if (!confirm(`${check.message ?? t("widget.outline.no_heading")}\n${t("widget.outline.merge_question")}`)) return;
     extra.push(["merge", "1"]);
   }
   const added = extra.map(([name, value]) => {

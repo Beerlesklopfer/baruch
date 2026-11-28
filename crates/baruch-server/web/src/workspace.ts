@@ -9,6 +9,7 @@
 // Round 22: the triggering button of a form goes along (name/value, e.g. `as_new=1` → `mode: "new"` for
 // `outline.save`); after saving a message shows „fortgeschrieben (Stand k)“ or „neue Fassung n (Grund)“.
 
+import { t } from "./i18n.js";
 import { jumpBack } from "./jump.js";
 import { call, locationFrom, savedMessage, urlFor, type Location, type Rendered, type SaveAnswer } from "./rpc.js";
 import { leaveEditor, lockEditor, mount, register } from "./widgets.js";
@@ -55,7 +56,7 @@ async function render(at: Location, push: boolean): Promise<void> {
   if (toggle) {
     const now = locationFrom(result.url);
     const preview = now.view === "preview";
-    toggle.textContent = preview ? "Editor" : "Vorschau";
+    toggle.textContent = preview ? t("widget.workspace.editor") : t("widget.workspace.preview");
     toggle.href = urlFor({ ...now, view: preview ? undefined : "preview" });
   }
   if (push) history.pushState(null, "", result.url);

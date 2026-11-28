@@ -619,7 +619,12 @@ fn the_chat_widget_remembers_the_last_visit_in_local_storage_safely() {
     assert!(script.contains("const STORAGE = \"baruch_chat_seen\";"), "Schlüssel im LocalStorage laut Vertrag");
     assert!(script.contains("register(\"chat\""), "Widget chat");
     assert!(script.contains("post.classList.add(\"post-new\")"), "Klasse post-new für neue Beiträge");
-    assert!(script.contains("` · ${fresh} neu`"), "„k neu“ am Abzeichen");
+    assert!(
+        script.contains("t(\"widget.chat.new_count\", { count: fresh })")
+            && baruch_server::i18n::t(baruch_server::i18n::Lang::De, "widget.chat.new_count", &[("count", 3.into())])
+                == "3 neu",
+        "„k neu“ am Abzeichen"
+    );
     let reads = script.matches("window.localStorage").count();
     let guarded = script.matches("try {").count();
     assert!(reads >= 2 && guarded >= 2, "jeder LocalStorage-Zugriff in try/catch: {reads} Zugriffe, {guarded} try");

@@ -400,6 +400,15 @@ async fn the_widget_handles_posted_retry_compressed_and_cancel() {
         assert!(script.contains(event), "assist.ts behandelt das Ereignis {event}");
     }
     assert!(script.contains("\"baruch:toast\""), "compressed geht als baruch:toast an toast.ts (Vertrag §4)");
-    assert!(script.contains("Dein Beitrag und schon fertige Antworten sind gespeichert"), "Abbrechen im Chat ehrlich");
-    assert!(script.contains("Abgebrochen; es wurde nichts gespeichert."), "Abbrechen eines Einzelauftrags ehrlich");
+    let de = |key: &str| baruch_server::i18n::t(baruch_server::i18n::Lang::De, key, &[]);
+    assert!(
+        script.contains("\"widget.assist.cancelled_chat\"")
+            && de("widget.assist.cancelled_chat").contains("Dein Beitrag und schon fertige Antworten sind gespeichert"),
+        "Abbrechen im Chat ehrlich"
+    );
+    assert!(
+        script.contains("\"widget.assist.cancelled_nothing\"")
+            && de("widget.assist.cancelled_nothing") == "Abgebrochen; es wurde nichts gespeichert.",
+        "Abbrechen eines Einzelauftrags ehrlich"
+    );
 }

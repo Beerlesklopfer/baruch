@@ -13,6 +13,12 @@
 //   "Forward" exists only as a button in the jump bar.
 // No imports: the pure functions (history, byte → UTF-16) run under Node (tests/round30_verweise.rs).
 
+import { t } from "./i18n.js";
+
+
+
+
+
 export interface JumpEntry {
   url: string;
   origin?: string;
@@ -168,7 +174,7 @@ function renderBar(state: JumpState): void {
     bar = document.createElement("nav");
     bar.className = "jump-bar";
     bar.dataset.jumpBar = "";
-    bar.setAttribute("aria-label", "Sprungverlauf");
+    bar.setAttribute("aria-label", t("widget.jump.bar_label"));
     document.body.append(bar);
   }
   bar.replaceChildren();
@@ -181,9 +187,9 @@ function renderBar(state: JumpState): void {
     b.addEventListener("click", action);
     bar?.append(b);
   };
-  if (last?.origin === "chat") button("Zurück zum Chat", "Zur Stelle im Chat zurück (Alt+←)", () => void jumpBack());
-  else if (last) button("← Zurück", "Zur Ausgangsstelle des Sprungs (Alt+←)", () => void jumpBack());
-  if (state.forward.length > 0) button("Vorwärts →", "Den letzten Sprung wiederholen", jumpForward);
+  if (last?.origin === "chat") button(t("widget.jump.back_chat"), t("widget.jump.back_chat_title"), () => void jumpBack());
+  else if (last) button(t("widget.jump.back"), t("widget.jump.back_title"), () => void jumpBack());
+  if (state.forward.length > 0) button(t("widget.jump.forward"), t("widget.jump.forward_title"), jumpForward);
 }
 
 if (typeof document !== "undefined" && typeof window !== "undefined") {

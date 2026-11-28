@@ -187,7 +187,11 @@ async fn moving_keeps_the_level_over_rpc_and_without_javascript() {
     assert!(ok.get("error").is_none(), "Kapitel vor Kapitel: {ok}");
     // The verdict in the browser says the same (checked on the source).
     let script = include_str!("../web/src/outline.ts");
-    assert!(script.contains(refusal), "judge() zeigt dieselbe Meldung wie der Server");
+    assert!(
+        script.contains("\"widget.outline.keeps_level\"")
+            && baruch_server::i18n::t(baruch_server::i18n::Lang::De, "widget.outline.keeps_level", &[]) == refusal,
+        "judge() zeigt dieselbe Meldung wie der Server"
+    );
     assert!(
         script.contains("place === \"into\" ? targetLevel + 1 === level : targetLevel === level"),
         "judge() urteilt nach derselben Regel: davor/danach gleiche Ebene, darunter eine höher"
@@ -295,7 +299,16 @@ fn the_outline_script_waits_for_before_save_and_asks_before_every_write() {
         );
     }
     assert!(script.contains("confirm: true"), "Löschen schickt confirm: true");
-    assert!(script.contains("if (!confirm(`„${title}“ mit allen Fassungen"), "Löschen fragt mit confirm()");
+    assert!(
+        script.contains("if (!confirm(t(\"widget.outline.delete_question\", { title }))) return;")
+            && baruch_server::i18n::t(
+                baruch_server::i18n::Lang::De,
+                "widget.outline.delete_question",
+                &[("title", "X".into())]
+            )
+            .starts_with("„X“ mit allen Fassungen"),
+        "Löschen fragt mit confirm()"
+    );
     // Keys: F2/Del/context menu only in the tree, Alt+Shift+arrows except in input fields.
     assert!(
         script.contains("event.key === \"ContextMenu\" || (event.key === \"F10\" && event.shiftKey)"),

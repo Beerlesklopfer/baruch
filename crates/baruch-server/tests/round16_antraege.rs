@@ -327,7 +327,12 @@ async fn the_outline_page_shows_durations_and_the_target_warning_for_sermons() {
         );
         assert!(page.contains(&cell), "Dauer und Zeitmarke je Punkt aus dem Zeitwächter ({cell}): {page}");
     }
-    assert!(!page.contains("Zielzeit"), "ohne Zielzeit keine Zielzeit-Angabe");
+    // Round 39a: the widget catalog in the page head carries every widget text; only the shown page counts.
+    let shown = match page.split_once("id=\"baruch-i18n\">") {
+        Some((head, rest)) => format!("{head}{}", &rest[rest.find("</script>").unwrap()..]),
+        None => page.clone(),
+    };
+    assert!(!shown.contains("Zielzeit"), "ohne Zielzeit keine Zielzeit-Angabe");
 
     // Target time 1 minute at 60 words per minute: over 60 words exceed it.
     let slow = TimingSettings { words_per_minute: 60, target_seconds: Some(60) };

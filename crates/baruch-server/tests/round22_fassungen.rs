@@ -326,7 +326,12 @@ async fn without_javascript_the_editor_amends_or_saves_anew_and_reports_it_in_th
         "Rückmeldung nennt Nummer und Grund"
     );
     let (_, page) = server.get(&format!("/?work={work}&key={key}&saved=kaputt-%3Cb%3E")).await;
-    assert!(!page.contains("Gespeichert:") && !page.contains("<b>"), "ungültige Rückmeldung wird übergangen");
+    // Round 39a: the widget catalog in the page head carries the widgets' own „Gespeichert: …“ texts.
+    let shown = match page.split_once("id=\"baruch-i18n\">") {
+        Some((head, rest)) => format!("{head}{}", &rest[rest.find("</script>").unwrap()..]),
+        None => page.clone(),
+    };
+    assert!(!shown.contains("Gespeichert:") && !shown.contains("<b>"), "ungültige Rückmeldung wird übergangen");
 }
 
 #[tokio::test]

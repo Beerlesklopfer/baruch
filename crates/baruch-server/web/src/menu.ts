@@ -13,6 +13,7 @@
 //   opening the menu, on loading outside the workspace page and after forms or navigation (the numbers can change
 //   there).
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -36,7 +37,7 @@ function showBadges(nav: HTMLElement, badges: Badges): void {
     const count = badges[name] ?? 0;
     root.querySelectorAll<HTMLElement>(`[data-badge="${name}"]`).forEach((badge) => {
       // On the tab „k offen“, in the entry only the number (as the server draws it).
-      badge.textContent = name === "open_findings" && badge.closest(".band-tab") ? `${count} offen` : String(count);
+      badge.textContent = name === "open_findings" && badge.closest(".band-tab") ? t("widget.menu.open_count", { count }) : String(count);
       badge.hidden = count === 0;
     });
     root.querySelectorAll<HTMLElement>(`[data-badge-item="${name}"]`).forEach((item) => {

@@ -12,6 +12,7 @@
 // - Nothing happens without a click: no timeout, and closing („Später entscheiden“, Escape) leaves the
 //   request open.
 
+import { t } from "./i18n.js";
 import { call, RpcError } from "./rpc.js";
 import { leaveEditor, register } from "./widgets.js";
 
@@ -63,7 +64,7 @@ register("consent", (element) => {
         const request = result.request;
         if (request.decision === "stale") {
           // Outdated: nothing changed; the reason stays until the human closes the dialog.
-          if (message) message.textContent = `Nicht ausgeführt (${request.decision_label}): ${request.message ?? ""}`;
+          if (message) message.textContent = t("widget.consent.not_done", { label: request.decision_label, message: request.message ?? "" });
           return;
         }
         form.closest(".consent-request")?.remove();
@@ -71,7 +72,7 @@ register("consent", (element) => {
       } catch (error) {
         buttons.forEach((button) => (button.disabled = false));
         const text = error instanceof RpcError ? error.message : String(error);
-        if (message) message.textContent = `Fehler: ${text}`;
+        if (message) message.textContent = t("widget.consent.error", { text });
       }
     });
   });

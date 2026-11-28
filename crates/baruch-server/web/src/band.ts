@@ -19,6 +19,7 @@
 // - „Prüfen“/„Vorschlag“ of the group Assistenten (`[data-band-assist]`) trigger the button of the same name of the
 //   form in the accordion „Assistenten“ (persona, note, scope and review basis apply from there).
 
+import { t } from "./i18n.js";
 import { toolbarTarget } from "./ribbon.js";
 import { register, store, submitButton } from "./widgets.js";
 
@@ -156,7 +157,7 @@ register("band", (head) => {
         (b) => b.getAttribute("name") === "method" && b.getAttribute("value") === method,
       );
       if (button) button.click();
-      else hint("Keine Persona ist aktiv – einrichten unter Einstellungen → Assistenten.");
+      else hint(t("widget.band.no_persona"));
     }
 
     // „Speichern“ in the ribbon belongs to the form through form="editor-form"; the button of the status line stays
@@ -167,7 +168,7 @@ register("band", (head) => {
       const main = form instanceof HTMLFormElement ? submitButton(form) : null;
       if (main && main !== save && main.disabled) {
         event.preventDefault();
-        hint("Nichts zu speichern – der Text ist unverändert.");
+        hint(t("widget.band.nothing_to_save"));
       }
     }
 

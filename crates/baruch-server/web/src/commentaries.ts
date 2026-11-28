@@ -7,6 +7,7 @@
 //   try/catch, because localStorage can be missing or blocked; then simply the HTML of the server applies.
 //   An explicit `open` from the server (link with kom=1) takes precedence.
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 const STORE = "baruch_commentaries";
@@ -66,7 +67,7 @@ register("commentaries", (root) => {
       });
       return b;
     };
-    tools.append(button("alle aufklappen", true), button("alle zuklappen", false));
+    tools.append(button(t("widget.commentaries.expand_all"), true), button(t("widget.commentaries.collapse_all"), false));
     root.querySelector(":scope > summary")?.after(tools);
   }
   root.addEventListener("toggle", remember);

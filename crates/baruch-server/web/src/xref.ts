@@ -13,6 +13,7 @@
 //   jumps to the target (jump.ts history through an imagined `a[data-jump]`); a simple click on the block in the
 //   typeset view opens „Öffnen | Bearbeiten“ (Bearbeiten: change target/text/page number in the dialog).
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { sendWsCommand } from "./ws_command.js";
 
@@ -128,22 +129,27 @@ interface Choice {
   page: boolean;
 }
 
+/// Catalog text inside markup that is built as a string (text and attribute values).
+function esc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 /// Open the dialog; `initial` = values of an existing reference (Bearbeiten).
 function openDialog(work: number | null, initial: Partial<Choice>, done: (choice: Choice) => void): void {
   document.querySelector("dialog[data-xref-dialog]")?.remove();
   const dialog = document.createElement("dialog");
   dialog.className = "xref-dialog";
   dialog.dataset.xrefDialog = "";
-  dialog.setAttribute("aria-label", "Querverweis einfügen");
+  dialog.setAttribute("aria-label", t("widget.xref.dialog_label"));
   dialog.innerHTML =
-    '<form method="dialog" class="xref-form"><h2>Querverweis</h2>' +
-    '<label>Ziel suchen <input type="search" data-xref-q placeholder="Titel oder Nummer" autocomplete="off"></label>' +
-    '<ul class="xref-targets" data-xref-targets role="listbox" aria-label="Gliederungspunkte"></ul>' +
-    '<label>Linktext <input type="text" data-xref-text maxlength="300"></label>' +
-    '<label><input type="checkbox" data-xref-page> mit Seitenzahl („S. n“)</label>' +
+    `<form method="dialog" class="xref-form"><h2>${esc(t("widget.xref.heading"))}</h2>` +
+    `<label>${esc(t("widget.xref.find_target"))} <input type="search" data-xref-q placeholder="${esc(t("widget.xref.find_placeholder"))}" autocomplete="off"></label>` +
+    `<ul class="xref-targets" data-xref-targets role="listbox" aria-label="${esc(t("widget.xref.targets_label"))}"></ul>` +
+    `<label>${esc(t("widget.xref.link_text"))} <input type="text" data-xref-text maxlength="300"></label>` +
+    `<label><input type="checkbox" data-xref-page> ${esc(t("widget.xref.with_page"))}</label>` +
     '<p class="xref-preview small" data-xref-preview></p>' +
-    '<p><button type="submit" class="btn primary" data-xref-ok value="ok">Einfügen</button> ' +
-    '<button type="submit" class="btn" value="cancel">Abbrechen</button></p></form>';
+    `<p><button type="submit" class="btn primary" data-xref-ok value="ok">${esc(t("widget.xref.insert"))}</button> ` +
+    `<button type="submit" class="btn" value="cancel">${esc(t("widget.xref.cancel"))}</button></p></form>`;
   document.body.append(dialog);
   const q = dialog.querySelector<HTMLInputElement>("[data-xref-q]");
   const list = dialog.querySelector<HTMLElement>("[data-xref-targets]");
@@ -166,7 +172,7 @@ function openDialog(work: number | null, initial: Partial<Choice>, done: (choice
   let chosen: number | null = initial.key ?? null;
   if (initial.text) text.value = initial.text;
   const refresh = () => {
-    preview.textContent = chosen === null ? "Bitte ein Ziel wählen." : snippet(chosen, escapeText(text.value || "…"), page.checked);
+    preview.textContent = chosen === null ? t("widget.xref.choose_target") : snippet(chosen, escapeText(text.value || "…"), page.checked);
   };
   const load = async () => {
     try {
@@ -283,12 +289,12 @@ function showMenu(block: HTMLElement, key: number): void {
   const open = document.createElement("button");
   open.type = "button";
   open.className = "btn small";
-  open.textContent = "Öffnen";
-  open.title = "Zum Ziel springen (Strg+Klick)";
+  open.textContent = t("widget.xref.open");
+  open.title = t("widget.xref.open_title");
   const edit = document.createElement("button");
   edit.type = "button";
   edit.className = "btn small";
-  edit.textContent = "Bearbeiten";
+  edit.textContent = t("widget.xref.edit");
   open.addEventListener("click", () => {
     menu.remove();
     jumpTo(workOf(block), key);
@@ -302,7 +308,7 @@ function showMenu(block: HTMLElement, key: number): void {
     openDialog(workOf(block), { key, text: current, page: block.dataset.page === "1" }, (choice) => {
       block.dataset.key = String(choice.key);
       block.dataset.page = choice.page ? "1" : "0";
-      block.title = `Querverweis auf k${choice.key} (Strg+Klick: springen)`;
+      block.title = t("widget.xref.xref_title", { key: `k${choice.key}` });
       block.replaceChildren(document.createTextNode(choice.text));
       if (choice.page) {
         const suffix = document.createElement("span");

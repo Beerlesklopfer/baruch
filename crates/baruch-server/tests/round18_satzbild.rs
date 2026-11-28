@@ -283,8 +283,10 @@ async fn sections_over_64_kib_get_no_ready_satzbild_but_the_widget_can_fetch_it(
         "über 64 KiB kein vorab gesetztes Satzbild (sonst doppelter Text im HTML)"
     );
     assert!(page.contains("data-ws-sheet contenteditable=\"true\""), "das leere Blatt ist da, das Widget füllt es");
+    // Round 39a: the widget catalog in the page head (every widget text) does not count as the section's text.
+    let catalog = baruch_server::i18n::widget_catalog_json(baruch_server::i18n::Lang::De).len();
     assert!(
-        page.len() < 2 * long.len() + 64 * 1024,
+        page.len() - catalog < 2 * long.len() + 64 * 1024,
         "der Text steht nur einmal im HTML (Textfeld): {} Bytes",
         page.len()
     );
@@ -869,7 +871,13 @@ pub(crate) fn run_harness(scene: &str, scenario: &Value) -> Option<Value> {
         std::fs::write(js.join(name), text).unwrap();
     }
     let harness = dir.path().join("harness.mjs");
-    std::fs::write(&harness, format!("{DOM}\n{scene}")).unwrap();
+    // Round 39a: the widgets read their texts from #baruch-i18n; the scenes assert the German wording.
+    let catalog =
+        serde_json::to_string(&baruch_server::i18n::widget_catalog_json(baruch_server::i18n::Lang::De)).unwrap();
+    let catalog = format!(
+        "{{ const byId = document.getElementById; document.getElementById = (id) => (id === \"baruch-i18n\" ? {{ textContent: {catalog} }} : byId(id)); }}"
+    );
+    std::fs::write(&harness, format!("{DOM}\n{catalog}\n{scene}")).unwrap();
     let file = dir.path().join("scenario.json");
     std::fs::write(&file, scenario.to_string()).unwrap();
     let output = std::process::Command::new("node")

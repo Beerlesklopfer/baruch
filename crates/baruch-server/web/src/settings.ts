@@ -15,6 +15,7 @@
 //   sets the theme at once (dataset.theme). GET forms (e.g. „Vorschau“ of the outline scheme)
 //   on /einstellungen/… also load in the dialog.
 
+import { t } from "./i18n.js";
 import { mount, register } from "./widgets.js";
 
 /// Work of the page: from the address, otherwise from the cookie baruch_work.
@@ -90,7 +91,7 @@ register("settings", (element) => {
     const frame = doc.querySelector<HTMLElement>("[data-settings-frame]");
     if (!frame) {
       const alert = doc.querySelector("[role=alert]")?.textContent?.trim();
-      show(alert || doc.body?.textContent?.trim().slice(0, 300) || "Unerwartete Antwort des Servers.");
+      show(alert || doc.body?.textContent?.trim().slice(0, 300) || t("widget.settings.unexpected"));
       return false;
     }
     content.replaceChildren(document.importNode(frame, true));
@@ -107,7 +108,7 @@ register("settings", (element) => {
       const response = await fetch(url, { headers: { Accept: "text/html" } });
       take(await response.text());
     } catch (error) {
-      show(`Einstellungen ließen sich nicht laden: ${errorText(error)}`);
+      show(t("widget.settings.load_failed", { error: errorText(error) }));
     } finally {
       content.removeAttribute("aria-busy");
     }
@@ -197,7 +198,7 @@ register("settings", (element) => {
           document.dispatchEvent(new CustomEvent("baruch:settings-changed", { detail: { page } }));
         }
       } catch (error) {
-        show(`Speichern fehlgeschlagen: ${errorText(error)}`);
+        show(t("widget.settings.save_failed", { error: errorText(error) }));
       } finally {
         content.removeAttribute("aria-busy");
       }

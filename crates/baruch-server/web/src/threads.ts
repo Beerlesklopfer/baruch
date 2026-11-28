@@ -12,6 +12,7 @@
 // - Live: `thread.since` every 3 s while the page is visible (`startLive` from chat.ts) – new posts, „@x schreibt …“,
 //   errors in `div[data-chat-live]`.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { deleteQuestion, enableCopy, startLive, type SinceAnswer } from "./chat.js";
 import { register } from "./widgets.js";
@@ -83,7 +84,7 @@ register("threads", (root) => {
       if (!area) return;
       for (const button of form.querySelectorAll<HTMLButtonElement>("button")) {
         button.disabled = true;
-        button.textContent = "Personas antworten …";
+        button.textContent = t("widget.threads.answering");
       }
     });
   }

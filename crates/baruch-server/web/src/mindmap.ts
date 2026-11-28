@@ -21,6 +21,7 @@
 // - Collapsed is pure display: per work in localStorage (try/catch), never on the server.
 // - Texts only through textContent/value (never as HTML); the image comes completely escaped from the server.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -31,13 +32,12 @@ const STEP = 1.2;
 const DRAG_THRESHOLD = 5;
 const MAX_TITLE = 200;
 const MAX_NOTE = 500;
-const NEW_TITLE = "Neuer Einfall";
 
 const KINDS: ReadonlyArray<readonly [string, string]> = [
-  ["leads_to", "führt weiter"],
-  ["belongs_to", "gehört zu"],
-  ["example_of", "Beispiel für"],
-  ["contradicts", "widerspricht"],
+  ["leads_to", "widget.mindmap.kind_leads_to"],
+  ["belongs_to", "widget.mindmap.kind_belongs_to"],
+  ["example_of", "widget.mindmap.kind_example_of"],
+  ["contradicts", "widget.mindmap.kind_contradicts"],
 ];
 
 type Kind = "work" | "part" | "chapter" | "idea";
@@ -158,7 +158,7 @@ register("mindmap", (stage) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "btn small";
-      button.textContent = "Rückgängig";
+      button.textContent = t("widget.mindmap.undo");
       button.addEventListener("click", () => void undoLast());
       status.append(button);
     }
@@ -204,18 +204,18 @@ register("mindmap", (stage) => {
   async function refresh(selectId?: string | null): Promise<void> {
     const query = [back, closed.length ? `zu=${closed.join(",")}` : ""].filter(Boolean).join("&");
     const response = await fetch(query ? `${bild}?${query}` : bild, { headers: { Accept: "image/svg+xml" } });
-    if (!response.ok) throw new Error(`Das Bild ließ sich nicht neu holen (Server antwortet ${response.status}).`);
+    if (!response.ok) throw new Error(t("widget.mindmap.refresh_status", { status: response.status }));
     const holder = document.createElement("template");
     holder.innerHTML = await response.text();
     const fresh = holder.content.querySelector("svg.mm-svg");
-    if (!fresh || !canvas) throw new Error("Das Bild ließ sich nicht neu holen (keine Mindmap in der Antwort).");
+    if (!fresh || !canvas) throw new Error(t("widget.mindmap.refresh_empty"));
     canvas.replaceChildren(fresh);
     closed = (fresh.getAttribute("data-zu") ?? "").split(",").filter(Boolean);
     const counter = document.querySelector<HTMLElement>("[data-mm-cloud-count]");
     const count = fresh.getAttribute("data-cloud-count") ?? "0";
     if (counter) {
       counter.dataset.mmCloudCount = count;
-      counter.textContent = `${count} in der Wolke`;
+      counter.textContent = t("widget.mindmap.cloud_count", { count });
     }
     applyView();
     select(selectId === undefined ? selected : selectId);
@@ -247,13 +247,13 @@ register("mindmap", (stage) => {
   async function undoLast(): Promise<void> {
     const step = undo;
     if (!step) {
-      say("Nichts zurückzunehmen.");
+      say(t("widget.mindmap.nothing_to_undo"));
       return;
     }
     await act(async () => {
       await step.run();
       undo = null;
-      return { message: `Zurückgenommen: ${step.label}.` };
+      return { message: t("widget.mindmap.undone", { label: step.label }) };
     });
   }
 
@@ -274,7 +274,7 @@ register("mindmap", (stage) => {
 
   function rename(n: Info): void {
     if (!n.editable || n.idea === null) {
-      say("Umbenennen lassen sich nur Einfälle; Werk, Teile und Kapitel heißen wie in der Gliederung.");
+      say(t("widget.mindmap.rename_only_ideas"));
       return;
     }
     const box = n.el.querySelector(".mm-box")?.getBoundingClientRect();
@@ -285,7 +285,7 @@ register("mindmap", (stage) => {
     input.className = "mm-edit";
     input.maxLength = MAX_TITLE;
     input.value = n.title;
-    input.setAttribute("aria-label", "Titel des Einfalls (Enter übernimmt, Esc verwirft)");
+    input.setAttribute("aria-label", t("widget.mindmap.title_field"));
     input.style.left = `${Math.max(4, box.left - frame.left)}px`;
     input.style.top = `${box.top - frame.top - 3}px`;
     input.style.width = `${Math.max(170, box.width + 30)}px`;
@@ -305,8 +305,8 @@ register("mindmap", (stage) => {
       }
       void act(async () => {
         await call("idea.update", { id: idea, title });
-        undo = { label: "Umbenennen", run: () => call("idea.update", { id: idea, title: n.own }) };
-        return { message: `Umbenannt in „${title}“.`, select: n.id };
+        undo = { label: t("widget.mindmap.undo_rename"), run: () => call("idea.update", { id: idea, title: n.own }) };
+        return { message: t("widget.mindmap.renamed", { title }), select: n.id };
       });
     };
     input.addEventListener("keydown", (event) => {
@@ -332,7 +332,7 @@ register("mindmap", (stage) => {
 
   function create(mode: "child" | "sibling" | "cloud"): void {
     const n = current();
-    const params: Record<string, unknown> = { work, title: NEW_TITLE };
+    const params: Record<string, unknown> = { work, title: t("widget.mindmap.new_title") };
     let open: string | null = null;
     if (mode === "sibling" && n && n.kind === "idea" && !n.cloud) {
       const row = siblings(n);
@@ -348,13 +348,12 @@ register("mindmap", (stage) => {
     void act(async () => {
       const answer = await call<{ idea?: { id?: number } }>("idea.create", params);
       const id = answer.idea?.id;
-      if (typeof id !== "number") throw new Error("Der Server hat keinen neuen Einfall gemeldet.");
+      if (typeof id !== "number") throw new Error(t("widget.mindmap.no_new_idea"));
       if (open !== null) closed = closed.filter((c) => c !== open);
-      undo = { label: "Anlegen", run: () => call("idea.delete", { id, confirm: true }) };
-      const where =
-        params.parent === undefined && params.key === undefined && params.cloud === undefined ? " in der Wolke" : "";
+      undo = { label: t("widget.mindmap.undo_create"), run: () => call("idea.delete", { id, confirm: true }) };
+      const inCloud = params.parent === undefined && params.key === undefined && params.cloud === undefined;
       return {
-        message: `Einfall angelegt${where}. Titel eingeben, Enter übernimmt.`,
+        message: inCloud ? t("widget.mindmap.created_cloud") : t("widget.mindmap.created"),
         select: `i:${id}`,
         after: () => {
           const fresh = byId(`i:${id}`);
@@ -369,8 +368,8 @@ register("mindmap", (stage) => {
     if (id === null) return;
     void act(async () => {
       await call("idea.unlink", { id });
-      undo = { label: "Beziehung lösen", run: () => call("idea.link_restore", { id }) };
-      return { message: "Beziehung gelöst." };
+      undo = { label: t("widget.mindmap.undo_unlink"), run: () => call("idea.link_restore", { id }) };
+      return { message: t("widget.mindmap.unlinked") };
     });
   }
 
@@ -382,16 +381,17 @@ register("mindmap", (stage) => {
     const n = current();
     if (!n) return;
     if (!n.editable || n.idea === null) {
-      say("Löschen lassen sich nur Einfälle; Teile und Kapitel ändert die Gliederung (Antrag).");
+      say(t("widget.mindmap.delete_only_ideas"));
       return;
     }
-    const below = n.children > 0 ? ` samt ${n.children} Unterknoten` : "";
-    if (!window.confirm(`Einfall „${n.title}“${below} löschen? (wiederherstellbar)`)) return;
+    const args = { title: n.title, count: n.children };
+    const withChildren = n.children > 0;
+    if (!window.confirm(t(withChildren ? "widget.mindmap.delete_question_children" : "widget.mindmap.delete_question", args))) return;
     const idea = n.idea;
     void act(async () => {
       await call("idea.delete", { id: idea, confirm: true });
-      undo = { label: "Löschen", run: () => call("idea.restore", { id: idea }) };
-      return { message: `Einfall „${n.title}“${below} gelöscht.`, select: n.cloud ? "w" : n.parent };
+      undo = { label: t("widget.mindmap.undo_delete"), run: () => call("idea.restore", { id: idea }) };
+      return { message: t(withChildren ? "widget.mindmap.deleted_children" : "widget.mindmap.deleted", args), select: n.cloud ? "w" : n.parent };
     });
   }
 
@@ -412,22 +412,22 @@ register("mindmap", (stage) => {
         : { parent, key: n.key, before };
     void act(async () => {
       await call("idea.move", { id: idea, ...params });
-      undo = { label: "Umhängen", run: () => call("idea.move", { id: idea, ...backTo }) };
+      undo = { label: t("widget.mindmap.undo_move"), run: () => call("idea.move", { id: idea, ...backTo }) };
       return { message, select: n.id };
     });
   }
 
   function toCloud(n: Info | null): void {
     if (!n || !n.editable || n.idea === null) {
-      say("In die Wolke legen lassen sich nur Einfälle.");
+      say(t("widget.mindmap.cloud_only_ideas"));
       return;
     }
     if (n.cloud) {
-      say("Dieser Einfall liegt schon in der Wolke.");
+      say(t("widget.mindmap.already_cloud"));
       return;
     }
-    const below = n.children > 0 ? ` samt ${n.children} Unterknoten` : "";
-    move(n, { cloud: true }, `„${n.title}“${below} liegt jetzt in der Wolke.`);
+    const args = { title: n.title, count: n.children };
+    move(n, { cloud: true }, t(n.children > 0 ? "widget.mindmap.to_cloud_children" : "widget.mindmap.to_cloud", args));
   }
 
   function isInside(target: Info, n: Info): boolean {
@@ -465,19 +465,19 @@ register("mindmap", (stage) => {
     const target = where.target;
     if (target?.kind === "work") {
       // Onto the work: free main topic (main branch of its own), the sub-nodes stay with the idea.
-      move(n, { parent: null, key: null, cloud: false }, `„${n.title}“ ist jetzt Hauptthema am Werk.`);
+      move(n, { parent: null, key: null, cloud: false }, t("widget.mindmap.main_topic", { title: n.title }));
       return;
     }
     if (!target || isInside(target, n)) {
-      if (target && target.id !== n.id) say("Ein Einfall lässt sich nicht unter seinen eigenen Unterknoten hängen.", true);
+      if (target && target.id !== n.id) say(t("widget.mindmap.not_below_itself"), true);
       return;
     }
     if (target.kind !== "idea") {
-      move(n, { parent: null, key: target.key }, `„${n.title}“ hängt jetzt an „${target.title}“.`);
+      move(n, { parent: null, key: target.key }, t("widget.mindmap.hangs_at", { title: n.title, target: target.title }));
       return;
     }
     if (where.zone === "into") {
-      if (target.idea !== null) move(n, { parent: target.idea }, `„${n.title}“ ist jetzt Unterknoten von „${target.title}“.`);
+      if (target.idea !== null) move(n, { parent: target.idea }, t("widget.mindmap.child_of", { title: n.title, target: target.title }));
       return;
     }
     // Before/after: same parent node as the target, `before` = the target or its next sibling.
@@ -493,7 +493,7 @@ register("mindmap", (stage) => {
           : target.key !== null
             ? { parent: null, key: target.key, before }
             : { parent: null, key: null, cloud: false, before };
-    move(n, params, `„${n.title}“ steht jetzt ${where.zone === "before" ? "vor" : "hinter"} „${target.title}“.`);
+    move(n, params, t(where.zone === "before" ? "widget.mindmap.now_before" : "widget.mindmap.now_after", { title: n.title, target: target.title }));
   }
 
   // ---- Linking (idea.link) -----------------------------------------------------------------------------------
@@ -507,20 +507,20 @@ register("mindmap", (stage) => {
   function startLinking(): void {
     const n = current();
     if (!n || n.idea === null) {
-      say("Verbinden: zuerst einen Einfall wählen.");
+      say(t("widget.mindmap.link_choose"));
       return;
     }
     linkFrom = n.id;
     stage.classList.add("mm-linking");
     n.el.classList.add("mm-source");
-    say(`Verbinden von „${n.title}“: jetzt den zweiten Einfall wählen (Klick oder Pfeile und Enter; Esc bricht ab).`);
+    say(t("widget.mindmap.link_from", { title: n.title }));
   }
 
   function finishLinking(target: Info): void {
     const from = byId(linkFrom);
     stopLinking();
     if (!from || from.idea === null || target.idea === null || from.id === target.id) {
-      say("Verbinden geht nur zwischen zwei verschiedenen Einfällen.", true);
+      say(t("widget.mindmap.link_two"), true);
       return;
     }
     const dialog = document.createElement("dialog");
@@ -528,19 +528,19 @@ register("mindmap", (stage) => {
     const form = document.createElement("form");
     form.method = "dialog";
     const head = document.createElement("h2");
-    head.textContent = `„${from.title}“ verbinden mit „${target.title}“`;
+    head.textContent = t("widget.mindmap.link_title", { from: from.title, to: target.title });
     const kindLabel = document.createElement("label");
-    kindLabel.textContent = "Art";
+    kindLabel.textContent = t("widget.mindmap.link_kind");
     const kind = document.createElement("select");
-    for (const [value, label] of KINDS) {
+    for (const [value, key] of KINDS) {
       const option = document.createElement("option");
       option.value = value;
-      option.textContent = label;
+      option.textContent = t(key);
       kind.append(option);
     }
     kindLabel.append(kind);
     const noteLabel = document.createElement("label");
-    noteLabel.textContent = "Notiz (Beschriftung der Linie)";
+    noteLabel.textContent = t("widget.mindmap.link_note");
     const note = document.createElement("input");
     note.type = "text";
     note.maxLength = MAX_NOTE;
@@ -551,12 +551,12 @@ register("mindmap", (stage) => {
     ok.type = "submit";
     ok.className = "btn primary";
     ok.value = "ok";
-    ok.textContent = "Verbinden";
+    ok.textContent = t("widget.mindmap.link_ok");
     const cancel = document.createElement("button");
     cancel.type = "submit";
     cancel.className = "btn";
     cancel.value = "cancel";
-    cancel.textContent = "Abbrechen";
+    cancel.textContent = t("widget.mindmap.cancel");
     actions.append(ok, cancel);
     form.append(head, kindLabel, noteLabel, actions);
     dialog.append(form);
@@ -573,10 +573,10 @@ register("mindmap", (stage) => {
         const answer = await call<{ link?: { id?: number }; changed?: boolean }>("idea.link", params);
         const id = answer.link?.id;
         undo = typeof id === "number" && answer.changed !== false
-          ? { label: "Verbinden", run: () => call("idea.unlink", { id }) }
+          ? { label: t("widget.mindmap.link_ok"), run: () => call("idea.unlink", { id }) }
           : null;
         return {
-          message: answer.changed === false ? "Diese Beziehung gibt es schon; nichts geändert." : "Verbunden.",
+          message: answer.changed === false ? t("widget.mindmap.link_exists") : t("widget.mindmap.linked"),
           select: from.id,
         };
       });
@@ -752,7 +752,7 @@ register("mindmap", (stage) => {
       select(null);
       selectedLink = numberOf(link.dataset.link);
       link.classList.add("mm-selected");
-      say("Beziehung gewählt: Entf löst sie (wiederherstellbar mit Strg+Z).");
+      say(t("widget.mindmap.link_selected"));
       return;
     }
     if (!el) return;
@@ -859,7 +859,7 @@ register("mindmap", (stage) => {
       case "Escape":
         if (linkFrom !== null) {
           stopLinking();
-          say("Verbinden abgebrochen.");
+          say(t("widget.mindmap.link_cancelled"));
         } else {
           select(null);
         }
@@ -892,11 +892,11 @@ register("mindmap", (stage) => {
         break;
       case "rename":
         if (n) rename(n);
-        else say("Umbenennen: zuerst einen Einfall wählen.");
+        else say(t("widget.mindmap.rename_choose"));
         break;
       case "delete":
         if (n || selectedLink !== null) remove();
-        else say("Löschen: zuerst einen Einfall wählen.");
+        else say(t("widget.mindmap.delete_choose"));
         break;
       case "link":
         startLinking();
@@ -925,9 +925,9 @@ register("mindmap", (stage) => {
     const group = document.createElement("span");
     group.className = "mm-zoom";
     for (const [action, label, title] of [
-      ["zoom-out", "−", "Verkleinern (-)"],
-      ["zoom-in", "+", "Vergrößern (+)"],
-      ["fit", "Einpassen", "Ganze Mindmap zeigen (0)"],
+      ["zoom-out", "−", t("widget.mindmap.zoom_out")],
+      ["zoom-in", "+", t("widget.mindmap.zoom_in")],
+      ["fit", t("widget.mindmap.fit"), t("widget.mindmap.fit_title")],
     ] as const) {
       const button = document.createElement("button");
       button.type = "button";
@@ -940,10 +940,7 @@ register("mindmap", (stage) => {
     toolbar.prepend(group);
     const help = document.createElement("p");
     help.className = "mm-help small";
-    help.textContent =
-      "Klick wählt, Doppelklick oder F2 benennt um. Tab: Unterknoten, Enter: Geschwister, Entf: löschen, " +
-      "Leertaste: klappen, Pfeile: wandern, Strg+Z: rückgängig, Alt+L: verbinden, Alt+E: neuer Einfall in der Wolke. " +
-      "Ziehen hängt um: auf einen Knoten, zwischen Geschwister oder in die Wolke. Strg+Mausrad, +, − und 0 zoomen.";
+    help.textContent = t("widget.mindmap.help");
     toolbar.after(help);
   }
 
