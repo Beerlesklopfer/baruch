@@ -267,3 +267,21 @@ For the integrator: after the full test run `--pruefen --lang en`, then `--fotos
 4. Die sieben Bilder der Seite „Funktionen“ entstehen mit; ihr Werk hat jetzt mehr Inhalt (Bild, Zitat, Beiträge).
    Wer sie nicht erneuern will, fotografiert nur die Hilfe: `--ziel` auf einen anderen Ordner und `hilfe/` kopieren.
 5. Vorhandene Dateien löscht das Skript nie; ein Foto überschreibt nur seine eigene Datei.
+
+## docs_pages.py – developer documentation (Round 39c)
+
+`docs_pages.py` generates the English pages under `/en/docs/` from nine files in `docs/` (`Bedienung.md`,
+`Architektur.md`, `RPC.md`, `MCP.md`, `Austauschformat.md`, `WYSIWYG.md`, `Betrieb.md`, `Verteilung.md`, `Plan.md`;
+table `DOCS` with slug, weight and description). Python standard library only, no network; always run with `-I`.
+
+```sh
+python3 -I site/tools/docs_pages.py              # writes site/generated/docs/ (index and one page per source)
+python3 -I site/tools/docs_pages.py --list       # the sources with address and weight, writes nothing
+python3 -I site/tools/docs_pages.py --selbsttest # checks the generator on an invented mini repository
+```
+
+`scripts/ci-site.sh` runs it before every Hugo build (`--site` and `--repo` set by the script). The output
+`site/generated/` is not checked in (`.gitignore`); every run deletes `site/generated/docs/` and writes it anew, so a
+removed source leaves no stale page. A dead relative link, a missing anchor or a link outside the repository is a
+finding: exit 1, the list of findings, nothing written. What the generator rewrites (anchors, links, raw HTML,
+shortcode syntax) is described in its module docstring and in `site/README.md` ("Developer documentation").

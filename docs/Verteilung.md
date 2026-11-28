@@ -764,3 +764,29 @@ workflows have not been triggered. `actionlint`, `yamllint` and `shellcheck` are
   SPDX expression stands in the list. The texts of MIT and Apache-2.0 stand in the file anyway through other crates.
 - **Node and `protoc`** are not fixed to an exact version (see "Rules of the workflows").
 
+
+## Round 39c – docs_site: developer documentation on the website
+
+The developer documentation is part of the website since Round 39c: `docs/Bedienung.md`, `Architektur.md`, `RPC.md`,
+`MCP.md`, `Austauschformat.md`, `WYSIWYG.md`, `Betrieb.md`, `Verteilung.md` and `Plan.md` appear in English under
+<https://baruch.bernau.family/en/docs/> (`/en/docs/usage/`, `/architecture/`, `/rpc/`, `/mcp/`, `/exchange-format/`,
+`/wysiwyg/`, `/operation/`, `/distribution/`, `/plan/`). The main menu has "Documentation" (English) and
+„Dokumentation (englisch)“ (German, pointing to the English section).
+
+- **Build step:** `site/tools/docs_pages.py` (Python standard library, run with `python3 -I`) generates the pages
+  into `site/generated/docs/`; `scripts/ci-site.sh` runs it before Hugo, so `ci.yml`, `pages.yml` and `release.yml`
+  get the section without a step of their own (Python 3 is on the runners). `site/hugo.toml` mounts `generated/` as
+  content of the language `en` only, next to `content/de` and `content/en`.
+- **Decision: not checked in.** `site/generated/` is in `.gitignore`. The pages are rebuilt from `docs/` on every site
+  build and can never fall behind; a committed copy would change with every documentation commit and would need a
+  currency check of its own. `ci-site.sh` stops when `public/en/docs/index.html` or the page of a listed source is
+  missing after the build (a missing mount would otherwise build silently without the section).
+- **Links:** between the nine documents → site addresses with GitHub-compatible anchors (the generator sets every
+  heading id explicitly); to other files of the repository → `https://github.com/Beerlesklopfer/baruch/blob/main/<path>`;
+  to pages of the website source → the page on the site. Dead relative links and anchors stop the generator,
+  `scripts/site-check.py` checks the built links and anchors like on every page.
+- **Pages deploy on every push to `main`** (as before), so a documentation change reaches the site with the next
+  fast-forward of `main`.
+- **Architecture as one page:** the build of the whole site takes about 55–60 ms with Hugo 0.168 (about 30 ms without
+  the section); splitting `Architektur.md` into 48 parts measured the same. One page keeps the browser's find
+  working over the whole document (the site has no search). Details: `site/README.md`, "Developer documentation".

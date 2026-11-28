@@ -460,6 +460,9 @@ kbd {
 .hilfe-zurueck .hilfe-weiter-wort::before { content: "← "; }
 .hilfe-vor .hilfe-weiter-wort::after { content: " →"; }
 
+/* Developer documentation (Round 39c): the source file under the lead */
+.docs-quelle { margin: 0.4rem 0 0; font-size: 0.88rem; color: var(--leise); }
+
 /* Fußzeile */
 
 .fuss {

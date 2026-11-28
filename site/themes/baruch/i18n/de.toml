@@ -71,3 +71,9 @@ other = "Unter dieser Adresse gibt es nichts."
 other = "Zur Startseite"
 
 # Documentation section and menu (Round 39c, owner docs_site)
+[docs_seiten]
+other = "Seiten der Dokumentation"
+[docs_quelle]
+other = "Erzeugt aus"
+[docs_quelle_hinweis]
+other = "im Repository; Änderungen gehören dorthin, nicht auf diese Seite."
