@@ -6629,3 +6629,43 @@ byte for byte): `settings_msg`, `connections_msg`, `accounts_msg`, `system_msg`,
   labels, `baruch-store` `FindingStatus::label`, `baruch-epub` reader profiles), `src/rag/**` (not converted by
   messages_2) and the mind-map SVG (shared with the picture export). Removing an entry is the test for its fix.
   German without umlauts or German quotes (scheme names such as „Aus der Werkvorlage“) is not seen by this check.
+
+## Round 39b – Book output, English website, rest of the literals
+
+Interface R39b-S1 laid the ground: the book catalog `baruch-core/locales/{en,de}/book.ftl` with `baruch_core::book_text` (`book_t(work_language, key, args)`, fallback work language → English → key; the German values are verbatim the literals the outputs wrote before, so German output stays byte-equal), `baruch-core` as a dependency of `baruch-typst`, `baruch-epub`, `baruch-docx` and `baruch-render`, the theme i18n files `site/themes/baruch/i18n/{de,en}.toml` (`hilfebild_gross`), the partial `_partials/bildpfad.html` (German pictures under `bilder/<datei>`, every other language under `bilder/<lang>/<datei>`) and the check `tests/round39b_hilfe_en.rs` for English pages (same path, front matter, anchors and pictures as German, no German letters in prose, links under `/en/`). Book output follows the WORK language (`WorkLanguage`), never the interface language (`i18n::Lang`).
+
+
+
+
+
+
+### Book output in the work language (ausgaben)
+
+Written by the task named in the heading (Round 39b).
+
+
+
+
+
+
+### Website in English (hilfe_en_1, hilfe_en_2)
+
+Written by the task named in the heading (Round 39b).
+
+
+
+
+
+
+### Screenshots in two languages (fotos_tool)
+
+Written by the task named in the heading (Round 39b).
+
+
+
+
+
+
+### Rest of the interface literals (rest_literals)
+
+Written by the task named in the heading (Round 39b).

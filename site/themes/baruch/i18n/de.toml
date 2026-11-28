@@ -1,0 +1,3 @@
+# Hugo i18n of the theme, German (Round 39b, interface S1). Keys `[id]` with `other = "…"`; en.toml has the same keys.
+[hilfebild_gross]
+other = "Bild in voller Größe öffnen"

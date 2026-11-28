@@ -6,6 +6,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
+# Book catalog in the work language (Round 39b, interface S1): `baruch_core::book_text`, `WorkLanguage`.
+baruch-core = { path = "../baruch-core" }
 thiserror = "2"
 # Umschlag-Anordnung (Runde 27): Typen gehen über Store, RPC und MCP als JSON.
 serde = { version = "1", features = ["derive"] }

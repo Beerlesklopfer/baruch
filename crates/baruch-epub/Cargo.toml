@@ -9,6 +9,8 @@ description = "EPUB 3 (mit EPUB-2-Rückfall) aus den aktuellen Fassungen eines W
 # Rein: keine Datenbank, kein Netz, kein Typst-Satz. XHTML entsteht über das Blockmodell von baruch-wysiwyg.
 # Neue Abhängigkeiten nur über den Integrator (Konflikte im Cargo.lock).
 [dependencies]
+# Book catalog in the work language (Round 39b, interface S1): `baruch_core::book_text`, `WorkLanguage`.
+baruch-core = { path = "../baruch-core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

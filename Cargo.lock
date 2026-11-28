@@ -569,6 +569,7 @@ dependencies = [
 name = "baruch-docx"
 version = "0.9.0"
 dependencies = [
+ "baruch-core",
  "baruch-typst",
  "baruch-wysiwyg",
  "quick-xml 0.42.0",
@@ -581,6 +582,7 @@ dependencies = [
 name = "baruch-epub"
 version = "0.9.0"
 dependencies = [
+ "baruch-core",
  "baruch-typst",
  "baruch-wysiwyg",
  "quick-xml 0.42.0",
@@ -666,6 +668,7 @@ dependencies = [
 name = "baruch-render"
 version = "0.9.0"
 dependencies = [
+ "baruch-core",
  "baruch-typst",
  "serde",
  "sha2 0.10.9",
@@ -769,6 +772,7 @@ dependencies = [
 name = "baruch-typst"
 version = "0.9.0"
 dependencies = [
+ "baruch-core",
  "baruch-scripture",
  "serde",
  "serde_json",

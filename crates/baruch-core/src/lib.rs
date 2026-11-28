@@ -10,6 +10,7 @@
 //! (all personas on one model); if the fixed persona is not there (any more) or inactive, the automatic rule
 //! applies.
 
+pub mod book_text;
 pub mod language;
 pub mod revision_fold;
 pub mod revision_policy;

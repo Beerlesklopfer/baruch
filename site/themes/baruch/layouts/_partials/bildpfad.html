@@ -1,0 +1,12 @@
+{{- /*
+  Path of a picture of the website per language (Round 39b, interface S1, contract §2.2), relative to static/
+  without a leading slash: German keeps bilder/<datei>, every other language gets bilder/<lang>/<datei>.
+  Call: {{ partial "bildpfad.html" (dict "seite" .Page "datei" "hilfe/x.png") }}
+*/ -}}
+{{- $datei := .datei -}}
+{{- $lang := .seite.Language.Lang -}}
+{{- $pfad := printf "bilder/%s" $datei -}}
+{{- if ne $lang "de" -}}
+{{- $pfad = printf "bilder/%s/%s" $lang $datei -}}
+{{- end -}}
+{{- return $pfad -}}

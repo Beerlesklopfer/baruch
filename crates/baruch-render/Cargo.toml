@@ -8,6 +8,8 @@ publish = false
 # Typst-Vorschau (Runde 8): bettet den Typst-Compiler ein und setzt das ganze Werk zu SVG-Seiten.
 # Rein, ohne Datenbank und ohne Netz: Quelltext und Bilder kommen als virtuelle Dateien herein.
 [dependencies]
+# Book catalog in the work language (Round 39b, interface S1): `baruch_core::book_text`, `WorkLanguage`.
+baruch-core = { path = "../baruch-core" }
 typst = "0.15.1"
 typst-svg = "0.15.1"
 # PDF-Ausgabe (Runde 11). Lizenz von typst-pdf: Apache-2.0 (verträglich mit AGPL-3.0).

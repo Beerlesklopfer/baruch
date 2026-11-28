@@ -10,6 +10,8 @@ description = "Word-Dateien (.docx) lesen und schreiben: Blockmodell, Änderungs
 # R32-S1 und gehören dem Integrator; Leser (`read`, `resolve`, `to_typst`) gehört docx_import, Schreiber (`write`,
 # `from_typst`, `diff`) docx_export. Neue Abhängigkeiten nur über den Integrator (Konflikte im Cargo.lock, cargo deny).
 [dependencies]
+# Book catalog in the work language (Round 39b, interface S1): `baruch_core::book_text`, `WorkLanguage`.
+baruch-core = { path = "../baruch-core" }
 thiserror = "2"
 # Teil- und Unnumbered-Zeilen (`part_line`, `unnumbered_line`), Titelei.
 baruch-typst = { path = "../baruch-typst" }
