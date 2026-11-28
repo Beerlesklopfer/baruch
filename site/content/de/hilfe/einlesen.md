@@ -159,7 +159,8 @@ So geht es:
 **Als Quelle der Bibliothek:** Titel und Autor kommen aus der Datei. Lokal gelesen merkt sich Baruch den ganzen
 Text; so lässt sich die Quelle später lesen, und Zitate lassen sich gegen sie prüfen (siehe
 [Bibel, Literatur und Quellen](/hilfe/bibel-quellen/#quellen)). Dieselbe Datei ein zweites Mal als Quelle wird
-abgelehnt.
+abgelehnt. Die Schritte nur für eine Quelle stehen unter
+[Eine Quelle einlesen](/hilfe/bibel-quellen/#quelle-einlesen).
 
 Ist der Titel schon vergeben, bleibt die Vorschau mit einer Meldung stehen. Entwürfe bewahrt Baruch höchstens
 24 Stunden auf, höchstens 20 zugleich.

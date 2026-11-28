@@ -30,12 +30,41 @@ JavaScript sind die Einstellungen gewöhnliche Seiten.
 
 Gilt nur für **diesen Browser**; ein anderer Browser hat seine eigenen Werte.
 
-- **Thema:** wie das System, hell oder dunkel. Der kleine Umschalter dafür steht auch im Reiter **Ansicht**.
+- **Thema:** wie das System, hell oder dunkel. Der kleine Umschalter dafür steht auch im Reiter **Ansicht** –
+  beide Wege unter [Dunkles Thema](/hilfe/einstellungen/#dunkles-thema).
 - **Editor beim Öffnen:** Satzbild oder Quelltext.
 - **Vorschläge im Lesefluss:** anfangs aufgeklappt oder eingeklappt (eingeklappt erscheinen sie als farbige
   Linie; nur der gerade gezeigte steht offen).
 - **Offener Bereich rechts:** Assistenten, Fassungen oder Chat.
 - **Spaltenbreiten zurücksetzen.**
+
+### Dunkles Thema {#dunkles-thema}
+
+{{< hilfebild name="band-ansicht" alt="Der Reiter Ansicht des Menübands; rechts in der Gruppe Darstellung der kleine Knopf mit dem Zeichen des Themas, daneben der Knopf „Zoom zurücksetzen“." titel="Ein Klick auf das Zeichen in der Gruppe Darstellung schaltet das Thema weiter." >}}
+
+Baruch kennt drei Themen: **Wie das System** (die Vorgabe – Baruch folgt der Einstellung hell oder dunkel des
+Betriebssystems bzw. des Browsers), **Hell** und **Dunkel**. Zum dunklen Thema führen zwei Wege.
+
+**Über die Einstellungen** (geht auch ohne JavaScript):
+
+1. **Baruch ▾ → ⚙ Einstellungen** wählen und links **Darstellung** öffnen.
+2. Unter **Thema** den Punkt **Dunkel** wählen.
+3. **Speichern** drücken. Die Seite erscheint sofort im dunklen Thema.
+
+**Über das Menüband** (mit JavaScript):
+
+1. Den Reiter **Ansicht** öffnen.
+2. In der Gruppe **Darstellung** auf das Zeichen des Themas klicken. Jeder Klick schaltet einen Schritt weiter:
+   ◐ System → ☀ Hell → ☾ Dunkel → wieder ◐. Aus der Vorgabe sind es also zwei Klicks bis zum dunklen Thema.
+3. Fährt man mit der Maus über das Zeichen, nennt der Hinweis das gewählte Thema, etwa „Thema: Dunkel“.
+
+- Das Thema gilt nur für **diesen Browser** und bleibt ein Jahr gespeichert; ein anderer Browser oder Rechner hat
+  sein eigenes. Beide Wege stellen denselben Wert ein.
+- Auf Seiten ohne JavaScript – etwa der [Satz-Vorschau](/hilfe/buchsatz/#satz) – führt das Zeichen stattdessen
+  zu **Einstellungen → Darstellung**.
+- Zurück zur Vorgabe: **Wie das System** wählen oder im Menüband weiterklicken, bis ◐ erscheint.
+- Die Farben der Assistenten werden im dunklen Thema so abgedunkelt, dass der Text lesbar bleibt. Am Buch
+  selbst – PDF und E-Book – ändert das Thema nichts.
 
 ## Werk {#werk}
 
@@ -138,11 +167,50 @@ lokal geführt, ihre Adresse aber nicht erkennbar lokal, zeigt ihr Kasten eine r
   prüfen**, dann erscheinen sie zur Auswahl.
 - **Status der Wege:** je Weg „verbunden“, „ausgefallen“ oder „aus“ mit Grund, dazu der Stand des lokalen Index.
 - **Index neu aufbauen** (mit Häkchen) baut den lokalen Index des Werks neu auf – nötig nach einem Wechsel des
-  Einbettungsmodells.
+  Einbettungsmodells; Schritt für Schritt unter [Index neu aufbauen](/hilfe/einstellungen/#index-neu-aufbauen).
 
 Der lokale Index folgt der Arbeit von selbst: Nach jedem Speichern zieht Baruch ihn im Hintergrund nach. Ohne
 einen Dienst, der Texte für die Bedeutungssuche aufbereitet, bleibt die Suche im Wortlaut. Die
 Bedeutungssuche liest nur.
+
+### Index neu aufbauen {#index-neu-aufbauen}
+
+Der **lokale Index** (LanceDB) ist das Verzeichnis im Datenordner, in dem die Bedeutungssuche die Texte eines
+Werks nachschlägt. Baruch hält ihn von selbst auf dem Stand; neu aufbauen muss man ihn nur selten:
+
+- nach einem **Wechsel des Einbettungsmodells** – des Modells, das Texte für die Bedeutungssuche aufbereitet –
+  oder des Präfixes bei der Verbindung (das Feld sagt dazu selbst „Eine Änderung verlangt „Index neu
+  aufbauen““);
+- wenn **Status der Wege** Aufträge als **Liegengeblieben** führt („erneuter Versuch nach einer Änderung oder
+  „Index neu aufbauen““) oder nach einer behobenen Ursache noch ein **Problem** nennt.
+
+So geht es:
+
+1. **Einstellungen → Verbindungen** öffnen und ganz nach unten gehen. Die Wege dort gelten für das Werk, das
+   gerade gewählt ist.
+2. Unter **Index neu aufbauen** das Kästchen **wirklich neu aufbauen** ankreuzen.
+3. Den Knopf **Index neu aufbauen** drücken.
+
+Was dann geschieht:
+
+- Baruch verwirft den lokalen Index **dieses Werks** und baut ihn im Hintergrund neu auf. Die Seite meldet „Der
+  Index des Werks wird neu aufgebaut; den Stand zeigt „Status der Wege“.“
+- **Dauer:** Sie hängt von der Länge des Werks und von der Geschwindigkeit des Dienstes ab, der die Texte
+  aufbereitet; eine Restzeit nennt Baruch nicht. Den Stand zeigt
+  **Status der Wege**: **Ausstehend** zählt die offenen Aufträge, **Zuletzt aufgebaut** nennt den Zeitpunkt des
+  letzten Laufs. Neu laden zeigt den neuen Stand.
+- Währenddessen arbeitet man ganz normal weiter. Die Suche im Wortlaut geht immer; die Bedeutungssuche findet im
+  lokalen Index erst nach und nach wieder alle Stellen des Werks.
+- Passt das eingestellte Modell nicht mehr zum vorhandenen Index, baut Baruch den lokalen Index **für alle
+  Werke** neu auf.
+- **Was bleibt:** Buchtext, Fassungen, Beiträge, Einfälle und alle Einstellungen bleiben unberührt, ebenso
+  pgvector und MultiGPT. Neu entsteht nur das Verzeichnis, in dem die Bedeutungssuche nachschlägt.
+- Ist der Dienst, der die Texte aufbereitet, gerade nicht erreichbar, bleiben die Aufträge liegen: **Status der
+  Wege** führt sie unter **Liegengeblieben**, **Problem** nennt den Grund. Ist die Ursache behoben, genügt ein
+  weiteres **Index neu aufbauen**. Ist gar kein solcher Dienst eingerichtet, lehnt Baruch ab und meldet „Der
+  Index ließ sich nicht neu aufbauen; den Grund nennt „Status der Wege“.“
+- Ohne das Häkchen geschieht nichts; ohne JavaScript meldet die Seite dann „Bitte bestätigen (Kästchen
+  anhaken); nichts geändert.“
 
 ## Quellen {#quellen}
 
@@ -193,6 +261,7 @@ Vom eigenen Rechner braucht ein Programm keinen Token. Von einem anderen Rechner
 - **EPUBCheck:** ob das Prüfprogramm für E-Books gefunden ist, und das Feld **Pfad zum epubcheck.jar** mit **Pfad
   speichern** – siehe [E-Book](/hilfe/buchsatz/#epub).
 - **Sicherung jetzt** – siehe [Sicherung](/hilfe/austausch-sicherung/#sicherung).
-- Je Werk sein Ordner mit dem letzten Eintrag im Verlauf.
+- Je Werk sein Ordner mit dem letzten Eintrag im Verlauf – wie man darin liest, steht unter
+  [Den Verlauf eines Werks lesen](/hilfe/austausch-sicherung/#spiegel).
 
 Mit [Konten](/hilfe/konten/) kommt die Seite **Konten** dazu.
