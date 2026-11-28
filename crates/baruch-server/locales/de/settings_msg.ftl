@@ -115,3 +115,13 @@ settings_msg.typeset.reset_confirm = Zurücksetzen bitte mit dem Häkchen bestä
 settings_msg.typeset.unknown_action = Unbekannte Aktion (save, preview oder reset).
 settings_msg.typeset.apply_confirm = Übernehmen bitte mit dem Häkchen bestätigen; die Werkvorlage bleibt unverändert.
 settings_msg.typeset.preview_gone = Vorschau gibt es nicht (mehr); bitte „Vorschau“ erneut drücken.
+
+# Round 39c: refusals of the pattern language of the outline numbering (src/numbering.rs)
+settings_msg.numbering.err_mix = „{ $spec }“: „|“ (Tiefe) und „;“ (Muster je Ebene) lassen sich nicht mischen; eine Ebene ohne Nummer bleibt in der Liste einfach leer.
+settings_msg.numbering.err_level = Ebene { $level } („{ $part }“) braucht ein Zählzeichen (1, a, A, i, I oder *), z. B. „1.1“ oder „I.“.
+settings_msg.numbering.err_depth = „{ $spec }“: Hinter „|“ steht die Zahl der nummerierten Ebenen (1 bis 6), z. B. „I|1“.
+settings_msg.numbering.err_counter = Das Muster „{ $pattern }“ braucht ein Zählzeichen (1, a, A, i, I oder *), z. B. „1.1“ oder „I.“.
+
+# Round 39c: message about a setting that the work template sets as well (src/typeset_settings.rs)
+settings_msg.typeset.conflict_overrides = Die Werkvorlage setzt { $label } selbst (Zeile { $line }); die Einstellung gilt, weil Baruch sie dahinter setzt.
+settings_msg.typeset.conflict_ineffective = Die Werkvorlage setzt { $label } selbst (Zeile { $line }); die Einstellung wirkt nicht, solange die Zeile in der Vorlage steht.

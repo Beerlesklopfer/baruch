@@ -3,5 +3,5 @@
   Der zweite Wert ist die Taste am Mac; fehlt er, steht nur die erste da (dann sagt der Text daneben, was am Mac
   gilt). Markdown darf kein rohes HTML enthalten, darum dieser Shortcode.
 */ -}}
-<kbd>{{ .Get 0 }}</kbd>{{ with .Get 1 }} (Mac: <kbd>{{ . }}</kbd>){{ end }}
+<kbd>{{ .Get 0 }}</kbd>{{ with .Get 1 }} ({{ i18n "shortcode_mac" }} <kbd>{{ . }}</kbd>){{ end }}
 {{- /**/ -}}

@@ -203,7 +203,8 @@ async fn a_client_and_a_persona_create_change_and_delete_ideas_with_their_origin
     let text = refused(&server, s, "idea_read", json!({ "id": 4711 })).await;
     assert!(text.contains("4711"), "unbekannter Einfall → isError: {text}");
     let text = refused(&server, s, "idea_create", json!({ "words": "Rose\nDorn" })).await;
-    assert!(text.contains("Zeilenumbruch"), "Grenzen gelten auch hier: {text}");
+    // Round 39c: MCP answers in English (the store text is mapped through store_msg), not with the German store wording.
+    assert!(text.contains("line break"), "Grenzen gelten auch hier: {text}");
     let text = refused(&server, s, "idea_create", json!({ "words": ["Rose"], "persona": "@gibtsnicht" })).await;
     assert!(text.contains("Unknown persona"), "{text}");
     let answer = call(&server, s, "idea_create", json!({ "note": "ohne Schlagwörter" })).await;

@@ -31,6 +31,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::bibles::{Choice, WordingResult, check_wording};
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
 /// Maximum length of the checked text (characters).
@@ -151,7 +152,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let text = params
                 .get("text")
                 .and_then(Value::as_str)
-                .ok_or_else(|| RpcError::new(INVALID_PARAMS, "text fehlt (Stellenangabe oder Fließtext)"))?;
+                .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("reference_msg.scripture.text_missing", &[])))?;
             let work = crate::rpc::work_param(state, &params).await?;
             let module = params.get("module").and_then(Value::as_str).map(str::trim).filter(|m| !m.is_empty());
             let choice = match module {
@@ -203,7 +204,7 @@ pub fn check_with(choice: &Choice, text: &str) -> Result<Value, String> {
 /// (`wording_code`, `status`) stay the same in every language.
 pub fn check_with_in(choice: &Choice, text: &str, lang: WorkLanguage) -> Result<Value, String> {
     if text.chars().count() > MAX_TEXT_CHARS {
-        return Err(format!("text: höchstens {MAX_TEXT_CHARS} Zeichen"));
+        return Err(tc("reference_msg.scripture.text_too_long", &[("max", MAX_TEXT_CHARS.into())]));
     }
     let found = refs(text);
     let truncated = found.len() > MAX_REFS;
@@ -314,7 +315,7 @@ pub fn facts_with_in(choice: &Choice, handle: &str, section: &str, lang: WorkLan
     let mut lines = vec![head];
     // Round 19c: module with strikingly many word fragments (hyphenation remnants) – the note stands before
     // the passages.
-    if let Some(note) = choice.bible().and_then(crate::bibles::module_note) {
+    if let Some(note) = choice.bible().and_then(|b| crate::bibles::module_note_in(b, WorkLanguage::De)) {
         lines.push(format!("Hinweis: {note}"));
     }
     if found.is_empty() {
@@ -383,7 +384,7 @@ fn facts_with_en(choice: &Choice, handle: &str, section: &str) -> Option<String>
     let found = baruch_scripture::scan(section);
     let wording = check_wording(bible, section, &found);
     let mut lines = vec![head];
-    if let Some(note) = choice.bible().and_then(crate::bibles::module_note) {
+    if let Some(note) = choice.bible().and_then(|b| crate::bibles::module_note_in(b, WorkLanguage::En)) {
         lines.push(format!("Note: {note}"));
     }
     if found.is_empty() {
@@ -510,7 +511,7 @@ fn bible_line(bible: &baruch_sword::Bible, section: &str, found: &[Found], lang:
         ],
     );
     // Round 19c: note on word fragments in the module in the same line (this way it stays a closing note).
-    match crate::bibles::module_note(bible) {
+    match crate::bibles::module_note_in(bible, lang) {
         Some(note) => format!("{line} {note}"),
         None => line,
     }

@@ -13,13 +13,13 @@
 
 use baruch_store::{TypesetChange, WorkId, WorkTypeset};
 use baruch_typst::typeset::{
-    ChapterBreakRule, FIELDS, TemplateConflict, TypesetSettings, detect_chapter_break, field_label, remove_rule, rules,
-    template_conflicts,
+    ChapterBreakRule, ConflictEffect, FIELDS, TemplateConflict, TypesetSettings, detect_chapter_break, remove_rule,
+    rules, template_conflicts,
 };
 use serde_json::{Value, json};
 
 use crate::AppState;
-use crate::i18n::tc;
+use crate::i18n::{self, tc};
 use crate::mirror::{self, HUMAN_NAME, TypesetAction, WriteGuard};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
@@ -34,7 +34,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         "work.typeset_get" => {
             let view = load(state, work).await?;
             let mut out = view_json(&view);
-            out["fields"] = FIELDS.iter().map(|(id, label)| json!({ "id": id, "label": label })).collect();
+            out["fields"] = FIELDS.iter().map(|(id, _)| json!({ "id": id, "label": field_label(id) })).collect();
             Ok(out)
         }
         "work.typeset_set" => {
@@ -120,6 +120,22 @@ pub async fn load(state: &AppState, work: WorkId) -> Result<TypesetView, RpcErro
     })
 }
 
+/// Label of a typeset field in the interface language (Round 39c; German is the label of `baruch-typst`).
+pub fn field_label(field: &str) -> String {
+    let head = field.split('.').next().unwrap_or(field);
+    crate::typeset::ui_labels::field_label(i18n::current(), head)
+}
+
+/// Message about a place of the work template that sets a field itself, in the interface language (Round 39c; German
+/// equals `TemplateConflict::message` of `baruch-typst`).
+pub fn conflict_message(conflict: &TemplateConflict) -> String {
+    let key = match conflict.effect {
+        ConflictEffect::Overrides => "settings_msg.typeset.conflict_overrides",
+        ConflictEffect::Ineffective => "settings_msg.typeset.conflict_ineffective",
+    };
+    tc(key, &[("label", field_label(conflict.field).into()), ("line", conflict.line.into())])
+}
+
 /// JSON like `work.typeset_get` without `fields` (also the answer of the MCP tool `typeset_settings`).
 pub fn view_json(view: &TypesetView) -> Value {
     let conflicts: Vec<Value> = view
@@ -127,7 +143,7 @@ pub fn view_json(view: &TypesetView) -> Value {
         .iter()
         .map(|c| {
             json!({ "field": c.field, "label": field_label(c.field), "line": c.line, "text": c.text,
-                    "effect": c.effect, "message": c.message })
+                    "effect": c.effect, "message": conflict_message(c) })
         })
         .collect();
     let template_rule = view

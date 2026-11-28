@@ -115,3 +115,13 @@ settings_msg.typeset.reset_confirm = Please confirm the reset with the tick; not
 settings_msg.typeset.unknown_action = Unknown action (save, preview or reset).
 settings_msg.typeset.apply_confirm = Please confirm applying with the tick; the work template stays unchanged.
 settings_msg.typeset.preview_gone = The preview does not exist (any more); please press “Preview” again.
+
+# Round 39c: refusals of the pattern language of the outline numbering (src/numbering.rs)
+settings_msg.numbering.err_mix = “{ $spec }”: “|” (depth) and “;” (pattern per level) cannot be mixed; a level without a number simply stays empty in the list.
+settings_msg.numbering.err_level = Level { $level } (“{ $part }”) needs a counter character (1, a, A, i, I or *), e.g. “1.1” or “I.”.
+settings_msg.numbering.err_depth = “{ $spec }”: after “|” comes the number of numbered levels (1 to 6), e.g. “I|1”.
+settings_msg.numbering.err_counter = The pattern “{ $pattern }” needs a counter character (1, a, A, i, I or *), e.g. “1.1” or “I.”.
+
+# Round 39c: message about a setting that the work template sets as well (src/typeset_settings.rs)
+settings_msg.typeset.conflict_overrides = The work template sets { $label } itself (line { $line }); the setting applies because Baruch puts it after the template.
+settings_msg.typeset.conflict_ineffective = The work template sets { $label } itself (line { $line }); the setting has no effect as long as the line stays in the template.

@@ -506,6 +506,7 @@ async fn a_sermon_whose_bible_cannot_be_set_leaves_no_half_work_and_a_second_try
         subtitle: "",
         audience: "",
         bible: "",
+        language: Default::default(),
     };
     let failed =
         server.state.store.create_work_with_bible(&new, "Hanna Probe", Some("Joh 3,16"), Some("Zeile\nzwei")).await;

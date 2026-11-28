@@ -426,7 +426,7 @@ settings.work.minutes_after = minutes have passed (0 = no time limit)
 settings.work.revisions_save = Save versions
 settings.work.revisions_help = Default: on, { $default_percent } %, { $default_minutes } min – so no limit, saving always continues as in a word processor. A new version is also always created when “Save as new version” is chosen, the current version comes from a persona (also an accepted proposal), a version other than the current one was edited, or the heading or outline was changed. Every continuation is a commit in the Git mirror and appears in the history of the version (there also “Back to here”). Personas always create new versions (proposals). Stored only in the database, not in the exchange format.
 settings.work.fold_title = Hide older versions
-settings.work.fold_until = Hide older versions up to
+settings.work.fold_until = Hide older revisions up to
 settings.work.fold = Hide
 settings.work.fold_help = Sets the mark in every section to the last version before this day (at most to the current one); replaced and discarded versions below it are then behind the switch “show n older versions”. The current version and open proposals always stay visible; nothing is deleted. Existing marks are replaced.
 settings.work.folds_now =
@@ -434,7 +434,7 @@ settings.work.folds_now =
         [one] Currently 1 section has a mark.
        *[other] Currently { $count } sections have a mark.
     }
-settings.work.fold_clear = Remove all marks (show all versions again)
+settings.work.fold_clear = Remove all marks (show all revisions again)
 settings.work.sync_title = Sync with MultiGPT
 settings.work.sync_on_html =
     Upload to MultiGPT: <strong>on</strong> – one document per chapter in the collection “{ $collection }” ({ $documents } { $documents ->

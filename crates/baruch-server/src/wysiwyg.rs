@@ -23,6 +23,12 @@ use crate::AppState;
 use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError, resolve_keys};
 
+/// Tooltip of a cross reference in the typeset view in the interface language (Round 39c; `baruch-wysiwyg` writes
+/// only the German text itself and takes this function through `render_html_titled`).
+pub fn xref_title(target: &str) -> String {
+    crate::i18n::tc("reference_msg.xref.tooltip", &[("target", target.into())])
+}
+
 /// Methods of this module.
 pub fn handles(method: &str) -> bool {
     matches!(method, "wysiwyg.parse" | "wysiwyg.serialize" | "wysiwyg.style" | "wysiwyg.diff")
@@ -219,7 +225,12 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params_value: Va
             let alts = image_alts(state, work).await?;
             // Round 39b: the page number addition of a cross reference in the work language.
             let lang = state.store.work_language(work).await?;
-            let html = baruch_wysiwyg::render_html_in(&doc, &|path| Some(image_ref_in(work, path, &alts)), lang);
+            let html = baruch_wysiwyg::render_html_titled(
+                &doc,
+                &|path| Some(image_ref_in(work, path, &alts)),
+                lang,
+                &xref_title,
+            );
             Ok(json!({ "blocks": doc.blocks, "html": html }))
         }
         "wysiwyg.serialize" => {

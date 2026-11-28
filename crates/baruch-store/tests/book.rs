@@ -23,6 +23,7 @@ async fn work(store: &Store, title: &str) -> WorkId {
         subtitle: "",
         audience: "",
         bible: "",
+        language: Default::default(),
     };
     store.create_work(&new, "Autor").await.unwrap().work
 }

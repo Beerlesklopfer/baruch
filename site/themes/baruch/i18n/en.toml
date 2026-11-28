@@ -2,6 +2,17 @@
 
 # _shortcodes/fingerabdruck.html, release.html, taste.html (Round 39c, owner reste_2)
 
+[shortcode_fingerprint_label]
+other = "Fingerprint of the archive key:"
+[shortcode_placeholder_label]
+other = "Placeholder."
+[shortcode_placeholder_note]
+other = "– the operator has not entered it here yet. As long as\n  this notice stands, the key cannot be compared on this page."
+[shortcode_release_page]
+other = "Release page v%s"
+[shortcode_mac]
+other = "Mac:"
+
 [hilfebild_gross]
 other = "Open the picture in full size"
 

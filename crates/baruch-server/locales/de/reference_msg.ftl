@@ -148,3 +148,10 @@ reference_msg.replace.confirm = Ersetzen bitte bestätigen (confirm: true).
 reference_msg.replace.replacement_missing = replacement: Ersatztext fehlt (leer ist erlaubt).
 reference_msg.replace.undo_confirm = Rückgängig bitte bestätigen (confirm: true).
 reference_msg.replace.batch_missing = batch: Nummer des Ersetzens fehlt.
+
+# Round 39c: notes and refusals of the Bible checks (src/bibles.rs, src/scripture.rs)
+reference_msg.bibles.fragment_example = „{ $example }“
+reference_msg.bibles.fragment_note = Modul { $module } hat auffällig viele Wortfragmente ({ $suspects } von { $pairs } Wortpaaren, z. B. { $examples }) – vermutlich Silbentrennreste; Baruch vergleicht den Wortlaut darum auch ohne Leerraum.
+reference_msg.scripture.text_missing = text fehlt (Stellenangabe oder Fließtext)
+reference_msg.scripture.text_too_long = text: höchstens { $max } Zeichen
+reference_msg.xref.tooltip = Querverweis auf { $target } (Strg+Klick: springen)

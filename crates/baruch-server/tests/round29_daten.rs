@@ -318,7 +318,19 @@ async fn the_mcp_tool_reads_like_typeset_get_and_there_is_no_writing_tool() {
     .await;
     assert_eq!(answer["result"]["isError"], false, "typeset_settings gelingt: {answer}");
     let read = &answer["result"]["structuredContent"];
-    let mut expected = get(&server, work).await;
+    // Round 39c: MCP answers in English, so the comparison reads the RPC in English as well.
+    let request = common::with_lang(
+        Request::post("/rpc")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({ "jsonrpc": "2.0", "id": 1, "method": "work.typeset_get", "params": { "work": work } })
+                    .to_string(),
+            ))
+            .unwrap(),
+        "en",
+    );
+    let (_, _, text) = server.send(request).await;
+    let mut expected = serde_json::from_str::<Value>(&text).unwrap()["result"].clone();
     expected.as_object_mut().unwrap().remove("fields");
     assert_eq!(read, &expected, "wie work.typeset_get ohne fields");
     assert_eq!(read["settings"], full(), "Einstellungen gelesen");

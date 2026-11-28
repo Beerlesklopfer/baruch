@@ -176,7 +176,16 @@ async fn after_delete(store: &Store, before: &Snapshot, graves_before: usize, st
 
 fn new_work(title: &str, preset: Preset) -> NewWork<'_> {
     let kind = if preset == Preset::Sermon { WorkKind::Sermon } else { WorkKind::Book };
-    NewWork { title, author: "Anna Apfel", kind, preset, subtitle: "", audience: "", bible: "" }
+    NewWork {
+        title,
+        author: "Anna Apfel",
+        kind,
+        preset,
+        subtitle: "",
+        audience: "",
+        bible: "",
+        language: Default::default(),
+    }
 }
 
 fn post(author: &str, body: &str, refs: Vec<TextRef>) -> Post {

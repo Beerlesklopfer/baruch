@@ -158,7 +158,7 @@ export.epub_preview.no_report = No check report here. In detail:
 # Page /werke/{id}/austausch (exchange.html).
 export.exchange.window_title = Exchange – { $title } – Baruch
 export.exchange.page_title = { $title }: exchange
-export.exchange.heading = Exchange: output
+export.exchange.heading = Exchange: Write out
 export.exchange.intro_html = The exchange file carries the <strong>whole work</strong> to another Baruch instance: details, book details including the cover, work template, the outline with <strong>all revisions</strong> and the mark “current”, posts, ideas (also deleted ones), the idea map (links between ideas and remembered positions), threads, images with all revisions, typesetting settings, the glossary (also proposals) with the own registers and the tombstones of deleted parts. Every piece has a worldwide unique identifier (UUID); so the other instance recognises when reading in what it already knows and adds only what is missing.
 export.exchange.not_in_file = Not in the file: keys and tokens, connections to services (models, MultiGPT, pgvector), personas including models (only their names as the origin), open requests and register proposals, evidence of the web search, Bible, commentary and literature texts (only module names and references), search index and the author library.
 export.exchange.downloads = Download
@@ -234,7 +234,7 @@ export.exchange.instance = instance { $label }
 export.exchange.format = format
 export.exchange.version = version { $version }
 export.exchange.read_in_before = Adopt a file of another instance:
-export.exchange.read_in_link = Exchange: read in…
+export.exchange.read_in_link = Exchange: Read in…
 export.exchange.read_in_after = (with a preview; Baruch never deletes or overwrites anything in the process).
 export.exchange.cli = Also through the command line:
 export.exchange.deviations = Deviations ({ $count })
@@ -262,7 +262,7 @@ export.exchange_done.read_another = Read in another file
 
 # Page /austausch/einlesen (exchange_import.html).
 export.exchange_import.window_title = Read in an exchange file – Baruch
-export.exchange_import.heading = Exchange: read in
+export.exchange_import.heading = Exchange: Read in
 export.exchange_import.choose = Choose an exchange file
 export.exchange_import.file = File (.baruch or .baruch.xml, at most { $mib } MiB)
 export.exchange_import.title_hint = (only for a new work; empty: from the file)
@@ -275,8 +275,8 @@ export.exchange_import.known_work_after = , which you decide on.
 export.exchange_import.deleted_stays = What was deleted here does not come back. Unknown parts of a newer file are reported but not adopted.
 
 # Preview of an exchange file (exchange_preview.html).
-export.exchange_preview.window_title = Exchange: preview – Baruch
-export.exchange_preview.page_title = Exchange: preview
+export.exchange_preview.window_title = Exchange: Preview – Baruch
+export.exchange_preview.page_title = Exchange: Preview
 export.exchange_preview.group = Exchange
 export.exchange_preview.other_file = Another file
 export.exchange_preview.heading = Preview: { $name }

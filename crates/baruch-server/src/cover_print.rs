@@ -156,9 +156,9 @@ async fn block_and_imprint_checks(
     Ok(warnings)
 }
 
-/// „Titel (Vorderseite)“.
+/// „Titel (Vorderseite)“ / „Title (Front)“ in the interface language (Round 39c; German is the name of the crate).
 fn name(kind: CoverBlockKind) -> String {
-    format!("{} ({})", kind.label(), kind.face().label())
+    crate::cover_layout::kind_label_in(crate::i18n::current(), kind)
 }
 
 /// „12,5 mm“.

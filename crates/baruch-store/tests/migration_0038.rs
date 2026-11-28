@@ -236,6 +236,7 @@ async fn migration_0038_keeps_every_row_and_only_adds_the_thread_tables() {
         subtitle: "",
         audience: "",
         bible: "",
+        language: Default::default(),
     };
     let other = store.create_work(&new, "Autor").await.expect("zweites Werk");
     let foreign = store.thread_get(other.work, thread.id).await;

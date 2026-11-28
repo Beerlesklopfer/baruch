@@ -20,6 +20,7 @@ works_msg.import.choose_other_title = Bitte unten einen anderen Titel eintragen 
 # Checks of the RPC methods work.*.
 works_msg.rpc.kind_invalid = kind: „book“ oder „sermon“ erwartet, nicht „{ $other }“
 works_msg.rpc.preset_invalid = preset: „book“ oder „sermon“ erwartet, nicht „{ $other }“
+works_msg.rpc.language_invalid = language: „de“ oder „en“ erwartet, nicht „{ $other }“
 works_msg.rpc.work_missing = work fehlt: Welches Werk? (Werk-id, Zahl)
 works_msg.rpc.zip_via_archive = Ein ZIP-Archiv geht über work.import_archive (Inhalt als Base64).
 works_msg.rpc.not_zip = „{ $base }“ ist kein ZIP-Archiv; work.import_archive nimmt nur .zip.

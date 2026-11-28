@@ -56,6 +56,7 @@ mod tests {
             subtitle: "",
             audience: "",
             bible: "",
+            language: Default::default(),
         };
         let work = store.create_work(&new, "Autor").await.unwrap().work;
         assert_eq!(

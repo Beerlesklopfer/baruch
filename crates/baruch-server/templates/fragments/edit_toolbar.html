@@ -33,8 +33,8 @@
           <option value="2">{{ t('editor.toolbar.heading2') }}</option>
           <option value="3">{{ t('editor.toolbar.heading3') }}</option>
         </select>
-        <button class="btn" type="button" data-ws-cmd="italic" title="{{ t('editor.toolbar.emph_title') }}" aria-label="{{ t('editor.toolbar.emph') }}"><em>K</em></button>
-        <button class="btn" type="button" data-ws-cmd="bold" title="{{ t('editor.toolbar.strong_title') }}" aria-label="{{ t('editor.toolbar.strong') }}"><strong>F</strong></button>
+        <button class="btn" type="button" data-ws-cmd="italic" title="{{ t('editor.toolbar.emph_title') }}" aria-label="{{ t('editor.toolbar.emph') }}"><em>{{ t('editor.toolbar.emph_glyph') }}</em></button>
+        <button class="btn" type="button" data-ws-cmd="bold" title="{{ t('editor.toolbar.strong_title') }}" aria-label="{{ t('editor.toolbar.strong') }}"><strong>{{ t('editor.toolbar.strong_glyph') }}</strong></button>
       </span>
       <span class="muted tiny"{% if ws_satz %} hidden{% endif %} data-ws-source-note>{{ t('editor.toolbar.ws_only') }}</span>
     </div></details>

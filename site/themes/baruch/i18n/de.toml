@@ -2,6 +2,17 @@
 
 # _shortcodes/fingerabdruck.html, release.html, taste.html (Round 39c, owner reste_2)
 
+[shortcode_fingerprint_label]
+other = "Fingerabdruck des Archivschlüssels:"
+[shortcode_placeholder_label]
+other = "Platzhalter."
+[shortcode_placeholder_note]
+other = "– der Betreiber hat ihn hier noch nicht eingetragen. Solange\n  dieser Hinweis steht, lässt sich der Schlüssel auf dieser Seite nicht vergleichen."
+[shortcode_release_page]
+other = "Release-Seite v%s"
+[shortcode_mac]
+other = "Mac:"
+
 # The German values are the wording the layouts carried before Round 39b, verbatim.
 [hilfebild_gross]
 other = "Bild in voller Größe öffnen"

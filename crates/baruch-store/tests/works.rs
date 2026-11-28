@@ -16,7 +16,16 @@ async fn fresh() -> (tempfile::TempDir, Store) {
 
 fn new_work(title: &str, preset: Preset) -> NewWork<'_> {
     let kind = if preset == Preset::Sermon { WorkKind::Sermon } else { WorkKind::Book };
-    NewWork { title, author: "Erika Mustermann", kind, preset, subtitle: "", audience: "", bible: "" }
+    NewWork {
+        title,
+        author: "Erika Mustermann",
+        kind,
+        preset,
+        subtitle: "",
+        audience: "",
+        bible: "",
+        language: Default::default(),
+    }
 }
 
 async fn count(store: &Store, sql: &str) -> i64 {
@@ -30,6 +39,7 @@ async fn creating_a_book_gives_a_template_and_a_first_chapter() {
         subtitle: "Ein Versuch",
         audience: "Gemeinde",
         bible: "Luther 2017",
+        language: Default::default(),
         ..new_work("  Mein   Buch ", Preset::Book)
     };
     let created = store.create_work(&new, "Autor").await.unwrap();

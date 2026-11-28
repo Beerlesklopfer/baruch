@@ -46,7 +46,8 @@ pub use align::{Hunk, HunkKind, align, hunk_html_in, hunk_html_with};
 pub use baruch_core::WorkLanguage;
 pub use emit::{emit, emit_in};
 pub use html::{
-    diff_html, diff_html_in, diff_html_with, index_mark_label, render_html, render_html_in, render_html_with,
+    diff_html, diff_html_in, diff_html_with, index_mark_label, render_html, render_html_in, render_html_titled,
+    render_html_with,
 };
 pub use parse::parse;
 pub use scan::{image_path, image_paths};
