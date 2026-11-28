@@ -4,6 +4,11 @@
 site/data/hilfebilder.toml) und die sieben Bilder der Seite „Funktionen“ (site/static/bilder/*.png) – alle aus
 einem frei erfundenen Werk („Ein Jahr auf Mövenoog“, site/tools/beispielwerk.typ) in einem Wegwerf-Datenordner.
 
+Zwei Sprachen (Runde 39b): --lang de (Vorgabe) bzw. --lang en wählt die Sprache der Oberfläche (Cookie baruch_lang,
+Accept-Language, in Firefox intl.accept_languages), die Werksprache des Beispielwerks (RPC work.language_set) und
+die erfundenen Daten (für en site/tools/beispielwerk.en.typ „A Year on Gull Holm“ und englische Beiträge, Einfälle,
+Quellen). Ziel: de site/static/bilder (Hilfe in hilfe/), en site/static/bilder/en (Hilfe in hilfe/).
+
 Ablauf (ausführlich in site/tools/README.md):
   1. Wegwerf-Datenordner anlegen und beispielwerk.typ importieren (baruch-server import).
   2. In der Datenbank die Verbindungen `eliezer` und `multigpt` auf http://127.0.0.1:9 stellen – erst danach
@@ -29,6 +34,7 @@ Nur Python 3.11+ (Standardbibliothek, tomllib). Aufruf aus dem Hauptordner des R
 
     site/tools/bildschirmfotos.py --liste
     site/tools/bildschirmfotos.py --abgleich
+    site/tools/bildschirmfotos.py --abgleich --lang en
     site/tools/bildschirmfotos.py --pruefen --temp ~/tmp
     site/tools/bildschirmfotos.py --fotos --temp /var/tmp/baruch-hilfe   # nur der Integrator; nie parallel zu
                                                                          # Testläufen; Pfad ohne Benutzernamen
@@ -61,13 +67,39 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
 REPO = TOOLS.parent.parent
-WORK_FILE = TOOLS / "beispielwerk.typ"
 LIST_FILE = REPO / "site" / "data" / "hilfebilder.toml"
-CONTENT = REPO / "site" / "content" / "de"
+# Languages of the website and of the pictures (Round 39b, contract §2.2): German is the default without a folder of
+# its own, every other language gets bilder/<lang>/ and content/<lang>/.
+LANGS = ("de", "en")
+DEFAULT_LANG = "de"
 TARGET = REPO / "site" / "static" / "bilder"
 HELP_DIR = "hilfe"
-# All images together (site/static/bilder) stay below this limit (contract Round 37, §8).
+# Cookie of the interface language (crates/baruch-server/src/i18n.rs, COOKIE).
+LANG_COOKIE = "baruch_lang"
+# The images of one language stay below this limit (contract Round 37, §8; per language since Round 39b: German =
+# site/static/bilder without the folders of the other languages, English = site/static/bilder/en).
 SIZE_LIMIT = 20 * 1024 * 1024
+
+
+def content_dir(lang):
+    """Folder of the help pages of a language (site/content/<lang>)."""
+    return REPO / "site" / "content" / lang
+
+
+def target_dir(lang):
+    """Image folder of a language: German site/static/bilder, every other language site/static/bilder/<lang>
+    (the same rule as the partial site/themes/baruch/layouts/_partials/bildpfad.html)."""
+    return TARGET if lang == DEFAULT_LANG else TARGET / lang
+
+
+def language_files(lang):
+    """All files of the image folder of a language; German leaves out the folders of the other languages."""
+    folder = target_dir(lang)
+    if not folder.is_dir():
+        return []
+    others = [folder / other for other in LANGS if other != DEFAULT_LANG] if lang == DEFAULT_LANG else []
+    return [path for path in folder.rglob("*")
+            if path.is_file() and not any(other in path.parents for other in others)]
 WINDOW = "1400x860"
 # Below 1600 px the laptop mode („automatisch“) draws the ribbon compact (COMPACT_BELOW_PX in
 # crates/baruch-server/src/laptop.rs); the script of the page measures the width.
@@ -85,15 +117,13 @@ DEFAULT_COOKIES = {"baruch_laptop": "off"}
 MANAGED_COOKIES = (
     "baruch_work", "baruch_laptop", "baruch_theme", "baruch_accordion", "baruch_editor", "baruch_band",
     "baruch_bandx", "baruch_pv", "baruch_folded", "baruch_closed", "baruch_left", "baruch_right", "baruch_lrail",
-    "baruch_rrail", "baruch_session",
+    "baruch_rrail", "baruch_session", LANG_COOKIE,
 )
 SESSION_COOKIE = "baruch_session"
 
-# Invented people (contract §4): the author of the sample work and a Lektor.
+# Invented people (contract §4): the author of the sample work and a Lektor (names are the same in both languages).
 AUTHOR = {"name": "mara", "display": "Mara Tiedemann"}
 LEKTOR = {"name": "jonte", "display": "Jonte Harksen"}
-# Name under which the script reports at the MCP access of the own server (origin @mcp:schreibhilfe).
-MCP_CLIENT = "Schreibhilfe"
 
 # The seven images of the page „Funktionen“ (site/static/bilder/*.png): names and addresses as since Round 24/33.
 FUNCTION_PICTURES = [
@@ -125,20 +155,101 @@ def fail(message):
 STEP_KINDS = ("cookie", "offen", "klick", "sitzung")
 KNOWN_NEEDS = ("klick", "ohne-js", "konten", "sword")
 
+# Texts of `erwartet` for the English pictures (contract §2.5 allows no field erwartet_en): German text -> English
+# text. Words of the sample work follow beispielwerk.en.typ and SAMPLES["en"]; words of the interface are the values
+# of crates/baruch-server/locales/en/*.ftl for the key whose German value the list names. A German text that is
+# neither here nor in EXPECTED_NEUTRAL stops the tool for --lang en (no silent check without evidence).
+EXPECTED_EN = {
+    "Ein Jahr auf Mövenoog": "A Year on Gull Holm",
+    "Der erste Morgen": "The First Morning",
+    "Mara Tiedemann": "Mara Tiedemann",
+    "Notizen vom Festland": "Notes from the Mainland",
+    "Hilfe mit Bildern": "Help with pictures",
+    "faehre.png": "ferry.png",
+    "Ankunft": "Arrival",
+    "3 offen": "3 open",
+    "4 offen": "4 open",
+    # Help address of the English interface (contract §2.3, HELP_URL_EN in crates/baruch-server/src/about.rs).
+    "https://baruch.bernau.family/hilfe/": "https://baruch.bernau.family/en/hilfe/",
+    ">Hilfe</a>": ">Help</a>",
+    "Die Nacht ohne Lampe": "The Night Without the Lamp",
+    "Abschied": "Farewell",
+    "Abschied von der Hallig": "Farewell to the Island",
+    # A word of its own: the index mark on "oilcloth" splits "oilcloth cover" in the HTML of the typeset view.
+    "Wachstuchdeckel": "oilcloth",
+    "2 Fassungen dieses Abschnitts": "Revisions of this section",
+    "Verlauf von Fassung 2": "History of revision 2",
+    "Ältere Fassungen ausblenden": "Hide older",
+    "leuchtturm.png": "lighthouse.png",
+    "umschlag.png": "cover.png",
+    "Ziel 5:00": "target 5:00",
+    "Feder": "feather",
+    "Reihenfolge der Kapitel": "Order of the chapters",
+    "@mcp:schreibhilfe": "@mcp:scribe",
+    "Jahreszahlen abgleichen": "check the years",
+    "Er hatte recht.": "He was right.",
+    "Belege zu Beitrag": "Evidence for post",
+    "Leuchtfeuer": "Beacon",
+    "Sturmflut": "storm surge",
+    "Die Feder auf dem Sims": "The feather on the sill",
+    "Docht und Petroleum": "Wick and paraffin",
+    "Bibeln (SWORD)": "Bibles (SWORD)",
+    "Ps 119,105": "119",
+    "Dienstbuch": "Service Book",
+    "Dienstbuch für die Leuchtfeuerwärter der Halligen": "Service Book for the Keepers of the Island Lights",
+    "Was das Licht nicht zeigt": "What the Light Does Not Show",
+    "Vorschau: „Lampe“ → „Leuchte“": "Preview: “lamp” → “lantern”",
+    "Querverweise": "Cross references",
+    "Hallig": "Holm",
+    "Priel": "Creek",
+    "Handlaterne": "lantern",
+    "Laterne": "lantern",
+    "Verlag Priel & Tonne": "Creek & Barrel Press",
+    "Konten einrichten": "Set up accounts",
+    "Jonte Harksen": "Jonte Harksen",
+}
+# Texts of `erwartet` that are the same in both languages (markup, addresses, names of roles and files).
+EXPECTED_NEUTRAL = {
+    "#quote(block: true", "pv-accept", "@lektor", "@lektorat:jonte", "127.0.0.1:9", 'name="password"',
+    'data-rolle="lektor"',
+}
 
-def load_pictures():
+
+def expected_in(lang, text, name):
+    """Text of `erwartet` in the language of the pictures; for en from EXPECTED_EN (see there)."""
+    if lang == DEFAULT_LANG or text in EXPECTED_NEUTRAL:
+        return text
+    if text not in EXPECTED_EN:
+        fail(f"Bild „{name}“: erwartet „{text}“ hat keine englische Entsprechung (EXPECTED_EN in {Path(__file__).name}).")
+    return EXPECTED_EN[text]
+
+
+def load_pictures(lang=DEFAULT_LANG):
     """Liest site/data/hilfebilder.toml und die sieben Bilder der Seite „Funktionen“ als eine Liste von Einträgen
-    mit den Feldern name, datei (relativ zu site/static/bilder), adresse, fenster, thema, dunkel, ausschnitt,
-    schritt, erwartet, stufe, braucht, seite, zeigt. Bricht bei einem fehlerhaften Eintrag ab."""
+    mit den Feldern name, datei (relativ zum Bildordner der Sprache), adresse, fenster, thema, dunkel, ausschnitt,
+    schritt, erwartet, stufe, braucht, seite, zeigt – für die Sprache `lang` (nur Bilder, deren `sprachen` sie
+    nennt; für en gelten adresse_en, ausschnitt_en, schritt_en und die Tabelle EXPECTED_EN). Bricht bei einem
+    fehlerhaften Eintrag ab."""
     with open(LIST_FILE, "rb") as handle:
         listed = tomllib.load(handle).get("bild", [])
     pictures = []
+    # Every entry is checked in both languages, whichever is asked for: a broken English override or a text of
+    # `erwartet` without an English counterpart already stops --liste and --abgleich for German.
     for entry in FUNCTION_PICTURES:
-        pictures.append(normalised(entry, f"{entry['name']}.png", ["funktionen"]))
+        for code in LANGS:
+            picture = normalised(entry, f"{entry['name']}.png", ["funktionen"], code)
+            if code == lang:
+                pictures.append(picture)
     for entry in listed:
         if "name" not in entry:
             fail(f"{LIST_FILE.name}: ein Block [[bild]] hat keinen Namen.")
-        pictures.append(normalised(entry, f"{HELP_DIR}/{entry['name']}.png", entry.get("seite", [])))
+        languages = entry.get("sprachen", list(LANGS))
+        if not isinstance(languages, list) or not languages or any(code not in LANGS for code in languages):
+            fail(f"Bild „{entry['name']}“: sprachen ist eine nichtleere Liste aus {', '.join(LANGS)}.")
+        for code in LANGS:
+            picture = normalised(entry, f"{HELP_DIR}/{entry['name']}.png", entry.get("seite", []), code)
+            if code == lang and code in languages:
+                pictures.append(picture)
     names = [p["name"] for p in pictures if p["datei"].startswith(HELP_DIR + "/")]
     doubled = sorted({n for n in names if names.count(n) > 1})
     if doubled:
@@ -146,10 +257,19 @@ def load_pictures():
     return pictures
 
 
-def normalised(entry, file, pages):
+def normalised(entry, file, pages, lang=DEFAULT_LANG):
     name = entry["name"]
     if not re.fullmatch(r"[a-z0-9-]+", name):
         fail(f"Bild „{name}“: Namen bestehen aus Kleinbuchstaben, Ziffern und Bindestrich.")
+    # English overrides (contract §2.5).
+    for field in ("adresse", "ausschnitt", "schritt"):
+        if f"{field}_en" in entry and not isinstance(entry[f"{field}_en"], type(entry.get(field, entry[f"{field}_en"]))):
+            fail(f"Bild „{name}“: {field}_en hat eine andere Form als {field}.")
+    if lang == "en":
+        entry = dict(entry)
+        for field in ("adresse", "ausschnitt", "schritt"):
+            if f"{field}_en" in entry:
+                entry[field] = entry[f"{field}_en"]
     address = entry.get("adresse")
     if not address or not address.startswith("/"):
         fail(f"Bild „{name}“: adresse fehlt oder beginnt nicht mit „/“.")
@@ -188,7 +308,8 @@ def normalised(entry, file, pages):
     return {
         "name": name, "datei": file, "adresse": address, "fenster": window, "thema": theme,
         "dunkel": bool(entry.get("dunkel", False)), "ausschnitt": cut, "schritt": steps,
-        "erwartet": list(entry.get("erwartet", [])), "stufe": stage, "braucht": list(needs),
+        "erwartet": [expected_in(lang, text, name) for text in entry.get("erwartet", [])], "stufe": stage,
+        "braucht": list(needs),
         "seite": list(pages), "zeigt": entry.get("zeigt", ""),
     }
 
@@ -253,29 +374,44 @@ def fill(address, values):
 # ---------------------------------------------------------------------------------------------------------------
 
 USE = re.compile(r"\{\{<\s*hilfebild\b([^>]*?)>\}\}", re.S)
+USE_FUNCTION = re.compile(r"\{\{<\s*bild\b([^>]*?)>\}\}", re.S)
 
 
-def reconcile(pictures):
-    """--abgleich: verwendete Namen gegen die Liste, fehlende Dateien, Gesamtgröße. Exit 1 bei einem unbekannten
-    Namen oder wenn site/static/bilder die Grenze überschreitet; fehlende Dateien sind nur eine Liste."""
+def reconcile(pictures, lang=DEFAULT_LANG):
+    """--abgleich: verwendete Namen gegen die Liste, fehlende Dateien, Gesamtgröße – für die Seiten
+    (site/content/<lang>) und den Bildordner der Sprache `lang`. Exit 1 bei einem unbekannten Namen, bei einem
+    fehlenden hellen Bild, das eine Seite verwendet (der Bau der Webseite bricht dann ab), oder wenn der Bildordner
+    der Sprache die Grenze überschreitet; übrige fehlende Dateien sind nur eine Liste."""
+    content = content_dir(lang)
+    target = target_dir(lang)
     listed = {p["name"]: p for p in pictures if p["datei"].startswith(HELP_DIR + "/")}
     used = {}
-    for page in sorted(CONTENT.rglob("*.md")):
+    used_files = set()
+    pages = sorted(content.rglob("*.md")) if content.is_dir() else []
+    for page in pages:
         text = page.read_text(encoding="utf-8")
         for call in USE.finditer(text):
             found = re.search(r'\bname\s*=\s*"([^"]*)"', call.group(1))
             name = found.group(1) if found else "(ohne name)"
-            used.setdefault(name, []).append(page.relative_to(CONTENT).as_posix())
-    unknown = sorted(name for name in used if name not in listed)
-    unused = sorted(name for name in listed if name not in used)
+            used.setdefault(name, []).append(page.relative_to(content).as_posix())
+            used_files.add(f"{HELP_DIR}/{name}.png")
+        for call in USE_FUNCTION.finditer(text):
+            found = re.search(r'\bdatei\s*=\s*"([^"]*)"', call.group(1))
+            if found:
+                used_files.add(found.group(1))
+    print(f"Sprache {lang}: Bilder unter {target.relative_to(REPO)}, Seiten unter {content.relative_to(REPO)}"
+          + ("" if content.is_dir() else " (fehlt – noch keine Seiten dieser Sprache)") + ".")
     print(f"Bildliste: {len(listed)} Namen in {LIST_FILE.relative_to(REPO)}; "
-          f"{sum(len(v) for v in used.values())} Aufrufe von hilfebild in site/content, {len(used)} verschiedene Namen.")
-    if unknown:
-        print(f"\nUNBEKANNT ({len(unknown)}) – stehen nicht in der Liste, der Bau der Webseite bricht ab:")
+          f"{sum(len(v) for v in used.values())} Aufrufe von hilfebild in {content.relative_to(REPO)}, "
+          f"{len(used)} verschiedene Namen.")
+    if unknown := sorted(name for name in used if name not in listed):
+        print(f"\nUNBEKANNT ({len(unknown)}) – stehen nicht in der Liste (oder nicht für {lang}), der Bau der "
+              "Webseite bricht ab:")
         for name in unknown:
             print(f"  {name}  ({', '.join(sorted(set(used[name])))})")
     else:
         print("Unbekannte Namen: keine.")
+    unused = sorted(name for name in listed if name not in used)
     if unused:
         print(f"\nUngenutzt ({len(unused)}) – stehen in der Liste, aber auf keiner Seite:")
         for name in unused:
@@ -283,36 +419,40 @@ def reconcile(pictures):
     else:
         print("Ungenutzte Namen: keine.")
     elsewhere = []
-    for name, pages in sorted(used.items()):
+    for name, pages_of in sorted(used.items()):
         if name in listed:
             planned = set(listed[name]["seite"])
-            for page in sorted(set(pages)):
+            for page in sorted(set(pages_of)):
                 stem = Path(page).stem if Path(page).stem != "_index" else Path(page).parent.name
                 if stem not in planned:
                     elsewhere.append(f"  {name}  auf {page} (Liste: {', '.join(sorted(planned)) or '–'})")
     if elsewhere:
         print(f"\nAuf einer anderen Seite als in der Liste vorgesehen ({len(elsewhere)}, nur Hinweis):")
         print("\n".join(elsewhere))
-    missing = [file for p in pictures for file, _ in variants(p) if not (TARGET / file).is_file()]
+    missing = [file for p in pictures for file, _ in variants(p) if not (target / file).is_file()]
+    breaking = sorted(file for file in missing if file in used_files)
     if missing:
-        print(f"\nFehlende Dateien ({len(missing)}) unter {TARGET.relative_to(REPO)} – die Seiten lassen sie aus:")
+        print(f"\nFehlende Dateien ({len(missing)}) unter {target.relative_to(REPO)}:")
         for file in missing:
-            print(f"  {file}")
+            print(f"  {file}" + ("  – eine Seite verwendet es, der Bau bricht ab" if file in breaking else ""))
     else:
         print("Fehlende Dateien: keine.")
+    known = {file for p in pictures for file, _ in variants(p)}
     stray = sorted(
-        path.relative_to(TARGET).as_posix() for path in (TARGET / HELP_DIR).glob("*.png")
-        if path.relative_to(TARGET).as_posix() not in {file for p in pictures for file, _ in variants(p)}
-    ) if (TARGET / HELP_DIR).is_dir() else []
+        path.relative_to(target).as_posix() for path in (target / HELP_DIR).glob("*.png")
+        if path.relative_to(target).as_posix() not in known
+    ) if (target / HELP_DIR).is_dir() else []
     if stray:
         print(f"\nDateien ohne Eintrag in der Liste ({len(stray)}, nur Hinweis):")
         for file in stray:
             print(f"  {file}")
-    total = sum(path.stat().st_size for path in TARGET.rglob("*") if path.is_file()) if TARGET.is_dir() else 0
+    total = sum(path.stat().st_size for path in language_files(lang))
     over = total > SIZE_LIMIT
-    print(f"\nGröße von {TARGET.relative_to(REPO)}: {total / 1024 / 1024:.2f} MB von höchstens "
-          f"{SIZE_LIMIT / 1024 / 1024:.0f} MB" + (" – ÜBERSCHRITTEN" if over else "."))
-    if unknown or over:
+    print(f"\nGröße der Bilder für {lang} ({target.relative_to(REPO)}"
+          + (", ohne " + ", ".join(f"{other}/" for other in LANGS if other != DEFAULT_LANG) if lang == DEFAULT_LANG else "")
+          + f"): {total / 1024 / 1024:.2f} MB von höchstens {SIZE_LIMIT / 1024 / 1024:.0f} MB"
+          + (" – ÜBERSCHRITTEN" if over else "."))
+    if unknown or breaking or over:
         sys.exit(1)
 
 
@@ -362,9 +502,9 @@ def private_parts(*paths):
             if path and (home in str(path) or (len(user) > 2 and user.lower() in str(path).lower()))]
 
 
-def import_work(server, data):
+def import_work(server, data, work_file):
     done = subprocess.run(
-        [str(server), "import", str(WORK_FILE), "--data", str(data)],
+        [str(server), "import", str(work_file), "--data", str(data)],
         capture_output=True, text=True, env=server_env(data), check=False,
     )
     sys.stdout.write(done.stdout)
@@ -446,16 +586,20 @@ def request(base, method, path, body=None, headers=None, timeout=300):
 
 class Client:
     """Formulare und RPC am eigenen Server, auf Wunsch mit Sitzung (Cookie). `Origin` trägt die Adresse des
-    Servers: Die Formulare stehen hinter guard::same_origin."""
+    Servers: Die Formulare stehen hinter guard::same_origin. Cookie baruch_lang und Accept-Language tragen die
+    Sprache der Bilder: Gespeicherte Antworten (Bericht und Vorschauen des Einlesens) kommen so in dieser Sprache."""
 
-    def __init__(self, base, session=None):
+    def __init__(self, base, session=None, lang=DEFAULT_LANG):
         self.base = base
         self.session = session
+        self.lang = lang
 
     def headers(self, extra=None):
-        headers = {"Origin": self.base}
+        headers = {"Origin": self.base, "Accept-Language": self.lang}
+        cookies = [f"{LANG_COOKIE}={self.lang}"]
         if self.session:
-            headers["Cookie"] = f"{SESSION_COOKIE}={self.session}"
+            cookies.append(f"{SESSION_COOKIE}={self.session}")
+        headers["Cookie"] = "; ".join(cookies)
         headers.update(extra or {})
         return headers
 
@@ -590,31 +734,27 @@ def lighthouse_png(width, height):
             + chunk(b"IEND", b""))
 
 
-def source_epub():
-    """Ein winziges EPUB als Quelle für die Literatur: ein erfundenes Dienstbuch, zwei Kapitel."""
-    chapters = [
-        ("Vom Anzünden", "Die Lampe wird eine halbe Stunde vor Sonnenuntergang angezündet und brennt bis zum vollen "
-                         "Tag. Der Wärter grüßt sie, ehe er die Treppe hinabsteigt; so ist es Brauch auf den Halligen."),
-        ("Wenn der Docht reißt", "Reißt der Docht in der Nacht, so tritt der Wärter mit der Handlaterne an das "
-                                 "seewärtige Fenster und schwenkt sie in gleichem Takt, bis der Schaden behoben ist. "
-                                 "Jede Stunde ohne Feuer wird im Logbuch vermerkt."),
-    ]
+def source_epub(sample):
+    """Ein winziges EPUB als Quelle für die Literatur: ein erfundenes Dienstbuch, zwei Kapitel (in der Sprache der
+    Bilder)."""
+    source = sample["source"]
+    chapters = source["chapters"]
     items = "".join(f'<item id="k{i}" href="k{i}.xhtml" media-type="application/xhtml+xml"/>' for i in (1, 2))
     refs = "".join(f'<itemref idref="k{i}"/>' for i in (1, 2))
     opf = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">'
         '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
-        '<dc:identifier id="id">urn:uuid:6f0f2a3e-51c7-4b0e-9d7a-0a5b3c1d2e4f</dc:identifier>'
-        "<dc:title>Dienstbuch für die Leuchtfeuerwärter der Halligen</dc:title>"
-        "<dc:creator>Feuerschiffamt Süderhaven</dc:creator><dc:language>de</dc:language>"
+        f'<dc:identifier id="id">{source["identifier"]}</dc:identifier>'
+        f"<dc:title>{html.escape(source['title'])}</dc:title>"
+        f"<dc:creator>{html.escape(source['creator'])}</dc:creator><dc:language>{source['language']}</dc:language>"
         '<meta property="dcterms:modified">1911-03-01T00:00:00Z</meta></metadata>'
         f'<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>{items}'
         f"</manifest><spine>{refs}</spine></package>"
     )
     nav = (
         '<?xml version="1.0" encoding="UTF-8"?>\n<html xmlns="http://www.w3.org/1999/xhtml" '
-        'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Inhalt</title></head><body>'
+        f'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>{html.escape(source["toc"])}</title></head><body>'
         '<nav epub:type="toc"><ol>'
         + "".join(f'<li><a href="k{i + 1}.xhtml">{html.escape(title)}</a></li>' for i, (title, _) in enumerate(chapters))
         + "</ol></nav></body></html>"
@@ -640,9 +780,119 @@ def source_epub():
     return packed.getvalue()
 
 
-# Throwaway work: is read in as Markdown (the report names the missing image) and deleted afterwards (archive).
-THROWAWAY_TITLE = "Notizen vom Festland"
-THROWAWAY_MD = """# Notizen vom Festland
+# ---------------------------------------------------------------------------------------------------------------
+# Invented sample data per language (contract Round 37 §4, Round 39b §2.2). German = the texts since Round 37,
+# unchanged; English = the same motifs in English (no German text in the English work). Section titles must match
+# the work file of the language; quotations of findings and words of index marks must occur in the section text.
+# ---------------------------------------------------------------------------------------------------------------
+
+def isbn13(first_twelve):
+    """Hängt die Prüfziffer an – eine erfundene Nummer aus dem Bereich 978-3-99999 (kein Verlag führt sie)."""
+    total = sum(int(digit) * (1 if index % 2 == 0 else 3) for index, digit in enumerate(first_twelve))
+    return first_twelve + str((10 - total % 10) % 10)
+
+
+SAMPLES = {
+    "de": {
+        "work_file": TOOLS / "beispielwerk.typ",
+        "mcp_client": "Schreibhilfe",
+        "revised": "Der erste Morgen",
+        "second_revision": """== Der erste Morgen
+
+Ich wachte auf, weil es still war. Kein Wind, kein Wasser an der Mauer – nur die Uhr über der Treppe.
+Hundertzwölf Stufen sind es bis zur Laterne. Ich habe sie an diesem Morgen zum ersten Mal gezählt, mich zweimal
+verzählt und beim dritten Mal laut gezählt, damit es jemand hört.
+
+#szene[Oben stand das Fenster offen. Auf dem Sims lag eine Feder, grau mit weißem Rand.]
+""",
+        "logbook": "Das Logbuch",
+        "logbook_figure": (
+            '\n#figure(image("bilder/leuchtturm.png", width: 55%), caption: [Der Turm von Mövenoog, vom Anleger aus '
+            "gesehen])\n"
+        ),
+        "proposed": "Besuch vom Festland",
+        "proposal": """== Besuch vom Festland
+
+Am Johannistag brachte das Versorgungsboot Mehl, Petroleum und einen Jungen. Er hieß Ole, sollte drei Wochen
+bleiben und fragte gleich am ersten Abend, ob das Licht auch für die Fische leuchte.
+
+Am zweiten Abend wollte er wissen, wer die Lampe anzündet, wenn ich krank bin. „Der Wärter von Süderoog“, sagte
+ich, „wenn er es rechtzeitig sieht.“ Ole fand, das sei keine gute Antwort. Er hatte recht.
+""",
+        "xref": "Was das Licht nicht zeigt",
+        "night": "Die Nacht ohne Lampe",
+        "farewell": "Abschied",
+        "lektor_proposal": """== Die Nacht ohne Lampe
+
+In der Nacht zum elften riss der Docht. Vier Stunden stand ich mit der Handlaterne am Fenster und schwenkte sie,
+wie es das Dienstbuch von 1911 beschreibt. Draußen fuhr niemand. Das wusste ich aber erst am Morgen.
+""",
+        "picture": {"file_name": "leuchtturm.png", "path": "bilder/leuchtturm.png",
+                    "caption": "Der Turm von Mövenoog, vom Anleger aus gesehen",
+                    "alt": "Rot-weiß gestreifter Leuchtturm vor Abendhimmel und Meer"},
+        "cover": {"file_name": "umschlag.png", "caption": "Umschlagbild", "alt": "Leuchtturm in der Abenddämmerung"},
+        "index_marks": (("logbook", "Dienstzimmer"), ("logbook", "Postkarte"), ("night", "Handlaterne"),
+                        ("night", "Docht")),
+        "xref_link": "\nWie es ausging, steht im #link(<k{key}>)[Abschied].\n",
+        "glossary": (
+            {"term": "Hallig", "short": "kleine Marschinsel ohne Deich", "variants": ["Halligen"],
+             "long": "Bei Sturmflut steht das Land unter Wasser; nur die Warften mit den Häusern ragen heraus."},
+            {"term": "Laterne", "short": "der verglaste Raum an der Spitze des Turms, in dem die Lampe brennt"},
+            {"term": "Priel", "short": "Wasserlauf im Watt, der auch bei Ebbe nicht trockenfällt"},
+        ),
+        "meta": {
+            "subtitle": "Aufzeichnungen einer Leuchtturmwärterin", "publisher": "Verlag Priel & Tonne",
+            "place": "Süderhaven", "year": "2026", "edition": "1. Auflage", "isbn": isbn13("978399999012"),
+            "printer": "Druckhaus am Deich, Süderhaven", "dedication": "Für alle, die abends ein Licht anzünden.",
+            "blurb": "Ein Jahr lang hütet Mara Tiedemann das Leuchtfeuer der Hallig Mövenoog. Sie zählt Stufen, führt "
+                     "das Logbuch und lernt, was ein Licht zeigt – und was nicht.",
+            "bio": "Mara Tiedemann gibt es nicht. Sie ist die erfundene Autorin dieses Beispielwerks.",
+        },
+        "ideas": {
+            "fire": {"title": "Leuchtfeuer", "words": ["Licht", "Dienst"],
+                     "note": "Was das Feuer braucht und was es von der Wärterin verlangt."},
+            "wick": {"title": "Docht und Petroleum", "words": ["Docht"], "note": "Drei Stärken; der Laden am Hafen."},
+            "lamp": {"title": "Handlaterne von 1911", "words": ["Dienstbuch"]},
+            "swing": {"title": "Takt beim Schwenken", "words": ["Takt"]},
+            "guest": {"title": "Ole", "words": ["Besuch", "Fragen"],
+                      "note": "Ein Kind stellt die Fragen, die die Wärterin sich nicht stellt."},
+            "fish": {"title": "Leuchtet das Licht für Fische?", "words": ["Frage"]},
+            "feather": {"title": "Die Feder auf dem Sims", "words": ["Feder", "Zeichen"],
+                        "quote": "Auf dem Sims lag eine Feder, grau mit weißem Rand."},
+            "surge": {"words": ["Sturmflut", "Warft"], "note": "Einmal das Land unter Wasser zeigen – im Herbst?"},
+            "letter": {"title": "Brief an den alten Wärter", "words": ["Brief"],
+                       "note": "Vielleicht als Schluss, nach dem Abschied."},
+            "link_note": "reißt der Docht, bleibt die Laterne",
+        },
+        "posts": {
+            "first": "Der Einstieg über die Stille trägt. Die Feder am Schluss ist stark – ich würde sie nicht erklären.",
+            "human": "Danke. Zählt sie die Stufen zu oft? Dreimal „gezählt“ in zwei Sätzen.",
+            "second": "Das dritte „gezählt“ ist das wichtige: laut, damit es jemand hört. Die ersten beiden ließen sich "
+                      "zusammenziehen.",
+            "proposal_note": "Wörtliche Rede statt Bericht; ein Schlusssatz.",
+            "rename_title": "Abschied von der Hallig",
+            "rename_note": "Der Ort gehört in den Titel des letzten Abschnitts.",
+            "thread_question": "Reihenfolge der Kapitel: Soll der Herbst vor dem Sommer stehen?",
+            "thread_answer": "Chronologisch bleibt es klarer. Ein Vorgriff auf den Sturm im ersten Kapitel würde reichen.",
+            "thread_follow_up": "Dann bleibt es beim Jahreslauf. Den Vorgriff probiere ich in „Ankunft“.",
+        },
+        "source": {
+            "file_name": "dienstbuch-1911.epub", "identifier": "urn:uuid:6f0f2a3e-51c7-4b0e-9d7a-0a5b3c1d2e4f",
+            "title": "Dienstbuch für die Leuchtfeuerwärter der Halligen", "creator": "Feuerschiffamt Süderhaven",
+            "language": "de", "toc": "Inhalt",
+            "chapters": (
+                ("Vom Anzünden", "Die Lampe wird eine halbe Stunde vor Sonnenuntergang angezündet und brennt bis zum "
+                                 "vollen Tag. Der Wärter grüßt sie, ehe er die Treppe hinabsteigt; so ist es Brauch auf "
+                                 "den Halligen."),
+                ("Wenn der Docht reißt", "Reißt der Docht in der Nacht, so tritt der Wärter mit der Handlaterne an das "
+                                         "seewärtige Fenster und schwenkt sie in gleichem Takt, bis der Schaden behoben "
+                                         "ist. Jede Stunde ohne Feuer wird im Logbuch vermerkt."),
+            ),
+        },
+        # Throwaway work: is read in as Markdown (the report names the missing image) and deleted afterwards (archive).
+        "throwaway": {
+            "title": "Notizen vom Festland", "file_name": "notizen-vom-festland.md",
+            "markdown": """# Notizen vom Festland
 
 Was ich im Winter in Süderhaven aufgeschrieben habe, bevor das Boot wieder fuhr.
 
@@ -655,59 +905,172 @@ Sie fährt nur bei Hochwasser und nur, wenn der Schiffer Lust hat. Beides trifft
 ## Der Laden am Hafen
 
 Mehl, Petroleum, Dochte in drei Stärken. Die Zeitung ist immer von vorgestern.
-"""
+""",
+        },
+        "export_stem": "ein-jahr-auf-moevenoog",
+        "findings": (
+            {"at": "key", "kind": "hint", "quote": "mich zweimal verzählt",
+             "body": "Dreimal „gezählt“ kurz nacheinander. Absicht? Wenn ja, das dritte Mal deutlicher absetzen."},
+            {"at": "key_night", "kind": "critical", "quote": "Dienstbuch von 1911",
+             "body": "Im Kapitel „Ankunft“ ist der Vorgänger dreißig Jahre im Dienst; ein Dienstbuch von 1911 passt "
+                     "dazu nur, wenn die Geschichte nach 1941 spielt. Bitte die Jahreszahlen abgleichen."},
+            {"at": "key_xref", "kind": "praise", "quote": "Wohin man fahren soll, muss jeder selbst wissen.",
+             "body": "Der stärkste Satz des Kapitels. So stehen lassen."},
+            {"at": "key_logbook", "kind": "hint",
+             "body": "Die Liste „Was ins Logbuch gehört“ wiederholt die vier Spalten von oben – eine von beiden kürzen."},
+            {"kind": "hint", "body": "Zum ganzen Buch: Der Winter fehlt. Das Jahr beginnt im Februar und endet im Herbst."},
+        ),
+        "lektor_proposal_note": "Zwei Sätze gestrafft.",
+        "lektor_post": "Vorschlag liegt am Abschnitt. Die Frage nach 1911 habe ich als Befund notiert.",
+    },
+    "en": {
+        "work_file": TOOLS / "beispielwerk.en.typ",
+        "mcp_client": "Scribe",
+        "revised": "The First Morning",
+        "second_revision": """== The First Morning
+
+I woke up because it was quiet. No wind, no water against the wall – only the clock above the stairs.
+There are a hundred and twelve steps up to the lantern. That morning I counted them for the first time, got the
+number wrong twice and the third time counted aloud, so that someone would hear it.
+
+#scene[Up there the window stood open. On the sill lay a feather, grey with a white edge.]
+""",
+        "logbook": "The Logbook",
+        "logbook_figure": (
+            '\n#figure(image("images/lighthouse.png", width: 55%), caption: [The tower of Gull Holm, seen from the '
+            "landing stage])\n"
+        ),
+        "proposed": "A Visitor from the Mainland",
+        "proposal": """== A Visitor from the Mainland
+
+On Midsummer Day the supply boat brought flour, paraffin and a boy. His name was Ole, he was to stay three weeks,
+and on the very first evening he asked whether the light shone for the fish as well.
+
+On the second evening he wanted to know who lights the lamp when I am ill. "The keeper on South Holm," I said, "if
+he sees it in time." Ole thought that was not a good answer. He was right.
+""",
+        "xref": "What the Light Does Not Show",
+        "night": "The Night Without the Lamp",
+        "farewell": "Farewell",
+        "lektor_proposal": """== The Night Without the Lamp
+
+In the night before the eleventh the wick broke. For four hours I stood at the window with the hand lantern and
+swung it, as the service book of 1911 describes. Nobody was out at sea. I only knew that in the morning.
+""",
+        "picture": {"file_name": "lighthouse.png", "path": "images/lighthouse.png",
+                    "caption": "The tower of Gull Holm, seen from the landing stage",
+                    "alt": "Red and white striped lighthouse against an evening sky and the sea"},
+        "cover": {"file_name": "cover.png", "caption": "Cover picture", "alt": "Lighthouse at dusk"},
+        "index_marks": (("logbook", "oilcloth"), ("logbook", "postcard"), ("night", "lantern"), ("night", "wick")),
+        "xref_link": "\nHow it ended is told in the #link(<k{key}>)[Farewell].\n",
+        "glossary": (
+            {"term": "Holm", "short": "small island in the shallows, without a dyke", "variants": ["Holms"],
+             "long": "In a storm surge the land lies under water; only the mounds with the houses stay above it."},
+            {"term": "Lantern", "short": "the glazed room at the top of the tower in which the lamp burns"},
+            {"term": "Creek", "short": "channel in the mudflats that does not run dry even at low tide"},
+        ),
+        "meta": {
+            "subtitle": "Records of a Lighthouse Keeper", "publisher": "Creek & Barrel Press",
+            "place": "Southhaven", "year": "2026", "edition": "First edition", "isbn": isbn13("978399999012"),
+            "printer": "Dykeside Printers, Southhaven", "dedication": "For everyone who lights a lamp in the evening.",
+            "blurb": "For one year Mara Tiedemann keeps the light of the island of Gull Holm. She counts steps, keeps "
+                     "the logbook and learns what a light shows – and what it does not.",
+            "bio": "Mara Tiedemann does not exist. She is the invented author of this sample work.",
+        },
+        "ideas": {
+            "fire": {"title": "Beacon", "words": ["light", "duty"],
+                     "note": "What the fire needs and what it asks of the keeper."},
+            "wick": {"title": "Wick and paraffin", "words": ["wick"], "note": "Three strengths; the shop at the harbour."},
+            "lamp": {"title": "Hand lantern of 1911", "words": ["service book"]},
+            "swing": {"title": "Rhythm of the swinging", "words": ["rhythm"]},
+            "guest": {"title": "Ole", "words": ["visit", "questions"],
+                      "note": "A child asks the questions the keeper does not ask herself."},
+            "fish": {"title": "Does the light shine for fish?", "words": ["question"]},
+            "feather": {"title": "The feather on the sill", "words": ["feather", "sign"],
+                        "quote": "On the sill lay a feather, grey with a white edge."},
+            "surge": {"words": ["storm surge", "mound"], "note": "Show the land under water once – in autumn?"},
+            "letter": {"title": "Letter to the old keeper", "words": ["letter"],
+                       "note": "Perhaps as the ending, after the farewell."},
+            "link_note": "if the wick breaks, the lantern remains",
+        },
+        "posts": {
+            "first": "Opening with the silence works. The feather at the end is strong – I would not explain it.",
+            "human": "Thanks. Does she count the steps too often? \"Counted\" three times in two sentences.",
+            "second": "The third \"counted\" is the important one: aloud, so that someone hears it. The first two could "
+                      "be merged.",
+            "proposal_note": "Direct speech instead of a report; a closing sentence.",
+            "rename_title": "Farewell to the Island",
+            "rename_note": "The place belongs in the title of the last section.",
+            "thread_question": "Order of the chapters: should autumn come before summer?",
+            "thread_answer": "Chronological stays clearer. A hint of the storm in the first chapter would be enough.",
+            "thread_follow_up": "Then it stays with the course of the year. I will try the hint in \"Arrival\".",
+        },
+        "source": {
+            "file_name": "service-book-1911.epub", "identifier": "urn:uuid:3c8e5b1a-7d24-4f6e-a1b9-2e0d4c6f8a13",
+            "title": "Service Book for the Keepers of the Island Lights", "creator": "Lightship Office Southhaven",
+            "language": "en", "toc": "Contents",
+            "chapters": (
+                ("On Lighting", "The lamp is lit half an hour before sunset and burns until full day. The keeper "
+                                "greets it before he goes down the stairs; such is the custom on the islands."),
+                ("When the Wick Breaks", "If the wick breaks in the night, the keeper steps to the seaward window with "
+                                         "the hand lantern and swings it in an even rhythm until the damage is "
+                                         "repaired. Every hour without fire is entered in the logbook."),
+            ),
+        },
+        "throwaway": {
+            "title": "Notes from the Mainland", "file_name": "notes-from-the-mainland.md",
+            "markdown": """# Notes from the Mainland
+
+What I wrote down in Southhaven in winter, before the boat sailed again.
+
+## The Ferry
+
+It only sails at high water and only when the skipper feels like it. The two rarely coincide.
+
+![The ferry at the landing stage](images/ferry.png)
+
+## The Shop at the Harbour
+
+Flour, paraffin, wicks in three strengths. The newspaper is always from the day before yesterday.
+""",
+        },
+        "export_stem": "a-year-on-gull-holm",
+        "findings": (
+            {"at": "key", "kind": "hint", "quote": "got the number wrong twice",
+             "body": "\"Counted\" three times in quick succession. On purpose? If so, set off the third time more "
+                     "clearly."},
+            {"at": "key_night", "kind": "critical", "quote": "service book of 1911",
+             "body": "In the chapter \"Arrival\" the predecessor has served for thirty years; a service book of 1911 "
+                     "only fits if the story is set after 1941. Please check the years."},
+            {"at": "key_xref", "kind": "praise", "quote": "Where you ought to go, everyone has to know for themselves.",
+             "body": "The strongest sentence of the chapter. Leave it as it is."},
+            {"at": "key_logbook", "kind": "hint",
+             "body": "The list \"What Goes in the Logbook\" repeats the four columns from above – shorten one of them."},
+            {"kind": "hint", "body": "On the whole book: winter is missing. The year begins in February and ends in "
+                                     "autumn."},
+        ),
+        "lektor_proposal_note": "Two sentences tightened.",
+        "lektor_post": "The proposal is at the section. I noted the question about 1911 as a finding.",
+    },
+}
 
 
 # ---------------------------------------------------------------------------------------------------------------
 # Extend the sample work – stage „offen“ (without accounts)
 # ---------------------------------------------------------------------------------------------------------------
 
-REVISED = "Der erste Morgen"
-SECOND_REVISION = """== Der erste Morgen
-
-Ich wachte auf, weil es still war. Kein Wind, kein Wasser an der Mauer – nur die Uhr über der Treppe.
-Hundertzwölf Stufen sind es bis zur Laterne. Ich habe sie an diesem Morgen zum ersten Mal gezählt, mich zweimal
-verzählt und beim dritten Mal laut gezählt, damit es jemand hört.
-
-#szene[Oben stand das Fenster offen. Auf dem Sims lag eine Feder, grau mit weißem Rand.]
-"""
-
-LOGBOOK = "Das Logbuch"
-LOGBOOK_FIGURE = (
-    '\n#figure(image("bilder/leuchtturm.png", width: 55%), caption: [Der Turm von Mövenoog, vom Anleger aus '
-    "gesehen])\n"
-)
-PROPOSED = "Besuch vom Festland"
-PROPOSAL = """== Besuch vom Festland
-
-Am Johannistag brachte das Versorgungsboot Mehl, Petroleum und einen Jungen. Er hieß Ole, sollte drei Wochen
-bleiben und fragte gleich am ersten Abend, ob das Licht auch für die Fische leuchte.
-
-Am zweiten Abend wollte er wissen, wer die Lampe anzündet, wenn ich krank bin. „Der Wärter von Süderoog“, sagte
-ich, „wenn er es rechtzeitig sieht.“ Ole fand, das sei keine gute Antwort. Er hatte recht.
-"""
-XREF = "Was das Licht nicht zeigt"
-NIGHT = "Die Nacht ohne Lampe"
-FAREWELL = "Abschied"
-LEKTOR_PROPOSAL = """== Die Nacht ohne Lampe
-
-In der Nacht zum elften riss der Docht. Vier Stunden stand ich mit der Handlaterne am Fenster und schwenkte sie,
-wie es das Dienstbuch von 1911 beschreibt. Draußen fuhr niemand. Das wusste ich aber erst am Morgen.
-"""
-
-
-def isbn13(first_twelve):
-    """Hängt die Prüfziffer an – eine erfundene Nummer aus dem Bereich 978-3-99999 (kein Verlag führt sie)."""
-    total = sum(int(digit) * (1 if index % 2 == 0 else 3) for index, digit in enumerate(first_twelve))
-    return first_twelve + str((10 - total % 10) % 10)
-
-
-def build_open(base, work, data, sword):
+def build_open(base, work, data, sword, lang=DEFAULT_LANG):
     """Baut das Beispielwerk aus, solange es keine Konten gibt. Liefert (Platzhalter für die Adressen, gespeicherte
     Antworten von Formularen)."""
-    me = Client(base)
+    sample_data = SAMPLES[lang]
+    me = Client(base, lang=lang)
     values = {"work": work, "sample": 1}
     answers = {}
+
+    # Work language of the sample work = language of the pictures (Round 39b): book output and generated words follow
+    # it, the interface follows the cookie.
+    me.rpc("work.language_set", {"work": work, "language": lang})
+    print(f"Werksprache des Beispielwerks: {me.rpc('work.language', {'work': work})['language']}")
 
     # Bible modules: never those of the user (~/.sword, /usr/share/sword) – only the given or an empty directory.
     if sword:
@@ -729,11 +1092,14 @@ def build_open(base, work, data, sword):
     nodes = me.rpc("work.get", {"work": work})["work"]["nodes"]
     index_of = {node["title"]: index for index, node in enumerate(nodes)}
     key_of = {node["title"]: node["key"] for node in nodes}
-    for title in (REVISED, LOGBOOK, PROPOSED, XREF, NIGHT, FAREWELL):
+    titles = {role: sample_data[role] for role in ("revised", "logbook", "proposed", "xref", "night", "farewell")}
+    for title in titles.values():
         if title not in key_of:
             fail(f"Abschnitt „{title}“ fehlt im importierten Werk.")
-    values.update(key=key_of[REVISED], key_logbook=key_of[LOGBOOK], key_proposal=key_of[PROPOSED],
-                  key_xref=key_of[XREF], key_night=key_of[NIGHT], key_farewell=key_of[FAREWELL])
+    revised, logbook, proposed = titles["revised"], titles["logbook"], titles["proposed"]
+    xref, night, farewell = titles["xref"], titles["night"], titles["farewell"]
+    values.update(key=key_of[revised], key_logbook=key_of[logbook], key_proposal=key_of[proposed],
+                  key_xref=key_of[xref], key_night=key_of[night], key_farewell=key_of[farewell])
 
     def current_text(title):
         node = me.rpc("node.get", {"work": work, "node": index_of[title]})
@@ -743,133 +1109,116 @@ def build_open(base, work, data, sword):
         return current["body"], current["number"]
 
     # Second revision (like the human in the user interface).
-    saved = me.rpc("revision.save", {"work": work, "node": index_of[REVISED], "body": SECOND_REVISION, "mode": "new"})
-    print(f"Abschnitt „{REVISED}“ (key {values['key']}) hat jetzt Fassung {saved.get('rev')}.")
+    saved = me.rpc("revision.save", {"work": work, "node": index_of[revised], "body": sample_data["second_revision"],
+                                     "mode": "new"})
+    print(f"Abschnitt „{revised}“ (key {values['key']}) hat jetzt Fassung {saved.get('rev')}.")
 
     # Images: a work image and a cover image, both drawn in the script.
+    shown = sample_data["picture"]
     picture = base64.b64encode(lighthouse_png(1200, 800)).decode()
     me.rpc("asset.add", {
-        "work": work, "file_name": "leuchtturm.png", "content": picture, "encoding": "base64",
-        "path": "bilder/leuchtturm.png", "caption": "Der Turm von Mövenoog, vom Anleger aus gesehen",
-        "alt": "Rot-weiß gestreifter Leuchtturm vor Abendhimmel und Meer",
+        "work": work, "file_name": shown["file_name"], "content": picture, "encoding": "base64",
+        "path": shown["path"], "caption": shown["caption"], "alt": shown["alt"],
     })
+    wrapper = sample_data["cover"]
     cover = base64.b64encode(lighthouse_png(1748, 2480)).decode()
     me.rpc("asset.add", {
-        "work": work, "file_name": "umschlag.png", "content": cover, "encoding": "base64",
-        "caption": "Umschlagbild", "alt": "Leuchtturm in der Abenddämmerung",
+        "work": work, "file_name": wrapper["file_name"], "content": cover, "encoding": "base64",
+        "caption": wrapper["caption"], "alt": wrapper["alt"],
     })
-    me.rpc("work.set_cover", {"work": work, "name": "umschlag.png"})
-    print("Bilder leuchtturm.png und umschlag.png angelegt, Umschlag gesetzt.")
+    me.rpc("work.set_cover", {"work": work, "name": wrapper["file_name"]})
+    print(f"Bilder {shown['file_name']} und {wrapper['file_name']} angelegt, Umschlag gesetzt.")
 
     # Image in the text, then index marks (every mark is a new revision of the human).
-    body, _ = current_text(LOGBOOK)
-    me.rpc("revision.save", {"work": work, "node": index_of[LOGBOOK], "body": body.rstrip("\n") + "\n" + LOGBOOK_FIGURE,
-                             "mode": "new"})
-    for title, word in ((LOGBOOK, "Dienstzimmer"), (LOGBOOK, "Postkarte"), (NIGHT, "Handlaterne"), (NIGHT, "Docht")):
+    body, _ = current_text(logbook)
+    me.rpc("revision.save", {"work": work, "node": index_of[logbook],
+                             "body": body.rstrip("\n") + "\n" + sample_data["logbook_figure"], "mode": "new"})
+    for role, word in sample_data["index_marks"]:
+        title = titles[role]
         _, rev = current_text(title)
         me.rpc("index.mark", {"work": work, "key": key_of[title], "rev": rev, "word": word})
-    print("Bild im Abschnitt „Das Logbuch“, vier Registermarken gesetzt.")
+    print(f"Bild im Abschnitt „{logbook}“, {len(sample_data['index_marks'])} Registermarken gesetzt.")
 
-    # Cross-reference to the farewell (fixed jump mark <kSchlüssel>).
-    body, _ = current_text(XREF)
-    link = f"\nWie es ausging, steht im #link(<k{key_of[FAREWELL]}>)[Abschied].\n"
-    linked = me.rpc("revision.save", {"work": work, "node": index_of[XREF],
+    # Cross-reference to the farewell (fixed jump mark <k + key>).
+    body, _ = current_text(xref)
+    link = sample_data["xref_link"].replace("{key}", str(key_of[farewell]))
+    linked = me.rpc("revision.save", {"work": work, "node": index_of[xref],
                                       "body": body.rstrip("\n") + "\n" + link, "mode": "new"})
     values["rev_xref"] = linked["rev"]
 
     # Glossary.
-    for term in (
-        {"term": "Hallig", "short": "kleine Marschinsel ohne Deich", "variants": ["Halligen"],
-         "long": "Bei Sturmflut steht das Land unter Wasser; nur die Warften mit den Häusern ragen heraus."},
-        {"term": "Laterne", "short": "der verglaste Raum an der Spitze des Turms, in dem die Lampe brennt"},
-        {"term": "Priel", "short": "Wasserlauf im Watt, der auch bei Ebbe nicht trockenfällt"},
-    ):
+    for term in sample_data["glossary"]:
         me.rpc("glossary.add", {"work": work, **term})
 
     # Book details (invented), typeset settings, target time for the time guard.
-    me.rpc("work.meta.set", {
-        "work": work, "subtitle": "Aufzeichnungen einer Leuchtturmwärterin", "publisher": "Verlag Priel & Tonne",
-        "place": "Süderhaven", "year": "2026", "edition": "1. Auflage", "isbn": isbn13("978399999012"),
-        "printer": "Druckhaus am Deich, Süderhaven", "dedication": "Für alle, die abends ein Licht anzünden.",
-        "blurb": "Ein Jahr lang hütet Mara Tiedemann das Leuchtfeuer der Hallig Mövenoog. Sie zählt Stufen, führt "
-                 "das Logbuch und lernt, was ein Licht zeigt – und was nicht.",
-        "bio": "Mara Tiedemann gibt es nicht. Sie ist die erfundene Autorin dieses Beispielwerks.",
-    })
+    me.rpc("work.meta.set", {"work": work, **sample_data["meta"]})
     me.rpc("work.typeset_set", {"work": work, "settings": {
         "chapter_start": "right_page", "page_format": {"kind": "a5"}, "font_size_pt": 10.5,
         "page_numbers": {"position": "bottom_outside", "start": "first_chapter"}, "running_head": "chapter",
     }})
     me.rpc("work.timing_set", {"work": work, "words_per_minute": 130, "target_minutes": 5})
-    print("Glossar (3 Begriffe), Buchangaben, Satz-Einstellungen und Zielzeit gesetzt.")
+    print(f"Glossar ({len(sample_data['glossary'])} Begriffe), Buchangaben, Satz-Einstellungen und Zielzeit gesetzt.")
 
     # Ideas: main topic with sub-nodes, an idea at the section, two in the cloud, two links.
+    ideas = sample_data["ideas"]
+
     def idea(**fields):
         return me.rpc("idea.create", {"work": work, **fields})["idea"]["id"]
 
-    fire = idea(title="Leuchtfeuer", words=["Licht", "Dienst"], cloud=False,
-                note="Was das Feuer braucht und was es von der Wärterin verlangt.")
-    wick = idea(title="Docht und Petroleum", words=["Docht"], parent=fire, note="Drei Stärken; der Laden am Hafen.")
-    lamp = idea(title="Handlaterne von 1911", words=["Dienstbuch"], parent=fire,
-                source="Dienstbuch für die Leuchtfeuerwärter der Halligen")
-    idea(title="Takt beim Schwenken", words=["Takt"], parent=lamp)
-    guest = idea(title="Ole", words=["Besuch", "Fragen"], cloud=False,
-                 note="Ein Kind stellt die Fragen, die die Wärterin sich nicht stellt.")
-    idea(title="Leuchtet das Licht für Fische?", words=["Frage"], parent=guest, key=key_of[PROPOSED])
-    at_section = idea(title="Die Feder auf dem Sims", words=["Feder", "Zeichen"], key=key_of[REVISED],
-                      quote="Auf dem Sims lag eine Feder, grau mit weißem Rand.")
-    idea(words=["Sturmflut", "Warft"], note="Einmal das Land unter Wasser zeigen – im Herbst?")
-    idea(title="Brief an den alten Wärter", words=["Brief"], note="Vielleicht als Schluss, nach dem Abschied.")
-    me.rpc("idea.link", {"from": wick, "to": lamp, "kind": "leads_to", "note": "reißt der Docht, bleibt die Laterne"})
+    fire = idea(**ideas["fire"], cloud=False)
+    wick = idea(**ideas["wick"], parent=fire)
+    lamp = idea(**ideas["lamp"], parent=fire, source=sample_data["source"]["title"])
+    idea(**ideas["swing"], parent=lamp)
+    guest = idea(**ideas["guest"], cloud=False)
+    idea(**ideas["fish"], parent=guest, key=key_of[proposed])
+    at_section = idea(**ideas["feather"], key=key_of[revised])
+    idea(**ideas["surge"])
+    idea(**ideas["letter"])
+    me.rpc("idea.link", {"from": wick, "to": lamp, "kind": "leads_to", "note": ideas["link_note"]})
     me.rpc("idea.link", {"from": guest, "to": fire, "kind": "contradicts"})
     values.update(idea=at_section, branch=fire)
     print("Einfälle angelegt (zwei Hauptthemen mit Unterknoten, einer am Abschnitt, zwei in der Wolke).")
 
     # Assistants without a model: through the MCP access of the own server, under the name of the role „Lektor“.
-    assistant = Mcp(base, MCP_CLIENT)
+    posts = sample_data["posts"]
+    assistant = Mcp(base, sample_data["mcp_client"])
     first_post = assistant.call("add_post", {
-        "work": work, "key": key_of[REVISED], "persona": "lektor",
-        "body": "Der Einstieg über die Stille trägt. Die Feder am Schluss ist stark – ich würde sie nicht erklären.",
+        "work": work, "key": key_of[revised], "persona": "lektor", "body": posts["first"],
     })
     values["post"] = first_post["id"]
-    me.rpc("post.add", {"work": work, "key": key_of[REVISED],
-                        "body": "Danke. Zählt sie die Stufen zu oft? Dreimal „gezählt“ in zwei Sätzen."})
+    me.rpc("post.add", {"work": work, "key": key_of[revised], "body": posts["human"]})
     assistant.call("add_post", {
-        "work": work, "key": key_of[REVISED], "persona": "lektor",
-        "body": "Das dritte „gezählt“ ist das wichtige: laut, damit es jemand hört. Die ersten beiden ließen sich "
-                "zusammenziehen.",
+        "work": work, "key": key_of[revised], "persona": "lektor", "body": posts["second"],
     })
-    proposed = assistant.call("propose_revision", {
-        "work": work, "key": key_of[PROPOSED], "body": PROPOSAL, "persona": "lektor",
-        "note": "Wörtliche Rede statt Bericht; ein Schlusssatz.",
+    proposed_revision = assistant.call("propose_revision", {
+        "work": work, "key": key_of[proposed], "body": sample_data["proposal"], "persona": "lektor",
+        "note": posts["proposal_note"],
     })
-    values["rev_proposal"] = proposed["rev"]
+    values["rev_proposal"] = proposed_revision["rev"]
     asked = assistant.call("outline_rename", {
-        "work": work, "key": key_of[FAREWELL], "title": "Abschied von der Hallig",
-        "note": "Der Ort gehört in den Titel des letzten Abschnitts.",
+        "work": work, "key": key_of[farewell], "title": posts["rename_title"], "note": posts["rename_note"],
     })
     values["request"] = asked["request"]["id"]
-    thread = me.rpc("thread.post", {"work": work, "message": "Reihenfolge der Kapitel: Soll der Herbst vor dem "
-                                                              "Sommer stehen?"})
+    thread = me.rpc("thread.post", {"work": work, "message": posts["thread_question"]})
     if thread.get("answers") or thread.get("errors"):
         fail("thread.post hat ein Modell angesprochen; das darf beim Aufbau nicht geschehen.")
     values["thread"] = thread["thread"]
-    assistant.call("chat", {"work": work, "thread": thread["thread"],
-                            "message": "Chronologisch bleibt es klarer. Ein Vorgriff auf den Sturm im ersten "
-                                       "Kapitel würde reichen."})
-    me.rpc("thread.post", {"work": work, "thread": thread["thread"],
-                           "message": "Dann bleibt es beim Jahreslauf. Den Vorgriff probiere ich in „Ankunft“."})
+    assistant.call("chat", {"work": work, "thread": thread["thread"], "message": posts["thread_answer"]})
+    me.rpc("thread.post", {"work": work, "thread": thread["thread"], "message": posts["thread_follow_up"]})
     print("Beiträge, Vorschlag und Gliederungsantrag eines Assistenten (über MCP, ohne Modell), ein Faden.")
 
     # Source for the literature: a small invented EPUB, read locally, only into the library.
     draft = me.rpc("source_import.preview", {
-        "file_name": "dienstbuch-1911.epub", "content": base64.b64encode(source_epub()).decode(),
+        "file_name": sample_data["source"]["file_name"], "content": base64.b64encode(source_epub(sample_data)).decode(),
     })
     adopted = me.rpc("source_import.apply", {"draft": draft["draft"], "target": "library"})
     values["title"] = adopted["library_title"]
 
     # Read in the throwaway work as Markdown: the answer is the report (an image is missing). It is deleted later.
-    status, headers, content = me.upload("/werke/import", {"title": THROWAWAY_TITLE}, "file", "notizen-vom-festland.md",
-                                         THROWAWAY_MD.encode(), "text/markdown")
+    throwaway_data = sample_data["throwaway"]
+    status, headers, content = me.upload("/werke/import", {"title": throwaway_data["title"]}, "file",
+                                         throwaway_data["file_name"], throwaway_data["markdown"].encode(),
+                                         "text/markdown")
     if status == 200:
         answers["einlesen-bericht"] = content
     else:
@@ -895,14 +1244,15 @@ def build_open(base, work, data, sword):
             fail(f"Vorschau {name}: {path} antwortet mit {status}: {page[:300].decode('utf-8', 'replace')}")
         answers[name] = page
 
+    stem = sample_data["export_stem"]
     docx = export(f"/werke/{work}/word.docx", "Word-Export")
-    preview("/werke/import/word/vorschau", "ein-jahr-auf-moevenoog.docx", docx,
+    preview("/werke/import/word/vorschau", f"{stem}.docx", docx,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "einlesen-word-vorschau")
     exchange = export(f"/werke/{work}/austausch.baruch", "Austauschdatei")
-    preview("/austausch/vorschau", "ein-jahr-auf-moevenoog.baruch", exchange, "application/octet-stream",
+    preview("/austausch/vorschau", f"{stem}.baruch", exchange, "application/octet-stream",
             "austausch-vorschau", file_field="datei")
     pdf = export(f"/werke/{work}/pdf", "Buch als PDF")
-    preview("/werke/import/quelle/vorschau", "ein-jahr-auf-moevenoog.pdf", pdf, "application/pdf",
+    preview("/werke/import/quelle/vorschau", f"{stem}.pdf", pdf, "application/pdf",
             "einlesen-pdf-vorschau", {"way": "local"})
     print("Vorschauen des Einlesens (Word, Austauschdatei, PDF) aus Ausgaben des eigenen Servers gespeichert.")
 
@@ -924,13 +1274,14 @@ def session_from(headers):
     return None
 
 
-def build_accounts(base, values):
+def build_accounts(base, values, lang=DEFAULT_LANG):
     """Legt die Konten an (danach verlangt jede Seite eine Anmeldung) und lässt den Lektor Befunde, einen Vorschlag
     und einen Beitrag schreiben. Liefert die Sitzungen {"autorin": …, "lektor": …}; sie werden nie ausgegeben.
     Die Passwörter entstehen je Lauf zufällig und verlassen das Skript nicht."""
+    sample_data = SAMPLES[lang]
     work = values["work"]
     passwords = {"autorin": secrets.token_urlsafe(18), "lektor": secrets.token_urlsafe(18)}
-    open_door = Client(base)
+    open_door = Client(base, lang=lang)
     status, headers, _ = open_door.form("/einrichten", {
         "name": AUTHOR["name"], "display": AUTHOR["display"],
         "password": passwords["autorin"], "password2": passwords["autorin"],
@@ -938,7 +1289,7 @@ def build_accounts(base, values):
     author_session = session_from(headers)
     if status != 303 or not author_session:
         fail(f"Konten einrichten: Status {status}, keine Sitzung.")
-    author = Client(base, author_session)
+    author = Client(base, author_session, lang)
     status, headers, _ = author.form("/einstellungen/konten/act", {
         "action": "create", "name": LEKTOR["name"], "display": LEKTOR["display"],
         "password": passwords["lektor"], "password2": passwords["lektor"],
@@ -953,27 +1304,19 @@ def build_accounts(base, values):
     lektor_session = session_from(headers)
     if status != 303 or not lektor_session:
         fail(f"Als Lektor anmelden: Status {status}, keine Sitzung.")
-    lektor = Client(base, lektor_session)
-    for finding in (
-        {"key": values["key"], "kind": "hint", "quote": "mich zweimal verzählt",
-         "body": "Dreimal „gezählt“ kurz nacheinander. Absicht? Wenn ja, das dritte Mal deutlicher absetzen."},
-        {"key": values["key_night"], "kind": "critical", "quote": "Dienstbuch von 1911",
-         "body": "Im Kapitel „Ankunft“ ist der Vorgänger dreißig Jahre im Dienst; ein Dienstbuch von 1911 passt "
-                 "dazu nur, wenn die Geschichte nach 1941 spielt. Bitte die Jahreszahlen abgleichen."},
-        {"key": values["key_xref"], "kind": "praise", "quote": "Wohin man fahren soll, muss jeder selbst wissen.",
-         "body": "Der stärkste Satz des Kapitels. So stehen lassen."},
-        {"key": values["key_logbook"], "kind": "hint",
-         "body": "Die Liste „Was ins Logbuch gehört“ wiederholt die vier Spalten von oben – eine von beiden kürzen."},
-        {"kind": "hint", "body": "Zum ganzen Buch: Der Winter fehlt. Das Jahr beginnt im Februar und endet im Herbst."},
-    ):
-        lektor.rpc("finding.add", {"work": work, **finding})
-    proposed = lektor.rpc("revision.propose", {"work": work, "key": values["key_night"], "body": LEKTOR_PROPOSAL,
-                                               "note": "Zwei Sätze gestrafft."})
+    lektor = Client(base, lektor_session, lang)
+    for finding in sample_data["findings"]:
+        fields = {name: value for name, value in finding.items() if name != "at"}
+        if "at" in finding:
+            fields["key"] = values[finding["at"]]
+        lektor.rpc("finding.add", {"work": work, **fields})
+    proposed = lektor.rpc("revision.propose", {"work": work, "key": values["key_night"],
+                                               "body": sample_data["lektor_proposal"],
+                                               "note": sample_data["lektor_proposal_note"]})
     values["rev_lektor"] = proposed["rev"]
-    lektor.rpc("post.add", {"work": work, "key": values["key_night"],
-                            "body": "Vorschlag liegt am Abschnitt. Die Frage nach 1911 habe ich als Befund notiert."})
+    lektor.rpc("post.add", {"work": work, "key": values["key_night"], "body": sample_data["lektor_post"]})
     print(f"Konten angelegt ({AUTHOR['display']} als Autorin, {LEKTOR['display']} als Lektor), Werk freigegeben, "
-          "fünf Befunde, ein Vorschlag und ein Beitrag des Lektors.")
+          f"{len(sample_data['findings'])} Befunde, ein Vorschlag und ein Beitrag des Lektors.")
     return {"autorin": author_session, "lektor": lektor_session}
 
 
@@ -998,9 +1341,11 @@ class Relay(http.server.ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, upstream):
+    def __init__(self, upstream, lang=DEFAULT_LANG):
         super().__init__(("127.0.0.1", 0), RelayHandler)
         self.upstream = upstream
+        # Language of the pictures: cookie baruch_lang in every recipe, Accept-Language on every request upstream.
+        self.lang = lang
         self.base = f"http://127.0.0.1:{self.server_address[1]}"
         self.recipes = {}
         self.current = None
@@ -1013,6 +1358,7 @@ class Relay(http.server.ThreadingHTTPServer):
     def recipe_for(self, shot, picture, theme, values):
         cookies = dict(DEFAULT_COOKIES)
         cookies["baruch_work"] = str(values["work"])
+        cookies[LANG_COOKIE] = self.lang
         recipe = {"cookies": cookies, "open": [], "click": [], "session": None, "measure": None}
         for kind, value in picture["schritt"]:
             if kind == "cookie":
@@ -1108,6 +1454,7 @@ class RelayHandler(http.server.BaseHTTPRequestHandler):
                 continue
             headers[name] = value
         headers["Host"] = target.netloc
+        headers["Accept-Language"] = relay.lang
         # Host, Origin and Referer carry the address of the server: otherwise guard::same_origin refuses with 403.
         if self.headers.get("Origin"):
             headers["Origin"] = relay.upstream
@@ -1291,6 +1638,16 @@ def check(relay, pictures, values):
                 problems.append("die Seite enthält ein Sitzungs-Token")
             if "127.0.0.1:1234" in text or "localhost:1234" in text:
                 problems.append("die Seite nennt die Vorgabe-Adresse eines Modell-Dienstes (127.0.0.1:1234)")
+            # The language of the interface must be the language of the pictures (the cookie arrived).
+            spoken = re.search(r"<html\b[^>]*\blang=\"([^\"]*)\"", text)
+            if spoken and spoken.group(1) != relay.lang:
+                problems.append(f"Sprache der Oberfläche ist „{spoken.group(1)}“ statt „{relay.lang}“ "
+                                "(<html lang>; Cookie baruch_lang kam nicht an)")
+            # Neither the home folder nor the login name of the user may stand in a picture.
+            private = private_parts(*[part for part in re.findall(r"/[^\s\"'<>]+", text) if len(part) > 3])
+            if private:
+                problems.append("die Seite nennt den Heimatordner oder den Benutzer: "
+                                + ", ".join(sorted(set(private))[:3]))
             marks = "; ".join([n for n in notes if not n.startswith(("OHNE", "FEHLT"))] + trail)
             print(f"  {status}  {len(content):>8} Bytes  {file:<46} {fill(picture['adresse'], values)}"
                   + (f"\n       {'':>8}        {marks}" if marks else ""))
@@ -1387,6 +1744,8 @@ def shoot(relay, pictures, values, target, temp, options):
                               'user_pref("ui.systemUsesDarkTheme", 0);']
                 if "ohne-js" in picture["braucht"]:
                     prefs.append('user_pref("javascript.enabled", false);')
+                # Accept-Language of the browser = language of the pictures (the mediator sets it upstream as well).
+                prefs.append(f'user_pref("intl.accept_languages", "{relay.lang}");')
                 (Path(profile) / "user.js").write_text("\n".join(prefs) + "\n", encoding="utf-8")
                 subprocess.run(
                     [firefox, "--headless", "--no-remote", "--profile", profile,
@@ -1416,8 +1775,13 @@ def shoot(relay, pictures, values, target, temp, options):
                 print(f"       ACHTUNG: {note}")
 
 
-def report_size(target):
-    total = sum(path.stat().st_size for path in target.rglob("*") if path.is_file()) if target.is_dir() else 0
+def report_size(target, lang=None):
+    """Size of the pictures of a language (its folder without the folders of the other languages) or, for a folder
+    given with --ziel, of the whole folder."""
+    if lang:
+        total = sum(path.stat().st_size for path in language_files(lang))
+    else:
+        total = sum(path.stat().st_size for path in target.rglob("*") if path.is_file()) if target.is_dir() else 0
     print(f"Größe von {target}: {total / 1024 / 1024:.2f} MB von höchstens {SIZE_LIMIT // 1024 // 1024} MB"
           + (" – ÜBERSCHRITTEN" if total > SIZE_LIMIT else "."))
 
@@ -1443,14 +1807,21 @@ def main():
     parser.add_argument("--nur", help="nur diese Bilder: NAME[,NAME] (Namen aus --liste)")
     parser.add_argument("--sword", help="Ordner mit Bibelmodulen (mods.d, modules) für Bilder mit braucht sword")
     parser.add_argument("--server", help="Pfad zu baruch-server (Vorgabe: target/release, dann target/debug)")
-    parser.add_argument("--ziel", default=str(TARGET), help="Ordner für die Bilder (Vorgabe: site/static/bilder)")
+    parser.add_argument("--lang", choices=LANGS, default=DEFAULT_LANG,
+                        help="Sprache der Bilder: Oberfläche, Werksprache und erfundene Daten; Ziel de site/static/bilder, "
+                             "en site/static/bilder/en (Vorgabe de)")
+    parser.add_argument("--ziel", help="Ordner für die Bilder (Vorgabe: Bildordner der Sprache, site/static/bilder "
+                                       "bzw. site/static/bilder/<lang>)")
     parser.add_argument("--temp", help="Ordner auf einer Platte für Wegwerf-Datenordner und Firefox-Profile "
                                        "(Vorgabe: $TMPDIR – oft Arbeitsspeicher)")
     parser.add_argument("--breite", type=int, default=1400, help="größte Breite der Bilder in Pixeln (Vorgabe 1400)")
     parser.add_argument("--ohne-palette", action="store_true", help="Bilder nicht auf 256 Farben verringern")
     args = parser.parse_args()
+    lang = args.lang
+    target = Path(args.ziel) if args.ziel else target_dir(lang)
+    sample_data = SAMPLES[lang]
 
-    pictures = load_pictures()
+    pictures = load_pictures(lang)
     if args.nur:
         wanted = [name.strip() for name in args.nur.split(",") if name.strip()]
         known = {p["name"] for p in pictures}
@@ -1460,12 +1831,14 @@ def main():
         pictures = [p for p in pictures if p["name"] in wanted]
 
     if args.liste:
-        print(f"{len(pictures)} Bilder, {sum(len(variants(p)) for p in pictures)} Aufnahmen. Platzhalter: {{work}} = "
-              "Nummer des Beispielwerks, {key} = Abschnitt „" + REVISED + "“, weitere siehe site/tools/README.md.")
+        print(f"Sprache {lang}: {len(pictures)} Bilder, {sum(len(variants(p)) for p in pictures)} Aufnahmen nach "
+              f"{target.relative_to(REPO) if target.is_relative_to(REPO) else target}, Beispielwerk "
+              f"{sample_data['work_file'].name}. Platzhalter: {{work}} = Nummer des Beispielwerks, {{key}} = Abschnitt "
+              f"„{sample_data['revised']}“, weitere siehe site/tools/README.md.")
         show_list(pictures)
         return
     if args.abgleich:
-        reconcile(load_pictures())
+        reconcile(load_pictures(lang), lang)
         return
 
     skipped = [p for p in pictures if "sword" in p["braucht"] and not args.sword]
@@ -1492,10 +1865,11 @@ def main():
     failures = 0
     try:
         print(f"Server: {server}\nWegwerf-Datenordner: {data}")
-        work = import_work(server, data)
+        print(f"Sprache der Bilder: {lang} (Cookie {LANG_COOKIE}={lang}, Accept-Language {lang}), Ziel {target}")
+        work = import_work(server, data, sample_data["work_file"])
         point_connections_nowhere(data)
         process, base = start_server(server, data)
-        relay = Relay(base)
+        relay = Relay(base, lang)
         print(f"Vermittler: {relay.base} → {base}")
 
         def run(stage, title):
@@ -1511,16 +1885,16 @@ def main():
             elif args.pruefen:
                 failures += check(relay, listed, values)
             else:
-                shoot(relay, listed, values, Path(args.ziel), temp, args)
+                shoot(relay, listed, values, target, temp, args)
 
-        values, answers = build_open(base, work, data, args.sword)
+        values, answers = build_open(base, work, data, args.sword, lang)
         relay.answers.update(answers)
         print("Platzhalter: " + ", ".join(f"{{{name}}}={value}" for name, value in sorted(values.items())))
         run("offen", "ohne Konten")
         if args.pruefen and not args.nur:
             failures += probe_relay(relay)
         if stages["konten"] or args.halten:
-            relay.sessions.update(build_accounts(base, values))
+            relay.sessions.update(build_accounts(base, values, lang))
             run("konten", "mit Konten, jede Seite verlangt eine Anmeldung")
         if args.pruefen:
             total = sum(len(variants(p)) for p in pictures)
@@ -1530,7 +1904,7 @@ def main():
                 print(f"\nAlle {total} Aufnahmen ({len(pictures)} Bilder) antworten mit 200 und Inhalt; "
                       "jeder Schritt hat gewirkt.")
         if args.fotos:
-            report_size(Path(args.ziel))
+            report_size(target, lang if not args.ziel else None)
     finally:
         if relay is not None:
             relay.shutdown()

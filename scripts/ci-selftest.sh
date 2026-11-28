@@ -318,7 +318,7 @@ disableKinds = ["taxonomy", "term", "RSS", "sitemap", "section", "page", "404"]
 [params]
   version = "$2"
 EOF
-        printf '<!doctype html><title>Probe</title><p>Version {{ site.Params.version }}</p>\n' > "$site/layouts/index.html"
+        printf '<!doctype html><html lang="de"><title>Probe</title><p>Version {{ site.Params.version }}</p>\n' > "$site/layouts/index.html"
         printf '%s' "$3" > "$site/static/CNAME"
     }
     make_site seite-gut "$version" "baruch.bernau.family"
@@ -353,7 +353,7 @@ EOF
         "ci-site.sh verlässt sich auf die Linkprüfung; der Selbsttest zeigt an einem erfundenen Baum, dass sie tote Links, Anker und fremde Adressen wirklich findet." \
         python3 "$scripts/site-check.py" --selbsttest
     make_site seite-tot "$version" "baruch.bernau.family"
-    printf '<!doctype html><title>Probe</title><p>Version {{ site.Params.version }}</p><a href="/gibt-es-nicht/">tot</a>\n' > "$tmp/seite-tot/layouts/index.html"
+    printf '<!doctype html><html lang="de"><title>Probe</title><p>Version {{ site.Params.version }}</p><a href="/gibt-es-nicht/">tot</a>\n' > "$tmp/seite-tot/layouts/index.html"
     check_exit 1 "ci-site.sh bricht bei einem toten internen Link ab" \
         "Gegenprobe zum Normalfall oben: Ruft ci-site.sh die Linkprüfung nicht mehr auf, bliebe das hier unbemerkt." \
         env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-tot"
@@ -362,10 +362,73 @@ EOF
         sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-tot' 2>&1 | grep -q '^index.html: toter Verweis <a href>: /gibt-es-nicht/'"
     mkdir -p "$tmp/seite-tot/content/hilfe"
     printf -- '---\ntitle: "Hilfe"\n---\nErfundene Probe.\n' > "$tmp/seite-tot/content/hilfe/_index.md"
-    printf '<!doctype html><title>Probe</title><p>Version {{ site.Params.version }}</p>\n' > "$tmp/seite-tot/layouts/index.html"
+    printf '<!doctype html><html lang="de"><title>Probe</title><p>Version {{ site.Params.version }}</p>\n' > "$tmp/seite-tot/layouts/index.html"
     check "mit einem Abschnitt content/hilfe verlangt ci-site.sh die Weiterleitung von /bedienung/" \
         "Alte Links auf /bedienung/ sollen in der Hilfe ankommen; die Probe hat den Abschnitt, aber keine Weiterleitung." \
         sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-tot' 2>&1 | grep -q 'bedienung/index.html: die alte Adresse /bedienung/ fehlt'"
+    # Pictures in two languages (Round 39b): an invented site with the real picture shortcodes, the partial
+    # bildpfad.html and the i18n files of the theme.
+    theme="$root/site/themes/baruch"
+    png_1x1='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+    make_picture_site() {
+        make_site "$1" "$version" "baruch.bernau.family"
+        site="$tmp/$1"
+        mkdir -p "$site/layouts/_shortcodes" "$site/layouts/_partials" "$site/i18n" "$site/data" "$site/content/de"
+        cp "$theme/layouts/_shortcodes/hilfebild.html" "$theme/layouts/_shortcodes/bild.html" "$site/layouts/_shortcodes/"
+        cp "$theme/layouts/_partials/bildpfad.html" "$site/layouts/_partials/"
+        cp "$theme/i18n/de.toml" "$theme/i18n/en.toml" "$site/i18n/"
+        printf '[[bild]]\nname = "probe"\n' > "$site/data/hilfebilder.toml"
+        printf '<!doctype html><html lang="{{ site.Language.Lang }}"><title>Probe</title>{{ range .Translations }}<a href="{{ .RelPermalink }}" hreflang="{{ .Language.Lang }}" lang="{{ .Language.Lang }}">{{ .Language.Lang }}</a>{{ end }}<p>Version {{ site.Params.version }}</p><main>{{ .Content }}</main>\n' > "$site/layouts/index.html"
+        # German stays the default language in the root, as in site/hugo.toml (a top-level key, so it goes first).
+        { printf 'defaultContentLanguage = "de"\ndefaultContentLanguageInSubdir = false\n'; cat "$site/hugo.toml"; } > "$site/hugo.toml.neu"
+        mv "$site/hugo.toml.neu" "$site/hugo.toml"
+        printf '\n[languages]\n  [languages.de]\n    contentDir = "content/de"\n    locale = "de"\n    weight = 1\n' >> "$site/hugo.toml"
+        printf -- '---\ntitle: "Probe"\n---\n{{< hilfebild name="probe" alt="Erfundenes Bild" >}}\n' > "$site/content/de/_index.md"
+    }
+    picture() { mkdir -p "$(dirname "$1")"; printf '%s' "$png_1x1" | base64 -d > "$1"; }
+    make_picture_site seite-bild
+    check_exit 1 "ci-site.sh bricht ab, wenn ein Hilfebild fehlt" \
+        "Seit Runde 39b stoppt der Shortcode hilfebild den Bau (errorf) statt das Bild still auszulassen (offener Befund aus Runde 37)." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "ci-site.sh nennt das fehlende Hilfebild mit seinem Pfad" \
+        "Exit 1 allein könnte von einer anderen Prüfung stammen; die Meldung zeigt dem Integrator, welches Foto fehlt." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-bild' 2>&1 | grep -q 'the picture static/bilder/hilfe/probe.png is missing'"
+    picture "$tmp/seite-bild/static/bilder/hilfe/probe.png"
+    check "mit dem Hilfebild baut ci-site.sh die Seite" \
+        "Gegenprobe: Der Abbruch oben kam vom fehlenden Bild, nicht von der Probe selbst; die dunkle Fassung bleibt freiwillig." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "das Hilfebild trägt den Titel aus i18n hilfebild_gross" \
+        "Der Link auf das Bild in voller Größe bekommt seinen Titel aus den i18n-Dateien des Themas, nicht aus einem festen deutschen Text." \
+        grep -q 'title="Bild in voller Größe öffnen"' "$tmp/seite-bild/public/index.html"
+    mkdir -p "$tmp/seite-bild/content/en"
+    printf -- '---\ntitle: "Probe"\n---\n{{< hilfebild name="probe" alt="Invented picture" >}}\n' > "$tmp/seite-bild/content/en/_index.md"
+    check_exit 1 "ci-site.sh bricht ab, wenn content/en da ist, aber keine Sprache en eingerichtet ist" \
+        "Ohne [languages.en] in hugo.toml baute Hugo die englischen Seiten still nicht; public/en/index.html fehlte unbemerkt." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "ci-site.sh nennt die fehlende englische Startseite" \
+        "Exit 1 allein könnte vom Bau stammen; die Meldung nennt die fehlende Sprache." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-bild' 2>&1 | grep -q 'public/en/index.html fehlt'"
+    printf '  [languages.en]\n    contentDir = "content/en"\n    locale = "en"\n    weight = 2\n' >> "$tmp/seite-bild/hugo.toml"
+    check_exit 1 "ci-site.sh bricht ab, wenn das englische Hilfebild fehlt, obwohl das deutsche da ist" \
+        "Englische Seiten nehmen ihre Bilder aus bilder/en/ (Partial bildpfad.html); das deutsche Bild darf das fehlende englische nicht vertreten." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "ci-site.sh nennt das fehlende englische Hilfebild mit seinem Pfad" \
+        "Der Pfad zeigt, dass der Shortcode den Sprachordner gewählt hat." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-bild' 2>&1 | grep -q 'the picture static/bilder/en/hilfe/probe.png is missing'"
+    picture "$tmp/seite-bild/static/bilder/en/hilfe/probe.png"
+    check "mit beiden Hilfebildern baut ci-site.sh die zweisprachige Seite und prüft beide Sprachen" \
+        "Normalfall nach den englischen Fotos: public/en/index.html liegt vor, Umschalter, <html lang> und Bildordner stimmen." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "die englische Seite zeigt das Bild aus /bilder/en/ mit englischem Titel" \
+        "Belegt am gebauten HTML, was site-check.py verlangt: Sprachordner und i18n-Titel der englischen Seite." \
+        sh -c "grep -q 'src=/bilder/en/hilfe/probe.png' '$tmp/seite-bild/public/en/index.html' && grep -q 'title=\"Open the picture in full size\"' '$tmp/seite-bild/public/en/index.html'"
+    printf '<!doctype html><html lang="{{ site.Language.Lang }}"><title>Probe</title><p>Version {{ site.Params.version }}</p><main>{{ .Content }}</main>\n' > "$tmp/seite-bild/layouts/index.html"
+    check_exit 1 "ci-site.sh bricht ab, wenn der zweisprachigen Seite der Sprachumschalter fehlt" \
+        "Von jeder Seite muss man in die andere Sprache wechseln können; ci-site.sh muss site-check.py für beide Sprachen aufrufen." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-bild"
+    check "ci-site.sh nennt den fehlenden Sprachumschalter" \
+        "Exit 1 allein könnte vom Bau stammen; die Meldung kommt aus site-check.py." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-bild' 2>&1 | grep -q '^en/index.html: kein Sprachumschalter'"
     if [ -f "$tmp/repo2/dists/stable/Release" ]; then
         tar -C "$tmp/repo2" -czf "$tmp/apt-repo-neu.tar.gz" .
         check "ci-site.sh --apt legt das Repository nach public/apt/" \
@@ -382,6 +445,15 @@ EOF
 else
     skipped="$skipped Seitenbau(hugo-fehlt)"
 fi
+# The picture list and the screenshot tool for both languages, without a server and without Firefox (Round 39b).
+for lang in de en; do
+    check "bildschirmfotos.py --liste --lang $lang liest die Bildliste ohne Fehler" \
+        "Jeder Eintrag wird in beiden Sprachen geprüft (Felder, adresse_en/ausschnitt_en/schritt_en, englische Entsprechung jedes erwartet-Textes); ein Fehler fiele sonst erst beim Fotografieren auf." \
+        python3 "$root/site/tools/bildschirmfotos.py" --liste --lang "$lang"
+done
+check "bildschirmfotos.py --liste --lang en nennt den englischen Zielordner und das englische Beispielwerk" \
+    "Belegt, dass --lang en weder in den deutschen Bildordner schreibt noch das deutsche Werk nimmt." \
+    sh -c "python3 '$root/site/tools/bildschirmfotos.py' --liste --lang en | head -1 | grep -q 'nach site/static/bilder/en, Beispielwerk beispielwerk.en.typ'"
 
 # ---- 6. Rules of the workflows ---------------------------------------------------------------------------
 if python3 -c 'import yaml' >/dev/null 2>&1; then
