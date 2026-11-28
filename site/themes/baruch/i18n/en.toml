@@ -70,3 +70,9 @@ other = "There is nothing at this address."
 other = "To the home page"
 
 # Documentation section and menu (Round 39c, owner docs_site)
+[docs_seiten]
+other = "Pages of the documentation"
+[docs_quelle]
+other = "Generated from"
+[docs_quelle_hinweis]
+other = "in the repository; changes are made there, not on this page."

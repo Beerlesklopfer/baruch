@@ -10,6 +10,10 @@
 # Checks:
 #   1. params.version in hugo.toml = version in Cargo.toml (scripts/version.sh) – otherwise the site advertises
 #      a version that does not exist, and the download links point into the void.
+#   1a. Developer documentation (Round 39c): if the site has the generator ORDNER/tools/docs_pages.py, it runs first
+#      (`python3 -I`, sources docs/*.md of this repository) and writes ORDNER/generated/docs/, which hugo.toml mounts
+#      as English content (/en/docs/). A finding of the generator (dead relative link, missing anchor) stops here.
+#      The output is not checked in (.gitignore) and is rebuilt on every run, so the pages never fall behind docs/.
 #   2. `hugo --minify --panicOnWarning -s ORDNER` without a warning.
 #   3. public/index.html is there; public/CNAME names exactly baruch.bernau.family (GitHub Pages). For every
 #      further language with content (content/en, Round 39b) public/<lang>/index.html is there as well – otherwise
@@ -20,6 +24,9 @@
 #      content/de/hilfe), /bedienung/ must redirect to /hilfe/; without it (trial in ci-selftest.sh) only this check is
 #      dropped. One run covers both languages (German in the root, English under public/en/): <html lang> per
 #      language, pictures of English pages from /bilder/en/, every language switch resolves, /bedienung/ only German.
+#      Round 39c: also no link into the generator output and, under /en/docs/, no link to a docs source on GitHub.
+#   3b. With the generator, public/en/docs/index.html and the page of every source it lists (--list) are there –
+#      otherwise the mount in hugo.toml is missing and the menu entry "Documentation" would point nowhere.
 #   The hugo build itself stops for a help picture (hilfebild) or a screenshot (bild) that is missing in the
 #   language of the page (errorf in the shortcodes, Round 39b).
 #   4. with --apt: public/apt/dists/stable/Release and at least one package under public/apt/pool/.
@@ -62,6 +69,11 @@ if [ "$site_version" != "$version" ]; then
     exit 1
 fi
 
+docs_generator="$site/tools/docs_pages.py"
+if [ -f "$docs_generator" ]; then
+    "$python" -I "$docs_generator" --site "$site" --repo "$root"
+fi
+
 rm -rf "$site/public"
 "$hugo" --minify --panicOnWarning -s "$site"
 
@@ -72,6 +84,14 @@ for lang in en; do
         exit 1
     fi
 done
+if [ -f "$docs_generator" ]; then
+    for address in /en/docs/ $("$python" -I "$docs_generator" --list | cut -f2); do
+        if [ ! -s "$site/public${address}index.html" ]; then
+            echo "ci-site.sh: public${address}index.html fehlt (Mount generated/ in hugo.toml, site/tools/docs_pages.py?)." >&2
+            exit 1
+        fi
+    done
+fi
 if [ "$(cat "$site/public/CNAME" 2>/dev/null)" != "baruch.bernau.family" ]; then
     echo "ci-site.sh: public/CNAME muss genau baruch.bernau.family enthalten (site/static/CNAME)." >&2
     exit 1

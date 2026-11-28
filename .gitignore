@@ -5,5 +5,6 @@ target/
 .claude/sicht/
 site/public/
 site/resources/
+site/generated/
 site/.hugo_build.lock
 .hugo_build.lock

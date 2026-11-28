@@ -10,11 +10,16 @@ Hugo from 0.158 is needed (the key `locale` and the language key `label`), the p
 theme uses no SCSS and no image processing.
 
 ```sh
+python3 -I site/tools/docs_pages.py         # developer documentation from docs/*.md to site/generated/docs/
 hugo --minify --panicOnWarning -s site      # from the main folder; output in site/public/
+sh scripts/ci-site.sh                       # both steps plus every check, as the CI does
 ```
 
+Without the first step Hugo builds the site without the section `/en/docs/` (and the menu entry "Documentation"
+points nowhere); `scripts/ci-site.sh` runs it first and stops if the pages are missing afterwards.
+
 `--panicOnWarning` turns every warning into an error; the CI checks the same way. `site/public/`,
-`site/resources/` and `.hugo_build.lock` are in `.gitignore` and are never checked in.
+`site/resources/`, `site/generated/` and `.hugo_build.lock` are in `.gitignore` and are never checked in.
 
 After the build `scripts/site-check.py` checks the output (Python standard library only, no network):
 
@@ -77,7 +82,8 @@ The site is German and English (user decision 2026-11-27, Round 39b).
 | `static/CNAME` | the host name for GitHub Pages |
 | `static/bilder/` | screenshots for the home page and Features (1400×860, plus `arbeitsplatz-laptop.png` in 1366×768); English ones under `static/bilder/en/`; the site builds without them |
 | `static/bilder/hilfe/` | pictures of the help: `<name>.png`, next to it optionally `<name>-dunkel.png` for the dark system; English ones under `static/bilder/en/hilfe/` |
-| `tools/` | invented work and script for the screenshots (`tools/README.md`) |
+| `tools/` | invented work and script for the screenshots, generator of the developer documentation (`tools/README.md`) |
+| `generated/` | output of `tools/docs_pages.py` (`generated/docs/`), mounted as English content: `/en/docs/`; not checked in, rebuilt on every build |
 
 ## Source for usage and operation
 
@@ -125,6 +131,7 @@ points and technical remarks (addresses, cookie names, limits of the checks) –
 | `layouts/home.html` | home page (picture through `_partials/bildpfad.html`) |
 | `layouts/page.html` | fixed pages |
 | `layouts/section.html` | start page of the help: list of the pages by `weight` with `description` |
+| `layouts/docs/section.html`, `layouts/docs/page.html` | developer documentation (`/en/docs/`): index with the pages by `weight`; a page with the navigation of the section, its source file, table of contents (closed above 40 entries) and "previous/next page" |
 | `layouts/hilfe/page.html` | pages of the help: navigation of the section (current page marked), table of contents from the headings of levels 2 and 3 (`markup.tableOfContents` in `hugo.toml`), "previous/next page" |
 | `layouts/404.html` | page not found (one per language: `/404.html`, `/en/404.html`) |
 
@@ -154,6 +161,58 @@ the navigation of the help scroll sideways at phone width and hides the navigati
 - **Language keys in `hugo.toml`:** `locale` per language (the older `languageCode` is deprecated since Hugo 0.158
   and breaks the build with `--panicOnWarning`), and `label` for the language name shown in the switch (the older
   `languageName` likewise).
+
+## Developer documentation (generated, Round 39c)
+
+The developer documentation in `docs/` is published in English under `/en/docs/`. There is **no hand-kept copy**:
+`tools/docs_pages.py` (Python standard library only, run with `python3 -I`) generates one page per source on every
+build, `scripts/ci-site.sh` runs it before Hugo, and `.github/workflows/pages.yml` needs no step of its own.
+
+| Source | Address | Weight |
+|---|---|---|
+| (index, generated) | `/en/docs/` | – |
+| `docs/Bedienung.md` | `/en/docs/usage/` | 10 |
+| `docs/Architektur.md` | `/en/docs/architecture/` | 20 |
+| `docs/RPC.md` | `/en/docs/rpc/` | 30 |
+| `docs/MCP.md` | `/en/docs/mcp/` | 40 |
+| `docs/Austauschformat.md` | `/en/docs/exchange-format/` | 50 |
+| `docs/WYSIWYG.md` | `/en/docs/wysiwyg/` | 60 |
+| `docs/Betrieb.md` | `/en/docs/operation/` | 70 |
+| `docs/Verteilung.md` | `/en/docs/distribution/` | 80 |
+| `docs/Plan.md` | `/en/docs/plan/` | 90 |
+
+- **Output:** `site/generated/docs/` – outside `content/`, so the rule "every English page has a German twin"
+  (`tests/round39b_hilfe_en.rs`) and the fixed list of help pages (`tests/round37_hilfe.rs`) do not see it.
+  `hugo.toml` mounts `generated/` as content of the language `en` only (`[module]`, `sites.matrix`); because a
+  configured content mount replaces the defaults, `content/de` and `content/en` are mounted there too (the languages
+  have no `contentDir` any more).
+- **Not checked in** (`.gitignore`: `site/generated/`): the pages are rebuilt from `docs/` on every build, so they
+  cannot fall behind; a committed copy would change with every documentation commit and need a currency check of
+  its own.
+- **Title and weight:** `title` from the first heading of the source (removed from the body; the layout prints it),
+  `weight` and the one-sentence `description` from the table `DOCS` in the generator, `quelle` = source path.
+- **Anchors:** every heading gets an explicit id computed like GitHub (`## Delivery through GitHub Pages` →
+  `#delivery-through-github-pages`, duplicates `-1`, `-2` …), so an anchor that works in the repository works on
+  the site.
+- **Links:** to one of the nine sources → `/en/docs/<slug>/#anchor` (the anchor must exist); to a page of the website
+  source (`site/content/de|en/…`) → that page on the site; to any other file of the repository →
+  `<params.repo>/blob/main/<path>` (folders `tree/main`). A relative link to a missing file or anchor stops the
+  generator (exit 1, nothing written) – it is the only check for links that leave the site.
+- **Escaping:** raw HTML in the running text (`<Titel>`) becomes `&lt;Titel>` (Hugo would drop it, `unsafe = false`);
+  Hugo shortcode syntax is escaped everywhere, also in code.
+- **One page for the architecture:** measured with Hugo 0.168 on this machine, the whole site builds in about 55–60 ms
+  with `Architektur.md` as one page (about 800 KB of HTML) and in about the same time split into 48 parts; the
+  site without the documentation takes about 30 ms. The site has deliberately no search, so one page keeps the
+  browser's find (Ctrl+F) working over the whole architecture, and every GitHub anchor maps 1:1. The table of
+  contents of a page with more than 40 entries starts closed.
+- **Checks:** `scripts/site-check.py` checks links and anchors of the section like every page, plus: no link into
+  the generator output (`site/generated`, `/generated/`) and, under `/en/docs/`, no link to one of the nine sources
+  on GitHub. `python3 -I site/tools/docs_pages.py --selbsttest` checks the generator; `scripts/ci-selftest.sh` runs
+  it and checks that `ci-site.sh` calls it.
+- **Menu:** English "Documentation" (`pageRef = "/docs"`), German "Dokumentation (englisch)" (`url = "/en/docs/"`,
+  there is no German page), both weight 60. Theme strings `docs_*` in `i18n/`.
+- **Writing in `docs/`:** ordinary Markdown as on GitHub. Avoid a line inside a paragraph that starts with `>`,
+  `#`, `- ` or `1. ` (it starts a new block on GitHub and on the site alike).
 
 ## Shortcodes
 

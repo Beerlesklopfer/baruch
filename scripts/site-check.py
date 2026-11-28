@@ -12,8 +12,8 @@ ORDNER ist die Ausgabe von Hugo (Vorgabe: site/public im Repository). Geprüft w
     ist /apt/: Das Repository kommt erst in der CI dazu (scripts/ci-site.sh --apt).
  2. Kein Link auf docs/Bedienung.md oder docs/Betrieb.md bei GitHub: Die Webseite ist seit Runde 37 selbst die
     Quelle für Bedienung und Betrieb; ein Link dorthin führte Leser im Kreis.
- 3. Unter /hilfe/ steht im <main> kein Link zu github.com: Die Hilfe ist für Anwender und muss ohne das
-    Repository auskommen.
+ 3. Unter /hilfe/ und /en/hilfe/ steht im <main> kein Link zu github.com: Die Hilfe ist für Anwender und muss
+    ohne das Repository auskommen (beide Sprachen, Runde 39c).
  4. Jedes <img> hat einen nichtleeren alt-Text.
  5. /bedienung/index.html leitet auf /hilfe/ weiter (alte Adresse der Bedienung) und /hilfe/index.html liegt vor.
     --ohne-hilfe lässt diese eine Prüfung aus (für Seiten ohne Abschnitt Hilfe, etwa die Probe in
@@ -30,6 +30,14 @@ ihrem Unterordner (en/). Geprüft wird zusätzlich:
     nie auf die eigene Sprache. Liegt eine zweite Sprache vor (en/index.html), hat jede Seite einen Umschalter.
 10. Mit Hilfe (ohne --ohne-hilfe) hat jede weitere Sprache ihre Startseite der Hilfe (en/hilfe/index.html), aber
     keine Weiterleitung en/bedienung/: Die alte Adresse /bedienung/ gibt es nur auf Deutsch.
+
+Entwicklerdokumentation (Runde 39c, /en/docs/, erzeugt von site/tools/docs_pages.py aus docs/*.md); ihre Links und
+Anker prüft schon Punkt 1. Zusätzlich:
+
+11. Keine Seite verlinkt in die Ausgabe des Generators (Pfad mit site/generated oder /generated/): Sie ist nicht
+    eingecheckt, ein solcher Link führte auf GitHub ins Leere.
+12. Unter /en/docs/ zeigt kein Link auf eine der neun Quellen bei GitHub (blob/main/docs/<Quelle>.md): Diese
+    Dateien stehen selbst im Abschnitt; der Generator schreibt solche Links auf /en/docs/<Seite>/ um.
 
 Exit 0 ohne Fund, 1 mit der Liste der Fundstellen (Datei: Meldung), 2 bei falschem Aufruf.
 --selbsttest baut einen erfundenen Mini-Baum, prüft ihn fehlerfrei und danach je eine eingebaute Störung;
@@ -50,6 +58,11 @@ SPRACHE_WURZEL = "de"
 SPRACHEN_UNTER = ("en",)
 # Files in the repository whose content has stood on the website since Round 37.
 VERBOTENE_DOKU = ("blob/main/docs/Bedienung.md", "blob/main/docs/Betrieb.md")
+# The nine sources of the developer documentation (site/tools/docs_pages.py, DOCS); under /en/docs/ a link to them on
+# GitHub instead of the site is a finding.
+DOKU_QUELLEN = ("Bedienung.md", "Architektur.md", "RPC.md", "MCP.md", "Austauschformat.md", "WYSIWYG.md", "Betrieb.md",
+                "Verteilung.md", "Plan.md")
+DOKU_ABSCHNITT = tuple(f"{s}/docs/" for s in SPRACHEN_UNTER)
 # rel values of <link> that make the browser load something.
 LADENDE_REL = {"stylesheet", "icon", "preload", "prefetch", "modulepreload", "apple-touch-icon", "manifest"}
 # Attributes whose value the browser loads without the reader doing anything.
@@ -239,6 +252,7 @@ def pruefe(ordner, basis=BASIS, mit_hilfe=True):
         rel = os.path.relpath(voll, ordner)
         sprache = sprache_von(rel)
         in_hilfe = rel.replace(os.sep, "/").startswith(("hilfe/",) + tuple(f"{s}/hilfe/" for s in SPRACHEN_UNTER))
+        in_doku = rel.replace(os.sep, "/").startswith(DOKU_ABSCHNITT)
         if seite.weiterleitung is None:
             if seite.sprache != sprache:
                 funde.append((rel, f"<html lang> ist „{seite.sprache or '(fehlt)'}“, die Seite gehört zur Sprache "
@@ -272,6 +286,13 @@ def pruefe(ordner, basis=BASIS, mit_hilfe=True):
                     funde.append((rel, f"Link auf {verboten.split('/', 2)[2]} bei GitHub (steht auf der Webseite): {adresse}"))
             if in_hilfe and im_main and urlsplit(adresse).netloc.lower().endswith("github.com"):
                 funde.append((rel, f"Link zu github.com im Text der Hilfe: {adresse}"))
+            if "site/generated" in adresse or "/generated/" in urlsplit(adresse).path:
+                funde.append((rel, f"Link in die Ausgabe des Generators (nicht eingecheckt): {adresse}"))
+            if in_doku:
+                for quelle in DOKU_QUELLEN:
+                    if urlsplit(adresse).path.endswith(f"/blob/main/docs/{quelle}"):
+                        funde.append((rel, f"Link auf docs/{quelle} bei GitHub statt auf die Seite unter /en/docs/: "
+                                           f"{adresse}"))
         for adresse, was in seite.geladen:
             if fremd(adresse, basis):
                 funde.append((rel, f"fremde Adresse für Stil, Schrift oder Bild ({was}): {adresse}"))
@@ -361,6 +382,13 @@ def mini_baum(ordner, zweisprachig=False):
              '<a href=/en/hilfe/moewen/#zaehlen>Counting</a></main></body></html>')
     schreibe(ordner, "bilder/en/hilfe/watt.png", "kein echtes Bild")
     schreibe(ordner, "bilder/en/hilfe/watt-dunkel.png", "kein echtes Bild")
+    # Developer documentation (Round 39c): only English, so the switch leads to the German home page; links between
+    # the pages with anchors, a link into the repository (allowed outside the help).
+    schreibe(ordner, "en/docs/index.html", kopf_mit("en", "/") + '<main><a href=/en/docs/rpc/>RPC</a>'
+             ' <a href=/en/docs/rpc/#work-create>work.create</a></main></body></html>')
+    schreibe(ordner, "en/docs/rpc/index.html", kopf_mit("en", "/") + '<main><h2 id=work-create>work.create</h2>'
+             '<a href=https://github.com/beispiel/baruch/blob/main/crates/baruch-server/src/rpc.rs>rpc.rs</a>'
+             ' <a href=/en/docs/>Documentation</a></main></body></html>')
 
 
 def selbsttest():
@@ -524,6 +552,27 @@ def selbsttest():
                         schreibe(o, "hilfe/index.html", lies(os.path.join(o, "hilfe/index.html")).replace(
                             "href=/en/hilfe/ hreflang", "href=/en/ hreflang"))],
              True)
+
+    stoerung("ein Link zu github.com im Text der englischen Hilfe wird gefunden",
+             "Die Regel gilt für die Hilfe in beiden Sprachen (Runde 39c, Backlog „Open – shortcodes“); auch die "
+             "englischen Anwender sollen nicht ins Repository geschickt werden.",
+             "github.com im Text der Hilfe",
+             anhaengen("en/hilfe/moewen/index.html", "<a href=https://github.com/beispiel/baruch/blob/main/docs/MCP.md>MCP</a>"),
+             True)
+    stoerung("ein toter Anker in der Entwicklerdokumentation wird gefunden",
+             "Die Seiten unter /en/docs/ verweisen mit Ankern aufeinander (vom Generator umgeschrieben); ein Anker, den "
+             "es auf der erzeugten Seite nicht gibt, muss auffallen.",
+             "toter Anker", anhaengen("en/docs/index.html", "<a href=/en/docs/rpc/#work-delete>work.delete</a>"), True)
+    stoerung("ein Link in die Ausgabe des Generators wird gefunden",
+             "site/generated ist nicht eingecheckt (.gitignore); ein Link dorthin führte auf GitHub ins Leere.",
+             "Ausgabe des Generators",
+             anhaengen("en/docs/rpc/index.html",
+                       "<a href=https://github.com/beispiel/baruch/blob/main/site/generated/docs/rpc.md>Quelle</a>"), True)
+    stoerung("ein Link auf eine der neun Quellen bei GitHub unter /en/docs/ wird gefunden",
+             "Die Quelle steht selbst im Abschnitt; der Generator schreibt solche Links auf die Seite um, ein Link nach "
+             "GitHub hieße, dass das Umschreiben versagt hat.",
+             "Link auf docs/RPC.md bei GitHub statt",
+             anhaengen("en/docs/index.html", "<a href=https://github.com/beispiel/baruch/blob/main/docs/RPC.md>RPC</a>"), True)
 
     print("site-check.py --selbsttest: " + ("alles in Ordnung" if not fehler else f"{fehler} Zusicherung(en) verletzt"))
     return 1 if fehler else 0

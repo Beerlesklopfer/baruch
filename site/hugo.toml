@@ -7,13 +7,14 @@ locale = "de"
 title = "Baruch"
 theme = "baruch"
 # Multilingual (user decision 2026-11-27: interface and help in German and English, Round 39b): content per language
-# under content/<language>/. German stays the default without a subfolder in the address, so the German addresses
+# under content/<language>/ (mounted in [module] at the end). German stays the default without a subfolder in the address, so the German addresses
 # do not change; English (content/en/) lives under /en/ with the same relative paths (Hugo pairs translations by
 # path).
 defaultContentLanguage = "de"
 defaultContentLanguageInSubdir = false
 # No tags, categories or feeds: the site consists of seven fixed pages and the section Hilfe (help, one start page
-# and one page per topic), in each language.
+# and one page per topic), in each language; English also has the section docs (developer documentation,
+# generated, Round 39c).
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = false
 enableGitInfo = false
@@ -32,7 +33,6 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
 
 [languages]
   [languages.de]
-    contentDir = "content/de"
     locale = "de"
     weight = 1
     label = "Deutsch"
@@ -57,6 +57,12 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
       name = "MCP und Assistenten"
       pageRef = "/mcp"
       weight = 50
+    # The developer documentation exists only in English (generated from docs/, Round 39c); the German menu points
+    # to the English section by address, so there is no German page and no German twin.
+    [[languages.de.menus.main]]
+      name = "Dokumentation (englisch)"
+      url = "/en/docs/"
+      weight = 60
     [[languages.de.menus.footer]]
       name = "Lizenz"
       pageRef = "/lizenz"
@@ -67,7 +73,6 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
       weight = 20
 
   [languages.en]
-    contentDir = "content/en"
     locale = "en"
     weight = 2
     label = "English"
@@ -95,6 +100,10 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
       name = "MCP and assistants"
       pageRef = "/mcp"
       weight = 50
+    [[languages.en.menus.main]]
+      name = "Documentation"
+      pageRef = "/docs"
+      weight = 60
     [[languages.en.menus.footer]]
       name = "Licence"
       pageRef = "/lizenz"
@@ -115,3 +124,25 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
     ordered = false
   [markup.goldmark.renderer]
     unsafe = false
+
+# Content per language and the generated developer documentation (Round 39c). Hugo turns `contentDir` into mounts,
+# but as soon as one content mount is configured the defaults are gone, so all three are named here: content/de for
+# German, content/en for English, and generated/ (written by site/tools/docs_pages.py from docs/*.md, gitignored)
+# for English only, which gives /en/docs/. scripts/ci-site.sh runs the generator before Hugo; a plain `hugo` without
+# it builds the site without the section (ci-site.sh then stops: public/en/docs/index.html is missing).
+[module]
+  [[module.mounts]]
+    source = "content/de"
+    target = "content"
+    [module.mounts.sites.matrix]
+      languages = ["de"]
+  [[module.mounts]]
+    source = "content/en"
+    target = "content"
+    [module.mounts.sites.matrix]
+      languages = ["en"]
+  [[module.mounts]]
+    source = "generated"
+    target = "content"
+    [module.mounts.sites.matrix]
+      languages = ["en"]

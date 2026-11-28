@@ -366,6 +366,26 @@ EOF
     check "mit einem Abschnitt content/hilfe verlangt ci-site.sh die Weiterleitung von /bedienung/" \
         "Alte Links auf /bedienung/ sollen in der Hilfe ankommen; die Probe hat den Abschnitt, aber keine Weiterleitung." \
         sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-tot' 2>&1 | grep -q 'bedienung/index.html: die alte Adresse /bedienung/ fehlt'"
+    # Developer documentation (Round 39c): the generator site/tools/docs_pages.py and its call in ci-site.sh.
+    check "docs_pages.py besteht seinen Selbsttest" \
+        "Der Generator schreibt die Seiten unter /en/docs/ aus docs/*.md; der Selbsttest zeigt an einem erfundenen Repository Titel, Anker, Umschreiben der Links, Escapen und die Meldung toter Links." \
+        python3 -I "$root/site/tools/docs_pages.py" --selbsttest
+    check "docs_pages.py nennt die neun Quellen mit ihren festen Adressen" \
+        "ci-site.sh prüft nach dem Bau genau die Adressen, die --list nennt; fehlte eine Quelle, prüfte es sie nicht." \
+        sh -c "[ \"\$(python3 -I '$root/site/tools/docs_pages.py' --list | wc -l)\" = 9 ] && python3 -I '$root/site/tools/docs_pages.py' --list | grep -q '^docs/Architektur.md	/en/docs/architecture/	20\$'"
+    make_site seite-doku "$version" "baruch.bernau.family"
+    mkdir -p "$tmp/seite-doku/tools"
+    printf 'import sys\nif "--list" not in sys.argv:\n    print("docs/Probe.md: link to a file that does not exist")\n    sys.exit(1)\n' > "$tmp/seite-doku/tools/docs_pages.py"
+    check_exit 1 "ci-site.sh ruft den Generator der Dokumentation auf und bricht bei seinem Fund ab" \
+        "Ein toter relativer Link in docs/*.md fällt nur dem Generator auf (der Link führte nach GitHub); ci-site.sh darf danach nicht weiterbauen." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-doku"
+    printf 'import sys\nif "--list" in sys.argv:\n    print("docs/Probe.md\\t/en/docs/probe/\\t10")\n' > "$tmp/seite-doku/tools/docs_pages.py"
+    check_exit 1 "ci-site.sh bricht ab, wenn nach dem Generator die Seiten unter /en/docs/ fehlen" \
+        "Fehlt der Mount generated/ in hugo.toml, baute Hugo still ohne den Abschnitt und der Menüpunkt Documentation zeigte ins Leere." \
+        env HUGO="$hugo" sh "$scripts/ci-site.sh" --site "$tmp/seite-doku"
+    check "ci-site.sh nennt die fehlende Seite der Dokumentation" \
+        "Exit 1 allein könnte vom Bau stammen; die Meldung nennt die Adresse." \
+        sh -c "env HUGO='$hugo' sh '$scripts/ci-site.sh' --site '$tmp/seite-doku' 2>&1 | grep -q 'public/en/docs/index.html fehlt'"
     # Pictures in two languages (Round 39b): an invented site with the real picture shortcodes, the partial
     # bildpfad.html and the i18n files of the theme.
     theme="$root/site/themes/baruch"
