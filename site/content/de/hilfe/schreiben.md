@@ -116,7 +116,8 @@ Export.
   Vermerk „geändert“ mit Zeitpunkt. Leerer Text wird abgelehnt.
 - **Löschen** entfernt die gezeigte Fassung – nur mit dem Häkchen „Fassung n wirklich löschen“. Die aktuelle
   Fassung lässt sich nicht löschen: erst auf eine andere umschalten. Die Nummer einer gelöschten Fassung wird
-  nie neu vergeben. Der gelöschte Text bleibt im Verlauf des Werks nachlesbar.
+  nie neu vergeben. Der gelöschte Text bleibt im
+  [Verlauf des Werks](/hilfe/austausch-sicherung/#spiegel) nachlesbar.
 - Die **Baumansicht** zeigt die Fassungen eingerückt nach ihrer Herkunft, mit Nummer, Status, Autor (Assistenten
   in ihrer Farbe), Zeit und „geändert“. Aufgeklappt zeigt sie das ganze Kapitel. Je Fassung gibt es **zeigen**
   und **in der Vorschau probieren** – die Vorschau setzt die Fassung dann probeweise ein, ohne etwas umzuschalten.
@@ -266,3 +267,21 @@ Die Zeiten stehen bei einer **Predigt** immer, bei einem **Buch** nur, wenn eine
 Gezählt wird nur, was gesprochen wird: Überschriften, Fußnoten, Arbeitsaufträge, Kommentare und Formeln zählen
 nicht. „Joh 3,16“ sind zwei Wörter, ein Wort mit Bindestrich ist eines. Assistenten können die Zeiten lesen,
 einstellen kann sie nur der Mensch.
+
+### Wörter zählen {#statistik}
+
+Eine eigene Seite mit Statistiken – etwa Zeichen, Seiten oder Schreibfortschritt je Tag – hat Baruch nicht. Die
+**Zahl der Wörter** zeigt der Zeitwächter:
+
+- Auf der Seite **Gliederung** (**Buch → Gliederung**) steht oben hinter der **Gesamtzeit** die Zahl der Wörter
+  des ganzen Werks und die Sprechgeschwindigkeit, etwa „(1840 Wörter, 110 Wörter je Minute)“.
+- Fährt man dort mit der Maus über die **Dauer** eines Punktes, nennt der Hinweis seine Wörter, etwa
+  „230 Wörter“. Gezählt wird nur der eigene Text des Punktes, ohne seine Unterpunkte.
+- Gezählt werden die gesprochenen Wörter der **aktuellen** Fassungen nach denselben Regeln wie oben: ohne
+  Überschriften, Fußnoten, Arbeitsaufträge, Kommentare und Formeln. Die Zahl liegt darum unter dem, was eine
+  Textverarbeitung zählen würde.
+
+Bei einer Predigt steht die Zahl immer da. Bei einem Buch erscheinen Zeiten und Wörter erst, wenn unter
+**Einstellungen → Werk → Predigtzeit** eine **Zielzeit** eingetragen ist. Wer bei einem Buch nur die Wörter
+sehen will, trägt eine Zielzeit ein (höchstens 240 Minuten); am Buch ändert das nichts. Ist die Zielzeit
+überschritten, steht dort zusätzlich die Warnung „Zielzeit um … überschritten“ – sie lässt sich dann übergehen.

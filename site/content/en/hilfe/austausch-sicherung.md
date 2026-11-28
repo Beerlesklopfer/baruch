@@ -137,10 +137,71 @@ Everything Baruch stores lies in one single **data folder**. Which one that is c
 
 - In it lie a database and, for each work, a folder with the **history**: every change – saving, switching,
   deleting, every decision about a request – is recorded there with time and origin. Technically this is a Git
-  repository; whoever knows Git can read in it. Deleted things remain readable there as well.
+  repository; whoever knows Git can read in it. Deleted things remain readable there as well. What exactly is
+  recorded and where to see it is described under [What Baruch records](/en/hilfe/austausch-sicherung/#protokoll).
 - If the data folder is also accessible to other users of the computer, **Settings → Data** reports it. Baruch
   never changes the permissions by itself.
 - Copy the data folder by hand only when Baruch is not running. During operation **Back up now** is the right
   way.
 
 More on this, including the usual places per operating system: [Operation](/en/betrieb/#datenordner).
+
+### What Baruch records {#protokoll}
+
+{{< hilfebild name="schreiben-fassungsverlauf" alt="The history of a revision: the saving steps, newest first, each with author, time and the difference word by word – removed text red, new text green – and the button Back to here." titel="Baruch shows the history of a revision itself." >}}
+
+Baruch has no log under that name – still, every change is recorded. Where to see what:
+
+| What | Where to see it |
+|---|---|
+| every saved state of a revision | in the **history** of the revision: a click on **state k** in the head of the section; there also **Back to here** – see [History and undo](/en/hilfe/schreiben/#verlauf) |
+| all revisions of a section with author, time and status | in the panel **Revisions** on the right and in the tree view – see [Saving and revisions](/en/hilfe/schreiben/#fassungen) |
+| all posts of a section | on the page **Whole chat history** – see [Chat](/en/hilfe/assistenten/#chat) |
+| every change to the whole work, deleted things as well | in the **history of the work** in the data folder – see [Reading the history of a work](/en/hilfe/austausch-sicherung/#spiegel) |
+| the last entry per work | under **Settings → Data** |
+
+The **history of the work** receives an entry for:
+
+- every save and continuation, taking over a proposal, switching to another revision, changing and deleting a
+  revision – when deleting, together with the deleted text;
+- every change of the outline, every request and the decision about it;
+- ideas, deleting, moving and converting posts, findings, images, glossary and typesetting settings;
+- reading in and syncing through the [exchange](/en/hilfe/austausch-sicherung/#einlesen).
+
+Every entry names the **time**, the **author** – "Autor" for the human, otherwise the assistant or the program
+that made the change – and the **origin**. If the human confirms a request, the entry names both: who requested
+and who confirmed. Merely reading and searching leaves no entry, and neither do the display settings of the
+browser and the access data.
+
+### Reading the history of a work {#spiegel}
+
+The history lies in the **data folder** in the subfolder `works`: one folder per work with the short name of the
+work, for example `works/ein-jahr-auf-moevenoog`. Which folder belongs to which work is shown by **Settings →
+Data** in the table "Git mirror per work" at the bottom of the page (columns **Work** and **Folder**, plus the
+identifier of the last entry under "last commit"). The **Data folder** itself is named at the top of the same
+page. Ideas without a work have their own folder `einfaelle`.
+
+The folder of a work holds its current state as Typst files: `main.typ`, one file per section in the subfolder
+`abschnitte`, the ideas in `einfaelle.md` and, if the work has a work template, `vorlage.typ`.
+
+You can read the history with the free program Git (Baruch itself does not need it):
+
+```sh
+cd DATA_FOLDER/works/ein-jahr-auf-moevenoog
+git log --stat                                 # all entries, newest first, with the changed files
+git log -p -- abschnitte/001-am-morgen.typ     # all changes to one section
+git show HEAD~3                                # an older entry with everything it changed
+```
+
+The first line of an entry says what happened, for example `1.1 Am Morgen: Fassung 1 fortgeschrieben (Stand 1)`
+(revision 1 continued, state 1) or `Einfall 1: angelegt` (idea 1 created). Below it stand markers such as
+`Baruch-Node` (the section) and `Baruch-Action` (the kind of change). The entries are written in German,
+independent of the language of the interface.
+
+**Read only:**
+
+- Change nothing in the folder, create no entries of your own and reset nothing. The database is what counts;
+  Baruch continues the history from it, and whatever you change in the folder by hand does not count.
+- Reading in a copy is safest, for example in a [backup](/en/hilfe/austausch-sicherung/#sicherung).
+- You get a deleted text back by copying it from the entry of the deletion and saving it in the section as a new
+  revision. A whole deleted work is brought back by the [archive](/en/hilfe/erste-schritte/#loeschen-archiv).

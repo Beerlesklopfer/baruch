@@ -114,7 +114,8 @@ A section has any number of **revisions**. Each has a number and is based on ano
   carries the note "changed" with the time. Empty text is refused.
 - **Delete** removes the revision shown – only with the tick "Really delete revision n". The current revision
   cannot be deleted: switch to another one first. The number of a deleted revision is never given again. The
-  deleted text stays readable in the history of the work.
+  deleted text stays readable in the
+  [history of the work](/en/hilfe/austausch-sicherung/#spiegel).
 - The **tree view** shows the revisions indented by their origin, with number, status, author (assistants in their
   colour), time and "changed". Unfolded, it shows the whole chapter. Per revision there are **show** and
   **try in the preview** – the preview then puts the revision in on trial, without switching anything.
@@ -258,3 +259,20 @@ The times are always shown for a **sermon**, for a **book** only when a target t
 
 Only what is spoken is counted: headings, footnotes, tasks, comments and formulas do not count. "John 3:16" is two
 words, a word with a hyphen is one. Assistants can read the times; only the human can set them.
+
+### Counting words {#statistik}
+
+Baruch has no page of its own with statistics – such as characters, pages or writing progress per day. The
+**number of words** is shown by the time keeper:
+
+- On the page **Outline** (**Book → Outline**) the number of words of the whole work and the speaking rate follow
+  the **Total time** at the top, for example "(1840 words, 110 words per minute)".
+- When you move the mouse over the **Duration** of an item there, the hint names its words, for example
+  "230 words". Only the item's own text is counted, without its sub-items.
+- The spoken words of the **current** revisions are counted by the same rules as above: without headings,
+  footnotes, tasks, comments and formulas. The number is therefore lower than what a word processor would count.
+
+For a sermon the number is always shown. For a book times and words appear only when a **target time** is entered
+under **Settings → Work → Sermon time**. Whoever only wants to see the words of a book enters a target time (at
+most 240 minutes); this changes nothing in the book. If the target time is exceeded, the warning "target time
+exceeded by …" appears as well – it can then be ignored.

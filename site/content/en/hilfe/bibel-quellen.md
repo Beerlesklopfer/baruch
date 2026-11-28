@@ -136,6 +136,35 @@ A hit opens its target at the place found: in the work the section with the righ
 document view. With a search, the box **Images of the work** also appears below the hits (at most 24 pictures that
 match the search).
 
+### Reading in a source {#quelle-einlesen}
+
+The literature has no form for entering a title by hand. New sources come in by three ways: from a **file** (PDF
+or EPUB), from a hit of **MultiGPT** (see [Sync with MultiGPT](/en/hilfe/bibel-quellen/#abgleich)) and from a
+proven quotation of the [web search for evidence](/en/hilfe/assistenten/#websuche). The usual way is the file:
+
+1. Choose **Baruch ▾ → Import PDF or EPUB…**. The entry is in the menu even when no work is open.
+2. Under **File** choose the PDF or the EPUB (at most 64 MiB). For a PDF it is best to choose **local** under
+   **Path**: then Baruch reads the file on this computer, and it does not leave it. Baruch always reads an EPUB
+   itself.
+3. Leave the field **Title** empty – then the title comes from the file – and press **Read and show outline**.
+4. The **preview** shows the outline found, with text samples and notes. For a source you usually need not
+   change anything in it.
+5. Under **Take over as** choose **Source of the library** – or **both** if a work is to be made from the same
+   file at the same time.
+6. Check **Title** and **Author** (filled in from the file) and press **Take over**.
+7. Baruch opens the **document view** of the new source. From now on it is listed among the titles in the
+   literature.
+
+- When read locally, Baruch keeps the **whole text** of the source. It then appears as **full text** in the
+  document view, and highlights can be checked against it (see
+  [Reading and highlighting sources](/en/hilfe/bibel-quellen/#quellen)).
+- Baruch refuses the same file a second time as a source. **Discard** in the preview deletes the draft; then
+  nothing is created.
+- Only the human can read in a source, no assistant.
+- Everything else about the preview and the paths is described under
+  [Reading in PDF or EPUB](/en/hilfe/einlesen/#pdf-epub). From the command line it works with
+  `baruch-server import buch.epub --bibliothek`.
+
 ### Wording or meaning {#bedeutungssuche}
 
 Below the search field, "Search by" chooses:
@@ -156,7 +185,7 @@ search only reads; it never changes a text.
 
 The **document view** shows a source: its details, all quotations (with highlights in colour) and all highlights.
 If Baruch has the whole text of the source (for example after
-[reading in a PDF or an EPUB](/en/hilfe/einlesen/#pdf-epub) or through MultiGPT), the **full text** follows below,
+[reading in a PDF or an EPUB](/en/hilfe/bibel-quellen/#quelle-einlesen) or through MultiGPT), the **full text** follows below,
 part by part, with "← previous part" and "next part →".
 
 How to highlight:

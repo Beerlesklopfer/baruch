@@ -157,7 +157,8 @@ How it works:
 **As a source of the library:** title and author come from the file. When read locally, Baruch keeps the whole
 text; this way the source can be read later, and quotations can be checked against it (see
 [Bible, literature and sources](/en/hilfe/bibel-quellen/#quellen)). The same file a second time as a source is
-refused.
+refused. The steps for a source alone are described under
+[Reading in a source](/en/hilfe/bibel-quellen/#quelle-einlesen).
 
 If the title is already taken, the preview stays with a message. Baruch keeps drafts at most 24 hours, at most 20
 at a time.

@@ -137,10 +137,72 @@ Alles, was Baruch speichert, liegt in einem einzigen **Datenordner**. Welcher da
 
 - Darin liegt eine Datenbank und je Werk ein Ordner mit dem **Verlauf**: Jede Änderung – Speichern, Umschalten,
   Löschen, jede Entscheidung über einen Antrag – wird dort mit Zeitpunkt und Herkunft festgehalten. Technisch ist
-  das ein Git-Archiv; wer Git kennt, kann darin lesen. Auch Gelöschtes bleibt dort nachlesbar.
+  das ein Git-Archiv; wer Git kennt, kann darin lesen. Auch Gelöschtes bleibt dort nachlesbar. Was genau
+  festgehalten wird und wo man es sieht, steht unter [Was Baruch festhält](/hilfe/austausch-sicherung/#protokoll).
 - Ist der Datenordner auch für andere Benutzer des Rechners zugänglich, meldet **Einstellungen → Daten** das.
   Baruch ändert die Rechte nie selbst.
 - Den Datenordner von Hand nur kopieren, wenn Baruch nicht läuft. Im Betrieb ist **Sicherung jetzt** der richtige
   Weg.
 
 Mehr dazu, auch die üblichen Orte je Betriebssystem: [Betrieb](/betrieb/#datenordner).
+
+### Was Baruch festhält {#protokoll}
+
+{{< hilfebild name="schreiben-fassungsverlauf" alt="Der Verlauf einer Fassung: die Speicherschritte, neueste zuerst, je mit Autor, Zeit und dem Unterschied Wort für Wort – Entferntes rot, Neues grün – und dem Knopf „Bis hier zurück“." titel="Den Verlauf einer Fassung zeigt Baruch selbst an." >}}
+
+Ein Protokoll unter diesem Namen gibt es in Baruch nicht – festgehalten wird trotzdem jede Änderung. Wo man was
+sieht:
+
+| Was | Wo man es sieht |
+|---|---|
+| jeder gespeicherte Stand einer Fassung | im **Verlauf** der Fassung: ein Klick auf **Stand k** im Kopf des Abschnitts; dort auch **Bis hier zurück** – siehe [Verlauf und Rückgängig](/hilfe/schreiben/#verlauf) |
+| alle Fassungen eines Abschnitts mit Autor, Zeit und Status | im Bereich **Fassungen** rechts und in der Baumansicht – siehe [Speichern und Fassungen](/hilfe/schreiben/#fassungen) |
+| alle Beiträge eines Abschnitts | auf der Seite **Ganze Chat-Historie** – siehe [Chat](/hilfe/assistenten/#chat) |
+| jede Änderung am ganzen Werk, auch Gelöschtes | im **Verlauf des Werks** im Datenordner – siehe [Den Verlauf eines Werks lesen](/hilfe/austausch-sicherung/#spiegel) |
+| der letzte Eintrag je Werk | unter **Einstellungen → Daten** |
+
+In den **Verlauf des Werks** kommt ein Eintrag für:
+
+- jedes Speichern und Fortschreiben, das Übernehmen eines Vorschlags, das Umschalten auf eine andere Fassung,
+  das Ändern und das Löschen einer Fassung – beim Löschen samt dem gelöschten Text;
+- jede Änderung der Gliederung, jeden Antrag und die Entscheidung darüber;
+- Einfälle, das Löschen, Verschieben und Umwandeln von Beiträgen, Befunde, Bilder, Glossar und
+  Satz-Einstellungen;
+- das Einlesen und Abgleichen über den [Austausch](/hilfe/austausch-sicherung/#einlesen).
+
+Jeder Eintrag nennt **Zeitpunkt**, **Autor** – „Autor“ für den Menschen, sonst den Assistenten oder das Programm,
+das die Änderung angelegt hat – und die **Herkunft**. Bestätigt der Mensch einen Antrag, nennt der Eintrag beide:
+wer beantragt und wer bestätigt hat. Nur lesen und suchen hinterlässt keinen Eintrag, ebenso wenig die
+Darstellung im Browser und die Zugangsdaten.
+
+### Den Verlauf eines Werks lesen {#spiegel}
+
+Der Verlauf liegt im **Datenordner** im Unterordner `works`: je Werk ein Ordner mit dem Kurznamen des Werks,
+etwa `works/ein-jahr-auf-moevenoog`. Welcher Ordner zu welchem Werk gehört, zeigt **Einstellungen → Daten** in
+der Tabelle unten auf der Seite (Spalten **Werk** und **Ordner**, dazu die Kennung des letzten Eintrags). Den
+Datenordner selbst nennt dieselbe Seite oben. Einfälle ohne Werk haben ihren eigenen Ordner `einfaelle`.
+
+Im Ordner eines Werks liegt sein aktueller Stand als Typst-Dateien: `main.typ`, je Abschnitt eine Datei im
+Unterordner `abschnitte`, die Einfälle in `einfaelle.md` und, wenn das Werk eine Werkvorlage hat, `vorlage.typ`.
+
+Lesen kann man den Verlauf mit dem freien Programm Git (Baruch selbst braucht es nicht):
+
+```sh
+cd DATENORDNER/works/ein-jahr-auf-moevenoog
+git log --stat                                 # alle Einträge, neueste zuerst, mit den geänderten Dateien
+git log -p -- abschnitte/001-am-morgen.typ     # alle Änderungen an einem Abschnitt
+git show HEAD~3                                # ein älterer Eintrag mit allem, was er geändert hat
+```
+
+Die erste Zeile eines Eintrags sagt, was geschah, etwa „1.1 Am Morgen: Fassung 1 fortgeschrieben (Stand 1)“ oder
+„Einfall 1: angelegt“. Darunter stehen Kennzeichen wie `Baruch-Node` (der Abschnitt) und `Baruch-Action` (die
+Art der Änderung). Die Einträge sind auf Deutsch geschrieben, unabhängig von der Sprache der Oberfläche.
+
+**Nur lesen:**
+
+- Im Ordner nichts ändern, keine eigenen Einträge anlegen und nichts zurücksetzen. Maßgeblich ist die Datenbank;
+  Baruch schreibt den Verlauf nach ihr fort, und was man im Ordner von Hand ändert, gilt nicht.
+- Am sichersten liest man in einer Kopie, etwa in einer [Sicherung](/hilfe/austausch-sicherung/#sicherung).
+- Einen gelöschten Text holt man zurück, indem man ihn aus dem Eintrag des Löschens kopiert und im Abschnitt als
+  neue Fassung speichert. Ein ganzes gelöschtes Werk holt das
+  [Archiv](/hilfe/erste-schritte/#loeschen-archiv) zurück.

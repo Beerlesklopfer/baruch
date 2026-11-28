@@ -29,12 +29,41 @@ the settings are ordinary pages.
 
 Applies only to **this browser**; another browser has its own values.
 
-- **Theme:** like the system, light or dark. The small switch for it is also found in the tab **View**.
+- **Theme:** like the system, light or dark. The small switch for it is also found in the tab **View** – both
+  ways under [Dark theme](/en/hilfe/einstellungen/#dunkles-thema).
 - **Editor when opening:** typeset view or source text.
 - **Proposals in the reading flow:** unfolded or folded at first (folded, they appear as a coloured line; only the
   one shown at the moment is open).
 - **Open area on the right:** Assistants, Revisions or Chat.
 - **Reset column widths.**
+
+### Dark theme {#dunkles-thema}
+
+{{< hilfebild name="band-ansicht" alt="The tab View of the ribbon; on the right in the group Display the small button with the sign of the theme, next to it the button Reset zoom." titel="A click on the sign in the group Display moves the theme on by one step." >}}
+
+Baruch knows three themes: **Like the system** (the default – Baruch follows the light or dark setting of the
+operating system or the browser), **Light** and **Dark**. Two ways lead to the dark theme.
+
+**Through the settings** (works without JavaScript as well):
+
+1. Choose **Baruch ▾ → ⚙ Settings** and open **Display** on the left.
+2. Under **Theme** choose **Dark**.
+3. Press **Save**. The page appears in the dark theme at once.
+
+**Through the ribbon** (with JavaScript):
+
+1. Open the tab **View**.
+2. In the group **Display** click the sign of the theme. Every click moves on by one step:
+   ◐ System → ☀ Light → ☾ Dark → ◐ again. From the default it therefore takes two clicks to reach the dark theme.
+3. When you move the mouse over the sign, the hint names the chosen theme, for example "Theme: Dark".
+
+- The theme applies only to **this browser** and stays stored for a year; another browser or computer has its
+  own. Both ways set the same value.
+- On pages without JavaScript – such as the [typeset preview](/en/hilfe/buchsatz/#satz) – the sign leads to
+  **Settings → Display** instead.
+- Back to the default: choose **Like the system** or keep clicking in the ribbon until ◐ appears.
+- The colours of the assistants are darkened in the dark theme so that the text stays readable. The book itself –
+  PDF and e-book – is not changed by the theme.
 
 ## Work {#werk}
 
@@ -138,11 +167,49 @@ its address is not recognisably local, its box shows a red warning.
 - **Status of the paths:** per path "connected", "failed" or "off" with the reason, plus the state of the local
   index.
 - **Rebuild index** (with a check box) rebuilds the local index of the work – needed after changing the embedding
-  model.
+  model; step by step under [Rebuilding the index](/en/hilfe/einstellungen/#index-neu-aufbauen).
 
 The local index follows the work by itself: after every save Baruch updates it in the background. Without a
 service that prepares texts for the semantic search, the search stays in the wording. The semantic search only
 reads.
+
+### Rebuilding the index {#index-neu-aufbauen}
+
+The **local index** (LanceDB) is the directory in the data folder in which the semantic search looks up the texts
+of a work. Baruch keeps it up to date by itself; you need to rebuild it only rarely:
+
+- after **changing the embedding model** – the model that prepares texts for the semantic search – or the prefix
+  of the connection (the field itself says that a change requires "Rebuild index");
+- when **Status of the paths** lists jobs as **Stuck** ("another attempt after a change or 'Rebuild index'") or
+  still names a **Problem** after its cause has been removed.
+
+How it works:
+
+1. Open **Settings → Connections** and go all the way down. The paths there apply to the work that is chosen at
+   the moment.
+2. Under **Rebuild index** tick the check box **really rebuild**.
+3. Press the button **Rebuild index**.
+
+What happens then:
+
+- Baruch discards the local index of **this work** and rebuilds it in the background. The page reports that the
+  index of the work is being rebuilt and that the status of the paths shows the progress.
+- **Duration:** it depends on the length of the work and on the speed of the service that prepares the texts;
+  Baruch does not show a remaining time. **Status of the
+  paths** shows the state: **Pending** counts the open jobs, **Last built** names the time of the last run.
+  Reloading shows the new state.
+- Meanwhile you keep working as usual. The search in the wording always works; the semantic search finds all
+  places of the work in the local index again only bit by bit.
+- If the configured model no longer matches the existing index, Baruch rebuilds the local index **for all
+  works**.
+- **What stays:** book text, revisions, posts, ideas and all settings stay untouched, as do pgvector and
+  MultiGPT. Only the directory in which the semantic search looks things up is created anew.
+- If the service that prepares the texts cannot be reached at the moment, the jobs stay behind: **Status of the
+  paths** lists them under **Stuck**, **Problem** names the reason. Once the cause is removed, another **Rebuild
+  index** is enough. If no such service is set up at all, Baruch refuses and says that the index could not be
+  rebuilt and that the status of the paths names the reason.
+- Without the tick nothing happens; without JavaScript the page then asks you to confirm by ticking the check box
+  and changes nothing.
 
 ## Sources {#quellen}
 
@@ -191,6 +258,7 @@ From the own computer a program needs no token. From another computer it only wo
 - **EPUBCheck:** whether the checking program for e-books has been found, and the field **Path to epubcheck.jar**
   with **Save path** – see [E-book](/en/hilfe/buchsatz/#epub).
 - **Back up now** – see [Backup](/en/hilfe/austausch-sicherung/#sicherung).
-- For each work its folder with the last entry in the history.
+- For each work its folder with the last entry in the history – how to read in it is described under
+  [Reading the history of a work](/en/hilfe/austausch-sicherung/#spiegel).
 
 With [accounts](/en/hilfe/konten/) the page **Accounts** is added.

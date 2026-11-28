@@ -137,6 +137,36 @@ Ein Treffer öffnet sein Ziel an der Fundstelle: im Werk den Abschnitt mit der r
 die Dokumentansicht. Mit einer Suche steht unter den Treffern auch der Kasten **Bilder des Werks** (höchstens
 24 Bilder, die zur Suche passen).
 
+### Eine Quelle einlesen {#quelle-einlesen}
+
+Ein Formular, um einen Titel von Hand einzutragen, hat die Literatur nicht. Neue Quellen kommen auf drei Wegen
+hinein: aus einer **Datei** (PDF oder EPUB), aus einem Treffer von **MultiGPT** (siehe
+[Abgleich mit MultiGPT](/hilfe/bibel-quellen/#abgleich)) und aus einem belegten Zitat der
+[Websuche für Belege](/hilfe/assistenten/#websuche). Der übliche Weg ist die Datei:
+
+1. **Baruch ▾ → PDF oder EPUB importieren…** wählen. Der Eintrag steht auch dann im Menü, wenn kein Werk offen
+   ist.
+2. Unter **Datei** die PDF oder das EPUB wählen (höchstens 64 MiB). Bei einer PDF unter **Weg** am besten
+   **lokal** wählen: Dann liest Baruch die Datei auf diesem Rechner, und sie verlässt ihn nicht. Ein EPUB liest
+   Baruch immer selbst.
+3. Das Feld **Titel** leer lassen – dann kommt der Titel aus der Datei – und **Lesen und Gliederung zeigen**
+   drücken.
+4. Die **Vorschau** zeigt die gefundene Gliederung mit Textproben und Hinweisen. Für eine Quelle muss man daran
+   meist nichts ändern.
+5. Unter **Übernehmen als** den Punkt **Quelle der Bibliothek** wählen – oder **beides**, wenn aus derselben
+   Datei zugleich ein Werk entstehen soll.
+6. **Titel** und **Autor** prüfen (aus der Datei vorbelegt) und **Übernehmen** drücken.
+7. Baruch öffnet die **Dokumentansicht** der neuen Quelle. In der Literatur steht sie ab jetzt bei den Titeln.
+
+- Lokal gelesen merkt sich Baruch den **ganzen Text** der Quelle. Er steht dann als **Volltext** in der
+  Dokumentansicht, und Hervorhebungen lassen sich gegen ihn prüfen (siehe
+  [Quellen lesen und hervorheben](/hilfe/bibel-quellen/#quellen)).
+- Dieselbe Datei ein zweites Mal als Quelle lehnt Baruch ab. **Verwerfen** in der Vorschau löscht den Entwurf;
+  angelegt wird dann nichts.
+- Eine Quelle einlesen kann nur der Mensch, kein Assistent.
+- Alles Weitere zur Vorschau und zu den Wegen steht unter [PDF oder EPUB einlesen](/hilfe/einlesen/#pdf-epub).
+  Von der Kommandozeile geht es mit `baruch-server import buch.epub --bibliothek`.
+
 ### Wortlaut oder Bedeutung {#bedeutungssuche}
 
 Unter dem Suchfeld wählt „Suche nach“:
@@ -157,7 +187,7 @@ still um. Die Bedeutungssuche liest nur; sie ändert nie einen Text.
 
 Die **Dokumentansicht** zeigt eine Quelle: ihre Angaben, alle Zitate (Hervorhebungen darin farbig) und alle
 Hervorhebungen. Hat Baruch den ganzen Text der Quelle (etwa nach dem
-[Einlesen einer PDF oder eines EPUB](/hilfe/einlesen/#pdf-epub) oder über MultiGPT), steht darunter der
+[Einlesen einer PDF oder eines EPUB](/hilfe/bibel-quellen/#quelle-einlesen) oder über MultiGPT), steht darunter der
 **Volltext**, Teil für Teil, mit „← vorheriger Teil“ und „nächster Teil →“.
 
 So hebt man hervor:
