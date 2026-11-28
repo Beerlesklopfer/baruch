@@ -14,6 +14,9 @@
 //!   `*`, `$`, `\`, `<`, `@` therefore appear verbatim. Every title and key point is additionally in the
 //!   document as `metadata` with the label `<baruch-note>` (checkable through `query`).
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 /// Smallest font size in points.
 pub const MIN_FONT_PT: u32 = 14;
 /// Largest font size in points.
@@ -92,6 +95,9 @@ pub struct NotesDoc {
     /// Target time ("20:00"), if set.
     pub target_clock: Option<String>,
     pub cards: Vec<NotesCard>,
+    /// Round 39b: work language of the generated words (title „Stichwortzettel“, „Gesamt“, „Ziel“, „Keine
+    /// Abschnitte.“) and of `text(lang:)`; German exactly as before.
+    pub lang: WorkLanguage,
 }
 
 /// Text as a Typst string in quotation marks: `\` and `"` escaped, line breaks and
@@ -133,7 +139,9 @@ pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String
     let size = font_pt.clamp(MIN_FONT_PT, MAX_FONT_PT);
     let mut out = String::new();
     out.push_str("// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.\n");
-    out.push_str(&format!("#set document(title: {})\n", typst_string(&format!("Stichwortzettel – {}", doc.title))));
+    let t = |key: &str, args: &[(&str, &str)]| book_t(doc.lang, key, args);
+    let title = t("book.notes_sheet.title", &[("title", &doc.title)]);
+    out.push_str(&format!("#set document(title: {})\n", typst_string(&title)));
     let (page, margin, below) = match format {
         NotesFormat::A5 => ("paper: \"a5\"", "(x: 14mm, top: 16mm, bottom: 14mm)", "1.1em"),
         NotesFormat::Cards => ("paper: \"a6\", flipped: true", "(x: 9mm, top: 11mm, bottom: 8mm)", "0.8em"),
@@ -142,7 +150,7 @@ pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String
     out.push_str(&format!(
         "#set page({page}, margin: {margin}, header: context align(right, text(size: 0.6em, fill: luma(90))[#{head} · #counter(page).display()]))\n"
     ));
-    out.push_str(&format!("#set text(size: {size}pt, lang: \"de\")\n"));
+    out.push_str(&format!("#set text(size: {size}pt, lang: \"{}\")\n", doc.lang.as_str()));
     out.push_str("#set par(justify: false, leading: 0.75em)\n");
     out.push_str("#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)\n");
     out.push_str(&format!(
@@ -161,9 +169,9 @@ pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String
          ]\n"
     ));
     // Head: title and times (with cards on the first card above the first section).
-    let mut times = format!("Gesamt {}", doc.total_clock);
+    let mut times = t("book.notes_sheet.total", &[("clock", &doc.total_clock)]);
     if let Some(target) = &doc.target_clock {
-        times.push_str(&format!(" · Ziel {target}"));
+        times.push_str(&format!(" · {}", t("book.notes_sheet.target", &[("clock", target)])));
     }
     out.push_str(&format!(
         "#text(size: 0.8em)[#strong({}) #h(1fr) #{}]\n\n",
@@ -171,7 +179,7 @@ pub fn notes_source(doc: &NotesDoc, format: NotesFormat, font_pt: u32) -> String
         typst_string(&times)
     ));
     if doc.cards.is_empty() {
-        out.push_str("#emph(\"Keine Abschnitte.\")\n");
+        out.push_str(&format!("#emph({})\n", typst_string(&t("book.notes_sheet.empty", &[]))));
     }
     for (index, card) in doc.cards.iter().enumerate() {
         if format == NotesFormat::Cards && index > 0 {
@@ -217,6 +225,7 @@ mod tests {
                 points: vec!["Licht".into()],
                 refs: vec![],
             }],
+            lang: WorkLanguage::De,
         };
         let source = notes_source(&doc, NotesFormat::A5, 16);
         assert!(

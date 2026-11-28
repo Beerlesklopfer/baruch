@@ -28,6 +28,7 @@ fn back(glossary_page: Option<GlossaryPosition>) -> BackMatter {
             long: "Sie wächst schnell.\n\nIhre Zweige biegen sich.".into(),
             bible_refs: vec!["Ps 137,2".into()],
         }],
+        ..BackMatter::default()
     }
 }
 

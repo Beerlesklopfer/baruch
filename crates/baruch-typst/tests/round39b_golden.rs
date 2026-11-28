@@ -106,6 +106,7 @@ fn back(glossary_page: GlossaryPosition, registers: &[&str]) -> BackMatter {
         },
         registers: builtin_registers(),
         glossary: glossary(),
+        ..BackMatter::default()
     }
 }
 

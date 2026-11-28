@@ -19,6 +19,9 @@
 use serde::Serialize;
 use unicode_normalization::UnicodeNormalization;
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 use super::search::url_at;
 use super::{Research, WebPage};
 use crate::connections::multigpt::clean_line;
@@ -237,8 +240,30 @@ pub fn sources_line(pages: &[&WebPage]) -> String {
     format!("Quellen: {}", items.join("; "))
 }
 
-/// Check the answer (see the module documentation).
+/// Check the answer (see the module documentation) with the German additions ([`check_in`]).
 pub fn check(answer: &str, research: &Research) -> Checked {
+    check_in(answer, research, WorkLanguage::De)
+}
+
+/// The additions Baruch writes into the answer in the work language (Round 39b): (not supported, unknown source,
+/// not fetched, check note) from the book catalog; German: [`NOT_BELEGT`], [`UNKNOWN_SOURCE`], [`NOT_FETCHED`],
+/// [`CHECK_NOTE`].
+pub fn additions(lang: WorkLanguage) -> [String; 4] {
+    [
+        book_t(lang, "book.websearch.not_supported", &[]),
+        book_t(lang, "book.websearch.unknown_source", &[]),
+        book_t(lang, "book.websearch.not_fetched", &[]),
+        book_t(lang, "book.websearch.check_note", &[]),
+    ]
+}
+
+/// Like [`check`] with the additions in the work language `lang` (Round 39b). An addition already behind a label,
+/// quotation or address is recognised in every work language and not written twice.
+pub fn check_in(answer: &str, research: &Research, lang: WorkLanguage) -> Checked {
+    let [not_supported, unknown_source, not_fetched, check_note] = additions(lang);
+    let already = |rest: &str, index: usize| {
+        WorkLanguage::ALL.into_iter().any(|other| rest.starts_with(&format!(" {}", additions(other)[index])))
+    };
     let normalized: Vec<(usize, String)> = research.pages.iter().map(|p| (p.label, normalize(&p.text))).collect();
     let page_text = |n: usize| normalized.iter().find(|(l, _)| *l == n).map(|(_, t)| t.as_str());
     let fetched: Vec<&str> = research.pages.iter().map(|p| url_key(&p.url)).collect();
@@ -256,8 +281,8 @@ pub fn check(answer: &str, research: &Research) -> Checked {
                 if !cited.contains(&n) {
                     cited.push(n);
                 }
-            } else if !line[end..].starts_with(&format!(" {UNKNOWN_SOURCE}")) {
-                inserts.push((end, format!(" {UNKNOWN_SOURCE}")));
+            } else if !already(&line[end..], 1) {
+                inserts.push((end, format!(" {unknown_source}")));
             }
         }
         if !known.is_empty() {
@@ -275,16 +300,16 @@ pub fn check(answer: &str, research: &Research) -> Checked {
                             quote: quote.trim().to_owned(),
                             verdict: Verdict::NichtBelegt,
                         });
-                        if !line[end..].starts_with(&format!(" {NOT_BELEGT}")) {
-                            inserts.push((end, format!(" {NOT_BELEGT}")));
+                        if !already(&line[end..], 0) {
+                            inserts.push((end, format!(" {not_supported}")));
                         }
                     }
                 }
             }
         }
         for (end, url) in urls_in(line) {
-            if !fetched.contains(&url_key(&url)) && !line[end..].starts_with(&format!(" {NOT_FETCHED}")) {
-                inserts.push((end, format!(" {NOT_FETCHED}")));
+            if !fetched.contains(&url_key(&url)) && !already(&line[end..], 2) {
+                inserts.push((end, format!(" {not_fetched}")));
             }
         }
         let mut out = line.to_owned();
@@ -305,7 +330,7 @@ pub fn check(answer: &str, research: &Research) -> Checked {
         footer.push(failure_line(reason));
     }
     if !evidence.iter().any(|d| d.verdict != Verdict::NichtBelegt) {
-        footer.push(CHECK_NOTE.to_owned());
+        footer.push(check_note.clone());
     }
     let pages: Vec<&WebPage> = cited.iter().filter_map(|n| research.page(*n)).collect();
     footer.push(sources_line(&pages));

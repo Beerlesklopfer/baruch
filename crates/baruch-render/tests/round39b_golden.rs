@@ -52,6 +52,7 @@ pub fn doc() -> NotesDoc {
                 refs: Vec::new(),
             },
         ],
+        ..NotesDoc::default()
     }
 }
 

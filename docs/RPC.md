@@ -2990,6 +2990,22 @@ work language is. For a German work every behaviour is literally as before Round
 | note of Baruch: quote not in the text | `(nicht im Text belegt)` | `(not backed by the text)` | written in the work language, removed and read in both |
 | note of Baruch: no solution | `(ohne Lösungsvorschlag)` | `(no solution proposed)` | written in the work language, removed and read in both |
 | note of Baruch: mandatory finding missing | `(Hinweis von Baruch: …)` (`CRITICAL_MISSING_NOTE`) | `(Note from Baruch: …)` (`CRITICAL_MISSING_NOTE_EN`) | written in the work language, footer in both |
+| closing line of the passage check (Round 39b) | `Wortlaut: ungeprüft – …`, `Hinweis: Bibelstellen und Wortlaut prüft @schrift; hier ungeprüft.`, `Wortlaut geprüft von Baruch (nicht vom Modell) …` | `Wording: unchecked – …`, `Note: Bible references and wording are checked by @schrift; unchecked here.`, `Wording checked by Baruch (not by the model) …` | `scripture::mark_with_in`, written in the work language, footer in both (`chat_render`) |
+| words @schrift and @belege write (Round 39b) | `Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen` | `wording unchecked`, `not supported`, `check reference` | default prompts (`prompts::read_back_words`); stored prompts stay as written |
+| note on a reference claim (Round 39b) | `(Stelle steht im Text: …)`, `(Stelle ungültig: …)` | `(reference is in the text: …)`, `(reference invalid: …)` | `ref_claims`: language of the finding line (`Kritisch:`/`Critical:`), removed and read in both; claim words of both languages |
+| additions of the web check (Round 39b) | `(nicht belegt)`, `(unbekannte Quelle)`, `(nicht abgerufen)`, `Angabe prüfen: nicht belegt` | `(not supported)`, `(unknown source)`, `(not fetched)`, `check reference: not supported` | `websearch::verify::check_in`; recognised in both (the caller in `assist/mod.rs` still passes no language, see `HANDOFF.md`) |
+
+**Book output in the work language (Round 39b).** All words Baruch generates into a book follow the work language
+through the book catalog `crates/baruch-core/locales/{en,de}/book.ftl` (`baruch_core::book_text::book_t`): EPUB
+(`epub.export`, `epub.check`, `epub.preview`), the export map and the typesetting source (numbering words of the
+schemes with words, `p.` in cross-references with page, index and glossary headings, `No entries.`, `see`/`see also`),
+the Word export (`docx.export`: `w:lang`, imprint lines), the notes sheet (`notes.pdf`) and the scripture check
+(`scripture.check`, `bible.check`: field `wording`). The language tag of a book: the typesetting setting `lang` if set
+and valid; otherwise for a German work the template's `#set text(lang: …)` or `de` (unchanged); for an English work
+`en` – then `#set text(lang: "en")` stands in the rule block behind the work template. German works produce byte-equal
+outputs (golden fixtures `tests/data/round39b/`). The numbering words of an English work: `Part I`, `Chapter 1`
+(parts and chapters), `Part One`, `Chapter One` … `Chapter Ninety-Nine`, from 100 on digits (spelled out and book),
+`para.`, `no.` (legal), `Introduction`, `Conclusion` (sermon, book).
 
 Further markers found in Round 38 beyond the contract (`lang::MoreMarkers`): `besser:`/`better:`,
 `Schritt:`/`Step:`, the words of the "done" line (`Befund`/`finding`, `Stelle`/`place`) and the two further outline

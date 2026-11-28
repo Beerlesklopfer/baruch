@@ -96,6 +96,7 @@ pub fn full_input() -> EpubInput {
             long: "Sie wächst schnell.".into(),
             bible_refs: vec!["Ps 137,2".into()],
         }],
+        ..BackMatter::default()
     };
     let lehm = mark_source(&IndexMark::new("stichwort", "Lehm"));
     input.sections[3].body = input.sections[3].body.replacen("Lehm schlecht", &format!("Lehm{lehm} schlecht"), 1);

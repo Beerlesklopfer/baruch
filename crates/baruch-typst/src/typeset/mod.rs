@@ -18,7 +18,7 @@ mod read;
 mod rules;
 mod template;
 
-pub use draft::{DRAFT_MARK, draft_line, draft_rule};
+pub use draft::{DRAFT_MARK, draft_line, draft_line_in, draft_rule, draft_rule_in, draft_text_in};
 pub use epub::*;
 pub use model::*;
 pub use preview::preview_source;

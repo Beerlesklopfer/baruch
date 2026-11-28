@@ -97,7 +97,7 @@ fn settings(columns: u8, registers: &[&str], glossary: Option<GlossaryPosition>)
 fn back(settings: TypesetSettings, glossary: Vec<GlossaryEntry>) -> BackMatter {
     let mut registers = builtin_registers();
     registers.push(Register { slug: "orte".into(), title: "Ortsregister".into(), kind: RegisterKind::Custom });
-    BackMatter { settings, registers, glossary }
+    BackMatter { settings, registers, glossary, ..BackMatter::default() }
 }
 
 /// Source as in the store: template, rule block, projected sections, back matter.

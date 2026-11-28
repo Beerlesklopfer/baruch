@@ -3293,7 +3293,8 @@ async fn apply_new(
             numbered: f.node.numbered,
         })
         .collect();
-    let numbering = load::work_numbering(&w.numbering_scheme, w.numbering.as_deref(), &w.template.current);
+    let language = crate::WorkLanguage::parse(w.language.as_xml()).unwrap_or_default();
+    let numbering = load::work_numbering(&w.numbering_scheme, w.numbering.as_deref(), &w.template.current, language);
     let numbers = load::numbers(&numbering, &counted);
     let mut node_ids: Vec<i64> = Vec::with_capacity(flat.len());
     for (seq, (item, number)) in flat.iter().zip(numbers).enumerate() {

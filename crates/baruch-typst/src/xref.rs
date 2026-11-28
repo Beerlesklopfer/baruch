@@ -19,6 +19,9 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
+
 use crate::marker::read_marker;
 use crate::{comment_start, label_start, read_heading};
 
@@ -274,17 +277,24 @@ pub fn strip_key_labels(text: &str) -> Cow<'_, str> {
 /// `#link(<k103>)[die Einleitung]`; with page number `#link(<k103>)[die Einleitung, S.~#context
 /// counter(page).at(<k103>).first()]`.
 pub fn xref_snippet(key: i64, text: &str, with_page: bool) -> String {
+    xref_snippet_in(key, text, with_page, WorkLanguage::De)
+}
+
+/// Like [`xref_snippet`] in the work language `lang` (Round 39b): the page abbreviation of the addition comes from the
+/// book catalog (`S.` in German, `p.` in English).
+pub fn xref_snippet_in(key: i64, text: &str, with_page: bool, lang: WorkLanguage) -> String {
     let label = key_label(key);
     if with_page {
-        format!("#link(<{label}>)[{text}{}]", page_suffix(key))
+        format!("#link(<{label}>)[{text}{}]", page_suffix(key, lang))
     } else {
         format!("#link(<{label}>)[{text}]")
     }
 }
 
-/// Page number addition in the link text: `, S.~#context counter(page).at(<k103>).first()`.
-fn page_suffix(key: i64) -> String {
-    format!(", S.~#context counter(page).at(<{}>).first()", key_label(key))
+/// Page number addition in the link text: `, S.~#context counter(page).at(<k103>).first()` (German) or
+/// `, p.~…` (English).
+fn page_suffix(key: i64, lang: WorkLanguage) -> String {
+    format!(", {}~#context counter(page).at(<{}>).first()", book_t(lang, "book.xref.page_abbr", &[]), key_label(key))
 }
 
 /// A reference in the text: bytes `start..end` of the whole form, key, link text, with page number?
@@ -342,8 +352,9 @@ pub fn find_xrefs(text: &str) -> Vec<XrefUse> {
         let open = from + close + 2;
         let Some(end) = block_end(text, open) else { continue };
         let inner = &text[open + 1..end - 1];
-        let suffix = page_suffix(key);
-        let (inner, page) = match inner.strip_suffix(&suffix) {
+        // Recognition accepts the addition of every work language (Round 39b).
+        let shorter = WorkLanguage::ALL.into_iter().find_map(|lang| inner.strip_suffix(&page_suffix(key, lang)));
+        let (inner, page) = match shorter {
             Some(shorter) => (shorter, true),
             None => (inner, false),
         };

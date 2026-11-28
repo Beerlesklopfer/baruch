@@ -40,11 +40,23 @@ export function escapeText(text: string): string {
   return out;
 }
 
-/// Reference form like baruch_typst::xref::xref_snippet (`text` already Typst).
-export function snippet(key: number, text: string, page: boolean): string {
+/// Work language of the editor around `element` (`data-work-lang` of fragments/editor.html, Round 39b); without the
+/// attribute German, the language of every work from before Round 38.
+export function workLangOf(element: Element | null): "de" | "en" {
+  const holder = element?.closest<HTMLElement>("[data-work-lang]") ?? document.querySelector<HTMLElement>("[data-work-lang]");
+  return holder?.dataset.workLang === "en" ? "en" : "de";
+}
+
+/// Page abbreviation of the book catalog (`book.xref.page_abbr`): „S.“ in German, „p.“ in English works.
+export function pageAbbr(lang: "de" | "en"): string {
+  return lang === "en" ? "p." : "S.";
+}
+
+/// Reference form like baruch_typst::xref::xref_snippet_in (`text` already Typst) in the work language `lang`.
+export function snippet(key: number, text: string, page: boolean, lang: "de" | "en" = "de"): string {
   const label = `k${key}`;
   return page
-    ? `#link(<${label}>)[${text}, S.~#context counter(page).at(<${label}>).first()]`
+    ? `#link(<${label}>)[${text}, ${pageAbbr(lang)}~#context counter(page).at(<${label}>).first()]`
     : `#link(<${label}>)[${text}]`;
 }
 
@@ -135,7 +147,12 @@ function esc(text: string): string {
 }
 
 /// Open the dialog; `initial` = values of an existing reference (Bearbeiten).
-function openDialog(work: number | null, initial: Partial<Choice>, done: (choice: Choice) => void): void {
+function openDialog(
+  work: number | null,
+  initial: Partial<Choice>,
+  done: (choice: Choice) => void,
+  lang: "de" | "en" = "de",
+): void {
   document.querySelector("dialog[data-xref-dialog]")?.remove();
   const dialog = document.createElement("dialog");
   dialog.className = "xref-dialog";
@@ -172,7 +189,8 @@ function openDialog(work: number | null, initial: Partial<Choice>, done: (choice
   let chosen: number | null = initial.key ?? null;
   if (initial.text) text.value = initial.text;
   const refresh = () => {
-    preview.textContent = chosen === null ? t("widget.xref.choose_target") : snippet(chosen, escapeText(text.value || "…"), page.checked);
+    preview.textContent =
+      chosen === null ? t("widget.xref.choose_target") : snippet(chosen, escapeText(text.value || "…"), page.checked, lang);
   };
   const load = async () => {
     try {
@@ -233,16 +251,22 @@ export function insertXref(root: HTMLElement): void {
   const start = area?.selectionStart ?? 0;
   const end = area?.selectionEnd ?? start;
   const selected = area && !area.hidden ? area.value.slice(start, end) : (window.getSelection()?.toString() ?? "");
-  openDialog(work, { text: selected.trim() || undefined }, (choice) => {
-    if (root.hasAttribute("data-ws-open")) {
-      if (sendWsCommand(root, "xref", JSON.stringify(choice))) return;
-    }
-    if (!area || area.hidden) return;
-    const typst = snippet(choice.key, escapeText(choice.text), choice.page);
-    area.focus();
-    area.setRangeText(typst, start, end, "end");
-    area.dispatchEvent(new Event("input", { bubbles: true }));
-  });
+  const lang = workLangOf(root);
+  openDialog(
+    work,
+    { text: selected.trim() || undefined },
+    (choice) => {
+      if (root.hasAttribute("data-ws-open")) {
+        if (sendWsCommand(root, "xref", JSON.stringify(choice))) return;
+      }
+      if (!area || area.hidden) return;
+      const typst = snippet(choice.key, escapeText(choice.text), choice.page, lang);
+      area.focus();
+      area.setRangeText(typst, start, end, "end");
+      area.dispatchEvent(new Event("input", { bubbles: true }));
+    },
+    lang,
+  );
 }
 
 if (typeof document !== "undefined") {
@@ -305,6 +329,7 @@ function showMenu(block: HTMLElement, key: number): void {
       .filter((n) => !(n instanceof HTMLElement && n.classList.contains("ws-xref-page")))
       .map((n) => n.textContent ?? "")
       .join("");
+    const lang = workLangOf(block);
     openDialog(workOf(block), { key, text: current, page: block.dataset.page === "1" }, (choice) => {
       block.dataset.key = String(choice.key);
       block.dataset.page = choice.page ? "1" : "0";
@@ -314,14 +339,14 @@ function showMenu(block: HTMLElement, key: number): void {
         const suffix = document.createElement("span");
         suffix.className = "ws-xref-page";
         suffix.contentEditable = "false";
-        suffix.textContent = ", S. …";
+        suffix.textContent = `, ${pageAbbr(lang)} …`;
         block.append(suffix);
       }
       // The typeset view sends the block anew on saving (data-dirty on the topmost block).
       const top = block.closest<HTMLElement>(".ws-block");
       if (top) top.dataset.dirty = "1";
       block.dispatchEvent(new Event("input", { bubbles: true }));
-    });
+    }, lang);
   });
   menu.append(open, " | ", edit);
   // Not into the typeset view (its text would be saved along): fixed above the block in the document.

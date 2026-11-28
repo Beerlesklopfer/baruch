@@ -28,6 +28,16 @@
 //! `>=` on `n.pos().len()`, also through `let p = n.pos()`), nested `if`/`else`, text, `numbering("P", ..n)`,
 //! `numbering("P", p.at(i))`, `str(p.at(i))` (also `.first()`, `.last()`, `* k`) and concatenation with `+`.
 //! Otherwise the approximation of [`crate::heading_numbering`] applies.
+//!
+//! **Work language** (Round 39b, [`Numbering::of_scheme_in`]): the words of the schemes with words (Part, Chapter,
+//! Introduction, Conclusion, para., no. and the spelled-out numbers) follow the language of the work through the
+//! book catalog ([`baruch_core::book_text`]). German stays exactly as before („Teil I“, „Erstes Kapitel“, „Erster
+//! Teil“). English uses cardinal words after the noun: „Part One“, „Chapter One“ (from 100 on with digits,
+//! „Chapter 100“), because that is the usual form in English books. The pattern-based schemes have no words and do not
+//! depend on the language. [`Numbering::from_template`] recognises the rules of both languages.
+
+use baruch_core::WorkLanguage;
+use baruch_core::book_text::book_t;
 
 use super::{
     Arg, Counter, Cursor, blank_comments, expression_end, format_number, ident_char, ident_start, is_numbering_pattern,
@@ -381,6 +391,8 @@ enum Parts {
 pub struct Numbering {
     kind: Kind,
     parts: Parts,
+    /// Language of the words (only the schemes with words use it; German for every pattern).
+    lang: WorkLanguage,
 }
 
 const NEEDS_COUNTER: &str = "braucht ein Zählzeichen (1, a, A, i, I oder *), z. B. „1.1“ oder „I.“";
@@ -388,7 +400,7 @@ const NEEDS_COUNTER: &str = "braucht ein Zählzeichen (1, a, A, i, I oder *), z.
 impl Numbering {
     /// No numbers, not for parts either.
     pub fn off() -> Numbering {
-        Numbering { kind: Kind::Spec(Spec::Off), parts: Parts::Hidden }
+        Numbering { kind: Kind::Spec(Spec::Off), parts: Parts::Hidden, lang: WorkLanguage::De }
     }
 
     /// Reads the pattern language (see module description). Empty = no numbers. Errors in German.
@@ -428,7 +440,7 @@ impl Numbering {
             let pattern = Pattern::parse(spec).ok_or_else(|| format!("Das Muster „{spec}“ {NEEDS_COUNTER}."))?;
             Spec::Hier { pattern, depth: None }
         };
-        Ok(Numbering { kind: Kind::Spec(parsed), parts: Parts::Roman })
+        Ok(Numbering { kind: Kind::Spec(parsed), parts: Parts::Roman, lang: WorkLanguage::De })
     }
 
     /// Like [`Numbering::parse_spec`], but never an error: an unreadable pattern (old data, a template with
@@ -437,13 +449,26 @@ impl Numbering {
         Numbering::parse_spec(spec).unwrap_or_else(|_| Numbering {
             kind: Kind::Spec(Spec::Hier { pattern: Pattern::raw(spec.trim()), depth: None }),
             parts: Parts::Roman,
+            lang: WorkLanguage::De,
         })
     }
 
-    /// Numbering of a scheme. `custom` is the own pattern (only for [`Scheme::Custom`]), `template` the work
-    /// template (only for [`Scheme::Template`]: its `#set heading(numbering: …)`, otherwise „1.1“).
+    /// Numbering of a scheme for a German work (exactly as before Round 39b), see [`Numbering::of_scheme_in`].
     pub fn of_scheme(scheme: Scheme, custom: Option<&str>, template: &str) -> Result<Numbering, String> {
-        let named = |kind, parts| Ok(Numbering { kind, parts });
+        Numbering::of_scheme_in(scheme, custom, template, WorkLanguage::De)
+    }
+
+    /// Numbering of a scheme in the work language `lang`. `custom` is the own pattern (only for [`Scheme::Custom`]),
+    /// `template` the work template (only for [`Scheme::Template`]: its `#set heading(numbering: …)`, otherwise
+    /// „1.1“; a rule with words in the template keeps the language it is written in). The words of the schemes with
+    /// words follow `lang` (module description); the pattern-based schemes are the same in every language.
+    pub fn of_scheme_in(
+        scheme: Scheme,
+        custom: Option<&str>,
+        template: &str,
+        lang: WorkLanguage,
+    ) -> Result<Numbering, String> {
+        let named = |kind, parts| Ok(Numbering { kind, parts, lang });
         match scheme {
             Scheme::Template => {
                 Ok(Numbering::from_template(template).unwrap_or_else(|| Numbering::lenient(DEFAULT_PATTERN)))
@@ -491,7 +516,7 @@ impl Numbering {
             }
         }
         let (value, rule, at) = found?;
-        let roman = |kind| Numbering { kind, parts: Parts::Roman };
+        let roman = |kind| Numbering { kind, parts: Parts::Roman, lang: WorkLanguage::De };
         match value {
             Arg::Str(pattern) => {
                 return Some(roman(Kind::Spec(Spec::Hier { pattern: Pattern::literal(&pattern), depth: None })));
@@ -501,10 +526,13 @@ impl Numbering {
         }
         let rest = &blanked[at..];
         let expression = rest[..expression_end(rest)].trim();
-        for scheme in [Scheme::PartsChapters, Scheme::ChapterWords, Scheme::Legal, Scheme::Sermon, Scheme::Book] {
-            let numbering = Numbering::of_scheme(scheme, None, "").ok()?;
-            if numbering.rule_value() == expression {
-                return Some(numbering);
+        // The rules of both work languages are recognised (German first: the rules written before Round 39b).
+        for lang in WorkLanguage::ALL {
+            for scheme in [Scheme::PartsChapters, Scheme::ChapterWords, Scheme::Legal, Scheme::Sermon, Scheme::Book] {
+                let numbering = Numbering::of_scheme_in(scheme, None, "", lang).ok()?;
+                if numbering.rule_value() == expression {
+                    return Some(numbering);
+                }
             }
         }
         let approx = crate::heading_numbering(template);
@@ -537,12 +565,20 @@ impl Numbering {
         self.kind == Kind::Spec(Spec::Off)
     }
 
-    /// Number of the n-th part (from 1): „I“, „Teil I“, „Erster Teil“ or empty.
+    /// Language of the words of this numbering (German for the pattern-based schemes).
+    pub fn lang(&self) -> WorkLanguage {
+        self.lang
+    }
+
+    /// Number of the n-th part (from 1): „I“, „Teil I“, „Erster Teil“ or empty; in English „Part I“, „Part One“.
     pub fn part(&self, n: usize) -> String {
         match self.parts {
             Parts::Roman => crate::roman(n),
-            Parts::Named => format!("Teil {}", crate::roman(n)),
-            Parts::Words => ordinal_word(n, "er", "Teil"),
+            Parts::Named => book_t(self.lang, "book.numbering.part", &[("number", &crate::roman(n))]),
+            Parts::Words => match self.lang {
+                WorkLanguage::De => ordinal_word(n, "er", "Teil"),
+                WorkLanguage::En => book_t(self.lang, "book.numbering.part", &[("number", &cardinal_word_en(n))]),
+            },
             Parts::Hidden => String::new(),
         }
     }
@@ -567,21 +603,26 @@ impl Numbering {
                 Some(Some(pattern)) => pattern.format(path),
                 _ => String::new(),
             },
-            Kind::PartsChapters if level == 1 => format!("Kapitel {own}"),
+            Kind::PartsChapters if level == 1 => {
+                book_t(self.lang, "book.numbering.chapter", &[("number", &own.to_string())])
+            }
             Kind::PartsChapters => crate::format_number("1.1", path),
-            Kind::ChapterWords if level == 1 => ordinal_word(own, "es", "Kapitel"),
+            Kind::ChapterWords if level == 1 => match self.lang {
+                WorkLanguage::De => ordinal_word(own, "es", "Kapitel"),
+                WorkLanguage::En => book_t(self.lang, "book.numbering.chapter", &[("number", &cardinal_word_en(own))]),
+            },
             Kind::ChapterWords => String::new(),
             Kind::Legal => match level {
                 1 => format!("§ {own}"),
-                2 => format!("Abs. {own}"),
-                3 => format!("Nr. {own}"),
+                2 => format!("{} {own}", book_t(self.lang, "book.numbering.legal_paragraph", &[])),
+                3 => format!("{} {own}", book_t(self.lang, "book.numbering.legal_number", &[])),
                 _ => String::new(),
             },
             Kind::Sermon | Kind::Book if level == 1 => {
                 if own == 1 {
-                    "Einleitung".to_owned()
+                    book_t(self.lang, "book.numbering.introduction", &[])
                 } else if own == chapters {
-                    "Schluss".to_owned()
+                    book_t(self.lang, "book.numbering.conclusion", &[])
                 } else {
                     format!("{}.", crate::roman(own - 1))
                 }
@@ -624,7 +665,18 @@ impl Numbering {
                 format!("{HEAD}{} }}", chain(&levels))
             }
             Kind::PartsChapters => {
-                format!("{HEAD}if p.len() == 1 {{ \"Kapitel \" + str(p.at(0)) }} else {{ numbering(\"1.1\", ..p) }} }}")
+                let chapter = around(self.lang, "book.numbering.chapter", "str(p.at(0))");
+                format!("{HEAD}if p.len() == 1 {{ {chapter} }} else {{ numbering(\"1.1\", ..p) }} }}")
+            }
+            Kind::ChapterWords if self.lang == WorkLanguage::En => {
+                let words: Vec<String> = (1..=99).map(|n| typst_str(&cardinal_word_en(n))).collect();
+                format!(
+                    "{HEAD}let w = ({}); if p.len() == 1 {{ if p.at(0) <= w.len() {{ {} }} else {{ {} }} }} \
+                     else {{ \"\" }} }}",
+                    words.join(", "),
+                    around(self.lang, "book.numbering.chapter", "w.at(p.at(0) - 1)"),
+                    around(self.lang, "book.numbering.chapter", "str(p.at(0))"),
+                )
             }
             Kind::ChapterWords => {
                 let words: Vec<String> = (1..=99).map(|n| typst_str(&ordinal_word(n, "es", ""))).collect();
@@ -635,25 +687,47 @@ impl Numbering {
                 )
             }
             Kind::Legal => format!(
-                "{HEAD}if p.len() == 1 {{ \"§ \" + str(p.at(0)) }} else if p.len() == 2 {{ \"Abs. \" + str(p.at(1)) }} \
-                 else if p.len() == 3 {{ \"Nr. \" + str(p.at(2)) }} else {{ \"\" }} }}"
+                "{HEAD}if p.len() == 1 {{ \"§ \" + str(p.at(0)) }} else if p.len() == 2 {{ {} + str(p.at(1)) }} \
+                 else if p.len() == 3 {{ {} + str(p.at(2)) }} else {{ \"\" }} }}",
+                typst_str(&format!("{} ", book_t(self.lang, "book.numbering.legal_paragraph", &[]))),
+                typst_str(&format!("{} ", book_t(self.lang, "book.numbering.legal_number", &[]))),
             ),
-            Kind::Sermon => "(..n) => context { let p = n.pos(); let last = counter(heading).final().at(0); \
-                             if p.len() == 1 { if p.at(0) == 1 { \"Einleitung\" } else if p.at(0) == last { \"Schluss\" } \
-                             else { numbering(\"I.\", p.at(0) - 1) } } else { \"\" } }"
-                .to_owned(),
+            Kind::Sermon => format!(
+                "(..n) => context {{ let p = n.pos(); let last = counter(heading).final().at(0); \
+                 if p.len() == 1 {{ if p.at(0) == 1 {{ {} }} else if p.at(0) == last {{ {} }} \
+                 else {{ numbering(\"I.\", p.at(0) - 1) }} }} else {{ \"\" }} }}",
+                typst_str(&book_t(self.lang, "book.numbering.introduction", &[])),
+                typst_str(&book_t(self.lang, "book.numbering.conclusion", &[])),
+            ),
             // The same numbers as Sermon, but deliberately different text (also without comments): only this way
             // `from_template` recognises an exported book state again as a book including word parts.
-            Kind::Book => "(..n) => context { let p = n.pos(); let chapters = counter(heading).final().first(); \
-                           if p.len() != 1 { \"\" } else if p.first() == 1 { \"Einleitung\" } \
-                           else if p.first() == chapters { \"Schluss\" } else { numbering(\"I.\", p.first() - 1) } }"
-                .to_owned(),
+            Kind::Book => format!(
+                "(..n) => context {{ let p = n.pos(); let chapters = counter(heading).final().first(); \
+                 if p.len() != 1 {{ \"\" }} else if p.first() == 1 {{ {} }} \
+                 else if p.first() == chapters {{ {} }} else {{ numbering(\"I.\", p.first() - 1) }} }}",
+                typst_str(&book_t(self.lang, "book.numbering.introduction", &[])),
+                typst_str(&book_t(self.lang, "book.numbering.conclusion", &[])),
+            ),
             Kind::Function { node, .. } => {
                 let levels: Vec<String> = (1..=MAX_LEVEL).map(|level| terms_typst(&node.eval(level))).collect();
                 format!("{HEAD}{} }}", chain(&levels))
             }
         }
     }
+}
+
+/// Typst expression for the catalog text `key` (with `{ $number }`) where the number is the Typst expression
+/// `number`: `"Kapitel " + str(p.at(0))`; the text after the number only if there is one, so that the German rules
+/// stay byte-identical.
+fn around(lang: WorkLanguage, key: &str, number: &str) -> String {
+    const SLOT: &str = "\u{1}";
+    let text = book_t(lang, key, &[("number", SLOT)]);
+    let (before, after) = text.split_once(SLOT).unwrap_or((text.as_str(), ""));
+    let mut out = if before.is_empty() { number.to_owned() } else { format!("{} + {number}", typst_str(before)) };
+    if !after.is_empty() {
+        out.push_str(&format!(" + {}", typst_str(after)));
+    }
+    out
 }
 
 /// `if p.len() == 1 { E1 } else if p.len() == 2 { E2 } … else { "" }`.
@@ -722,6 +796,39 @@ fn ordinal_stem(n: usize) -> Option<String> {
             Some(format!("{cardinal}st"))
         }
         _ => None,
+    }
+}
+
+/// English cardinal word with a capital letter for the schemes with words (1 → „One“, 21 → „Twenty-One“) up to 99;
+/// from 100 on (and for 0) digits.
+pub fn cardinal_word_en(n: usize) -> String {
+    const SMALL: [&str; 19] = [
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Eleven",
+        "Twelve",
+        "Thirteen",
+        "Fourteen",
+        "Fifteen",
+        "Sixteen",
+        "Seventeen",
+        "Eighteen",
+        "Nineteen",
+    ];
+    const TENS: [&str; 10] = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+    match n {
+        1..=19 => SMALL[n - 1].to_owned(),
+        20..=99 if n.is_multiple_of(10) => TENS[n / 10].to_owned(),
+        20..=99 => format!("{}-{}", TENS[n / 10], SMALL[n % 10 - 1]),
+        _ => n.to_string(),
     }
 }
 

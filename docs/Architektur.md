@@ -6643,6 +6643,41 @@ Interface R39b-S1 laid the ground: the book catalog `baruch-core/locales/{en,de}
 
 Written by the task named in the heading (Round 39b).
 
+**Catalog.** Every word Baruch generates into a book output comes from `crates/baruch-core/locales/{en,de}/book.ftl`
+through `baruch_core::book_text::book_t(work_language, key, args)`; the German values are verbatim the literals of
+before, the English ones the base catalog. ausgaben added keys for the EPUB front matter and navigation, glossary and
+index words, draft, imprint lines, notes sheet, and the read-back words of the passage check, claims and web check.
+`tests/round39b_ausgaben.rs` proves that every key used in `crates/*/src` exists and every key is used.
+
+**Where the work language enters.** `Numbering::of_scheme_in(scheme, custom, template, lang)` (`of_scheme` = German);
+the store passes `work.language` in `load::work_numbering` (load, outline, snapshot, exchange import), so node numbers,
+the exported heading rule and the part labels follow it. `Numbering::from_template` recognises the rules of both
+languages. `BackMatter.lang` (filled by `Store::back_matter`) chooses headings, `No entries.` and the words of the
+helpers. `EpubInput.work_language` drives the EPUB labels and, with `baruch_epub::template::book_language`, the
+language tag (§2.1); the server's `epub_input` and the Word export use the same function. `NotesDoc.lang` (from
+`Notes.lang`) sets the notes sheet. `snapshot::rule_settings` adds `lang: "en"` to the typesetting settings of an
+English work without its own `lang`, so `#set text(lang: "en")` stands in the rule block of export, export map, mirror
+and typesetting; German works keep their settings untouched.
+
+**Functions with `_in`.** The old functions stay and are the German case: `xref_snippet_in` (`p.`), `draft_rule_in`,
+`draft_line_in`, `draft_text_in` (the stored default `ENTWURF` becomes the catalog word), `imprint_lines_in`,
+`frame_parts_in`, `wrap_source_with_rules_in`, `front_source_with_rules_in`, `book_dict_in` (the generated German
+literals of the frame replaced by the catalog words), `footnote_list_in`/`endnote_list_in`, `epub_draft_in`,
+`scripture::check_with_in`/`facts_with_in`/`mark_with_in`, `websearch::verify::check_in`. Recognition reads both
+languages: `find_xrefs` (`, S.~` and `, p.~`), `strip_back_matter`, the chat footer, `ref_claims`, the web additions.
+
+**Editor widgets.** `fragments/editor.html` and `fragments/lektor_editor.html` carry `data-work-lang` (from
+`view::values`, `work_lang`); `xref.ts` (`workLangOf`, `pageAbbr`, `snippet(…, lang)`) and `wysiwyg.ts` (`workLang`)
+write `p.` and the em dash `— ` before the source of a new quotation for English works, otherwise as before.
+
+**Golden fixtures.** `crates/{baruch-typst,baruch-epub,baruch-render,baruch-docx,baruch-server}/tests/data/round39b/`
+were generated with the unchanged S1 code; `round39b_golden.rs` (crates) and `round39b_ausgaben.rs` (server) compare
+byte-equal. `BARUCH_BLESS_R39B` exists only for that first commit.
+
+**Out of scope, still German in every work.** Mirror commit texts, the idea-map exports (`idea_map/files/**`), the
+default register titles stored as user data, the names of the exchange format, the comment lines of generated Typst
+(`// Baruch: Gliederungsschema „…“`, `// Stichwortzettel – …`) and CSS comments of the EPUB style sheet.
+
 
 
 

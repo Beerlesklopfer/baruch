@@ -226,7 +226,8 @@ pub(crate) async fn import_typst(
         .zip(&placed)
         .map(|(&numbered, &(parent, _, kind))| load::Numbered { kind, parent, numbered })
         .collect();
-    let numbering = load::work_numbering("template", None, &doc.template);
+    // An imported work is German (work language default); the template scheme reads rules of both languages.
+    let numbering = load::work_numbering("template", None, &doc.template, crate::WorkLanguage::De);
     let numbers = load::numbers(&numbering, &counted);
     let mut node_ids: Vec<i64> = Vec::with_capacity(doc.headings.len());
     for (seq, ((heading, &(parent, position, kind)), number)) in

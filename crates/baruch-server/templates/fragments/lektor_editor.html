@@ -47,7 +47,7 @@
 {%- if sheet_css %}
 <style id="ws-style" data-work="{{ work.id }}">{{ sheet_css | safe }}</style>
 {%- endif %}
-<div class="wysiwyg" data-widget="wysiwyg" data-work="{{ work.id }}" data-key="{{ node.key }}" data-node="{{ node.id }}" data-rev="{{ rev.number }}" data-ws-start="{% if ws_satz %}satz{% else %}quelltext{% endif %}">
+<div class="wysiwyg" data-widget="wysiwyg" data-work="{{ work.id }}" data-key="{{ node.key }}" data-node="{{ node.id }}" data-rev="{{ rev.number }}" data-ws-start="{% if ws_satz %}satz{% else %}quelltext{% endif %}" data-work-lang="{{ work_lang }}">
   {% include "fragments/edit_toolbar.html" %}
   <div class="editor-body" data-zoom-zone="sheet">
     <form class="editor-form" id="editor-form" method="post" action="/lektorat/act" data-rpc data-widget="editor" data-lektor-propose>

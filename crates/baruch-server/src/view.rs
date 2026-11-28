@@ -1650,6 +1650,8 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         lector_fixed => work.lector_choice.handle().is_some_and(|h| {
             lector.as_deref().is_some_and(|l| l.trim_start_matches('@') == h.trim().trim_start_matches('@'))
         }),
+        // Round 39b (contract §2.4): work language of the Typst snippets the editor widgets insert.
+        work_lang => shelf.works.iter().find(|w| w.id == shelf.id).map_or("de", |w| w.language.as_str()),
         view => view,
         other_view => if at.preview { "edit" } else { "preview" },
         url => at.url(shelf.id, library.query.as_deref()),

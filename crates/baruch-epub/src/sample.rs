@@ -112,6 +112,7 @@ pub fn input() -> EpubInput {
         imprint: vec!["© 2026 Erika Beispiel".into(), "Beispielverlag".into(), "ISBN 978-3-16-148410-0".into()],
         dedication: "Für alle, die am Bach bauen.".into(),
         footnotes: FootnoteMode::Popup,
+        work_language: Default::default(),
     }
 }
 

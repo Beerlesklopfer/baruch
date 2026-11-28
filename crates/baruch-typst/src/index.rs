@@ -19,6 +19,8 @@ mod back;
 mod project;
 mod scan;
 
+pub use back::register_title;
+
 use std::borrow::Cow;
 
 use serde::{Deserialize, Serialize};
@@ -590,6 +592,10 @@ pub struct BackMatter {
     pub settings: TypesetSettings,
     pub registers: Vec<Register>,
     pub glossary: Vec<GlossaryEntry>,
+    /// Work language (Round 39b): headings, `book.index.empty` and the words of the entries follow it; German works
+    /// stay byte-identical.
+    #[serde(default)]
+    pub lang: baruch_core::WorkLanguage,
 }
 
 impl BackMatter {
@@ -633,7 +639,9 @@ impl<'a> Projector<'a> {
 pub fn strip_back_matter(source: &str) -> (&str, bool) {
     let mut start = 0;
     for line in source.split_inclusive('\n') {
-        let generated = source[start + line.len()..].starts_with(back::HELPERS);
+        // The helpers of every work language count as generated (Round 39b).
+        let rest = &source[start + line.len()..];
+        let generated = baruch_core::WorkLanguage::ALL.into_iter().any(|lang| rest.starts_with(&back::helpers(lang)));
         if generated && line.trim_end_matches(['\n', '\r']) == BACK_MATTER_MARK {
             return (&source[..start], true);
         }

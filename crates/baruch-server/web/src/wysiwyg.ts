@@ -94,6 +94,13 @@ import {
   type WsCommandName,
 } from "./ws_command.js";
 
+/// Work language of the typeset view around `element` (`data-work-lang` of fragments/editor.html, Round 39b, contract
+/// §2.4); without the attribute German. Decides the words of the Typst snippets this widget inserts.
+function workLang(element: Element | null): "de" | "en" {
+  const holder = element?.closest<HTMLElement>("[data-work-lang]") ?? document.querySelector<HTMLElement>("[data-work-lang]");
+  return holder?.dataset.workLang === "en" ? "en" : "de";
+}
+
 type Inline =
   | { t: "text"; v: string }
   | { t: "soft" }
@@ -1299,7 +1306,8 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
           const suffix = document.createElement("span");
           suffix.className = "ws-xref-page";
           suffix.contentEditable = "false";
-          suffix.textContent = ", S.\u00a0…";
+          // Round 39b: page abbreviation of the work language (book catalog `book.xref.page_abbr`).
+          suffix.textContent = `, ${workLang(xref) === "en" ? "p." : "S."}\u00a0…`;
           xref.append(suffix);
         }
       } else if (cmd === "link") {
@@ -1323,7 +1331,8 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         body.append(paragraph);
         box.append(body);
         const reference = newBlock("paragraph");
-        reference.textContent = "–\u00a0";
+        // Round 39b: an English work gets the em dash usual before a source in English books.
+        reference.textContent = workLang(top) === "en" ? "—\u00a0" : "–\u00a0";
         top.after(box, reference);
         placeCaret(paragraph, true);
         markTouched(state);

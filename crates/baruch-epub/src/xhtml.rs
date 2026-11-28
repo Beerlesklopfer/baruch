@@ -30,6 +30,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use baruch_core::book_text::book_t;
 use baruch_typst::typeset::FootnoteNumbering;
 use baruch_wysiwyg::{Block, BlockKind, Inline, Term};
 
@@ -97,6 +98,8 @@ pub struct Links {
     pub figures: BTreeMap<String, usize>,
     /// Normalised Typst path → image in the package.
     pub images: BTreeMap<String, ImageTarget>,
+    /// Round 39b: work language of the generated words (figure supplement, missing image, back link).
+    pub lang: baruch_core::WorkLanguage,
 }
 
 /// Writes the blocks of a file. It collects footnotes and warnings across all sections of the file.
@@ -308,6 +311,8 @@ pub fn labelled_figure(inlines: &[Inline]) -> Option<(&str, &str)> {
 }
 
 /// Word before the number of a figure if the reference does not bring its own (Typst with `lang: "de"`).
+/// Since Round 39b the word comes from the book catalog in the work language (`book.figure.supplement`); this is its
+/// German value.
 pub const FIGURE_SUPPLEMENT: &str = "Abbildung";
 
 pub fn label_id(label: &str) -> String {
@@ -572,7 +577,8 @@ impl<'a> Renderer<'a> {
                         "IMAGE_MISSING",
                         format!("Bild {path} gibt es im Werk nicht; im EPUB steht ein Hinweis."),
                     );
-                    out.push_str(&format!("<span class=\"baruch-missing\">Bild fehlt: {}</span>", escape_text(&path)));
+                    let missing = book_t(self.links.lang, "book.image.missing", &[("path", &path)]);
+                    out.push_str(&format!("<span class=\"baruch-missing\">{}</span>", escape_text(&missing)));
                 }
             }
         }
@@ -760,7 +766,8 @@ impl<'a> Renderer<'a> {
             // Round 23a: a reference to a figure shows its number like Typst („Abbildung 3“), not the label name.
             match self.links.figures.get(target) {
                 Some(number) => {
-                    let word = supplement.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(FIGURE_SUPPLEMENT);
+                    let generated = book_t(self.links.lang, "book.figure.supplement", &[]);
+                    let word = supplement.map(str::trim).filter(|s| !s.is_empty()).unwrap_or(&generated);
                     let shown = format!("{word}\u{a0}{number}");
                     return self.reference_link(out, href, &shown);
                 }
@@ -831,6 +838,11 @@ impl<'a> Renderer<'a> {
 /// Footnotes at the end of a chapter file (popup): `<ol class="baruch-footnotes">` with one
 /// `<aside epub:type="footnote">` each; readable also in readers without popups.
 pub fn footnote_list(notes: &[Note]) -> String {
+    footnote_list_in(notes, baruch_core::WorkLanguage::De)
+}
+
+/// Like [`footnote_list`] in the work language `lang` (Round 39b): title of the back link from the book catalog.
+pub fn footnote_list_in(notes: &[Note], lang: baruch_core::WorkLanguage) -> String {
     if notes.is_empty() {
         return String::new();
     }
@@ -840,9 +852,10 @@ pub fn footnote_list(notes: &[Note]) -> String {
     for note in notes {
         out.push_str(&format!(
             "<li><aside id=\"fn{n}\" epub:type=\"footnote\" role=\"doc-footnote\"><p>{html} <a href=\"#fnref{n}\" \
-             class=\"baruch-backlink\" role=\"doc-backlink\" title=\"zurück zum Text\">↩</a></p></aside></li>\n",
+             class=\"baruch-backlink\" role=\"doc-backlink\" title=\"{back}\">↩</a></p></aside></li>\n",
             n = note.number,
             html = note.html,
+            back = escape_text(&book_t(lang, "book.footnote.back", &[])),
         ));
     }
     out.push_str("</ol>\n");
@@ -851,14 +864,20 @@ pub fn footnote_list(notes: &[Note]) -> String {
 
 /// List of the endnotes (`text/notes.xhtml`) with back references into the chapter files.
 pub fn endnote_list(notes: &[Note]) -> String {
+    endnote_list_in(notes, baruch_core::WorkLanguage::De)
+}
+
+/// Like [`endnote_list`] in the work language `lang` (Round 39b): title of the back link from the book catalog.
+pub fn endnote_list_in(notes: &[Note], lang: baruch_core::WorkLanguage) -> String {
     let mut out = String::from("<ol class=\"baruch-footnotes\">\n");
     for note in notes {
         out.push_str(&format!(
             "<li id=\"fn{n}\" epub:type=\"endnote\"><p>{html} <a href=\"{file}#fnref{n}\" class=\"baruch-backlink\" \
-             role=\"doc-backlink\" title=\"zurück zum Text\">↩</a></p></li>\n",
+             role=\"doc-backlink\" title=\"{back}\">↩</a></p></li>\n",
             n = note.number,
             html = note.html,
             file = escape_text(&note.file),
+            back = escape_text(&book_t(lang, "book.footnote.back", &[])),
         ));
     }
     out.push_str("</ol>\n");

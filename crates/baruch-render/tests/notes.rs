@@ -32,6 +32,7 @@ fn sermon() -> NotesDoc {
             card("II.", "Der Weg", &["Unterwegs teilen"], &["Lk 24,30"]),
             card("", "Schluss", &[], &[]),
         ],
+        ..NotesDoc::default()
     }
 }
 
@@ -142,7 +143,13 @@ fn larger_print_needs_at_least_as_many_pages() {
 
 #[test]
 fn an_empty_outline_still_gives_a_page() {
-    let doc = NotesDoc { title: "Leer".into(), total_clock: "0:00".into(), target_clock: None, cards: vec![] };
+    let doc = NotesDoc {
+        title: "Leer".into(),
+        total_clock: "0:00".into(),
+        target_clock: None,
+        cards: vec![],
+        ..NotesDoc::default()
+    };
     let rendered = compile(&Source { main: notes_source(&doc, NotesFormat::Cards, 14), files: vec![] });
     assert!(errors(&rendered).is_empty(), "ohne Abschnitte kein Fehler: {:?}", errors(&rendered));
     assert_eq!(rendered.pages.len(), 1, "eine Karte mit dem Hinweis „Keine Abschnitte.“");

@@ -174,6 +174,19 @@ pub fn template_chapter_start(template: &str) -> Option<ChapterStart> {
     detect_chapter_break(template).map(|rule| rule.chapter_start)
 }
 
+/// Language tag of a book (Round 39b, contract §2.1) for EPUB `dc:language`/`xml:lang`, DOCX `w:lang` and Typst
+/// `text(lang:)`: (1) the typesetting setting `lang` if it is a valid tag; else for a German work exactly as before
+/// (the template's `#set text(lang: …)`, otherwise `"de"`); else for an English work `"en"`.
+pub fn book_language(settings_lang: Option<&str>, template: &str, work: baruch_core::WorkLanguage) -> String {
+    if let Some(tag) = settings_lang.map(str::trim).filter(|tag| is_language_tag(tag)) {
+        return tag.to_owned();
+    }
+    match work {
+        baruch_core::WorkLanguage::De => template_lang(template).unwrap_or_else(|| "de".to_owned()),
+        baruch_core::WorkLanguage::En => "en".to_owned(),
+    }
+}
+
 /// Language from `#set text(lang: "…")` of the template (the last statement applies, comments do not count).
 pub fn template_lang(template: &str) -> Option<String> {
     let clean = strip_comments(template);
