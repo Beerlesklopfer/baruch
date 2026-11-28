@@ -1,21 +1,26 @@
 {{ define "main" }}
-{{- /* Startseite: Auftakt aus den Angaben im Kopf von content/_index.md, darunter der Text. */ -}}
+{{- /*
+  Home page: opening from the front matter of content/<lang>/_index.md, below it the text. The picture comes from
+  the picture folder of the page's language (partial bildpfad.html: German bilder/, every other language
+  bilder/<lang>/) and is left out while it does not exist there.
+*/ -}}
+{{- $bild := partial "bildpfad.html" (dict "seite" .Page "datei" "arbeitsplatz.png") -}}
 <section class="auftakt">
   <div class="rand">
-    <p class="auftakt-marke">Baruch · Version {{ site.Params.version }}</p>
+    <p class="auftakt-marke">Baruch · {{ T "version" }} {{ site.Params.version }}</p>
     <h1>{{ .Params.claim | default .Title }}</h1>
     {{- with .Params.lead }}
     <p class="auftakt-text">{{ . }}</p>
     {{- end }}
     <p class="auftakt-wege">
-      <a class="knopf" href="{{ "installation/" | relURL }}">Installieren</a>
-      <a class="knopf zweit" href="{{ "funktionen/" | relURL }}">Was Baruch kann</a>
-      <a class="knopf zweit" href="{{ site.Params.repo }}" rel="noopener">Quellcode</a>
+      <a class="knopf" href="{{ "installation/" | relLangURL }}">{{ T "installieren" }}</a>
+      <a class="knopf zweit" href="{{ "funktionen/" | relLangURL }}">{{ T "was_baruch_kann" }}</a>
+      <a class="knopf zweit" href="{{ site.Params.repo }}" rel="noopener">{{ T "quellcode" }}</a>
     </p>
-    {{- if fileExists "static/bilder/arbeitsplatz.png" }}
+    {{- if fileExists (printf "static/%s" $bild) }}
     <figure class="bild auftakt-bild">
-      <img src="{{ "bilder/arbeitsplatz.png" | relURL }}" alt="Der Arbeitsplatz von Baruch: links die Gliederung eines Beispielwerks, in der Mitte ein Abschnitt so, wie er gesetzt wird, rechts Assistenten, Fassungen und Chat." width="1400" height="860" fetchpriority="high" decoding="async">
-      <figcaption>Der Arbeitsplatz: Gliederung, Text im Satzbild, Assistenten und Fassungen – hier mit einem erfundenen Beispielwerk.</figcaption>
+      <img src="{{ $bild | relURL }}" alt="{{ T "auftakt_bild_alt" }}" width="1400" height="860" fetchpriority="high" decoding="async">
+      <figcaption>{{ T "auftakt_bild_titel" }}</figcaption>
     </figure>
     {{- end }}
   </div>

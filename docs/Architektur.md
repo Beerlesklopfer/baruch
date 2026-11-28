@@ -6685,7 +6685,43 @@ default register titles stored as user data, the names of the exchange format, t
 
 ### Website in English (hilfe_en_1, hilfe_en_2)
 
-Written by the task named in the heading (Round 39b).
+Written by the task named in the heading (Round 39b): hilfe_en_1 (Hugo configuration, theme, the fixed pages and
+four help pages), hilfe_en_2 (the other ten help pages). Building and writing rules: `site/README.md`, section
+"Languages".
+
+- **Configuration** (`site/hugo.toml`): `[languages.de]` (`contentDir = "content/de"`, `locale = "de"`,
+  `weight = 1`, `label = "Deutsch"`) and `[languages.en]` (`contentDir = "content/en"`, `locale = "en"`,
+  `weight = 2`, `label = "English"`); `defaultContentLanguage = "de"` with `defaultContentLanguageInSubdir = false`
+  keeps every German address of Rounds 24 to 39a, English lives under `/en/`. Menus moved to
+  `[languages.<lang>.menus]` (same `pageRef` in both languages; Hugo resolves it inside the language), the English
+  site description to `[languages.en.params]`. The top-level `[params]` keeps `version`, `repo`, `aptFingerprint`
+  and `description` as plain `key = "value"` lines, because `scripts/ci-site.sh` (awk) and
+  `tests/round24_abnahme.rs` read them there. Hugo 0.168 reports `languageName` as deprecated since 0.158 (an abort
+  with `--panicOnWarning`); the language name is therefore `label`, contrary to contract §2.2, which named
+  `languageName`. Likewise `.Site.Sites` is deprecated since 0.156; `baseof.html` uses `hugo.Sites.Default`.
+- **Pairing:** Hugo pairs a German and an English page by their path relative to the content directory, so
+  `content/en/` repeats the German file names (`hilfe/erste-schritte.md`, not a translated slug). Anchors stay the
+  German `{#…}` ids, so a link `/en/hilfe/buchsatz/#pdf` mirrors `/hilfe/buchsatz/#pdf`. The test module
+  `round39b_hilfe_en.rs` checks path, front matter, anchors, picture calls, German letters in prose and `/en/`
+  links per page.
+- **Theme strings:** every literal of the layouts goes through `{{ T "key" }}` with `themes/baruch/i18n/de.toml`
+  (the former wording, verbatim) and `en.toml`; the keys are German like the other identifiers of the theme. The
+  German build differs from Round 39a only by the `hreflang` alternates and the language switch; text and
+  addresses are unchanged. Internal theme links use `relLangURL` (home, Installation, Features, Licence), assets
+  (`favicon.svg`, `css/baruch.css`) stay on `relURL`.
+- **Language switch** (`_partials/kopf.html`): the last entry of the main menu, a plain `<a hreflang lang>` to the
+  first entry of `.Translations`; without a translation it links to the home page of the other language
+  (`site.Home.AllTranslations`) with a title that says so. No JavaScript, no cookie, no detection of the browser
+  language. `baseof.html` writes `<link rel="alternate" hreflang="<locale>">` for every translation of a
+  translated page and `x-default` for the default language.
+- **Pictures:** `home.html` takes the path of its picture from the partial `bildpfad.html` (interface S1) and leaves
+  the picture out while `static/bilder/en/arbeitsplatz.png` does not exist; the shortcodes are fotos_tool's.
+- **Open after hilfe_en_1:** theme strings inside the shortcodes (`fingerabdruck`: German notice; `release`:
+  German default text, English pages pass `"release page"`; `taste`: German key names only where the page passes
+  them) belong to fotos_tool; `scripts/site-check.py` checks the GitHub-link rule only for `hilfe/`, not for
+  `en/hilfe/`. The sermon preset and the first chapter of a new book are created with German titles in every work
+  language (`baruch-store/src/works.rs`); the English help says so. The names of the numbering schemes
+  (`baruch-typst/src/scheme.rs`) are still German; the English help names them in English.
 
 
 
