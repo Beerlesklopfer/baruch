@@ -11,7 +11,7 @@ commit. This file here contains **no steps for operators**, only what nobody nee
 verification with the tests, open points and technical notes. Nothing is in both files.
 
 Installation and packages: `docs/Verteilung.md`. Usage: the help under `site/content/de/hilfe/` (entry point
-`docs/Bedienung.md`). Structure of the protective layers: `docs/Architektur.md`, section „MCP“.
+`docs/Bedienung.md`). Structure of the protective layers: `docs/Architektur.md`, section "Protection of the interfaces".
 
 ## Where is what
 
@@ -53,7 +53,7 @@ technical side of it):
 - restoring a backup;
 - operation under macOS and Windows behind a proxy;
 - accounts on a real proxy with TLS and in a real browser (manual checklist: `docs/Architektur.md`,
-  „Runde 35 – Konten und Rollen“).
+  "Round 35 – Accounts and roles").
 
 ## Open
 

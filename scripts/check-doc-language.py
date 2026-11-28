@@ -23,7 +23,8 @@ Python 3 standard library only.
 import os
 import sys
 
-# The marker that splits docs/Architektur.md between two tasks (same text as SPLIT in round38_doku.rs).
+# The marker that split docs/Architektur.md between two tasks in Round 38c (removed after the join; kept for
+# --part, which can split any file that carries it).
 SPLIT = "<!-- R38c split: architektur_1 above, architektur_2 below -->"
 
 # Umlauts allowed in the prose of a translated file: (file name relative to the repository, text, reason).

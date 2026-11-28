@@ -129,7 +129,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R37 | Hilfe auf der Webseite, mit Bildern: 14 Hilfeseiten, Betrieb und Ersteinrichtung auf der Webseite, 94 Bildschirmfotos, Hilfe-Link in der Oberfläche – **erledigt 2026-11-27** (≈ 95 min ab S1 `4a5b9d2` mit Prüfung und PM-Abschluss, Vertrag davor nicht in Git; Integration `ef9a9f0`; Offenes unter „Nach Runde 37 offen“ und „Runde 37 – integriert“); nicht Teil von 0.9.0 | a hilfe_text · b webseite · c bilder | 150 |
 | R38 | **Part 1 done 2026-11-27, delivered in part** (≈ 162 min from `3fa5806` with review, follow-up `478be2a` and PM close; S1 `4315b01`, integration `511527f`; only a, b, c started, none finished its whole scope – see "Open after Round 38"; rest in R38b and R38c). Plan as it was: A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
 | R38b | **Closed 2026-11-28** (≈ 250 min from `174c996` to the integration `36a9e2d`, of which 111 for the contract; review with two low findings, no follow-up; PM close exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt); eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
-| R38c | Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models and the words read back from @schrift/@belege; the low review findings of Round 38 | a skills_plan · b bedienung_verteilung_wysiwyg · c architektur_1 · d architektur_2_austausch · e mcp_rpc_doku (two waves) | 120 |
+| R38c | **Integrated 2026-11-28** (≈ 115 min from `0dc0e09` to the integration commit; S1 `4136ba2`; six developers in two waves, three of them reported before their test runs had finished, so the integrator committed their finished working trees; full run exit 0, 3597 passed, 0 failed, 2 ignored, 218 results "ok"; details under "Round 38c – integrated"). Plan as it was: Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models; the low review findings of Round 38 | skills_plan · mcp_austausch_wysiwyg · rpc_doku · architektur_1 · architektur_2 · modell_texte (two waves) | 120 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1564,17 +1564,17 @@ Round 38 ("English for agents and developers") was integrated only in part. Merg
 `team/mcp_rpc`, `team/kommentare_server`. The branches `team/kommentare_store` and `team/kommentare_rest` were
 never started (the round's output schema allowed three tasks, see contract §0) – a follow-up round is needed.
 
-- **Developer docs still German (regeln_doku):** `SKILLS.md`, `docs/Plan.md`, `docs/Bedienung.md`,
+- (**done in Round 38c**, 2026-11-28, see "Round 38c – integrated" below) **Developer docs still German (regeln_doku):** `SKILLS.md`, `docs/Plan.md`, `docs/Bedienung.md`,
   `docs/Verteilung.md`, `docs/WYSIWYG.md`, `docs/Austauschformat.md`, `docs/Architektur.md` (about 1.1 MB;
   `Architektur.md` alone 588 KB). They carry English sections added in Round 38 and are therefore mixed. Whoever
   translates a file moves it from `PENDING` to `TRANSLATED` in `tests/round38_doku.rs` and updates the test-pinned
   German strings in the same commit: `round37_hilfe` (headings and one sentence of `docs/Bedienung.md`),
   `round36_typst` (`docs/Verteilung.md`), `round32_beenden`. `README.md` cites two German headings of
   `docs/Verteilung.md` („Typst-Kommandozeile“, „Stand der Prüfung“).
-- **`docs/MCP.md` and `docs/RPC.md` still German (mcp_rpc)** apart from the Round 38 sections ("Work language",
+- (**done in Round 38c**, 2026-11-28) **`docs/MCP.md` and `docs/RPC.md` still German (mcp_rpc)** apart from the Round 38 sections ("Work language",
   "Round 38 – English and work language"); about 3,870 lines. Both files are mixed-language, against the contract
   rule "whole or untouched"; accepted for this round, to be translated as a whole.
-- **Task texts to models still German:** `assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`,
+- (**task texts done in Round 38c**, 2026-11-28; the words read back from @schrift/@belege stay German until Round 39b) **Task texts to models still German:** `assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`,
   `threads.rs`. The language rule below the prompt still fixes the answer language. The words Baruch reads back
   from @schrift/@belege (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are recognised in German only, so
   an English work still gets these German words. Prompts of the personas other than the lector are about 140
@@ -1607,7 +1607,7 @@ never started (the round's output schema allowed three tasks, see contract §0) 
   its vector nearness („passt zu Ast“, nearness lines) until the index has rewritten the row; the next load is
   right again. Replacing the row in one step (for example `merge_insert` in LanceDB) is a change in
   `baruch-lancedb` with a risk of its own; identifiers are unique per work only.
-- **Low findings of the review (2026-11-27, not fixed, → R38c):**
+- (**done in Round 38c**, 2026-11-28: findings 1, 2 and 4 fixed, finding 3 kept with regression tests) **Low findings of the review (2026-11-27, not fixed, → R38c):**
   - `work_language::of` (`crates/baruch-server/src/work_language.rs`) swallows a read error of the store with
     `unwrap_or_default()` and falls back to `de` silently; an English work would then be answered in German
     without a message. `exchange_dump` falls back the same way (there the CHECK of migration 0055 prevents it).
@@ -1686,6 +1686,54 @@ branches `team/r38b-<id>` (`srv_src_i_p`, `srv_src_q_z`, `srv_tests_1`, `srv_tes
   `.claude/worktrees/wf_b51eb61c-fd2-{3,4,5,6,7,8,9,10}` with their `target/` are removed; the branches
   `team/r38b-*` stay. Visual check (no change of the user interface expected): one
   picture of the work page, `.claude/sicht/r38b/` (not in the repository).
+
+### Round 38c – integrated (2026-11-28)
+
+Contract "Developer docs and model texts in English, rest": base `0dc0e09`, S1 `4136ba2` (split marker in
+`docs/Architektur.md`, one table `FILES` in `round38_doku.rs`, new `scripts/check-doc-language.py`), six branches
+`team/r38c-<id>` merged with `--no-ff` in the order of the contract, no conflict.
+
+- **Delivered:** `SKILLS.md`, `docs/Plan.md`, `docs/Verteilung.md`, `docs/Bedienung.md` (skills_plan, `8f54ca2`),
+  `docs/MCP.md`, `docs/Austauschformat.md`, `docs/WYSIWYG.md` (mcp_austausch_wysiwyg, `ab58569`, `831dd0e`,
+  `8a9d1f0`), `docs/RPC.md` (rpc_doku, `9de3bf1`), `docs/Architektur.md` above and below the split (architektur_1
+  `b3ca87f`, architektur_2 `1b2fd8b`), model task texts and the four low findings of Round 38 (modell_texte
+  `fbdff13`). All twelve entries of `round38_doku::FILES` are `Translated`; `check-doc-language.py` exits 0 on all
+  of them.
+- **Committed by the integrator:** skills_plan, architektur_1 and architektur_2 had translated their files completely
+  but reported before their first test run ended and had committed nothing. The integrator checked each working tree
+  (`check-doc-language.py`, untouched split region, only the owned files changed) and committed it on its branch;
+  their tests ran only as part of the integrated run.
+- **Join of `docs/Architektur.md`:** the marker line and one empty line removed; `round38_doku` has no `Part`/`SPLIT`
+  any more (one `Whole` entry per file; the test `part_text_splits_at_the_marker_with_real_line_numbers` is gone, a
+  new assertion checks that no marker is left). `check-doc-language.py --part` stays for other files.
+- **Cross-doc check by the integrator:** quoted German headings that other documents cited were moved to the new
+  English headings (Architektur → Plan, Austauschformat, WYSIWYG, RPC; Betrieb → Architektur; MCP → RPC; RPC →
+  Architektur, Bedienung; WYSIWYG → Architektur), as were the comments in `.github/workflows/pages.yml`,
+  `release.yml`, `scripts/ci-check-workflows.sh`, `ci-tool.sh`, `ci-fingerprint.sh`,
+  `packaging/appimage/build-appimage.sh` and `tests/round13_websuche.rs` (two allow entries removed). Doc quotations
+  of model task texts follow the new English wording (`docs/RPC.md`, `docs/Architektur.md`, `docs/Bedienung.md`).
+  Citations of the old Bedienung section names („Zeitwächter“, „Assistenten fragen“ …) stay: the table "Where is
+  what" maps them to the help pages. Intra-doc anchors: all resolve.
+- **Correction found by rpc_doku:** `Login required.` on `/rpc` is -32002 (`rpc::UNAUTHENTICATED`), not -32001 as the
+  Round 38 text said.
+- **Tests:** full run in the main folder after `cargo clean -p` of all workspace crates: exit 0, 3597 passed,
+  0 failed, 2 ignored, 218 results "ok" (server bundle 1618; pgvector tests ran). +12 tests from modell_texte (9 in
+  `round38c_prompts.rs`, unit tests of `work_language::fallback` and of the markers), −1 split test (3586 before). fmt, clippy `-D warnings`, `ci-selftest.sh` (89
+  assertions), `check-comments-only.py --umlaute crates scripts site/tools` green. Visual check with an own throwaway
+  server: `.claude/sicht/r38c/` (work page unchanged; settings page with `sprachfehler=werk`).
+- **Left open (small):**
+  - German text that still reaches a model outside the files of modell_texte: the fact block of the reference check
+    (`scripture.rs`, `FACTS_END`, `MARK_…`) and `websearch/verify.rs` `failure_line` („Hinweis: Websuche
+    ausgefallen …“, also shown in posts). On purpose German: framing tags (`<<<befund` …), the variant answer form
+    (`Zeile:`/`Befunde:`/`Text:`, `[[Absatz n]]`, read back by the parser), labels shown in the user interface too.
+  - The words read back from @schrift/@belege (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) → Round 39b.
+  - Code comments still cite old German headings of the developer docs („Satz-Einstellungen“, „Zeitwächter“,
+    „Einfälle“ in `rpc.rs` …; vocabulary rule of Round 38, allowed to stay); `site/README.md` and
+    `site/content/de/**` stay German.
+  - `exchange_dump` in `baruch-store` still falls back to `de` silently on an unreadable language (the CHECK of
+    migration 0055 prevents it; unchanged by contract).
+  - Free subtitles in two Architektur headings ("## Chat: retry, delete, …", "## Round 29: Typesetting in the
+    settings") – the contract listed only their prefixes.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 

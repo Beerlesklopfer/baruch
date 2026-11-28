@@ -5,7 +5,7 @@
 //!
 //! - Subject: the current revision of the section `key` or, without `key`, the current texts of the whole work in
 //!   tree order, trimmed to the context length of the persona (note in `notes`).
-//! - Answer form [`SUGGEST_RULE`]: per line `Begriff | kurze Erklärung`; list markers and numbers are
+//! - Answer form [`SUGGEST_RULE`]: per line `Term | short explanation`; list markers and numbers are
 //!   removed, at most [`MAX_SUGGESTIONS`] lines count. Terms already accepted or proposed and
 //!   unusable ones end up in `skipped` with reason.
 //! - An error of the model (no backend, not reachable, empty answer) is reported honestly (`REFUSED`), nothing

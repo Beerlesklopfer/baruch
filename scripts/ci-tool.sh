@@ -6,7 +6,7 @@
 #
 # Puts ZIELORDNER/hugo in place (Linux x86_64, like the runners). Without a matching checksum the script aborts;
 # nothing unchecked is executed. The version stands only here (one place for ci.yml, release.yml and pages.yml).
-# Raising it: docs/Verteilung.md, „Werkzeuge anheben“.
+# Raising it: docs/Verteilung.md, "Raising tools".
 #
 # - Hugo: the same version as on the development machine (not "extended", the theme needs no SCSS).
 #   Checksum from hugo_<Version>_checksums.txt of the release, queried on 2026-11-24.

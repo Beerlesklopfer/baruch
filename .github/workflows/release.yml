@@ -340,7 +340,7 @@ jobs:
       contents: write
     # Umgebung mit Schutzregeln (Freigabe durch den Nutzer, nur Tags v*): Nur Jobs dieser Umgebung sehen die
     # dort abgelegten Secrets APT_GPG_*. Ohne eingerichtete Regeln legt GitHub die Umgebung beim ersten Lauf
-    # leer an – dann schützt sie nichts (docs/Verteilung.md, „Einmalige Einrichtung“).
+    # leer an – dann schützt sie nichts (docs/Verteilung.md, "One-time setup").
     environment: release
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

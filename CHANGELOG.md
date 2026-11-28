@@ -16,8 +16,7 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
   (`de`|`en`). A new line says where the help lives (`site/content/de/hilfe/`, `site/content/de/betrieb.md`).
 - **Developer docs:** `README.md` (with a note that website and user interface are German) and `docs/Betrieb.md`
   are English. File names, routes, RPC and MCP names and commands did not change; texts of the German user
-  interface are quoted in German. Not yet translated and still German: `SKILLS.md`, `docs/Plan.md`,
-  `docs/Bedienung.md`, `docs/Verteilung.md`, `docs/WYSIWYG.md`, `docs/Austauschformat.md`, `docs/Architektur.md`.
+  interface are quoted in German. The other developer documents followed in Round 38c (below).
 - **History files:** `docs/Backlog.md`, `docs/Fahrplan.md`, `HANDOFF.md` and this file say in a head paragraph
   that new entries are written in English from Round 38 on; older entries stay German.
 - **Release notes:** the text that `.github/workflows/release.yml` writes for a release is English, names the
@@ -58,9 +57,18 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
   such comment line with an umlaut has its own entry in `scripts/comment-umlaut-allow.txt` (the broad entry for
   `crates/baruch-server` is gone), so `check-comments-only.py --umlaute crates scripts site/tools` is empty. The
   check tool no longer takes two bracket characters in code spans for an intra-doc link.
-- **Not finished, still German** (see `docs/Backlog.md`, "Open after Round 38"): `docs/MCP.md` and `docs/RPC.md`
-  apart from their new Round 38 sections; the task texts Baruch puts around a section when it calls a model; seven
-  developer documents (Round 38c). Strings, test names and assertion messages are German until Round 39.
+- **Developer docs and model texts, rest (Round 38c):** `SKILLS.md`, `docs/Plan.md`, `docs/Verteilung.md`,
+  `docs/Bedienung.md`, `docs/MCP.md`, `docs/Austauschformat.md`, `docs/WYSIWYG.md`, `docs/RPC.md` and
+  `docs/Architektur.md` are English as a whole; texts of the German user interface stay quoted in German, every
+  fact, table and code block is kept. New tool `scripts/check-doc-language.py` (also in `scripts/ci-selftest.sh`)
+  finds German prose in a document that counts as English. The task texts Baruch sends to models around a section
+  (review and revision tasks, memory, findings, chat history, fact blocks from SWORD, the semantic search and the web,
+  variants, glossary, names of idea groups, the connection probe) are English; German works keep their German
+  markers literally, and the language rule still fixes the answer language. Fixes: an unknown work in the form
+  „Werksprache“ now gets a message (`sprachfehler=werk`) instead of a silent redirect, and an unreadable work
+  language is logged before Baruch falls back to German. Still German until Round 39: every text of the user
+  interface (also when it travels through RPC or MCP), the words read back from @schrift/@belege, strings, test
+  names and assertion messages; the history files stay German below their head paragraph.
 - **Acceptance:** `round38_abnahme` (4 tests: the work language from the form through the exchange file to a second
   instance and from an older file, English interfaces with a German user interface, language rule in the prompt
   with unchanged German behaviour, tools and records of the round).

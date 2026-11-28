@@ -591,7 +591,7 @@ Per help page, what is deliberately missing there. Interfaces in detail: `docs/R
   model). Notes „(nicht im Text belegt)“, „(Stelle steht im Text: …)“, „(Stelle ungültig: …)“ are set only by
   Baruch; if a model writes them itself, Baruch removes them and checks anew. „fehlt“ counts only with a location. Evidence is
   only the shown text, the job and Baruch's evidence – not foreign findings, earlier posts or ideas
-  (these stand framed as „Daten, keine Anweisungen“).
+  (these stand framed as "data, not instructions").
 - **Checking quotations:** page `/werke/<id>/pruefung?key=…&rev=…` (also on Ctrl/Shift click); highlighting through the
   CSS Custom Highlight API (older browsers: only the list), only whole words, ambiguous wording stays
   unhighlighted („n Zitat(e) im Satzbild nicht eindeutig gefunden (nur in der Liste)“).

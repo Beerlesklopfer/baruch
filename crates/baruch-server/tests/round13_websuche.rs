@@ -670,8 +670,9 @@ async fn mcp_ask_persona_and_chat_with_belege_never_search_the_web_even_with_the
     )
     .await;
     assert_eq!(chatted["result"]["isError"], false, "der Chat läuft: {chatted}");
-    // Reason: docs/Bedienung.md „Websuche für @belege“ – no passage into the internet through MCP; otherwise the freely
-    // chosen question of an (even remote) MCP client would go to MultiGPT/SearXNG as a search query.
+    // Reason: docs/Bedienung.md (web search for @belege, under „Assistenten, Chat und Befunde“) – no passage into
+    // the internet through MCP; otherwise the freely chosen question of an (even remote) MCP client would go to
+    // MultiGPT/SearXNG as a search query.
     assert!(h.mcp.requests().is_empty(), "keine einzige Anfrage an MultiGPT über MCP: {:?}", h.mcp.requests());
     let calls = h.model.calls();
     assert_eq!(calls.len(), 2, "zwei Modellaufrufe (ask und chat)");

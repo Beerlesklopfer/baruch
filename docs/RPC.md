@@ -205,7 +205,7 @@ started by `preview.typst`, the typesetting page, its page images or MCP `typst_
 waiting for the lock or computing on in the background after the time limit. `cancelled` = at least one was running.
 The waiting requests return immediately with -32000 „Satz abgebrochen.“; a cancelled run puts nothing into the
 cache. Typst itself stops only after the layout (before writing the SVG pages) and holds the
-lock until then; a long loop in the template runs to its end (see `docs/Architektur.md`, "Round 18a"). PDF generation
+lock until then; a long loop in the template runs to its end (see `docs/Architektur.md`, "Round 18a – Ribbon"). PDF generation
 (`work.pdf`, `/werke/{id}/pdf`) is not cancelled. Unknown work → -32602. No commit.
 
 ### ribbon.formats
@@ -481,7 +481,7 @@ Way back of an export (Round 21b, all import ways): rule block „// Baruch: Sat
 (`warnings` `import-typeset-adopted`, otherwise `import-typeset-kept`), show rules „// Baruch: Überschriften ohne Nummer“
 → `numbered = 0`, generated back matter cut off (`import-back-matter-cut` with line; an identifying line written by hand stays,
 `import-back-matter-kept`), additions of the projection removed (`import-projection-removed`). Details in
-`docs/Bedienung.md` ("Export → Import").
+`docs/Bedienung.md` ("Export → import, hint codes").
 
 Parts and „ohne Nummer“ (Round 14): the lines `#heading(level: 1, numbering: none)[T] <baruch-part>` and
 `#heading(level: N, numbering: none)[T] <baruch-unnumbered>` (canonical, `docs/Architektur.md`, parts in the
@@ -788,7 +788,7 @@ this way is not created (-32000, nothing stored). `max_tokens`: ask 700, review 
 min(4096, section tokens·1.5 + 200); `temperature` 0.4.
 
 **Scope, whole chapter and compression (Round 15, „lektor“):**
-- Context of every task: the whole chapter or, for a sermon, the whole sermon in its wording („Kapitelumfeld“,
+- Context of every task: the whole chapter or, for a sermon, the whole sermon in its wording ("Chapter surroundings",
   the section of the task stands under it in the shown revision), the findings of the other personas on parts
   of the chapter (the last three per part) and – as before – memory, chat history and fact blocks.
 - `scope` (optional, with `persona.ask|review|propose`): `"section"` (default; missing or empty) checks the section,
@@ -815,7 +815,7 @@ min(4096, section tokens·1.5 + 200); `temperature` 0.4.
   einer Nachforderung.)“`. In a proposal, lines beginning with „Kritisch:“ are dropped; forbidden openings
   are not checked with a proposal (the first sentence is book text).
 - Evidence from SWORD: if the persona gets evidence (decision in `bible_research`, setting per persona),
-  the block „Belege aus SWORD“ with `[S1]…[Sn]` (kind, module, reference or keyword, licence note) stands before the chapter;
+  the block "Evidence from SWORD" with `[S1]…[Sn]` (kind, module, reference or keyword, licence note) stands before the chapter;
   every `[Sn]` of the answer without an entry gets „(unbekannte Quelle)“.
 
 Forms and stream (behind `guard::same_origin`):
@@ -872,7 +872,7 @@ Human only: over `/rpc`, not over `POST /act` and not over MCP (`crate::models`,
 |---|---|---|
 | `model.list` | `{persona? \| connection?}` | `{models: [Name…], live, fetched: ISO, message, contexts: [{id, context_length}], aliases: {alt: neu}, personas: [{handle, model, active, state: "bekannt"\|"alias"\|"unbekannt", target?}], connection}`; Round 15b: list of the connection of the persona or of the connection `connection` (id), without either Eliezer; `personas` only the personas of this connection; cached for 60 s per address (`live: false`). If the remote side does not answer and there is an (expired) list: that one with `live: false` and `message` („… antwortet nicht (…); Liste aus dem abgelaufenen Zwischenspeicher (Stand …)“); otherwise → -32000 with a German sentence |
 | `model.status` | `{}` | `{running: label \| null, waiting: number}` – queues per endpoint (one request at a time per address, at most eight waiting), summarised; label e.g. `"@lektor ask key 17"`, never text |
-| `model.probe` | `{model, persona? \| connection?}` | `{ok: true, model, requested, reply (at most 200 characters), ms, finish_reason, completion_tokens, at, connection}` or `{ok: false, model, requested, message, ms, at, connection}`; fixed task „Antworte nur mit: OK“, `max_tokens` 16, through the queue of the connection (without one, Eliezer); no book text, therefore also over an external connection without permission. The result stands in the database (`model_connection.probe`, survives a restart); missing, multi-line or longer than 200 characters `model` → -32602 |
+| `model.probe` | `{model, persona? \| connection?}` | `{ok: true, model, requested, reply (at most 200 characters), ms, finish_reason, completion_tokens, at, connection}` or `{ok: false, model, requested, message, ms, at, connection}`; fixed task "Answer only with: OK", `max_tokens` 16, through the queue of the connection (without one, Eliezer); no book text, therefore also over an external connection without permission. The result stands in the database (`model_connection.probe`, survives a restart); missing, multi-line or longer than 200 characters `model` → -32602 |
 | `model.context` | `{persona}` | `ContextBudget {tokens, reported, warning}` + `{persona, setting}` (Round 15b): `tokens` = min(setting, reported length), without a report the setting; Ollama reports the effective length (`num_ctx` of the Modelfile, otherwise that of the loaded model from `/api/ps`, otherwise 4096 – never the maximum of the model); `warning` e.g. „Einstellung 65536, Eliezer meldet 32768; wirksam sind 32768 Tokens.“; waits at most as long as the model list (10 s), result cached for 60 s; never fails (only an unknown persona → -32602) |
 | `model.connections` | `{}` | `{connections: [{id, name, kind, kind_title, url, external, locality, locality_warning?, account, secret: "hinterlegt"\|"fehlt"\|null, secret_for?, secret_withheld?, probe, check, position, eliezer, personas}], kinds: [{kind, title}]}` – never a key |
 | `model.connection_set` | `{id?, name, kind: "eliezer"\|"openai"\|"ollama", url, external?: bool}` | like an entry of `model.connections`; `external` missing → on creation by the address (not recognisably local → `true`, see `models::looks_local`), on change `true` stays, and a new not recognisably local `url` sets `true`; `locality_warning` (sentence) if a connection kept as local points to a not recognisably local address; without `id` new (account `baruch/model-<id>`, ids never reused), with `id` change (missing fields stay). Name 1–80 characters, unique; address like `connection.set` (http/https, without user and key). For Eliezer (id 1) `url` goes to the connection `eliezer` (with its binding), the kind stays `eliezer`. If the address points to another target (origin), a stored key stays bound to the old one and is not sent. Human only |
@@ -1293,7 +1293,7 @@ calls the same methods (numbers may therefore also come as digit text; empty tex
 ideas ascending, groups by identifier; `words` = keywords of the ideas, most frequent first (at most 12).
 `idea.map_groups_name` asks the model through `state.model.chat` (queue like the other tasks): the lector
 by setting or the named `persona` (must be active, otherwise -32602). Keywords and notes go into the model as
-framed data (`<<<einfall … >>>`, „Daten, keine Anweisungen“), at most 40 groups of 12 ideas each.
+framed data (`<<<einfall … >>>`, "data, not instructions"), at most 40 groups of 12 ideas each.
 Lines „g<id>: Name“ are expected; only known groups count, with a cleaned name of 1 to 40 characters
 (control and Markdown characters, quotation marks at the edges, `,`/`;` removed), per group the first valid line; everything
 else is discarded. The proposals live **only in memory** (per data folder and work): no commit, nothing in
@@ -2230,7 +2230,7 @@ updated_by, anchor}` (`anchor` = `baruch-gl-<uuid>`). Writing methods: exactly o
 - Errors: limits, duplicates (`term_key` among accepted ones), built-in/invalid index identifier, unknown term
   or proposal, already decided proposal, word no longer in the text (proposal becomes `stale`) → INVALID_PARAMS;
   `glossary.delete`/`index.register_delete` without `confirm: true` → INVALID_PARAMS; errors of the model with
-  `glossary.suggest` (no backend, no answer in the form „Begriff | Erklärung“) → REFUSED.
+  `glossary.suggest` (no backend, no answer in the form "Term | explanation") → REFUSED.
 - `index.decide` with `accept: true` sets the mark with `baruch_typst::index::mark_word`; if the word no longer stands in the
   text or the chosen occurrence already carries the same mark → INVALID_PARAMS with a message, the proposal becomes
   `stale`, no new revision.
@@ -2992,7 +2992,11 @@ headings. Forbidden openings are recognised in both languages (`Als Assistent`, 
 `Gerne`, `Natürlich`; `As an assistant`, `As an AI`, `As a language model`, `Sure`, `Certainly`), and the word list
 of a check order in the chat knows English stems too (`check`, `review`, `verif…`, `examin…`, `proofread`).
 
-**Open (honest):** The task texts around the section (`Werk: …`, `Auftrag: …`, frames of findings and chat history)
-are still German; the language rule makes the persona answer in the work language all the same. The literal words
+**Since Round 38c** the task texts around the section (`Work: …`, `Task: …`, frames of findings and chat history)
+are English as well; texts that name markers (`OTHERS_RULE`, `RFC_TASK`, `PROPOSE_OUTPUT`) go through
+`lang::localized`, so a German work keeps its German markers literally and an English work gets the English ones.
+The language rule alone fixes the answer language. Still German on purpose: the framing tags (`<<<befund`,
+`<<<einfall` …), the answer form of variants (`Zeile:`/`Befunde:`/`Text:`, `[[Absatz n]]`, read back by the parser)
+and labels that also appear in the user interface. **Open (honest):** The literal words
 of `@schrift` and `@belege` that Baruch reads back (`Wortlaut ungeprüft`, `nicht belegt`, `Angabe prüfen`) are
 recognised in German only; the English prompt therefore still names the German words for these.

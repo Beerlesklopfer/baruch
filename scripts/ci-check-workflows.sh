@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Checks the rules of the workflows under .github/workflows (docs/Verteilung.md, „Regeln der Arbeitsabläufe“).
+# Checks the rules of the workflows under .github/workflows (docs/Verteilung.md, "Rules of the workflows").
 #
 #   scripts/ci-check-workflows.sh [ORDNER]
 #
@@ -85,7 +85,7 @@ for path in files:
     # 12. Der Auslöser `release` nur als `types: [published]`. Grund: Ohne `types` startete der Ablauf bei jedem
     #     Ereignis eines Release (angelegt, bearbeitet, gelöscht …) und lieferte die Seite mehrfach aus; gemeint
     #     ist genau der Augenblick, in dem das Release öffentlich wird – erst dann ist sein apt-repo.tar.gz mit
-    #     Leserechten abrufbar (pages.yml, „Auslieferung über GitHub Pages“).
+    #     Leserechten abrufbar (pages.yml, docs/Verteilung.md "Delivery through GitHub Pages").
     if "release" in listed:
         release = triggers.get("release") if isinstance(triggers, dict) else None
         if not isinstance(release, dict) or release.get("types") != ["published"]:

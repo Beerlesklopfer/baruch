@@ -8,7 +8,7 @@
 #   wird dabei der Stand von main (nicht der des Tags), damit ein spät veröffentlichtes Release die Seite nicht
 #   auf einen älteren Stand zurücksetzt. Grenze: Ein Release, das der Arbeitsablauf selbst sofort veröffentlicht
 #   (RELEASE_DRAFT=false), löst nichts aus – Ereignisse des GITHUB_TOKEN starten keine Abläufe; dann von Hand
-#   (`gh workflow run pages.yml`). Nie ausgeführt geprüft (docs/Verteilung.md, „Stand der Prüfung“).
+#   (`gh workflow run pages.yml`). Nie ausgeführt geprüft (docs/Verteilung.md, "State of verification").
 # - Ein Seiten-Push darf das APT-Repository nicht löschen: Pages ersetzt immer die ganze Seite. Darum holt der
 #   Ablauf apt-repo.tar.gz des letzten veröffentlichten Release und legt es wieder nach /apt/.
 # - Gibt es noch kein veröffentlichtes Release mit dem Archiv, erscheint die Seite ohne /apt/ (Warnung). Jeder
@@ -32,7 +32,7 @@ permissions:
 # Dieselbe Gruppe wie die Jobs „pages-build“ und „pages-deploy“ in release.yml: nie zwei Jobs der Gruppe zugleich,
 # kein laufender wird abgebrochen. Hier hält der ganze Lauf die Gruppe, in release.yml jeder der beiden Jobs für
 # sich. Ein Push auf main während eines Release kann darum dessen Auslieferung überholen oder verdrängen:
-# main erst nach Ende des Release-Laufs schieben (docs/Verteilung.md, „Auslieferung über GitHub Pages“).
+# main erst nach Ende des Release-Laufs schieben (docs/Verteilung.md, "Delivery through GitHub Pages").
 concurrency:
   group: pages
   cancel-in-progress: false

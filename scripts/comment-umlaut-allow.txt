@@ -572,7 +572,5 @@ crates/baruch-wysiwyg/src/emit.rs	`(ort: [Küche])`	Typst sample input (code spa
 crates/baruch-wysiwyg/src/html.rs	„Öffnen | Bearbeiten“	quoted German menu labels
 crates/baruch-wysiwyg/src/lib.rs	`/ Begriff: Erklärung`	Typst sample input (code span)
 crates/baruch-wysiwyg/src/lib.rs	`#szene(ort: [Küche])[…]`	Typst sample input (code span)
-scripts/ci-check-workflows.sh	„Regeln der Arbeitsabläufe“	quoted German user-interface text or sample input
-scripts/ci-fingerprint.sh	„Schlüssel für das	quoted heading of docs/Verteilung.md (quote continues on the next line)
 site/tools/bildschirmfotos.py	„Zitate prüfen“	quoted German user-interface text or sample input
 site/tools/bildschirmfotos.py	<kSchlüssel>	German user-interface label or placeholder kept verbatim

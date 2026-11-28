@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Checks the published fingerprint of the APT archive key (docs/Verteilung.md, „Schlüssel für das
-# APT-Repository“).
+# Checks the published fingerprint of the APT archive key (docs/Verteilung.md, "Key for the APT
+# repository").
 #
 #   scripts/ci-fingerprint.sh [--root ORDNER] [--key FINGERABDRUCK]
 #

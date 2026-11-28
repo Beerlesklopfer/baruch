@@ -11,7 +11,7 @@
 # appimagetool und die Laufzeit (type2-runtime) werden in der CI in fester Version geladen und gegen die
 # SHA-256-Prüfsummen unten geprüft; ohne passende Prüfsumme bricht das Skript ab. Die Prüfsummen stammen aus
 # den Angaben der GitHub-Releases (Feld `digest`, abgefragt am 2026-11-24); beim Anheben der Version neu
-# abfragen (docs/Verteilung.md, „Werkzeuge anheben“).
+# abfragen (docs/Verteilung.md, "Raising tools").
 #
 # Voraussetzung: packaging/generated/THIRD-PARTY-LICENSES.txt und QUELLTEXT.txt (beide von
 # scripts/third-party-licenses.py). Im AppDir liegen Lizenz, Drittlizenzen und Quellcode-Angebot unter

@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-28, Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-28, Round 38c "Developer docs and model texts in English, rest" **integrated** (nine developer documents English as a whole, model task texts English, four low findings of Round 38 done; integration on `development`, PM close pending); Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -6,6 +6,37 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Round 38c "Developer docs and model texts in English, rest" integrated** (2026-11-28, integrator, on
+  `development`; base `0dc0e09`, S1 `4136ba2`; branches `team/r38c-skills_plan` `8f54ca2`,
+  `-mcp_austausch_wysiwyg` `8a9d1f0`, `-rpc_doku` `9de3bf1`, `-architektur_1` `b3ca87f`, `-architektur_2`
+  `1b2fd8b`, `-modell_texte` `fbdff13` merged with `--no-ff`, no conflict; then the integration commit; not
+  pushed). Version unchanged 0.9.0, CHANGELOG under „Unveröffentlicht“. No migration (highest 0055, 0056 unused),
+  no new route, RPC method or MCP tool, no stub added or removed.
+  **Delivered:** `SKILLS.md`, `docs/Plan.md`, `docs/Verteilung.md`, `docs/Bedienung.md`, `docs/MCP.md`,
+  `docs/Austauschformat.md`, `docs/WYSIWYG.md`, `docs/RPC.md`, `docs/Architektur.md` English as a whole (German only
+  quoted or as code; `scripts/check-doc-language.py` exit 0 on all of them and on `AGENTS.md`, `README.md`,
+  `docs/Betrieb.md`). Model task texts English (`assist/**`, `threads.rs`, `idea_map/groups.rs`, `models.rs`
+  `PROBE_PROMPT`); German works keep their German markers literally. Findings of Round 38: (1)
+  `work_language::fallback` logs an unreadable work language before falling back to `de`; (2) an unknown work at
+  `POST /einstellungen/werk/sprache` → 303 to `/einstellungen/werk?sprachfehler=werk#sprache` with a message; (3)
+  kept, see the decisions below; (4) `AGENTS.md` names the exceptions that stay German.
+  **Integrator:** committed the finished but uncommitted working trees of skills_plan, architektur_1 and
+  architektur_2 (their reports came before their test runs ended); joined `docs/Architektur.md` (marker removed,
+  `round38_doku` without `Part`/`SPLIT`); moved cross-doc heading citations and doc quotations of model task texts
+  to the new English wording (details in `docs/Backlog.md`, "Round 38c – integrated").
+  **Checks:** full run in the main folder after `cargo clean -p` of all workspace crates: exit 0, 218 results "ok",
+  **3597 passed**, 0 failed, 2 ignored (server bundle 1618; pgvector tests ran); fmt, clippy `-D warnings`,
+  `ci-selftest.sh`, `check-comments-only.py --umlaute crates scripts site/tools` green. Visual check with an own
+  throwaway server (no request to Eliezer): `.claude/sicht/r38c/` (work page unchanged, settings page with the new
+  message; not in the repository).
+  **Decisions for the user:** (a) messages of the user interface stay German until the catalogs of Round 39a, also
+  when they travel through RPC or MCP; (b) the words read back from @schrift/@belege (`Wortlaut ungeprüft`, `nicht
+  belegt`, `Angabe prüfen`) follow the work language only in Round 39b; (c) finding 3: the recognition keeps
+  accepting markers of both languages in every work (documented in `docs/RPC.md`), now with regression tests that
+  German works are read exactly as before Round 38 – change it to "only the markers of the work language"?
+  **Open:** `exchange_dump` in `baruch-store` still falls back to `de` silently (the CHECK of migration 0055 prevents
+  it); German prompt text in `scripture.rs` and `websearch/verify.rs` (outside the round); worktrees
+  `.claude/worktrees/wf_b51eb61c-fd2-{16..21}` and the branches `team/r38c-*` are kept for the PM close.
 - **Round 38b "Comments in English, rest" closed** (2026-11-27/28, integrator, on `development`; base
   `174c996`, S1 `58b9dd5`; branches `team/r38b-srv_src_i_p` `52a4567`, `-srv_src_q_z` `8fff3d9`, `-srv_tests_1`
   `e26c8c4`, `-srv_tests_2` `89aac9e`, `-store` `d36ad3b`, `-crates_a` `2e03ac5`, `-crates_b` `54e3b72`, `-web`
@@ -2371,6 +2402,9 @@ Frühere Runden:
   `highlights.rs` Bereichsprüfung ohne Zitat gegen den Volltext – alle B2.
 
 ## Nächste Schritte
+0. After Round 38c (integrated, **no migration**): the service of the user is not touched. PM close of Round 38c
+   (review, `docs/Fahrplan.md` is already updated by the integrator, remove the worktrees with their `target/`).
+   Next: Round 39a (user interface German and English, catalogs), then Round 39b.
 0. After Round 38, part 1 (**migration 0055** `work.language`, default `de`; exchange format sub-version 10): the
    service of the user is not touched. Back up the data folder before installing this state (new migration; a
    file exported by this state carries `sprache` and version 10 – an older Baruch reads a higher sub-version and
@@ -2507,6 +2541,9 @@ Frühere Runden:
 5. B2: Modell-Backends, `ask_persona`/`chat`, Token für `/mcp`, Literatur-Stubs (Volltext, an Persona geben).
 
 ## Offene Fragen an den Nutzer
+- **After Round 38c:** (1) Recognition of markers: keep accepting both languages in every work (as now, with
+  regression tests for German works) or accept only the markers of the work language? (2) The words read back from
+  @schrift/@belege stay German until Round 39b – right?
 - **After Round 38, part 1:** (1) Follow-up as planned – two rounds 38b (comments) and 38c (developer docs) before
   Round 39, about 270 minutes – or stop translating the bulk (for example leave `docs/Architektur.md`, 588 KB, and
   the comments of the tests German) and go on to Round 39? (2) Which messages stay German until Round 39: the PM

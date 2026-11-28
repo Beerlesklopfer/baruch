@@ -217,7 +217,7 @@ applies it when the human saves (`outline.save`, `outline.check`, the query befo
 
 - **Recognising:** a line is a `part` or `unnumbered` block exactly when `baruch_typst::parse` reads it
   as a part (`level` 0) or as a heading with `numbered: false` – so only in the canonical form
-  (`docs/Architektur.md`, the section on parts in the Typst text), not indented, only at the top level (in the body of a
+  (`docs/Architektur.md`, "Parts in the Typst text (Round 14)"), not indented, only at the top level (in the body of a
   scene the same line is an island, just as it is text for `baruch_typst`). The line is always a
   block of its own like a heading; a comment behind it belongs to `raw`, not to the title.
 - **Keeping:** `{keep: i}` takes the line literally (escapes, comment).
