@@ -1,0 +1,853 @@
+==== scheme parts_chapters
+#set document(title: "Das Gartenhaus", author: "Erika Beispiel")
+#set text(lang: "de")
+
+// Baruch: Gliederungsschema „Teile und Kapitel“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "Kapitel " + str(p.at(0)) } else { numbering("1.1", ..p) } })
+#heading(level: 1, numbering: none)[Planen] <baruch-part>
+#metadata("baruch-key") <k12>
+
+= Die Weide <k13>
+
+Am Bach steht eine alte Weide.#footnote[Erfunden.] Wie Ps 46,4 sagt.
+
+== Boden und Licht <k14>
+
+Der Boden ist lehmig.
+
+= Das Fundament <k15>
+
+Sechs Punktfundamente tragen das Haus.
+
+= Das Dach <k16>
+
+Zum Schluss kommt das Dach.
+// Baruch: Register und Glossar
+#let baruch-idx-ranges(ns) = {
+  let ns = ns.sorted().dedup()
+  let out = ()
+  let i = 0
+  while i < ns.len() {
+    let a = ns.at(i)
+    let b = a
+    while i + 1 < ns.len() and ns.at(i + 1) == b + 1 {
+      i += 1
+      b = ns.at(i)
+    }
+    out.push(if b > a { str(a) + "–" + str(b) } else { str(a) })
+    i += 1
+  }
+  out.join(", ")
+}
+#let baruch-idx-pages() = {
+  let d = (:)
+  for m in query(<baruch-idx>) {
+    let v = m.value
+    if type(v) == dictionary and v.at("see", default: "") == "" {
+      let k = v.at("register", default: "") + "\u{1f}" + v.at("term", default: "") + "\u{1f}" + v.at("sub", default: "")
+      d.insert(k, d.at(k, default: ()) + (counter(page).at(m.location()).first(),))
+    }
+  }
+  d
+}
+#let baruch-idx-group(letter) = block(above: 0.9em, below: 0.35em, sticky: true, strong(letter))
+#let baruch-idx-entry(d, k, term, level, see, also) = {
+  let ns = d.at(k, default: ())
+  let parts = ()
+  if ns.len() > 0 { parts.push([#baruch-idx-ranges(ns)]) }
+  if see.len() > 0 { parts.push([#emph[siehe] #see.join("; ")]) }
+  if also.len() > 0 { parts.push([#emph[siehe auch] #also.join("; ")]) }
+  block(above: 0.3em, below: 0.3em, inset: (left: level * 1.2em), breakable: true,
+    par(first-line-indent: 0em, hanging-indent: 1.2em, justify: false,
+      [#term] + if parts.len() > 0 { [ ] + parts.join([; ]) } else { [] }))
+}
+#let baruch-gl-entry(anchor, term, variants, short, long, refs) = block(above: 0.6em, below: 0.9em, breakable: true, {
+  set par(first-line-indent: 0em, justify: false)
+  par[#anchor#strong(term)#if variants.len() > 0 [ (#variants.join(", "))]#if short != "" [ – #short]]
+  for p in long { par(p) }
+  if refs.len() > 0 { par[#emph[Bibelstellen:] #refs.join("; ")] }
+})
+
+#pagebreak(weak: true)
+#heading(level: 1, numbering: none)[#"Personenregister"]
+#emph("Keine Einträge.")
+
+
+==== notes
+// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.
+#set document(title: "Stichwortzettel – Das Gartenhaus")
+#set page(paper: "a5", margin: (x: 14mm, top: 16mm, bottom: 14mm), header: context align(right, text(size: 0.6em, fill: luma(90))[#"Das Gartenhaus" · #counter(page).display()]))
+#set text(size: 16pt, lang: "de")
+#set par(justify: false, leading: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)
+#let card(c) = block(width: 100%, breakable: true, below: 1.1em)[
+  #metadata(c.title) <baruch-note>
+  #for p in c.points [#metadata(p) <baruch-note>]
+  #block(sticky: true, below: 0.65em)[
+    #grid(columns: (1fr, auto), column-gutter: 0.8em,
+      pad(left: c.depth * 0.8em, text(weight: "bold", size: 1.1em)[#if c.number != "" [#c.number ]#c.title]),
+      align(right, text(size: 0.75em, fill: luma(70))[#c.start (#c.clock)]))
+    #v(-0.3em)
+    #line(length: 100%, stroke: 0.5pt + luma(150))
+  ]
+  #if c.points.len() > 0 [#list(..c.points.map(p => [#p]))]
+  #if c.refs.len() > 0 [#text(size: 0.85em, style: "italic")[#c.refs.join(" · ")]]
+]
+#text(size: 0.8em)[#strong("Das Gartenhaus") #h(1fr) #"Gesamt 0:15"]
+
+#card((number: "Teil I", title: "Planen", depth: 0, start: "0:00", clock: "0:00", points: (), refs: ()))
+#card((number: "Kapitel 1", title: "Die Weide", depth: 1, start: "0:00", clock: "0:06", points: ("Am Bach steht eine alte Weide.", ), refs: ("Ps 46,4", )))
+#card((number: "1.1", title: "Boden und Licht", depth: 2, start: "0:06", clock: "0:03", points: ("Der Boden ist lehmig.", ), refs: ()))
+#card((number: "Kapitel 2", title: "Das Fundament", depth: 1, start: "0:09", clock: "0:03", points: ("Sechs Punktfundamente tragen das Haus.", ), refs: ()))
+#card((number: "Kapitel 3", title: "Das Dach", depth: 1, start: "0:12", clock: "0:03", points: ("Zum Schluss kommt das Dach.", ), refs: ()))
+==== scheme chapter_words
+#set document(title: "Das Gartenhaus", author: "Erika Beispiel")
+#set text(lang: "de")
+
+// Baruch: Gliederungsschema „Kapitel ausgeschrieben“
+#set heading(numbering: (..n) => { let p = n.pos(); let w = ("Erstes", "Zweites", "Drittes", "Viertes", "Fünftes", "Sechstes", "Siebtes", "Achtes", "Neuntes", "Zehntes", "Elftes", "Zwölftes", "Dreizehntes", "Vierzehntes", "Fünfzehntes", "Sechzehntes", "Siebzehntes", "Achtzehntes", "Neunzehntes", "Zwanzigstes", "Einundzwanzigstes", "Zweiundzwanzigstes", "Dreiundzwanzigstes", "Vierundzwanzigstes", "Fünfundzwanzigstes", "Sechsundzwanzigstes", "Siebenundzwanzigstes", "Achtundzwanzigstes", "Neunundzwanzigstes", "Dreißigstes", "Einunddreißigstes", "Zweiunddreißigstes", "Dreiunddreißigstes", "Vierunddreißigstes", "Fünfunddreißigstes", "Sechsunddreißigstes", "Siebenunddreißigstes", "Achtunddreißigstes", "Neununddreißigstes", "Vierzigstes", "Einundvierzigstes", "Zweiundvierzigstes", "Dreiundvierzigstes", "Vierundvierzigstes", "Fünfundvierzigstes", "Sechsundvierzigstes", "Siebenundvierzigstes", "Achtundvierzigstes", "Neunundvierzigstes", "Fünfzigstes", "Einundfünfzigstes", "Zweiundfünfzigstes", "Dreiundfünfzigstes", "Vierundfünfzigstes", "Fünfundfünfzigstes", "Sechsundfünfzigstes", "Siebenundfünfzigstes", "Achtundfünfzigstes", "Neunundfünfzigstes", "Sechzigstes", "Einundsechzigstes", "Zweiundsechzigstes", "Dreiundsechzigstes", "Vierundsechzigstes", "Fünfundsechzigstes", "Sechsundsechzigstes", "Siebenundsechzigstes", "Achtundsechzigstes", "Neunundsechzigstes", "Siebzigstes", "Einundsiebzigstes", "Zweiundsiebzigstes", "Dreiundsiebzigstes", "Vierundsiebzigstes", "Fünfundsiebzigstes", "Sechsundsiebzigstes", "Siebenundsiebzigstes", "Achtundsiebzigstes", "Neunundsiebzigstes", "Achtzigstes", "Einundachtzigstes", "Zweiundachtzigstes", "Dreiundachtzigstes", "Vierundachtzigstes", "Fünfundachtzigstes", "Sechsundachtzigstes", "Siebenundachtzigstes", "Achtundachtzigstes", "Neunundachtzigstes", "Neunzigstes", "Einundneunzigstes", "Zweiundneunzigstes", "Dreiundneunzigstes", "Vierundneunzigstes", "Fünfundneunzigstes", "Sechsundneunzigstes", "Siebenundneunzigstes", "Achtundneunzigstes", "Neunundneunzigstes"); if p.len() == 1 { if p.at(0) <= w.len() { w.at(p.at(0) - 1) + " Kapitel" } else { str(p.at(0)) + ". Kapitel" } } else { "" } })
+#heading(level: 1, numbering: none)[Planen] <baruch-part>
+#metadata("baruch-key") <k12>
+
+= Die Weide <k13>
+
+Am Bach steht eine alte Weide.#footnote[Erfunden.] Wie Ps 46,4 sagt.
+
+== Boden und Licht <k14>
+
+Der Boden ist lehmig.
+
+= Das Fundament <k15>
+
+Sechs Punktfundamente tragen das Haus.
+
+= Das Dach <k16>
+
+Zum Schluss kommt das Dach.
+// Baruch: Register und Glossar
+#let baruch-idx-ranges(ns) = {
+  let ns = ns.sorted().dedup()
+  let out = ()
+  let i = 0
+  while i < ns.len() {
+    let a = ns.at(i)
+    let b = a
+    while i + 1 < ns.len() and ns.at(i + 1) == b + 1 {
+      i += 1
+      b = ns.at(i)
+    }
+    out.push(if b > a { str(a) + "–" + str(b) } else { str(a) })
+    i += 1
+  }
+  out.join(", ")
+}
+#let baruch-idx-pages() = {
+  let d = (:)
+  for m in query(<baruch-idx>) {
+    let v = m.value
+    if type(v) == dictionary and v.at("see", default: "") == "" {
+      let k = v.at("register", default: "") + "\u{1f}" + v.at("term", default: "") + "\u{1f}" + v.at("sub", default: "")
+      d.insert(k, d.at(k, default: ()) + (counter(page).at(m.location()).first(),))
+    }
+  }
+  d
+}
+#let baruch-idx-group(letter) = block(above: 0.9em, below: 0.35em, sticky: true, strong(letter))
+#let baruch-idx-entry(d, k, term, level, see, also) = {
+  let ns = d.at(k, default: ())
+  let parts = ()
+  if ns.len() > 0 { parts.push([#baruch-idx-ranges(ns)]) }
+  if see.len() > 0 { parts.push([#emph[siehe] #see.join("; ")]) }
+  if also.len() > 0 { parts.push([#emph[siehe auch] #also.join("; ")]) }
+  block(above: 0.3em, below: 0.3em, inset: (left: level * 1.2em), breakable: true,
+    par(first-line-indent: 0em, hanging-indent: 1.2em, justify: false,
+      [#term] + if parts.len() > 0 { [ ] + parts.join([; ]) } else { [] }))
+}
+#let baruch-gl-entry(anchor, term, variants, short, long, refs) = block(above: 0.6em, below: 0.9em, breakable: true, {
+  set par(first-line-indent: 0em, justify: false)
+  par[#anchor#strong(term)#if variants.len() > 0 [ (#variants.join(", "))]#if short != "" [ – #short]]
+  for p in long { par(p) }
+  if refs.len() > 0 { par[#emph[Bibelstellen:] #refs.join("; ")] }
+})
+
+#pagebreak(weak: true)
+#heading(level: 1, numbering: none)[#"Personenregister"]
+#emph("Keine Einträge.")
+
+
+==== notes
+// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.
+#set document(title: "Stichwortzettel – Das Gartenhaus")
+#set page(paper: "a5", margin: (x: 14mm, top: 16mm, bottom: 14mm), header: context align(right, text(size: 0.6em, fill: luma(90))[#"Das Gartenhaus" · #counter(page).display()]))
+#set text(size: 16pt, lang: "de")
+#set par(justify: false, leading: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)
+#let card(c) = block(width: 100%, breakable: true, below: 1.1em)[
+  #metadata(c.title) <baruch-note>
+  #for p in c.points [#metadata(p) <baruch-note>]
+  #block(sticky: true, below: 0.65em)[
+    #grid(columns: (1fr, auto), column-gutter: 0.8em,
+      pad(left: c.depth * 0.8em, text(weight: "bold", size: 1.1em)[#if c.number != "" [#c.number ]#c.title]),
+      align(right, text(size: 0.75em, fill: luma(70))[#c.start (#c.clock)]))
+    #v(-0.3em)
+    #line(length: 100%, stroke: 0.5pt + luma(150))
+  ]
+  #if c.points.len() > 0 [#list(..c.points.map(p => [#p]))]
+  #if c.refs.len() > 0 [#text(size: 0.85em, style: "italic")[#c.refs.join(" · ")]]
+]
+#text(size: 0.8em)[#strong("Das Gartenhaus") #h(1fr) #"Gesamt 0:15"]
+
+#card((number: "Erster Teil", title: "Planen", depth: 0, start: "0:00", clock: "0:00", points: (), refs: ()))
+#card((number: "Erstes Kapitel", title: "Die Weide", depth: 1, start: "0:00", clock: "0:06", points: ("Am Bach steht eine alte Weide.", ), refs: ("Ps 46,4", )))
+#card((number: "", title: "Boden und Licht", depth: 2, start: "0:06", clock: "0:03", points: ("Der Boden ist lehmig.", ), refs: ()))
+#card((number: "Zweites Kapitel", title: "Das Fundament", depth: 1, start: "0:09", clock: "0:03", points: ("Sechs Punktfundamente tragen das Haus.", ), refs: ()))
+#card((number: "Drittes Kapitel", title: "Das Dach", depth: 1, start: "0:12", clock: "0:03", points: ("Zum Schluss kommt das Dach.", ), refs: ()))
+==== scheme legal
+#set document(title: "Das Gartenhaus", author: "Erika Beispiel")
+#set text(lang: "de")
+
+// Baruch: Gliederungsschema „Juristisch“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "§ " + str(p.at(0)) } else if p.len() == 2 { "Abs. " + str(p.at(1)) } else if p.len() == 3 { "Nr. " + str(p.at(2)) } else { "" } })
+#heading(level: 1, numbering: none)[Planen] <baruch-part>
+#metadata("baruch-key") <k12>
+
+= Die Weide <k13>
+
+Am Bach steht eine alte Weide.#footnote[Erfunden.] Wie Ps 46,4 sagt.
+
+== Boden und Licht <k14>
+
+Der Boden ist lehmig.
+
+= Das Fundament <k15>
+
+Sechs Punktfundamente tragen das Haus.
+
+= Das Dach <k16>
+
+Zum Schluss kommt das Dach.
+// Baruch: Register und Glossar
+#let baruch-idx-ranges(ns) = {
+  let ns = ns.sorted().dedup()
+  let out = ()
+  let i = 0
+  while i < ns.len() {
+    let a = ns.at(i)
+    let b = a
+    while i + 1 < ns.len() and ns.at(i + 1) == b + 1 {
+      i += 1
+      b = ns.at(i)
+    }
+    out.push(if b > a { str(a) + "–" + str(b) } else { str(a) })
+    i += 1
+  }
+  out.join(", ")
+}
+#let baruch-idx-pages() = {
+  let d = (:)
+  for m in query(<baruch-idx>) {
+    let v = m.value
+    if type(v) == dictionary and v.at("see", default: "") == "" {
+      let k = v.at("register", default: "") + "\u{1f}" + v.at("term", default: "") + "\u{1f}" + v.at("sub", default: "")
+      d.insert(k, d.at(k, default: ()) + (counter(page).at(m.location()).first(),))
+    }
+  }
+  d
+}
+#let baruch-idx-group(letter) = block(above: 0.9em, below: 0.35em, sticky: true, strong(letter))
+#let baruch-idx-entry(d, k, term, level, see, also) = {
+  let ns = d.at(k, default: ())
+  let parts = ()
+  if ns.len() > 0 { parts.push([#baruch-idx-ranges(ns)]) }
+  if see.len() > 0 { parts.push([#emph[siehe] #see.join("; ")]) }
+  if also.len() > 0 { parts.push([#emph[siehe auch] #also.join("; ")]) }
+  block(above: 0.3em, below: 0.3em, inset: (left: level * 1.2em), breakable: true,
+    par(first-line-indent: 0em, hanging-indent: 1.2em, justify: false,
+      [#term] + if parts.len() > 0 { [ ] + parts.join([; ]) } else { [] }))
+}
+#let baruch-gl-entry(anchor, term, variants, short, long, refs) = block(above: 0.6em, below: 0.9em, breakable: true, {
+  set par(first-line-indent: 0em, justify: false)
+  par[#anchor#strong(term)#if variants.len() > 0 [ (#variants.join(", "))]#if short != "" [ – #short]]
+  for p in long { par(p) }
+  if refs.len() > 0 { par[#emph[Bibelstellen:] #refs.join("; ")] }
+})
+
+#pagebreak(weak: true)
+#heading(level: 1, numbering: none)[#"Personenregister"]
+#emph("Keine Einträge.")
+
+
+==== notes
+// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.
+#set document(title: "Stichwortzettel – Das Gartenhaus")
+#set page(paper: "a5", margin: (x: 14mm, top: 16mm, bottom: 14mm), header: context align(right, text(size: 0.6em, fill: luma(90))[#"Das Gartenhaus" · #counter(page).display()]))
+#set text(size: 16pt, lang: "de")
+#set par(justify: false, leading: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)
+#let card(c) = block(width: 100%, breakable: true, below: 1.1em)[
+  #metadata(c.title) <baruch-note>
+  #for p in c.points [#metadata(p) <baruch-note>]
+  #block(sticky: true, below: 0.65em)[
+    #grid(columns: (1fr, auto), column-gutter: 0.8em,
+      pad(left: c.depth * 0.8em, text(weight: "bold", size: 1.1em)[#if c.number != "" [#c.number ]#c.title]),
+      align(right, text(size: 0.75em, fill: luma(70))[#c.start (#c.clock)]))
+    #v(-0.3em)
+    #line(length: 100%, stroke: 0.5pt + luma(150))
+  ]
+  #if c.points.len() > 0 [#list(..c.points.map(p => [#p]))]
+  #if c.refs.len() > 0 [#text(size: 0.85em, style: "italic")[#c.refs.join(" · ")]]
+]
+#text(size: 0.8em)[#strong("Das Gartenhaus") #h(1fr) #"Gesamt 0:15"]
+
+#card((number: "", title: "Planen", depth: 0, start: "0:00", clock: "0:00", points: (), refs: ()))
+#card((number: "§ 1", title: "Die Weide", depth: 1, start: "0:00", clock: "0:06", points: ("Am Bach steht eine alte Weide.", ), refs: ("Ps 46,4", )))
+#card((number: "Abs. 1", title: "Boden und Licht", depth: 2, start: "0:06", clock: "0:03", points: ("Der Boden ist lehmig.", ), refs: ()))
+#card((number: "§ 2", title: "Das Fundament", depth: 1, start: "0:09", clock: "0:03", points: ("Sechs Punktfundamente tragen das Haus.", ), refs: ()))
+#card((number: "§ 3", title: "Das Dach", depth: 1, start: "0:12", clock: "0:03", points: ("Zum Schluss kommt das Dach.", ), refs: ()))
+==== scheme sermon
+#set document(title: "Das Gartenhaus", author: "Erika Beispiel")
+#set text(lang: "de")
+
+// Baruch: Gliederungsschema „Predigt“
+#set heading(numbering: (..n) => context { let p = n.pos(); let last = counter(heading).final().at(0); if p.len() == 1 { if p.at(0) == 1 { "Einleitung" } else if p.at(0) == last { "Schluss" } else { numbering("I.", p.at(0) - 1) } } else { "" } })
+#heading(level: 1, numbering: none)[Planen] <baruch-part>
+#metadata("baruch-key") <k12>
+
+= Die Weide <k13>
+
+Am Bach steht eine alte Weide.#footnote[Erfunden.] Wie Ps 46,4 sagt.
+
+== Boden und Licht <k14>
+
+Der Boden ist lehmig.
+
+= Das Fundament <k15>
+
+Sechs Punktfundamente tragen das Haus.
+
+= Das Dach <k16>
+
+Zum Schluss kommt das Dach.
+// Baruch: Register und Glossar
+#let baruch-idx-ranges(ns) = {
+  let ns = ns.sorted().dedup()
+  let out = ()
+  let i = 0
+  while i < ns.len() {
+    let a = ns.at(i)
+    let b = a
+    while i + 1 < ns.len() and ns.at(i + 1) == b + 1 {
+      i += 1
+      b = ns.at(i)
+    }
+    out.push(if b > a { str(a) + "–" + str(b) } else { str(a) })
+    i += 1
+  }
+  out.join(", ")
+}
+#let baruch-idx-pages() = {
+  let d = (:)
+  for m in query(<baruch-idx>) {
+    let v = m.value
+    if type(v) == dictionary and v.at("see", default: "") == "" {
+      let k = v.at("register", default: "") + "\u{1f}" + v.at("term", default: "") + "\u{1f}" + v.at("sub", default: "")
+      d.insert(k, d.at(k, default: ()) + (counter(page).at(m.location()).first(),))
+    }
+  }
+  d
+}
+#let baruch-idx-group(letter) = block(above: 0.9em, below: 0.35em, sticky: true, strong(letter))
+#let baruch-idx-entry(d, k, term, level, see, also) = {
+  let ns = d.at(k, default: ())
+  let parts = ()
+  if ns.len() > 0 { parts.push([#baruch-idx-ranges(ns)]) }
+  if see.len() > 0 { parts.push([#emph[siehe] #see.join("; ")]) }
+  if also.len() > 0 { parts.push([#emph[siehe auch] #also.join("; ")]) }
+  block(above: 0.3em, below: 0.3em, inset: (left: level * 1.2em), breakable: true,
+    par(first-line-indent: 0em, hanging-indent: 1.2em, justify: false,
+      [#term] + if parts.len() > 0 { [ ] + parts.join([; ]) } else { [] }))
+}
+#let baruch-gl-entry(anchor, term, variants, short, long, refs) = block(above: 0.6em, below: 0.9em, breakable: true, {
+  set par(first-line-indent: 0em, justify: false)
+  par[#anchor#strong(term)#if variants.len() > 0 [ (#variants.join(", "))]#if short != "" [ – #short]]
+  for p in long { par(p) }
+  if refs.len() > 0 { par[#emph[Bibelstellen:] #refs.join("; ")] }
+})
+
+#pagebreak(weak: true)
+#heading(level: 1, numbering: none)[#"Personenregister"]
+#emph("Keine Einträge.")
+
+
+==== notes
+// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.
+#set document(title: "Stichwortzettel – Das Gartenhaus")
+#set page(paper: "a5", margin: (x: 14mm, top: 16mm, bottom: 14mm), header: context align(right, text(size: 0.6em, fill: luma(90))[#"Das Gartenhaus" · #counter(page).display()]))
+#set text(size: 16pt, lang: "de")
+#set par(justify: false, leading: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)
+#let card(c) = block(width: 100%, breakable: true, below: 1.1em)[
+  #metadata(c.title) <baruch-note>
+  #for p in c.points [#metadata(p) <baruch-note>]
+  #block(sticky: true, below: 0.65em)[
+    #grid(columns: (1fr, auto), column-gutter: 0.8em,
+      pad(left: c.depth * 0.8em, text(weight: "bold", size: 1.1em)[#if c.number != "" [#c.number ]#c.title]),
+      align(right, text(size: 0.75em, fill: luma(70))[#c.start (#c.clock)]))
+    #v(-0.3em)
+    #line(length: 100%, stroke: 0.5pt + luma(150))
+  ]
+  #if c.points.len() > 0 [#list(..c.points.map(p => [#p]))]
+  #if c.refs.len() > 0 [#text(size: 0.85em, style: "italic")[#c.refs.join(" · ")]]
+]
+#text(size: 0.8em)[#strong("Das Gartenhaus") #h(1fr) #"Gesamt 0:15"]
+
+#card((number: "", title: "Planen", depth: 0, start: "0:00", clock: "0:00", points: (), refs: ()))
+#card((number: "Einleitung", title: "Die Weide", depth: 1, start: "0:00", clock: "0:06", points: ("Am Bach steht eine alte Weide.", ), refs: ("Ps 46,4", )))
+#card((number: "", title: "Boden und Licht", depth: 2, start: "0:06", clock: "0:03", points: ("Der Boden ist lehmig.", ), refs: ()))
+#card((number: "I.", title: "Das Fundament", depth: 1, start: "0:09", clock: "0:03", points: ("Sechs Punktfundamente tragen das Haus.", ), refs: ()))
+#card((number: "Schluss", title: "Das Dach", depth: 1, start: "0:12", clock: "0:03", points: ("Zum Schluss kommt das Dach.", ), refs: ()))
+==== scheme book
+#set document(title: "Das Gartenhaus", author: "Erika Beispiel")
+#set text(lang: "de")
+
+// Baruch: Gliederungsschema „Buch“
+#set heading(numbering: (..n) => context { let p = n.pos(); let chapters = counter(heading).final().first(); if p.len() != 1 { "" } else if p.first() == 1 { "Einleitung" } else if p.first() == chapters { "Schluss" } else { numbering("I.", p.first() - 1) } })
+#heading(level: 1, numbering: none)[Planen] <baruch-part>
+#metadata("baruch-key") <k12>
+
+= Die Weide <k13>
+
+Am Bach steht eine alte Weide.#footnote[Erfunden.] Wie Ps 46,4 sagt.
+
+== Boden und Licht <k14>
+
+Der Boden ist lehmig.
+
+= Das Fundament <k15>
+
+Sechs Punktfundamente tragen das Haus.
+
+= Das Dach <k16>
+
+Zum Schluss kommt das Dach.
+// Baruch: Register und Glossar
+#let baruch-idx-ranges(ns) = {
+  let ns = ns.sorted().dedup()
+  let out = ()
+  let i = 0
+  while i < ns.len() {
+    let a = ns.at(i)
+    let b = a
+    while i + 1 < ns.len() and ns.at(i + 1) == b + 1 {
+      i += 1
+      b = ns.at(i)
+    }
+    out.push(if b > a { str(a) + "–" + str(b) } else { str(a) })
+    i += 1
+  }
+  out.join(", ")
+}
+#let baruch-idx-pages() = {
+  let d = (:)
+  for m in query(<baruch-idx>) {
+    let v = m.value
+    if type(v) == dictionary and v.at("see", default: "") == "" {
+      let k = v.at("register", default: "") + "\u{1f}" + v.at("term", default: "") + "\u{1f}" + v.at("sub", default: "")
+      d.insert(k, d.at(k, default: ()) + (counter(page).at(m.location()).first(),))
+    }
+  }
+  d
+}
+#let baruch-idx-group(letter) = block(above: 0.9em, below: 0.35em, sticky: true, strong(letter))
+#let baruch-idx-entry(d, k, term, level, see, also) = {
+  let ns = d.at(k, default: ())
+  let parts = ()
+  if ns.len() > 0 { parts.push([#baruch-idx-ranges(ns)]) }
+  if see.len() > 0 { parts.push([#emph[siehe] #see.join("; ")]) }
+  if also.len() > 0 { parts.push([#emph[siehe auch] #also.join("; ")]) }
+  block(above: 0.3em, below: 0.3em, inset: (left: level * 1.2em), breakable: true,
+    par(first-line-indent: 0em, hanging-indent: 1.2em, justify: false,
+      [#term] + if parts.len() > 0 { [ ] + parts.join([; ]) } else { [] }))
+}
+#let baruch-gl-entry(anchor, term, variants, short, long, refs) = block(above: 0.6em, below: 0.9em, breakable: true, {
+  set par(first-line-indent: 0em, justify: false)
+  par[#anchor#strong(term)#if variants.len() > 0 [ (#variants.join(", "))]#if short != "" [ – #short]]
+  for p in long { par(p) }
+  if refs.len() > 0 { par[#emph[Bibelstellen:] #refs.join("; ")] }
+})
+
+#pagebreak(weak: true)
+#heading(level: 1, numbering: none)[#"Personenregister"]
+#emph("Keine Einträge.")
+
+
+==== notes
+// Stichwortzettel – erzeugt von Baruch (baruch-render::notes). Alle Texte sind Zeichenketten.
+#set document(title: "Stichwortzettel – Das Gartenhaus")
+#set page(paper: "a5", margin: (x: 14mm, top: 16mm, bottom: 14mm), header: context align(right, text(size: 0.6em, fill: luma(90))[#"Das Gartenhaus" · #counter(page).display()]))
+#set text(size: 16pt, lang: "de")
+#set par(justify: false, leading: 0.75em)
+#set list(indent: 0.4em, body-indent: 0.5em, spacing: 0.7em)
+#let card(c) = block(width: 100%, breakable: true, below: 1.1em)[
+  #metadata(c.title) <baruch-note>
+  #for p in c.points [#metadata(p) <baruch-note>]
+  #block(sticky: true, below: 0.65em)[
+    #grid(columns: (1fr, auto), column-gutter: 0.8em,
+      pad(left: c.depth * 0.8em, text(weight: "bold", size: 1.1em)[#if c.number != "" [#c.number ]#c.title]),
+      align(right, text(size: 0.75em, fill: luma(70))[#c.start (#c.clock)]))
+    #v(-0.3em)
+    #line(length: 100%, stroke: 0.5pt + luma(150))
+  ]
+  #if c.points.len() > 0 [#list(..c.points.map(p => [#p]))]
+  #if c.refs.len() > 0 [#text(size: 0.85em, style: "italic")[#c.refs.join(" · ")]]
+]
+#text(size: 0.8em)[#strong("Das Gartenhaus") #h(1fr) #"Gesamt 0:15"]
+
+#card((number: "Erster Teil", title: "Planen", depth: 0, start: "0:00", clock: "0:00", points: (), refs: ()))
+#card((number: "Einleitung", title: "Die Weide", depth: 1, start: "0:00", clock: "0:06", points: ("Am Bach steht eine alte Weide.", ), refs: ("Ps 46,4", )))
+#card((number: "", title: "Boden und Licht", depth: 2, start: "0:06", clock: "0:03", points: ("Der Boden ist lehmig.", ), refs: ()))
+#card((number: "I.", title: "Das Fundament", depth: 1, start: "0:09", clock: "0:03", points: ("Sechs Punktfundamente tragen das Haus.", ), refs: ()))
+#card((number: "Schluss", title: "Das Dach", depth: 1, start: "0:12", clock: "0:03", points: ("Zum Schluss kommt das Dach.", ), refs: ()))
+==== nav.xhtml (Nav)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Inhalt</title>
+<link rel="stylesheet" type="text/css" href="style/book.css"/>
+</head>
+<body>
+<nav epub:type="toc" id="toc" role="doc-toc">
+<h1>Inhalt</h1>
+<ol>
+<li><a href="text/k12.xhtml#k12">Erster Teil Planen</a><ol>
+<li><a href="text/k13.xhtml#k13">Einleitung Die Weide</a><ol>
+<li><a href="text/k13.xhtml#k14">Boden und Licht</a></li>
+</ol>
+</li>
+<li><a href="text/k15.xhtml#k15">I. Das Fundament</a></li>
+<li><a href="text/k16.xhtml#k16">Schluss Das Dach</a></li>
+</ol>
+</li>
+<li><a href="text/notes.xhtml">Anmerkungen</a></li>
+<li><a href="text/index-personen.xhtml">Personenregister</a></li>
+</ol>
+</nav>
+<nav epub:type="landmarks" id="landmarks" hidden="hidden">
+<h2>Orientierung</h2>
+<ol>
+<li><a epub:type="cover" href="text/cover.xhtml">Umschlag</a></li>
+<li><a epub:type="toc" href="nav.xhtml#toc">Inhalt</a></li>
+<li><a epub:type="bodymatter" href="text/k12.xhtml">Text</a></li>
+</ol>
+</nav>
+</body>
+</html>
+
+==== toc.ncx (Ncx)
+<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+<head>
+<meta name="dtb:uid" content="urn:uuid:00000000-0000-4000-8000-000000000039"/>
+<meta name="dtb:depth" content="3"/>
+<meta name="dtb:totalPageCount" content="0"/>
+<meta name="dtb:maxPageNumber" content="0"/>
+</head>
+<docTitle><text>Das Gartenhaus</text></docTitle>
+<docAuthor><text>Erika Beispiel</text></docAuthor>
+<navMap>
+<navPoint id="nav-1" playOrder="1">
+<navLabel><text>Erster Teil Planen</text></navLabel>
+<content src="text/k12.xhtml#k12"/>
+<navPoint id="nav-2" playOrder="2">
+<navLabel><text>Einleitung Die Weide</text></navLabel>
+<content src="text/k13.xhtml#k13"/>
+<navPoint id="nav-3" playOrder="3">
+<navLabel><text>Boden und Licht</text></navLabel>
+<content src="text/k13.xhtml#k14"/>
+</navPoint>
+</navPoint>
+<navPoint id="nav-4" playOrder="4">
+<navLabel><text>I. Das Fundament</text></navLabel>
+<content src="text/k15.xhtml#k15"/>
+</navPoint>
+<navPoint id="nav-5" playOrder="5">
+<navLabel><text>Schluss Das Dach</text></navLabel>
+<content src="text/k16.xhtml#k16"/>
+</navPoint>
+</navPoint>
+<navPoint id="nav-6" playOrder="6">
+<navLabel><text>Anmerkungen</text></navLabel>
+<content src="text/notes.xhtml"/>
+</navPoint>
+<navPoint id="nav-7" playOrder="7">
+<navLabel><text>Personenregister</text></navLabel>
+<content src="text/index-personen.xhtml"/>
+</navPoint>
+</navMap>
+</ncx>
+
+==== style/book.css (Style)
+/* Baruch: EPUB-Grundstil */
+section.baruch-part { text-align: center; }
+h1.baruch-part-title { margin-top: 30%; }
+section.baruch-scene, section.baruch-work { margin: 1em 0; }
+section.baruch-work { padding: 0.5em 1em; border-left: 0.2em solid #999999; }
+blockquote.baruch-quote { margin: 1em 1.5em; }
+footer.baruch-attribution { text-align: end; font-style: italic; }
+figure.baruch-figure { margin: 1em 0; text-align: center; }
+img.baruch-image, img.baruch-inline-image, img.baruch-cover-image { max-width: 100%; height: auto; }
+img.baruch-inline-image { max-height: 1.2em; vertical-align: middle; }
+figcaption { font-size: 0.9em; font-style: italic; }
+.baruch-missing { font-family: monospace; }
+a.baruch-noteref { text-decoration: none; }
+hr.baruch-notes-rule { width: 30%; margin: 2em auto 0.5em 0; }
+ol.baruch-footnotes { font-size: 0.85em; }
+section.baruch-cover { text-align: center; margin: 0; padding: 0; }
+img.baruch-cover-image { max-height: 100%; }
+section.baruch-titlepage { text-align: center; }
+p.baruch-title { font-size: 1.8em; font-weight: bold; margin-top: 25%; }
+p.baruch-subtitle { font-size: 1.2em; }
+p.baruch-author { margin-top: 2em; }
+p.baruch-publisher { margin-top: 4em; }
+section.baruch-imprint p { font-size: 0.85em; text-indent: 0; }
+section.baruch-dedication { text-align: center; font-style: italic; margin-top: 30%; }
+/* Baruch: Satz (EPUB) */
+section.baruch-chapter { break-before: page; page-break-before: always; }
+section.baruch-part { break-before: page; page-break-before: always; }
+/* Baruch: Register und Glossar */
+section.baruch-index ul { list-style: none; margin: 0; padding: 0; }
+section.baruch-index ul ul { padding-left: 1.2em; }
+section.baruch-index li { margin: 0.2em 0; text-indent: -1.2em; padding-left: 1.2em; }
+h2.baruch-index-letter { font-size: 1em; margin: 1em 0 0.3em 0; }
+section.baruch-glossary dt { font-weight: bold; margin-top: 0.8em; }
+section.baruch-glossary dd { margin: 0.2em 0 0 1.2em; }
+a.baruch-glossref { text-decoration: none; }
+
+==== images/cover.png (CoverImage)
+�PNG
+
+   IHDR  @  �   qP�  �IDATx���tW��dC�;��ݝ�n�)Ŋ;�;)^�Z���n�EZ(�R�	���M�mvv�!a�����Mv���lޝ{�)z��        ��8G�          ��$�d��        D$�        �h(�                �p�         �c�:        p4d�         �cR@        ��!        8         ��         �         p8&��        ���D�         �B	,        �pL$�         GC        p8@        ��1E�     |���&iӦ����K�<y�R%�ҿ��s��&�<Y2ɐ!�dɒEJ/&�
+�b%K�ӧO9�   �2�    JH�0�ċW|�}���[�}������z1c�WW��?��c�;�<{�,����+}z����7oId�&�߽{蘺8���d�IL&y��S=z!���F6�bŒ�ϟ�u�iR�������۷v�   �9Ō��]D   o�ǎ��ڊ���U`oܼ)�s�����k%S��2p�`��p��k...7n\�9}�T�ZEo��K�s��A�����*wn\��!'''�˩ ɽ{���ٳ�k�Y�b�\�z5�Ƿp��R�Nm�i���K��u������>}F�V�%/_��۶%J(5�U�iS'���C܄�_    �    �(�b����E�������?�(��/��]
+*(5�U�娔d��ɋ/�2��͛ɌiS��+W�J�|�-S�\YY�|���z��+��
+�|;a�4i���{��|'3g�����5�$M�!ݻv�͚����6렄��g��)K��r��^�\M�gʖS�޽'���K�$A��y��e���v�����@��Љ�8�ݷ   Df4A  @��m���_~��z��u:���o+d�m��z�Z��)U���s��^.S�vÓ'O���o+V��L��Qj�:�R%���(o�z��{=v�ܿ�@޼y��;]�xI�v�)s���˨̖�;�Itw�pӹs��������?�F����r��w�8�Ë�/���>>�}    23���   8�k׮�?W��&~����Q��K2f� ǎ���o߹-�s�Ӎ�ϝ?������$f�<{�Tg{$L�>�!N������`ˍ5Fg��_�R��͛����eL��U�ܹrʑ��"���շ���d��9{N����O��Yd=   @x!   QN���j����,ǎ��ԩS�=sB?��7�-.���K�c�n���ĉn��������N][��]    ��d�M   ��r�����	~Xv௿�v�����[�8d    �   ����&Mj����ɵ    ܘtAa    �R��8~��2n�H�ԥ�.�����dʘQr��.E��jU+K�6��Сts�N_u��5��,��#�����IҦM#Y�d��+[F^�z%�4�j���ƐA��۷�A�j<����j�m�w��-[�m!O�\Ҡ~=�#}�t���%�._���M��A��������U*�/���y�/r����(s�LR�rE)X��~�*�d���i�zA%K�T�f�"Y�d��J���H�l��1
+I����V��R�P!I���߼uKN�>+����9���;��ȞMr��!+��)RH����k�|�k�Fʗ++�%��;���[�ɟ{���O�E�O��h��R�\iܤy�%���?�]S
+��/ٲe��g��޽�e�]�������   ��   � M�TҸa�ةk�ǧK�d��������nޒU+�� ��/oI� �T�^K7��>ur�uv��c�������y�H�<������c��ȑ`�$����yst�e���e�������_��O��;�tيr�ܹp�T�f¸�:ht��Q��o��uZ�j!�ǎ�A��3gK�x�x���j�2P�ܵ�<t�yu����x�~��l�S��2r�P���2c���X��tl�V����5�e��z��6�`L@1cƔٳ��E�%^ܸr��yɞ-��ʙC�u�,��X)]��ҽO:y���dn����O?� �cD��#F렇:�������eނ��n   ���    JK�0�d˚U?W�	�cǒdɒ��o��s���M�!˖�&�M�V�T���?^|���,�|��,X���5\���ʡ��~\��lٲMF�*����{���c~�䉔.WQΞ:��TPc��Q!��Z�p����d�w�^�+�'�G�*�5{Q�ɻ�����O��C5���_������P�>�d������R�N}��,�e��L&i�E#ٺi�,���A��
+�N�Y�7�BF�����L�����#uM���������wJ���upH�?%>+��Y���D$���׺esЯ��7A-�I:T�k��i��7�WW�2�+�������d�-%K�ŋH�1��^��:P�ܼq�8;;K�r���3�������G�8~��J�Ba�   Q�sD    �H-[4�{w���?�����ˏ�K����;��W�rIS���-ѢE��-Z�����z���Ȱ��3��)�_��Hd>��
+��W$I��Һm{]�*��G�l���3*h�������X��.�e/�:w��}{�7��y����Ѥq#�n�zl�N�Jz�ꡟw���?��g��t`JƏ�pl�Ǐ�l����mȁ$Q�=���3v�D��� �<�@ˆ��������J��md֜��Y>����?��U�N�V-m_�=ۺ�wٽ�O�>��W����qc���Mf̜(��lܴY_Oj,;���9   ��2�   ��.�Q��R�D���P��ԝ�	$��6�����A
+���t��K||}�zj�o"<�v?y���KM'�_�	u���U�n�j�Z�ct�fғ�_�~?yd�#G��?/X �\�zU�B��:�W�+{��R�H!�ڹ�$O�L�5�B�ի#=z���-{�	h��!z�_��8r�X�q=vL�'wwwɗ/�ĊK�?h�Ǐ���/o������ɓ[bČ�Lխ;�e��ot&O�u=~�a�����w[F�sڌY��������?���Gy�l�^�ϥp��:3���!���������hѤD�b��a�uh  �(�X   ��T�>4�p�3�����m�z���B��F�ԕ�^���^*x0i�8�ѻ����o�.{��	ɞ;�<~�$X
+���$����Tf�?����~�~}zK��u`d���r���c�n��UI��ի��w����8L.&1������_�U�..��Ċ3X �R?�'O��hY�p�4k�Z��3a��E��}��q��_�a��BQA�ĉI�ti�T���\���zШׯ\�"u>��������d���s՘=`O    ���   QN�I��&�x��������;�P��a]՘����A�	i���S��ō'�����:���k���%?����wm���Ug{�l�
+���/�23�����!mK��1j�./V�v-=�?q�)Z��`�X�":ȡdɜY��R�������p�ϝ�ҥ���^��/^�:��^S�m��?~<]�ȡ�d����^7n�0�N}}|��W�v��E)T���:o��r��U�ׁzo��_`C��	z������3g��T�%�x^G��    j!   ��G��K��V����T���Ҳes]�H�T��d̐!P�%�J��ƍ��
+�y��Ͻ�a�f)Z��|l�����k���U�1�Š22�����A�u6Nx�z�������0�nj�@}z��ݺȲߖ��q��͛a�ǅ ��V��7O�;�~�a�&�;``��   DE4A   "�;����6�m��_���?-2T�H5J_�h��[�B;�}=H�g�.�[��~\l�q�5��D5W��*X��y��Nɓ'��k�ɕ���3N�QT�I�/��u�%q�Daھ�}P�[�nY�n��<L�    �*    �A�۶�����o�?�}�H��t�k��P�Ϛ�z*@�n�J�U��^�X�2�˲����G"Z�~I�$�~��m��ҧ�q�x�B��<Ur��/C���=a�ԩSɬ�߅i۱b}P]�vݪuo�d���   pD@    >+UR&�#1Ljlo޼��_��<��5kT�e��2�kɒ9�~��{���D3E�?��������Uߋ�"yri�e�`��i3fI����SJ��L7e�U��I��7o��/�e��+DY�d�<�s�<    �"   �(�dr�z�&��Ç�t��Tcj?�)��&��4F�˸F�����;ҡS�~#���<�ի�ո�ܽ�u��5����J4���J�Q��/�F��;w���+@Ϗ4iRK��Um�j��R�J)�ǎ����{M5�_���އ��I���>B;~��U�PNz~Z�K��a\]?���T=J��d�~:u� ���j�   D5΢� ��1���������B�@�8�K+	&��|�V-�Q��r������[ѣG7��x��������2��}X&nܸ�^۾c��VP\\\d��ْ.}Z�cSY+:����k�oD�����c+���%N것��t���e�-X(�Ϟ�����f�z�m͜6U2e��vҧO���DW�3�1����E����x��)|H�u�/@v��9s�\���:�=BBX���Y��(*�1s��!_���o��=�{�}�+�ƍ�?����M����M&�#%J�����O�+�?[<8\\\\\\\\��G���1����������@��1�a���*U�(iӦ�����.THƏ-�'��w��}�P���Ԯ�a[*��U�j���N���B\�j�*��̟_�E����c���c���j"}ˆuR�h�@��ݷ�� @4>d�8;��}'qws���ʈ�C>��XQ�H��ǉתcZ�^�@��z�衏_�e\]�I�J�d��UһGwy��%�֏��>r�<y��?���[����3�\%{�lҶMk���V}N^�~h�re��7�W���%Jz��%����%�%
+����Y�/��S������}���΋Z��K�Q����V�Vm�{/���2E
+ɟ/���j�l���,_�J�����o⸱2v���Jk��F�*�e��M�9sf9���@�O�^��RT��zU�M��\�� � � � � � � ׀S�9N�$�P|   pP�6�
+��Jɒ�Cld���3�������-��$���u��h>�ɛ'����T�RH���27o�ߖ��~����R�
+R�h�@먲V���o�L��E
+K�:�K��-�2#&|;E�o���=5�����Ts��.���e݆�:��ϝ����OO9q�އ
+����_V���d̐A���.���e��d��u�O�y2k�TI?�.���*�u���ݠ���N�e��8!���\O�������{[�d��O���{������άP�5f������W�RI��F
+, �d��~�Z6o�&+V���Ee�\:��'ǽ���X.^�$I�&�&�Jʔ)d���2x؈`�6x����5йS�Y�)_�����͖�ۥw�r���@���cG���9sH�dI�����w����t��Eww�9��K�5c��T��۷^����囡��իW���%�K����y�?��:o޾�M��Ȧ�[�_3{�   G��,   ���D������s���-���!�eH�d��dW�I�;�߻z�<�\v����-��~��ȃ��'��_�!��KOt{yy���z��E�_��[��Ȟ=ʎ��/�Ơ�j�=w^z��3H޼y�ǫ2��x�EK����:� D477�v����~�l���^�^�&ңkI�&�?qRV�^#ǎ��x<ոT?����ɾ�c�0~�K55i�b�}�Ϟ;�?Io�zo�������B�ԩ$F��GǱ�'e��U������@�����={��c�7�D����C�����Ե����I�9t��������X�D��?`��{���up�`��z�����������u��9"�}P����qS��o�7n��z�ZZ�i�Ǩ2m2�K'I=�ڵkr��YY�fm� ˓'O���J����G��X}   ���    0He����E?�X��v    �����        8S�J�     s��)x[t    �	=@    ����ȃ6~   ���?�   ��h�>�g�dRQ�   I�    *�YI��+W�   ��S���"z    YōWzu�*��E�zm��Mr���>c�<��1   �     
+��E�ŋ+gϞ�'N��������U���7����r  �H�        �p�        �I�)��         `Wd�         �c"        8�        ���        p8@        ��!         �I�                 ��         �D,        �h�         �         p8@        ��19�        82@        ��!                 �pL�         ��        �pLB
+        p0d�         �C         8         �ᘜ"z         vF        p8&!        8�        �X        ��         �         p8@        ��!                 �pL���c         �+�        �h(�                �p�         �C         8         ��D�"z         ve"�        %�        ��!                 �p�         �cr�:        p0d�         �C         8�        ��!        8         ��         �$4        �        �p�         �C         8��SD        ���         �         p8&j`        �B        p8@        ��!                 �pL�@        ��$D@        ���        p8&��        ���                �p�         �C         8�m�       �c1�         ��X        ��         �         p8&Z�        GC        p8&r@        �c!        8	         �ѐ                �p�         �c��         C        p8@        ��!         ���)��         `_d�         �C         8�5�        �c!        8         ��         �         p8&z�        GC        p8&!        8�SD�         ��(�                �p�     "����)TPjT�,���   ؕɾ�     0'''I��!iӤ�ti�H�̙�`�|�3{61����t���2w�"   �      ̪U�(I�$�	�K���%A�x��dI$u��-Z��{�������   ��L��d��   @d#FtI?�ĊS^�|)�_����_���WD�fN�h6�aīׯU��]�  ���  ��|yrK�xq���[�}|���G||�����#>�����N|}}坯�._���,������_ggqrvg'g����I������cy����>`/�:˕#��*QT
+, I=�H�	t����-�u޾}+��?��7nʍ���ڍr��)9x��<~���؉��G�,����y��s   �"  @�&�W,���d�=��&��G�˝���ĩ�r��)=�|�ҿ:�X��u�ר&�J��E
+Kܸq�:h���)��G���ҿ���߇dd߁���ON`�V:K����#Iɟ7��+�Ĉ���^o��  �}9%M��}�U  %�;����\\"t�^�����k���M[��g:D�k�c��Ҵq�&Q����W���r��59u�,_����p����U�t@Ĉ����5��}\   �:�  U�T^�Ǎ'o޼�"�
+H��U���ޞ�8���CO6o�}g���C�4��s��R�N-quu5���.ڸu��8yZgn<���Yҧ�L�K����A3?�z���d�_4�@���K����N=�Ț��8h   ��dd�  ��Ǫe?I�Lm:���w3f��/�rWI'��ɒJ�d�$U�R�XaI�a�.��'e��qr��Q��D���;w���:������=.�/X��e���%�S���U*I���%o�V�)}�|�� d��������{��-�8�   ��d�Q  ��Gٳ}�Čê�q��iҪ�x>|�r9sd����H�Z����Qw�߸EF����V#j\3&��bE
+�]���72q�t���G}��"E�dҩ×�싆�Y�+SY7OGĊ+��(^Dg�]�vC~X��S�ȕ3�lZ���e�t�*[��   ����>  %ܽ{O6m�n�z*Ha)��(�2}���R[%=
+5�f�*����R�tI�ǄOK��ee����?T_��5���[���[���W�z���>��'I���}!l���t�μYS��߻e���]���>>>>��}�˽y   �/�8�y�  ���z��w���g�ɞ}�Ś�'||}d�����k�˄�äf�*f��3�,�7K-��.3�|2zu�$��u
+u��W�J��u�5{��z��%iҺ�4k�Pƌ,�N!o�C@�{��*Z��4����ň=��O�=�|B|}}�/�>k|�   `G&{n  |�Tk�<}��}�I�N=�����ԭ]��r&3|��I�ZF��h����o��b����R����p��/��kq��q���b�,|��ނ�Ӥd��Ͽx��S   �J`  �xZU^�¥�|gp�>d����.�Jbul�JO��14�WG�|�7�e||}�e�κ<[xZ�a����C|C��S�L����jT�R%���{h��/_q�    B   �{����|e|r����a>z*���Б���c����K�����\�R2a�p�˭X�V.�1�f�j��$�2k�S��(��H���W�^s�    B   ���e����u@O�<�I�fY\�d2ɜi���#�]���/v�X������l�:�4m�|L㾝*�����T�� �X�'Kjh���(�   �]�  @�اc�⟗I��-$M���O�(�̛1U�6n!�>>v�7>�A�{K�ĉ-.��וr�֝�����2|̷2s�x��N�R�����y�c�6tx^�zC��O���a��  �~�   ������۰�в������`_�旦��Zv��r��o�"��<��:������G'v,å�    �    �ذy��e�uj/�&S���5b� ���U������ۼ��@�˒%S��%�qws7��+     2�?(  @�����[�ĩSr��MI��r߅ɓI�u�������˓[rf�fh�-�w����ֆ�[e�M�*B�U��\-���k��'Īώ��    �6	  "�M[�K�6--۵c;�巕�����Bشl��𲛷�����ұ[o����r���:����b�&oި     `  ��`��,��kV����m�I'�RŋI�T)t&�j��2erq��&O�=�gϟ��;�dϾ��Ǯ?�ڍ�1%�_�T,/�Ҧ�cK�2�$K�!�^��G���Ǐ�֭�r��	9r����x)�xǋWjV�lx�c'NJD����Y ����EJ+"�3f�T)S�G�)%Q�����+y��<}�L�9zLv��+�9���1���J��y���#N��2{�BY�f]��۵n.���ti����gdן�d��U���[��ōGo_qww34��q���___�y분����)X@ʗ�LҤN-ɓzHҤI�͛�r��]����{r��1ٳ��x>|(�I�b�J��C��񓾓���4|n�.(��|&e?+%��&���S���������z�DViR��E��cP�@>���)��ݗ��Ⱥ�[>j���+gvI�"���)RH�dI�����sy�왜9w^�����������E��y$ztw���K�����_�x�+���t9�w��tf��l�s�����K惺�%�lY��ߦ��xy{������}|��}�s���M���o[����u{R�������;����ĉ韓�?�G����W�����^���� @��<C���1  �TN�+���5�l�^�d���v��x␞�3b����U�>a�g��ѥj�
+R��R�X=#T`AMj};u�l�}��5	[�T	]�IM=6��^��Y�l��(�-�~!��4��χ��XiqTy��z�kJ��U%a����{���,�����=�g/�Zϔ!���͕#��ΙCrd�*�n��j�6G��!f[ծQM�짃7A]�qS:��'G�}��&I;�m���D	�c�ţ���BWU�Y���'5�{��9�y�rY�l���ʞ%�>7꼨����A@�O��ju�������S�R�#���Ԅ���eаQ���K����3ɶ�+-ۺcپcW���	��ujK�M%c�t�n����x�2?�;�O��I�&��,׭]Cd�R���6�ĩ3���[6}fO�+�b�[ܾsW���l6s�G��ҧ{�U���gXE�M�W�(��וbE
+��Cs���a�ϲb���  ��IZ  ���;¾K���ʿW�J�L-_�xQqrr�)�AeN���M�U��� �R�ٳf��s������c�����&UJ�5u��ɝ��ܯ�����J���$"�;΍z_nʱ�>U׉*�e˦z�ԏ5�l̘1�s�/�Y���̹2��V�#v�X�Zϐ.��O�V2�O����L�����#��G�	ۯ���N�ۘ]Oݭ�>Uj7������u��VO��7�hѬ��bǎ%ݾj�'�����Ʃ	Z��f���Ҷes>f��F0�9U��L�뀔z������Z���TF�XW�ZI\L �I��ujI�lY�E�Nz�<�ldy�IѺyiҰ�ĉ�>[ȒX�b��2{�,ұko�s�J��Jׯ�J�ܹl�,��[��5�f�*�x�2n�Ty��xY7���Zwm���>mZ������.�X�B�l��0g�̜:Ag��"k�L2~�0I�2�ΐ  Q%�  @�s�⿆ ��œ�9�˱�o_M*�i�D����7����wr௃r��y��)q�đ���X��X�aY��iծ�8xH�V�*2~�P=)�*Cr��Y9��A=i���-Kqvy��h���f͹w$jv�a�;W�`�]�~C>*�._�h���9SF�\�l�w:��q��}��w�o�[5�&>�3����&�@�8ڵnay��	�I�z2e�l�uxe|�>��(\0�|?m�.��i�{�>]Hec��X���sgH�~�d���]�P�YRAEww��"O�<���G�$2lP?�^��ٟ	�ɖ5���e���R˪�y{R�^ݾ�V;0��ʜ����Ұ��a�:�#�|-U+�v{>|$��:(.^�?�U�Ě�+�XW?�۶j&9sd��m;Ҩ,�>��iӤ�&��[�We��@��X-=���jW���	Vm�#���
+\���5�s����c'�I%��ߗ�3'g��a  p@  @�cnbƜ�%������s�黭�Ru�k�ol[�'L�M��!�9��[LY�p������,�n_��%�$��(��[�`u�K�(&S'��}LB��V���]K���$���^�.�B�)>w��K��I���O����f�RG���A]=���1����i�Jg%N���U���?��(Z�? �zNܽw?�@���s�V}�Q� 9&�l7<>��>����T��!#���V���񣆚訌�)�G�rL�J�=y�!xa��I��@կ#C���8��P���t6̄)��cR�S[��Ϛ2q��I�׬�r�*#g��%:�ԁ����9�[���Y�b�n�h��d�l�פ��s�j����/�Q��].��+]�x�������~�"�|Ɯ�һ['�2�T�/[͘<^���ܺ}GZ��$g�_�}u��< ��n�  ���B�   ���@�XQbiP�^R�li=��q��m����?/��#,O6��	C���P��=��`��ݬ��ٻ_*T�+��_ԓ�A�N�Ȝ���z����]��&�5;����?�?�+W�I�&-u�bK�7i���7Jm�i��k�`�=�yeem|�P�T,/]:XwG}�̑E?�O
+�(�a��R�>C\��Q�\U��{���2%��&����~hӱk�������i��n[���#[l�~��q��w��?I6l��ϧ��u�SM�O;B��
+�g���_���pޞ
+��'���*�F�K���7�{�fݶ�/�,�;#�����ݐ�7T3���:�,/#�G�>�i����F�l��5����g�?G��˶j׺�����w��`�E���y#��RC�$V� �cr�/�ʃc�5�5�5�5�5�5`Ke�p�n.�k]$�ĉm�P�|��˖�֍m�%��5�	����/ʕ�齻���ԉc����&%w��mv�GOK�.=�ٳ��ƥ�
+>��\5_��k5i� ?��Oj��X�b�]����L�1��R�H��4<&�w��{�~�m���)S���9w��I�0��M�Zg5X���S�g�̑ϓ�tm۪��]���w��gv�q���x׾ʀj�~�2��]�f��Y�H:t�-�����ϞT�h�Xvl\-e?+�_U�h��Ұŗ��@1)^��4h�F�m�D��R�j��k�tߎ�Y��V�ڳ�-��!o�Ғ�x�X��9֪�uJ/b��U��К�ǌi�����%��L0��ѷG�����0ƍ[��L���9�N���~3��^y�J�Y9�4�S��y����������rE:��ˏ�N�]����������    ұ�L���Z�|��ǎ���is�$֯+�ڗ*�b�����V�Be����`ߏ�Xa{J��}րQF�ڏ�T����C������F�����1���֚����8+�%�fLѥ�TY�?��%�w��&����,qq1�_;�Q%ʾ����*����ϻ*t��m�vm$^\�%��>tX������U*��/yu��}݀�H��2�۩������\�qS���߬��0��\�qSz�(K���A�[Cx>���.�,�RkXU.�l�V�C��Q�Ih,�ף�O��/*h�\�9*�l�_�[���Vl���[���܇ 5��X�y��2yڬ`���  �ZLN�ܒ  ��;"<��PM��� ~|C�(_���;�$J�'�Q�,F/R��I��'��jP�s�wgL�^��|5�e6oݡ'>U���M�?��~֖�y���G��Y��U�(�����+��P����Y��'��ٹ�O]+�ʢ2�S�ܽ'M�t��.���#K��6;�8w�b����yuq1Na�5�ޯ��Q�ys��[��l�����?t��Шl �wh����ǨJl������j��ǟ��Sf���̍�۩3�f��z��H���c���ۣ�Odڬ��}x{{��T�������?/2S�k�����Zp� ����2Y������-�8s��`M�~W���7n頧��������ܠn�P_W�S�L)W���#J��kڨ�$O�4P��S��    鼵��TUg�\}���(�Qw��z�$��a��YU%_��b��i�X\�b���C��w3#�NX��Fh�y?n�3����=�:��F`�]�~��xiŲ/�ٗ���P���J+��ɤ�f�F3@B��2�g׎#z�P�9l����-W�t)������ 9}��Ԩ�D������i�Ò��ơz�X[��V��Â�~Xr�#���}��Ue���b�w�b����k�T>�Ϟ=3�������yk,;�`�@ArKq������3m���|  �  �X[��h��Y�Tc�zg�&oܺmhL�rfk� F�G�z�K�2�M�صGOH�I��� *K�S����۷^�q�v�۹v�f�\g!��N���~��2�4k#����F-�J���%W�R2u����a�a�� iӤ����X\�����g����Y�b���5��h�5�7���g�'O������`�����G/����q��ˡ�>R���6Y�΍�>�ҥ�����O��X��?��۴X�m�$�J����EK���J.]�����{���Mc�  8.��  >�-AKzX2f�ɗ;W��yG����ڗ��ҍU�4g����Y5.N?��e'�!m;��w߇�U�.z������r\��dń�b$���;u��ڷ�eY����1�{���j����������I35I���,�.�zR^5�Ww����UvǉS��$�9��앵6K��U���Q�����Xr��-C����,(���Ι�X�.�eT�����d2X+�zu��P�������w��U�U׍����=I�D���!5t��3g����H@)Q°�%
+OG�7�����` [Q�J��߻���
+�L�1G�l�iq;�~�չH�(�\�~C��z�e�){H������{�>��������N�C-����#e*��?���   j#   "5Q�&��N8���G�����RMiڸ��͝K�ĉ�'w�ݯ'��zb�N�ĉ��TS�	�Y\.Q���b�"�>g�L�1;���� ��I�{���k7� *;�R�#k�ɝ��2]z����6J��%%s�:�q��)Y�z��,#?O�>5��*����&�_�o��w�
+��c��R��J,��Qs�Fϓ�WA41T�'�� HxS?3UߐКOۚ��1.ؒ�̚�P�<�ԪVErdϪ{��:sVV��`8��䉱ϲ�$�M{�����W��U���}lI��e���d��	��V�=�  8&    �Qw�[3Ϣ&��x���̙�������'Id} d�����.��;HՊ�u��u�D��]��`�����~��j\ƾ۴P��������V��h:���k����hF���6A�l���TZ��1�.��� _x���!o� bD��n��8~�~�JegͶQ Q�*	h�,�3F�0z�ԭ]C��ۻ��p  ���$|o  �L�K$N�Ъ;M=z.�k�]���q��j��un̈́��+v�	ҫ['�1g��\�>���z��}��� v<���͔�,�X�bJ��ɤF�JR�V�/���R=b�/Z�˥}��͚�6�1�����?��}��i3����(_�3C˹�E����ڶ�5<v���Yl�����L���w����>�D�a���}���
+?����me������/��2����^�|  �)B�  ��K$Jh���oFx�M�ꉫ̌*�I�����oݸ�>}.CF��o��z���Ԕ�e���k�`�p��7=��=�2@��rY�;������q��=9t����t���y�U����8%���
+П&����ɒJ�
+�F������%���3�q�����X���l�8J�(&Ee�]Ս퉀D\Ė�m��*��J��br5�����aԊ��<}V�-Z"�[��zO����fɖ�;�롣�j  �  �t'��������e��B��E�dt�re��P��m�l�jɓ+�4���M��͝S6�Z&SfΑ��~��l��w���7Wqss�7o¯���+�d���2f�����ڍ�?�/k�LR�BY}��̞���U��O���>��C�:eJC˽y�V��x!�r��E��p�ͽ��P�f�ʕ���I�B�G(���N�*9�g��E
+ٴ���Y�P2j���  ��   �� 'N��۾U��ҥ�K�R%�H�-����
+K�a�Q������K��W��߳�̗W:v���������{'�'�U���ys��*�b�Sg��u��c���������%�KR�$aڞ�'>i��l��bk�C5�6�y^��
+:z�m;B��Y�z����Ș>]��t�ޟ�g�V*���˯仉��f��6m#^ܸ2m�ɓ3�3��c  �&    �QAk�8u&L��'��j�X�4�������P6m�!)S$�]�=�5a�t�y붌:P��E�2���J�]�ɓ��=�|(������^G�5��Z���3c�J���mZ��h;���uPiT��(�b�]�N.���*���A�;gv�ض�.q��=�eT���'O��-ۤ{��z;��~ڟ����N=�ɭ�wt9,[?�_�l*�&��}�? @�   �N�B�/�&�l�x$I,�Z7����K�1B\��˗�|�:Y�i��}�����@|�0����r��-�:~������_ϗZ�GH&Ȗm;��.(����YjV�"�ڵ֥�����!Y�f�lپSg��N��p �S/��d��^��I�dI=/��ئ}��(ZX:w�RJ+b�ZT%�T)Í[�� �ҥC[Cۏ� �?Y�*6��.Ei��5���w  ��L�@  aa�%T "{�,V��z����hX�s5d�� 	ɳg��%Ke��?ʜ��u����]���=��R��2e�(���mM��e�,����l�9��~=/�?On�'�<}�,��dK�d[�e��e��ɒ#����+�f�T�����X�r�d���UNͦq�SM܍K"��IN�����>>��a9N�bƔ��GJ���Cm�>˛��n���2@>ƵyZ��l��r�#2c�8����\5o�@~��7;�  |�l��   N
+��kU9k���L&3��8z������.V��L�6+Le��Y���Oi��+>f�<n[s�M����k���F��ʑ}�>+Y\6���l���ӧҤU{iٮ��=I�����K69[�b�������M�a<[�/c���n�R��ooo�z�H�V�Q���-T��]�xIj�k"�/�Q�ǲ�7z�rX   �2��E  @�a�%*�+mxYU�g��-�Ǡz.��p�nXk���d��	�{ �ݮ�����v>>�,���7J�N�Y��:�c�F����c'�c�n�\�5�xSږ;�y����ľS�^뵪W��&�1�����:�q��5�۵b޾a�֌�g�ϻg+���.�6����GV�I�*�\�qS"�U�1��͇]|���a�gӚX���ٳ�oKJ̘!�I|��t��G����]΁O��{Ba�:���6��}�E/oo=q���l����M�W�`U<�w�v�j�`��v  ���  "�xq�J���/�{�~�a�Wm[��8{��9�n�����eΔA�$N�r=����K���ԙ�V��z��b�b��^6l٦˙�<��T�TA>Ej�|�o�?�>��~؉�'��dE	,[{��kz�T�PΦ��qD�M�Nm6��L�>�}��Nlmڭ�S}��ǋ'�2���Z�$�ԣ��o�Z7I��  ���  �H�y���nM�w�N�:��U�^]�
+u�s�=YHɝ3��:�W��].wo��,�A�r�������X�^O
+yĉ[%J(a�؉ִa�/[6�OѤ�#$V��f_���a��'['M#�n^��֛7o�*5V��������U2g�`�uOχ��v=�3_�|ixY�����ݿS~_�R���$�cǲ����G�z�/d�߇�'C��a)  ��E��|  @���Z7kl�8��r�n8kT�_Z,u��u��k�6�����h�ECÓ���%����"���Sgd�굆�ϗ'��*a[���R�`~)^��G�ά��"#k�:L&�3�v�������+�=D��.�ʗ��FM�	�~,��+�F�&�۴h�2w���?������Q���W�,i���qQ%�Rٌ~�\��РN-C�y>|$MZ����֙/�* ���j�{  �6    �J4;N(�2#��LPͣ'L�nx�j��D�"����]��p��?ǽ��J�|^�Z�YA��0�p�k��۸��������2n�$�zi���3kΫQ������%��{oD���)�ۼ��w��j��H�8�g�>��*��0
+����(��Qtqͺ���5�5�b�9��3f]�ꓷb�(怂b��E0g�5�|�.o3}{ ���;g� �t�t�����V�,iJt\f�t�-ץK�?��=����c�7P]v&��,�WM��a�����͛��/U�NV���Դ��=K���2�����T��/�*}�柯��S2�6k֬�u~����;l�e���C�����?T�l�h��p
+ ��	  �xy�/�y^͞S�{��[����#F�H]�=8}��Umb�r���u��-��T�c��vꆨ]��m����ҹ]Z�r�F�J���f���=[v�O��oK]�u�9R�SOL����૭���~�5v�V�3���6��^uh���y��!�с���-u�U��y登Q��}�L7����n܀s��:N����,i4�3�OՄ�I~�������ם]3-��ꫬT1VL��r�N,ȳ)�����2KW}�?��c��n֬�q��'����U5S*G��K,A6tذ�3 �}j2vҰ/��c�1�p8ӥ�s4����f���;;�}�tо��Qk̘�ҁ�wK�?�tU�Ѿ]�����5W��+;h8v����s���[�w�yJ�����U�O��1$�1�=�_y퍴�~���#���l��VI���uܗ��+6Į|��/P���5g������m�4�qh6C�A�fŀ��9&��U�M�;��)�4�i�m�YH��E�����o�:m��F�f4|��[�.���wߞ�g��q��O}��S�~�P�yɚ4iZ��0s���-�jެy㏯�g˙i�����U��+��U�7Go1S�������y�n�ky��_���}��ml�A�"����:t(=s�O\��㜗�3ы�c��yz����/����ח��1�p8���3@ ���X�Y�]�A���3�;�g:�����䁒}:"���ުo��O>-u�-��Q�3�����iۭ6+������6>��l��7/��)�/*ϊylГ�� ��~��=JDz��鬞�7���)s�յ�[�Z6�̱�g�B�v�6�����|����g�ٺ��sm�V?�� _���R���u�7(��Aދ�λ�{�˰�u��i���3N���m�b���_o�bϞ<��z�A�+�׺Ku�3�x��fߢ��-���\sV��%[��e;-�l�9>W[d᪯��-_�]��e?��Rˏm�Ŧ��ʟu9 ���ɽ7���SvvS7ݏ8�����������{�p[Y�m���>#��"o$?q �ᰬ��e>o �߯�"�  ����7��qX�C���/k���}���[|�E��g�L/ء�e�Y�7�~g:��������?���`�cK'�֫X�����l��<x�������f�>���t�齊�^�}���?v*���n�=��_3�函�NZu�	�*Yg�����N�u~�۫�tH�$�܋/k�c8-�zG�bi�GZj���7�0-��bi��MC�~�ѷ;����9��җ�aݎKo��n���Ï>.u\�zB���x��!�t��n��f�b����{����a�m�y�:k����K:���龇���b��;�^�(���P�5���7ެ�j�r\��������<8�p��i��7M+,�lڡ�>Ɔn'�,��h[��Vy��F�uu?��@�G�z�-^E�Xj�ū~]W5���>�l�2K�ʑ���r,���X���c��V.}�e?7�o�bB��MvO����/0���?c�������S�֭�
+�wL��o�s�M��K�h�g}lP��6[���|���������_�"�
+��&ϲZ{�UKG��{�!i��[��/�W��톽�N��a]{�S�Tc���/^����7������� ~~�ͷ�UL  �ʛ�����b��j����cz���e��~םwH���r�3�����tt���C�HS"o�;��;��Qưw�-~�'�~������l�qK �b馲�&����/H\r���ۥG6�˟u�E�/���� ���]�ڷ�	�n��L�{����f��-��Xd�Ksy)�>�ݘ�~���nk�틳��H��3Ͻ0�����3���g.�={9�ǒ���bp��:��6ۤ�Y�3f��1ו��J;~�I��Z]��)�w/}�v�������N��m�N�~TU?���˿���=�����V�mpS�+��h�҅���T��ح��."M9خ�e������|�]�@�[�<�2}�\wӭ�{}5�^c�tم�&%�������?W�u�g���M�ߛ�8����%W\U�r^s����)u�9���`������˯��]$m�A��Ҋ���{�ܨf_�|l���=fL��z���&�)8��@~<j���Z�����_�y_��4�O?�z�qv��A�l�I�>�����㖍�f�����l���N]Ӡ'� ��  ��:�8����#���zz�с�W_+���tM�,�̜�k;O1H�gW�N��{a��K��]��?5��6��1�O�u�����\��8���=}�l�V7T��O�zT��3���9B���Ϧ�tjz镱�q�A�K�;�8S�>�^ٻ�+����-�C��;u�ǎ�K�7��������+��� �%��`f�_c�U*^��ѣ�=�?�N>��b��j�-ﻳ�z��^�=m�e���n�4�zn��tȑ�'9{�ۧ���6m��U-�����_�n��o�����Ԕ���fL�c��h�g�U��Zk�z�Z� zY9�u?�g����J�L���RK���=���jU��}>��>���?6x�<|�#Ӷ[N:�\I��]v�$��&�{��\�SN����g��c��'�Z�k�Yg-��UV�cUן����L<�ob�n�&-�x�%�&'�N��物�f�t�٧5�z?�B�u��+��Yo���σ�!^<��#E|���p�~����g����;��u��\���=��O=s���cvT�7o���Ǟxj�ϵ74�> q  �;t�G��y�l�N�M�V�/%�<�������ފ�fT+����ڳ뫕�=��i�=4z׭�3�k�Mjw����ƛoM�oy���7��G�C�M��}�X�j��+Lsl�����qb�1/����K�=wݹX֤���~1"��λź�y��e�يc�̌�<["�*�憛'ِ���c:����y9�K�}U:���3��rq�n����3&�r���~����5W]�X�&?.S��?(�����ۧ�̢M7�k:���Jo=���s��xvU�� �uJZ�C�4����:�I�8���瞑:�[ �ӦM���2>������g��&o�^�>��:-�L��V��W]9Jzrp��1�w�K�<i����K�b��Ҙ���1v3��ǣ�=�F���<��4z����:��1�1�i��U-7����3�=_k�zj��B�Vy����M�λ�KG�8���<��4�D����g����2�;�g�x��g~�y���C霋.)f�d9��Ǿ���W���r��k��s�x�7���>W���K,��\b�z�e~��:��bv �  �3y韇�5���x�Xj*�Q��˯L���g�_|�i�V,�3yُ+z�)f�|�����~�6sK����H��������l������^f����־�����<:,����5���T�1n�o��.=��S�:��L�K]U��V�k�Wq��h�u����_����c�����v:��S&�y�����-[��-/o�U�妪�W�]Ҿ��Z�́�=Q��i��H����~{v-�Bc��]��xK:��y��J������۔��o��.-�i½7���4=g�7V^�-l�`}�9��.��9Mm�o�Mz����?O/?=��+ɡjݍ&�w�ʝWL�sFU3�^x�b��<+�����,�ܣ[����g��^}ݍ����r�;�}۪g�������{p4ffI���g��Vzc�б��:�f����&=ro���7$���]~U�K� �/�ͷh�_�: �4���wK�{�9���G��F�U|�k���=���i̘b@�v_�<��)�ٰ�{^Z�i���ɸ��7m:~p'_߷�~������߇��}������ҳϽ0Ֆ�*+��<���&��]�ށ�|&u�>ץ��s�ᣮ��W޻b�E�����bx�s�ͩw���+i�l��y�Ni�UVJK/�x��v��Pf�,Ϣ:�b ���\[��M�F��Ze��i��K��K/��]f�)�Λ���3O?�|�=�M�e��l���E�u֮���#FK��P5��fu��=������_��4]�������'{��{_�V�Ա��g��G�,����,_G�k>�9/�_�u���s��5Ō��kj��s���#�=!MMy��^��v�~�������`�t�]��~L�����F�M7Z�x��^e�,�����M��Qćj�����L3��y�s32�9j�{q�󑟛ڙ55M��ἿQ���)�����ci�ͷ��v�Y�k��rq#F�����⹯}�'z���;?����s����������a�����u��k䈑���ߵ��_kcog�k./��$���Ѵi�![��8ˮ�����=pgj3�\��������|u����4�����]����0��ߡ�>G���6����ž��|�����+�C����v�e�b����3Ͽ����'�ͳ!G�J��eݵ�.;l�:��|��M7�ַXƲ�l���L��w�:A���_K3����酗^-�7f�\����J��}���j����Y������K��Z�Xɯ�<� �. ~�� ��:�}r�`Sd���XMm�l�N�I�[͑朳u��F8�?��.QU�<��K�,M��K0���CJ/[��̕۷+6qo5����mݪU�i����_��>�"}��'Œ1e7A�-˃�9��m�4��-R�-��-f*����g�|�����|���E��bx��Ï�MynyP}�?u.�t��u�b ��o�I�<�=�t�ᇆ�l����_�\l\=�쳧�>�$���i���gZWړcZ����}ZE�|��e�^�Csʿo~m����b��i%?^9n��v�9�(i�0��i�g,y�2S��az���z��9���]ߴx���δ����nJ�����sLh��|��8����x��b�U���|,m������-�ׇ�e�<b>��|lMM���r�yڤ�۴I�}�]1K���^.^Ce�����V[�s�~�ؠ'�e���k?��ڷ��x�[�1Gj�*��*Y^z/�(y����Qi_ ��M      ©I��_     �Wk��     �+ �      �      @85��     �           G      ©�     �      @85�      3@     �p           �f�_�      Lef�      ��$S@     �`j�     c	,           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p           G      �@     �p  ��=;�   �o}��4  �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v    �g2    �����F �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      v     �#@     �     �     `G�      ;     �      ��      vH��A	   �@6���,!�.��     r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      �      r      g��~7      ��.zl�to_��    IEND�B`�
+==== text/cover.xhtml (Cover)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Umschlag</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-cover" epub:type="cover">
+<img class="baruch-cover-image" src="../images/cover.png" alt="Umschlag: Das Gartenhaus"/>
+</section>
+</body>
+</html>
+
+==== text/k12.xhtml (Part)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Erster Teil Planen</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-part" epub:type="part">
+<h1 id="k12" class="baruch-part-title"><span class="baruch-number">Erster Teil</span> Planen</h1>
+</section>
+</body>
+</html>
+
+==== text/k13.xhtml (Chapter)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Einleitung Die Weide</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-chapter" epub:type="chapter">
+<h1 id="k13"><span class="baruch-number">Einleitung</span> Die Weide</h1>
+<p>Am Bach steht eine alte Weide.<sup><a class="baruch-noteref" id="fnref1" href="notes.xhtml#fn1" epub:type="noteref" role="doc-noteref">1</a></sup> Wie Ps 46,4 sagt.</p>
+<h2 id="k14">Boden und Licht</h2>
+<p>Der Boden ist lehmig.</p>
+</section>
+</body>
+</html>
+
+==== text/k15.xhtml (Chapter)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>I. Das Fundament</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-chapter" epub:type="chapter">
+<h1 id="k15"><span class="baruch-number">I.</span> Das Fundament</h1>
+<p>Sechs Punktfundamente tragen das Haus.</p>
+</section>
+</body>
+</html>
+
+==== text/k16.xhtml (Chapter)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Schluss Das Dach</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-chapter" epub:type="chapter">
+<h1 id="k16"><span class="baruch-number">Schluss</span> Das Dach</h1>
+<p>Zum Schluss kommt das Dach.</p>
+</section>
+</body>
+</html>
+
+==== text/notes.xhtml (Notes)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Anmerkungen</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-endnotes" epub:type="endnotes">
+<h1>Anmerkungen</h1>
+<ol class="baruch-footnotes">
+<li id="fn1" epub:type="endnote"><p>Erfunden. <a href="k13.xhtml#fnref1" class="baruch-backlink" role="doc-backlink" title="zurück zum Text">↩</a></p></li>
+</ol>
+</section>
+</body>
+</html>
+
+==== text/index-personen.xhtml (Index)
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="de" lang="de">
+<head>
+<meta charset="utf-8"/>
+<title>Personenregister</title>
+<link rel="stylesheet" type="text/css" href="../style/book.css"/>
+</head>
+<body>
+<section class="baruch-index" epub:type="index" role="doc-index">
+<h1>Personenregister</h1>
+<p>Keine Einträge.</p>
+</section>
+</body>
+</html>
+
+==== opf
+<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="de">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<dc:identifier id="book-id">urn:uuid:00000000-0000-4000-8000-000000000039</dc:identifier>
+<dc:title id="title">Das Gartenhaus</dc:title>
+<meta refines="#title" property="title-type">main</meta>
+<dc:creator id="creator">Erika Beispiel</dc:creator>
+<meta refines="#creator" property="role" scheme="marc:relators">aut</meta>
+<dc:language>de</dc:language>
+<dc:rights>© Erika Beispiel</dc:rights>
+<meta property="dcterms:modified">2026-11-28T12:00:00Z</meta>
+<meta name="cover" content="cover-image"/>
+<meta property="schema:accessMode">textual</meta>
+<meta property="schema:accessMode">visual</meta>
+<meta property="schema:accessModeSufficient">textual</meta>
+<meta property="schema:accessibilityFeature">structuralNavigation</meta>
+<meta property="schema:accessibilityFeature">tableOfContents</meta>
+<meta property="schema:accessibilityFeature">readingOrder</meta>
+<meta property="schema:accessibilityFeature">alternativeText</meta>
+<meta property="schema:accessibilityHazard">none</meta>
+<meta property="schema:accessibilitySummary">Text mit Inhaltsverzeichnis und Überschriften in Lesereihenfolge; jedes Bild hat einen Alternativtext.</meta>
+</metadata>
+<manifest>
+<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+<item id="css" href="style/book.css" media-type="text/css"/>
+<item id="cover-image" href="images/cover.png" media-type="image/png" properties="cover-image"/>
+<item id="cover" href="text/cover.xhtml" media-type="application/xhtml+xml"/>
+<item id="k12" href="text/k12.xhtml" media-type="application/xhtml+xml"/>
+<item id="k13" href="text/k13.xhtml" media-type="application/xhtml+xml"/>
+<item id="k15" href="text/k15.xhtml" media-type="application/xhtml+xml"/>
+<item id="k16" href="text/k16.xhtml" media-type="application/xhtml+xml"/>
+<item id="notes" href="text/notes.xhtml" media-type="application/xhtml+xml"/>
+<item id="index-personen" href="text/index-personen.xhtml" media-type="application/xhtml+xml"/>
+</manifest>
+<spine toc="ncx">
+<itemref idref="cover"/>
+<itemref idref="k12"/>
+<itemref idref="k13"/>
+<itemref idref="k15"/>
+<itemref idref="k16"/>
+<itemref idref="notes"/>
+<itemref idref="index-personen"/>
+</spine>
+<guide>
+<reference type="cover" title="Umschlag" href="text/cover.xhtml"/>
+<reference type="toc" title="Inhalt" href="nav.xhtml"/>
+<reference type="text" title="Text" href="text/k12.xhtml"/>
+</guide>
+</package>
+

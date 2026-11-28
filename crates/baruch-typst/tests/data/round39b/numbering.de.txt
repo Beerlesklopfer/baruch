@@ -1,0 +1,236 @@
+== template
+rule: #set heading(numbering: "1.a")
+spec: Some("1.a")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: 1
+heading [2] of 4: 2
+heading [3] of 4: 3
+heading [4] of 4: 4
+heading [2, 1] of 4: 2.a
+heading [2, 1, 3] of 4: 2.a.c
+heading [21] of 4: 21
+heading [100] of 4: 100
+template:
+#set text(lang: "de")
+== decimal
+rule: #set heading(numbering: "1.1")
+spec: Some("1.1")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: 1
+heading [2] of 4: 2
+heading [3] of 4: 3
+heading [4] of 4: 4
+heading [2, 1] of 4: 2.1
+heading [2, 1, 3] of 4: 2.1.3
+heading [21] of 4: 21
+heading [100] of 4: 100
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Dezimal (DIN 1421)“
+#set heading(numbering: "1.1")
+== decimal_dot
+rule: #set heading(numbering: "1.1.")
+spec: Some("1.1.")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: 1.
+heading [2] of 4: 2.
+heading [3] of 4: 3.
+heading [4] of 4: 4.
+heading [2, 1] of 4: 2.1.
+heading [2, 1, 3] of 4: 2.1.3.
+heading [21] of 4: 21.
+heading [100] of 4: 100.
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Dezimal mit Schlusspunkt“
+#set heading(numbering: "1.1.")
+== alphanumeric
+rule: #set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { numbering("I.", p.at(0)) } else if p.len() == 2 { numbering("A.", p.at(1)) } else if p.len() == 3 { numbering("1.", p.at(2)) } else if p.len() == 4 { numbering("a)", p.at(3)) } else if p.len() == 5 { numbering("a", p.at(4)) * 2 + ")" } else { "" } })
+spec: Some("I.;A.;1.;a);aa)")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: I.
+heading [2] of 4: II.
+heading [3] of 4: III.
+heading [4] of 4: IV.
+heading [2, 1] of 4: A.
+heading [2, 1, 3] of 4: 3.
+heading [21] of 4: XXI.
+heading [100] of 4: C.
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Alphanumerisch“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { numbering("I.", p.at(0)) } else if p.len() == 2 { numbering("A.", p.at(1)) } else if p.len() == 3 { numbering("1.", p.at(2)) } else if p.len() == 4 { numbering("a)", p.at(3)) } else if p.len() == 5 { numbering("a", p.at(4)) * 2 + ")" } else { "" } })
+== chapter_roman
+rule: #set heading(numbering: (..n) => if n.pos().len() <= 1 { numbering("I", ..n) } else { "" })
+spec: Some("I|1")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: I
+heading [2] of 4: II
+heading [3] of 4: III
+heading [4] of 4: IV
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: XXI
+heading [100] of 4: C
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Nur Kapitel römisch“
+#set heading(numbering: (..n) => if n.pos().len() <= 1 { numbering("I", ..n) } else { "" })
+== chapter_arabic
+rule: #set heading(numbering: (..n) => if n.pos().len() <= 1 { numbering("1", ..n) } else { "" })
+spec: Some("1|1")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: 1
+heading [2] of 4: 2
+heading [3] of 4: 3
+heading [4] of 4: 4
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: 21
+heading [100] of 4: 100
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Nur Kapitel arabisch“
+#set heading(numbering: (..n) => if n.pos().len() <= 1 { numbering("1", ..n) } else { "" })
+== parts_chapters
+rule: #set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "Kapitel " + str(p.at(0)) } else { numbering("1.1", ..p) } })
+spec: None
+part 1: Teil I
+part 2: Teil II
+part 3: Teil III
+heading [1] of 4: Kapitel 1
+heading [2] of 4: Kapitel 2
+heading [3] of 4: Kapitel 3
+heading [4] of 4: Kapitel 4
+heading [2, 1] of 4: 2.1
+heading [2, 1, 3] of 4: 2.1.3
+heading [21] of 4: Kapitel 21
+heading [100] of 4: Kapitel 100
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Teile und Kapitel“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "Kapitel " + str(p.at(0)) } else { numbering("1.1", ..p) } })
+== chapter_words
+rule: #set heading(numbering: (..n) => { let p = n.pos(); let w = ("Erstes", "Zweites", "Drittes", "Viertes", "Fünftes", "Sechstes", "Siebtes", "Achtes", "Neuntes", "Zehntes", "Elftes", "Zwölftes", "Dreizehntes", "Vierzehntes", "Fünfzehntes", "Sechzehntes", "Siebzehntes", "Achtzehntes", "Neunzehntes", "Zwanzigstes", "Einundzwanzigstes", "Zweiundzwanzigstes", "Dreiundzwanzigstes", "Vierundzwanzigstes", "Fünfundzwanzigstes", "Sechsundzwanzigstes", "Siebenundzwanzigstes", "Achtundzwanzigstes", "Neunundzwanzigstes", "Dreißigstes", "Einunddreißigstes", "Zweiunddreißigstes", "Dreiunddreißigstes", "Vierunddreißigstes", "Fünfunddreißigstes", "Sechsunddreißigstes", "Siebenunddreißigstes", "Achtunddreißigstes", "Neununddreißigstes", "Vierzigstes", "Einundvierzigstes", "Zweiundvierzigstes", "Dreiundvierzigstes", "Vierundvierzigstes", "Fünfundvierzigstes", "Sechsundvierzigstes", "Siebenundvierzigstes", "Achtundvierzigstes", "Neunundvierzigstes", "Fünfzigstes", "Einundfünfzigstes", "Zweiundfünfzigstes", "Dreiundfünfzigstes", "Vierundfünfzigstes", "Fünfundfünfzigstes", "Sechsundfünfzigstes", "Siebenundfünfzigstes", "Achtundfünfzigstes", "Neunundfünfzigstes", "Sechzigstes", "Einundsechzigstes", "Zweiundsechzigstes", "Dreiundsechzigstes", "Vierundsechzigstes", "Fünfundsechzigstes", "Sechsundsechzigstes", "Siebenundsechzigstes", "Achtundsechzigstes", "Neunundsechzigstes", "Siebzigstes", "Einundsiebzigstes", "Zweiundsiebzigstes", "Dreiundsiebzigstes", "Vierundsiebzigstes", "Fünfundsiebzigstes", "Sechsundsiebzigstes", "Siebenundsiebzigstes", "Achtundsiebzigstes", "Neunundsiebzigstes", "Achtzigstes", "Einundachtzigstes", "Zweiundachtzigstes", "Dreiundachtzigstes", "Vierundachtzigstes", "Fünfundachtzigstes", "Sechsundachtzigstes", "Siebenundachtzigstes", "Achtundachtzigstes", "Neunundachtzigstes", "Neunzigstes", "Einundneunzigstes", "Zweiundneunzigstes", "Dreiundneunzigstes", "Vierundneunzigstes", "Fünfundneunzigstes", "Sechsundneunzigstes", "Siebenundneunzigstes", "Achtundneunzigstes", "Neunundneunzigstes"); if p.len() == 1 { if p.at(0) <= w.len() { w.at(p.at(0) - 1) + " Kapitel" } else { str(p.at(0)) + ". Kapitel" } } else { "" } })
+spec: None
+part 1: Erster Teil
+part 2: Zweiter Teil
+part 3: Dritter Teil
+heading [1] of 4: Erstes Kapitel
+heading [2] of 4: Zweites Kapitel
+heading [3] of 4: Drittes Kapitel
+heading [4] of 4: Viertes Kapitel
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: Einundzwanzigstes Kapitel
+heading [100] of 4: 100. Kapitel
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Kapitel ausgeschrieben“
+#set heading(numbering: (..n) => { let p = n.pos(); let w = ("Erstes", "Zweites", "Drittes", "Viertes", "Fünftes", "Sechstes", "Siebtes", "Achtes", "Neuntes", "Zehntes", "Elftes", "Zwölftes", "Dreizehntes", "Vierzehntes", "Fünfzehntes", "Sechzehntes", "Siebzehntes", "Achtzehntes", "Neunzehntes", "Zwanzigstes", "Einundzwanzigstes", "Zweiundzwanzigstes", "Dreiundzwanzigstes", "Vierundzwanzigstes", "Fünfundzwanzigstes", "Sechsundzwanzigstes", "Siebenundzwanzigstes", "Achtundzwanzigstes", "Neunundzwanzigstes", "Dreißigstes", "Einunddreißigstes", "Zweiunddreißigstes", "Dreiunddreißigstes", "Vierunddreißigstes", "Fünfunddreißigstes", "Sechsunddreißigstes", "Siebenunddreißigstes", "Achtunddreißigstes", "Neununddreißigstes", "Vierzigstes", "Einundvierzigstes", "Zweiundvierzigstes", "Dreiundvierzigstes", "Vierundvierzigstes", "Fünfundvierzigstes", "Sechsundvierzigstes", "Siebenundvierzigstes", "Achtundvierzigstes", "Neunundvierzigstes", "Fünfzigstes", "Einundfünfzigstes", "Zweiundfünfzigstes", "Dreiundfünfzigstes", "Vierundfünfzigstes", "Fünfundfünfzigstes", "Sechsundfünfzigstes", "Siebenundfünfzigstes", "Achtundfünfzigstes", "Neunundfünfzigstes", "Sechzigstes", "Einundsechzigstes", "Zweiundsechzigstes", "Dreiundsechzigstes", "Vierundsechzigstes", "Fünfundsechzigstes", "Sechsundsechzigstes", "Siebenundsechzigstes", "Achtundsechzigstes", "Neunundsechzigstes", "Siebzigstes", "Einundsiebzigstes", "Zweiundsiebzigstes", "Dreiundsiebzigstes", "Vierundsiebzigstes", "Fünfundsiebzigstes", "Sechsundsiebzigstes", "Siebenundsiebzigstes", "Achtundsiebzigstes", "Neunundsiebzigstes", "Achtzigstes", "Einundachtzigstes", "Zweiundachtzigstes", "Dreiundachtzigstes", "Vierundachtzigstes", "Fünfundachtzigstes", "Sechsundachtzigstes", "Siebenundachtzigstes", "Achtundachtzigstes", "Neunundachtzigstes", "Neunzigstes", "Einundneunzigstes", "Zweiundneunzigstes", "Dreiundneunzigstes", "Vierundneunzigstes", "Fünfundneunzigstes", "Sechsundneunzigstes", "Siebenundneunzigstes", "Achtundneunzigstes", "Neunundneunzigstes"); if p.len() == 1 { if p.at(0) <= w.len() { w.at(p.at(0) - 1) + " Kapitel" } else { str(p.at(0)) + ". Kapitel" } } else { "" } })
+== legal
+rule: #set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "§ " + str(p.at(0)) } else if p.len() == 2 { "Abs. " + str(p.at(1)) } else if p.len() == 3 { "Nr. " + str(p.at(2)) } else { "" } })
+spec: None
+part 1: 
+part 2: 
+part 3: 
+heading [1] of 4: § 1
+heading [2] of 4: § 2
+heading [3] of 4: § 3
+heading [4] of 4: § 4
+heading [2, 1] of 4: Abs. 1
+heading [2, 1, 3] of 4: Nr. 3
+heading [21] of 4: § 21
+heading [100] of 4: § 100
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Juristisch“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { "§ " + str(p.at(0)) } else if p.len() == 2 { "Abs. " + str(p.at(1)) } else if p.len() == 3 { "Nr. " + str(p.at(2)) } else { "" } })
+== sermon
+rule: #set heading(numbering: (..n) => context { let p = n.pos(); let last = counter(heading).final().at(0); if p.len() == 1 { if p.at(0) == 1 { "Einleitung" } else if p.at(0) == last { "Schluss" } else { numbering("I.", p.at(0) - 1) } } else { "" } })
+spec: None
+part 1: 
+part 2: 
+part 3: 
+heading [1] of 4: Einleitung
+heading [2] of 4: I.
+heading [3] of 4: II.
+heading [4] of 4: Schluss
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: XX.
+heading [100] of 4: XCIX.
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Predigt“
+#set heading(numbering: (..n) => context { let p = n.pos(); let last = counter(heading).final().at(0); if p.len() == 1 { if p.at(0) == 1 { "Einleitung" } else if p.at(0) == last { "Schluss" } else { numbering("I.", p.at(0) - 1) } } else { "" } })
+== book
+rule: #set heading(numbering: (..n) => context { let p = n.pos(); let chapters = counter(heading).final().first(); if p.len() != 1 { "" } else if p.first() == 1 { "Einleitung" } else if p.first() == chapters { "Schluss" } else { numbering("I.", p.first() - 1) } })
+spec: None
+part 1: Erster Teil
+part 2: Zweiter Teil
+part 3: Dritter Teil
+heading [1] of 4: Einleitung
+heading [2] of 4: I.
+heading [3] of 4: II.
+heading [4] of 4: Schluss
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: XX.
+heading [100] of 4: XCIX.
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Buch“
+#set heading(numbering: (..n) => context { let p = n.pos(); let chapters = counter(heading).final().first(); if p.len() != 1 { "" } else if p.first() == 1 { "Einleitung" } else if p.first() == chapters { "Schluss" } else { numbering("I.", p.first() - 1) } })
+== none
+rule: #set heading(numbering: none)
+spec: Some("")
+part 1: 
+part 2: 
+part 3: 
+heading [1] of 4: 
+heading [2] of 4: 
+heading [3] of 4: 
+heading [4] of 4: 
+heading [2, 1] of 4: 
+heading [2, 1, 3] of 4: 
+heading [21] of 4: 
+heading [100] of 4: 
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Ohne Nummern“
+#set heading(numbering: none)
+== custom
+rule: #set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { numbering("I.", p.at(0)) } else if p.len() == 2 { numbering("A.", p.at(1)) } else if p.len() == 3 { numbering("1.", p.at(2)) } else { "" } })
+spec: Some("I.;A.;1.")
+part 1: I
+part 2: II
+part 3: III
+heading [1] of 4: I.
+heading [2] of 4: II.
+heading [3] of 4: III.
+heading [4] of 4: IV.
+heading [2, 1] of 4: A.
+heading [2, 1, 3] of 4: 3.
+heading [21] of 4: XXI.
+heading [100] of 4: C.
+template:
+#set text(lang: "de")
+// Baruch: Gliederungsschema „Eigenes Muster“
+#set heading(numbering: (..n) => { let p = n.pos(); if p.len() == 1 { numbering("I.", p.at(0)) } else if p.len() == 2 { numbering("A.", p.at(1)) } else if p.len() == 3 { numbering("1.", p.at(2)) } else { "" } })
+== ordinal words
+Erstes Kapitel
+Einundzwanzigster Teil
+100. Kapitel
