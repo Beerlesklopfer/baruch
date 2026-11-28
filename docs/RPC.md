@@ -1,1311 +1,1311 @@
-# JSON-RPC von Baruch
+# JSON-RPC of Baruch
 
-`POST /rpc`, JSON-RPC 2.0, einzeln oder als Liste. Formulare ohne JavaScript schicken dieselben Methoden an
-`POST /act` (erlaubt: `revision.accept`, `revision.reject`, `revision.save`, `revision.set_current`,
-`revision.update`, `revision.delete`, `post.add`; Felder wie unten (`node`, `key`, `rev`, `body`, `note`,
-`based_on`), dazu `work`, `view`, `lq` und beim Löschen `confirm`) und werden danach zur Seite weitergeleitet
-(`/?work=W&key=K&rev=R[&view=preview][&lq=…]`, `rev` = Nummer aus der Antwort). Beiträge verwalten
-Formulare an `POST /beitraege/act` (siehe „Beiträge verwalten“). Quelle:
-`crates/baruch-server/src/rpc.rs`. `rev` ist überall die **Nummer** einer Revision, nicht ihre Stelle: Nach
-dem Löschen hat die Nummernfolge Lücken, eine Nummer wird nie neu vergeben.
+`POST /rpc`, JSON-RPC 2.0, single or as a batch. Forms without JavaScript send the same methods to
+`POST /act` (allowed: `revision.accept`, `revision.reject`, `revision.save`, `revision.set_current`,
+`revision.update`, `revision.delete`, `post.add`; fields as below (`node`, `key`, `rev`, `body`, `note`,
+`based_on`), plus `work`, `view`, `lq` and, when deleting, `confirm`) and are then redirected to the page
+(`/?work=W&key=K&rev=R[&view=preview][&lq=…]`, `rev` = number from the answer). Forms for managing posts go
+to `POST /beitraege/act` (see "Managing posts"). Source:
+`crates/baruch-server/src/rpc.rs`. `rev` is everywhere the **number** of a revision, not its position: after
+a deletion the sequence of numbers has gaps; a number is never assigned again.
 
-**Konten und Rollen (Runde 35):** Ohne Konten gilt alles hier wie beschrieben. Gibt es Konten, verlangt `/rpc` eine
-Sitzung (Cookie `baruch_session`; sonst HTTP 401 mit Fehler -32002), und für Lektoren sind nur die Methoden aus
-`roles::LEKTOR_RPC` erlaubt (sonst -32003) – siehe „Runde 35 – Konten und Rollen“ am Ende.
+**Accounts and roles (Round 35):** Without accounts everything here holds as described. If there are accounts, `/rpc`
+requires a session (cookie `baruch_session`; otherwise HTTP 401 with error -32002), and for Lektor accounts only the methods from
+`roles::LEKTOR_RPC` are allowed (otherwise -32003) – see "Round 35 – Accounts and roles" at the end.
 
-**Abschnitte: Stelle und fester Schlüssel.** `node` ist die Stelle des Abschnitts in Baumreihenfolge (`seq`,
-ab 0); jede Gliederungsänderung vergibt sie neu. `work.get` nennt je Knoten zusätzlich `key`, den festen
-Schlüssel (Datenbank-id), der beim Verschieben, Umstufen, Anlegen, Löschen, Teilen und Zusammenführen anderer
-Punkte gleich bleibt. **Jede Methode mit `node` nimmt auch `key`** (Zahl oder Ziffern als Text), die
-Gliederungsmethoden mit `target` auch `target_key`. Ist der Schlüssel da, **gilt er statt der Stelle**: Ein
-veralteter Tab schreibt so in den Abschnitt, den er gezeigt hat, nicht in den, der jetzt an der alten Stelle
-steht, und löscht nie einen fremden Punkt. Gibt es den Punkt nicht mehr → -32000 „Diesen Gliederungspunkt
-gibt es nicht mehr (gelöscht oder zusammengeführt); bitte neu laden.“ Alle Formulare und der Editor schicken
-den Schlüssel mit. Übersetzen und Schreiben laufen unter derselben Schreibsperre.
+**Sections: position and fixed key.** `node` is the position of the section in tree order (`seq`,
+from 0); every change of the outline assigns it anew. `work.get` additionally names `key` for each node, the fixed
+key (database id), which stays the same when other items are moved, re-levelled, created, deleted, split or
+merged. **Every method with `node` also takes `key`** (a number or digits as text), the
+outline methods with `target` also take `target_key`. If the key is present, **it applies instead of the position**: a
+stale tab thus writes into the section it showed, not into the one that now stands at the old position,
+and never deletes someone else's item. If the item no longer exists → -32000 „Diesen Gliederungspunkt
+gibt es nicht mehr (gelöscht oder zusammengeführt); bitte neu laden.“ All forms and the editor send
+the key along. Translating and writing run under the same write lock.
 
-**Zitieren nur über den Schlüssel (Runde 5):** `highlight.cite` und `/literatur/act` mit `action=cite` nehmen
-den Abschnitt nur über `key`. `highlight.cite` mit `node` → -32602 „node (Stelle) wird nicht angenommen; key
-mitgeben“, ohne `key` → -32602; das Formular ohne `key` → 422 „Abschnitt fehlt.“ (auch wenn `node` dabei
-ist), mit einem Schlüssel, den es nicht mehr gibt → 409. Ebenso verlangen die MCP-Werkzeuge
-`propose_revision` und `add_post` (samt `refs`) `key` (`docs/MCP.md`). Links `/?node=` bleiben reine Anzeige.
+**Citing only by key (Round 5):** `highlight.cite` and `/literatur/act` with `action=cite` take
+the section only by `key`. `highlight.cite` with `node` → -32602 „node (Stelle) wird nicht angenommen; key
+mitgeben“, without `key` → -32602; the form without `key` → 422 „Abschnitt fehlt.“ (even if `node` is
+present), with a key that no longer exists → 409. Likewise the MCP tools
+`propose_revision` and `add_post` (including `refs`) require `key` (`docs/MCP.md`). Links `/?node=` remain display only.
 
-**Adressen (Runde 8):** Die kanonische Adresse eines Abschnitts ist `/?work=W&key=K` (+ optional `&rev=R`,
-`&view=preview`, `&pick=…`, `&lq=…`, in dieser Reihenfolge). Sie bleibt gültig, wenn die Gliederung umgestellt
-wird. `node=` wird beim Lesen nur noch als Rückfall angenommen; erzeugte Links und Weiterleitungen (`/act`,
-`/gliederung/act`, `/literatur/act`, `/einfaelle/act`, `/beitraege/act`) tragen es nicht mehr. Auflösung: Gibt
-es den Schlüssel, gilt sein Abschnitt (vor `node`); sonst `node`, sonst der Vorgabe-Abschnitt, und der
-Editor-Kopf zeigt „Abschnitt mit Schlüssel K gibt es nicht (mehr).“. Ebenso nehmen `/gliederung`,
-`/gliederung/bearbeiten`, `/literatur` und `/quelle` den Parameter `key`. `pick` bleibt `<Stelle>:<Nummer>`.
-Die Gliederungsmethoden antworten zusätzlich mit `key` (fester Schlüssel des Punkts `node`, sonst `null`).
+**Addresses (Round 8):** The canonical address of a section is `/?work=W&key=K` (+ optionally `&rev=R`,
+`&view=preview`, `&pick=…`, `&lq=…`, in this order). It stays valid when the outline is rearranged.
+`node=` is accepted on reading only as a fallback; generated links and redirects (`/act`,
+`/gliederung/act`, `/literatur/act`, `/einfaelle/act`, `/beitraege/act`) no longer carry it. Resolution: if
+the key exists, its section applies (before `node`); otherwise `node`, otherwise the default section, and the
+editor head shows „Abschnitt mit Schlüssel K gibt es nicht (mehr).“. Likewise `/gliederung`,
+`/gliederung/bearbeiten`, `/literatur` and `/quelle` take the parameter `key`. `pick` stays `<position>:<number>`.
+The outline methods additionally answer with `key` (fixed key of the item `node`, otherwise `null`).
 
-**Überschriften und Gliederung:** Wird die aktuelle Fassung über `revision.save` oder `revision.update` (der
-aktuellen Fassung) gesetzt, muss ihr Text mit genau einer Überschrift der Ebene des Punkts beginnen (Teile:
-nur eine Fassung mit Teil-Markierung muss genau mit dieser einen Markierung beginnen, Runde 14). Sonst -32000 mit Grund (andere Ebene, weitere Überschriften, keine Überschrift, Text davor), und
-nichts ändert sich. Ein neuer Titel derselben Ebene benennt den Punkt um.
-**Umschalten und Übernehmen** (`revision.set_current`, `revision.accept`) ändern den Text der Fassung nie;
-stattdessen **folgt die Gliederung ihrer Überschriftszeile** (Nutzerentscheidung 2026-11-05): gleicher Ebene nur
-der Titel, bei anderer Ebene Ebene und Titel, und alle Unterpunkte wandern um dieselbe Differenz mit (käme einer
-tiefer als 3, wird abgelehnt), je mit einer neuen Fassung vom Menschen, die sich nur in der Überschriftszeile unterscheidet; die
-Antwort trägt dann `outline`. Abgelehnt (-32000, nichts geändert) werden nur Fassungen ohne Überschrift, mit
-weiteren Überschriften, mit Text vor der Überschrift (Hinweis auf „Speichern“ im Editor) und mit einer Ebene, die
-an der Stelle ungültig ist (z. B. der erste Punkt als Abschnitt) oder eine Teil-Markierung an einem Kapitel;
-Teile: eine Fassung mit Teil-Markierung gleicht den Titel ab (Runde 14), eine ohne schaltet ohne Abgleich um.
-So ergeben Export und erneuter Import immer dieselbe Gliederung; Teilen und Zusammenführen gehen nur über
+**Headings and outline:** If the current revision is set through `revision.save` or `revision.update` (of the
+current revision), its text must begin with exactly one heading of the item's level (parts:
+only a revision with a part mark must begin with exactly this one mark, Round 14). Otherwise -32000 with a reason (other level, further headings, no heading, text before it), and
+nothing changes. A new title of the same level renames the item.
+**Switching and accepting** (`revision.set_current`, `revision.accept`) never change the text of the revision;
+instead **the outline follows its heading line** (user decision 2026-11-05): with the same level only
+the title, with another level level and title, and all sub-items move by the same difference (if one would end up
+deeper than 3, it is refused), each with a new revision by the human that differs only in the heading line; the
+answer then carries `outline`. Refused (-32000, nothing changed) are only revisions without a heading, with
+further headings, with text before the heading (hint at „Speichern“ in the editor) and with a level that
+is invalid at that position (e.g. the first item as a section) or a part mark on a chapter;
+parts: a revision with a part mark aligns the title (Round 14), one without switches without aligning.
+So export and re-import always yield the same outline; splitting and merging only go through
 `outline.*`.
 
-**Löschbestätigung:** `/act` mit `revision.delete` verlangt das angehakte Kästchen `confirm` (Wert `1` oder
-`on`); fehlt es, antwortet der Server 422 „Löschen bitte bestätigen.“ und löscht nichts (`required` im HTML
-allein genügt nicht). Über `/rpc` verlangt `revision.delete` `confirm: true`. Fehler aus `/act` kommen als
-422 (ungültig, auch unbekannte Fassung) mit dem Text der Meldung.
+**Delete confirmation:** `/act` with `revision.delete` requires the ticked checkbox `confirm` (value `1` or
+`on`); if it is missing, the server answers 422 „Löschen bitte bestätigen.“ and deletes nothing (`required` in the HTML
+alone is not enough). Over `/rpc`, `revision.delete` requires `confirm: true`. Errors from `/act` come as
+422 (invalid, also an unknown revision) with the text of the message.
 
-Anfragen an `/rpc` brauchen `Content-Type: application/json` (sonst 415). Anfragen fremder Webseiten
-(`Origin` passt nicht zu `Host`, oder `Sec-Fetch-Site` ist weder `same-origin` noch `none`) lehnen
-`/rpc` und `/act` mit 403 ab. Ist `Host` weder eine IP-Adresse noch `localhost` noch ein beim Start mit
-`--allow-host NAME` bzw. `BARUCH_ALLOWED_HOSTS` erlaubter Rechnername (Runde 24, Betrieb hinter einem
-Reverse-Proxy, `docs/Betrieb.md`), antworten alle Routen (auch die Seite) mit 421 (Schutz vor DNS-Rebinding,
-`guard::local_host`). Unter einem erlaubten Namen ist `/rpc` wie die Oberfläche ohne eigene Anmeldung erreichbar –
-den Zugangsschutz stellt der Proxy; der Vergleich von `Origin` und `Host` besteht nur, wenn der Proxy `Host`
-unverändert durchreicht (schreibt er ihn um, antwortet `/rpc` mit 403). `/mcp` verlangt unter einem solchen
-Namen immer einen Token (`docs/MCP.md`, „Zugang“). Der MCP-Server unter `POST /mcp` ist in `docs/MCP.md` beschrieben.
+Requests to `/rpc` need `Content-Type: application/json` (otherwise 415). Requests from foreign web pages
+(`Origin` does not match `Host`, or `Sec-Fetch-Site` is neither `same-origin` nor `none`) are refused by
+`/rpc` and `/act` with 403. If `Host` is neither an IP address nor `localhost` nor a host name allowed at start with
+`--allow-host NAME` or `BARUCH_ALLOWED_HOSTS` (Round 24, operation behind a
+reverse proxy, `docs/Betrieb.md`), all routes (including the page) answer 421 (protection against DNS rebinding,
+`guard::local_host`). Under an allowed name, `/rpc` is reachable like the user interface without its own login –
+the proxy provides access protection; the comparison of `Origin` and `Host` only passes if the proxy passes `Host`
+through unchanged (if it rewrites it, `/rpc` answers 403). `/mcp` always requires a token under such a
+name (`docs/MCP.md`, "Access"). The MCP server under `POST /mcp` is described in `docs/MCP.md`.
 
-**Werk:** Jede Methode nimmt den optionalen Parameter `work` (Werk-id, Zahl). Fehlt er, gilt das
-Vorgabewerk (das mit der kleinsten id **jetzt**, also nach dem Löschen eines Werks das nächste;
-`work.update` und `work.delete` verlangen `work` ausdrücklich); ein unbekanntes Werk oder ein `work`, das keine Zahl ist,
-ergibt -32602. Daten liegen in `<data>/baruch.sqlite`; Änderungen sind je eine Transaktion.
+**Work:** Every method takes the optional parameter `work` (work id, number). If it is missing, the
+default work applies (the one with the smallest id **now**, so after deleting a work the next one;
+`work.update` and `work.delete` require `work` explicitly); an unknown work or a `work` that is not a number
+yields -32602. Data lives in `<data>/baruch.sqlite`; each change is one transaction.
 
-## Methoden
+## Methods
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `work.list` | – | `{works: [WorkSummary]}` – alle Werke nach id: `{id, slug, title, author, nodes, kind, subtitle, sections, proposals, created, updated}`; `nodes` = Knoten, `sections` = Knoten ohne Teile, `proposals` = offene Vorschläge, `updated` = letzte Änderung (Metadaten, Vorlage, Revisionen); geht auch ohne Werke (siehe „Werke“) |
-| `work.get` | `{work?}` | `{work, lector, cover}` – Werk mit Gliederung, Revisionen, Beiträgen, Personas; Handle des Lektors; `cover` = `CoverInfo \| null` (Runde 11, siehe „Buch als PDF und Umschlag“) |
-| `work.export` | `{work?}` | `{typst}` – Werkvorlage und aktuelle Texte als eine Typst-Datei (siehe „Import und Export“) |
-| `node.get` | `{node}` | Abschnitt mit Revisionen und Chat |
-| `revision.accept` | `{node, rev}` | `{node, rev, outline?, commit?, mirror?, markdown?}` – Vorschlag wird die einzige aktuelle Revision (Umschalten; nur Vorschläge, sonst -32000); die Gliederung folgt seiner Überschriftszeile, `outline` = Gliederungsantwort (ohne `commit`) bei anderer Ebene. Enthält der Vorschlag Markdown-Überschriften (`# Titel`, Nutzer 2026-11-07, `docs/WYSIWYG.md`), folgt eine Fassung des Menschen mit den umgewandelten Überschriften (wie `outline.save` mit `split`); `node`/`rev`/`outline` gelten dann für sie, `markdown` = Hinweis („umgewandelt“ bzw. warum nicht) |
-| `revision.reject` | `{node, rev}` | `{node, rev}` – Vorschlag verworfen, `rev` ist die aktuelle Revision; kein Commit |
-| `revision.set_current` | `{node, rev}` | `{node, rev, outline?, commit?, mirror?}` – Markierung „aktuell“ auf jede nicht aktuelle Fassung (Vorschlag, verworfen, ersetzt); der Text der Fassung ändert sich nie, die Gliederung folgt ihrer Überschriftszeile (`outline` bei anderer Ebene, siehe oben); schon aktuell → -32000 „Diese Fassung ist schon aktuell.“ |
-| `revision.save` | `{node, body, based_on?, based_on_amend?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, commit?, mirror?}` – wie bisher; Runde 22: `mode` `"auto"` schreibt die eigene aktuelle Fassung fort, wenn keine Regel eine neue Fassung verlangt (siehe „Fortschreiben“), `"new"` legt immer eine neue Fassung an; **fehlt `mode`, gilt `"new"`** (alle alten Clients unverändert); unbekannter Wert → -32602. `saved`: `"amended"` (mit `amend_seq` = neuer Stand), `"new"` (im Modus `"auto"` mit `reason` und `reason_label`) oder `"unchanged"` |
-| `revision.update` | `{node, rev, body?, note?, based_on_amend?}` | `{node, rev, changed, amend_seq?, commit?, mirror?}` – Runde 23: Schritt im Verlauf und Standprüfung, siehe „Runde 23 – Härtung“; Text und/oder Notiz der Fassung `rev` ändern (nur Mensch), setzt `edited`; `changed: false` ohne Änderung; leerer Text → -32000 „Eine Fassung braucht Text.“; Runde 18b: Markdown-Überschriften (`# Titel` …) im Text werden wie bei `revision.save` zu Typst-Überschriften (`baruch_typst::markdown`), eine weitere Überschrift lehnt die Methode danach ab wie eine getippte `=`-Zeile |
-| `revision.delete` | `{node, rev, confirm: true}` | `{node, rev, deleted, reparented, commit?, mirror?}` – Fassung `deleted` gelöscht (nur Mensch), `rev` = aktuelle Fassung, `reparented` = Kinder, die jetzt am Elternteil hängen; ohne `confirm: true` → -32602 „Löschen bitte bestätigen (confirm).“; aktuelle Fassung → -32000 |
-| `revision.tree` | `{node?, chapter?}` | mit `node`: `{revisions: [RevisionInfo]}`; mit `chapter: true` bzw. ohne `node`: `{sections: [{node, number, title, current, revisions}]}` für das Kapitel des Abschnitts bzw. das ganze Werk. `RevisionInfo` = `{number, based_on, status, author, note, created, edited, current}` (ohne Text) |
-| `post.add` | `{node \| key, body}` | `{node, key, id}` – Beitrag im Abschnitts-Chat (getrimmt); `id` = Beitrag |
-| `post.delete` | `{id, confirm: true}` | `{id, node, key, deleted: {author, body}, commit?, mirror?}` – siehe „Beiträge verwalten“ |
-| `post.move` | `{id, target_key \| target}` | `{id, node, key, from_node, from_key, commit?, mirror?}`; Runde 23: die Befunde des Beitrags ziehen mit (außer übernommenen) |
+| `work.list` | – | `{works: [WorkSummary]}` – all works by id: `{id, slug, title, author, nodes, kind, subtitle, sections, proposals, created, updated}`; `nodes` = nodes, `sections` = nodes without parts, `proposals` = open proposals, `updated` = last change (metadata, template, revisions); works without any works too (see "Works") |
+| `work.get` | `{work?}` | `{work, lector, cover}` – work with outline, revisions, posts, personas; handle of the lector; `cover` = `CoverInfo \| null` (Round 11, see "Book as PDF and cover") |
+| `work.export` | `{work?}` | `{typst}` – work template and current texts as one Typst file (see "Import and export") |
+| `node.get` | `{node}` | section with revisions and chat |
+| `revision.accept` | `{node, rev}` | `{node, rev, outline?, commit?, mirror?, markdown?}` – the proposal becomes the only current revision (switching; only proposals, otherwise -32000); the outline follows its heading line, `outline` = outline answer (without `commit`) for another level. If the proposal contains Markdown headings (`# Titel`, user 2026-11-07, `docs/WYSIWYG.md`), a revision of the human with the converted headings follows (like `outline.save` with `split`); `node`/`rev`/`outline` then apply to it, `markdown` = note („umgewandelt“ or why not) |
+| `revision.reject` | `{node, rev}` | `{node, rev}` – proposal discarded, `rev` is the current revision; no commit |
+| `revision.set_current` | `{node, rev}` | `{node, rev, outline?, commit?, mirror?}` – the mark „aktuell“ onto any non-current revision (proposal, discarded, replaced); the text of the revision never changes, the outline follows its heading line (`outline` for another level, see above); already current → -32000 „Diese Fassung ist schon aktuell.“ |
+| `revision.save` | `{node, body, based_on?, based_on_amend?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, commit?, mirror?}` – as before; Round 22: `mode` `"auto"` amends the author's own current revision if no rule requires a new revision (see "Amending"), `"new"` always creates a new revision; **if `mode` is missing, `"new"` applies** (all old clients unchanged); unknown value → -32602. `saved`: `"amended"` (with `amend_seq` = new state), `"new"` (in mode `"auto"` with `reason` and `reason_label`) or `"unchanged"` |
+| `revision.update` | `{node, rev, body?, note?, based_on_amend?}` | `{node, rev, changed, amend_seq?, commit?, mirror?}` – Round 23: step in the history and state check, see "Round 23 – Hardening"; changes text and/or note of the revision `rev` (human only), sets `edited`; `changed: false` without a change; empty text → -32000 „Eine Fassung braucht Text.“; Round 18b: Markdown headings (`# Titel` …) in the text become Typst headings as with `revision.save` (`baruch_typst::markdown`); a further heading is then refused by the method like a typed `=` line |
+| `revision.delete` | `{node, rev, confirm: true}` | `{node, rev, deleted, reparented, commit?, mirror?}` – revision `deleted` deleted (human only), `rev` = current revision, `reparented` = children that now hang on the parent; without `confirm: true` → -32602 „Löschen bitte bestätigen (confirm).“; current revision → -32000 |
+| `revision.tree` | `{node?, chapter?}` | with `node`: `{revisions: [RevisionInfo]}`; with `chapter: true` or without `node`: `{sections: [{node, number, title, current, revisions}]}` for the chapter of the section or the whole work. `RevisionInfo` = `{number, based_on, status, author, note, created, edited, current}` (without text) |
+| `post.add` | `{node \| key, body}` | `{node, key, id}` – post in the section chat (trimmed); `id` = post |
+| `post.delete` | `{id, confirm: true}` | `{id, node, key, deleted: {author, body}, commit?, mirror?}` – see "Managing posts" |
+| `post.move` | `{id, target_key \| target}` | `{id, node, key, from_node, from_key, commit?, mirror?}`; Round 23: the findings of the post move along (except accepted ones) |
 | `post.to_idea` | `{id, words}` | `{id, idea, node, key, commit?, mirror?}` |
-| `preview.typst` | `{key?, page?}` | `{stand, pages, page, chapter, diagnostics, print, cached, millis, svg?}` – siehe „Typst-Vorschau“ |
-| `library.list` | – | `{titles: [TitleEntry]}` – Titel der Autorenbibliothek mit Zitaten |
-| `library.search` | `{query, kinds?, work?, all_revisions?, limit?}` | `{hits: [SearchHit]}` – Volltextsuche, Werkzeug des Lektors |
-| `ui.render` | `{work?, key?, node?, rev?, view?, pick?, lq?, fassungen?}` | `{tree, editor, assistants, url, title}` – HTML der drei Bereiche; `key` geht vor `node` (unbekannt → Rückfall mit Hinweis); `url` = `/?work=W&key=K&rev=R[&view=preview][&pick=…][&lq=…][&fassungen=alle]` (0.9.0: `fassungen: "alle"` öffnet den Schalter „ältere Fassungen“, siehe „Ältere Fassungen ausblenden“). `pick` = `"<node>:<rev>[,…]"` setzt in der Vorschau probeweise Fassungen ein (ungültige Einträge übergangen, Markierung bleibt) |
+| `preview.typst` | `{key?, page?}` | `{stand, pages, page, chapter, diagnostics, print, cached, millis, svg?}` – see "Typst preview" |
+| `library.list` | – | `{titles: [TitleEntry]}` – titles of the author's library with quotations |
+| `library.search` | `{query, kinds?, work?, all_revisions?, limit?}` | `{hits: [SearchHit]}` – full-text search, tool of the lector |
+| `ui.render` | `{work?, key?, node?, rev?, view?, pick?, lq?, fassungen?}` | `{tree, editor, assistants, url, title}` – HTML of the three areas; `key` goes before `node` (unknown → fallback with a note); `url` = `/?work=W&key=K&rev=R[&view=preview][&pick=…][&lq=…][&fassungen=alle]` (0.9.0: `fassungen: "alle"` opens the switch „ältere Fassungen“, see "Hiding older revisions"). `pick` = `"<node>:<rev>[,…]"` tentatively inserts revisions into the preview (invalid entries skipped, the mark stays) |
 
-Alle Methoden außer `work.list` nehmen zusätzlich `work?` (oben in der Tabelle nur bei `work.*` und
-`ui.render` ausgeschrieben). Assistenten legen nur Vorschläge an; `revision.save`, `revision.set_current`,
-`revision.update` und `revision.delete` sind dem Menschen vorbehalten und gibt es nicht über MCP.
-`wysiwyg.*` (siehe „Satzbild“) liest nur und steht nicht unter `/act`. `numbering.*` (siehe „Gliederungsschemata“) und `asset.*`
-(siehe „Bilder“) stehen weder unter `/act` noch über MCP; sie haben eigene Formulare. Ebenso `persona.*`
-(siehe „Personas“) und `idea.*` (siehe „Einfälle“); beide gehen ohne Werk. Ebenso (Runde 9) `menu.*`,
-`settings.*`, `connection.*` und `sources.*` (siehe „Menü“, „Einstellungen“, „Verbindungen und Quellen“) und (Runde 10)
-`model.*`, `scripture.check`, `scripture.map`, `scripture.versifications` (Runde 17a) und `mcp_token.*` (siehe „Personas“), dazu (2026-11-06) `bible.*` (siehe „Bibeln“). `ui.render` liefert im `editor`
-die offenen Vorschläge des Abschnitts (`details.pv`, siehe `docs/Bedienung.md` „Vorschläge im Lesefluss“) und
-liest dafür das Cookie `baruch_folded` der Anfrage; seit Runde 8 stehen sie an ihrer Stelle im Lesefluss
-(`section.pv-flow`, je Stück `details.pv[data-pv-at][data-pv-kind]`, Formulare `pv-accept-…`/`pv-reject-…`),
-und das Editor-HTML folgt dem Cookie `baruch_editor` (Umschalter, bei „satz“ fertiges Satzbild im HTML).
+All methods except `work.list` additionally take `work?` (written out in the table above only for `work.*` and
+`ui.render`). Assistants only create proposals; `revision.save`, `revision.set_current`,
+`revision.update` and `revision.delete` are reserved to the human and do not exist over MCP.
+`wysiwyg.*` (see "Typeset view") only reads and is not under `/act`. `numbering.*` (see "Numbering schemes") and `asset.*`
+(see "Images") are neither under `/act` nor over MCP; they have their own forms. Likewise `persona.*`
+(see "Personas") and `idea.*` (see "Ideas"); both work without a work. Likewise (Round 9) `menu.*`,
+`settings.*`, `connection.*` and `sources.*` (see "Menu", "Settings", "Connections and sources") and (Round 10)
+`model.*`, `scripture.check`, `scripture.map`, `scripture.versifications` (Round 17a) and `mcp_token.*` (see "Personas"), plus (2026-11-06) `bible.*` (see "Bibles"). `ui.render` delivers in `editor`
+the open proposals of the section (`details.pv`, see `docs/Bedienung.md`, proposals in the reading flow) and
+reads the cookie `baruch_folded` of the request for that; since Round 8 they stand at their place in the reading flow
+(`section.pv-flow`, per piece `details.pv[data-pv-at][data-pv-kind]`, forms `pv-accept-…`/`pv-reject-…`),
+and the editor HTML follows the cookie `baruch_editor` (switch; with „satz“ a finished typeset view in the HTML).
 
-### Beiträge verwalten (Runde 8)
+### Managing posts (Round 8)
 
-`post.delete`, `post.move` und `post.to_idea` laufen unter der Schreibsperre und ergeben genau einen Commit im
-Spiegel des Werks (`allow_empty`, Beiträge stehen nicht im Spiegel). Über RPC handelt immer der Mensch; er darf
-alle Beiträge verwalten (MCP nur eigene, `docs/MCP.md`).
+`post.delete`, `post.move` and `post.to_idea` run under the write lock and yield exactly one commit in the
+mirror of the work (`allow_empty`, posts are not in the mirror). Over RPC it is always the human who acts; they may
+manage all posts (MCP only its own, `docs/MCP.md`).
 
-- `post.delete {id, confirm: true}`: ohne `confirm: true` → -32602 „Löschen bitte bestätigen (confirm).“;
-  unbekannte id → -32602 „Beitrag N gibt es in Werk W nicht.“
-- `post.move {id, target_key | target}`: ans Ende des Abschnitts-Chats des Ziels (`target_key` geht vor
-  `target`), nur innerhalb des Werks; gleiches Ziel → -32000; kein Ziel → -32602.
-- `post.to_idea {id, words}`: Einfall mit Werk, Bezug = Abschnitt, Gedanke = Text, Quelle = Quellen mit „; “
-  (höchstens 200 Zeichen), Herkunft aus dem Autor (`@mcp:` → MCP, Persona-Handle → Persona, sonst Mensch);
-  danach ist der Beitrag gelöscht – eine Transaktion. `words` wie bei `idea.create` (Liste oder Text). Scheitert
-  der Einfall (z. B. kein Schlagwort), bleibt der Beitrag.
-- Commit: Betreff „Beitrag <id>: gelöscht“ | „…: verschoben nach <Nummer Titel>“ | „…: in Einfall <n>
-  umgewandelt“; Trailer `Baruch-Post`, `Baruch-Action` (`post-delete` | `post-move` | `post-to-idea`),
-  `Baruch-Node` (fester Schlüssel), bei der Umwandlung `Baruch-Idea`. Löschen und Umwandeln tragen den ganzen
-  Beitrag (Autor, Zeit, Abschnitt, Quellen, Verweise, Text) im Rumpf; die Umwandlung ist **ein** Commit, dessen
-  Schnappschuss schon `einfaelle.md` mit dem neuen Einfall enthält.
-- Formular ohne JavaScript: `POST /beitraege/act` (Felder `method`, `work`, `key` = gezeigter Abschnitt, `id`,
-  `rev?`, `view?`, `lq?`, `confirm`, `target_key`, `words`) → 303 auf `/?work=W&key=K[&rev][&view=preview][&lq]`,
-  Fehler 422 mit Text, fremder Origin 403.
+- `post.delete {id, confirm: true}`: without `confirm: true` → -32602 „Löschen bitte bestätigen (confirm).“;
+  unknown id → -32602 „Beitrag N gibt es in Werk W nicht.“
+- `post.move {id, target_key | target}`: to the end of the section chat of the target (`target_key` goes before
+  `target`), only within the work; same target → -32000; no target → -32602.
+- `post.to_idea {id, words}`: idea with work, reference = section, thought = text, source = sources joined with „; “
+  (at most 200 characters), origin from the author (`@mcp:` → MCP, persona handle → persona, otherwise human);
+  afterwards the post is deleted – one transaction. `words` as with `idea.create` (list or text). If
+  the idea fails (e.g. no keyword), the post stays.
+- Commit: subject „Beitrag <id>: gelöscht“ | „…: verschoben nach <Nummer Titel>“ | „…: in Einfall <n>
+  umgewandelt“; trailers `Baruch-Post`, `Baruch-Action` (`post-delete` | `post-move` | `post-to-idea`),
+  `Baruch-Node` (fixed key), with the conversion `Baruch-Idea`. Deleting and converting carry the whole
+  post (author, time, section, sources, references, text) in the body; the conversion is **one** commit whose
+  snapshot already contains `einfaelle.md` with the new idea.
+- Form without JavaScript: `POST /beitraege/act` (fields `method`, `work`, `key` = shown section, `id`,
+  `rev?`, `view?`, `lq?`, `confirm`, `target_key`, `words`) → 303 to `/?work=W&key=K[&rev][&view=preview][&lq]`,
+  error 422 with text, foreign origin 403.
 
-#### post.edit, post.versions, post.page, post.to_findings (Runde 28, chat-auftrag)
+#### post.edit, post.versions, post.page, post.to_findings (Round 28, chat-auftrag)
 
-Beantwortet von `src/posts.rs` (Store `post_edit.rs`, Migration 0046; Volltextindex Bibliothek 0107). Handelnder ist
-der Mensch.
+Answered by `src/posts.rs` (store `post_edit.rs`, migration 0046; full-text index library 0107). The acting party is
+the human.
 
 - `post.edit {work?, id, body}` → `{id, work, node, key, body, edited, versions: [PostVersion], url, commit?|mirror?}`.
-  Nur Beiträge des Menschen (Autor „Autor“); ein Beitrag einer Persona oder eines MCP-Clients → -32000 „Nur eigene
-  Beiträge lassen sich bearbeiten …“ (nichts geändert, kein Commit). Text getrimmt, höchstens 4000 Zeichen; leer
-  oder unverändert → -32602. Die alte Fassung bleibt als `post_version`, `edited` = Zeit der Änderung, genau ein
-  Commit „Beitrag <id>: bearbeitet“ mit Rumpf `Vorher:\n…\n\nNachher:\n…` (Trailer `Baruch-Action: post-edit`,
-  `Baruch-Post`, `Baruch-Node`). Die Volltextsuche (`library.search`) findet danach den neuen Text (Trigger
+  Only posts of the human (author „Autor“); a post of a persona or an MCP client → -32000 „Nur eigene
+  Beiträge lassen sich bearbeiten …“ (nothing changed, no commit). Text trimmed, at most 4000 characters; empty
+  or unchanged → -32602. The old revision stays as `post_version`, `edited` = time of the change, exactly one
+  commit „Beitrag <id>: bearbeitet“ with body `Vorher:\n…\n\nNachher:\n…` (trailers `Baruch-Action: post-edit`,
+  `Baruch-Post`, `Baruch-Node`). The full-text search (`library.search`) then finds the new text (trigger
   `post_fts_edit`).
 - `post.versions {work?, id}` → `{id, work, versions}`; `PostVersion` = `{id, uuid, body, valid_from, replaced,
-  edited_by}`, älteste zuerst, leer bei nie bearbeiteten Beiträgen.
-- `post.page {work?, key, before?, limit?}` → `{work, key, posts, older, history_url}`: die bis zu `limit` (1–200,
-  Vorgabe `CHAT_PAGE_POSTS` = 50) Beiträge vor dem Beitrag `before` (ohne `before`: die neuesten), älteste zuerst;
-  je Beitrag `{id, author, body, created, time, edited, edited_time, own, style, sources, url}`; `older` = wie viele
-  davor noch stehen. Ein `before` aus einem anderen Abschnitt → -32602.
-- `post.to_findings {work?, id}` → `{id, work, key, findings: [finding_json], attached: [finding_json]}`: zerlegt
-  den Beitrag über `findings::ingest` mit `manual = true` (ohne Marken ein „Hinweis“ mit dem ganzen Text); der
-  Beitrag bleibt byte-gleich, kein Commit (das Anlegen von Befunden ist keiner).
-- Formular `POST /beitraege/act` nimmt zusätzlich `method=post.edit` (Feld `body`) und `method=post.to_findings`;
-  mit `back=post` geht es danach auf die Beitragsseite `/beitrag?work&id` statt zum Abschnitt.
-- Seiten ohne JavaScript: `GET /beitraege?work&key` (ganze Chat-Historie, Anker `#post-<id>` und `#chat-neueste`,
-  Chat-Formular) und `GET /beitrag?work&id` (Text in einem schreibgeschützten, markierbaren Feld, „Zitieren“ als
-  Chat-Formular mit „> …“, Bearbeiten eigener Beiträge, Verlauf, „In Befunde umwandeln“).
+  edited_by}`, oldest first, empty for posts never edited.
+- `post.page {work?, key, before?, limit?}` → `{work, key, posts, older, history_url}`: the up to `limit` (1–200,
+  default `CHAT_PAGE_POSTS` = 50) posts before the post `before` (without `before`: the newest), oldest first;
+  per post `{id, author, body, created, time, edited, edited_time, own, style, sources, url}`; `older` = how many
+  still stand before them. A `before` from another section → -32602.
+- `post.to_findings {work?, id}` → `{id, work, key, findings: [finding_json], attached: [finding_json]}`: splits
+  the post through `findings::ingest` with `manual = true` (without markers one „Hinweis“ with the whole text); the
+  post stays byte-identical, no commit (creating findings is not one).
+- The form `POST /beitraege/act` additionally takes `method=post.edit` (field `body`) and `method=post.to_findings`;
+  with `back=post` it then goes to the post page `/beitrag?work&id` instead of the section.
+- Pages without JavaScript: `GET /beitraege?work&key` (whole chat history, anchors `#post-<id>` and `#chat-neueste`,
+  chat form) and `GET /beitrag?work&id` (text in a read-only, selectable field, „Zitieren“ as a
+  chat form with „> …“, editing one's own posts, history, „In Befunde umwandeln“).
 
-### Typst-Vorschau (Runde 8)
+### Typst preview (Round 8)
 
-`preview.typst {work?, key?, page?}` – nur lesend, kein Commit, beantwortet von `src/typeset.rs`. Das Werk wird
-mit eingebettetem Typst 0.15.1 gesetzt (Werkvorlage, Gliederungsschema, Bilder des Werks; ohne Netz, ohne
-Pakete). Höchstens ein Lauf gleichzeitig, Zwischenspeicher für 8 Stände und zusammen höchstens 192 MiB SVG (Runde
-18a; der neueste Stand bleibt immer).
+`preview.typst {work?, key?, page?}` – read only, no commit, answered by `src/typeset.rs`. The work is
+typeset with embedded Typst 0.15.1 (work template, numbering scheme, images of the work; without network, without
+packages). At most one run at a time, a cache for 8 states and together at most 192 MiB SVG (Round
+18a; the newest state always stays).
 
-- `key`: fester Schlüssel eines Abschnitts; unbekannt → -32602. `page`: Seite ab 1; dann trägt die Antwort
-  `svg` (die Seite als SVG-Text); außerhalb `1..=pages` → -32602.
-- Antwort: `{stand /*SHA-256 hex über Text und Bilder*/, pages /*Zahl*/, page /*Seite des Abschnitts key, ohne
-  key 1, mit page diese*/, chapter: {first, last}, diagnostics: [{severity: "error"|"warning", message, hints,
+- `key`: fixed key of a section; unknown → -32602. `page`: page from 1; then the answer carries
+  `svg` (the page as SVG text); outside `1..=pages` → -32602.
+- Answer: `{stand /*SHA-256 hex over text and images*/, pages /*number*/, page /*page of the section key, without
+  key 1, with page that one*/, chapter: {first, last}, diagnostics: [{severity: "error"|"warning", message, hints,
   line, column, file?, key, section /*„2.1 Titel“ | „Werkvorlage“ | null*/, section_line}], print: [PrintWarning],
-  cached, millis, svg?}`. `PrintWarning` (Runde 11) = `{path, page, width_px, height_px, width_mm, height_mm,
-  dpi, needed_width_px, needed_height_px, message}` für jedes Rasterbild unter 300 dpi in seiner gesetzten Größe
-  (nicht in `diagnostics`). Gesetzt wird mit dem Rahmen (Umschlag, Titelei), wenn er eingeschaltet ist.
-- Teil-Seiten (Runde 14): Stehen Teil-Markierungen (`… <baruch-part>`) im Werk, kommt hinter Werkvorlage und
-  Rahmen eine Zeile `#show <baruch-part>: …` dazu (`baruch_typst::part_page_rule` mit den Nummern der Teile):
-  jeder Teil allein auf einer eigenen rechten Seite, der Typst-Überschriftenzähler bleibt unberührt. Zeilen in
-  `diagnostics` (`section_line`) beziehen sich weiter auf den Abschnitt. Ohne Teil-Markierung ist die
-  gesetzte Quelle byte-gleich zu `work.export` (bzw. mit Rahmen wie bisher).
-- Bei einem Fehler: `pages = 0`, `diagnostics` mit `severity: "error"`. Zeitlimit 60 s → -32000 „Typst brauchte
-  länger als 60 s“. Abgebrochen über `preview.cancel` bzw. das Formular der Satz-Seite (Runde 18a) → -32000
-  „Satz abgebrochen.“ (sofort, auch während des Wartens auf die Sperre).
-- `chapter` (Runde 18a): Eine Seite, die zwei Kapitel teilen, zählt zu beiden – `last` eines Kapitels ist die
-  Seite, auf der das nächste beginnt, wenn dort noch Text aus seinen Zeilen steht (Überschriftszeilen zählen
-  nicht, weil die Vorlage sie als Kolumnentitel zitieren kann), sonst die Seite davor.
-- Seiten ohne RPC: `GET /werke/{id}/satz?key=&page=` (HTML) und `GET /werke/{id}/satz/{stand}/{n}.svg`
+  cached, millis, svg?}`. `PrintWarning` (Round 11) = `{path, page, width_px, height_px, width_mm, height_mm,
+  dpi, needed_width_px, needed_height_px, message}` for every raster image under 300 dpi at its typeset size
+  (not in `diagnostics`). Typesetting includes the frame (cover, front matter) when it is switched on.
+- Part pages (Round 14): if part marks (`… <baruch-part>`) stand in the work, a line `#show <baruch-part>: …` is added
+  after work template and frame (`baruch_typst::part_page_rule` with the numbers of the parts):
+  each part alone on its own right-hand page, the Typst heading counter stays untouched. Lines in
+  `diagnostics` (`section_line`) still refer to the section. Without a part mark the
+  typeset source is byte-identical to `work.export` (or with frame as before).
+- On an error: `pages = 0`, `diagnostics` with `severity: "error"`. Time limit 60 s → -32000 „Typst brauchte
+  länger als 60 s“. Cancelled through `preview.cancel` or the form of the typesetting page (Round 18a) → -32000
+  „Satz abgebrochen.“ (immediately, also while waiting for the lock).
+- `chapter` (Round 18a): a page shared by two chapters counts for both – `last` of a chapter is the
+  page on which the next one begins if text from its lines still stands there (heading lines do not count,
+  because the template may quote them as running heads), otherwise the page before.
+- Pages without RPC: `GET /werke/{id}/satz?key=&page=` (HTML) and `GET /werke/{id}/satz/{stand}/{n}.svg`
   (`image/svg+xml`, `nosniff`, `Content-Security-Policy: sandbox; default-src 'none'; img-src data:;
-  style-src 'unsafe-inline'`; fremder, alter oder ungültiger Stand, Seite 0 oder hinter dem Ende → 404).
-  Runde 18a: Beide (und `GET /werke/{id}/pdf`; seit der Nachbesserung zu Runde 18 auch alle anderen GETs, die Typst
-  starten: `/werke/{id}/umschlag`, `/werke/{id}/umschlag.svg`, `/werke/{id}/umschlag.pdf`,
-  `/werke/{id}/stichwortzettel.pdf` und `/werke/{id}/karte.pdf`) antworten bei `Sec-Fetch-Site: cross-site` oder `same-site` mit 403
-  „Abgelehnt: Der Satz startet nicht auf Anfrage einer fremden Seite.“, ohne Typst zu starten; ohne den Kopf (curl,
-  ältere Browser) oder mit `same-origin`/`none` wie bisher. Die Satz-Seite lädt kein `main.js`; ihr Menüband hat
-  das Formular `POST /werke/{id}/satz/abbrechen` (Feld `key?`, hinter der Origin-Wache: fremder Origin → 403) → 303
-  auf `/werke/{id}/satz?abgebrochen=1[&key=K]` (lief keiner: `abgebrochen=0`). Mit `abgebrochen` setzt die Seite
-  nicht neu, sondern zeigt nur einen schon gesetzten Stand bzw. die Meldung mit „Neu setzen“.
+  style-src 'unsafe-inline'`; foreign, old or invalid state, page 0 or beyond the end → 404).
+  Round 18a: both (and `GET /werke/{id}/pdf`; since the follow-up to Round 18 also all other GETs that start
+  Typst: `/werke/{id}/umschlag`, `/werke/{id}/umschlag.svg`, `/werke/{id}/umschlag.pdf`,
+  `/werke/{id}/stichwortzettel.pdf` and `/werke/{id}/karte.pdf`) answer with `Sec-Fetch-Site: cross-site` or `same-site` with 403
+  „Abgelehnt: Der Satz startet nicht auf Anfrage einer fremden Seite.“, without starting Typst; without the header (curl,
+  older browsers) or with `same-origin`/`none` as before. The typesetting page loads no `main.js`; its ribbon has
+  the form `POST /werke/{id}/satz/abbrechen` (field `key?`, behind the origin guard: foreign origin → 403) → 303
+  to `/werke/{id}/satz?abgebrochen=1[&key=K]` (if none was running: `abgebrochen=0`). With `abgebrochen` the page does
+  not typeset anew but only shows an already typeset state or the message with „Neu setzen“.
 
 ### preview.cancel
 
-`preview.cancel {work?}` → `{cancelled: bool}` (Runde 18a, `src/typeset.rs`). Bricht alle Typst-Läufe des Werks ab,
-die `preview.typst`, die Satz-Seite, ihre Seitenbilder oder MCP `typst_check` gestartet haben – auch solche, die noch
-auf die Sperre warten oder nach dem Zeitlimit im Hintergrund weiterrechnen. `cancelled` = es lief mindestens einer.
-Die wartenden Anfragen kehren sofort mit -32000 „Satz abgebrochen.“ zurück; ein abgebrochener Lauf legt nichts in den
-Zwischenspeicher. Typst selbst hört erst nach dem Umbruch auf (vor dem Schreiben der SVG-Seiten) und hält bis dahin die
-Sperre; eine lange Schleife der Vorlage läuft zu Ende (siehe `docs/Architektur.md`, „Runde 18a“). PDF-Erzeugungen
-(`work.pdf`, `/werke/{id}/pdf`) bricht es nicht ab. Unbekanntes Werk → -32602. Kein Commit.
+`preview.cancel {work?}` → `{cancelled: bool}` (Round 18a, `src/typeset.rs`). Cancels all Typst runs of the work
+started by `preview.typst`, the typesetting page, its page images or MCP `typst_check` – including those still
+waiting for the lock or computing on in the background after the time limit. `cancelled` = at least one was running.
+The waiting requests return immediately with -32000 „Satz abgebrochen.“; a cancelled run puts nothing into the
+cache. Typst itself stops only after the layout (before writing the SVG pages) and holds the
+lock until then; a long loop in the template runs to its end (see `docs/Architektur.md`, "Round 18a"). PDF generation
+(`work.pdf`, `/werke/{id}/pdf`) is not cancelled. Unknown work → -32602. No commit.
 
 ### ribbon.formats
 
-`ribbon.formats {work?}` → `{formats: [RibbonFormat]}` (Runde 18a, `src/ribbon.rs`), nur lesend. Die Knöpfe des
-Menübands: erst die Formate der Werkvorlage – `scene` nur, wenn sie `#let szene(…)` bzw. `#let szene =` definiert,
-`work` nur mit `#let arbeit` –, dann immer `footnote`, `quote`, `list`, `enum`, `terms`, `break`, `link`.
-`RibbonFormat = {cmd /*Befehl an das Satzbild, baruch:ws-command*/, label /*„Szene“*/, title /*Tooltip*/, snippet
-/*Typst-Text für den Quelltext, z. B. "#szene[\n\n]\n", "#footnote[]", "- \n", "\\\n"*/}`. Dieselbe Liste steht
-im Menüband des Editors (`data-ribbon-cmd`, `data-ribbon-snippet`). Unbekanntes Werk → -32602.
-Seit Runde 30a kommt `xref` („Verweis“) dazu, seit Runde 19b hinter `scene`/`work` aus der Vorlage: `scripture`
-(„Bibelstelle“) nur, wenn die Vorlage `#let bibelstelle(…)` bzw. `#let bibel(…)` definiert (Snippet `#bibelstelle[]`
-bzw. `#bibel[]` mit dem gefundenen Namen; Annahme: die Funktion nimmt die Stelle als Inhalt), und `cite`
-(„Literaturverweis“, Snippet `@`) nur, wenn die Vorlage `#bibliography(` enthält (nicht in einem Kommentar).
-Erkannt wird wie bei `szene` ohne Typst (`ribbon::defined_functions` über `code_lines`), seit Runde 23 aber nicht mehr
-bloß zeilenweise: Zeilen- und (auch geschachtelte) Blockkommentare zählen nicht, ein `#let` im Rumpf einer anderen
-Funktion (Klammertiefe > 0) zählt nicht, und mit `#import "datei.typ": name` eingeführte Namen zählen mit (`*` nicht,
-Umbenennung `a as b` → `b`).
+`ribbon.formats {work?}` → `{formats: [RibbonFormat]}` (Round 18a, `src/ribbon.rs`), read only. The buttons of the
+ribbon: first the formats of the work template – `scene` only if it defines `#let szene(…)` or `#let szene =`,
+`work` only with `#let arbeit` –, then always `footnote`, `quote`, `list`, `enum`, `terms`, `break`, `link`.
+`RibbonFormat = {cmd /*command to the typeset view, baruch:ws-command*/, label /*„Szene“*/, title /*tooltip*/, snippet
+/*Typst text for the source, e.g. "#szene[\n\n]\n", "#footnote[]", "- \n", "\\\n"*/}`. The same list stands
+in the ribbon of the editor (`data-ribbon-cmd`, `data-ribbon-snippet`). Unknown work → -32602.
+Since Round 30a `xref` („Verweis“) is added; since Round 19b, after `scene`/`work` from the template: `scripture`
+(„Bibelstelle“) only if the template defines `#let bibelstelle(…)` or `#let bibel(…)` (snippet `#bibelstelle[]`
+or `#bibel[]` with the name found; assumption: the function takes the reference as content), and `cite`
+(„Literaturverweis“, snippet `@`) only if the template contains `#bibliography(` (not in a comment).
+Recognition works as with `szene`, without Typst (`ribbon::defined_functions` over `code_lines`), but since Round 23 no longer
+merely line by line: line and (also nested) block comments do not count, a `#let` in the body of another
+function (bracket depth > 0) does not count, and names introduced with `#import "datei.typ": name` count (`*` does not;
+renaming `a as b` → `b`).
 
-### Buch als PDF und Umschlag (Runde 11)
+### Book as PDF and cover (Round 11)
 
-Nur lesend bzw. nur für den Menschen; nicht über `/act`. Alle nehmen `work?`. Fehler: -32602 Eingabe,
--32000 fachlich (REFUSED).
+Read only or for the human only; not over `/act`. All take `work?`. Errors: -32602 input,
+-32000 domain (REFUSED).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `work.pdf` | `work, inline?: bool = false` | `{file_name: "<slug>.pdf", pages, bytes, sha256, url: "/werke/{id}/pdf", print: [PrintWarning], stand, millis, pdf_base64?}` – das Buch wie die Satz-Ansicht (gleiche Seitenzahl, auch mit den Teil-Seiten aus Runde 14); `pdf_base64` nur mit `inline: true`. Satzfehler → -32000 „Kein PDF (Buch): Der Satz scheitert mit n Fehler(n). Erster: …“; läuft schon → -32000 „Für dieses Werk entsteht gerade ein PDF …“; Zeit → -32000 „Typst brauchte länger als 120 s“. Kein Commit |
-| `work.set_cover` | `work, name: string\|null` | `{work, cover: CoverInfo\|null, commit?, mirror?}` (Commit „Umschlag: <name> gesetzt“ bzw. „Umschlag entfernt“ nur bei Änderung) |
-| `work.meta.get` | `work` | `{work, meta: BookMeta + title/subtitle/author/bible + paper_sheet_mm (Runde 20c: Dicke je Blatt = 2 × paper_mm), cover: CoverInfo\|null}` |
-| `work.meta.set` | `work, subtitle?, author?, bible?, publisher?, place?, year?, edition?, isbn?, price?, series?, printer?, bible_notice?, image_credit?, dedication?, blurb?, bio?, publisher_address?, printer_address?, author_photo?: name\|null, title_area?: "top"\|"middle"\|"bottom", front_matter?, cover_pages?, paper_mm?, paper_sheet_mm? (Runde 20c, je Blatt, über 0 bis 2 mm; nicht zusammen mit paper_mm → -32602), bleed_mm?` | `{work, changed: [...], commit?, mirror?}` (Commit „Buchangaben geändert: <Felder>“; `subtitle`/`author`/`bible` wie `work.update`) |
-| `work.cover_pdf` | `work, inline?: bool` | `{file_name: "<slug>-umschlag.pdf", pages, bytes, sha256, url: "/werke/{id}/umschlag.pdf", spine_mm, checks: [{code, block, message}], pdf_base64?}` – Umschlag für die Druckerei (eine Seite); `checks` = Druckprüfung des Umschlags (Runde 27) |
-| `notes.get` | `work` | Runde 16, nur lesend: `{work, title, kind: "book"\|"sermon", format_choices: ["a5", "karten"], cards: [{key, number, title, depth, start_clock, clock, points: [String], refs: [String], rule: "marker"\|"strong"\|"first_sentence"}], total_clock, target_clock\|null}` – Stichwortzettel: je Gliederungspunkt Zeitmarke und Dauer aus dem Zeitwächter (wie `work.timing`), Stichpunkte nach der Regel in `docs/Bedienung.md` „Stichwortzettel“ (höchstens 6 zu je höchstens 160 Zeichen), gültige Bibelstellen normalisiert ohne Doppel |
-| `notes.pdf` | `work, format?: "a5"\|"karten" = "a5", font_pt?: 14–28 (Vorgabe 16 bzw. 14), inline?: bool` | `{file_name: "<slug>-stichwortzettel.pdf", format, font_pt, pages, bytes, sha256, url: "/werke/{id}/stichwortzettel.pdf?format=…&schrift=…", print, millis, pdf_base64?}` – wie `work.pdf` (eine Erzeugung je Werk, gleiche Fehler mit „Kein PDF (Stichwortzettel): …“); falsches Format oder Größe → -32602. Kein Commit |
+| `work.pdf` | `work, inline?: bool = false` | `{file_name: "<slug>.pdf", pages, bytes, sha256, url: "/werke/{id}/pdf", print: [PrintWarning], stand, millis, pdf_base64?}` – the book like the typesetting view (same page count, also with the part pages from Round 14); `pdf_base64` only with `inline: true`. Typesetting error → -32000 „Kein PDF (Buch): Der Satz scheitert mit n Fehler(n). Erster: …“; already running → -32000 „Für dieses Werk entsteht gerade ein PDF …“; time → -32000 „Typst brauchte länger als 120 s“. No commit |
+| `work.set_cover` | `work, name: string\|null` | `{work, cover: CoverInfo\|null, commit?, mirror?}` (commit „Umschlag: <name> gesetzt“ or „Umschlag entfernt“ only on a change) |
+| `work.meta.get` | `work` | `{work, meta: BookMeta + title/subtitle/author/bible + paper_sheet_mm (Round 20c: thickness per sheet = 2 × paper_mm), cover: CoverInfo\|null}` |
+| `work.meta.set` | `work, subtitle?, author?, bible?, publisher?, place?, year?, edition?, isbn?, price?, series?, printer?, bible_notice?, image_credit?, dedication?, blurb?, bio?, publisher_address?, printer_address?, author_photo?: name\|null, title_area?: "top"\|"middle"\|"bottom", front_matter?, cover_pages?, paper_mm?, paper_sheet_mm? (Round 20c, per sheet, above 0 up to 2 mm; not together with paper_mm → -32602), bleed_mm?` | `{work, changed: [...], commit?, mirror?}` (commit „Buchangaben geändert: <Felder>“; `subtitle`/`author`/`bible` as `work.update`) |
+| `work.cover_pdf` | `work, inline?: bool` | `{file_name: "<slug>-umschlag.pdf", pages, bytes, sha256, url: "/werke/{id}/umschlag.pdf", spine_mm, checks: [{code, block, message}], pdf_base64?}` – cover for the print shop (one page); `checks` = print check of the cover (Round 27) |
+| `notes.get` | `work` | Round 16, read only: `{work, title, kind: "book"\|"sermon", format_choices: ["a5", "karten"], cards: [{key, number, title, depth, start_clock, clock, points: [String], refs: [String], rule: "marker"\|"strong"\|"first_sentence"}], total_clock, target_clock\|null}` – note sheet: per outline item time mark and duration from the time watch (like `work.timing`), bullet points by the rule in `docs/Bedienung.md` (note sheet) (at most 6 of at most 160 characters each), valid Bible references normalised without duplicates |
+| `notes.pdf` | `work, format?: "a5"\|"karten" = "a5", font_pt?: 14–28 (default 16 or 14), inline?: bool` | `{file_name: "<slug>-stichwortzettel.pdf", format, font_pt, pages, bytes, sha256, url: "/werke/{id}/stichwortzettel.pdf?format=…&schrift=…", print, millis, pdf_base64?}` – like `work.pdf` (one generation per work, same errors with „Kein PDF (Stichwortzettel): …“); wrong format or size → -32602. No commit |
 
 `CoverInfo = {name, caption, alt, url: "/werke/{id}/bilder/{name}/datei", thumb: "/werke/{id}/bilder/{name}/vorschau?b=320"}`.
 
-Seiten des Stichwortzettels (Runde 16, nur GET): `/werke/{id}/stichwortzettel?format=a5|karten&schrift=14–28`
-(Formatwahl, Vorschau der Karten, Link zum PDF; falsche Angaben → 422 mit Seite) und
-`/werke/{id}/stichwortzettel.pdf?format=&schrift=` (`application/pdf` als Anhang `<slug>-stichwortzettel.pdf`;
-409 läuft schon, 422 Satzfehler oder falsche Angaben, 503 Zeit abgelaufen – als Seite).
+Pages of the note sheet (Round 16, GET only): `/werke/{id}/stichwortzettel?format=a5|karten&schrift=14–28`
+(choice of format, preview of the cards, link to the PDF; wrong input → 422 with page) and
+`/werke/{id}/stichwortzettel.pdf?format=&schrift=` (`application/pdf` as attachment `<slug>-stichwortzettel.pdf`;
+409 already running, 422 typesetting error or wrong input, 503 time expired – as a page).
 `BookMeta = {publisher, place, year, edition, isbn, price, series, printer, bible_notice, image_credit,
 dedication, blurb, bio, author_photo, cover, title_area, front_matter, cover_pages, paper_mm, bleed_mm, updated}`.
-Grenzen: einzeilige Felder 200 Zeichen, `blurb` 4000, `bio` 2000, `dedication`/`bible_notice`/`image_credit`
-1000; `year` leer oder vier Ziffern; `isbn` leer oder ISBN-13 mit Prüfziffer; `paper_mm` (0, 1], `bleed_mm`
-[0, 10] (Zahl oder Text mit Komma); unbekanntes Bild, ungültiger `title_area` → -32602.
+Limits: single-line fields 200 characters, `blurb` 4000, `bio` 2000, `dedication`/`bible_notice`/`image_credit`
+1000; `year` empty or four digits; `isbn` empty or ISBN-13 with check digit; `paper_mm` (0, 1], `bleed_mm`
+[0, 10] (number or text with a decimal comma); unknown image, invalid `title_area` → -32602.
 
-Seiten und Formulare (ohne JavaScript): `GET /werke/{id}/pdf` (200 `application/pdf`, `Content-Disposition:
-attachment; filename="<slug>.pdf"`; 404 unbekanntes Werk, 409 läuft schon, 422 HTML mit Meldungen und Links,
-503 Zeit), `GET /werke/{id}/umschlag` (Seite), `…/umschlag.svg` (Vorschau, CSP `sandbox`), `…/umschlag.pdf`
-(Anhang `<slug>-umschlag.pdf`, Fehlercodes wie `/pdf`), `POST /werke/umschlag/act` (`work, action=set|remove|area,
-name, title_area, back`), `POST /werke/buchangaben/act` (`work`, alle Felder, Häkchen `front_matter`,
-`cover_pages`, `back`). `back` nur relativ und sicher (Vorgabe `/einstellungen/werk?work=W`); Ziel in den
-Einstellungen → `&ok=umschlag|buchangaben`, sonst `?hinweis=umschlag_gesetzt|umschlag_entfernt|buchangaben`;
-ungültige Eingabe → 422 mit erhaltener Eingabe.
+Pages and forms (without JavaScript): `GET /werke/{id}/pdf` (200 `application/pdf`, `Content-Disposition:
+attachment; filename="<slug>.pdf"`; 404 unknown work, 409 already running, 422 HTML with messages and links,
+503 time), `GET /werke/{id}/umschlag` (page), `…/umschlag.svg` (preview, CSP `sandbox`), `…/umschlag.pdf`
+(attachment `<slug>-umschlag.pdf`, error codes like `/pdf`), `POST /werke/umschlag/act` (`work, action=set|remove|area,
+name, title_area, back`), `POST /werke/buchangaben/act` (`work`, all fields, checkboxes `front_matter`,
+`cover_pages`, `back`). `back` only relative and safe (default `/einstellungen/werk?work=W`); target in the
+settings → `&ok=umschlag|buchangaben`, otherwise `?hinweis=umschlag_gesetzt|umschlag_entfernt|buchangaben`;
+invalid input → 422 with the input kept.
 
-Kommandozeile: `baruch-server export <id|slug> --pdf DATEI [--data ORDNER]` (nie überschreiben; Satzfehler →
-Exit 1 ohne Datei; mit `--out` → Exit 2).
+Command line: `baruch-server export <id|slug> --pdf DATEI [--data ORDNER]` (never overwrites; typesetting error →
+exit 1 without a file; with `--out` → exit 2).
 
-### Werke
-Methoden aus `crates/baruch-server/src/works.rs`, nur für den Menschen (Oberfläche, RPC), **nicht über MCP**.
-Sie laufen vor der Wahl des Vorgabewerks und gehen darum auch, wenn es kein Werk gibt. Titel sind eindeutig:
-Zwei Werke dürfen nicht denselben Titel haben, wobei Groß-/Kleinschreibung und Leerraum nicht zählen
+### Works
+Methods from `crates/baruch-server/src/works.rs`, for the human only (user interface, RPC), **not over MCP**.
+They run before the choice of the default work and therefore also work when there is no work. Titles are unique:
+two works may not have the same title, where upper/lower case and white space do not count
 („ Das Buch “ = „das  buch“).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `work.meta` | `{work?}` | `{work: WorkMeta, template_revisions: [{number, author, note, created}]}`; `WorkMeta` = `{id, slug, kind, title, subtitle, author, audience, bible, template, template_rev, source_name, created, updated}` (`audience` = Zielgruppe, `bible` = Bibelübersetzung, `template_rev` = Nummer der aktuellen Fassung der Werkvorlage) |
-| `work.create` | `{title, author?, kind?, preset?, subtitle?, audience?, bible?, text_ref?, module?, from_work?}` | `{work, slug, title, nodes, sermon_text?, commit?, mirror?}` – neues Werk; `kind` und `preset` aus `book`, `sermon` (fehlt eins, folgt es dem anderen, sonst Buch). Buch: Werkvorlage `#set document(title, author)` + `#set heading(numbering: "1.1")`, Kapitel „Erstes Kapitel“; Predigt (Runde 16a): `#set document`, Gliederungsschema `sermon`, Punkte „Predigttext“ (ohne Nummer), „Hinführung“ (Einleitung), „Beobachtung am Text“, „Deutung“, „Zuspruch“ (I.–III.), „Anwendung“ (ohne Nummer), „Ausblick“ (Schluss). Je Gliederungspunkt Revision 1 vom Menschen (`= <Titel>`), Vorlage als Fassung 1. Runde 16a: `text_ref` (nur bei Predigt, höchstens 500 Zeichen, genau eine gültige Bibelstelle, sonst -32602 und nichts angelegt) setzt den Predigttext: mit lesbarer SWORD-Bibel (`module`, leer: die Bibel von `from_work`, sonst des Vorgabewerks) als `#quote(block: true, attribution: [<Stelle> (<Modul>)])[<Wortlaut>]`, ohne Bibel nur die Stellenangabe; die gewählte Bibel wird die SWORD-Bibel des neuen Werks. `sermon_text: {ref, normalized\|null, module\|null, quoted, verses, missing, notice\|null}` (`verses` = eingefügte Verse, `missing` = im Modul fehlende). Ohne `text_ref` bleibt `{kind: "sermon"}` gültig. Formular `POST /werke/act` (`action=create`, dazu `text_ref`, `module`, `from_work`) → 303 `/?work=N`, Fehler → Formularseite mit Meldung und Eingaben (422 bzw. 409) |
-| `work.import` | `{file_name, source, title?}` | `ImportReport` = `{work, slug, title, nodes, commit?, mirror?}` – Typst-Text als neues Werk wie `baruch-server import`; nur Dateinamen auf `.typ`; `source` höchstens 16 MiB (UTF-8-Bytes), darüber -32602 „<datei> ist größer als 16 MiB“; `title` (leer = aus `#set document`, sonst Dateiname). Die ganze Anfrage an `POST /rpc` darf höchstens `works::RPC_BODY_LIMIT` = 2 × 16 MiB + 64 KiB groß sein (JSON-Maskierung kann den Text verdoppeln); eine größere Anfrage lehnt der Server vor dem Lesen mit **413** ab |
-| `work.update` | `{work, title?, subtitle?, author?, kind?, audience?, bible?, template?, note?}` | `{work, changed, template_rev?, commit?, mirror?}` – `changed` = Felder mit anderem Wert (`title`, `subtitle`, `author`, `kind`, `audience`, `bible`, `template`); eine andere Werkvorlage (CRLF → LF) wird neue Fassung `template_rev` mit Notiz `note`, die alten bleiben lesbar; eine Überschrift in der Vorlage → -32000. Slug und Spiegelordner bleiben beim Umbenennen |
-| `work.delete` | `{work, confirm_title}` | `{deleted, title, slug, archive, next, commit?, mirror?}` – Werk mit Gliederung, Fassungen, Beiträgen und Vorlagenfassungen löschen; `confirm_title` muss der Titel sein (Groß-/Kleinschreibung und Leerraum egal), sonst -32000 „Der eingegebene Titel passt nicht; nichts gelöscht.“; `archive` = `works/.geloescht/<slug>-<JJJJ-MM-TT>` (Spiegelordner danach), `next` = neues Vorgabewerk oder `null` |
+| `work.meta` | `{work?}` | `{work: WorkMeta, template_revisions: [{number, author, note, created}]}`; `WorkMeta` = `{id, slug, kind, title, subtitle, author, audience, bible, template, template_rev, source_name, created, updated}` (`audience` = target audience, `bible` = Bible translation, `template_rev` = number of the current revision of the work template) |
+| `work.create` | `{title, author?, kind?, preset?, subtitle?, audience?, bible?, text_ref?, module?, from_work?}` | `{work, slug, title, nodes, sermon_text?, commit?, mirror?}` – new work; `kind` and `preset` from `book`, `sermon` (if one is missing, it follows the other, otherwise book). Book: work template `#set document(title, author)` + `#set heading(numbering: "1.1")`, chapter „Erstes Kapitel“; sermon (Round 16a): `#set document`, numbering scheme `sermon`, items „Predigttext“ (without number), „Hinführung“ (introduction), „Beobachtung am Text“, „Deutung“, „Zuspruch“ (I.–III.), „Anwendung“ (without number), „Ausblick“ (conclusion). Per outline item revision 1 by the human (`= <Titel>`), template as revision 1. Round 16a: `text_ref` (only for a sermon, at most 500 characters, exactly one valid Bible reference, otherwise -32602 and nothing created) sets the sermon text: with a readable SWORD Bible (`module`, empty: the Bible of `from_work`, otherwise of the default work) as `#quote(block: true, attribution: [<Stelle> (<Modul>)])[<Wortlaut>]`, without a Bible only the reference; the chosen Bible becomes the SWORD Bible of the new work. `sermon_text: {ref, normalized\|null, module\|null, quoted, verses, missing, notice\|null}` (`verses` = inserted verses, `missing` = those missing in the module). Without `text_ref`, `{kind: "sermon"}` stays valid. Form `POST /werke/act` (`action=create`, plus `text_ref`, `module`, `from_work`) → 303 `/?work=N`, error → form page with message and input (422 or 409) |
+| `work.import` | `{file_name, source, title?}` | `ImportReport` = `{work, slug, title, nodes, commit?, mirror?}` – Typst text as a new work like `baruch-server import`; only file names ending in `.typ`; `source` at most 16 MiB (UTF-8 bytes), above that -32602 „<datei> ist größer als 16 MiB“; `title` (empty = from `#set document`, otherwise the file name). The whole request to `POST /rpc` may be at most `works::RPC_BODY_LIMIT` = 2 × 16 MiB + 64 KiB (JSON escaping can double the text); the server refuses a larger request before reading it with **413** |
+| `work.update` | `{work, title?, subtitle?, author?, kind?, audience?, bible?, template?, note?}` | `{work, changed, template_rev?, commit?, mirror?}` – `changed` = fields with another value (`title`, `subtitle`, `author`, `kind`, `audience`, `bible`, `template`); a different work template (CRLF → LF) becomes the new revision `template_rev` with note `note`, the old ones stay readable; a heading in the template → -32000. Slug and mirror folder stay when renaming |
+| `work.delete` | `{work, confirm_title}` | `{deleted, title, slug, archive, next, commit?, mirror?}` – deletes the work with outline, revisions, posts and template revisions; `confirm_title` must be the title (upper/lower case and white space do not matter), otherwise -32000 „Der eingegebene Titel passt nicht; nichts gelöscht.“; `archive` = `works/.geloescht/<slug>-<JJJJ-MM-TT>` (mirror folder afterwards), `next` = new default work or `null` |
 
-`work.update` und `work.delete` verlangen `work` ausdrücklich (fehlt → -32602). Fehler: Titel vergeben →
--32000 „Es gibt schon ein Werk „…“ (slug).“, leerer Titel → -32602 „Ein Werk braucht einen Titel.“, unbekanntes
-Werk → -32602. Spiegel: Anlegen → Commit „Werk angelegt: <Titel>“; Ändern → „Werk geändert: <Felder>“ (z. B.
-„Werk geändert: Titel, Werkvorlage Fassung 3“), nur wenn sich eine Datei ändert (Titel ohne Werkvorlage, Vorlage);
-Löschen → leerer Protokoll-Commit „Werk gelöscht: <Titel>“ mit Trailer `Baruch-Action: work-deleted`, danach
-wandert der Ordner nach `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/` (am selben Tag `-2`, `-3` …). Ein
-Fehler im Spiegel hält das Löschen in der Datenbank nicht auf, die Antwort trägt dann `mirror`.
-id, slug und Titel des gelöschten Werks stehen danach in `work_retired`: Die id vergibt die Datenbank nie
-wieder (`AUTOINCREMENT`, Migration 0007), der slug bleibt für neue Werke gesperrt (ein neues Werk mit demselben
-Titel heißt `<slug>-2`). Sind alle Werke gelöscht, sät der nächste Start kein Beispielwerk (`store_meta.seeded`).
+`work.update` and `work.delete` require `work` explicitly (missing → -32602). Errors: title taken →
+-32000 „Es gibt schon ein Werk „…“ (slug).“, empty title → -32602 „Ein Werk braucht einen Titel.“, unknown
+work → -32602. Mirror: creating → commit „Werk angelegt: <Titel>“; changing → „Werk geändert: <Felder>“ (e.g.
+„Werk geändert: Titel, Werkvorlage Fassung 3“), only if a file changes (title without work template, template);
+deleting → empty log commit „Werk gelöscht: <Titel>“ with trailer `Baruch-Action: work-deleted`, after which
+the folder moves to `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/` (on the same day `-2`, `-3` …). An
+error in the mirror does not stop the deletion in the database; the answer then carries `mirror`.
+id, slug and title of the deleted work afterwards stand in `work_retired`: the database never assigns the id
+again (`AUTOINCREMENT`, migration 0007), the slug stays blocked for new works (a new work with the same
+title is called `<slug>-2`). If all works are deleted, the next start seeds no sample work (`store_meta.seeded`).
 
-Ohne JavaScript: `POST /werke/act` (hinter demselben Schutz wie `/act`, fremde `Origin` → 403) mit `action` =
-`create`, `update`, `delete` und den Feldern wie oben (`work`, `title`, `author`, `kind`, `preset`, `subtitle`,
-`audience`, `bible`, `template`, `note`, `confirm_title`); danach 303 auf `/?work=<id>` (Anlegen, Ändern) bzw.
-`/werke?geloescht=<Titel>` (Löschen). Fehler als HTML-Seite mit dem Formular: 422 (ungültig), 409 (abgelehnt).
-`POST /werke/import` (multipart, Felder `file` und `title`, Anfrage höchstens 16 MiB + 64 KiB): Erfolg → 303
-`/?work=<id>`, nicht `.typ` oder kein UTF-8 → 422, größer als 16 MiB → 413, schon importiert oder Titel vergeben
-→ 409 mit Hinweis. Seiten: `GET /werke`, `/werke/neu`, `/werke/{id}/bearbeiten[?vorlage=n]`,
-`/werke/{id}/loeschen`, `/werke/{id}/export` (`Content-Disposition: attachment; filename="<slug>.typ"`, Text
-von `work.export`).
+Without JavaScript: `POST /werke/act` (behind the same protection as `/act`, foreign `Origin` → 403) with `action` =
+`create`, `update`, `delete` and the fields as above (`work`, `title`, `author`, `kind`, `preset`, `subtitle`,
+`audience`, `bible`, `template`, `note`, `confirm_title`); then 303 to `/?work=<id>` (create, update) or
+`/werke?geloescht=<Titel>` (delete). Errors as an HTML page with the form: 422 (invalid), 409 (refused).
+`POST /werke/import` (multipart, fields `file` and `title`, request at most 16 MiB + 64 KiB): success → 303
+`/?work=<id>`, not `.typ` or not UTF-8 → 422, larger than 16 MiB → 413, already imported or title taken
+→ 409 with a note. Pages: `GET /werke`, `/werke/neu`, `/werke/{id}/bearbeiten[?vorlage=n]`,
+`/werke/{id}/loeschen`, `/werke/{id}/export` (`Content-Disposition: attachment; filename="<slug>.typ"`, text
+of `work.export`).
 
-### Gliederung
-Methoden aus `crates/baruch-server/src/outline.rs`; alle nehmen `work?`, nur der Mensch (nicht über MCP; dort
-gibt es `outline_add` und Anträge, siehe „Anträge zur Gliederung“ unten und `docs/MCP.md`).
-Zahlen dürfen als Text kommen, Wahrheitswerte als `true`, `"1"` oder `"on"` (Formulare). Ebenen: Teil 0
-(seit Runde 14 mit der Teil-Markierung `#heading(level: 1, numbering: none)[…] <baruch-part>` als erster Zeile),
-Kapitel 1 (`= `), Abschnitt 2 (`== `), Unterabschnitt 3 (`=== `; je auch als Markierung „ohne Nummer“); die
-Gliederung ist die Ebenenfolge in Baumreihenfolge (Elternteil = nächster Vorgänger mit kleinerer Ebene).
-Ungültig (Kapitel unter einem Abschnitt, Ebene 4, in den eigenen Teilbaum, Teil unter einem Punkt oder neben
-einem Abschnitt, Umstufen zu oder von Ebene 0, keine Wirkung) → -32000, nichts geändert. Die Sperre „Teile nur
-in Werken ohne Werkvorlage“ gibt es seit Runde 14 nicht mehr.
+### Outline
+Methods from `crates/baruch-server/src/outline.rs`; all take `work?`, human only (not over MCP; there
+are `outline_add` and requests, see "Outline requests" below and `docs/MCP.md`).
+Numbers may come as text, booleans as `true`, `"1"` or `"on"` (forms). Levels: part 0
+(since Round 14 with the part mark `#heading(level: 1, numbering: none)[…] <baruch-part>` as the first line),
+chapter 1 (`= `), section 2 (`== `), subsection 3 (`=== `; each also as the mark „ohne Nummer“); the
+outline is the sequence of levels in tree order (parent = nearest predecessor with a smaller level).
+Invalid (chapter under a section, level 4, into its own subtree, part under an item or next to
+a section, changing the level to or from level 0, no effect) → -32000, nothing changed. The restriction „Teile nur
+in Werken ohne Werkvorlage“ no longer exists since Round 14.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `outline.move` | `{node, target, place}` | Gliederungsantwort – `place` = `before`/`after` (vor das Ziel bzw. hinter dessen Unterpunkte) bzw. `into` (letzter Unterpunkt); **die Ebene bleibt**: `before`/`after` nur bei gleicher Ebene des Ziels, `into` nur bei Ebene des Ziels = Ebene − 1, sonst -32000 „Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).“; Unterpunkte wandern mit |
-| `outline.set_level` | `{node, level}` | Gliederungsantwort – Ebene 1–3, Unterpunkte um dieselbe Differenz; Teile nie, nichts wird zum Teil (0 → -32000); eine Markierung „ohne Nummer“ bleibt Markierung (nur `level:` ändert sich) |
-| `outline.rename` | `{node, title}` | Gliederungsantwort – neuer Titel, neue Überschriftszeile (maskiert; Markierung „ohne Nummer“ bleibt Markierung). Teil (Runde 14): mit Teil-Markierung wird nur deren Zeile neu (Kommentar bleibt), ein leerer Teiltext bekommt sie; ein Teiltext ohne Markierung (Altbestand „= Teil …“) bleibt unverändert, nur der Titel ändert sich (`detail` sagt „Text ohne Teil-Markierung unverändert“) |
-| `outline.add` | `{target, place, title, level?}` | Gliederungsantwort + `adopted: [key]` – neuer Punkt, Revision 1 vom Menschen = Überschriftszeile + Leerzeile. `level` (Runde 14) = absolute Ebene 0–3, fehlt sie, die Ebene des Orts. `level: 0` legt einen **Teil** an (Text = Teil-Markierung + Leerzeile): nur mit `place` `before`/`after` an einem Teil oder Kapitel, auch mit Werkvorlage; `into` mit 0 oder ein Abschnitt als Ziel → -32000. `adopted` = feste Schlüssel der vorhandenen Kapitel, die jetzt unter dem neuen Teil stehen (Reihenfolge, Texte und Kapitelnummern unverändert; sonst `[]`) |
-| `outline.delete` | `{node, confirm: true}` | Gliederungsantwort – ohne `confirm` -32602 „Löschen bitte bestätigen (confirm).“; mit Unterpunkten oder als letztes Kapitel -32000; `node` = der jetzt gezeigte (vorige) Punkt |
-| `outline.check` | `{node, body}` | `{title, level, split, merge, valid, message}` – was Speichern ändern würde (schreibt nichts; Markdown-Überschriften zählen wie bei `outline.save`): `split` = Titel neuer Überschriften, `merge` = keine Überschrift |
-| `outline.save` | `{node, body, based_on?, based_on_amend?, split?, merge?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, outline?, commit?, mirror?}` – wie bisher; `mode` wie bei `revision.save`. Teilen, Zusammenführen, neue Überschrift oder Ebene ergeben immer eine neue Fassung (`reason: "heading_changed"`) |
-| `outline.set_numbered` | `{node, numbered}` | Gliederungsantwort (`action: "numbered"`) – `numbered: false` zählt den Punkt ohne Nummer (Vorwort, Einleitung), `true` wieder mit; die übrigen Nummern rücken nach, der Text bleibt; schon so → -32000; Teil mit `numbered: false` → -32000 (Teile zählen immer: die Teil-Markierung kennt kein „ohne Nummer“, Export → Import zählte ihn wieder); fehlt `numbered` → -32602 |
-| `outline.requests` | `{open? = true, preview? = false}` | `{work, requests: [OutlineRequest]}` – Anträge der Assistenten (nur lesen), mit `open: false` auch entschiedene; mit `preview: true` (Runde 14) je Antrag `preview: [PreviewPoint]` bzw. `preview_error` (siehe „Anträge zur Gliederung“) |
-| `outline.request_decide` | `{id, decision: "confirm" \| "reject"}` | `{request, node?, key?, outline?, commit?, mirror?}` – siehe „Anträge zur Gliederung“; seit Runde 16 (Nutzerentscheidung 2026-11-08) trägt auch jede Entscheidung ohne Gliederungsänderung (abgelehnt oder veraltet, jede Antragsart) `commit` (leerer Protokoll-Commit) bzw. `mirror` |
-| `outline.set_numbering` | `{numbering}` | Gliederungsantwort – `null` = Schema „aus der Werkvorlage“, `""` = keine Nummern (`none`), sonst ein Muster der Mustersprache (Schema `custom`; `1.1`, `I|1`, `I.;A.;1.;a);aa)`); ungültig → -32602 „Nummerierung: …“, unverändert → -32000. Das Formular steht im Kopf des Baums (mit und ohne JavaScript) |
+| `outline.move` | `{node, target, place}` | outline answer – `place` = `before`/`after` (before the target or after its sub-items) or `into` (last sub-item); **the level stays**: `before`/`after` only with the same level as the target, `into` only with the target's level = level − 1, otherwise -32000 „Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).“; sub-items move along |
+| `outline.set_level` | `{node, level}` | outline answer – level 1–3, sub-items by the same difference; never parts, nothing becomes a part (0 → -32000); a mark „ohne Nummer“ stays a mark (only `level:` changes) |
+| `outline.rename` | `{node, title}` | outline answer – new title, new heading line (escaped; the mark „ohne Nummer“ stays a mark). Part (Round 14): with a part mark only its line is renewed (comment stays), an empty part text gets one; a part text without a mark (legacy „= Teil …“) stays unchanged, only the title changes (`detail` says „Text ohne Teil-Markierung unverändert“) |
+| `outline.add` | `{target, place, title, level?}` | outline answer + `adopted: [key]` – new item, revision 1 by the human = heading line + empty line. `level` (Round 14) = absolute level 0–3; if missing, the level of the place. `level: 0` creates a **part** (text = part mark + empty line): only with `place` `before`/`after` at a part or chapter, also with a work template; `into` with 0 or a section as target → -32000. `adopted` = fixed keys of the existing chapters that now stand under the new part (order, texts and chapter numbers unchanged; otherwise `[]`) |
+| `outline.delete` | `{node, confirm: true}` | outline answer – without `confirm` -32602 „Löschen bitte bestätigen (confirm).“; with sub-items or as the last chapter -32000; `node` = the item now shown (the previous one) |
+| `outline.check` | `{node, body}` | `{title, level, split, merge, valid, message}` – what saving would change (writes nothing; Markdown headings count as with `outline.save`): `split` = titles of new headings, `merge` = no heading |
+| `outline.save` | `{node, body, based_on?, based_on_amend?, split?, merge?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, outline?, commit?, mirror?}` – as before; `mode` as with `revision.save`. Splitting, merging, a new heading or level always yield a new revision (`reason: "heading_changed"`) |
+| `outline.set_numbered` | `{node, numbered}` | outline answer (`action: "numbered"`) – `numbered: false` counts the item without a number (preface, introduction), `true` with one again; the other numbers move up, the text stays; already so → -32000; part with `numbered: false` → -32000 (parts always count: the part mark knows no „ohne Nummer“, export → import would count it again); `numbered` missing → -32602 |
+| `outline.requests` | `{open? = true, preview? = false}` | `{work, requests: [OutlineRequest]}` – requests of the assistants (read only), with `open: false` also decided ones; with `preview: true` (Round 14) per request `preview: [PreviewPoint]` or `preview_error` (see "Outline requests") |
+| `outline.request_decide` | `{id, decision: "confirm" \| "reject"}` | `{request, node?, key?, outline?, commit?, mirror?}` – see "Outline requests"; since Round 16 (user decision 2026-11-08) every decision without an outline change (refused or stale, every kind of request) also carries `commit` (empty log commit) or `mirror` |
+| `outline.set_numbering` | `{numbering}` | outline answer – `null` = scheme „aus der Werkvorlage“, `""` = no numbers (`none`), otherwise a pattern of the pattern language (scheme `custom`; `1.1`, `I|1`, `I.;A.;1.;a);aa)`); invalid → -32602 „Nummerierung: …“, unchanged → -32000. The form stands in the head of the tree (with and without JavaScript) |
 
-Titel (`outline.rename`, `outline.add`, Überschriftszeilen in `outline.save`, `revision.save`,
-`revision.update` der aktuellen Fassung, `revision.set_current`/`revision.accept`, Vorschläge über MCP und
-`highlight.cite`): nicht leer, ohne Zeilenumbruch, höchstens 200 Zeichen; sonst -32602 „Ein Gliederungspunkt
+Titles (`outline.rename`, `outline.add`, heading lines in `outline.save`, `revision.save`,
+`revision.update` of the current revision, `revision.set_current`/`revision.accept`, proposals over MCP and
+`highlight.cite`): not empty, without a line break, at most 200 characters; otherwise -32602 „Ein Gliederungspunkt
 braucht einen Titel.“ / „Der Titel darf keinen Zeilenumbruch enthalten.“ / „Der Titel ist zu lang (höchstens
-200 Zeichen, hier N).“, nichts geändert. `outline.check` meldet dasselbe als `valid: false` mit `message`.
-(Bis Runde 6 war ein leerer Titel -32000.) Vorhandene leere Titel aus einem Import bleiben, bis man umbenennt.
+200 Zeichen, hier N).“, nothing changed. `outline.check` reports the same as `valid: false` with `message`.
+(Until Round 6 an empty title was -32000.) Existing empty titles from an import stay until one renames.
 
-Gliederungsantwort: `{node, action, title, detail, revisions: [{node, rev}], renumbered: [[alt, neu], …],
-commit?, mirror?}` – `node` ist die seq danach, `action` eins aus `moved`, `level`, `renamed`, `added`,
-`deleted`, `split`, `merged`, `numbering`, `numbered`, `revisions` die neuen Fassungen (nur Überschriftszeilen),
-`renumbered` die geänderten seq. Jede Änderung vergibt seq in Baumreihenfolge neu und schreibt Verweise in
-Beiträgen um (Verweise auf gelöschte Punkte entfallen); der Schlüssel `key` bleibt. `revision.save` ändert
-die Gliederung nie (kein Teilen, kein Zusammenführen, keine Ebenenänderung: solche Texte lehnt es ab, siehe
-„Überschriften und Gliederung“ oben); der Editor speichert über `outline.save`. Wie nach jeder Änderung der
-aktuellen Fassung (`revision.save`, `revision.accept`, `revision.set_current`, `revision.update` der aktuellen
-Fassung) übernimmt der Gliederungspunkt den Titel aus der Überschriftszeile derselben Ebene (`sync_heading`);
-`revision.accept` und `revision.set_current` übernehmen auch eine andere Ebene (siehe oben).
+Outline answer: `{node, action, title, detail, revisions: [{node, rev}], renumbered: [[alt, neu], …],
+commit?, mirror?}` – `node` is the seq afterwards, `action` one of `moved`, `level`, `renamed`, `added`,
+`deleted`, `split`, `merged`, `numbering`, `numbered`, `revisions` the new revisions (heading lines only),
+`renumbered` the changed seq. Every change assigns seq anew in tree order and rewrites references in
+posts (references to deleted items are dropped); the key `key` stays. `revision.save` never changes
+the outline (no splitting, no merging, no change of level: it refuses such texts, see
+"Headings and outline" above); the editor saves through `outline.save`. As after every change of the
+current revision (`revision.save`, `revision.accept`, `revision.set_current`, `revision.update` of the current
+revision), the outline item takes the title from the heading line of the same level (`sync_heading`);
+`revision.accept` and `revision.set_current` also take over another level (see above).
 
-Ohne JavaScript: `POST /gliederung/act` (hinter demselben Schutz wie `/act`, fremde `Origin` → 403) mit
-`method` = `outline.*` (außer `outline.check`) und den Feldern `work`, `node`, `key`, `target`, `target_key`, `place`, `level`,
-`title`, `body`, `based_on`, `based_on_amend`, `split`, `merge`, `confirm`, `numbered` (`1`/`0`), `id`, `decision`, `numbering` (`vorlage` = aus der Vorlage, `keine` =
-keine Nummern, sonst Muster), `view`, `lq`; danach 303 auf `/?work&node[&rev][&view=preview][&lq]` bzw. mit
-`view=gliederung` auf `/gliederung?work&node[&lq]`. Fehler 422 (ungültig) bzw. 409 (abgelehnt). Würde
-`outline.save` teilen oder zusammenführen, antwortet es mit 200 und einer Rückfrageseite (Text im versteckten
-Feld, Knöpfe „Teilen und speichern“ bzw. „Zusammenführen und speichern“ mit `split=1`/`merge=1`, „Zurück“).
-Seiten: `GET /gliederung?work&node&lq` (Gliederungsmanager), `GET /gliederung/bearbeiten?work&node&lq` – der
-Rückfall ohne JavaScript; mit JavaScript verlinkt die Oberfläche sie nicht (Baum mit Kontextmenü, siehe
+Without JavaScript: `POST /gliederung/act` (behind the same protection as `/act`, foreign `Origin` → 403) with
+`method` = `outline.*` (except `outline.check`) and the fields `work`, `node`, `key`, `target`, `target_key`, `place`, `level`,
+`title`, `body`, `based_on`, `based_on_amend`, `split`, `merge`, `confirm`, `numbered` (`1`/`0`), `id`, `decision`, `numbering` (`vorlage` = from the template, `keine` =
+no numbers, otherwise a pattern), `view`, `lq`; then 303 to `/?work&node[&rev][&view=preview][&lq]` or with
+`view=gliederung` to `/gliederung?work&node[&lq]`. Errors 422 (invalid) or 409 (refused). If
+`outline.save` would split or merge, it answers 200 with a confirmation page (text in a hidden
+field, buttons „Teilen und speichern“ or „Zusammenführen und speichern“ with `split=1`/`merge=1`, „Zurück“).
+Pages: `GET /gliederung?work&node&lq` (outline manager), `GET /gliederung/bearbeiten?work&node&lq` – the
+fallback without JavaScript; with JavaScript the user interface does not link them (tree with a context menu, see
 `docs/Bedienung.md`).
 
-#### Anträge zur Gliederung
+#### Outline requests
 
-Migration 0012 (`outline_request`), Wunsch 2026-11-06 „UD nach Bestätigung“. Assistenten legen über MCP
-(`outline_rename`, `outline_move`, `outline_set_level`, `outline_set_numbered`, `outline_delete`) Anträge an;
-der Mensch entscheidet mit `outline.request_decide`. Seit Nutzerfrage 12 (Entscheidung 2026-11-07, Migration 0035)
-wird auch MCP `outline_add` ein Antrag (Art `add`), wenn ein neuer Teil vorhandene Kapitel übernähme; solche
-Anträge brauchen die **aktive Zustimmung** des Menschen (Dialog auf jeder Seite, siehe `docs/Bedienung.md`).
+Migration 0012 (`outline_request`), wish of 2026-11-06 „UD nach Bestätigung“. Assistants create requests over MCP
+(`outline_rename`, `outline_move`, `outline_set_level`, `outline_set_numbered`, `outline_delete`);
+the human decides with `outline.request_decide`. Since user question 12 (decision 2026-11-07, migration 0035)
+MCP `outline_add` also becomes a request (kind `add`) if a new part would take over existing chapters; such
+requests need the **active approval** of the human (dialog on every page, see `docs/Bedienung.md`).
 
 `OutlineRequest` = `{id, work, op: {op: "rename"|"move"|"set_level"|"set_numbered"|"delete"|"add", key, title? |
 target_key, place? | level? | numbered? | place, points: [{title, level?}], model}, expected: {title, level,
 target_title?, adopted?}, origin: {kind: "persona"|"mcp",
 handle}, origin_label, note, created, decided, decision: null|"confirmed"|"rejected"|"stale", decision_label,
-decided_by, message, summary}`. `expected` ist der Stand beim Antrag, `summary` der deutsche Satz („„Sommer“ in
-„Hochsommer“ umbenennen“).
+decided_by, message, summary}`. `expected` is the state at the time of the request, `summary` the German sentence (`„„Sommer“ in
+„Hochsommer“ umbenennen“`).
 
-- `decision: "reject"` → `decision: "rejected"`, die Gliederung bleibt; für **jede** Antragsart (Nutzerentscheidung
-  2026-11-08, Runde 16; vorher nur `add`) ein leerer Protokoll-Commit „Gliederung: Antrag N abgelehnt“ mit Trailern
+- `decision: "reject"` → `decision: "rejected"`, the outline stays; for **every** kind of request (user decision
+  2026-11-08, Round 16; before only `add`) an empty log commit „Gliederung: Antrag N abgelehnt“ with trailers
   `Baruch-Action: outline-request`, `Baruch-Decision: rejected`, `Baruch-Origin`, `Baruch-Request`,
-  `Baruch-Requested-By`, `Baruch-Decided-By`; die Antwort trägt `commit` (bzw. `mirror` bei einem Spiegelfehler).
-  Ebenso „… veraltet“ mit `Baruch-Decision: stale`, wenn ein Antrag beim Bestätigen veraltet ist.
-- `decision: "confirm"` → ist der Antrag veraltet (Punkt oder Ziel weg, Titel oder Ebene anders als in
-  `expected`) oder lehnt die Gliederungsfunktion jetzt ab, wird er mit `decision: "stale"` und `message`
-  abgeschlossen (Gliederung unverändert, leerer Protokoll-Commit „… veraltet“, siehe oben). Beim Antrag `add` ist er auch
-  veraltet, wenn der neue Teil jetzt andere Kapitel übernähme als `expected.adopted`. Sonst läuft er wie `outline.rename`/`move`/`set_level`/
-  `set_numbered`/`delete` unter dem Namen des Menschen (`add`: die neuen Punkte wie `outline.add`, Revision 1 vom
-  Antragsteller): `decision: "confirmed"`, `outline` = Gliederungsantwort,
-  genau ein Commit „Gliederung: … (Antrag N)“ mit Trailern `Baruch-Origin`, `Baruch-Request`,
+  `Baruch-Requested-By`, `Baruch-Decided-By`; the answer carries `commit` (or `mirror` on a mirror error).
+  Likewise „… veraltet“ with `Baruch-Decision: stale` if a request is stale at confirmation.
+- `decision: "confirm"` → if the request is stale (item or target gone, title or level different from
+  `expected`) or the outline function now refuses, it is closed with `decision: "stale"` and `message`
+  (outline unchanged, empty log commit „… veraltet“, see above). A request `add` is also
+  stale if the new part would now take over other chapters than `expected.adopted`. Otherwise it runs like `outline.rename`/`move`/`set_level`/
+  `set_numbered`/`delete` under the name of the human (`add`: the new items like `outline.add`, revision 1 by the
+  requester): `decision: "confirmed"`, `outline` = outline answer,
+  exactly one commit „Gliederung: … (Antrag N)“ with trailers `Baruch-Origin`, `Baruch-Request`,
   `Baruch-Requested-By`, `Baruch-Confirmed-By`.
-- Schon entschieden → -32000 „Über diesen Antrag ist schon entschieden.“; unbekannte id → -32602 „Antrag N gibt
-  es in Werk W nicht.“; `decision` fehlt oder anders → -32602.
+- Already decided → -32000 „Über diesen Antrag ist schon entschieden.“; unknown id → -32602 „Antrag N gibt
+  es in Werk W nicht.“; `decision` missing or different → -32602.
 
-**Vorschau (Runde 14):** `outline.requests` mit `preview: true` rechnet je offenem Antrag die Gliederung nach dem
-Bestätigen (Store `outline_request_preview`: im Sicherungspunkt ausgeführt und zurückgerollt, die Datenbank
-bleibt): `preview` = `[PreviewPoint]` in Baumreihenfolge, `PreviewPoint` = `{key, level, number, title, mark,
-kind_word, before_number, before_level, label, before_label, changed_label}` (Runde 16: `kind_word` „Teil“ |
-„Kapitel“ | „Abschnitt“ | „Unterabschnitt“; `label` Art und Nummer nach dem Schema, z. B. „Teil I“, „Kapitel 2“, bei
-Predigten „Predigtteil II“, ohne Nummer „Kapitel (ohne Nummer)“; `before_*` der Stand vor dem Bestätigen, `null` bei
-neuen Punkten; `changed_label` = Art oder Nummer ändern sich oder das Kapitel wandert unter einen neuen Teil – dann
-zeigen Seite und Dialog „(vorher … → nachher …)“),
-`mark` = `same` | `renamed` | `moved` (der verschobene Punkt samt Unterpunkten) | `level` (auch mitwandernde
-Unterpunkte) | `numbered` | `deleted` (gelöschte Punkte an ihrer alten Stelle, mit alter Ebene und Nummer) |
-`added` (neuer Punkt eines Antrags `add`) | `adopted` (Kapitel, das unter den neuen Teil wandert).
-Titel, Ebenen, Nummern und Reihenfolge (ohne `deleted`) sind die der Gliederung nach `outline.request_decide`
-mit `confirm`. Statt `preview` steht `preview_error` (Text), wenn der Antrag veraltet ist („Veraltet: …“ mit
-Grund), die Gliederungsfunktion jetzt ablehnt („Nicht mehr ausführbar: …“) oder schon entschieden ist. Die Seite
-`/gliederung#antraege` zeigt die Vorschau je offenem Antrag ohne JavaScript (`<details>` „Vorschau“).
+**Preview (Round 14):** `outline.requests` with `preview: true` computes for each open request the outline after
+confirmation (store `outline_request_preview`: executed in a savepoint and rolled back, the database
+stays): `preview` = `[PreviewPoint]` in tree order, `PreviewPoint` = `{key, level, number, title, mark,
+kind_word, before_number, before_level, label, before_label, changed_label}` (Round 16: `kind_word` „Teil“ |
+„Kapitel“ | „Abschnitt“ | „Unterabschnitt“; `label` kind and number according to the scheme, e.g. „Teil I“, „Kapitel 2“, for
+sermons „Predigtteil II“, without number „Kapitel (ohne Nummer)“; `before_*` the state before confirmation, `null` for
+new items; `changed_label` = kind or number change or the chapter moves under a new part – then
+page and dialog show „(vorher … → nachher …)“),
+`mark` = `same` | `renamed` | `moved` (the moved item with its sub-items) | `level` (also sub-items moving
+along) | `numbered` | `deleted` (deleted items at their old position, with old level and number) |
+`added` (new item of a request `add`) | `adopted` (chapter that moves under the new part).
+Titles, levels, numbers and order (without `deleted`) are those of the outline after `outline.request_decide`
+with `confirm`. Instead of `preview` there is `preview_error` (text) if the request is stale („Veraltet: …“ with
+reason), the outline function now refuses („Nicht mehr ausführbar: …“) or it is already decided. The page
+`/gliederung#antraege` shows the preview of each open request without JavaScript (`<details>` „Vorschau“).
 
-Ohne JavaScript: Formular an `POST /gliederung/act` mit `method=outline.request_decide`, `work`, `id`, `decision`
-(`confirm`/`reject`); danach 303 auf `/gliederung?work=…#antraege`. `outline.requests` steht nicht unter `/act`.
+Without JavaScript: form to `POST /gliederung/act` with `method=outline.request_decide`, `work`, `id`, `decision`
+(`confirm`/`reject`); then 303 to `/gliederung?work=…#antraege`. `outline.requests` is not under `/act`.
 
-**Zustimmung auf jeder Seite (Nutzerfrage 12):** Solange ein Antrag `add` offen ist, setzt die Schicht
-`crate::consent` in jede HTML-Seite mit der Marke `<!--baruch-consent-->` (aus `base.html`) eine Hinweisleiste
-mit Link `/gliederung?work=W#antrag-N` und einen `<dialog id="consent" data-widget="consent">` mit Vorschau und
-den Formularen „Zustimmen“/„Ablehnen“ (dieselben Felder wie oben, Schutz wie alle Formulare über
-`guard::same_origin`). Das Widget `web/src/consent.ts` öffnet den Dialog modal und schickt die Entscheidung über
-`outline.request_decide`; ohne Klick geschieht nichts. Andere Antworten (JSON, PDF, Fragmente) bleiben
-unverändert. Neue RPC-Methoden gibt es dafür nicht.
+**Approval on every page (user question 12):** As long as a request `add` is open, the layer
+`crate::consent` puts into every HTML page with the marker `<!--baruch-consent-->` (from `base.html`) a notice bar
+with the link `/gliederung?work=W#antrag-N` and a `<dialog id="consent" data-widget="consent">` with preview and
+the forms „Zustimmen“/„Ablehnen“ (the same fields as above, protected like all forms by
+`guard::same_origin`). The widget `web/src/consent.ts` opens the dialog modally and sends the decision through
+`outline.request_decide`; without a click nothing happens. Other answers (JSON, PDF, fragments) stay
+unchanged. There are no new RPC methods for this.
 
-#### Gliederungsschemata
+#### Numbering schemes
 
-Methoden aus `crates/baruch-server/src/numbering.rs`; alle nehmen `work?`, nur der Mensch (nicht über MCP).
-`scheme` ist eine id: `template`, `decimal`, `decimal_dot`, `alphanumeric`, `chapter_roman`,
-`chapter_arabic`, `parts_chapters`, `chapter_words`, `legal`, `sermon`, `book`, `none`, `custom`; `custom` ist das
-eigene Muster (nur bei `custom`; fehlt es, gilt das gespeicherte). Unbekanntes Schema, fehlendes oder
-ungültiges Muster → -32602.
+Methods from `crates/baruch-server/src/numbering.rs`; all take `work?`, human only (not over MCP).
+`scheme` is an id: `template`, `decimal`, `decimal_dot`, `alphanumeric`, `chapter_roman`,
+`chapter_arabic`, `parts_chapters`, `chapter_words`, `legal`, `sermon`, `book`, `none`, `custom`; `custom` is the
+own pattern (only with `custom`; if it is missing, the stored one applies). Unknown scheme, missing or
+invalid pattern → -32602.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `numbering.schemes` | `{}` | `{schemes: [{id, label, example, preview: [NumberPreview], more, error?}], current: NumberingInfo}` – `preview` = die ersten 12 Punkte der eigenen Gliederung, `more` = weitere; `error` statt Vorschau (z. B. eigenes Muster fehlt) |
-| `numbering.preview` | `{scheme, custom?}` | `{numbers: [NumberPreview], rule}` – alle Punkte; `rule` = die Zeile `#set heading(numbering: …)`, die der Export hinter die Vorlage setzt, `null` bei `template`. Schreibt nichts |
-| `numbering.set` | `{scheme, custom?}` | Gliederungsantwort (`action: "numbering"`, `detail` z. B. „Gliederungsschema „Juristisch““, „Nummerierung „I|1““, „keine Nummern“, „Nummerierung aus der Vorlage („1.1“)“), `commit?`/`mirror?`; unverändert → -32000 |
+| `numbering.schemes` | `{}` | `{schemes: [{id, label, example, preview: [NumberPreview], more, error?}], current: NumberingInfo}` – `preview` = the first 12 items of the work's own outline, `more` = further ones; `error` instead of a preview (e.g. own pattern missing) |
+| `numbering.preview` | `{scheme, custom?}` | `{numbers: [NumberPreview], rule}` – all items; `rule` = the line `#set heading(numbering: …)` that the export puts after the template, `null` for `template`. Writes nothing |
+| `numbering.set` | `{scheme, custom?}` | outline answer (`action: "numbering"`, `detail` e.g. „Gliederungsschema „Juristisch““, „Nummerierung „I|1““, „keine Nummern“, „Nummerierung aus der Vorlage („1.1“)“), `commit?`/`mirror?`; unchanged → -32000 |
 
-`NumberPreview` = `{node, key, level, number, title}` (Stelle, fester Schlüssel, Ebene 0–3, Nummer nach dem
-Schema, Titel), in Baumreihenfolge. `NumberingInfo` = `{numbering, template, effective, scheme,
-scheme_label, custom}`: `numbering` = Mustersprache (`null` = aus der Vorlage bzw. Schema mit Wörtern, `""` =
-keine), `template` = Muster der Werkvorlage, `effective` = Anzeigetext (Muster, `""` = keine, bei Schemata
-mit Wörtern deren Beispiel), `custom` = gespeichertes eigenes Muster (auch wenn gerade ein anderes Schema
-gilt).
+`NumberPreview` = `{node, key, level, number, title}` (position, fixed key, level 0–3, number according to the
+scheme, title), in tree order. `NumberingInfo` = `{numbering, template, effective, scheme,
+scheme_label, custom}`: `numbering` = pattern language (`null` = from the template or a scheme with words, `""` =
+none), `template` = pattern of the work template, `effective` = display text (pattern, `""` = none, for schemes
+with words their example), `custom` = stored own pattern (even if another scheme currently
+applies).
 
-Runde 14 (Namen und Antwortformen unverändert): Bei `template` stammen die Nummern in `preview`/`numbers`
-und im Baum aus `Numbering::from_template` – ein String der Vorlage ist ein wörtliches Typst-Muster (`;`, `|`
-sind Text), Baruchs eigene Regel eines Schemas mit Wörtern (aus einem früheren Export) zählt wieder wie
-dieses Schema, eine Funktion wird je Ebene exakt ausgewertet. `NumberingInfo.effective`/`template` zeigen für
-eine solche Funktion weiter die Näherung (erstes `numbering`-Muster); für Baruchs Regel eines Schemas mit
-Wörtern ist `numbering` `null` und `effective` das Beispiel von „Aus der Werkvorlage“. Kapitel mit „Nummer
-aus“ stehen im Export (`work.export`), in der Export-Karte, im Spiegel und im Satz als
-`#heading(level: N, numbering: none)[…] <baruch-unnumbered>`; die gespeicherten Texte bleiben unverändert.
+Round 14 (names and answer shapes unchanged): with `template` the numbers in `preview`/`numbers`
+and in the tree come from `Numbering::from_template` – a string in the template is a literal Typst pattern (`;`, `|`
+are text), Baruch's own rule of a scheme with words (from an earlier export) counts again like
+that scheme, a function is evaluated exactly per level. `NumberingInfo.effective`/`template` still show for
+such a function the approximation (first `numbering` pattern); for Baruch's rule of a scheme with
+words `numbering` is `null` and `effective` the example of „Aus der Werkvorlage“. Chapters with „Nummer
+aus“ stand in the export (`work.export`), in the export map, in the mirror and in typesetting as
+`#heading(level: N, numbering: none)[…] <baruch-unnumbered>`; the stored texts stay unchanged.
 
-Ohne JavaScript: Seite `GET /werke/{id}/nummerierung[?schema=ID&muster=SPEC]` (auch `scheme`/`custom`, so
-schickt es der Knopf „Vorschau“ per GET), Formular `POST /werke/nummerierung/act` (hinter demselben Schutz
-wie `/act`, fremde `Origin` → 403) mit `work`, `scheme`, `custom`; danach 303 auf
-`/werke/{id}/nummerierung?ok=1` (Hinweis „Das Gliederungsschema ist übernommen.“), Fehler 422 (ungültig)
-bzw. 409 (unverändert) mit der Seite und der Meldung. Spiegel: genau ein Commit „Gliederung: <detail>“,
-Trailer `Baruch-Action: outline-numbering`, auch ohne Dateiänderung.
+Without JavaScript: page `GET /werke/{id}/nummerierung[?schema=ID&muster=SPEC]` (also `scheme`/`custom`, as
+the button „Vorschau“ sends it by GET), form `POST /werke/nummerierung/act` (behind the same protection
+as `/act`, foreign `Origin` → 403) with `work`, `scheme`, `custom`; then 303 to
+`/werke/{id}/nummerierung?ok=1` (notice „Das Gliederungsschema ist übernommen.“), errors 422 (invalid)
+or 409 (unchanged) with the page and the message. Mirror: exactly one commit „Gliederung: <detail>“,
+trailer `Baruch-Action: outline-numbering`, even without a file change.
 
-Git-Spiegel zur Gliederung: Jede Gliederungsänderung ergibt genau einen Commit (auch ohne Dateiänderung, z. B.
-bei der Nummerierung), Autor und Committer der Mensch, Betreff `„Gliederung: <detail>“` (z. B. „Gliederung:
-„Sommer“ vor „Frühling“ verschoben“, „…: „Aussaat“ Ebene 2 → 1“, „…: „Alt“ → „Neu“ umbenannt“, „…: „Tiefe“
-gelöscht“), Rumpf mit den neuen Fassungen, der Umnummerierung und dem vollständigen Text gelöschter Punkte,
-Trailer `Baruch-Action: outline-move|outline-level|outline-rename|outline-add|outline-delete|outline-split|outline-merge|outline-numbering`
-und `Baruch-Node`. Abschnittsdateien heißen `{seq:03}-<slug(aufgelöster Titel)>.typ`; nach einer Umstellung
-werden sie umbenannt.
+Git mirror for the outline: every outline change yields exactly one commit (even without a file change, e.g.
+for the numbering), author and committer the human, subject `„Gliederung: <detail>“` (e.g. `„Gliederung:
+„Sommer“ vor „Frühling“ verschoben“`, `„…: „Aussaat“ Ebene 2 → 1“`, `„…: „Alt“ → „Neu“ umbenannt“`, `„…: „Tiefe“
+gelöscht“`), body with the new revisions, the renumbering and the full text of deleted items,
+trailers `Baruch-Action: outline-move|outline-level|outline-rename|outline-add|outline-delete|outline-split|outline-merge|outline-numbering`
+and `Baruch-Node`. Section files are named `{seq:03}-<slug(aufgelöster Titel)>.typ`; after a rearrangement
+they are renamed.
 
-### Import und Export
-Ein Werk entsteht aus einer Typst-Datei über `baruch-server import <datei> [--title "…"]`
-(`docs/Bedienung.md`), über das Hochladen auf `/werke/neu` bzw. im Dialog „Importieren…“ (`POST /werke/import`)
-oder RPC `work.import`; ein MCP-Werkzeug dafür gibt es nicht (ein Import legt aktuelle Revisionen im Namen des
-Menschen an). Der Titel muss frei sein (sonst -32000, in der CLI mit dem Hinweis auf `--title`); dieselbe Datei
-ein zweites Mal bleibt „schon importiert“, auch mit anderem Titel. `work.export` liefert das Werk wieder als eine Datei: Werkvorlage +
-aktuelle Texte in Gliederungsreihenfolge, ohne die `#import "../vorlage.typ": *`-Zeilen, die nur im
-Git-Spiegel vor jeder Abschnittsdatei stehen. Direkt nach dem Import ist das Byte für Byte die Eingabe (nach
-CRLF → LF). Endet ein gespeicherter Text ohne Zeilenende, setzt der Export eins dazu, damit die nächste
-Überschrift am Zeilenanfang steht. Bei einem anderen Gliederungsschema als „aus der Werkvorlage“ folgt der
-Vorlage die Regel des Schemas (siehe „Gliederungsschemata“). Bilder kommen über die CLI mit
-(`import` liest `image("…")`-Pfade relativ zum Ordner der Datei, `export --out ORDNER` schreibt Text und
-Bilder, `docs/Bedienung.md`) und seit Runde 21b über ein ZIP bzw. einen Ordner (`work.import_archive`, Hochladen);
-`work.import` und das Hochladen einer einzelnen Datei bringen nur den Text.
+### Import and export
+A work is created from a Typst file through `baruch-server import <datei> [--title "…"]`
+(`docs/Bedienung.md`), by uploading on `/werke/neu` or in the dialog „Importieren…“ (`POST /werke/import`)
+or RPC `work.import`; there is no MCP tool for it (an import creates current revisions in the name of the
+human). The title must be free (otherwise -32000, in the CLI with the hint at `--title`); the same file
+a second time stays „schon importiert“, even with another title. `work.export` delivers the work again as one file: work template +
+current texts in outline order, without the `#import "../vorlage.typ": *` lines that only stand in the
+Git mirror before every section file. Directly after the import this is byte for byte the input (after
+CRLF → LF). If a stored text ends without a line end, the export adds one so that the next
+heading stands at the start of a line. With a numbering scheme other than „aus der Werkvorlage“ the
+template is followed by the rule of the scheme (see "Numbering schemes"). Images come along through the CLI
+(`import` reads `image("…")` paths relative to the folder of the file, `export --out ORDNER` writes text and
+images, `docs/Bedienung.md`) and since Round 21b through a ZIP or a folder (`work.import_archive`, upload);
+`work.import` and uploading a single file bring only the text.
 
-Seit Runde 21b nimmt `work.import {file_name, source, title?}` neben `.typ` auch Markdown (`.md`, `.markdown`, nur
-Text, höchstens 16 MiB): Der Text wird nach Typst umgewandelt (Tabelle in `docs/Architektur.md`, „21b
-markdown-import“), jedes Bild, das er nennt, steht in `skipped` mit dem Grund „nicht mitgeschickt …“, und was nicht
-abgebildet werden konnte, in `warnings` (Codes `md-…`, mit Zeile der Markdown-Datei). Ein `.zip` über `work.import` →
--32602 mit dem Hinweis auf `work.import_archive`; jede andere Endung → -32602.
+Since Round 21b, `work.import {file_name, source, title?}` takes Markdown besides `.typ` (`.md`, `.markdown`, text
+only, at most 16 MiB): the text is converted to Typst (table in `docs/Architektur.md`, "21b
+markdown-import"), every image it names stands in `skipped` with the reason „nicht mitgeschickt …“, and what could not
+be mapped in `warnings` (codes `md-…`, with the line of the Markdown file). A `.zip` through `work.import` →
+-32602 with the hint at `work.import_archive`; any other ending → -32602.
 
-Rückweg eines Exports (Runde 21b, alle Importwege): Regelblock „// Baruch: Satz“ → Satz-Einstellungen des neuen Werks
-(`warnings` `import-typeset-adopted`, sonst `import-typeset-kept`), Show-Regeln „// Baruch: Überschriften ohne Nummer“
-→ `numbered = 0`, erzeugtes Buchende abgeschnitten (`import-back-matter-cut` mit Zeile; eine Kennzeile von Hand bleibt,
-`import-back-matter-kept`), Zusätze der Projektion entfernt (`import-projection-removed`). Einzelheiten in
-`docs/Bedienung.md` („Export → Import“).
+Way back of an export (Round 21b, all import ways): rule block „// Baruch: Satz“ → typesetting settings of the new work
+(`warnings` `import-typeset-adopted`, otherwise `import-typeset-kept`), show rules „// Baruch: Überschriften ohne Nummer“
+→ `numbered = 0`, generated back matter cut off (`import-back-matter-cut` with line; an identifying line written by hand stays,
+`import-back-matter-kept`), additions of the projection removed (`import-projection-removed`). Details in
+`docs/Bedienung.md` ("Export → Import").
 
-Teile und „ohne Nummer“ (Runde 14): Die Zeilen `#heading(level: 1, numbering: none)[T] <baruch-part>` und
-`#heading(level: N, numbering: none)[T] <baruch-unnumbered>` (kanonisch, `docs/Architektur.md` „Teile im
-Typst-Text“) werden beim Import ein Teil (oberste Ebene, die folgenden Kapitel darunter) bzw. ein Punkt mit
-`numbered = 0`; der Text bleibt wörtlich, `work.export` gibt die Datei byte-gleich zurück (auch mit
-Werkvorlage). Jede andere `#heading(...)`-Zeile bleibt wie bisher Text bzw. Werkvorlage.
+Parts and „ohne Nummer“ (Round 14): the lines `#heading(level: 1, numbering: none)[T] <baruch-part>` and
+`#heading(level: N, numbering: none)[T] <baruch-unnumbered>` (canonical, `docs/Architektur.md`, parts in the
+Typst text) become on import a part (top level, the following chapters under it) or an item with
+`numbered = 0`; the text stays literal, `work.export` returns the file byte-identical (also with a
+work template). Every other `#heading(...)` line stays text or work template as before.
 
-Fehler beim Import (Codes wie bei RPC, in der CLI als Meldung auf stderr und Exit 1): Datei schon importiert
-(gleicher SHA-256 nach CRLF → LF) → -32000 mit „Diese Datei ist schon importiert: Werk „…“ (slug).“; Titel
-vergeben → -32000 „Es gibt schon ein Werk „…“ (slug).“ (CLI: „… Mit --title "…" einen anderen Titel wählen.“); keine
-Überschrift, kein UTF-8, größer als 16 MiB, keine gewöhnliche Datei (FIFO, Gerät, Ordner: „… ist keine
+Errors on import (codes as with RPC, in the CLI as a message on stderr and exit 1): file already imported
+(same SHA-256 after CRLF → LF) → -32000 with „Diese Datei ist schon importiert: Werk „…“ (slug).“; title
+taken → -32000 „Es gibt schon ein Werk „…“ (slug).“ (CLI: „… Mit --title "…" einen anderen Titel wählen.“); no
+heading, not UTF-8, larger than 16 MiB, not a regular file (FIFO, device, folder: „… ist keine
 Datei“) → -32602.
 
 ### source_import.preview, source_import.get, source_import.apply, source_import.discard (21a)
 
-Global (ohne Werk; Weiche in `rpc::call` hinter `works::handles`, Modul `pdf_import`). Kein MCP-Gegenstück: Ein Import
-legt aktuelle Fassungen unter dem Namen des Menschen an (Entscheidung 2026-11-05), auch für PDF/EPUB nicht.
+Global (without a work; switch in `rpc::call` after `works::handles`, module `pdf_import`). No MCP counterpart: an import
+creates current revisions under the name of the human (decision 2026-11-05), for PDF/EPUB neither.
 
-- **`source_import.preview {file_name, content, way?, collection?, title?}`** – `content` = Datei als Base64 (Standard,
-  mit `=`); `file_name` endet auf `.pdf` oder `.epub`; `way` = `"auto"` (Vorgabe) | `"multigpt"` | `"local"`. Liest die
-  Datei und legt nur einen **Entwurf** an (kein Werk, kein Titel). Antwort:
+- **`source_import.preview {file_name, content, way?, collection?, title?}`** – `content` = file as Base64 (standard,
+  with `=`); `file_name` ends in `.pdf` or `.epub`; `way` = `"auto"` (default) | `"multigpt"` | `"local"`. Reads the
+  file and creates only a **draft** (no work, no title). Answer:
   `{draft, file_name, kind: "pdf"|"epub", way: "multigpt"|"local", way_reason, title, author, outline: [{index, level
   1..3, title, chars, part, sample}], warnings: [{code, message, line}], skipped: [{path, reason}], assets: [pfad],
-  pages?, document?: {collection, id}}`. `title` = Titel, unter dem übernommen würde (eigener `title`, sonst aus der
-  Datei, sonst Dateiname); `part` = „möglicher Teil“ (nur Hinweis, angelegt wird ein Teil nur mit `part: true` in
-  `apply`); `sample` = Textprobe (höchstens 240 Zeichen); `index` = Nummer des Abschnitts für `apply`.
-  - Weg: EPUB immer lokal (Grund in `way_reason`). PDF mit `"auto"`: MultiGPT, wenn eine Verbindung eingerichtet und
-    `collection` angegeben ist, sonst lokal (Grund). `"multigpt"` ohne Verbindung oder ohne `collection` → -32602.
-  - MultiGPT scheitert (Hochladen, Indexierung, Lesen) → -32000 mit dem Grund, „Weg multigpt“ und dem Angebot „lokal
-    lesen“ (dieselbe Datei mit `way: "local"`); **kein** automatischer Wechsel.
-  - Lokal ohne Poppler → -32000 „pdftotext … ist nicht installiert …“.
-  - Ungültig (Name, Base64, leer, größer als 64 MiB bzw. über `RPC_BODY_LIMIT`, EPUB unsicher oder zu groß –
-    Pfadflucht, Verknüpfung, Grenzen von `archive::IMPORT_LIMITS` –, kein OPF) → -32602; es entsteht nichts.
-  - Warnungs-Codes (Auswahl): `import-pdf-plain`, `import-pdf-page-numbers`, `import-pdf-numbering`,
-    `import-pdf-pages-cut` (lokal mehr als 2000 Seiten: nur die ersten gelesen), `import-epub-footnote-number`
-    (Fußnotennummer am Anfang einer Fußnote entfernt),
+  pages?, document?: {collection, id}}`. `title` = title under which it would be taken over (own `title`, otherwise from the
+  file, otherwise the file name); `part` = „möglicher Teil“ (a hint only; a part is created only with `part: true` in
+  `apply`); `sample` = text sample (at most 240 characters); `index` = number of the section for `apply`.
+  - Way: EPUB always local (reason in `way_reason`). PDF with `"auto"`: MultiGPT if a connection is set up and
+    `collection` is given, otherwise local (reason). `"multigpt"` without a connection or without `collection` → -32602.
+  - MultiGPT fails (upload, indexing, reading) → -32000 with the reason, „Weg multigpt“ and the offer „lokal
+    lesen“ (the same file with `way: "local"`); **no** automatic switch.
+  - Local without Poppler → -32000 „pdftotext … ist nicht installiert …“.
+  - Invalid (name, Base64, empty, larger than 64 MiB or above `RPC_BODY_LIMIT`, EPUB unsafe or too large –
+    path escape, link, limits of `archive::IMPORT_LIMITS` –, no OPF) → -32602; nothing is created.
+  - Warning codes (selection): `import-pdf-plain`, `import-pdf-page-numbers`, `import-pdf-numbering`,
+    `import-pdf-pages-cut` (local more than 2000 pages: only the first read), `import-epub-footnote-number`
+    (footnote number at the start of a footnote removed),
     `import-multigpt-plain`, `import-multigpt-truncated`, `import-heading-not-found`, `import-outline-heuristic`,
     `import-epub-table`, `import-epub-unsupported`, `import-epub-heading-as-text`, `import-epub-footnote-missing`,
     `import-epub-nav-target-missing`, `import-epub-deep-nav`, `import-epub-no-nav`, `import-front-matter`,
-    `import-no-outline`; beim Übernehmen `import-outline-merged`.
-- **`source_import.get {draft}`** → wie `preview`. Unbekannt, verworfen, übernommen oder älter als 24 h → -32602.
-- **`source_import.apply {draft, target?, title?, author?, outline?}`** – `target` = `"work"` (Vorgabe) | `"library"` |
-  `"both"`. `outline` = die vom Menschen bestätigte Gliederung `[{level 1..3, title, part?, source?}]`:
-  - mit `source` (= `index` aus der Vorschau): jeder Punkt mit `source` bekommt den Text dieses Abschnitts; `source`
-    steigt (Reihenfolge wie in der Datei, Verschieben → -32602); Abschnitte ohne Punkt sind **gestrichen**, ihr Text geht
-    an den vorigen Punkt (am Anfang an den nächsten), Warnung `import-outline-merged`; Punkte ohne `source` sind neue,
-    leere Punkte (etwa ein Teil);
-  - ohne jedes `source`: gleich viele Punkte wie vorgeschlagen, Zuordnung nach der Stelle;
-  - `part: true` (nur Ebene 1) legt einen Teil an (AGENTS.md, Ergänzung 2026-11-07: nur auf Bestätigung des Menschen);
-  - ohne `outline`: der Vorschlag, Teile als Kapitel.
+    `import-no-outline`; on taking over `import-outline-merged`.
+- **`source_import.get {draft}`** → like `preview`. Unknown, discarded, taken over or older than 24 h → -32602.
+- **`source_import.apply {draft, target?, title?, author?, outline?}`** – `target` = `"work"` (default) | `"library"` |
+  `"both"`. `outline` = the outline confirmed by the human `[{level 1..3, title, part?, source?}]`:
+  - with `source` (= `index` from the preview): every item with `source` gets the text of that section; `source`
+    ascends (order as in the file, moving → -32602); sections without an item are **struck out**, their text goes
+    to the previous item (at the start to the next), warning `import-outline-merged`; items without `source` are new,
+    empty items (say, a part);
+  - without any `source`: as many items as proposed, assignment by position;
+  - `part: true` (level 1 only) creates a part (AGENTS.md, addition 2026-11-07: only on confirmation by the human);
+  - without `outline`: the proposal, parts as chapters.
 
-  Werk über `import::import_generated` (Notiz und Commit „Import aus <datei>“, Bilder des EPUB als Bilder des Werks,
-  Warnungen im Bericht). Quelle über `baruch_library::add_title` (Art `book`, Schlüssel `q-…`, Titel/Autor, Notiz mit
-  Datei und Weg) und – lokal gelesen – Volltext in `library_title_text` (Migration 0108) bzw. – über MultiGPT – die
-  Verknüpfung `library_title_remote` (Sammlung, Dokument). Antwort `{report?: ImportReport, library_title?: id}`; danach
-  ist der Entwurf weg. Fehler: Titel vergeben → -32000 mit `TITLE_HINT` (Entwurf bleibt); Datei schon als Quelle in der
-  Bibliothek (gleicher SHA-256 bzw. gleiches Dokument) → -32000, dann entsteht auch kein Werk; Gliederung ungültig (leer,
-  Ebene, Titel fehlt, Teil nicht oben, `source` falsch) → -32602; gleichzeitig zweimal → -32000.
-- **`source_import.discard {draft}`** → `{discarded: bool}` (`false`, wenn es ihn nicht gab); kein gültiger Name
-  (32 Kleinbuchstaben-Hex) → -32602.
+  Work through `import::import_generated` (note and commit „Import aus <datei>“, images of the EPUB as images of the work,
+  warnings in the report). Source through `baruch_library::add_title` (kind `book`, key `q-…`, title/author, note with
+  file and way) and – read locally – full text in `library_title_text` (migration 0108) or – through MultiGPT – the
+  link `library_title_remote` (collection, document). Answer `{report?: ImportReport, library_title?: id}`; afterwards
+  the draft is gone. Errors: title taken → -32000 with `TITLE_HINT` (draft stays); file already a source in the
+  library (same SHA-256 or same document) → -32000, then no work is created either; outline invalid (empty,
+  level, title missing, part not at the top, `source` wrong) → -32602; twice at the same time → -32000.
+- **`source_import.discard {draft}`** → `{discarded: bool}` (`false` if it did not exist); not a valid name
+  (32 lower-case hex characters) → -32602.
 
-Der lokale Volltext einer so angelegten Quelle ist über `source.read {title}` lesbar (`origin: "import"`, Hinweis mit
-Datei und Datum), und `highlight.add`/`highlight.check` prüfen Hervorhebungen ohne Zitat gegen ihn.
+The local full text of a source created this way is readable through `source.read {title}` (`origin: "import"`, note with
+file and date), and `highlight.add`/`highlight.check` check highlights without a quotation against it.
 
 ### work.import_archive (21b)
 
-`work.import_archive {file_name, content, title?}` → `ImportReport` (wie `work.import`, mit `assets`, `skipped`,
-`warnings`). `file_name` muss auf `.zip` enden (sonst -32602), `content` ist das Archiv als Base64 (kein gültiges
-Base64 → -32602); die ganze Anfrage liegt innerhalb von `RPC_BODY_LIMIT` (sonst 413 vor dem Aufruf, also ein Archiv bis
-etwa 24 MiB – größere über das Formular `POST /werke/import`, bis 80 MiB).
+`work.import_archive {file_name, content, title?}` → `ImportReport` (like `work.import`, with `assets`, `skipped`,
+`warnings`). `file_name` must end in `.zip` (otherwise -32602), `content` is the archive as Base64 (not valid
+Base64 → -32602); the whole request lies within `RPC_BODY_LIMIT` (otherwise 413 before the call, so an archive up to
+about 24 MiB – larger ones through the form `POST /werke/import`, up to 80 MiB).
 
-Das Archiv liest `archive::read_zip` mit `IMPORT_LIMITS` (2000 Einträge, je 16 MiB, zusammen 80 MiB, Verhältnis 200):
-Verknüpfungen, Sonderdateien, `..`, absolute Pfade, `\`, doppelte Namen, Zip-Bomben und kaputte Archive → -32602 mit
-deutschem Grund, angelegt wird nichts. Es braucht genau eine Haupt-Datei (`.typ`, `.md`, `.markdown`; bei mehreren
-die flachste `index.md`, `main.typ` bzw. `README.md`), sonst -32602 mit den Kandidaten. Bilder (`image("…")` bzw.
-`![…](…)`) gelten relativ zur Haupt-Datei; fehlende, zu große, unsichere und Nicht-Bilder stehen mit Grund in
-`skipped`, Dateien ohne Verweis als Hinweis `archive-unused`. Titel vergeben → -32000 mit Hinweis auf einen anderen
-Titel (`title`), dieselbe Haupt-Datei ein zweites Mal → -32000 „schon importiert“. Kein MCP-Gegenstück.
+The archive is read by `archive::read_zip` with `IMPORT_LIMITS` (2000 entries, 16 MiB each, together 80 MiB, ratio 200):
+links, special files, `..`, absolute paths, `\`, duplicate names, zip bombs and broken archives → -32602 with a
+German reason, nothing is created. It needs exactly one main file (`.typ`, `.md`, `.markdown`; with several
+the shallowest `index.md`, `main.typ` or `README.md`), otherwise -32602 with the candidates. Images (`image("…")` or
+`![…](…)`) are relative to the main file; missing, too large, unsafe ones and non-images stand with a reason in
+`skipped`, files without a reference as the hint `archive-unused`. Title taken → -32000 with a hint at another
+title (`title`), the same main file a second time → -32000 „schon importiert“. No MCP counterpart.
 
 ```json
 {"jsonrpc": "2.0", "id": 1, "method": "work.import_archive",
  "params": {"file_name": "heft.zip", "content": "UEsDBBQAAAAIA…", "title": "Das Heft"}}
 ```
 
-Seit R21-S1 trägt der Bericht eines Imports (`ImportReport`, Antwort von `work.import`) das Feld `warnings`: Liste von
-`{code, message, line}` (`line` kann `null` sein) für alles, was nicht wörtlich übernommen wurde; beim Typst-Import
-bisher leer.
+Since R21-S1 the report of an import (`ImportReport`, answer of `work.import`) carries the field `warnings`: a list of
+`{code, message, line}` (`line` may be `null`) for everything that was not taken over literally; with the Typst import
+empty so far.
 
-### Git-Spiegel
-Nach `revision.accept`, `revision.set_current`, `revision.save`, `revision.update` und `revision.delete` (je mit
-Änderung) wird der Typst-Ordner `<data>/works/<slug>/` des betroffenen Werks als Commit gespiegelt (jedes Werk
-hat seinen eigenen Spiegel). `commit` ist dann die Commit-Id. Scheitert der Spiegel, gilt die Änderung trotzdem; die
-Antwort trägt `mirror` mit dem Fehlertext, der nächste Commit holt den Stand nach. DB-Schreibvorgang und
-Commit laufen unter einer gemeinsamen Sperre: Auch gleichzeitige Änderungen bekommen je ihren eigenen
-Commit, der genau ihre Datei ändert. `revision.reject` und `post.add` committen nicht.
+### Git mirror
+After `revision.accept`, `revision.set_current`, `revision.save`, `revision.update` and `revision.delete` (each with a
+change) the Typst folder `<data>/works/<slug>/` of the affected work is mirrored as a commit (every work
+has its own mirror). `commit` is then the commit id. If the mirror fails, the change holds nevertheless; the
+answer carries `mirror` with the error text, the next commit catches up the state. The DB write and the
+commit run under a common lock: even simultaneous changes each get their own
+commit that changes exactly their file. `revision.reject` and `post.add` do not commit.
 
-Commit: Betreff `„<Nummer> <Titel>: Vorschlag <rev> übernommen“`, `„…: Revision <rev> gespeichert“`, `„…: auf
-Fassung <rev> umgeschaltet“`, `„…: Fassung <rev> geändert“` bzw. `„…: Fassung <rev> gelöscht“`. Bringt die
-umgeschaltete bzw. übernommene Fassung eine andere Ebene mit, bleibt es **ein** Commit: Betreff mit dem Zusatz
-`„ · Ebene a → b“`, Rumpf mit den mitgestuften Punkten und ihren neuen Fassungen („Mitgestuft …: 002 Tiefe:
-Fassung 3“) und der Umnummerierung, Trailer `Baruch-Action: switched` (auch beim Übernehmen).
-Bei Vorschlägen (und beim Umschalten auf eine Fassung einer Persona) ist der Autor die Persona
-(`Name (@handle) <handle@persona.baruch.invalid>`; Zeichen außerhalb
-`[A-Za-z0-9._-]` im Handle werden in der Adresse zu `-`, `@mcp:claude-code` → `mcp-claude-code@…`), Committer der
-Mensch (`Autor <autor@baruch.invalid>`), Trailer `Persona`, `Model`. Ändern und Löschen: Autor und Committer
-der Mensch, Rumpf mit Zeilen-Diff und Notiz vorher/nachher bzw. dem vollständigen gelöschten Text samt Autor,
-Status, Elternteil, Notiz und „Umgehängt: …“; der Commit entsteht auch ohne Änderung an den Dateien (leerer
-Protokoll-Commit). Immer: `Baruch-Node`, `Baruch-Revision`; bei Umschalten, Ändern und Löschen
+Commit: subject `„<Nummer> <Titel>: Vorschlag <rev> übernommen“`, `„…: Revision <rev> gespeichert“`, `„…: auf
+Fassung <rev> umgeschaltet“`, `„…: Fassung <rev> geändert“` or `„…: Fassung <rev> gelöscht“`. If the
+switched or accepted revision brings another level along, it stays **one** commit: subject with the addition
+`„ · Ebene a → b“`, body with the items re-levelled along and their new revisions („Mitgestuft …: 002 Tiefe:
+Fassung 3“) and the renumbering, trailer `Baruch-Action: switched` (also when accepting).
+For proposals (and when switching to a revision of a persona) the author is the persona
+(`Name (@handle) <handle@persona.baruch.invalid>`; characters outside
+`[A-Za-z0-9._-]` in the handle become `-` in the address, `@mcp:claude-code` → `mcp-claude-code@…`), committer the
+human (`Autor <autor@baruch.invalid>`), trailers `Persona`, `Model`. Changing and deleting: author and committer
+the human, body with a line diff and the note before/after or the full deleted text with author,
+status, parent, note and „Umgehängt: …“; the commit is made even without a change to the files (empty
+log commit). Always: `Baruch-Node`, `Baruch-Revision`; on switching, changing and deleting
 `Baruch-Action: switched|updated|deleted`.
 
-Ein Teil mit Teil-Markierung (Runde 14) hat wie jeder Abschnitt mit aktueller Fassung eine eigene Datei
-`abschnitte/NNN-<titel>.typ` (mit Werkvorlage nach der `#import`-Zeile), `main.typ` bindet sie in
-Baumreihenfolge ein.
+A part with a part mark (Round 14) has, like every section with a current revision, its own file
+`abschnitte/NNN-<titel>.typ` (with a work template after the `#import` line); `main.typ` includes them in
+tree order.
 
-### Literatur und Hervorhebungen
-Methoden aus `crates/baruch-server/src/literature.rs`; alle nehmen `work?`. Hervorhebungen über RPC stammen
-immer vom Menschen (Status `active`).
+### Literature and highlights
+Methods from `crates/baruch-server/src/literature.rs`; all take `work?`. Highlights over RPC always come
+from the human (status `active`).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `literature.render` | `{work?, node?, key?, rev?, view?, lq?, lmode?}` (Schlüssel geht vor der Stelle; `lmode` = `fts` \| `rag`, unbekannt = `fts`, Runde 12) | `{html, lq, lmode, url}` – Inhalt des Literatur-Popups (Suchformular, Treffer, Titel mit Zitaten und Hervorhebungen); `url` = `/literatur?…` |
-| `highlight.list` | `{title?}` | `{highlights: [Highlight]}` – alle bzw. die eines Titels; seit Runde 13 trägt jede Hervorhebung `check` (Prüfung gegen den Volltext, siehe unten) oder `null` |
-| `highlight.add` | `{title, quote?, locator?, start?, end?, text, kind, note?}` | `{highlight, check}` – `kind` aus `quote`, `core`, `contradiction`, `check`; `start`/`end` beide oder keiner, ab 0, in Unicode-Zeichen; mit `quote` endet der Bereich im Zitat und `text` ist der Ausschnitt `start..end`, wobei Leerraum nicht zählt (Folgen von Unicode-Leerraum wie Umbruch, Tab, geschütztes Leerzeichen gelten als ein Leerzeichen, Ränder entfallen); gespeichert wird dann der genaue Ausschnitt des Zitats; inhaltlich anderer Text → -32602; ohne `locator` die Stelle des Zitats. **Runde 13:** ohne `quote`, mit `start`/`end` prüft Baruch den Bereich gegen den Volltext der Quelle (nur bei einem mit MultiGPT verknüpften Titel): `check.result` = `found` („im Volltext gefunden“, Text steht genau in `start..end`, Leerraum zählt nicht), `not_found` („im Volltext nicht gefunden“) oder `unverifiable` („nicht prüfbar“: keine Verknüpfung, MultiGPT nicht erreichbar – `message` nennt den Grund). Die Hervorhebung wird in jedem Fall gespeichert; ohne Bereich oder mit Zitat ist `check` `null` |
-| `highlight.check` | `{highlight}` | `{highlight, check: {result, label, message, checked}}` – erneut gegen den Volltext prüfen (Runde 13); nur Hervorhebungen ohne Zitat mit Bereich, sonst -32602 |
-| `highlight.update` | `{highlight, kind?, note?, status?}` | `{highlight}` – `status` aus `active`, `proposed`, `rejected`; Hervorhebungen von Personas werden nicht `active` (-32000) |
+| `literature.render` | `{work?, node?, key?, rev?, view?, lq?, lmode?}` (the key goes before the position; `lmode` = `fts` \| `rag`, unknown = `fts`, Round 12) | `{html, lq, lmode, url}` – content of the literature popup (search form, hits, titles with quotations and highlights); `url` = `/literatur?…` |
+| `highlight.list` | `{title?}` | `{highlights: [Highlight]}` – all or those of one title; since Round 13 every highlight carries `check` (check against the full text, see below) or `null` |
+| `highlight.add` | `{title, quote?, locator?, start?, end?, text, kind, note?}` | `{highlight, check}` – `kind` from `quote`, `core`, `contradiction`, `check`; `start`/`end` both or neither, from 0, in Unicode characters; with `quote` the range ends within the quotation and `text` is the excerpt `start..end`, where white space does not count (runs of Unicode white space such as line break, tab, non-breaking space count as one space, edges are dropped); the exact excerpt of the quotation is then stored; text different in content → -32602; without `locator` the locator of the quotation. **Round 13:** without `quote`, with `start`/`end` Baruch checks the range against the full text of the source (only for a title linked with MultiGPT): `check.result` = `found` („im Volltext gefunden“, the text stands exactly in `start..end`, white space does not count), `not_found` („im Volltext nicht gefunden“) or `unverifiable` („nicht prüfbar“: no link, MultiGPT unreachable – `message` names the reason). The highlight is stored in every case; without a range or with a quotation `check` is `null` |
+| `highlight.check` | `{highlight}` | `{highlight, check: {result, label, message, checked}}` – checks again against the full text (Round 13); only highlights without a quotation with a range, otherwise -32602 |
+| `highlight.update` | `{highlight, kind?, note?, status?}` | `{highlight}` – `status` from `active`, `proposed`, `rejected`; highlights of personas do not become `active` (-32000) |
 | `highlight.delete` | `{highlight}` | `{deleted}` |
-| `highlight.cite` | `{highlight, key}` | `{node, key, rev}` – Vorschlag-Revision: aktueller Text + `#quote(block: true, attribution: [@key[Stelle]])[Text]` (maskiert), Autor `@literatur`, Modell `baruch-zitat`, Notiz „Zitat aus @key“; die aktuelle Fassung bleibt. `key` ist der feste Schlüssel des Abschnitts (Pflicht, unter der Schreibsperre aufgelöst); `node` → -32602 |
-| `highlight.own` | `{highlight}` | Runde 15: `{highlight, original}` – eine Hervorhebung einer Persona als **eigene** übernehmen: neue Hervorhebung des Menschen (`active`) mit Text, Bereich, Zitat, Fundstelle und Art des Originals, Notiz „übernommen von @x (Hervorhebung n)“; das Original bleibt Vorschlag. Eigene Hervorhebung bzw. schon übernommen → -32000. Nicht über MCP |
-| `literature.to_persona` | `{work?, key, persona?, text, source?, title?, highlight?, question?}` | Runde 15 („an Persona geben“): wie `persona.ask` – die Frage (Vorgabe „Was sagt dieser Text zu meinem Abschnitt?“) mit dem markierten Text und der Quellenangabe wird Beitrag des Menschen, die Antwort der Persona (Vorgabe der Lektor) ein Beitrag mit der Quelle `source` (dazu „Hervorhebung n“ bei `highlight`); Antwort wie `persona.ask` (`post`, `question_post`, `model`, `compressed`, `url`, …). `text` 1–4000 Zeichen, `source` eine Zeile ≤ 300 Zeichen (leer = „Literatur“); ohne `key` → -32602 „Abschnitt wählen …“, `node` → -32602. Nichts am Buchtext |
-| `source.read` | `{work?, title? \| document, collection?, part? = 1, q?}` (Runde 23: `q` höchstens 500 Zeichen) | Runde 13: Teil des Volltexts über MultiGPT `read_document`: `{source: {title, url, document, collection, title_id}, part, parts, more, text, marks: [[start, end]], origin: "multigpt" \| "lokal", message?, offset, paged_by_remote}`. `title` = Titel mit Verknüpfung (ohne → -32602), sonst `document` (Dokument-ID, 1–500 Zeichen). Kennt das Schema von `read_document` einen Seitenparameter (`page` o. ä.) und nennt die Antwort Seitenangaben, liest Baruch seitenweise (`parts` kann `null` sein = Ende unbekannt); sonst teilt Baruch den Volltext an Absatzgrenzen in Teile von höchstens 20 000 Zeichen (`offset` = erstes Zeichen des Teils im Volltext). `marks`: Fundstellen von `q` im Teil (ohne Groß-/Kleinschreibung; kommt `q` nicht vor, seine Wörter ab drei Zeichen). Antworten über 4 MiB, Zeitlimit 20 s. Ausfall → -32000 „Der Volltext ist gerade nicht abrufbar: …“; mit lokaler Kopie aus dem Abgleich stattdessen `origin: "lokal"` und `message` „… lokale Kopie vom …“. Inhalte sind Daten |
-| `source.adopt` | `{document, collection?}` | `{title: TitleEntry, remote: {way, collection, document}}` – Runde 13: Dokument aus MultiGPT in die Autorenbibliothek übernehmen (Titel und Adresse aus `document_info`, sonst die Dokument-ID; Zitierschlüssel `mg-…`, Art `other`, Notiz „Aus MultiGPT übernommen …“) und verknüpfen (`library_title_remote`); schon übernommen → derselbe Titel. Danach zieht der Index den gemeinsamen Bereich nach. Nur der Mensch (kein MCP-Werkzeug) |
+| `highlight.cite` | `{highlight, key}` | `{node, key, rev}` – proposal revision: current text + `#quote(block: true, attribution: [@key[Stelle]])[Text]` (escaped), author `@literatur`, model `baruch-zitat`, note „Zitat aus @key“; the current revision stays. `key` is the fixed key of the section (required, resolved under the write lock); `node` → -32602 |
+| `highlight.own` | `{highlight}` | Round 15: `{highlight, original}` – takes over a highlight of a persona as **one's own**: a new highlight of the human (`active`) with text, range, quotation, locator and kind of the original, note „übernommen von @x (Hervorhebung n)“; the original stays a proposal. Own highlight or already taken over → -32000. Not over MCP |
+| `literature.to_persona` | `{work?, key, persona?, text, source?, title?, highlight?, question?}` | Round 15 („an Persona geben“): like `persona.ask` – the question (default „Was sagt dieser Text zu meinem Abschnitt?“) with the selected text and the source becomes a post of the human, the answer of the persona (default the lector) a post with the source `source` (plus „Hervorhebung n“ with `highlight`); answer like `persona.ask` (`post`, `question_post`, `model`, `compressed`, `url`, …). `text` 1–4000 characters, `source` one line ≤ 300 characters (empty = „Literatur“); without `key` → -32602 „Abschnitt wählen …“, `node` → -32602. Nothing in the book text |
+| `source.read` | `{work?, title? \| document, collection?, part? = 1, q?}` (Round 23: `q` at most 500 characters) | Round 13: part of the full text through MultiGPT `read_document`: `{source: {title, url, document, collection, title_id}, part, parts, more, text, marks: [[start, end]], origin: "multigpt" \| "lokal", message?, offset, paged_by_remote}`. `title` = title with a link (without → -32602), otherwise `document` (document id, 1–500 characters). If the schema of `read_document` knows a page parameter (`page` or similar) and the answer names pages, Baruch reads page by page (`parts` may be `null` = end unknown); otherwise Baruch splits the full text at paragraph boundaries into parts of at most 20 000 characters (`offset` = first character of the part in the full text). `marks`: occurrences of `q` in the part (case-insensitive; if `q` does not occur, its words of three characters or more). Answers above 4 MiB, time limit 20 s. Failure → -32000 „Der Volltext ist gerade nicht abrufbar: …“; with a local copy from the sync, instead `origin: "lokal"` and `message` „… lokale Kopie vom …“. Contents are data |
+| `source.adopt` | `{document, collection?}` | `{title: TitleEntry, remote: {way, collection, document}}` – Round 13: takes over a document from MultiGPT into the author's library (title and address from `document_info`, otherwise the document id; citation key `mg-…`, kind `other`, note „Aus MultiGPT übernommen …“) and links it (`library_title_remote`); already taken over → the same title. Afterwards the index catches up the shared area. Human only (no MCP tool) |
 
 `Highlight`: `{id, title_id, quote_id, locator, start, end, text, kind, note, author, status, created}`,
-`author` = `{kind: "human", name}` bzw. `{kind: "persona", handle, model}`. Fehler: leerer Text, ungültiger
-Bereich, unbekannte Art, unbekannter Titel, unbekannte Hervorhebung oder ein Zitat eines anderen Titels → -32602.
+`author` = `{kind: "human", name}` or `{kind: "persona", handle, model}`. Errors: empty text, invalid
+range, unknown kind, unknown title, unknown highlight or a quotation of another title → -32602.
 
-Ohne JavaScript: `POST /literatur/act` (hinter demselben Schutz wie `/act`, fremde `Origin` → 403) mit
-`action` = `highlight`, `cite`, `persona`, `own`, `similar`, `update`, `delete`, seit Runde 13 `adopt` (Felder `document`,
-`collection`; 303 auf `/quelle?title=…&notice=adopted`) und `check` (Feld `highlight`; 303 mit `notice=checked`), und
-den Feldern `work`, `node`, `key`,
+Without JavaScript: `POST /literatur/act` (behind the same protection as `/act`, foreign `Origin` → 403) with
+`action` = `highlight`, `cite`, `persona`, `own`, `similar`, `update`, `delete`, since Round 13 `adopt` (fields `document`,
+`collection`; 303 to `/quelle?title=…&notice=adopted`) and `check` (field `highlight`; 303 with `notice=checked`), and
+the fields `work`, `node`, `key`,
 `rev`, `lq`, `title`, `quote`, `highlight`, `locator`, `start`, `end`, `text`, `kind`, `note`, `status`,
-`confirm` (Pflicht beim Löschen); danach 303 auf `/quelle?…`, `/literatur?…` bzw. beim Zitieren auf den
-Vorschlag `/?work&node&rev`. `cite` braucht den festen Schlüssel `key` des Abschnitts;
-fehlt er, antwortet der Server 422 „Abschnitt fehlt.“, gibt es ihn nicht mehr, 409 – in beiden Fällen ohne
-Hervorhebung und ohne Vorschlag. `persona` (Runde 15, Felder `persona`, `question`, `source?`, sonst Quelle aus
-Titel und Fundstelle `@key, S. 3`) wie `literature.to_persona`, danach 303 auf den Abschnitt; ohne `key` bzw. bei
-einem Fehler die Hinweisseite (Status 200, `assist_notice.html`) mit Meldung und Link zurück. `own` (Runde 15,
-Feld `highlight`) wie `highlight.own`, 303 auf `/quelle?…&notice=owned`. Fehler: 422
-(ungültig), 409 (abgelehnt). Seiten: `GET /literatur?work&node&key&rev&lq`,
-`GET /quelle?work&node&key&title&quote?&highlight?&lq&teil?`; beide tragen den Schlüssel in ihren Links und
-Formularen selbst (aus `key`, sonst aus `node` beim Laden bestimmt), `key` geht vor `node`. `/quelle` zeigt bei
-einem mit MultiGPT verknüpften Titel den Volltext (Teil `teil`, Anker `#volltext`). Runde 13:
-`GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q` – Volltext eines Dokuments aus
-MultiGPT, Teil für Teil mit Links „vorheriger/nächster Teil“, Fundstelle `q` als `<mark>`, Knopf „In die Bibliothek
-übernehmen“; ohne JavaScript. Von einer fremden Seite aus (`Sec-Fetch-Site`/`Origin`) lädt keine der beiden
-Seiten den Volltext. Treffer von MultiGPT in der Bedeutungssuche (`literature::rag_view`) tragen `fulltext_link`
+`confirm` (required for deleting); then 303 to `/quelle?…`, `/literatur?…` or, when citing, to the
+proposal `/?work&node&rev`. `cite` needs the fixed key `key` of the section;
+if it is missing, the server answers 422 „Abschnitt fehlt.“, if it no longer exists, 409 – in both cases without
+a highlight and without a proposal. `persona` (Round 15, fields `persona`, `question`, `source?`, otherwise the source from
+title and locator `@key, S. 3`) like `literature.to_persona`, then 303 to the section; without `key` or on
+an error the notice page (status 200, `assist_notice.html`) with message and a link back. `own` (Round 15,
+field `highlight`) like `highlight.own`, 303 to `/quelle?…&notice=owned`. Errors: 422
+(invalid), 409 (refused). Pages: `GET /literatur?work&node&key&rev&lq`,
+`GET /quelle?work&node&key&title&quote?&highlight?&lq&teil?`; both carry the key in their links and
+forms themselves (from `key`, otherwise determined from `node` at loading), `key` goes before `node`. `/quelle` shows for
+a title linked with MultiGPT the full text (part `teil`, anchor `#volltext`). Round 13:
+`GET /quelle/multigpt?work&key&rev&lq&lmode&collection&document&section&teil&q` – full text of a document from
+MultiGPT, part by part with links „vorheriger/nächster Teil“, occurrence `q` as `<mark>`, button „In die Bibliothek
+übernehmen“; without JavaScript. From a foreign page (`Sec-Fetch-Site`/`Origin`) neither of the two
+pages loads the full text. Hits of MultiGPT in the semantic search (`literature::rag_view`) carry `fulltext_link`
 (`/quelle/multigpt?collection=…&document=…[&section=…]&q=…`).
 
-**Bibeln in der Literatur (Runde 15):** Keine eigenen RPC-Methoden; `literature.render` und `/literatur` tragen den
-Kasten „Bibeln“ (Bibelmodule aus `bible.modules`, Einträge ohne `kind` gelten als Bibel, die Bibel des Werks markiert
-und zuerst) und im Wortlaut-Modus mit Suche die Treffergruppen „Bibel“ (je Modul, höchstens 10 Treffer, höchstens
-3 Module, Zeitgrenze 3 s, über `bibles::search`) und „Kommentar“ (`bibles::commentary_hits_html`). Gelesen werden die
-Modulordner nur, wenn sie eingestellt sind oder das Werk eine Bibel hat. Seiten ohne JavaScript:
-`GET /literatur/bibel?work&key&rev&lq&lmode&module&ref&book&chapter&q&kom` (Bücher, Kapitel blättern, Stelle
-`ref` aufschlagen, Wortlaut `q`, neben der Stelle das Kommentar-Panel `bibles::commentary_panel_html`, `kom=1`
-klappt es auf; ohne Bibel Hinweis mit Link zu `/einstellungen/quellen`) und `POST /literatur/bibel/act` (hinter
-`same_origin`) mit `action=cite` (Bibelzitat als Vorschlag-Revision: aktueller Text + `#quote(block: true,
-attribution: [Ps 139,23–24 (Modul)])[…]`, Autor `@literatur`, Modell `baruch-zitat`, Notiz „Bibelzitat …“; 303 auf den
-Vorschlag) bzw. `action=persona` (Verse an `persona` mit `question`, Quelle „Bibel MODUL, Stelle“, 303 auf den
-Abschnitt) und den Feldern `work`, `key` (Pflicht, sonst Hinweisseite „Abschnitt wählen“), `module`, `ref`. Der
-Bibeltext kommt immer aus dem Modul, nie aus dem Formular. `action=highlight` gibt es nicht (Hinweisseite: Hervorheben
-nur bei Titeln der Bibliothek).
+**Bibles in the literature (Round 15):** no RPC methods of their own; `literature.render` and `/literatur` carry the
+box „Bibeln“ (Bible modules from `bible.modules`, entries without `kind` count as a Bible, the Bible of the work marked
+and first) and in the wording mode with a search the hit groups „Bibel“ (per module, at most 10 hits, at most
+3 modules, time limit 3 s, through `bibles::search`) and „Kommentar“ (`bibles::commentary_hits_html`). The
+module folders are read only if they are configured or the work has a Bible. Pages without JavaScript:
+`GET /literatur/bibel?work&key&rev&lq&lmode&module&ref&book&chapter&q&kom` (books, paging through chapters, opening the reference
+`ref`, wording `q`, next to the reference the commentary panel `bibles::commentary_panel_html`, `kom=1`
+unfolds it; without a Bible a notice with a link to `/einstellungen/quellen`) and `POST /literatur/bibel/act` (behind
+`same_origin`) with `action=cite` (Bible quotation as a proposal revision: current text + `#quote(block: true,
+attribution: [Ps 139,23–24 (Modul)])[…]`, author `@literatur`, model `baruch-zitat`, note „Bibelzitat …“; 303 to the
+proposal) or `action=persona` (verses to `persona` with `question`, source „Bibel MODUL, Stelle“, 303 to the
+section) and the fields `work`, `key` (required, otherwise notice page „Abschnitt wählen“), `module`, `ref`. The
+Bible text always comes from the module, never from the form. There is no `action=highlight` (notice page: highlighting
+only for titles of the library).
 
-### Satzbild
+### Typeset view
 
-Nur lesend, nur über `POST /rpc` (nicht `/act`, nicht MCP), ohne Schreibsperre; beantwortet von
-`src/wysiwyg.rs`. Blöcke, Anweisungen und HTML: `docs/WYSIWYG.md`.
+Read only, only through `POST /rpc` (not `/act`, not MCP), without the write lock; answered by
+`src/wysiwyg.rs`. Blocks, instructions and HTML: `docs/WYSIWYG.md`.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `wysiwyg.parse` | `{work?, body}` | `{blocks, html}` – Blöcke `{kind, …, raw}` (Verkettung der `raw` = `body`, byte-gleich) und HTML des Satzbilds (`div.ws-block[data-b][data-kind]`, Inseln `contenteditable="false"`); Überschrift mit `label` (Label auf der Zeile dahinter), Szene/Arbeit mit `args` (Argumente wörtlich) und `body`; Runde 14: Teil `{kind: "part", title}` (`div.ws-block.ws-part[data-kind=part][data-level=0]`) und „ohne Nummer“ `{kind: "unnumbered", level, title}` (`div.ws-block.ws-unnumbered[data-kind=unnumbered][data-level]`), Titel als Klartext; Inseln mit Bildpfad erscheinen als Bild: `div.ws-block.ws-figure[data-kind=island][data-image=1]` mit `<img class="ws-image" src="/werke/{work}/bilder/pfad?p=…" alt="…" loading="eager">` (Alternativtext der aktuellen Fassung aus „Bilder“, sonst leer) und `span.ws-caption`, im Satz `span.ws-island.ws-inline-image`; Rohtext nur in `data-raw`; Pfade in Normalform (`./` und seit Runde 18b auch ein führendes `/` entfallen: `p=bilder%2Fa.png`); Runde 18b: alle Bilder einer Insel (`image_paths`), neue Arten `enum` (`{start, items, depths?}`, `<ol start>`) und `terms` (`{items: [{term, desc}]}`, `<dl>`), Listen mit `depths` (geschachtelt), Inlines `linebreak`, `link` (`{url, c?}`, `a.ws-link`) und `ref` (`{target, supplement?}`, `button.ws-ref`, nicht bearbeitbar); Formen in `docs/WYSIWYG.md` |
-| `wysiwyg.serialize` | `{work?, body, edits}` | `{body}` – neuer Text aus dem Original `body` und den Anweisungen `edits` (`{keep: i}` wörtlich, `{replaces: i\|null, block}` neu erzeugt, `{replaces: i, body: [Anweisungen]}` nur im Rumpf einer Szene/Arbeit, Runde 18b `{replaces: i, raw: "<Typst>"}` Quelltext von Block `i` wörtlich – Insel an Ort und Stelle, leer = gelöscht); unbekannter oder doppelter Index, neue Insel (auch `raw` ohne `replaces`) oder als Block bearbeitete Insel, Rumpf-Anweisung für einen Block ohne Rumpf, neuer oder umgewandelter Teil (Runde 18b: „Einen Teil legt man in der Gliederung an, nicht im Satzbild.“), falsche Form → -32602 mit deutscher Meldung. Eine Überschrift endet am ersten Zeilenumbruch (`{"t": "soft"}` oder Zeilenende im Text); der Rest wird ein eigener Absatz dahinter. Ein geänderter Teil wird mit `part_line` neu gebaut, „ohne Nummer“ mit `unnumbered_line` (ersetzt er eine solche Markierung, bleibt ihr Kommentar `// …`) |
-| `wysiwyg.style` | `{work?}` | `{css, style}` – Darstellung aus der Werkvorlage: `style` = `{font, size, fill, emph_fill, strong_fill, heading_font, heading_fill, indent, leading, justify, width, scene, work}` (fehlend = `null`), `css` = Variablen unter `.ws-sheet`; nur Regeln der obersten Ebene (nicht in Show-Regeln, `#show: …`, Funktionsrümpfen), mehrfach → die letzte |
-| `wysiwyg.diff` | `{work?, key\|node, rev, base?}` | `{html, base}` – Fassung `rev` gegen `base` im Satzbild (`div.ws-same`, `div.ws-del`, `div.ws-ins`); fehlt `base`, gilt ihr Elternteil (`based_on`), sonst die aktuelle Fassung; unbekannte Fassung → -32602; Bilder in Inseln wie bei `wysiwyg.parse` (seit Runde 18b alle Bilder einer Insel, Adresse ohne führendes `/`). Der Editor nutzt die Methode seit Runde 7 nicht mehr (der Satzbild-Diff der Vorschläge kommt fertig im HTML), sie bleibt für andere Aufrufer |
+| `wysiwyg.parse` | `{work?, body}` | `{blocks, html}` – blocks `{kind, …, raw}` (concatenation of the `raw` = `body`, byte-identical) and HTML of the typeset view (`div.ws-block[data-b][data-kind]`, islands `contenteditable="false"`); heading with `label` (label on the line after it), scene/work with `args` (arguments literal) and `body`; Round 14: part `{kind: "part", title}` (`div.ws-block.ws-part[data-kind=part][data-level=0]`) and „ohne Nummer“ `{kind: "unnumbered", level, title}` (`div.ws-block.ws-unnumbered[data-kind=unnumbered][data-level]`), title as plain text; islands with an image path appear as an image: `div.ws-block.ws-figure[data-kind=island][data-image=1]` with `<img class="ws-image" src="/werke/{work}/bilder/pfad?p=…" alt="…" loading="eager">` (alternative text of the current revision from "Images", otherwise empty) and `span.ws-caption`, inline `span.ws-island.ws-inline-image`; raw text only in `data-raw`; paths in normal form (`./` and since Round 18b also a leading `/` are dropped: `p=bilder%2Fa.png`); Round 18b: all images of an island (`image_paths`), new kinds `enum` (`{start, items, depths?}`, `<ol start>`) and `terms` (`{items: [{term, desc}]}`, `<dl>`), lists with `depths` (nested), inlines `linebreak`, `link` (`{url, c?}`, `a.ws-link`) and `ref` (`{target, supplement?}`, `button.ws-ref`, not editable); shapes in `docs/WYSIWYG.md` |
+| `wysiwyg.serialize` | `{work?, body, edits}` | `{body}` – new text from the original `body` and the instructions `edits` (`{keep: i}` literal, `{replaces: i\|null, block}` newly generated, `{replaces: i, body: [instructions]}` only in the body of a scene/work, Round 18b `{replaces: i, raw: "<Typst>"}` source of block `i` literal – island in place, empty = deleted); unknown or duplicate index, new island (also `raw` without `replaces`) or an island edited as a block, body instruction for a block without a body, new or converted part (Round 18b: „Einen Teil legt man in der Gliederung an, nicht im Satzbild.“), wrong shape → -32602 with a German message. A heading ends at the first line break (`{"t": "soft"}` or a line end in the text); the rest becomes its own paragraph after it. A changed part is rebuilt with `part_line`, „ohne Nummer“ with `unnumbered_line` (if it replaces such a mark, its comment `// …` stays) |
+| `wysiwyg.style` | `{work?}` | `{css, style}` – appearance from the work template: `style` = `{font, size, fill, emph_fill, strong_fill, heading_font, heading_fill, indent, leading, justify, width, scene, work}` (missing = `null`), `css` = variables under `.ws-sheet`; only rules of the top level (not in show rules, `#show: …`, function bodies), several → the last |
+| `wysiwyg.diff` | `{work?, key\|node, rev, base?}` | `{html, base}` – revision `rev` against `base` in the typeset view (`div.ws-same`, `div.ws-del`, `div.ws-ins`); if `base` is missing, its parent (`based_on`) applies, otherwise the current revision; unknown revision → -32602; images in islands as with `wysiwyg.parse` (since Round 18b all images of an island, address without a leading `/`). The editor no longer uses the method since Round 7 (the typeset-view diff of the proposals comes finished in the HTML); it stays for other callers |
 
-### Bilder
+### Images
 
-Alle Methoden nehmen `work?`. Schreibende laufen unter der Schreibsperre und tragen `commit` bzw.
-`mirror`; es gibt sie nicht über `/act` und nicht über MCP.
+All methods take `work?`. Writing ones run under the write lock and carry `commit` or
+`mirror`; they do not exist over `/act` nor over MCP.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
 | `asset.list` | – | `{assets: [AssetSummary]}` (`name, mime, encoding, bytes, current, revisions, caption, alt, paths, updated`) |
 | `asset.get` | `name, rev?, content? = true` | `{asset, revision: AssetRevisionInfo, encoding, content?}` |
 | `asset.revisions` | `name` | `{revisions: [AssetRevisionInfo]}` (`number, based_on, current, mime, encoding, bytes, sha256, caption, alt, author, note, created, edited`) |
 | `asset.add` | `file_name, content, encoding: "base64"\|"svg", name?, path?, caption?, alt?, note?` | `{name, rev}` |
-| `asset.replace` | `name, file_name, content, encoding, note?, rename?: bool = false` | `{name, rev, renamed_from?}` (neue Fassung, sofort aktuell). Runde 21c: ein anderes Format als die Endung des Namens nur mit `rename: true` (sonst -32602 mit Hinweis „Endung anpassen“); dann heißt das Bild mit der Vorgabe-Endung des neuen Formats (`haus.svg` → `haus.png`, vergeben → `haus-2.png`), `name` ist der neue Name, `renamed_from` der alte; alle Pfade bleiben beim Bild, offene Anträge ziehen den Namen mit; ein Commit |
+| `asset.replace` | `name, file_name, content, encoding, note?, rename?: bool = false` | `{name, rev, renamed_from?}` (new revision, current at once). Round 21c: a format other than the ending of the name only with `rename: true` (otherwise -32602 with the hint „Endung anpassen“); then the image is named with the default ending of the new format (`haus.svg` → `haus.png`, taken → `haus-2.png`), `name` is the new name, `renamed_from` the old one; all paths stay with the image, open requests take the name along; one commit |
 | `asset.set_current` | `name, rev` | `{name, rev}` |
-| `asset.update` | `name, rev, caption?, alt?, note?, paths?` | `{name, rev, changed}` (Felder und Pfade zusammen ein Commit) |
-| `asset.delete` | `name, rev?, confirm: true` | `{name, rev?, deleted}` (ohne `rev` das ganze Bild) |
-| `asset.path_conflicts` | – | `{conflicts: [{normal, paths: [{path, asset}]}]}` (Runde 21c) – Altbestand: Pfade, die in Normalform gleich sind (`/x.png`, `x.png`, `./x.png`), aber zu verschiedenen Bildern gehören; nach Normalform, Schreibweisen nach Pfad |
-| `asset.path_resolve` | `normal, asset` | `{name, rev, commit?}` (Runde 21c) – nur Mensch: alle Schreibweisen von `normal` gehören danach dem Bild `asset`, die anderen Bilder verlieren nur diesen Pfad; ein Commit „Bild <asset>: …“ mit „Pfad-Kollision … aufgelöst“. Keine Kollision → -32000; `asset` hat keine der Schreibweisen → -32602 |
+| `asset.update` | `name, rev, caption?, alt?, note?, paths?` | `{name, rev, changed}` (fields and paths together one commit) |
+| `asset.delete` | `name, rev?, confirm: true` | `{name, rev?, deleted}` (without `rev` the whole image) |
+| `asset.path_conflicts` | – | `{conflicts: [{normal, paths: [{path, asset}]}]}` (Round 21c) – legacy: paths that are equal in normal form (`/x.png`, `x.png`, `./x.png`) but belong to different images; by normal form, spellings by path |
+| `asset.path_resolve` | `normal, asset` | `{name, rev, commit?}` (Round 21c) – human only: all spellings of `normal` then belong to the image `asset`, the other images lose only this path; one commit „Bild <asset>: …“ with „Pfad-Kollision … aufgelöst“. No collision → -32000; `asset` has none of the spellings → -32602 |
 
-| `asset.search` | `query` | `{assets: [AssetSummary]}` (Runde 11) – Name, Bildunterschrift, Alternativtext der aktuellen Fassung, ohne Groß/Klein, `%`/`_` wörtlich, leer = alle; `query` fehlt → -32602 |
-| `asset.request_list` | `open?: bool = true` | `{work, requests: [AssetRequest]}` (Runde 11) – Anträge der Assistenten |
-| `asset.request_decide` | `id, decision: "confirm"\|"reject"` | `{request, commit?, mirror?, cover?}` (Runde 11) – nur Mensch |
+| `asset.search` | `query` | `{assets: [AssetSummary]}` (Round 11) – name, caption, alternative text of the current revision, case-insensitive, `%`/`_` literal, empty = all; `query` missing → -32602 |
+| `asset.request_list` | `open?: bool = true` | `{work, requests: [AssetRequest]}` (Round 11) – requests of the assistants |
+| `asset.request_decide` | `id, decision: "confirm"\|"reject"` | `{request, commit?, mirror?, cover?}` (Round 11) – human only |
 
-Fehler: ohne `confirm: true` → -32602; unbekanntes Bild, unbekannte Fassung, zu groß (8 MiB), kein
-unterstütztes Bild, kaputtes Base64, ungültiger Name oder Pfad → -32602; doppelter Name, unverändert
-ersetzt, schon aktuell, aktuelle Fassung löschen → -32000.
+Errors: without `confirm: true` → -32602; unknown image, unknown revision, too large (8 MiB), not a
+supported image, broken Base64, invalid name or path → -32602; duplicate name, replaced
+unchanged, already current, deleting the current revision → -32000.
 
-**Anträge zu Bildern (Runde 11, Migration 0018):** `AssetRequest` = `{id, work, op: "replace"|"set_cover"|
+**Requests for images (Round 11, migration 0018):** `AssetRequest` = `{id, work, op: "replace"|"set_cover"|
 "delete", name, …, origin {kind, handle}, origin_label, note, created, decided, decision: "confirmed"|"rejected"|
-"stale", decision_label, decided_by, message, summary, url, content_url?}`; bei `replace` `mime, encoding, bytes,
-caption, alt, expected_sha256` (ohne Inhalt; der steht unter `content_url` =
-`/werke/{id}/bilder/antraege/{nr}/datei`), bei `delete` `rev, expected_sha256`, bei `set_cover`
-`expected_cover`. `asset.request_decide` führt beim Bestätigen aus (Ersetzen/Löschen mit Commit „… (Antrag n)“,
-Trailer `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`; Umschlag über `work.set_cover` plus
-Protokoll-Commit „Bildantrag n bestätigt“, `cover` = dessen Antwort). Passt `expected_sha256` bzw.
-`expected_cover` nicht mehr → `decision: "stale"` mit `message`, kein Fehler. Schon entschieden → -32000.
-Formular `POST /werke/bilder/antraege/act` (`work, id, decision=confirm|reject`) → 303
+"stale", decision_label, decided_by, message, summary, url, content_url?}`; with `replace` `mime, encoding, bytes,
+caption, alt, expected_sha256` (without content; that stands under `content_url` =
+`/werke/{id}/bilder/antraege/{nr}/datei`), with `delete` `rev, expected_sha256`, with `set_cover`
+`expected_cover`. `asset.request_decide` executes on confirmation (replacing/deleting with commit „… (Antrag n)“,
+trailers `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`; cover through `work.set_cover` plus
+log commit „Bildantrag n bestätigt“, `cover` = its answer). If `expected_sha256` or
+`expected_cover` no longer matches → `decision: "stale"` with `message`, no error. Already decided → -32000.
+Form `POST /werke/bilder/antraege/act` (`work, id, decision=confirm|reject`) → 303
 `/werke/{w}/bilder?hinweis=antrag_bestaetigt|antrag_abgelehnt|antrag_veraltet#antraege`.
 
-**Runde 21c:** `AssetRequest` hat dazu `rename` (Antrag zum Ersetzen mit Typwechsel; `summary` endet dann auf „– mit
-neuer Endung“, Bestätigen benennt um wie `asset.replace` mit `rename`) und `purged`. Vor jedem `asset.request_list`,
-`asset.request_decide`, dem Abschnitt „Anträge“ der Seite „Bilder“ und der Antragsdatei entfernt Baruch den Inhalt
-entschiedener Anträge zum Ersetzen, deren Entscheidung länger als 30 Tage (`baruch_store::ASSET_REQUEST_PURGE_DAYS`)
-zurückliegt (`purged: true`, `bytes` bleibt die Größe vorher, Entscheidung und Herkunft bleiben).
-`GET /werke/{id}/bilder/antraege/{nr}/datei` liefert den Inhalt mit MIME, `X-Content-Type-Options: nosniff` und
-`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`; nach dem Aufräumen 410 Gone mit
-Meldung (Text). Formulare: Ersetzen (`POST /werke/bilder/hochladen`) mit Feld `rename=1` („Endung anpassen“; Erfolg
-mit neuem Namen → 303 `/werke/{w}/bilder/<neu>?hinweis=endung_angepasst`); `POST /werke/bilder/act` mit
-`action=resolve_path`, `normal`, `name` (das Bild, das den Pfad behält) → 303 `/werke/{w}/bilder?hinweis=pfad_zugeordnet`,
-Fehler → Seite „Bilder“ mit Meldung (422/409).
+**Round 21c:** `AssetRequest` additionally has `rename` (request to replace with a change of type; `summary` then ends in „– mit
+neuer Endung“, confirming renames like `asset.replace` with `rename`) and `purged`. Before every `asset.request_list`,
+`asset.request_decide`, the section „Anträge“ of the page „Bilder“ and the request file, Baruch removes the content
+of decided replace requests whose decision lies more than 30 days back (`baruch_store::ASSET_REQUEST_PURGE_DAYS`)
+(`purged: true`, `bytes` stays the size before, decision and origin stay).
+`GET /werke/{id}/bilder/antraege/{nr}/datei` delivers the content with MIME, `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`; after the clean-up 410 Gone with
+a message (text). Forms: replacing (`POST /werke/bilder/hochladen`) with field `rename=1` („Endung anpassen“; success
+with a new name → 303 `/werke/{w}/bilder/<neu>?hinweis=endung_angepasst`); `POST /werke/bilder/act` with
+`action=resolve_path`, `normal`, `name` (the image that keeps the path) → 303 `/werke/{w}/bilder?hinweis=pfad_zugeordnet`,
+errors → page „Bilder“ with a message (422/409).
 
-Seiten (Runde 11): `GET /werke/{id}/bilder?q=<Suche>`; `GET /werke/{id}/bilder/{name}/vorschau?b=<px>[&fassung=n]`
-(Raster verkleinert, längste Seite ≤ b, JPEG bleibt JPEG, sonst PNG; `b` 64–1024, Vorgabe 320, sonst 400;
-`ETag`, `If-None-Match` → 304, `nosniff`, CSP `sandbox`; SVG unverändert wie `/datei`); `POST
-/werke/bilder/einfuegen` (`work, key, rev` = Basis, `name, caption?, place` (seit Runde 18c auch `start`, `block:<n>`,
-`offset:<n>` und `body`, siehe „work.sheet_set“) → neue Fassung des Menschen mit
-`#figure(image("<Pfad>"), caption: [...])`, fehlender Pfad `bilder/<name>`, ein Commit; 303 `/?work=W&key=K`,
-422 Eingabe, 409 abgelehnt). `wysiwyg.parse`/`wysiwyg.diff` zeigen Bilder ohne Eintrag als „Bild fehlt: <Pfad>“
+Pages (Round 11): `GET /werke/{id}/bilder?q=<Suche>`; `GET /werke/{id}/bilder/{name}/vorschau?b=<px>[&fassung=n]`
+(raster scaled down, longest side ≤ b, JPEG stays JPEG, otherwise PNG; `b` 64–1024, default 320, otherwise 400;
+`ETag`, `If-None-Match` → 304, `nosniff`, CSP `sandbox`; SVG unchanged like `/datei`); `POST
+/werke/bilder/einfuegen` (`work, key, rev` = base, `name, caption?, place` (since Round 18c also `start`, `block:<n>`,
+`offset:<n>` and `body`, see "work.sheet_set") → new revision of the human with
+`#figure(image("<Pfad>"), caption: [...])`, missing path `bilder/<name>`, one commit; 303 `/?work=W&key=K`,
+422 input, 409 refused). `wysiwyg.parse`/`wysiwyg.diff` show images without an entry as „Bild fehlt: <Pfad>“
 (`ws-missing`).
 
-`/werke/{id}/bilder/pfad?p=` findet ein Bild unter jeder Schreibweise seines Pfads (`/bilder/a.png`,
-`bilder/a.png`, `./bilder/a.png`), nie mit `..`.
+`/werke/{id}/bilder/pfad?p=` finds an image under every spelling of its path (`/bilder/a.png`,
+`bilder/a.png`, `./bilder/a.png`), never with `..`.
 
 ### Personas
 
-Personas gelten für alle Werke; die Verwaltungsmethoden nehmen kein `work`. Nur über `/rpc` (nicht `/act`,
-nicht MCP); die Aufträge (`ask`/`review`/`propose`/`chat`) gehen auch über `POST /assistenten/act` und
-`/assistenten/stream` (siehe „Aufträge an Personas“).
+Personas apply to all works; the management methods take no `work`. Only over `/rpc` (not `/act`,
+not MCP); the tasks (`ask`/`review`/`propose`/`chat`) also go through `POST /assistenten/act` and
+`/assistenten/stream` (see "Tasks for personas").
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `persona.list` | – | `{personas: [{handle, name, role, model, context_length, active, lector, color, chosen, prompt_custom, tints: {light, dark, line, line_dark}, connection: {id, name, kind}, locality: "lokal"\|"extern", external_allowed, context: {tokens, reported, warning}}], palette: ["#rrggbb", …], lector, lector_mode, chat_scope}`; vollständig auch ohne jedes Werk. Runde 15b: `connection` = Modell-Verbindung der Persona (Vorgabe Eliezer), `context` ohne Netzabfrage aus den Zwischenspeichern (ohne Meldung `tokens` = Einstellung). Runde 16a: zusätzlich `chat_scope` (`"chapter"`\|`"section"`, siehe `persona.chat_scope_get`); `lector` vergleicht bei „automatisch nach Kontext“ die wirksame Kontextlänge (`ModelPort::context`), alle übrigen Felder unverändert Seit Runde 17a dazu `lector_context` (wirksame Kontextlänge des Lektors `{tokens, reported, warning}` oder `null`); Lektor und `context` ohne Netzabfrage (Zwischenspeicher, sonst die Einstellung) – nur ein Modellaufruf fragt die Gegenstelle |
-| `persona.chat_scope_get` | `{}` | `{scope: "chapter"\|"section"}` (Runde 16a) – was der Abschnitts-Chat mitgibt: `chapter` (Vorgabe) das ganze Kapitel bzw. die ganze Predigt, `section` nur den Abschnitt, dazu Titel und Gliederung des Werks. Gespeichert in `store_meta` (`chat_scope`), nicht im Spiegel |
-| `persona.chat_scope_set` | `{scope}` | dito; anderer Wert → -32602. Nur Mensch: nicht über `POST /act`, nicht über MCP. Formular `POST /einstellungen/personas/act` mit `method=persona.chat_scope_set`, `scope=chapter\|section`, `work?` → 303 `/einstellungen/assistenten?ok=chat[&work=W]#chat` |
-| `persona.backend_get` | `{persona}` | `{persona, connection: {id, name, kind, kind_title, external}, locality, external_allowed, explicit, usable, warning}` (Runde 15b) – `explicit: false` = keine Zeile in `persona_backend` (Vorgabe: Eliezer, nicht freigegeben); `usable: false` = externe Verbindung ohne Freigabe (dann `warning` als Satz) |
-| `persona.backend_set` | `{persona, connection: id, external_allowed?: bool = false}` | wie `persona.backend_get`; unbekannte Persona oder Verbindung → -32602. Nur Mensch. Formular `POST /einstellungen/personas/act` mit `action=backend`, `handle`, `connection`, `external_allowed=1` (fehlt = aus) → 303 `…?persona=<h>&ok=verbindung#persona-<h>` |
-| `persona.bible_get` | `{persona}` | `{persona, bible_context, allowed, default}` (Runde 15) – Bibel-Belege aus SWORD im Kontext (`crate::bible_research`); `allowed` = @belege oder der Lektor nach der Wahl; ohne Zeile gilt `default` (@belege an, Lektor aus) |
-| `persona.bible_set` | `{persona, on: bool}` | `{persona, bible_context}`; nur für @belege und den Lektor, sonst -32602 „Bibel-Belege aus SWORD gibt es nur für @belege und den Lektor.“ Tabelle `persona_bible` (Migration 0037). Formular `action=bible`, `handle`, `on=1` → 303 `…&ok=bibel` |
-| `persona.set_color` | `handle` (mit oder ohne `@`), `color`: `"#rrggbb"`/`"#rgb"` oder `null` (Vorgabe) | `{handle, color, chosen}` |
-| `persona.update` | `handle`, `name?` (Runde 11: getrimmt 1–80 Zeichen, eine Zeile), `role?`, `model?`, `context_length?`, `active?` | `PersonaRow {handle, name, role, model, context_length, active, color, chosen, prompt}`; Rolle/Modell getrimmt 1–200 Zeichen, Kontext 1–10 000 000, `active` Wahrheitswert, unbekannte Persona → -32602 |
-| `persona.prompt_get` | `{handle}` | `{handle, prompt, default, custom}` – wirksamer Rollen-Prompt, Vorgabe aus dem Code, eigener ja/nein |
-| `persona.set_prompt` | `{handle, prompt: Text \| null}` | dito; `null` = Vorgabe; getrimmt, leer oder über 8000 Zeichen → -32000 (Migration 0015, Spalte `persona.prompt`) |
+| `persona.list` | – | `{personas: [{handle, name, role, model, context_length, active, lector, color, chosen, prompt_custom, tints: {light, dark, line, line_dark}, connection: {id, name, kind}, locality: "lokal"\|"extern", external_allowed, context: {tokens, reported, warning}}], palette: ["#rrggbb", …], lector, lector_mode, chat_scope}`; complete even without any work. Round 15b: `connection` = model connection of the persona (default Eliezer), `context` without a network query from the caches (without a report `tokens` = setting). Round 16a: additionally `chat_scope` (`"chapter"`\|`"section"`, see `persona.chat_scope_get`); with „automatisch nach Kontext“ `lector` compares the effective context length (`ModelPort::context`), all other fields unchanged. Since Round 17a also `lector_context` (effective context length of the lector `{tokens, reported, warning}` or `null`); lector and `context` without a network query (cache, otherwise the setting) – only a model call asks the remote side |
+| `persona.chat_scope_get` | `{}` | `{scope: "chapter"\|"section"}` (Round 16a) – what the section chat passes along: `chapter` (default) the whole chapter or the whole sermon, `section` only the section, plus title and outline of the work. Stored in `store_meta` (`chat_scope`), not in the mirror |
+| `persona.chat_scope_set` | `{scope}` | ditto; another value → -32602. Human only: not over `POST /act`, not over MCP. Form `POST /einstellungen/personas/act` with `method=persona.chat_scope_set`, `scope=chapter\|section`, `work?` → 303 `/einstellungen/assistenten?ok=chat[&work=W]#chat` |
+| `persona.backend_get` | `{persona}` | `{persona, connection: {id, name, kind, kind_title, external}, locality, external_allowed, explicit, usable, warning}` (Round 15b) – `explicit: false` = no row in `persona_backend` (default: Eliezer, not allowed); `usable: false` = external connection without permission (then `warning` as a sentence) |
+| `persona.backend_set` | `{persona, connection: id, external_allowed?: bool = false}` | like `persona.backend_get`; unknown persona or connection → -32602. Human only. Form `POST /einstellungen/personas/act` with `action=backend`, `handle`, `connection`, `external_allowed=1` (missing = off) → 303 `…?persona=<h>&ok=verbindung#persona-<h>` |
+| `persona.bible_get` | `{persona}` | `{persona, bible_context, allowed, default}` (Round 15) – Bible evidence from SWORD in the context (`crate::bible_research`); `allowed` = @belege or the lector according to the choice; without a row `default` applies (@belege on, lector off) |
+| `persona.bible_set` | `{persona, on: bool}` | `{persona, bible_context}`; only for @belege and the lector, otherwise -32602 „Bibel-Belege aus SWORD gibt es nur für @belege und den Lektor.“ Table `persona_bible` (migration 0037). Form `action=bible`, `handle`, `on=1` → 303 `…&ok=bibel` |
+| `persona.set_color` | `handle` (with or without `@`), `color`: `"#rrggbb"`/`"#rgb"` or `null` (default) | `{handle, color, chosen}` |
+| `persona.update` | `handle`, `name?` (Round 11: trimmed 1–80 characters, one line), `role?`, `model?`, `context_length?`, `active?` | `PersonaRow {handle, name, role, model, context_length, active, color, chosen, prompt}`; role/model trimmed 1–200 characters, context 1–10 000 000, `active` a boolean, unknown persona → -32602 |
+| `persona.prompt_get` | `{handle}` | `{handle, prompt, default, custom}` – effective role prompt, default from the code, own yes/no |
+| `persona.set_prompt` | `{handle, prompt: Text \| null}` | ditto; `null` = default; trimmed, empty or above 8000 characters → -32000 (migration 0015, column `persona.prompt`) |
 | `persona.lector_get` | `{}` | `{mode: "fixed"\|"auto", handle, lector}` |
-| `persona.set_lector` | `{mode, handle?}` | dito; unbekannte Persona, falscher Modus oder `fixed` ohne `handle` → -32602; gespeichert in `store_meta` (`lector`), ohne Zeile gilt fest `@lektor` |
-| `persona.rag_get` | `{persona}` | `{persona, rag_context, allowed}` (Runde 12) – `allowed` = @belege oder der Lektor nach der gespeicherten Wahl (fest bzw. automatisch); unbekannte Persona → -32602 |
-| `persona.rag_set` | `{persona, on: bool}` | `{persona, rag_context}`; nur für @belege und den Lektor, sonst -32602 „Bedeutungs-Treffer gibt es nur für @belege und den Lektor.“; `on` kein Wahrheitswert → -32602. Tabelle `persona_rag` (Migration 0032), kein Commit im Spiegel. Formular `POST /einstellungen/personas/act` mit `action=rag`, `handle`, `on=1` (fehlt = aus), `work?` → 303 `/einstellungen/assistenten?persona=<h>&ok=rag[&work=W]#persona-<h>`, abgelehnt → 422 |
+| `persona.set_lector` | `{mode, handle?}` | ditto; unknown persona, wrong mode or `fixed` without `handle` → -32602; stored in `store_meta` (`lector`), without a row fixed `@lektor` applies |
+| `persona.rag_get` | `{persona}` | `{persona, rag_context, allowed}` (Round 12) – `allowed` = @belege or the lector according to the stored choice (fixed or automatic); unknown persona → -32602 |
+| `persona.rag_set` | `{persona, on: bool}` | `{persona, rag_context}`; only for @belege and the lector, otherwise -32602 „Bedeutungs-Treffer gibt es nur für @belege und den Lektor.“; `on` not a boolean → -32602. Table `persona_rag` (migration 0032), no commit in the mirror. Form `POST /einstellungen/personas/act` with `action=rag`, `handle`, `on=1` (missing = off), `work?` → 303 `/einstellungen/assistenten?persona=<h>&ok=rag[&work=W]#persona-<h>`, refused → 422 |
 
-- `color` ist die wirksame Farbe (`chosen: false` = Vorgabe aus `palette` nach Reihenfolge der Personas).
-- `tints.light`/`tints.dark`: Hintergründe, auf denen Text, gedämpfter Text und Linktext des hellen
-  (`#1d2125`, `#5f6b76`, `#3b5bdb`) bzw. dunklen (`#e3e6ea`, `#9aa5b1`, `#7d97ff`) Themas mindestens
-  4,5 : 1 erreichen; `tints.line` = Linie im hellen Thema mit mindestens 3 : 1 gegen `#ffffff`,
-  `tints.line_dark` = Linie im dunklen Thema mit mindestens 3 : 1 gegen `#1f2328` (WCAG 1.4.11; die Farbe
-  selbst, abgedunkelt bzw. aufgehellt, wenn nötig).
-- `role`, `model`, `context_length`, `active`, `lector` kommen seit Runde 9 aus der Tabelle `persona` (nicht
-  mehr aus dem Vorgabewerk), auch ohne Werke vollständig; `lector` folgt der Wahl (`LectorChoice`): fest eine
-  Persona (Vorgabe `@lektor`, Versuch seit 2026-11-06), ist sie inaktiv, oder bei „automatisch“ die aktive
-  Persona mit dem größten Kontext (bei Gleichstand die frühere; seit Runde 16a die wirksame Länge, seit Runde 17a auf
-  Seiten und in Listen ohne Netzabfrage: was der Zwischenspeicher weiß, sonst die Einstellung – erst ein Modellaufruf
-  fragt die Gegenstelle). `work.get` trägt `work.lector_choice`
-  (`{mode, handle}`). Das Modell geht seit Runde 10 an Eliezer; die Kontextlänge dient nur dem Kürzen in Baruch.
+- `color` is the effective colour (`chosen: false` = default from `palette` in the order of the personas).
+- `tints.light`/`tints.dark`: backgrounds on which text, muted text and link text of the light
+  (`#1d2125`, `#5f6b76`, `#3b5bdb`) or dark (`#e3e6ea`, `#9aa5b1`, `#7d97ff`) theme reach at least
+  4.5 : 1; `tints.line` = line in the light theme with at least 3 : 1 against `#ffffff`,
+  `tints.line_dark` = line in the dark theme with at least 3 : 1 against `#1f2328` (WCAG 1.4.11; the colour
+  itself, darkened or lightened if necessary).
+- `role`, `model`, `context_length`, `active`, `lector` come since Round 9 from the table `persona` (no
+  longer from the default work), complete even without works; `lector` follows the choice (`LectorChoice`): fixed one
+  persona (default `@lektor`, trial since 2026-11-06); if it is inactive, or with „automatisch“, the active
+  persona with the largest context (on a tie the earlier one; since Round 16a the effective length, since Round 17a on
+  pages and in lists without a network query: what the cache knows, otherwise the setting – only a model call
+  asks the remote side). `work.get` carries `work.lector_choice`
+  (`{mode, handle}`). Since Round 10 the model goes to Eliezer; the context length only serves for shortening in Baruch.
 
-#### Aufträge an Personas (Runde 10)
+#### Tasks for personas (Round 10)
 
-Adressierung immer über `key` (`node` → -32602), `work` fehlt → Vorgabewerk; Text (Frage, Hinweis, Anweisung,
-Nachricht) höchstens 4000 Zeichen; inaktive oder unbekannte Persona → -32602; Fehler des Modells → -32000 mit
-ehrlicher Meldung, gespeichert ist dann nichts. Das Modell wird **ohne** Schreibsperre aufgerufen; geschrieben
-wird danach unter `write_lock` (Beitrag über `Store::add_post`, Vorschlag über `Store::add_proposal`).
+Addressing always by `key` (`node` → -32602), `work` missing → default work; text (question, hint, instruction,
+message) at most 4000 characters; inactive or unknown persona → -32602; error of the model → -32000 with an
+honest message, nothing is stored then. The model is called **without** the write lock; writing
+happens afterwards under `write_lock` (post through `Store::add_post`, proposal through `Store::add_proposal`).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `persona.ask` | `{work?, key, persona, question, rev?, scope?}` | `{post: {id, author, body}, question_post: {id, author, body}, model, truncated, cut, compressed, url, key, work, persona}`; die Frage wird vorher Beitrag des Menschen |
-| `persona.review` | `{work?, key, persona?, rev?, question?, scope?}` | wie `ask` ohne Frage-Beitrag (`question_post: null`); `persona` fehlt → der Lektor |
-| `persona.propose` | `{work?, key, persona?, instruction?, rev?, scope?}` | `{rev, status: "proposed", author, model, truncated, compressed, proposals, url, key, work, basis}` (`basis: {rev, label, proposal}` seit Runde 36: die Fassung, auf der der Vorschlag beruht, Kopfzeile „Grundlage: …“); Überschriftszeile der gezeigten Fassung erzwungen; gleich der aktuellen → -32000 |
-| `persona.chat` | `{work?, key, message, rev?}` | `{posts: [{id, author, body}], errors: [{persona, message}], url, truncated, cut, compressed}` (Runde 23: dazu `done_proposals?`, `done_notes?`, `all_done?`; Zitatzeilen „> …“ rufen niemanden): Beitrag des Menschen, dann je erwähnter aktiver Persona (`@handle`, höchstens drei, ohne Doppelte, nacheinander) ihre Antwort; `compressed` = die erste Komprimierung einer Antwort oder `null` (Runde 15) |
+| `persona.ask` | `{work?, key, persona, question, rev?, scope?}` | `{post: {id, author, body}, question_post: {id, author, body}, model, truncated, cut, compressed, url, key, work, persona}`; the question first becomes a post of the human |
+| `persona.review` | `{work?, key, persona?, rev?, question?, scope?}` | like `ask` without a question post (`question_post: null`); `persona` missing → the lector |
+| `persona.propose` | `{work?, key, persona?, instruction?, rev?, scope?}` | `{rev, status: "proposed", author, model, truncated, compressed, proposals, url, key, work, basis}` (`basis: {rev, label, proposal}` since Round 36: the revision on which the proposal is based, header line „Grundlage: …“); heading line of the shown revision enforced; equal to the current one → -32000 |
+| `persona.chat` | `{work?, key, message, rev?}` | `{posts: [{id, author, body}], errors: [{persona, message}], url, truncated, cut, compressed}` (Round 23: plus `done_proposals?`, `done_notes?`, `all_done?`; quotation lines „> …“ call nobody): post of the human, then for each mentioned active persona (`@handle`, at most three, without duplicates, one after another) its answer; `compressed` = the first compression of an answer or `null` (Round 15) |
 
-`model` ist das tatsächlich antwortende Modell; `truncated: true`, wenn der Kontext gekürzt wurde (der Beitrag
-endet dann mit „(Kontext gekürzt)“). `cut: true`, wenn das Modell an der Längengrenze abbrach (`finish_reason`
-„length“): Der Beitrag endet dann mit „… (Antwort abgeschnitten: Längengrenze erreicht)“; ein so abgeschnittener
-**Vorschlag** wird nicht angelegt (-32000, nichts gespeichert). `max_tokens`: ask 700, review 900, chat 500, propose
-min(4096, Abschnittstokens·1,5 + 200); `temperature` 0,4.
+`model` is the model that actually answered; `truncated: true` if the context was shortened (the post
+then ends with „(Kontext gekürzt)“). `cut: true` if the model stopped at the length limit (`finish_reason`
+„length“): the post then ends with „… (Antwort abgeschnitten: Längengrenze erreicht)“; a **proposal** cut off
+this way is not created (-32000, nothing stored). `max_tokens`: ask 700, review 900, chat 500, propose
+min(4096, section tokens·1.5 + 200); `temperature` 0.4.
 
-**Umfang, ganzes Kapitel und Komprimierung (Runde 15, „lektor“):**
-- Kontext jedes Auftrags: das ganze Kapitel bzw. bei einer Predigt die ganze Predigt im Wortlaut („Kapitelumfeld“,
-  der Abschnitt des Auftrags steht darunter in der gezeigten Fassung), die Befunde der anderen Personas zu Teilen
-  des Kapitels (je Teil die letzten drei) und – wie bisher – Gedächtnis, Chatverlauf und Faktenblöcke.
-- `scope` (optional, bei `persona.ask|review|propose`): `"section"` (Vorgabe; fehlt oder leer) prüft den Abschnitt,
-  `"chapter"` das ganze Kapitel (`max_tokens` ask 900, review 1500). Beim Vorschlag mit `"chapter"` schreibt die
-  Persona je Teil mit Text nacheinander eine neue Fassung; jeder geänderte Teil bekommt genau einen `proposed`
-  (Notiz „Vorschlag von @x (ganzes Kapitel)“), unveränderte und an der Längengrenze abgebrochene fallen weg.
-  `proposals: [{key, rev, label}]` nennt alle, `rev`/`url` zeigen auf den ersten; ohne einen einzigen → -32000.
-  Andere Werte → -32602. `persona.chat` kennt kein `scope` (immer der Abschnitt).
-- Budget: wirksame Kontextlänge laut Modell-Port (Einstellung der Persona, abgeglichen mit der Gegenstelle) −
-  `max_tokens` − 256, Zeichen ≈ Tokens·3. Passt nicht alles, werden zuerst Zusätze gekürzt (Faktenblöcke, Befunde,
-  Gedächtnis, Chat; nur bis auf ein Drittel des Budgets, `truncated: true`, Beitrag mit „(Kontext gekürzt)“).
-  Kapitel und Prüfgegenstand werden nie gekürzt: Passen sie nicht, wird der Prüfgegenstand in überlappende Stücke
-  geteilt (je im Wortlaut geprüft), übrige Teile fasst das Modell vorher nacheinander zusammen (Bezeichnung des
-  Aufrufs „… Zusammenfassung“), was auch so nicht passt, steht nur mit Titel da. Die Befunde der Stücke werden ohne
-  Doppelte zusammengeführt.
-- `compressed`: `null` oder `{message, summarized, chunks}` – `message` beginnt mit „Komprimiert:“, `summarized`
-  nennt die Teile, die die Persona nur als Zusammenfassung sah („1.1 Ausflug“, „Zeichen 1–4000 von Abschnitt …“;
-  ganz ausgelassene mit „(ausgelassen)“), `chunks` die Zahl der Prüfstücke (1 = nicht gestückelt). Der Beitrag endet
-  dann mit dem Absatz `message`, beim Vorschlag steht er in der Notiz (nie im Buchtext). Ein Vorschlag braucht den
-  Abschnitt ganz im Wortlaut; passt er nicht → -32000 („zu lang …; Nichts angelegt“).
-- „Kritisch:“: Fehlt er bei `@lektor`, `@exeget` oder `@nathan` (Frage, Prüfung, Chat), wird einmal je Auftrag
-  nachgefordert (Strom: Ereignis `retry {persona, reason: "fehlendes „Kritisch:“"}`); fehlt er weiter, endet der
-  Beitrag mit „(Hinweis von Baruch: Diese Antwort nennt keinen mit „Kritisch:“ markierten Befund, auch nicht nach
-  einer Nachforderung.)“. Im Vorschlag fallen Zeilen, die mit „Kritisch:“ beginnen, weg; verbotene Einleitungen
-  werden beim Vorschlag nicht geprüft (der erste Satz ist Buchtext).
-- Belege aus SWORD: Bekommt die Persona Belege (Entscheidung in `bible_research`, Einstellung je Persona), steht
-  der Block „Belege aus SWORD“ mit `[S1]…[Sn]` (Art, Modul, Stelle bzw. Stichwort, Lizenzvermerk) vor dem Kapitel;
-  jedes `[Sn]` der Antwort ohne Eintrag bekommt „(unbekannte Quelle)“.
+**Scope, whole chapter and compression (Round 15, „lektor“):**
+- Context of every task: the whole chapter or, for a sermon, the whole sermon in its wording („Kapitelumfeld“,
+  the section of the task stands under it in the shown revision), the findings of the other personas on parts
+  of the chapter (the last three per part) and – as before – memory, chat history and fact blocks.
+- `scope` (optional, with `persona.ask|review|propose`): `"section"` (default; missing or empty) checks the section,
+  `"chapter"` the whole chapter (`max_tokens` ask 900, review 1500). With a proposal with `"chapter"` the
+  persona writes a new revision for each part with text, one after another; every changed part gets exactly one `proposed`
+  (note „Vorschlag von @x (ganzes Kapitel)“), unchanged ones and ones cut off at the length limit are dropped.
+  `proposals: [{key, rev, label}]` names all of them, `rev`/`url` point to the first; without a single one → -32000.
+  Other values → -32602. `persona.chat` knows no `scope` (always the section).
+- Budget: effective context length according to the model port (setting of the persona, aligned with the remote side) −
+  `max_tokens` − 256, characters ≈ tokens·3. If not everything fits, additions are shortened first (fact blocks, findings,
+  memory, chat; only down to a third of the budget, `truncated: true`, post with „(Kontext gekürzt)“).
+  Chapter and object of review are never shortened: if they do not fit, the object of review is split into overlapping pieces
+  (each reviewed in its wording), the model first summarises the remaining parts one after another (label of the
+  call „… Zusammenfassung“), what does not fit even so stands only with its title. The findings of the pieces are merged
+  without duplicates.
+- `compressed`: `null` or `{message, summarized, chunks}` – `message` begins with „Komprimiert:“, `summarized`
+  names the parts the persona saw only as a summary („1.1 Ausflug“, „Zeichen 1–4000 von Abschnitt …“;
+  entirely omitted ones with „(ausgelassen)“), `chunks` the number of review pieces (1 = not split). The post then ends
+  with the paragraph `message`; with a proposal it stands in the note (never in the book text). A proposal needs the
+  section entirely in its wording; if it does not fit → -32000 („zu lang …; Nichts angelegt“).
+- „Kritisch:“: if it is missing with `@lektor`, `@exeget` or `@nathan` (question, review, chat), it is requested again once per task
+  (stream: event `retry {persona, reason: "fehlendes „Kritisch:“"}`); if it is still missing, the
+  post ends with `„(Hinweis von Baruch: Diese Antwort nennt keinen mit „Kritisch:“ markierten Befund, auch nicht nach
+  einer Nachforderung.)“`. In a proposal, lines beginning with „Kritisch:“ are dropped; forbidden openings
+  are not checked with a proposal (the first sentence is book text).
+- Evidence from SWORD: if the persona gets evidence (decision in `bible_research`, setting per persona),
+  the block „Belege aus SWORD“ with `[S1]…[Sn]` (kind, module, reference or keyword, licence note) stands before the chapter;
+  every `[Sn]` of the answer without an entry gets „(unbekannte Quelle)“.
 
-Formulare und Strom (hinter `guard::same_origin`):
-- `POST /assistenten/act` (Formular, ohne JavaScript): `method` ∈ `persona.ask|review|propose|chat`, `work`,
-  `key`, `persona`, `question`/`message`/`instruction`, `rev`, `view`, `lq`, seit Runde 15 `scope`
-  (`section`|`chapter`, Feld aus `fragments/assist_scope.html`, geht unverändert an die RPC) → nach der fertigen
-  Antwort 303 auf die Key-Adresse (`/?work=W&key=K[&rev=R]…`, beim Vorschlag mit dessen `rev`). **Runde 15:** Fehler
-  zeigen statt 422 die Hinweisseite `assist_notice.html` (Status 200, `base.html`, Meldung und Link zurück zum
-  Abschnitt); scheitert im Chat eine Persona, nennt die Seite je Persona eine Zeile („Dein Beitrag und die fertigen
-  Antworten sind gespeichert …“). Trägt das Ergebnis `compressed`, leitet das Formular nicht still weiter, sondern
-  zeigt dieselbe Seite mit dem Toast-Baustein (`fragments/toast.html`) und dem Link „Weiter zum Abschnitt“.
-- `POST /assistenten/stream` (`Content-Type: application/json`, Rumpf `{method, …}` wie RPC) →
-  `text/event-stream` (`Cache-Control: no-store`) mit `start {persona, style}`, `delta {text}`, seit Runde 15
-  `posted {post: {id, author, body}}` (Chat: Beitrag des Absenders ist gespeichert, kommt vor dem ersten `delta`),
-  `retry {persona, reason}` (Antwort wird neu angefordert, z. B. „verbotene Einleitung“; das Gezeigte dieser Persona
-  verwerfen – seit Runde 18b bei gestückelten Aufträgen nur das des laufenden Stücks), `compressed {message,
-  summarized, chunks}` (Kontext gestückelt), seit Runde 18b `piece {persona, index, count}` (das nächste Stück eines
-  gestückelten Auftrags beginnt), dann
-  `done {kind: "post"|"proposal", post?|rev?, posts?, url, truncated, compressed: null|{…}}` bzw. `error {message}`.
-  Trennt der Client, bricht der Modellaufruf ab: beim Einzelauftrag ist nichts gespeichert, im Chat bleiben der
-  Beitrag des Absenders und schon fertige Antworten.
-- `POST /einstellungen/personas/act` neu: `method=persona.set_prompt` (`handle`, `prompt`, `reset=1` = Vorgabe;
-  → `?ok=prompt|vorgabe#persona-<handle>`) und `method=persona.set_lector` (`mode`, `handle`; → `?ok=lektor#lektor`).
+Forms and stream (behind `guard::same_origin`):
+- `POST /assistenten/act` (form, without JavaScript): `method` ∈ `persona.ask|review|propose|chat`, `work`,
+  `key`, `persona`, `question`/`message`/`instruction`, `rev`, `view`, `lq`, since Round 15 `scope`
+  (`section`|`chapter`, field from `fragments/assist_scope.html`, goes unchanged to the RPC) → after the finished
+  answer 303 to the key address (`/?work=W&key=K[&rev=R]…`, with a proposal with its `rev`). **Round 15:** errors
+  show, instead of 422, the notice page `assist_notice.html` (status 200, `base.html`, message and a link back to the
+  section); if a persona fails in the chat, the page names one line per persona („Dein Beitrag und die fertigen
+  Antworten sind gespeichert …“). If the result carries `compressed`, the form does not redirect silently but
+  shows the same page with the toast component (`fragments/toast.html`) and the link „Weiter zum Abschnitt“.
+- `POST /assistenten/stream` (`Content-Type: application/json`, body `{method, …}` as RPC) →
+  `text/event-stream` (`Cache-Control: no-store`) with `start {persona, style}`, `delta {text}`, since Round 15
+  `posted {post: {id, author, body}}` (chat: the sender's post is stored, comes before the first `delta`),
+  `retry {persona, reason}` (the answer is requested again, e.g. „verbotene Einleitung“; discard what was shown of this persona
+  – since Round 18b, with split tasks only that of the running piece), `compressed {message,
+  summarized, chunks}` (context split), since Round 18b `piece {persona, index, count}` (the next piece of a
+  split task begins), then
+  `done {kind: "post"|"proposal", post?|rev?, posts?, url, truncated, compressed: null|{…}}` or `error {message}`.
+  If the client disconnects, the model call is aborted: with a single task nothing is stored, in the chat the
+  sender's post and answers already finished stay.
+- `POST /einstellungen/personas/act` new: `method=persona.set_prompt` (`handle`, `prompt`, `reset=1` = default;
+  → `?ok=prompt|vorgabe#persona-<handle>`) and `method=persona.set_lector` (`mode`, `handle`; → `?ok=lektor#lektor`).
 
-#### persona.chat: RFC, @alle, als Auftrag (Runde 28, chat-auftrag)
+#### persona.chat: RFC, @alle, as a task (Round 28, chat-auftrag)
 
-`persona.chat {work?, key, message, rev?, as_order?}` (`as_order`: `true` bzw. aus Formularen `"1"`/`"on"`, Vorgabe
-`false`) → bisherige Felder und `{rfc, proposals: [{persona, rev, url}], findings: [id], notes: [Text]}`
+`persona.chat {work?, key, message, rev?, as_order?}` (`as_order`: `true` or from forms `"1"`/`"on"`, default
+`false`) → the previous fields and `{rfc, proposals: [{persona, rev, url}], findings: [id], notes: [Text]}`
 (`src/assist/chat.rs`):
 
-- **RFC:** „RFC“ als erstes Wort (Groß-/Kleinschreibung egal, auch „RFC:“) oder die Erwähnung „@alle“ → `rfc: true`;
-  jede aktive Persona antwortet genau einmal (die Grenze von drei Antworten gilt nicht, die Warteschlange der Modelle
-  schon), der Lektor nach Einstellung zuletzt. Er bekommt die Antworten der anderen gerahmt als Daten (`<<<antwort …
-  >>>`, je mit ihren Befunden `[B<id>]`) und den Auftrag, sie in „Jetzt wichtig:“ und „Kann warten:“ zu gewichten,
-  ohne fremde Befunde ungeprüft zu übernehmen; seine Befunde werden Sammelbefunde (`summary_of`). Inaktive Personas
-  antworten nicht.
-- **Schreibauftrag:** Beginnt die Nachricht nach Erwähnungen und „bitte“ mit einem Schreibverb im Imperativ
-  („Schreibe“, „Formuliere“, „Erstelle“, „Überarbeite“, „Kürze“, „Ergänze“ …) oder ist `as_order` gesetzt, schreibt
-  jede erwähnte Persona (mit `as_order` ohne Erwähnung der Lektor) einen **Vorschlag** des Abschnitts (`proposals`,
-  nie übernommen), dazu steht ein kurzer Beitrag der Persona im Chat („Fassung n dieses Abschnitts liegt als Vorschlag
-  bereit …“; den Text schreibt Baruch, kein zweiter Modellaufruf). Löschen und neue Abschnitte bleiben beim Menschen
-  (neue Abschnitte nur über die Gliederung bzw. MCP `outline_add`). Nennen Nachricht oder Vorschlag Befunde mit
-  „[B<id>]“, stellt Baruch für jeden einen Statusvorschlag „übernommen in Fassung n“ (`findings::rpc::propose`,
-  Herkunft die Persona); scheitert das, steht der Grund in `notes`.
-- Sonst wie bisher: je erwähnter aktiver Persona (höchstens drei) eine Antwort.
-- Formular `POST /assistenten/act` mit dem Kästchen `as_order`; nach einer Chat-Nachricht geht die Weiterleitung auf
-  `…#chat-neueste` (neuester Beitrag).
+- **RFC:** „RFC“ as the first word (case does not matter, also „RFC:“) or the mention „@alle“ → `rfc: true`;
+  every active persona answers exactly once (the limit of three answers does not apply, the queue of the models
+  does), the lector by setting last. It gets the answers of the others framed as data (`<<<antwort …
+  >>>`, each with their findings `[B<id>]`) and the task of weighting them into „Jetzt wichtig:“ and „Kann warten:“,
+  without taking over others' findings unchecked; its findings become collective findings (`summary_of`). Inactive personas
+  do not answer.
+- **Writing task:** if the message begins, after mentions and „bitte“, with a writing verb in the imperative
+  („Schreibe“, „Formuliere“, „Erstelle“, „Überarbeite“, „Kürze“, „Ergänze“ …) or `as_order` is set,
+  every mentioned persona (with `as_order` without a mention the lector) writes a **proposal** for the section (`proposals`,
+  never accepted), and a short post of the persona stands in the chat („Fassung n dieses Abschnitts liegt als Vorschlag
+  bereit …“; Baruch writes the text, no second model call). Deleting and new sections stay with the human
+  (new sections only through the outline or MCP `outline_add`). If message or proposal name findings with
+  „[B<id>]“, Baruch makes a status proposal „übernommen in Fassung n“ for each (`findings::rpc::propose`,
+  origin the persona); if that fails, the reason stands in `notes`.
+- Otherwise as before: one answer per mentioned active persona (at most three).
+- Form `POST /assistenten/act` with the checkbox `as_order`; after a chat message the redirect goes to
+  `…#chat-neueste` (newest post).
 
-#### Modell-Backend (Runde 10)
+#### Model backend (Round 10)
 
-Nur Mensch: über `/rpc`, nicht über `POST /act` und nicht über MCP (`crate::models`, vor der Werkwahl).
+Human only: over `/rpc`, not over `POST /act` and not over MCP (`crate::models`, before the choice of work).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `model.list` | `{persona? \| connection?}` | `{models: [Name…], live, fetched: ISO, message, contexts: [{id, context_length}], aliases: {alt: neu}, personas: [{handle, model, active, state: "bekannt"\|"alias"\|"unbekannt", target?}], connection}`; Runde 15b: Liste der Verbindung der Persona bzw. der Verbindung `connection` (id), ohne beides Eliezer; `personas` nur die Personas dieser Verbindung; 60 s je Adresse zwischengespeichert (`live: false`). Antwortet die Gegenstelle nicht und gibt es eine (abgelaufene) Liste: diese mit `live: false` und `message` („… antwortet nicht (…); Liste aus dem abgelaufenen Zwischenspeicher (Stand …)“); sonst → -32000 mit deutschem Satz |
-| `model.status` | `{}` | `{running: Bezeichnung \| null, waiting: Zahl}` – Warteschlangen je Endpunkt (je Adresse eine Anfrage zur Zeit, höchstens acht Wartende), zusammengefasst; Bezeichnung z. B. `"@lektor ask key 17"`, nie Text |
-| `model.probe` | `{model, persona? \| connection?}` | `{ok: true, model, requested, reply (höchstens 200 Zeichen), ms, finish_reason, completion_tokens, at, connection}` bzw. `{ok: false, model, requested, message, ms, at, connection}`; fester Auftrag „Antworte nur mit: OK“, `max_tokens` 16, durch die Warteschlange der Verbindung (ohne Angabe Eliezer); kein Buchtext, darum auch über eine externe Verbindung ohne Freigabe. Das Ergebnis steht in der Datenbank (`model_connection.probe`, überlebt einen Neustart); fehlendes, mehrzeiliges oder über 200 Zeichen langes `model` → -32602 |
-| `model.context` | `{persona}` | `ContextBudget {tokens, reported, warning}` + `{persona, setting}` (Runde 15b): `tokens` = min(Einstellung, gemeldete Länge), ohne Meldung die Einstellung; Ollama meldet die wirksame Länge (`num_ctx` des Modelfiles, sonst die des geladenen Modells aus `/api/ps`, sonst 4096 – nie den Höchstwert des Modells); `warning` z. B. „Einstellung 65536, Eliezer meldet 32768; wirksam sind 32768 Tokens.“; wartet höchstens so lange wie die Modellliste (10 s), Ergebnis 60 s zwischengespeichert; scheitert nie (nur unbekannte Persona → -32602) |
-| `model.connections` | `{}` | `{connections: [{id, name, kind, kind_title, url, external, locality, locality_warning?, account, secret: "hinterlegt"\|"fehlt"\|null, secret_for?, secret_withheld?, probe, check, position, eliezer, personas}], kinds: [{kind, title}]}` – nie ein Schlüssel |
-| `model.connection_set` | `{id?, name, kind: "eliezer"\|"openai"\|"ollama", url, external?: bool}` | wie ein Eintrag von `model.connections`; `external` fehlt → beim Anlegen nach der Adresse (nicht erkennbar lokal → `true`, siehe `models::looks_local`), beim Ändern bleibt `true`, und eine neue nicht erkennbar lokale `url` setzt `true`; `locality_warning` (Satz), wenn eine lokal geführte Verbindung auf eine nicht erkennbar lokale Adresse zeigt; ohne `id` neu (Konto `baruch/model-<id>`, ids nie wiederverwendet), mit `id` ändern (fehlende Felder bleiben). Name 1–80 Zeichen, eindeutig; Adresse wie `connection.set` (http/https, ohne Benutzer und Schlüssel). Bei Eliezer (id 1) geht `url` an die Verbindung `eliezer` (mit deren Bindung), die Art bleibt `eliezer`. Zeigt die Adresse auf ein anderes Ziel (Ursprung), bleibt ein hinterlegter Schlüssel an das alte gebunden und wird nicht gesendet. Nur Mensch |
-| `model.connection_delete` | `{id, confirm: true}` (Runde 23: ohne `confirm: true` -32602) | `{id, deleted: true, personas: [Handle]}`; ihr Schlüssel wird entfernt, ihre Personas nutzen wieder Eliezer (nicht freigegeben); Eliezer selbst → -32000. Nur Mensch |
-| `model.connection_set_secret` | `{id, secret}` | `{id, secret: "hinterlegt"}`; Schlüssel nur im Schlüsselbund, gilt danach für die jetzige Adresse (Eliezer: Konto `eliezer`). Leer, über 4096 Zeichen oder mehrzeilig → -32602. Nur Mensch |
-| `model.connection_delete_secret` | `{id, confirm: true}` (Runde 23: ohne `confirm: true` -32602) | `{id, secret: "fehlt"}`. Nur Mensch |
-| `model.connection_check` | `{id}` | `{ok, message, details: {models, contexts}, at, connection}`, gespeichert in `model_connection.checked`; ein Fehlschlag ist `ok: false`; Schlüssel für ein anderes Ziel → `ok: false` „… gilt für ein anderes Ziel; nicht gesendet“, die Gegenstelle wird nicht gefragt. Eliezer: wie `connection.check {kind: eliezer}` |
+| `model.list` | `{persona? \| connection?}` | `{models: [Name…], live, fetched: ISO, message, contexts: [{id, context_length}], aliases: {alt: neu}, personas: [{handle, model, active, state: "bekannt"\|"alias"\|"unbekannt", target?}], connection}`; Round 15b: list of the connection of the persona or of the connection `connection` (id), without either Eliezer; `personas` only the personas of this connection; cached for 60 s per address (`live: false`). If the remote side does not answer and there is an (expired) list: that one with `live: false` and `message` („… antwortet nicht (…); Liste aus dem abgelaufenen Zwischenspeicher (Stand …)“); otherwise → -32000 with a German sentence |
+| `model.status` | `{}` | `{running: label \| null, waiting: number}` – queues per endpoint (one request at a time per address, at most eight waiting), summarised; label e.g. `"@lektor ask key 17"`, never text |
+| `model.probe` | `{model, persona? \| connection?}` | `{ok: true, model, requested, reply (at most 200 characters), ms, finish_reason, completion_tokens, at, connection}` or `{ok: false, model, requested, message, ms, at, connection}`; fixed task „Antworte nur mit: OK“, `max_tokens` 16, through the queue of the connection (without one, Eliezer); no book text, therefore also over an external connection without permission. The result stands in the database (`model_connection.probe`, survives a restart); missing, multi-line or longer than 200 characters `model` → -32602 |
+| `model.context` | `{persona}` | `ContextBudget {tokens, reported, warning}` + `{persona, setting}` (Round 15b): `tokens` = min(setting, reported length), without a report the setting; Ollama reports the effective length (`num_ctx` of the Modelfile, otherwise that of the loaded model from `/api/ps`, otherwise 4096 – never the maximum of the model); `warning` e.g. „Einstellung 65536, Eliezer meldet 32768; wirksam sind 32768 Tokens.“; waits at most as long as the model list (10 s), result cached for 60 s; never fails (only an unknown persona → -32602) |
+| `model.connections` | `{}` | `{connections: [{id, name, kind, kind_title, url, external, locality, locality_warning?, account, secret: "hinterlegt"\|"fehlt"\|null, secret_for?, secret_withheld?, probe, check, position, eliezer, personas}], kinds: [{kind, title}]}` – never a key |
+| `model.connection_set` | `{id?, name, kind: "eliezer"\|"openai"\|"ollama", url, external?: bool}` | like an entry of `model.connections`; `external` missing → on creation by the address (not recognisably local → `true`, see `models::looks_local`), on change `true` stays, and a new not recognisably local `url` sets `true`; `locality_warning` (sentence) if a connection kept as local points to a not recognisably local address; without `id` new (account `baruch/model-<id>`, ids never reused), with `id` change (missing fields stay). Name 1–80 characters, unique; address like `connection.set` (http/https, without user and key). For Eliezer (id 1) `url` goes to the connection `eliezer` (with its binding), the kind stays `eliezer`. If the address points to another target (origin), a stored key stays bound to the old one and is not sent. Human only |
+| `model.connection_delete` | `{id, confirm: true}` (Round 23: without `confirm: true` -32602) | `{id, deleted: true, personas: [Handle]}`; its key is removed, its personas use Eliezer again (not allowed); Eliezer itself → -32000. Human only |
+| `model.connection_set_secret` | `{id, secret}` | `{id, secret: "hinterlegt"}`; key only in the keyring, applies afterwards to the current address (Eliezer: account `eliezer`). Empty, above 4096 characters or multi-line → -32602. Human only |
+| `model.connection_delete_secret` | `{id, confirm: true}` (Round 23: without `confirm: true` -32602) | `{id, secret: "fehlt"}`. Human only |
+| `model.connection_check` | `{id}` | `{ok, message, details: {models, contexts}, at, connection}`, stored in `model_connection.checked`; a failure is `ok: false`; key for another target → `ok: false` „… gilt für ein anderes Ziel; nicht gesendet“, the remote side is not asked. Eliezer: like `connection.check {kind: eliezer}` |
 
-Alte Ollama-Namen werden vor dem Senden aufgelöst (`llama3.2:3b` → `llama-3.2-3b-instruct-q4-k-m`, `qwen3:4b` →
-`qwen3-4b-q4-k-m`; nur bei Verbindungen der Art Eliezer). Baruch fordert nie eine Kontextlänge an und ruft nie
+Old Ollama names are resolved before sending (`llama3.2:3b` → `llama-3.2-3b-instruct-q4-k-m`, `qwen3:4b` →
+`qwen3-4b-q4-k-m`; only for connections of the kind Eliezer). Baruch never requests a context length and never calls
 `/api/v1/models/load|unload|estimate`.
 
-**Verbindung je Persona (Runde 15b):** Ein Auftrag einer Persona (`persona.*`, `/assistenten/*`, MCP `ask_persona`/
-`chat`) geht über ihre Verbindung. Ist die Verbindung extern und die Persona nicht freigegeben, lehnt Baruch mit
--32000 „Die Verbindung „…“ ist extern; für @… ist sie nicht freigegeben (Einstellungen → Assistenten). Es wurde
-nichts gesendet.“ ab – geprüft in `EliezerPort::chat`, also für jeden Modellaufruf der Personas. Formulare ohne
-JavaScript: `POST /einstellungen/modelle/act` mit `action=save` (ohne `id` anlegen: `name`, `kind`, `url`,
-`external=1|0|auto` – `auto`, die Vorgabe beim Anlegen, nach der Adresse; das Kästchen beim Ändern: ohne Haken
-lokal), `secret` (`id`, `secret`), `delete_secret` und `delete` (`id`, `confirm=1`), `check` und `probe`
-(`id`, `model`) → 303 `/einstellungen/verbindungen?ok=modell_…#modell-<id>` bzw. `?modellfehler=<code>#modelle`.
+**Connection per persona (Round 15b):** a task of a persona (`persona.*`, `/assistenten/*`, MCP `ask_persona`/
+`chat`) goes over its connection. If the connection is external and the persona is not allowed, Baruch refuses with
+-32000 `„Die Verbindung „…“ ist extern; für @… ist sie nicht freigegeben (Einstellungen → Assistenten). Es wurde
+nichts gesendet.“` – checked in `EliezerPort::chat`, so for every model call of the personas. Forms without
+JavaScript: `POST /einstellungen/modelle/act` with `action=save` (create without `id`: `name`, `kind`, `url`,
+`external=1|0|auto` – `auto`, the default on creation, by the address; the checkbox on change: unticked
+local), `secret` (`id`, `secret`), `delete_secret` and `delete` (`id`, `confirm=1`), `check` and `probe`
+(`id`, `model`) → 303 `/einstellungen/verbindungen?ok=modell_…#modell-<id>` or `?modellfehler=<code>#modelle`.
 
-#### Bibelstellen (Runde 10)
+#### Bible references (Round 10)
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `scripture.check` | `{text, work?, module?}` | `{refs: [{input, span: [a, b], normalized, book, book_id, status, message, wording, wording_code, quote, bible_text, partial, diff, diff_line}], truncated, source, bible}`; `status` ∈ `valid\|unknown_book\|no_such_chapter\|no_such_verse\|malformed`, `message` deutsch mit Maximum; ist der ganze einzeilige Text eine Angabe, wird streng gelesen, sonst im Fließtext gesucht; höchstens 200 000 Zeichen (sonst -32602), höchstens 200 Stellen (`truncated`); ohne `text` → -32602. **Wortlaut:** mit der Bibel des Werks (`work`, fehlt → Vorgabewerk) bzw. dem Modul `module` je Stelle `wording_code` ∈ `match` („Wortlaut stimmt“, `partial` bei Teilzitat), `differs` („Wortlaut weicht ab“, `diff` = `[{op: same\|bible\|quote, text}]`, `diff_line` mit `[−…]`/`[+…]`), `no_quote` („kein Zitat gefunden“), `missing_verse`, `versification_mismatch`, `invalid_ref`, `module_error`; `bible_text` = Text der Bibel (höchstens 4000 Zeichen), `quote` = Zitat beim Verweis. Ohne Bibel `wording` = `"ungeprüft"`, `wording_code` = `unchecked`, `bible` = `null`. Nur lesend |
+| `scripture.check` | `{text, work?, module?}` | `{refs: [{input, span: [a, b], normalized, book, book_id, status, message, wording, wording_code, quote, bible_text, partial, diff, diff_line}], truncated, source, bible}`; `status` ∈ `valid\|unknown_book\|no_such_chapter\|no_such_verse\|malformed`, `message` German with the maximum; if the whole single-line text is a reference, it is read strictly, otherwise searched for in running text; at most 200 000 characters (otherwise -32602), at most 200 references (`truncated`); without `text` → -32602. **Wording:** with the Bible of the work (`work`, missing → default work) or the module `module`, per reference `wording_code` ∈ `match` („Wortlaut stimmt“, `partial` for a partial quotation), `differs` („Wortlaut weicht ab“, `diff` = `[{op: same\|bible\|quote, text}]`, `diff_line` with `[−…]`/`[+…]`), `no_quote` („kein Zitat gefunden“), `missing_verse`, `versification_mismatch`, `invalid_ref`, `module_error`; `bible_text` = text of the Bible (at most 4000 characters), `quote` = quotation at the reference. Without a Bible `wording` = `"ungeprüft"`, `wording_code` = `unchecked`, `bible` = `null`. Read only |
 
-**Verszählungen umrechnen (Runde 17a).** Nur lesend, ohne Werk, auch über `POST /act`:
+**Converting versifications (Round 17a).** Read only, without a work, also over `POST /act`:
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `scripture.map` | `{ref, from? = "KJV", to? = "German"}` | `{from, to, refs: [{input, normalized_from, status, target, verses: [{book, chapter, verse}], rules, message}], versifications: [Namen]}`; `ref` 1–500 Zeichen, mit `baruch_scripture::parse` gelesen (mehrere mit „;“, Buchnamen deutsch oder OSIS) und **gegen `from`** geprüft (nicht gegen die deutsche Zählung): „Joel 3,21“ ist in KJV gültig, in German nicht. `status` ∈ `same` (gleiche Verse), `moved` (andere Verse nach einer Regel, `rules` nennt sie), `unmapped` (keine Regel deckt die Abweichung, `message` beginnt mit „Versifikation passt nicht: “ – nie geraten), `invalid` (Buch unbekannt oder Stelle gibt es in `from` nicht; `message` nennt den Grund). `target` = Verse in `to` in deutscher Schreibweise („Joel 3,1–5“, Läufe mit „; “), sonst `null`; `verses` einzeln (Buch als OSIS-Kürzel), höchstens 1000 je Stelle (dann „– gekürzt“ in `message`). Eine Stelle „ganzes Kapitel“ lässt Psalmüberschriften aus, die die Zielzählung nicht als Vers zählt (Regel in `rules`). Zählungen: German, Calvin, Catholic, Catholic2, DarbyFr, KJV, KJVA, Leningrad, Luther, LXX, MT, NRSV, NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg (Groß-/Kleinschreibung egal); unbekannte Zählung → -32602 mit dieser Liste; `ref` fehlt oder zu lang → -32602. Regeltabelle `crates/baruch-scripture/data/versification-map.tsv` (Herkunft im Kopf), siehe `docs/Architektur.md` „Runde 17a“ |
-| `scripture.versifications` | `{}` | `{versifications: [{name, books, chapters, verses}]}` – German zuerst, dann alphabetisch; nur die 66 Bücher der Stellenprüfung (MT und Leningrad: 39, ohne Neues Testament) |
+| `scripture.map` | `{ref, from? = "KJV", to? = "German"}` | `{from, to, refs: [{input, normalized_from, status, target, verses: [{book, chapter, verse}], rules, message}], versifications: [Namen]}`; `ref` 1–500 characters, read with `baruch_scripture::parse` (several with „;“, book names German or OSIS) and checked **against `from`** (not against the German versification): „Joel 3,21“ is valid in KJV, not in German. `status` ∈ `same` (same verses), `moved` (other verses by a rule, `rules` names it), `unmapped` (no rule covers the difference, `message` begins with „Versifikation passt nicht: “ – never guessed), `invalid` (book unknown or the reference does not exist in `from`; `message` names the reason). `target` = verses in `to` in German notation („Joel 3,1–5“, runs with „; “), otherwise `null`; `verses` individually (book as OSIS abbreviation), at most 1000 per reference (then „– gekürzt“ in `message`). A reference „ganzes Kapitel“ leaves out psalm titles that the target versification does not count as a verse (rule in `rules`). Versifications: German, Calvin, Catholic, Catholic2, DarbyFr, KJV, KJVA, Leningrad, Luther, LXX, MT, NRSV, NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg (case does not matter); unknown versification → -32602 with this list; `ref` missing or too long → -32602. Rule table `crates/baruch-scripture/data/versification-map.tsv` (origin in its head), see `docs/Architektur.md`, "Round 17a" |
+| `scripture.versifications` | `{}` | `{versifications: [{name, books, chapters, verses}]}` – German first, then alphabetical; only the 66 books of the reference check (MT and Leningrad: 39, without the New Testament) |
 
-#### Bibeln (SWORD, 2026-11-06)
+#### Bibles (SWORD, 2026-11-06)
 
-Quelle `src/bibles.rs`, Leser Crate `baruch-sword`. `work?` wie überall (fehlt → Vorgabewerk); `module?` ist ein
-Modulname aus `bible.modules` (fehlt → die Bibel des Werks). Jede Antwort nennt in `bible` Modul, Versifikation
-und Lizenzvermerk: `{module, description, versification, license (DistributionLicense; Copyright bzw. „keine
+Source `src/bibles.rs`, reader crate `baruch-sword`. `work?` as everywhere (missing → default work); `module?` is a
+module name from `bible.modules` (missing → the Bible of the work). Every answer names in `bible` module, versification
+and licence note: `{module, description, versification, license (DistributionLicense; Copyright or „keine
 Lizenzangabe in der conf“), distribution_license, copyright, lang, version, driver, dir, supported, problem, cipher,
-notice}`. Seit Runde 17c: `cipher` ∈ `none` (nicht verschlüsselt) | `locked` (verschlüsselt, Schlüssel fehlt) |
-`unlocked` (Schlüssel im Schlüsselbund oder schon in der conf), `notice` = `license` (Lizenzvermerk unter dem
-Namen, den auch Kommentare und Lexika tragen). Der Schlüssel selbst steht nie in einer Antwort.
+notice}`. Since Round 17c: `cipher` ∈ `none` (not encrypted) | `locked` (encrypted, key missing) |
+`unlocked` (key in the keyring or already in the conf), `notice` = `license` (licence note under the
+name that commentaries and lexicons carry as well). The key itself never stands in an answer.
 
-**Zählung des Moduls (R17c):** Stellen sind immer deutsch gezählt (Schlachter 1951). Liest Baruch ein Modul in
-anderer Verszählung (KJV, Luther, Vulgata, Synodal …, alle Zählungen von `sword-modules`), bildet
-`bibles::read_passage` die Stelle über `baruch_scripture::versification::mapping::map_range` auf die Zählung des
-Moduls ab und liest dort (höchstens 400 Verse; `truncated` = die Stelle hat mehr). Was sich nicht abbilden lässt,
-bleibt `versification_mismatch` mit Grund („Versifikation passt nicht: …“ mit beiden Zählungen); nie geraten.
-`scripture.check`, `bible.check` und MCP `scripture_check` tragen je Stelle **additiv** `quote_span: [s, e] | null`
-(Byte-Bereich des Zitatinhalts ohne Anführungszeichen im geprüften Text) und `module_ref: string | null` (gelesene
-Stelle in der Zählung des Moduls, z. B. „Mal 4,1–6 (KJV)“, nur wenn sie von der deutschen abweicht); alle
-bisherigen Felder bleiben. Zitate kommen nur aus `crate::quotes::quote_spans` (Anführungszeichen, verschachtelt,
-`#quote[…]`, Blockzitate).
+**Versification of the module (R17c):** references are always counted in German (Schlachter 1951). If Baruch reads a module in
+another versification (KJV, Luther, Vulgata, Synodal …, all versifications of `sword-modules`),
+`bibles::read_passage` maps the reference through `baruch_scripture::versification::mapping::map_range` onto the versification of the
+module and reads there (at most 400 verses; `truncated` = the reference has more). What cannot be mapped
+stays `versification_mismatch` with a reason („Versifikation passt nicht: …“ with both versifications); never guessed.
+`scripture.check`, `bible.check` and MCP `scripture_check` carry per reference **additively** `quote_span: [s, e] | null`
+(byte range of the quotation content without quotation marks in the checked text) and `module_ref: string | null` (reference read
+in the versification of the module, e.g. „Mal 4,1–6 (KJV)“, only if it differs from the German one); all
+previous fields stay. Quotations come only from `crate::quotes::quote_spans` (quotation marks, nested,
+`#quote[…]`, block quotations).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `bible.modules` | `{work?}` | `{dirs, default_dirs, modules: [bible …], problems, work, work_bible, work_sources: {commentaries, lexicons}}`; `default_dirs`: keine eigene Liste gespeichert (dann `$SWORD_PATH`, `~/.sword`, `/usr/share/sword`); `problems`: fehlende Ordner, unlesbare confs, doppelte Namen. Seit Runde 15 je Modul `kind`: `bible` (zText/zText4/RawText/RawText4), `commentary` (RawCom/RawCom4/zCom/zCom4) oder `lexicon` (RawLD/RawLD4/zLD); fehlt `kind`, gilt `bible`. Nicht lesbare (HREFCom, RawFiles, unbekannte Kompression, unbekannte Verszählung „Verszählung „X“ kennt Baruch nicht“) stehen mit `supported: false` und Grund. Seit Runde 17c je Modul `cipher` und `key_stored` (Schlüssel im Schlüsselbund hinterlegt ja/nein); verschlüsselte Module sind `supported: true` und ohne Schlüssel `cipher: locked`; Kompression ZIP, LZSS, BZIP2 und XZ |
-| `bible.set_dirs` | `{dirs: [Pfad] \| null}` | wie `bible.modules`; je Eintrag ein absoluter Pfad oder `~/…`, getrimmt, leere fallen weg, Doppel einmal, höchstens 20 zu je 1000 Zeichen, sonst -32602; `null` = zurück auf die Vorgaben. Nur Mensch (nicht über MCP) |
-| `bible.set_work` | `{work?, module: Name \| null}` | wie `bible.modules`; unbekanntes oder nicht lesbares Modul → -32602; `null`/leer = keine Bibel. Nur Mensch (nicht über MCP) |
-| `bible.lookup` | `{ref, work?, module?}` | `{bible, refs: [{input, normalized, book, book_id, status, message, verses: [{chapter, verse, text \| null}], missing, truncated, module_ref, rules}]}`; `ref` wie `scripture.check` streng gelesen (höchstens 500 Zeichen, 20 Angaben), seit R17c über `read_passage` gelesen: `verses` in der Zählung des Moduls (höchstens 400; `truncated` aus `PassageText`, genau 400 Verse = nicht gekürzt), `module_ref` wie oben, `rules` = angewandte Regeln der Abbildung, nicht Abbildbares → `status: versification_mismatch` mit Grund; `text: null` = Vers fehlt im Modul; Klartext ohne Fußnoten, Querverweise, Überschriften (kanonische bleiben). Ohne Bibel → -32000 „Keine Bibel gewählt …“; verschlüsselt ohne Schlüssel → -32000 mit „… ist verschlüsselt; der Schlüssel fehlt …“ |
-| `bible.search` | `{query, work?, module?, limit? = 50}` | `{bible, query, hits: [{ref, book_id, chapter, verse, text}], truncated, searched_verses, ms}`; lineare Suche nach der Wortfolge (normalisiert wie der Wortlautvergleich), `limit` 1–200, Zeitgrenze 5 s (`truncated`); `query` 1–200 Zeichen, sonst -32602 |
-| `bible.check` | `{work?, key}` | wie `scripture.check` für die aktuelle Fassung des Abschnitts `key`, dazu `work`, `key`, `title`. Nur lesend |
-| `bible.marks` | `{work?, key, rev?}` | Prüfanzeige (R17c, nur lesend, kein MCP-Werkzeug – MCP nimmt `scripture_check`): `{work, key, rev, title, bible, notice, marks: [{ref, ref_span: [s, e], quote_span: [s, e] \| null, code, state, label, quote, bible_text, module_ref, diff_line}], counts: {stimmt, weicht_ab, andere}}`. Geprüft wird die gezeigte Fassung `rev` (Nummer der Fassung, Vorgabe die aktuelle); Spans sind Byte-Bereiche in **deren** Text. `state` ∈ `stimmt` (`match`), `weicht_ab` (`differs`), `ohne_zitat` (`no_quote`), `ungeprueft` (`unchecked`), `fehler` (übrige Codes); `notice` = Lizenzvermerk der conf. Unbekannte Fassung → -32602 |
-| `bible.cipher_key_set` | `{module, key}` | `{module, cipher: "unlocked"}` (R17c). Schlüssel eines **verschlüsselten** Moduls (Bibel, Kommentar oder Lexikon) vom Herausgeber: 1–255 Zeichen in einer Zeile (sonst -32602), unbekanntes oder unverschlüsseltes Modul → -32602. Baruch liest vorher den ersten vorhandenen Eintrag probe (entschlüsseln, entpacken, gültiges UTF-8); passt er nicht: -32000 „Schlüssel passt nicht zum Modul; nichts gespeichert.“ Gespeichert nur im Schlüsselbund (Dienst `baruch`, Konto `sword-cipher:<modulname klein>`), nie in Datenbank, conf, Antworten, Meldungen oder Protokollen. Nur Mensch (nicht `/act`, nicht MCP) |
-| `bible.cipher_key_delete` | `{module, confirm: true}` | `{module, cipher}` (`locked`, bzw. `unlocked`, wenn die conf selbst einen Schlüssel trägt); ohne `confirm: true` → -32602. Nur Mensch (nicht `/act`, nicht MCP) |
-| `bible.work_sources` | `{work}` | `{work, bible, commentaries: [Name], lexicons: [Name]}` (Runde 15) – Bibel, Kommentare und Lexika des Werks |
-| `bible.set_work_sources` | `{work, commentaries: [Name], lexicons: [Name]}` | wie `bible.work_sources`; nur gefundene, lesbare Module der richtigen Art (Schreibweise wie in der conf), Doppel und leere fallen weg, höchstens 20 je Art; sonst -32602. Tabelle `work_sword_source` (Migration 0037). Nur Mensch (nicht `/act`, nicht MCP). Formular `POST /einstellungen/werk/bibeln` mit `method=bible.set_work_sources`, `work`, wiederholten Feldern `commentary` und `lexicon` → 303 `/einstellungen/werk?work=W&ok=kommentare#kommentare` bzw. `&kommentarfehler=1` |
-| `commentary.lookup` | `{ref, work?, module?}` (Runde 23: Stelle in deutscher Zählung, in die Zählung des Kommentars abgebildet) | `{ref, work, commentaries: [{module, description, versification, notice, entries: [{ref, text, truncated}], problem?}]}` (Runde 15) – je gewähltem Kommentar (bzw. `module`) die Einträge zur Stelle in der **Verszählung des Kommentars**; ein Eintrag für mehrere Verse erscheint einmal mit Bereich („Ps 139,23–24“). Klartext ohne Auszeichnung, je Eintrag höchstens 4000 Zeichen (`truncated`); `problem`: Modul fehlt/nicht lesbar, Stelle ungültig, kein Eintrag. `ref` 1–500 Zeichen |
-| `commentary.search` | `{query, work?, module?, limit? = 50}` | `{query, work, commentaries: [{module, …, hits: [{ref, text, truncated}], truncated, problem?}]}`; lineare Suche (wie `bible.search`), Zeitgrenze 5 s gesamt |
-| `lexicon.lookup` | `{key, work?, module?}` | `{module, key, found, text, notice, truncated}` – erstes gewähltes (bzw. genanntes) lesbares Lexikon; Groß-/Kleinschreibung nach der conf, `@LINK` gefolgt, Strong-Nummern wie `G25`; `found: false` = kein solches Stichwort. Ohne Lexikon → -32000 |
-| `lexicon.keys` | `{work?, module?, prefix?, limit? = 100}` | `{module, prefix, keys, truncated, total, notice}` – Stichwörter wie im Modul, sortiert, mit Präfix, höchstens 500 |
-| `lexicon.search` | `{query, work?, module?, limit? = 50}` | `{module, query, hits: [{key, excerpt, in_key}], truncated, notice}` – Stichworttreffer zuerst, dann Treffer im Artikeltext; Zeitgrenze 5 s |
+| `bible.modules` | `{work?}` | `{dirs, default_dirs, modules: [bible …], problems, work, work_bible, work_sources: {commentaries, lexicons}}`; `default_dirs`: no own list stored (then `$SWORD_PATH`, `~/.sword`, `/usr/share/sword`); `problems`: missing folders, unreadable confs, duplicate names. Since Round 15 per module `kind`: `bible` (zText/zText4/RawText/RawText4), `commentary` (RawCom/RawCom4/zCom/zCom4) or `lexicon` (RawLD/RawLD4/zLD); if `kind` is missing, `bible` applies. Unreadable ones (HREFCom, RawFiles, unknown compression, unknown versification `„Verszählung „X“ kennt Baruch nicht“`) stand with `supported: false` and a reason. Since Round 17c per module `cipher` and `key_stored` (key stored in the keyring yes/no); encrypted modules are `supported: true` and without a key `cipher: locked`; compression ZIP, LZSS, BZIP2 and XZ |
+| `bible.set_dirs` | `{dirs: [Pfad] \| null}` | like `bible.modules`; each entry an absolute path or `~/…`, trimmed, empty ones dropped, duplicates once, at most 20 of 1000 characters each, otherwise -32602; `null` = back to the defaults. Human only (not over MCP) |
+| `bible.set_work` | `{work?, module: Name \| null}` | like `bible.modules`; unknown or unreadable module → -32602; `null`/empty = no Bible. Human only (not over MCP) |
+| `bible.lookup` | `{ref, work?, module?}` | `{bible, refs: [{input, normalized, book, book_id, status, message, verses: [{chapter, verse, text \| null}], missing, truncated, module_ref, rules}]}`; `ref` read strictly like `scripture.check` (at most 500 characters, 20 references), since R17c read through `read_passage`: `verses` in the versification of the module (at most 400; `truncated` from `PassageText`, exactly 400 verses = not shortened), `module_ref` as above, `rules` = applied rules of the mapping, not mappable → `status: versification_mismatch` with a reason; `text: null` = verse missing in the module; plain text without footnotes, cross-references, headings (canonical ones stay). Without a Bible → -32000 „Keine Bibel gewählt …“; encrypted without a key → -32000 with „… ist verschlüsselt; der Schlüssel fehlt …“ |
+| `bible.search` | `{query, work?, module?, limit? = 50}` | `{bible, query, hits: [{ref, book_id, chapter, verse, text}], truncated, searched_verses, ms}`; linear search for the word sequence (normalised like the wording comparison), `limit` 1–200, time limit 5 s (`truncated`); `query` 1–200 characters, otherwise -32602 |
+| `bible.check` | `{work?, key}` | like `scripture.check` for the current revision of the section `key`, plus `work`, `key`, `title`. Read only |
+| `bible.marks` | `{work?, key, rev?}` | check display (R17c, read only, no MCP tool – MCP takes `scripture_check`): `{work, key, rev, title, bible, notice, marks: [{ref, ref_span: [s, e], quote_span: [s, e] \| null, code, state, label, quote, bible_text, module_ref, diff_line}], counts: {stimmt, weicht_ab, andere}}`. The shown revision `rev` is checked (number of the revision, default the current one); spans are byte ranges in **its** text. `state` ∈ `stimmt` (`match`), `weicht_ab` (`differs`), `ohne_zitat` (`no_quote`), `ungeprueft` (`unchecked`), `fehler` (other codes); `notice` = licence note of the conf. Unknown revision → -32602 |
+| `bible.cipher_key_set` | `{module, key}` | `{module, cipher: "unlocked"}` (R17c). Key of an **encrypted** module (Bible, commentary or lexicon) from the publisher: 1–255 characters in one line (otherwise -32602), unknown or unencrypted module → -32602. Baruch first reads the first existing entry as a probe (decrypt, unpack, valid UTF-8); if it does not fit: -32000 „Schlüssel passt nicht zum Modul; nichts gespeichert.“ Stored only in the keyring (service `baruch`, account `sword-cipher:<modulname klein>`), never in the database, conf, answers, messages or logs. Human only (not `/act`, not MCP) |
+| `bible.cipher_key_delete` | `{module, confirm: true}` | `{module, cipher}` (`locked`, or `unlocked` if the conf itself carries a key); without `confirm: true` → -32602. Human only (not `/act`, not MCP) |
+| `bible.work_sources` | `{work}` | `{work, bible, commentaries: [Name], lexicons: [Name]}` (Round 15) – Bible, commentaries and lexicons of the work |
+| `bible.set_work_sources` | `{work, commentaries: [Name], lexicons: [Name]}` | like `bible.work_sources`; only found, readable modules of the right kind (spelling as in the conf), duplicates and empty ones dropped, at most 20 per kind; otherwise -32602. Table `work_sword_source` (migration 0037). Human only (not `/act`, not MCP). Form `POST /einstellungen/werk/bibeln` with `method=bible.set_work_sources`, `work`, repeated fields `commentary` and `lexicon` → 303 `/einstellungen/werk?work=W&ok=kommentare#kommentare` or `&kommentarfehler=1` |
+| `commentary.lookup` | `{ref, work?, module?}` (Round 23: reference in German versification, mapped into the versification of the commentary) | `{ref, work, commentaries: [{module, description, versification, notice, entries: [{ref, text, truncated}], problem?}]}` (Round 15) – for each chosen commentary (or `module`) the entries for the reference in the **versification of the commentary**; an entry for several verses appears once with a range („Ps 139,23–24“). Plain text without markup, at most 4000 characters per entry (`truncated`); `problem`: module missing/unreadable, reference invalid, no entry. `ref` 1–500 characters |
+| `commentary.search` | `{query, work?, module?, limit? = 50}` | `{query, work, commentaries: [{module, …, hits: [{ref, text, truncated}], truncated, problem?}]}`; linear search (like `bible.search`), time limit 5 s in total |
+| `lexicon.lookup` | `{key, work?, module?}` | `{module, key, found, text, notice, truncated}` – first chosen (or named) readable lexicon; case according to the conf, `@LINK` followed, Strong numbers like `G25`; `found: false` = no such keyword. Without a lexicon → -32000 |
+| `lexicon.keys` | `{work?, module?, prefix?, limit? = 100}` | `{module, prefix, keys, truncated, total, notice}` – keywords as in the module, sorted, with prefix, at most 500 |
+| `lexicon.search` | `{query, work?, module?, limit? = 50}` | `{module, query, hits: [{key, excerpt, in_key}], truncated, notice}` – keyword hits first, then hits in the article text; time limit 5 s |
 
-Formulare ohne JavaScript auf Einstellungen → Quellen: `POST /einstellungen/quellen/act` mit `method=bible.set_dirs`
-(`dirs` je Zeile ein Ordner, `reset=1` = Vorgabe; Codes `ok=bibel_ordner|bibel_vorgabe`, `fehler=bibel_ordner`)
-bzw. `method=bible.set_work` (`work`, `module`, leer = keine; `ok=bibel_gewaehlt|bibel_keine`, `fehler=bibel_modul`),
-seit R17c `method=bible.cipher_key_set` (`module`, `key` als Passwortfeld; `ok=bibel_schluessel`,
-`fehler=bibel_schluessel_falsch|bibel_schluessel|schluesselbund`) und `method=bible.cipher_key_delete` (`module`,
-Pflicht-Kästchen `confirm=1`; `ok=bibel_schluessel_entfernt`, `fehler=bestaetigen`), 303 zurück auf
-`/einstellungen/quellen?…#bibeln`. Seite ohne JavaScript `GET /werke/{id}/pruefung?key=K[&rev=N]`: dieselben Daten
-wie `bible.marks` als Liste (`src/scripture_check.rs`).
+Forms without JavaScript on Settings → Sources: `POST /einstellungen/quellen/act` with `method=bible.set_dirs`
+(`dirs` one folder per line, `reset=1` = default; codes `ok=bibel_ordner|bibel_vorgabe`, `fehler=bibel_ordner`)
+or `method=bible.set_work` (`work`, `module`, empty = none; `ok=bibel_gewaehlt|bibel_keine`, `fehler=bibel_modul`),
+since R17c `method=bible.cipher_key_set` (`module`, `key` as a password field; `ok=bibel_schluessel`,
+`fehler=bibel_schluessel_falsch|bibel_schluessel|schluesselbund`) and `method=bible.cipher_key_delete` (`module`,
+required checkbox `confirm=1`; `ok=bibel_schluessel_entfernt`, `fehler=bestaetigen`), 303 back to
+`/einstellungen/quellen?…#bibeln`. Page without JavaScript `GET /werke/{id}/pruefung?key=K[&rev=N]`: the same data
+as `bible.marks` as a list (`src/scripture_check.rs`).
 
-#### MCP-Tokens (Runde 10)
+#### MCP tokens (Round 10)
 
-Nur Mensch: über `/rpc` und das Formular der Seite „MCP-Zugang“, nicht über `POST /act` und nicht über MCP.
+Human only: over `/rpc` and the form of the page „MCP-Zugang“, not over `POST /act` and not over MCP.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `mcp_token.list` | `{}` | `{tokens: [McpToken]}`; `McpToken = {id, name, prefix, created, last_used, revoked}` (nie Hash oder Klartext) |
-| `mcp_token.create` | `{name}` | `{token: McpToken, secret}` – Runde 23: auch -32000, wenn der Handle (`@mcp:<handle>`) vergeben, der eines widerrufenen Tokens oder mit `lokal-` reserviert ist (siehe „Runde 23 – Härtung“); `secret` ist der Klartext (`baruch_…`), **nur in dieser Antwort**; Name leer, über 64 Zeichen, mit Steuerzeichen oder doppelt unter gültigen → -32000 |
-| `mcp_token.revoke` | `{id, confirm: true}` | `{token}`; ohne `confirm: true` → -32602; unbekannt → -32000; idempotent |
+| `mcp_token.list` | `{}` | `{tokens: [McpToken]}`; `McpToken = {id, name, prefix, created, last_used, revoked}` (never hash or plain text) |
+| `mcp_token.create` | `{name}` | `{token: McpToken, secret}` – Round 23: also -32000 if the handle (`@mcp:<handle>`) is taken, is that of a revoked token or is reserved with `lokal-` (see "Round 23 – Hardening"); `secret` is the plain text (`baruch_…`), **only in this answer**; name empty, above 64 characters, with control characters or duplicate among valid ones → -32000 |
+| `mcp_token.revoke` | `{id, confirm: true}` | `{token}`; without `confirm: true` → -32602; unknown → -32000; idempotent |
 
-Formular `POST /einstellungen/mcp/act`: Erzeugen (`name`) antwortet 200 direkt mit der Seite und dem Klartext
-genau einmal (`Cache-Control: no-store`, nie in Adresse, Weiterleitung, Cookie oder Meldung); Widerrufen (`id`,
-`confirm=1`, der Server prüft das Kästchen) → 303 `?ok=widerrufen`.
-- Fehler: unbekannte Persona („Persona „@x“ gibt es nicht.“), ungültige Farbe („Farbe als #rrggbb
-  angeben.“), fehlendes `handle` oder `color` → -32602. Kein Commit im Spiegel.
+Form `POST /einstellungen/mcp/act`: creating (`name`) answers 200 directly with the page and the plain text
+exactly once (`Cache-Control: no-store`, never in an address, redirect, cookie or message); revoking (`id`,
+`confirm=1`, the server checks the checkbox) → 303 `?ok=widerrufen`.
+- Errors: unknown persona (`„Persona „@x“ gibt es nicht.“`), invalid colour („Farbe als #rrggbb
+  angeben.“), missing `handle` or `color` → -32602. No commit in the mirror.
 
-### Websuche für @belege (Runde 13)
+### Web search for @belege (Round 13)
 
-Nur über `POST /rpc` (Mensch), nicht über `POST /act`, **kein MCP-Werkzeug** (Begründung in Architektur.md).
-Vor der Werkwahl in `rpc::call` (`crate::websearch`).
+Only over `POST /rpc` (human), not over `POST /act`, **no MCP tool** (reason in Architektur.md).
+Before the choice of work in `rpc::call` (`crate::websearch`).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `websearch.get` | `{}` | `{on, configured, preferred}` – `on` = Schalter (`store_meta` `websearch_belege` = `'1'`, fehlt = aus), `configured` = für MultiGPT ist eine Adresse eingetragen, `preferred` = Zahl der bevorzugten Quellen |
-| `websearch.set` | `{on: bool}` | `{on}`; kein Wahrheitswert → -32602 |
-| `websearch.evidence` | `{post}` | `{post, evidence: [{id, label, url, title, preferred, accessed, quote, verdict, library_title, post, work, key, persona, created}]}` – Belege eines Beitrags in der Reihenfolge des Anlegens; `label` „W1“ …, `accessed` UTC-Zeitpunkt, `verdict` ∈ `belegt` \| `nicht_belegt` \| `nicht_zitiert`, `library_title` = übernommener Titel oder `null`; ohne Belege `[]` |
-| `websearch.adopt` | `{evidence}` | `{title: TitleEntry, quote: Quote, highlight: Highlight, evidence}` – nur bei `verdict = 'belegt'`; sonst, bei unbekanntem oder schon übernommenem Beleg -32602 (nichts angelegt). Legt einen Titel `kind: "web"` mit `url`, `publisher` = Rechner und Notiz „Abgerufen am TT.MM.JJJJ (Websuche @belege)“ an (gibt es schon einen Titel `web` mit derselben Adresse, wird er genommen), das Zitat als `library_quote` und eine Hervorhebung `kind: quote` vom Menschen; setzt `library_title_id`, danach `rag::notify(state, None)` |
+| `websearch.get` | `{}` | `{on, configured, preferred}` – `on` = switch (`store_meta` `websearch_belege` = `'1'`, missing = off), `configured` = an address is entered for MultiGPT, `preferred` = number of preferred sources |
+| `websearch.set` | `{on: bool}` | `{on}`; not a boolean → -32602 |
+| `websearch.evidence` | `{post}` | `{post, evidence: [{id, label, url, title, preferred, accessed, quote, verdict, library_title, post, work, key, persona, created}]}` – evidence of a post in the order of creation; `label` „W1“ …, `accessed` UTC time, `verdict` ∈ `belegt` \| `nicht_belegt` \| `nicht_zitiert`, `library_title` = adopted title or `null`; without evidence `[]` |
+| `websearch.adopt` | `{evidence}` | `{title: TitleEntry, quote: Quote, highlight: Highlight, evidence}` – only with `verdict = 'belegt'`; otherwise, with unknown or already adopted evidence -32602 (nothing created). Creates a title `kind: "web"` with `url`, `publisher` = host and note „Abgerufen am TT.MM.JJJJ (Websuche @belege)“ (if there is already a title `web` with the same address, that one is taken), the quotation as `library_quote` and a highlight `kind: quote` by the human; sets `library_title_id`, then `rag::notify(state, None)` |
 
-`settings.get {page: "assistenten"}` enthält zusätzlich `websearch: {on}`.
+`settings.get {page: "assistenten"}` additionally contains `websearch: {on}`.
 
-Ablauf in `persona.ask`/`persona.review`/`persona.chat` (nur `@belege`, nur mit Schalter an, nicht bei
-`persona.propose`): erst `web_search` mit „site:<Rechner> <Anfrage>“ für die ersten drei bevorzugten Quellen, dann
-ein allgemeiner Aufruf; höchstens 8 Treffer, 4 Abrufe über `fetch_url`, je 10 s, gesamt 30 s, Seite ≤ 1 MiB. Die
-Antwort (`post.body`) prüft der Code: „(nicht belegt)“, „(unbekannte Quelle)“, „(nicht abgerufen)“, „Angabe
-prüfen: nicht belegt“, Zeile „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“, bei Ausfall „Hinweis: Websuche
-ausgefallen (<Grund>)“. Mit Belegen trägt der Beitrag die Quelle „Web: n Beleg(e)“ (`post.sources`).
+Course in `persona.ask`/`persona.review`/`persona.chat` (only `@belege`, only with the switch on, not with
+`persona.propose`): first `web_search` with „site:<Rechner> <Anfrage>“ for the first three preferred sources, then
+a general call; at most 8 hits, 4 fetches through `fetch_url`, 10 s each, 30 s in total, page ≤ 1 MiB. The
+code checks the answer (`post.body`): „(nicht belegt)“, „(unbekannte Quelle)“, „(nicht abgerufen)“, „Angabe
+prüfen: nicht belegt“, line „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“, on failure „Hinweis: Websuche
+ausgefallen (<Grund>)“. With evidence the post carries the source „Web: n Beleg(e)“ (`post.sources`).
 
-Formular `POST /websuche/act` (hinter `guard::same_origin`, fremder `Origin` → 403), immer 303:
-- `action=switch` (`on=1`, fehlt = aus; `work`) → `/einstellungen/assistenten?persona=belege&ok=websuche[&work=W]#persona-belege`.
-- `action=adopt` (`evidence`, wahlweise `work`, `key`, `post`) → `/websuche/belege?work=W&key=K&post=P&ok=uebernommen#beleg-<id>`
-  bzw. `&fehler=nicht_belegt|schon|unbekannt|intern`; unbekannte `action` → `&fehler=aktion`.
+Form `POST /websuche/act` (behind `guard::same_origin`, foreign `Origin` → 403), always 303:
+- `action=switch` (`on=1`, missing = off; `work`) → `/einstellungen/assistenten?persona=belege&ok=websuche[&work=W]#persona-belege`.
+- `action=adopt` (`evidence`, optionally `work`, `key`, `post`) → `/websuche/belege?work=W&key=K&post=P&ok=uebernommen#beleg-<id>`
+  or `&fehler=nicht_belegt|schon|unbekannt|intern`; unknown `action` → `&fehler=aktion`.
 
-Seite: `GET /websuche/belege?work&key&post` – Belege eines Beitrags mit Knopf „In die Bibliothek“ (nur bei
-`belegt`), ohne JavaScript.
+Page: `GET /websuche/belege?work&key&post` – evidence of a post with the button „In die Bibliothek“ (only with
+`belegt`), without JavaScript.
 
-### Menü
+### Menu
 
-- `menu.badges {work?}` → `{work, outline_requests, open_proposals}`: Zahlen der Abzeichen der Kopfzeile –
-  offene (unentschiedene) Anträge zur Gliederung und offene Vorschläge über alle Abschnitte des Werks;
-  dieselben Zahlen zeichnet die Arbeitsseite im Server. Fehlt `work`, das Vorgabewerk. Parameter, die kein
-  Objekt sind, `work` keine Zahl oder ein unbekanntes Werk → `-32602`. Nur lesend; beantwortet vor der Wahl
-  des Vorgabewerks in `rpc::call` (`crate::menu`).
-- Runde 28 (befund-uebersicht): `menu.badges` liefert zusätzlich `open_findings` – offene Befunde im ganzen Werk
-  nach der Zählregel (Vertrag R28 §1.5: `status = 'open'`, nicht angehängt, kein Lob, mit Abschnitt; Summe von
-  `Store::finding_open_counts`). Abzeichen „k offen“ am Reiter **Prüfen** und am Eintrag „Befunde“.
+- `menu.badges {work?}` → `{work, outline_requests, open_proposals}`: numbers of the badges of the header –
+  open (undecided) outline requests and open proposals across all sections of the work;
+  the work page draws the same numbers on the server. If `work` is missing, the default work. Parameters that are not
+  an object, `work` not a number or an unknown work → `-32602`. Read only; answered before the choice
+  of the default work in `rpc::call` (`crate::menu`).
+- Round 28 (befund-uebersicht): `menu.badges` additionally delivers `open_findings` – open findings in the whole work
+  by the counting rule (contract R28 §1.5: `status = 'open'`, not attached, no praise, with a section; sum of
+  `Store::finding_open_counts`). Badge „k offen“ on the tab **„Prüfen“** and on the entry „Befunde“.
 
-### Einstellungen
+### Settings
 
-Ohne Werk-Pflicht, vor der Werkwahl in `rpc::call`; nur über `/rpc` (nicht `/act`, nicht MCP).
+Without a required work, before the choice of work in `rpc::call`; only over `/rpc` (not `/act`, not MCP).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `settings.pages` | – | `{pages: [{slug, title, storage, url}]}` (sieben, feste Reihenfolge) |
-| `settings.render` | `page`, `work?`, `query?: {…}` (Text, Zahl, Wahrheitswert) | `{page, title, storage, html}` – `html` wie `GET /einstellungen/<page>?fragment=1`; ohne `Host` zeigt „MCP-Zugang“ nur den Pfad `/mcp` |
-| `settings.get` | `page`, `work?` | `darstellung`: `{theme: system\|light\|dark, editor, pv, accordion, widths: {left, right}}` aus den Cookies der Anfrage; `werk`: `{work, title, subtitle, author, kind, audience, bible, template_rev, numbering: {scheme, custom}, timing: {words_per_minute, target_seconds}}` (`timing` seit Runde 16b, `target_seconds` `null` = keine Zielzeit); `assistenten`: `{personas: [PersonaRow], lector, lector_mode, lector_handle}`; `mcp`: `{path: "/mcp", loopback_without_token: true, clients: [SeenClient], tokens: [McpToken]}` (`loopback_without_token` ist fest `true` und beschreibt den direkten Zugriff vom eigenen Rechner; unter einem mit `--allow-host` erlaubten Rechnernamen braucht `/mcp` trotzdem einen Token, `docs/MCP.md` „Zugang“); `daten`: `{dir, size_bytes, mirrors: [{work, slug, dir, head}], version, instance: {uuid, name}}` (`instance` seit Runde 26); `verbindungen`/`quellen` → -32602 („über connection.list bzw. sources.list“) |
-| `settings.set` | `page`, `work?`, `values: {…}` | `werk`: wie `work.update` (`{work, changed, …}`); `assistenten`: `values {handle, role?, model?, context_length?, active?, color?}` → `{persona: PersonaRow, lector}` (erst alles prüfen, dann schreiben); `darstellung` → -32602 („Cookies setzt das Formular POST /einstellungen/darstellung/act“); sonst -32602 |
-| `settings.backup` | `confirm: true` | `{dir, size_bytes, skipped}`; ohne `confirm` -32602, Ziel vorhanden, schon 10 Sicherungen `<Name>.sicherung-*` neben dem Datenordner (Baruch löscht keine selbst) oder zu wenig Platz (nach der Sicherung müssen 512 MiB frei bleiben, Unix `statvfs`) u. a. → -32603 mit deutscher Meldung |
+| `settings.pages` | – | `{pages: [{slug, title, storage, url}]}` (seven, fixed order) |
+| `settings.render` | `page`, `work?`, `query?: {…}` (text, number, boolean) | `{page, title, storage, html}` – `html` like `GET /einstellungen/<page>?fragment=1`; without `Host` „MCP-Zugang“ shows only the path `/mcp` |
+| `settings.get` | `page`, `work?` | `darstellung`: `{theme: system\|light\|dark, editor, pv, accordion, widths: {left, right}}` from the cookies of the request; `werk`: `{work, title, subtitle, author, kind, audience, bible, template_rev, numbering: {scheme, custom}, timing: {words_per_minute, target_seconds}}` (`timing` since Round 16b, `target_seconds` `null` = no target time); `assistenten`: `{personas: [PersonaRow], lector, lector_mode, lector_handle}`; `mcp`: `{path: "/mcp", loopback_without_token: true, clients: [SeenClient], tokens: [McpToken]}` (`loopback_without_token` is fixed `true` and describes the direct access from the own machine; under a host name allowed with `--allow-host`, `/mcp` needs a token nevertheless, `docs/MCP.md`, "Access"); `daten`: `{dir, size_bytes, mirrors: [{work, slug, dir, head}], version, instance: {uuid, name}}` (`instance` since Round 26); `verbindungen`/`quellen` → -32602 („über connection.list bzw. sources.list“) |
+| `settings.set` | `page`, `work?`, `values: {…}` | `werk`: like `work.update` (`{work, changed, …}`); `assistenten`: `values {handle, role?, model?, context_length?, active?, color?}` → `{persona: PersonaRow, lector}` (check everything first, then write); `darstellung` → -32602 („Cookies setzt das Formular POST /einstellungen/darstellung/act“); otherwise -32602 |
+| `settings.backup` | `confirm: true` | `{dir, size_bytes, skipped}`; without `confirm` -32602, target exists, already 10 backups `<Name>.sicherung-*` next to the data folder (Baruch deletes none itself) or too little space (after the backup 512 MiB must stay free, Unix `statvfs`) and others → -32603 with a German message |
 
-`persona.update` siehe „Personas“.
+`persona.update` see "Personas".
 
-Formulare (hinter `guard::same_origin`, fremder `Origin` → 403):
+Forms (behind `guard::same_origin`, foreign `Origin` → 403):
 - `POST /einstellungen/darstellung/act`: `theme=system|light|dark`, `editor=satz|quelltext`, `pv=open|closed`,
-  `accordion=personas|revisions|chat`, `reset_widths=1` (jedes freiwillig), `work` → Set-Cookie
-  `baruch_<n>=<v>; Path=/; Max-Age=31536000; SameSite=Lax` (Löschen mit `Max-Age=0`; `system` löscht
-  `baruch_theme`, `open` löscht `baruch_pv`, `reset_widths` löscht `baruch_left`/`baruch_right`), 303
-  `/einstellungen/darstellung?ok=1[&work=W]`; ungültig → 422 mit der Seite, kein Cookie.
-- `POST /einstellungen/personas/act`: `method=persona.set_color` (wie bisher) oder `method=persona.update`
+  `accordion=personas|revisions|chat`, `reset_widths=1` (each optional), `work` → Set-Cookie
+  `baruch_<n>=<v>; Path=/; Max-Age=31536000; SameSite=Lax` (deleting with `Max-Age=0`; `system` deletes
+  `baruch_theme`, `open` deletes `baruch_pv`, `reset_widths` deletes `baruch_left`/`baruch_right`), 303
+  `/einstellungen/darstellung?ok=1[&work=W]`; invalid → 422 with the page, no cookie.
+- `POST /einstellungen/personas/act`: `method=persona.set_color` (as before) or `method=persona.update`
   (`handle, role, model, context_length, active=1|leer`) → 303
-  `/einstellungen/assistenten?ok=farbe|persona[&work=W]#persona-<handle ohne @>`; Fehler → 422 mit der Seite.
-  Runde 11 (je Persona ein Tab, `GET /einstellungen/assistenten?persona=<handle ohne @>[&fragment=1]`):
-  `action=save` (`handle, name, color, color_text, role, model, context_length, active, prompt`; alles in einer
-  Transaktion, unveränderte Vorgabe des Prompts bleibt Vorgabe) bzw. `action=reset_prompt` (`handle`, `confirm=1`;
-  ohne `confirm` → Rückfrage) bzw. `action=reset_color` (`handle`; Farbe zurück zur Palette)
-  → 303 `/einstellungen/assistenten?persona=<h>&ok=persona|vorgabe|farbe` bzw.
-  `&rueckfrage=vorgabe` (`[&work=W]#persona-<h>`); abgelehnt → 422 mit dem Tab und der Eingabe.
-- `POST /einstellungen/werk/zeit` (Runde 16b, Block „Predigtzeit“): `method=work.timing_set`, `work`,
-  `words_per_minute` (60–250), `target_minutes` (1–240, leer = keine Zielzeit) → 303
-  `/einstellungen/werk?work=W&ok=zeit#zeit`; ungültig → 303 `…&zeitfehler=1#zeit`, nichts geändert.
-- `POST /einstellungen/daten/sicherung`: `confirm=1` Pflicht (sonst 422) → 303
-  `/einstellungen/daten?ok=sicherung[&work=W]` (seit Runde 23 ohne `ziel`: fester Meldecode, den Ordnernamen der
-  neuesten Sicherung liest die Seite aus dem Dateisystem).
-- `POST /werke/act` (update) und `POST /werke/nummerierung/act`: neues Feld `back` (siehe Aufbau). Mit
-  gültigem `back` antwortet ein abgelehntes Formular (422 bzw. 409) mit der ganzen Einstellungsseite „Werk“
-  (`settings.html` mit genau einem `[data-settings-frame]`), Meldung und Eingabe im jeweiligen Formular; so
-  übernimmt das Popup den Rahmen, ohne JavaScript steht die Seite da.
+  `/einstellungen/assistenten?ok=farbe|persona[&work=W]#persona-<handle ohne @>`; error → 422 with the page.
+  Round 11 (one tab per persona, `GET /einstellungen/assistenten?persona=<handle ohne @>[&fragment=1]`):
+  `action=save` (`handle, name, color, color_text, role, model, context_length, active, prompt`; all in one
+  transaction, an unchanged default prompt stays the default) or `action=reset_prompt` (`handle`, `confirm=1`;
+  without `confirm` → confirmation question) or `action=reset_color` (`handle`; colour back to the palette)
+  → 303 `/einstellungen/assistenten?persona=<h>&ok=persona|vorgabe|farbe` or
+  `&rueckfrage=vorgabe` (`[&work=W]#persona-<h>`); refused → 422 with the tab and the input.
+- `POST /einstellungen/werk/zeit` (Round 16b, block „Predigtzeit“): `method=work.timing_set`, `work`,
+  `words_per_minute` (60–250), `target_minutes` (1–240, empty = no target time) → 303
+  `/einstellungen/werk?work=W&ok=zeit#zeit`; invalid → 303 `…&zeitfehler=1#zeit`, nothing changed.
+- `POST /einstellungen/daten/sicherung`: `confirm=1` required (otherwise 422) → 303
+  `/einstellungen/daten?ok=sicherung[&work=W]` (since Round 23 without `ziel`: a fixed message code; the page reads the folder name of the
+  newest backup from the file system).
+- `POST /werke/act` (update) and `POST /werke/nummerierung/act`: new field `back` (see structure). With a
+  valid `back` a refused form (422 or 409) answers with the whole settings page „Werk“
+  (`settings.html` with exactly one `[data-settings-frame]`), message and input in the respective form; so
+  the popup takes over the frame, without JavaScript the page stands there.
 
-Seiten: `GET /einstellungen` → 303 `/einstellungen/darstellung[?work=W]`; `GET /einstellungen/<seite>[?work=W]
-[&fragment=1]` (unbekannt → 404); `GET /einstellungen/personas` → 303 `/einstellungen/assistenten[?work=W]`.
+Pages: `GET /einstellungen` → 303 `/einstellungen/darstellung[?work=W]`; `GET /einstellungen/<seite>[?work=W]
+[&fragment=1]` (unknown → 404); `GET /einstellungen/personas` → 303 `/einstellungen/assistenten[?work=W]`.
 
-### Verbindungen und Quellen
+### Connections and sources
 
-Nur Mensch: über `POST /rpc` und die eigenen Formulare, nicht über `POST /act` und nicht über MCP. Fehler:
--32602 ungültig (Meldung ohne Eingabe-Geheimnis), -32603 intern bzw. „Schlüsselbund: …“.
+Human only: over `POST /rpc` and the own forms, not over `POST /act` and not over MCP. Errors:
+-32602 invalid (message without the input secret), -32603 internal or „Schlüsselbund: …“.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `connection.list` | – | `{connections: [{kind, title, config, updated, secret, secret_error?, secret_for?, check}]}`; `secret` = `"hinterlegt"` \| `"fehlt"` \| `null` (LanceDB oder Schlüsselbund nicht lesbar, dann `secret_error`); `secret_for` = Ziel, für das das hinterlegte Geheimnis gilt, nur wenn die Einstellungen seitdem auf ein anderes zeigen (siehe „Bindung“); `check` = `{at, ok, message, details}` \| `null` |
-| `connection.get` | `{kind}` | eine Verbindung wie oben |
-| `connection.set` | `{kind, config}` | eine Verbindung; gegebene Felder ersetzen die gespeicherten. Ändert sich das Ziel, bleibt ein hinterlegtes Geheimnis an das alte gebunden (`secret_for`). -32602 bei unbekanntem Feld, Geheimnis-Feld (`password`, `token`, `key`, `secret` …), Adresse mit Benutzerinfo, Schema ≠ http/https, Schlüssel in der Abfrage, Port ∉ 1–65535, TLS-Modus unbekannt, Rechner mit Leerzeichen |
-| `connection.set_secret` | `{kind, secret}` | `{kind, secret: "hinterlegt"}`, gilt danach für das jetzige Ziel; leer, mehrzeilig, über 4096 Zeichen oder `lancedb` → -32602 |
-| `connection.delete_secret` | `{kind, confirm: true}` | `{kind, secret: "fehlt"}`; ohne `confirm: true` → -32602 |
-| `connection.check` | `{kind}` (`eliezer` \| `multigpt` \| `pgvector` \| `lancedb`) | `{kind, ok, message, details, at}`, gespeichert in `connection`; ein Fehlschlag ist `ok: false`, kein RPC-Fehler; ist das Geheimnis an ein anderes Ziel gebunden: `ok: false`, „Nicht geprüft: …“, `details: {secret_withheld: true, secret_target}`, die Gegenstelle wird nicht gefragt; bei `eliezer` zusätzlich `details.personas` (wie `model.list`) und der Abgleich in `message`; die ganze Prüfung höchstens 10 s. `details` (Runde 12): `multigpt` `{server: {name, version}, tools, pages, collections: [{name, count}]}` (`tools/list` über `nextCursor`, höchstens 10 Seiten; `list_collections`, falls angeboten); `pgvector` `{server_version, vector, table, columns: {rolle: spalte}, collections: [{name, count}], chunks, dimension, models}` (`ok` = verbunden ∧ `vector` ∧ Tabelle/Spalten passen ∧ Dimension bekannt; ohne `vector` `{server_version, vector: null}`); `lancedb` `{dir, exists, writable, tables, entries, model, dimension, configured_model, embedder: "ok" \| Grund, probe}` (`ok` = Ordner nutzbar ∧ Probe-Einbettung ∧ Modell/Dimension passen zum Index) |
-| `connection.rag_get` | `{work?}` | `{work, ways, default}` (ohne Zeile `["lancedb"]`, `default: true`) |
-| `connection.rag_set` | `{work?, ways}` | `{work, ways, default: false}`; Wege ⊆ `lancedb`, `pgvector`, `multigpt` (leer = nur Volltext), feste Reihenfolge |
-| `connection.collections_get` | `{work?, way}` | `{work, way, collections: [..], available: [{name, count}], available_at}` (Runde 12); `available` aus `details.collections` der letzten Prüfung (leere Namen fallen weg), `available_at` deren Zeit bzw. `null`; `way` nur `pgvector` \| `multigpt`, sonst -32602 |
-| `connection.collections_set` | `{work?, way, collections: [..]}` | `{work, way, collections}` – beschnitten, ohne Doppel (erste gewinnt), Reihenfolge wie gegeben; kein Text, leer, mehrzeilig, über 200 Zeichen, über 100 Einträge, `lancedb` oder unbekanntes Werk → -32602, nichts geändert. Tabelle `work_rag_collection` (Migration 0031) |
+| `connection.list` | – | `{connections: [{kind, title, config, updated, secret, secret_error?, secret_for?, check}]}`; `secret` = `"hinterlegt"` \| `"fehlt"` \| `null` (LanceDB or keyring not readable, then `secret_error`); `secret_for` = target for which the stored secret applies, only if the settings have since pointed to another one (see "Binding"); `check` = `{at, ok, message, details}` \| `null` |
+| `connection.get` | `{kind}` | one connection as above |
+| `connection.set` | `{kind, config}` | one connection; given fields replace the stored ones. If the target changes, a stored secret stays bound to the old one (`secret_for`). -32602 for an unknown field, a secret field (`password`, `token`, `key`, `secret` …), an address with user info, scheme ≠ http/https, a key in the query, port ∉ 1–65535, unknown TLS mode, host with spaces |
+| `connection.set_secret` | `{kind, secret}` | `{kind, secret: "hinterlegt"}`, applies afterwards to the current target; empty, multi-line, above 4096 characters or `lancedb` → -32602 |
+| `connection.delete_secret` | `{kind, confirm: true}` | `{kind, secret: "fehlt"}`; without `confirm: true` → -32602 |
+| `connection.check` | `{kind}` (`eliezer` \| `multigpt` \| `pgvector` \| `lancedb`) | `{kind, ok, message, details, at}`, stored in `connection`; a failure is `ok: false`, not an RPC error; if the secret is bound to another target: `ok: false`, „Nicht geprüft: …“, `details: {secret_withheld: true, secret_target}`, the remote side is not asked; with `eliezer` additionally `details.personas` (like `model.list`) and the comparison in `message`; the whole check at most 10 s. `details` (Round 12): `multigpt` `{server: {name, version}, tools, pages, collections: [{name, count}]}` (`tools/list` over `nextCursor`, at most 10 pages; `list_collections` if offered); `pgvector` `{server_version, vector, table, columns: {rolle: spalte}, collections: [{name, count}], chunks, dimension, models}` (`ok` = connected ∧ `vector` ∧ table/columns fit ∧ dimension known; without `vector` `{server_version, vector: null}`); `lancedb` `{dir, exists, writable, tables, entries, model, dimension, configured_model, embedder: "ok" \| reason, probe}` (`ok` = folder usable ∧ probe embedding ∧ model/dimension fit the index) |
+| `connection.rag_get` | `{work?}` | `{work, ways, default}` (without a row `["lancedb"]`, `default: true`) |
+| `connection.rag_set` | `{work?, ways}` | `{work, ways, default: false}`; ways ⊆ `lancedb`, `pgvector`, `multigpt` (empty = full text only), fixed order |
+| `connection.collections_get` | `{work?, way}` | `{work, way, collections: [..], available: [{name, count}], available_at}` (Round 12); `available` from `details.collections` of the last check (empty names dropped), `available_at` its time or `null`; `way` only `pgvector` \| `multigpt`, otherwise -32602 |
+| `connection.collections_set` | `{work?, way, collections: [..]}` | `{work, way, collections}` – trimmed, without duplicates (the first wins), order as given; not text, empty, multi-line, above 200 characters, above 100 entries, `lancedb` or unknown work → -32602, nothing changed. Table `work_rag_collection` (migration 0031) |
 | `sources.list` | – | `{sources: [{id, title, url, note, position, created, updated}]}` |
-| `sources.create` | `{title, url, note?}` | die neue Quelle (am Ende) |
-| `sources.update` | `{id, title?, url?, note?}` | die geänderte Quelle |
-| `sources.move` | `{id, position}` | `{sources}` (Stelle außerhalb 1..n → an den Rand) |
+| `sources.create` | `{title, url, note?}` | the new source (at the end) |
+| `sources.update` | `{id, title?, url?, note?}` | the changed source |
+| `sources.move` | `{id, position}` | `{sources}` (position outside 1..n → to the edge) |
 | `sources.delete` | `{id, confirm: true}` | `{deleted}` |
 
-Die Liste der Quellen nutzt seit Runde 13 die Websuche von `@belege` (siehe „Websuche für @belege“): die ersten
-drei Rechner je ein Aufruf `web_search` mit „site:<Rechner>“, Kennzeichnung „bevorzugte Quelle“ nach dem Rechner
-der Adresse. Die Seite Quellen zeigt das als `data-usage` (kein STUB mehr).
+Since Round 13 the web search of `@belege` uses the list of sources (see "Web search for @belege"): for the first
+three hosts one call `web_search` each with „site:<Rechner>“, marking „bevorzugte Quelle“ by the host
+of the address. The page Sources shows this as `data-usage` (no longer a STUB).
 
-**Bindung des Geheimnisses an das Ziel** (Migration 0014, Spalte `connection.secret_target`): Ein Geheimnis
-gilt nur für das Ziel, für das es hinterlegt wurde – bei Eliezer und MultiGPT der Ursprung der Adresse
-(Schema, Rechner, Port; ein anderer Pfad beim selben Server ist dasselbe Ziel), bei pgvector Rechner, Port und
-TLS-Modus. `connection.set` mit anderem Ziel merkt sich bei hinterlegtem Geheimnis das bisherige Ziel; danach
-schickt `connection.check` das Geheimnis nicht an das neue (weder als Bearer noch als Passwort). Die Rückfrage
-ist der Neueintrag: Erst `connection.set_secret` (bzw. „Speichern“ mit eingetragenem Geheimnis) bindet es an
-das jetzige Ziel. Zurück beim alten Ziel gilt es wieder; `connection.delete_secret` löst die Bindung. So zieht
-`connection.set` mit fremder Adresse plus `connection.check` keinen hinterlegten Schlüssel ab.
+**Binding of the secret to the target** (migration 0014, column `connection.secret_target`): a secret
+applies only to the target for which it was stored – for Eliezer and MultiGPT the origin of the address
+(scheme, host, port; another path on the same server is the same target), for pgvector host, port and
+TLS mode. `connection.set` with another target remembers the previous target if a secret is stored; afterwards
+`connection.check` does not send the secret to the new one (neither as bearer nor as password). The confirmation
+is entering it anew: only `connection.set_secret` (or „Speichern“ with a secret entered) binds it to
+the current target. Back at the old target it applies again; `connection.delete_secret` releases the binding. So
+`connection.set` with a foreign address plus `connection.check` does not drain a stored key.
 
-`connection.set` für `pgvector` kennt seit Runde 12 außerdem `table` (`tabelle` oder `schema.tabelle`),
-`text_column`, `vector_column`, `collection_column`, `document_column` (Pflicht), `section_column`, `title_column`,
-`url_column`, `model_column` (leer = gibt es nicht) und `embedding_model`; Bezeichner
-`^[A-Za-z_][A-Za-z0-9_]{0,62}$`, sonst -32602.
+`connection.set` for `pgvector` additionally knows since Round 12 `table` (`tabelle` or `schema.tabelle`),
+`text_column`, `vector_column`, `collection_column`, `document_column` (required), `section_column`, `title_column`,
+`url_column`, `model_column` (empty = does not exist) and `embedding_model`; identifiers
+`^[A-Za-z_][A-Za-z0-9_]{0,62}$`, otherwise -32602.
 
-Seit Runde 19b die **Aufgaben-Präfixe** der Einbettung: `lancedb` `query_prefix` und `document_prefix`, `pgvector`
-nur `query_prefix` (seine Daten sind schon eingebettet; `document_prefix` dort → -32602 „unbekanntes Feld“). Geprüft
-mit `baruch_rag::check_prefix`: höchstens 64 Zeichen, keine Steuerzeichen (auch kein Zeilenumbruch), sonst -32602
-(Formularcode `praefix`); **nicht beschnitten** – das Leerzeichen am Ende gehört dazu (nomic-embed-text:
-`"search_query: "` / `"search_document: "`). Fehlt das Feld, gilt „kein Präfix“ (Verhalten wie bisher, kein
-Neuaufbau). Die pgvector-Suche bettet die Anfrage als `query_prefix + Anfrage` ein; LanceDB nutzt beide (R19a).
-`connection.check` für `pgvector` (Runde 19b): alle Felder schon in SQL gekürzt (Sammlungen der Liste auf 200
-Zeichen, gezählt je vollem Namen, höchstens 1000; Modelle auf 200); mit hinterlegtem Passwort und TLS `prefer`,
-`disable` oder `require` (verschlüsselt, aber ohne Prüfung des Zertifikats) hängt `message` einen Hinweis an,
-`details.tls_warning` trägt ihn; ohne Hinweis bleibt nur `verify-full`. Ein Schema aus `information_schema`
-wird mit verdoppelten Anführungszeichen gequotet; eingestellte Namen bleiben auf die Bezeichner-Regel beschränkt.
+Since Round 19b the **task prefixes** of the embedding: `lancedb` `query_prefix` and `document_prefix`, `pgvector`
+only `query_prefix` (its data is already embedded; `document_prefix` there → -32602 „unbekanntes Feld“). Checked
+with `baruch_rag::check_prefix`: at most 64 characters, no control characters (no line break either), otherwise -32602
+(form code `praefix`); **not trimmed** – the space at the end belongs to it (nomic-embed-text:
+`"search_query: "` / `"search_document: "`). If the field is missing, „kein Präfix“ applies (behaviour as before, no
+rebuild). The pgvector search embeds the query as `query_prefix + query`; LanceDB uses both (R19a).
+`connection.check` for `pgvector` (Round 19b): all fields already shortened in SQL (collections of the list to 200
+characters, counted per full name, at most 1000; models to 200); with a stored password and TLS `prefer`,
+`disable` or `require` (encrypted, but without checking the certificate) `message` appends a note,
+`details.tls_warning` carries it; only `verify-full` stays without a note. A schema from `information_schema`
+is quoted with doubled quotation marks; configured names stay restricted to the identifier rule.
 
-### Bedeutungssuche (RAG, Runde 12)
+### Semantic search (RAG, Round 12)
 
-Über `POST /rpc` (Herkunft „Autor“), nicht über `/act`; über MCP nur `rag_search`/`rag_status` (siehe MCP.md).
-Nur lesend: kein Weg schreibt Buchtext, Einfälle oder Hervorhebungen.
+Over `POST /rpc` (origin „Autor“), not over `/act`; over MCP only `rag_search`/`rag_status` (see MCP.md).
+Read only: no way writes book text, ideas or highlights.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `rag.search` | `{work?, query, ways?, collections?, limit?}` | Answer-JSON `{work, query, hits: [{way, collection, document, section, title, snippet, score, weak, url, meta, rank, fused, found_by: [{way, rank, score}]}], ways: [{way, state, label, message, hits, millis}]}`. `query` beschnitten 1–1000 Zeichen, `limit` 1–50 (Vorgabe 10), `ways` ⊆ {`lancedb`, `pgvector`, `multigpt`} (geschnitten mit den Wegen des Werks), `collections` Liste (LanceDB: Arten `section`, `idea`, `highlight`, `library`, seit Runde 13 `remote`; remote: Schnitt mit den gewählten Sammlungen); sonst und bei unbekanntem Werk -32602 |
-| `rag.status` | `{work?}` | `{work, ways, index: {dir, entries, model, dimension, configured_model, built, pending, stale, problem}, fts: true}` – ohne Netz; `stale` = liegengebliebene Aufträge (Runde 19a) |
-| `rag.reindex` | `{work, confirm: true}` | `{work, queued: true, pending, deferred}`; ohne `work` oder `confirm: true` -32602, ohne Einbetter -32000 (mit Grund). Passt das Modell bzw. das Dokument-Präfix nicht (oder ist `baruch-index.json` beschädigt), wird der ganze Index verworfen und neu aufgebaut, sonst die Zeilen des Werks. Antwortet sofort: Hält der Index-Worker gerade die Schreibsperre, wird ein Rücksetzwunsch vermerkt (`deferred: true`), der Worker bricht den laufenden Auftrag ab, setzt danach zurück und reiht den unterbrochenen Auftrag wieder ein (auch den eines anderen Werks oder das Aufräumen; doppelt nur einmal). Nur Mensch: kein MCP-Werkzeug, nicht über `/act` |
+| `rag.search` | `{work?, query, ways?, collections?, limit?}` | answer JSON `{work, query, hits: [{way, collection, document, section, title, snippet, score, weak, url, meta, rank, fused, found_by: [{way, rank, score}]}], ways: [{way, state, label, message, hits, millis}]}`. `query` trimmed 1–1000 characters, `limit` 1–50 (default 10), `ways` ⊆ {`lancedb`, `pgvector`, `multigpt`} (intersected with the ways of the work), `collections` a list (LanceDB: kinds `section`, `idea`, `highlight`, `library`, since Round 13 `remote`; remote: intersection with the chosen collections); otherwise and for an unknown work -32602 |
+| `rag.status` | `{work?}` | `{work, ways, index: {dir, entries, model, dimension, configured_model, built, pending, stale, problem}, fts: true}` – without network; `stale` = stuck jobs (Round 19a) |
+| `rag.reindex` | `{work, confirm: true}` | `{work, queued: true, pending, deferred}`; without `work` or `confirm: true` -32602, without an embedder -32000 (with reason). If the model or the document prefix does not fit (or `baruch-index.json` is damaged), the whole index is discarded and rebuilt, otherwise the rows of the work. Answers immediately: if the index worker currently holds the write lock, a reset wish is noted (`deferred: true`), the worker aborts the running job, resets afterwards and queues the interrupted job again (also that of another work or the clean-up; duplicates only once). Human only: no MCP tool, not over `/act` |
 
-- **`ways` der Antwort** nennt immer alle drei Wege in der Reihenfolge lancedb, pgvector, multigpt; `state` ∈
-  `connected` | `failed` | `off`, `label` „verbunden“ | „ausgefallen“ | „aus“. Aus: „Für dieses Werk nicht gewählt
+- **`ways` of the answer** always names all three ways in the order lancedb, pgvector, multigpt; `state` ∈
+  `connected` | `failed` | `off`, `label` „verbunden“ | „ausgefallen“ | „aus“. Off: „Für dieses Werk nicht gewählt
   (Einstellungen → Verbindungen).“, „In dieser Anfrage nicht gefragt.“, „Keine Sammlung gewählt (Einstellungen →
-  Verbindungen).“ bzw. der Grund beim Öffnen (kein Rechner, keine Adresse, Geheimnis für ein anderes Ziel).
-  Ausgefallen: Fehler, Zeitlimit (20 s je Weg), Modell passt nicht, kein Einbettungsmodell. Ein Weg blockiert
-  die anderen nie.
-- **Score** 0..=1 je Weg (LanceDB und pgvector 1 − Kosinus-Abstand; MultiGPT dessen Score, sonst 1 − Abstand,
-  sonst seit Runde 21a ein Ersatz aus dem Rang: `WEAK_SCORE + (1 − WEAK_SCORE)/Rang`, `meta.score = "aus Rang"`, nie
-  „schwach“), über Wege nicht vergleichbar. **`weak`** (Runde 19a) = `baruch_rag::is_weak(score)`: Score unter
-  0,45 (`WEAK_SCORE`) bzw. keine Zahl; Anzeigetext „schwach“. Die Treffer bleiben in ihrer Reihenfolge, nichts
-  wird ausgeblendet. **Zusammenführen:** Doppelte = gleiches Dokument und gleiche
-  Stelle (beschnitten, klein), auch über Wege; `fused` = Σ 1/(60 + Rang) (Reciprocal Rank Fusion), Vertreter =
-  Treffer mit dem besten Rang; deterministisch.
-- **LanceDB-Treffer:** Abschnitte `collection: "section"`, `document: "work:W"`, `section: "key:K"`,
-  `url: "/?work=W&key=K"`, `meta: {work, key, rev, chunk}`; Einfälle `idea:<id>`, `url: "/einfaelle/<id>"`,
-  `meta: {idea, work, key, status}`; Hervorhebungen `title:<T>`/`highlight:<H>`; Bibliothek `title:<T>` bzw.
-  `quote:<Q>` mit `url: "/quelle?…"`; geholte MultiGPT-Dokumente (Runde 13, Art `remote`) siehe „Abgleich mit
-  MultiGPT“.
-- Die Anfrage wird je Einbettungsmodell einmal eingebettet (LanceDB und pgvector teilen sie, solange ihre
-  Anfrage-Präfixe gleich sind).
-- **Liegengebliebene Aufträge** (Runde 19a): Scheitert das Einbetten nach drei Versuchen, bleibt der Auftrag
-  liegen (`index.stale`); `problem` bleibt gesetzt, bis eine echte Änderung (Speichern, Einfall, Abgleich) oder
-  `rag.reindex` die Aufträge zurückholt. `rag.search` stößt keinen neuen Versuch an (nur still das Aufräumen
-  gelöschter Werke und höchstens alle 30 s den gemeinsamen Bereich, ohne Liegengebliebenes). Der Zustand von
-  LanceDB in `ways` nennt dann „n Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index
-  neu aufbauen““.
-- **Aufgaben-Präfixe** (Runde 19b, in LanceDB umgesetzt mit 19a): Die Verbindung LanceDB kennt `query_prefix`
-  und `document_prefix` (Vorgabe leer = wie bisher). Dokumente werden mit dem Dokument-Präfix eingebettet, die
-  Anfrage mit dem Anfrage-Präfix; `baruch-index.json` vermerkt `document_prefix`. Ein anderes eingestelltes
-  Dokument-Präfix ist wie ein anderes Modell: LanceDB „ausgefallen“ mit „Aufgaben-Präfix geändert; Index neu
-  aufbauen.“, bis `rag.reindex` den ganzen Index neu aufbaut.
-- **Start ohne Einbetter:** Mit eigenem Datenordner (`--data`) und ohne gespeicherte Verbindung Eliezer bindet
-  der Dienst beim Start keinen Einbetter (keine Anfrage an die Vorgabe-Adresse); `problem` sagt warum.
-  `rag.reindex` bindet Eliezer an, sobald die Verbindung gespeichert ist.
-- Einfälle eines gelöschten Werks (`work.delete`) sind sofort im gemeinsamen Bereich auffindbar (Runde 19a).
-- Formular `POST /einstellungen/verbindungen/act` mit `method=rag.reindex`, `work`, `confirm=1` →
-  `?ok=reindex` bzw. `?fehler=bestaetigen|reindex`.
+  Verbindungen).“ or the reason on opening (no host, no address, secret for another target).
+  Failed: error, time limit (20 s per way), model does not fit, no embedding model. One way never blocks
+  the others.
+- **Score** 0..=1 per way (LanceDB and pgvector 1 − cosine distance; MultiGPT its score, otherwise 1 − distance,
+  otherwise since Round 21a a substitute from the rank: `WEAK_SCORE + (1 − WEAK_SCORE)/rank`, `meta.score = "aus Rang"`, never
+  „schwach“), not comparable across ways. **`weak`** (Round 19a) = `baruch_rag::is_weak(score)`: score below
+  0.45 (`WEAK_SCORE`) or not a number; display text „schwach“. The hits stay in their order, nothing
+  is hidden. **Merging:** duplicates = same document and same
+  section (trimmed, lower case), also across ways; `fused` = Σ 1/(60 + rank) (Reciprocal Rank Fusion), representative =
+  hit with the best rank; deterministic.
+- **LanceDB hits:** sections `collection: "section"`, `document: "work:W"`, `section: "key:K"`,
+  `url: "/?work=W&key=K"`, `meta: {work, key, rev, chunk}`; ideas `idea:<id>`, `url: "/einfaelle/<id>"`,
+  `meta: {idea, work, key, status}`; highlights `title:<T>`/`highlight:<H>`; library `title:<T>` or
+  `quote:<Q>` with `url: "/quelle?…"`; fetched MultiGPT documents (Round 13, kind `remote`) see "Sync with
+  MultiGPT".
+- The query is embedded once per embedding model (LanceDB and pgvector share it as long as their
+  query prefixes are equal).
+- **Stuck jobs** (Round 19a): if embedding fails after three attempts, the job stays
+  stuck (`index.stale`); `problem` stays set until a real change (saving, idea, sync) or
+  `rag.reindex` brings the jobs back. `rag.search` triggers no new attempt (only silently the clean-up of
+  deleted works and at most every 30 s the shared area, without stuck ones). The state of
+  LanceDB in `ways` then names `„n Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index
+  neu aufbauen““`.
+- **Task prefixes** (Round 19b, implemented in LanceDB with 19a): the connection LanceDB knows `query_prefix`
+  and `document_prefix` (default empty = as before). Documents are embedded with the document prefix, the
+  query with the query prefix; `baruch-index.json` records `document_prefix`. A different configured
+  document prefix is like a different model: LanceDB „ausgefallen“ with „Aufgaben-Präfix geändert; Index neu
+  aufbauen.“, until `rag.reindex` rebuilds the whole index.
+- **Start without an embedder:** with its own data folder (`--data`) and without a stored connection Eliezer
+  the service binds no embedder at start (no request to the default address); `problem` says why.
+  `rag.reindex` binds Eliezer as soon as the connection is stored.
+- Ideas of a deleted work (`work.delete`) can be found in the shared area immediately (Round 19a).
+- Form `POST /einstellungen/verbindungen/act` with `method=rag.reindex`, `work`, `confirm=1` →
+  `?ok=reindex` or `?fehler=bestaetigen|reindex`.
 
-Formulare (Feld `method`, immer 303):
-- `POST /einstellungen/verbindungen/act`: `connection.set` (Felder `kind`, `url` bzw. `host`, `port`,
-  `database`, `user`, `tls` bzw. `dir`, `embedding_model`, wahlweise `secret`), `connection.set_secret`,
+Forms (field `method`, always 303):
+- `POST /einstellungen/verbindungen/act`: `connection.set` (fields `kind`, `url` or `host`, `port`,
+  `database`, `user`, `tls` or `dir`, `embedding_model`, optionally `secret`), `connection.set_secret`,
   `connection.delete_secret` (`confirm=1`), `connection.check`, `connection.rag_set` (`work`, `way_lancedb=1`,
-  `way_pgvector=1`, `way_multigpt=1`), `connection.collections_set` (`work`, `way`, wiederholtes `collection`,
-  `collection_new`; → `?ok=sammlungen` bzw. `?fehler=sammlung|weg`), `rag.reindex` (`work`, `confirm=1`; →
-  `?ok=reindex` bzw. `?fehler=bestaetigen|reindex`). pgvector zusätzlich `table`, `text_column`, … (siehe oben). Erfolg → `/einstellungen/verbindungen?ok=<code>[&work=W]#<kind|rag>`
-  mit `ok` ∈ `gespeichert`, `gespeichert_geheimnis`, `geheimnis`, `geheimnis_entfernt`, `geprueft`, `rag`.
-  „Speichern“ mit Geheimnis prüft erst beides (Geheimnis: nicht leer, eine Zeile, höchstens 4096 Zeichen),
-  speichert dann die Einstellungen und danach das Geheimnis; ein ungültiges Geheimnis ändert also nichts.
-  Lehnt erst der Schlüsselbund ab, sind die Einstellungen schon gespeichert: Code `gespeichert_ohne_geheimnis`.
-  Neu (Runde 10): `method=model.probe&kind=eliezer&model=…` (Kurztest) → 303 `?ok=kurztest#eliezer` bzw.
-  `?fehler=kurztest_modell&kind=eliezer` (ohne Modell, nichts gesendet); für andere Verbindungen `?fehler=methode`.
+  `way_pgvector=1`, `way_multigpt=1`), `connection.collections_set` (`work`, `way`, repeated `collection`,
+  `collection_new`; → `?ok=sammlungen` or `?fehler=sammlung|weg`), `rag.reindex` (`work`, `confirm=1`; →
+  `?ok=reindex` or `?fehler=bestaetigen|reindex`). pgvector additionally `table`, `text_column`, … (see above). Success → `/einstellungen/verbindungen?ok=<code>[&work=W]#<kind|rag>`
+  with `ok` ∈ `gespeichert`, `gespeichert_geheimnis`, `geheimnis`, `geheimnis_entfernt`, `geprueft`, `rag`.
+  „Speichern“ with a secret first checks both (secret: not empty, one line, at most 4096 characters),
+  then stores the settings and after that the secret; an invalid secret therefore changes nothing.
+  If only the keyring refuses, the settings are already stored: code `gespeichert_ohne_geheimnis`.
+  New (Round 10): `method=model.probe&kind=eliezer&model=…` (short test) → 303 `?ok=kurztest#eliezer` or
+  `?fehler=kurztest_modell&kind=eliezer` (without a model, nothing sent); for other connections `?fehler=methode`.
 - `POST /einstellungen/quellen/act`: `sources.create` (`title`, `url`, `note`), `sources.update` (`id`, …),
-  `sources.move` (`id`, `direction=up|down` oder `position`), `sources.delete` (`id`, `confirm=1`). Erfolg →
-  `/einstellungen/quellen?ok=<angelegt|geaendert|verschoben|geloescht>[&work=W]#quelle-<id>` (gelöscht:
+  `sources.move` (`id`, `direction=up|down` or `position`), `sources.delete` (`id`, `confirm=1`). Success →
+  `/einstellungen/quellen?ok=<angelegt|geaendert|verschoben|geloescht>[&work=W]#quelle-<id>` (deleted:
   `#quellen`).
-- Fehler → `?fehler=<code>[&kind=<kind>][&work=W]`, Codes: `kind`, `url`, `url_schema`, `url_benutzer`,
+- Errors → `?fehler=<code>[&kind=<kind>][&work=W]`, codes: `kind`, `url`, `url_schema`, `url_benutzer`,
   `url_geheimnis`, `geheimnis_feld`, `host`, `port`, `tls`, `feld`, `ordner`, `modell`, `geheimnis_leer`,
   `geheimnis_ungueltig`, `kein_geheimnis`, `bestaetigen`, `schluesselbund`, `gespeichert_ohne_geheimnis`, `werk`, `weg`, `stub_lancedb`,
-  `titel`, `adresse`, `notiz`, `quelle`, `position`, `methode`, `intern`; unbekannte Codes zeigen eine
-  allgemeine Meldung, nie den Code selbst.
-- Seiten: `GET /einstellungen/verbindungen` und `/einstellungen/quellen` zeigt der Rahmen der Einstellungen
-  (Aufgabe settings) mit `crate::connections::render_connections` bzw. `render_sources`.
+  `titel`, `adresse`, `notiz`, `quelle`, `position`, `methode`, `intern`; unknown codes show a
+  general message, never the code itself.
+- Pages: `GET /einstellungen/verbindungen` and `/einstellungen/quellen` are shown by the frame of the settings
+  (task settings) with `crate::connections::render_connections` or `render_sources`.
 
-### Abgleich mit MultiGPT (Runde 13)
+### Sync with MultiGPT (Round 13)
 
-Über `POST /rpc`, nicht über `/act` und **nicht über MCP** (kein Werkzeug, insbesondere keins, das hochlädt):
-den Abgleich löst nur der Mensch aus. Quelle `crates/baruch-server/src/sync/`, Store `baruch-store/src/sync.rs`
-(Migration 0033). Nur `sync.run` und `sync.collections` sprechen mit MultiGPT; alle übrigen Methoden und die
-Seite `/abgleich` lesen bzw. schreiben nur SQLite.
+Over `POST /rpc`, not over `/act` and **not over MCP** (no tool, in particular none that uploads):
+only the human triggers the sync. Source `crates/baruch-server/src/sync/`, store `baruch-store/src/sync.rs`
+(migration 0033). Only `sync.run` and `sync.collections` talk to MultiGPT; all other methods and the
+page `/abgleich` only read or write SQLite.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `sync.status` | `{work?}` | `{last: {id, started, finished, ok, message, uploaded, replaced, removed, downloaded, unchanged, failed} \| null, running, works: [{work, title, upload, collection, confirmed, documents, synced}], collections: [{collection, documents, synced}], configured}` – `work` begrenzt `works` auf das Werk (unbekannt → -32602); `documents` = hochgeladene Kapitel bzw. lokale Kopien, `synced` = letzter Abgleich; `message`: erste Zeile Ergebnis, danach je Zeile ein Hinweis; `configured` = Adresse für MultiGPT eingetragen |
-| `sync.run` | `{}` | `{started: true, running: true, run}` – startet einen Lauf im Hintergrund (Zeile in `sync_run`); läuft schon einer: `{started: false, running: true}` (kein zweiter Lauf) |
-| `sync.set_upload` | `{work, on, confirm?}` | `{work, upload, collection}` – Schalter „nach MultiGPT hochladen“ (Vorgabe aus). `on: true` ohne `confirm: true` → -32602 (Bestätigung vor dem ersten Hochladen), nichts geändert; beim Einschalten wird die Sammlung „Baruch: <Werktitel>“ festgehalten (eine schon festgehaltene bleibt); `on: false` behält sie. Ohne `work`, unbekanntes Werk oder `on` kein Wahrheitswert → -32602 |
-| `sync.set_collections` | `{collections: [String]}` | `{collections}` – zum Holen gewählte Sammlungen ersetzen (beschnitten, Doppelte entfernt, je 1–200 Zeichen in einer Zeile, höchstens 100; sonst -32602, nichts geändert) |
-| `sync.collections` | `{}` | `{collections: [{name, count, selected}]}` – online über `list_collections` (zur Auswahl); MultiGPT nicht eingerichtet, nicht erreichbar oder ohne Werkzeug → -32000 mit ehrlichem Satz |
+| `sync.status` | `{work?}` | `{last: {id, started, finished, ok, message, uploaded, replaced, removed, downloaded, unchanged, failed} \| null, running, works: [{work, title, upload, collection, confirmed, documents, synced}], collections: [{collection, documents, synced}], configured}` – `work` limits `works` to the work (unknown → -32602); `documents` = uploaded chapters or local copies, `synced` = last sync; `message`: first line the result, then one note per line; `configured` = address for MultiGPT entered |
+| `sync.run` | `{}` | `{started: true, running: true, run}` – starts a run in the background (row in `sync_run`); if one is already running: `{started: false, running: true}` (no second run) |
+| `sync.set_upload` | `{work, on, confirm?}` | `{work, upload, collection}` – switch „nach MultiGPT hochladen“ (default off). `on: true` without `confirm: true` → -32602 (confirmation before the first upload), nothing changed; on switching on, the collection „Baruch: <Werktitel>“ is recorded (one already recorded stays); `on: false` keeps it. Without `work`, unknown work or `on` not a boolean → -32602 |
+| `sync.set_collections` | `{collections: [String]}` | `{collections}` – replaces the collections chosen for fetching (trimmed, duplicates removed, each 1–200 characters in one line, at most 100; otherwise -32602, nothing changed) |
+| `sync.collections` | `{}` | `{collections: [{name, count, selected}]}` – online through `list_collections` (for the selection); MultiGPT not set up, not reachable or without the tool → -32000 with an honest sentence |
 
-- **Ein Lauf:** erst Baruch → MultiGPT (nur Werke mit `upload`; ein Dokument je Kapitel, Text = aktuelle
-  Fassungen von Kapitel und Unterabschnitten, Titel „<Nummer> <Titel>“; geänderter Hash (SHA-256 über Titel
-  und Text) → `upload_document`, danach `delete_document` des alten; fehlendes Kapitel bzw. gelöschtes Werk →
-  `delete_document`), dann MultiGPT → Baruch (gewählte Sammlungen über `list_documents` und `read_document`,
-  nur Geändertes nach `remote_stamp` bzw. Hash; Grenzen 500 Dokumente je Sammlung, 2 MiB je Dokument, 64 MiB je
-  Lauf, 30 s je Aufruf). Danach zieht der lokale Index die Kopien nach (Art `remote`, siehe „Bedeutungssuche“).
-- **Zahlen:** `uploaded` neu hochgeladen, `replaced` ersetzt (neu hochgeladen und altes gelöscht), `removed`
-  entfernt (Dokumente fehlender Kapitel bzw. gelöschter Werke bei MultiGPT, lokale Kopien gelöschter bzw.
-  abgewählter Dokumente), `downloaded` geholt, `unchanged` unverändert, `failed` gescheitert.
-- **Fehler sind Hinweise:** nicht eingerichtet, nicht erreichbar, verweigert (HTTP 401/403 bzw. `isError`,
-  etwa ohne `docs.write`), Schema unbekannt, Grenzen → `ok: false` und ein Satz in `message`; lokal bleibt
-  alles unverändert. Ein Rechte-, Transport- oder Schemafehler beendet das Schreiben nach MultiGPT für diesen
-  Lauf; ein `isError` der Gegenstelle für **ein** Dokument (etwa ein leeres Kapitel; Text ohne Hinweis auf
-  Rechte) zählt als `failed` und blockiert nur dieses (Runde 19a). Kein Token in Meldungen.
-- **Härtung (Runde 19a):** Nennt `upload_document` keine Dokument-ID, steht ein Hinweis in `message`, und der
-  Stand wird mit Hash und leerer ID gespeichert (Sperrvermerk): Derselbe Inhalt geht nicht erneut hinaus.
-  Vor jedem Hochladen steht im Stand die Marke „Hochladen begonnen“; geht die Antwort verloren (Zeitlimit,
-  abgerissene Verbindung), meldet der nächste Lauf, dass das Kapitel bei MultiGPT doppelt liegen kann. Beim
-  Holen gilt eine volle Seite ohne `has_more`/Fortsetzung als womöglich unvollständig (das `limit` steht am
-  `maximum` des Schemas bzw. wird still gekappt): Dann wird keine lokale Kopie gelöscht (Hinweis). Die Sammlung
-  eines Werks bleibt beim Umbenennen die beim Einschalten festgehaltene.
-- **LanceDB-Treffer der Art `remote`:** `collection: "remote"`, `document: "remote:<Sammlung>/<Dokument-ID>"`,
-  `url: "/quelle/multigpt?collection=…&document=…"` (url-kodiert), `meta: {collection, document, sync}`
-  (`sync` = id der lokalen Kopie).
+- **One run:** first Baruch → MultiGPT (only works with `upload`; one document per chapter, text = current
+  revisions of chapter and subsections, title „<Nummer> <Titel>“; changed hash (SHA-256 over title
+  and text) → `upload_document`, then `delete_document` of the old one; missing chapter or deleted work →
+  `delete_document`), then MultiGPT → Baruch (chosen collections through `list_documents` and `read_document`,
+  only what changed by `remote_stamp` or hash; limits 500 documents per collection, 2 MiB per document, 64 MiB per
+  run, 30 s per call). Afterwards the local index catches up the copies (kind `remote`, see "Semantic search").
+- **Numbers:** `uploaded` newly uploaded, `replaced` replaced (newly uploaded and the old one deleted), `removed`
+  removed (documents of missing chapters or deleted works at MultiGPT, local copies of deleted or
+  deselected documents), `downloaded` fetched, `unchanged` unchanged, `failed` failed.
+- **Errors are notes:** not set up, not reachable, refused (HTTP 401/403 or `isError`,
+  e.g. without `docs.write`), schema unknown, limits → `ok: false` and a sentence in `message`; locally
+  everything stays unchanged. A permission, transport or schema error ends writing to MultiGPT for this
+  run; an `isError` of the remote side for **one** document (e.g. an empty chapter; text without a hint at
+  permissions) counts as `failed` and blocks only that one (Round 19a). No token in messages.
+- **Hardening (Round 19a):** if `upload_document` names no document id, a note stands in `message`, and the
+  state is stored with the hash and an empty id (block mark): the same content does not go out again.
+  Before every upload the state carries the mark „Hochladen begonnen“; if the answer is lost (time limit,
+  broken connection), the next run reports that the chapter may be present twice at MultiGPT. When
+  fetching, a full page without `has_more`/continuation counts as possibly incomplete (the `limit` stands at the
+  `maximum` of the schema or is silently capped): then no local copy is deleted (note). The collection
+  of a work stays, when renaming, the one recorded at switching on.
+- **LanceDB hits of the kind `remote`:** `collection: "remote"`, `document: "remote:<Sammlung>/<Dokument-ID>"`,
+  `url: "/quelle/multigpt?collection=…&document=…"` (URL-encoded), `meta: {collection, document, sync}`
+  (`sync` = id of the local copy).
 
-Formular `POST /abgleich/act` (hinter `guard::same_origin`, immer 303), Feld `action`:
-- `run` → `/abgleich[?work=W]&ok=gestartet` bzw. `ok=laeuft`;
-- `upload` (`work`, `on=1` zum Einschalten, fehlt = aus, `confirm=1` Pflicht beim Einschalten, wahlweise
-  `back` = `/abgleich…` oder `/einstellungen/werk…`) → `back` bzw. `/abgleich?work=W` mit `ok=hochladen_an|
-  hochladen_aus`; ohne Kästchen `/abgleich?work=W&fehler=bestaetigen`, unbekanntes Werk `fehler=werk`;
-- `collections` (wiederholtes `collection`, dazu `collection_new`) → `ok=sammlungen` bzw. `fehler=sammlung`;
-- `load_collections` → `ok=geladen` bzw. `fehler=laden` (Grund auf der Seite).
-Seite `GET /abgleich?work=W` (siehe Bedienung.md „Abgleich mit MultiGPT“), ohne Netz.
+Form `POST /abgleich/act` (behind `guard::same_origin`, always 303), field `action`:
+- `run` → `/abgleich[?work=W]&ok=gestartet` or `ok=laeuft`;
+- `upload` (`work`, `on=1` for switching on, missing = off, `confirm=1` required when switching on, optionally
+  `back` = `/abgleich…` or `/einstellungen/werk…`) → `back` or `/abgleich?work=W` with `ok=hochladen_an|
+  hochladen_aus`; without the checkbox `/abgleich?work=W&fehler=bestaetigen`, unknown work `fehler=werk`;
+- `collections` (repeated `collection`, plus `collection_new`) → `ok=sammlungen` or `fehler=sammlung`;
+- `load_collections` → `ok=geladen` or `fehler=laden` (reason on the page).
+Page `GET /abgleich?work=W` (see Bedienung.md, sync with MultiGPT), without network.
 
-### Einfälle
+### Ideas
 
-Einfälle (Runde 7) gehen auch ohne Werk: `work` fehlt oder ist `null` = ohne Werk (bei Listen: alle).
-Herkunft ist über RPC immer der Mensch („Autor“). Jede schreibende Methode läuft unter der Schreibsperre und
-ergibt genau einen Commit je betroffenem Spiegel; die Antwort trägt `commit` bzw. `mirror` (Fehlertext).
-Nicht unter `/act`; die Seiten haben ihr eigenes Formular `POST /einfaelle/act`.
+Ideas (Round 7) also work without a work: `work` missing or `null` = without a work (for lists: all).
+Over RPC the origin is always the human („Autor“). Every writing method runs under the write lock and
+yields exactly one commit per affected mirror; the answer carries `commit` or `mirror` (error text).
+Not under `/act`; the pages have their own form `POST /einfaelle/act`.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
 | `idea.create` | `{work?, key?, words: [..] \| "a, b; c", note?, quote?, source?, bible?}` | `{idea, commit?, mirror?}` |
-| `idea.get` | `{id}` | `{idea}` (auch gelöschte) |
-| `idea.list` | `{work?: id \| "none" \| "all", word?, status?: "open" \| "done" \| "all", deleted?: bool, limit?, offset?}` | `{ideas, words: [{word, count}]}`; `deleted: true` = nur gelöschte; `words` = Wolke über Werk/Status (ohne Wortfilter) |
-| `idea.search` | `{query, work?, status?, limit?, mode?}` | `{ideas, hits: [{id, snippet}]}`; FTS5 über `baruch_library::fts_query`, `snippet` maskiertes HTML mit `<mark>`; leere Suche → -32602. `mode` (Runde 12) `fts` (Vorgabe) \| `rag`, sonst -32602; `rag`: Bedeutungssuche (Weg LanceDB, Art `idea`), Werk nötig (sonst -32602 „Bedeutungssuche nur innerhalb eines Werks“) → `{ideas, hits: [{id, snippet, score}], ways}` in der Reihenfolge des Rangs, gelöschte und nach `status` unpassende fallen heraus; seit Runde 19c je Treffer `weak` (Ähnlichkeit unter `baruch_rag::WEAK_SCORE`), schwache Treffer zuletzt; fällt die Bedeutungssuche aus (LanceDB nicht verbunden, etwa ohne Einbettungsmodell): -32001 (`RAG_UNAVAILABLE`) „Bedeutungssuche nicht verfügbar: LanceDB (lokal): <Grund>.“ (bis Runde 19: -32000 bzw. leere Liste) |
-| `idea.update` | `{id, words?, note?, quote?, source?, bible?, work?, key?, status?: "open" \| "done"}` | `{idea, changed, commit?, commits?, unlinked?}`; `work`/`key`: `null` = ohne; neues Werk ohne `key` → Bezug entfällt; beim Umziehen `commits` = beide Commits, `unlinked` = ids der dabei weich gelösten Verbindungen (Verbindungen nur innerhalb eines Werks; Lagen des Einfalls auf Karten werden entfernt) |
-| `idea.delete` | `{id, confirm: true}` | `{id, deleted: true, idea, commit?}`; ohne `confirm: true` → -32602; wiederherstellbar |
+| `idea.get` | `{id}` | `{idea}` (deleted ones too) |
+| `idea.list` | `{work?: id \| "none" \| "all", word?, status?: "open" \| "done" \| "all", deleted?: bool, limit?, offset?}` | `{ideas, words: [{word, count}]}`; `deleted: true` = only deleted ones; `words` = cloud over work/status (without the word filter) |
+| `idea.search` | `{query, work?, status?, limit?, mode?}` | `{ideas, hits: [{id, snippet}]}`; FTS5 through `baruch_library::fts_query`, `snippet` escaped HTML with `<mark>`; empty search → -32602. `mode` (Round 12) `fts` (default) \| `rag`, otherwise -32602; `rag`: semantic search (way LanceDB, kind `idea`), a work is needed (otherwise -32602 „Bedeutungssuche nur innerhalb eines Werks“) → `{ideas, hits: [{id, snippet, score}], ways}` in the order of rank, deleted ones and ones not matching `status` drop out; since Round 19c per hit `weak` (similarity below `baruch_rag::WEAK_SCORE`), weak hits last; if the semantic search fails (LanceDB not connected, e.g. without an embedding model): -32001 (`RAG_UNAVAILABLE`) „Bedeutungssuche nicht verfügbar: LanceDB (lokal): <Grund>.“ (until Round 19: -32000 or an empty list) |
+| `idea.update` | `{id, words?, note?, quote?, source?, bible?, work?, key?, status?: "open" \| "done"}` | `{idea, changed, commit?, commits?, unlinked?}`; `work`/`key`: `null` = without; a new work without `key` → the reference is dropped; when moving, `commits` = both commits, `unlinked` = ids of the connections softly released in the process (connections only within one work; positions of the idea on maps are removed) |
+| `idea.delete` | `{id, confirm: true}` | `{id, deleted: true, idea, commit?}`; without `confirm: true` → -32602; restorable |
 | `idea.restore` | `{id}` | `{idea, commit?}` |
-| `idea.process` | `{id, as: "outline" \| "post" \| "note" \| "persona", key?, place?: "before" \| "after" \| "into", title?, persona?}` | `{idea, node?, key?, outline?, post?, commit?}`; `outline`: `Store::idea_to_outline` (seit Runde 14 **eine** Transaktion: Punkt anlegen wie `outline.add` hinter (`place`) dem Abschnitt `key` bzw. dem Bezug und Einfall erledigen mit `done_ref` „key <key>“; scheitert ein Schritt, ist nichts geändert und es gibt keinen Commit), Titel = `title` oder die Schlagwörter (200 Zeichen), `outline` = Gliederungsantwort mit eigenem `commit`; `post`/`note`: Beitrag (Autor „Autor“ bzw. „Notiz“, Quelle „Einfall <id>“, seit Runde 15 bei einem Einfall einer Persona bzw. eines MCP-Clients „Einfall <id> von @x“ bzw. „… von @mcp:…“); danach `status: done`. `persona` (Runde 10, `persona?`, Vorgabe der Lektor; seit Runde 15 auch im Formular wählbar): der Einfall als Frage zum Bezugsabschnitt an die Persona (mit Herkunft „Einfall von @x“) → Beitrag der Persona, Einfall verarbeitet (`done_as: persona`, `done_ref` = Beitrag); Antwort `{idea, node, key, post_id, persona, model, truncated, url, commit?\|mirror?}`; Modellaufruf vor der Schreibsperre; scheitert er → -32000, der Einfall bleibt offen |
+| `idea.process` | `{id, as: "outline" \| "post" \| "note" \| "persona", key?, place?: "before" \| "after" \| "into", title?, persona?}` | `{idea, node?, key?, outline?, post?, commit?}`; `outline`: `Store::idea_to_outline` (since Round 14 **one** transaction: create an item like `outline.add` after (`place`) the section `key` or the reference and mark the idea done with `done_ref` „key <key>“; if a step fails, nothing is changed and there is no commit), title = `title` or the keywords (200 characters), `outline` = outline answer with its own `commit`; `post`/`note`: post (author „Autor“ or „Notiz“, source „Einfall <id>“, since Round 15 for an idea of a persona or an MCP client „Einfall <id> von @x“ or „… von @mcp:…“); afterwards `status: done`. `persona` (Round 10, `persona?`, default the lector; since Round 15 also selectable in the form): the idea as a question about the referenced section to the persona (with origin „Einfall von @x“) → post of the persona, idea processed (`done_as: persona`, `done_ref` = post); answer `{idea, node, key, post_id, persona, model, truncated, url, commit?\|mirror?}`; model call before the write lock; if it fails → -32000, the idea stays open |
 
 `idea` = `{id, work, key, node_title, words, note, quote, source, bible, origin: {kind: "human", name} |
 {kind: "persona" | "mcp", handle}, status, done_as, done_ref, created, updated, deleted}`.
 
-Fehler: unbekannter Einfall („Einfall 7 gibt es nicht.“), verletzte Grenze (1–20 Schlagwörter, je ≤ 60
-Zeichen, ohne Zeilenumbruch; Gedanke/Markierung ≤ 4000, Quelle/Bibelstelle ≤ 200), Bezug außerhalb des
-Werks („Der Abschnitt gehört nicht zu diesem Werk.“), gelöschter Einfall beim Ändern/Verarbeiten, Verarbeiten
-ohne Werk oder Abschnitt → -32602; unbekanntes Werk → -32602.
+Errors: unknown idea („Einfall 7 gibt es nicht.“), a violated limit (1–20 keywords, each ≤ 60
+characters, without a line break; thought/mark ≤ 4000, source/Bible reference ≤ 200), reference outside the
+work („Der Abschnitt gehört nicht zu diesem Werk.“), a deleted idea when changing/processing, processing
+without a work or section → -32602; unknown work → -32602.
 
-Seit Runde 25 trägt `einfaelle.md` im Spiegel je Einfall mit Verbindungen nach den übrigen Feldern die Zeile
-„- Verbindungen: → 79 führt weiter; ↔ 48 widerspricht („Notiz“); ← 12 Beispiel für“ (ausgehend →, eingehend ←,
-ungerichtet ↔; nach Verbindungs-id; nur aktive zu nicht gelöschten Einfällen). Ein gelöschter Einfall nimmt seine
-Verbindungen und Lage aus Karte, Listen und Spiegel und bringt sie mit `idea.restore` zurück (siehe „Gedankenkarte“).
+Since Round 25, `einfaelle.md` in the mirror carries for every idea with connections, after the other fields, the line
+`„- Verbindungen: → 79 führt weiter; ↔ 48 widerspricht („Notiz“); ← 12 Beispiel für“` (outgoing →, incoming ←,
+undirected ↔; by connection id; only active ones to ideas that are not deleted). A deleted idea takes its
+connections and position out of map, lists and mirror and brings them back with `idea.restore` (see "Idea map").
 
-### Gedankenkarte (Runde 25)
+### Idea map (Round 25)
 
-Seit Runde 34 heißt die Seite „Mindmap“; Baum, Wolke, `idea.move` und `idea.tree` stehen unter „Runde 34 – Mindmap“
-am Ende. Die Methoden dieses Abschnitts bleiben (flache Sicht, Verbindungen, Lagen – Lagen sind in der Mindmap ohne
-Wirkung).
+Since Round 34 the page is called „Mindmap“; tree, cloud, `idea.move` and `idea.tree` stand under "Round 34 – Mind map"
+at the end. The methods of this section stay (flat view, connections, positions – positions have no effect in the
+mind map).
 
-Karte der Einfälle eines Werks, Verbindungen zwischen Einfällen und gespeicherte Lagen (`crate::idea_map`,
-Store `idea_links.rs`, Migration 0043). Herkunft über RPC immer der Mensch („Autor“); schreibende Methoden laufen
-unter der Schreibsperre. Nicht unter `/act`; die Karte hat ihr eigenes Formular `POST /werke/{id}/karte/act`, das
-dieselben Methoden aufruft (Zahlen dürfen darum auch als Ziffern-Text kommen, leere Texte zählen als fehlend).
-`work` ist bei `idea.map`, `idea.map_pos_set` und `idea.map_pos_reset` Pflicht (kein Vorgabewerk).
+Map of the ideas of a work, connections between ideas and stored positions (`crate::idea_map`,
+store `idea_links.rs`, migration 0043). Over RPC the origin is always the human („Autor“); writing methods run
+under the write lock. Not under `/act`; the map has its own form `POST /werke/{id}/karte/act` that
+calls the same methods (numbers may therefore also come as digit text; empty texts count as missing).
+`work` is required for `idea.map`, `idea.map_pos_set` and `idea.map_pos_reset` (no default work).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
 | `idea.map` | `{work, status?: "open" \| "done" \| "all", word?, origin?: "human" \| "persona" \| "mcp", q?, near?: bool = true, near_limit?: 1..5, near_threshold?: 0..1, open?: [key]}` | `IdeaMap` = `{work, title, nodes, ideas, links, near, positions, filter}` |
-| `idea.links` | `{work}` oder `{idea}`, je mit `deleted?: bool = false` (genau eins von `work`/`idea`, sonst -32602) | `{links: [IdeaLink]}` nach id |
+| `idea.links` | `{work}` or `{idea}`, each with `deleted?: bool = false` (exactly one of `work`/`idea`, otherwise -32602) | `{links: [IdeaLink]}` by id |
 | `idea.link` | `{from, to, kind: "leads_to" \| "belongs_to" \| "example_of" \| "contradicts", note?}` | `{link, changed, commit?\|mirror?}` |
-| `idea.unlink` | `{id}` (weich, kein `confirm` nötig: wiederherstellbar) | `{link, commit?\|mirror?}` |
+| `idea.unlink` | `{id}` (soft, no `confirm` needed: restorable) | `{link, commit?\|mirror?}` |
 | `idea.link_restore` | `{id}` | `{link, commit?\|mirror?}` |
-| `idea.map_pos_set` | `{work, idea, x, y}` | `{pos: {idea, x, y, updated}}` (kein Commit) |
-| `idea.map_pos_reset` | `{work, idea?}` (ohne `idea` alle Lagen des Werks) | `{removed}` (kein Commit) |
-| `idea.map_groups` | `{work}` + Filter wie `idea.map` (inkl. `near_limit`, `near_threshold`; `near` zählt nicht, die Nähe ist für Gruppen immer an) | `{groups: [{group: "g<kleinste id>", ideas: [id], words: [..], proposal?: {name, persona, model, at}}]}` (Runde 19b) |
-| `idea.map_groups_name` | `{work, persona?}` + Filter wie oben | `{proposals: [{group, ideas, name}], persona, model}`; ohne Gruppe `{proposals: [], persona, model: null, message}` (Runde 19b) |
-| `idea.map_group_accept` | `{work, group, name?}` + Filter (nur ohne Vorschlag gebraucht) | `{group, name, ideas, changed: [id], commits: [..]}` (Runde 19b, nur Mensch); Runde 23: veralteter Vorschlag → -32000, Grenzen vorab geprüft |
-| `idea.map_group_dismiss` | `{work, group}` | `{group, removed: bool}` (Runde 19b) |
+| `idea.map_pos_set` | `{work, idea, x, y}` | `{pos: {idea, x, y, updated}}` (no commit) |
+| `idea.map_pos_reset` | `{work, idea?}` (without `idea` all positions of the work) | `{removed}` (no commit) |
+| `idea.map_groups` | `{work}` + filter like `idea.map` (incl. `near_limit`, `near_threshold`; `near` does not count, nearness is always on for groups) | `{groups: [{group: "g<kleinste id>", ideas: [id], words: [..], proposal?: {name, persona, model, at}}]}` (Round 19b) |
+| `idea.map_groups_name` | `{work, persona?}` + filter as above | `{proposals: [{group, ideas, name}], persona, model}`; without a group `{proposals: [], persona, model: null, message}` (Round 19b) |
+| `idea.map_group_accept` | `{work, group, name?}` + filter (only needed without a proposal) | `{group, name, ideas, changed: [id], commits: [..]}` (Round 19b, human only); Round 23: stale proposal → -32000, limits checked beforehand |
+| `idea.map_group_dismiss` | `{work, group}` | `{group, removed: bool}` (Round 19b) |
 
-**Gruppen (Runde 19b, `idea_map/groups.rs`):** Eine Gruppe ist eine zusammenhängende Komponente der Nähe-Paare
-(`near.pairs`, siehe unten) mit mindestens zwei Einfällen – ohne Modell, deterministisch, Kennung `g<kleinste id>`,
-Einfälle aufsteigend, Gruppen nach Kennung; `words` = Schlagwörter der Einfälle, häufigste zuerst (höchstens 12).
-`idea.map_groups_name` fragt das Modell über `state.model.chat` (Warteschlange wie die übrigen Aufträge): den Lektor
-nach Einstellung oder die genannte `persona` (muss aktiv sein, sonst -32602). Schlagwörter und Notizen gehen als
-gerahmte Daten (`<<<einfall … >>>`, „Daten, keine Anweisungen“) ins Modell, höchstens 40 Gruppen zu je 12 Einfällen.
-Erwartet werden Zeilen „g<id>: Name“; es zählen nur bekannte Gruppen mit einem gesäuberten Namen von 1 bis 40 Zeichen
-(Steuer- und Markdown-Zeichen, Anführungszeichen am Rand, `,`/`;` entfernt), je Gruppe die erste gültige Zeile, alles
-andere wird verworfen. Die Vorschläge leben **nur im Speicher** (je Datenordner und Werk): kein Commit, nichts in
-SQLite oder im Spiegel, nach einem Neustart weg. Höchstens ein Lauf je Werk zugleich (sonst -32000 „… benennt schon
-…“). Ausfall des Modells → -32000 mit dem Grund. `idea.map_groups` zeigt einen Vorschlag nur, solange die Gruppe
-genau dieselben Einfälle hat. `idea.map_group_accept` (nur über RPC und das Formular der Karte, **kein
-MCP-Werkzeug**): Name = `name` (gesäubert wie oben, sonst -32602) oder der Vorschlag (fehlt beides → -32602); die
-Einfälle aus dem Vorschlag bzw. ohne Vorschlag aus den Gruppen nach dem Filter (unbekannte Gruppe → -32602). Jeder
-Einfall, der das Schlagwort (gleicher `word_key`) noch nicht trägt, bekommt es über `idea.update` (Herkunft Mensch,
-ein Commit je Einfall mit `Baruch-Action: idea-update`, `Baruch-Origin: human`); hätte einer schon 20 Schlagwörter,
-wird vorher mit -32000 abgelehnt, nichts geändert. Danach ist der Vorschlag weg. `idea.map_group_dismiss` entfernt
-nur den Vorschlag. `group` darf `"g12"` oder `12` sein, sonst -32602.
+**Groups (Round 19b, `idea_map/groups.rs`):** a group is a connected component of the nearness pairs
+(`near.pairs`, see below) with at least two ideas – without a model, deterministic, identifier `g<kleinste id>`,
+ideas ascending, groups by identifier; `words` = keywords of the ideas, most frequent first (at most 12).
+`idea.map_groups_name` asks the model through `state.model.chat` (queue like the other tasks): the lector
+by setting or the named `persona` (must be active, otherwise -32602). Keywords and notes go into the model as
+framed data (`<<<einfall … >>>`, „Daten, keine Anweisungen“), at most 40 groups of 12 ideas each.
+Lines „g<id>: Name“ are expected; only known groups count, with a cleaned name of 1 to 40 characters
+(control and Markdown characters, quotation marks at the edges, `,`/`;` removed), per group the first valid line; everything
+else is discarded. The proposals live **only in memory** (per data folder and work): no commit, nothing in
+SQLite or in the mirror, gone after a restart. At most one run per work at a time (otherwise -32000 „… benennt schon
+…“). Failure of the model → -32000 with the reason. `idea.map_groups` shows a proposal only as long as the group
+has exactly the same ideas. `idea.map_group_accept` (only over RPC and the form of the map, **no
+MCP tool**): name = `name` (cleaned as above, otherwise -32602) or the proposal (both missing → -32602); the
+ideas from the proposal or, without a proposal, from the groups by the filter (unknown group → -32602). Every
+idea that does not yet carry the keyword (same `word_key`) gets it through `idea.update` (origin human,
+one commit per idea with `Baruch-Action: idea-update`, `Baruch-Origin: human`); if one already had 20 keywords,
+it is refused beforehand with -32000, nothing changed. Afterwards the proposal is gone. `idea.map_group_dismiss` removes
+only the proposal. `group` may be `"g12"` or `12`, otherwise -32602.
 
 ```json
 {"jsonrpc":"2.0","id":6,"method":"idea.map_groups_name","params":{"work":3}}
@@ -1314,35 +1314,35 @@ nur den Vorschlag. `group` darf `"g12"` oder `12` sein, sonst -32602.
 → {"group":"g48","name":"Aussaat","ideas":[48,52,79],"changed":[48,52,79],"commits":["5d1e…","8a0b…","c41f…"]}
 ```
 
-**`idea.map`** setzt die Karte zusammen:
-- `nodes`: `{id, kind, key, parent, number, title, sections, open_ideas, total_ideas}`; `id` = `"w"` (Werk, `kind`
-  `work`, `parent` `null`), `"n:<key>"` (`part`, `chapter`, `section`) oder `"none"` (`no_chapter`, Titel „Ohne
-  Kapitel“, nur wenn ein gezeigter Einfall keinen Bezug hat); `parent` = nächster Vorfahre, der selbst Knoten ist,
-  sonst `"w"`. Abschnitte unter einem Kapitel stehen zugeklappt in dessen `sections` (`{key, number, title,
-  ideas}`); steht der key des Kapitels in `open`, sind sie eigene Knoten (`section`). Abschnitte ohne Kapitel
-  darüber sind immer eigene Knoten. Zähler = gezeigte Einfälle, die am Knoten oder an einem Knoten darunter hängen
-  (ein Teil samt seinen Kapiteln, ein Kapitel samt seinen Abschnitten, zugeklappt wie aufgeklappt), beim Werk alle
-  gezeigten.
-- `ideas`: `{id, node: "i:<id>", anchor, key, label, words, note, status, origin, hit}` nach id; `anchor` = id des
-  Knotens, an dem der Einfall hängt (zugeklappt das Kapitel, sonst `"none"`), `key` = genauer Bezug, `label` =
-  Schlagwörter „a, b“ (höchstens 60 Zeichen). Nur nicht gelöschte Einfälle des Werks; Einfälle ohne Werk erscheinen
-  nicht. `status`, `word` (verglichen über den `word_key`: Groß/klein und Leerraum egal) und `origin` entfernen nicht
-  passende Einfälle samt ihren Kanten; `q` (Volltext wie `idea.search`) markiert Treffer mit `hit: true`, die übrigen
-  bleiben mit `hit: false` (ohne `q` alle `true`).
-- `links`: aktive Verbindungen zwischen gezeigten Einfällen; `positions`: gespeicherte Lagen gezeigter Einfälle
-  (`{idea, x, y, updated}`, SVG-Benutzereinheiten, Werk bei 0,0).
+**`idea.map`** assembles the map:
+- `nodes`: `{id, kind, key, parent, number, title, sections, open_ideas, total_ideas}`; `id` = `"w"` (work, `kind`
+  `work`, `parent` `null`), `"n:<key>"` (`part`, `chapter`, `section`) or `"none"` (`no_chapter`, title „Ohne
+  Kapitel“, only if a shown idea has no reference); `parent` = nearest ancestor that is itself a node,
+  otherwise `"w"`. Sections under a chapter stand folded in its `sections` (`{key, number, title,
+  ideas}`); if the key of the chapter is in `open`, they are nodes of their own (`section`). Sections without a chapter
+  above them are always nodes of their own. Counter = shown ideas hanging at the node or at a node below it
+  (a part with its chapters, a chapter with its sections, folded as well as unfolded), for the work all
+  shown ones.
+- `ideas`: `{id, node: "i:<id>", anchor, key, label, words, note, status, origin, hit}` by id; `anchor` = id of the
+  node at which the idea hangs (folded the chapter, otherwise `"none"`), `key` = exact reference, `label` =
+  keywords „a, b“ (at most 60 characters). Only non-deleted ideas of the work; ideas without a work do not
+  appear. `status`, `word` (compared by the `word_key`: case and white space do not matter) and `origin` remove
+  non-matching ideas with their edges; `q` (full text like `idea.search`) marks hits with `hit: true`, the others
+  stay with `hit: false` (without `q` all `true`).
+- `links`: active connections between shown ideas; `positions`: stored positions of shown ideas
+  (`{idea, x, y, updated}`, SVG user units, work at 0,0).
 - `near`: `{state: "ok" | "off" | "no_embedder" | "unavailable", message, pairs: [{a, b, score, via: "vector" |
-  "words" | "both", shared_words}]}` (`a < b`). Nur Anzeige, nie gespeichert, **keine Einbettungsanfrage**: Vektoren
-  sind die schon im LanceDB-Index gespeicherten (`idea:<id>`, `rag/neighbors.rs`); Kosinus ab `near_threshold`
-  (Vorgabe 0.75) zählt als `vector`, ein gleiches Schlagwort als `words` (auch ohne Einbettung), beides als `both`.
-  `score`: Kosinus bzw. Anteil gemeinsamer Schlagwörter (Jaccard) bzw. der größere. Je Einfall höchstens `near_limit`
-  (Vorgabe 3) Partner (Paare nach `score` absteigend). Ohne Einbetter oder ohne Vektoren im Index `no_embedder`, bei
-  Fehler bzw. anderem Modell des Index `unavailable`, jeweils mit ehrlicher `message` und der Schlagwort-Nähe;
-  `near: false` → `off` ohne Paare.
-- `filter`: der angewandte Filter (Vorgaben für `near_limit`/`near_threshold` eingesetzt, `open` nur mit Kapiteln
-  des Werks, `q` ohne Suchwort entfällt).
+  "words" | "both", shared_words}]}` (`a < b`). Display only, never stored, **no embedding request**: vectors
+  are those already stored in the LanceDB index (`idea:<id>`, `rag/neighbors.rs`); a cosine from `near_threshold`
+  (default 0.75) counts as `vector`, an equal keyword as `words` (also without embedding), both as `both`.
+  `score`: cosine or share of common keywords (Jaccard) or the larger one. Per idea at most `near_limit`
+  (default 3) partners (pairs by `score` descending). Without an embedder or without vectors in the index `no_embedder`, on
+  an error or another model of the index `unavailable`, each with an honest `message` and the keyword nearness;
+  `near: false` → `off` without pairs.
+- `filter`: the applied filter (defaults for `near_limit`/`near_threshold` filled in, `open` only with chapters
+  of the work, `q` without a search word is dropped).
 
-Beispiel:
+Example:
 ```json
 {"jsonrpc":"2.0","id":1,"method":"idea.map","params":{"work":3,"status":"open","open":[12]}}
 → {"work":3,"title":"Das Laubenbuch",
@@ -1355,20 +1355,20 @@ Beispiel:
    "filter":{"status":"open","word":null,"origin":null,"q":null,"near":true,"near_limit":3,"near_threshold":0.75,"open":[12]}}
 ```
 
-**Verbindungen** (`IdeaLink` = `{id, uuid, from, to, kind, note, origin: {kind, name|handle}, created, updated,
-deleted}`): nur Einfall ↔ Einfall desselben Werks (auch beide ohne Werk), keiner gelöscht, kein Selbstbezug, Notiz
-höchstens 500 Zeichen ohne Steuerzeichen außer Zeilenumbruch; sonst -32602 mit deutschem Satz, nichts geschrieben.
-`contradicts` („widerspricht“) ist ungerichtet und wird mit `from < to` gespeichert. `idea.link` auf ein schon
-vorhandenes Paar mit gleicher Art: aktiv → unverändert (`changed: false`, kein Commit); weich gelöscht →
-wiederhergestellt (`changed: true`, Notiz ersetzt, wenn eine neue mitkommt). `idea.link_restore` verlangt ebenfalls
-zwei verbindbare Einfälle. Ein gelöschter Einfall nimmt seine Verbindungen und Lage aus Karte, Listen und Spiegel
-(nur gefiltert) und bringt sie mit `idea.restore` zurück.
+**Connections** (`IdeaLink` = `{id, uuid, from, to, kind, note, origin: {kind, name|handle}, created, updated,
+deleted}`): only idea ↔ idea of the same work (also both without a work), neither deleted, no self-reference, note
+at most 500 characters without control characters except line break; otherwise -32602 with a German sentence, nothing written.
+`contradicts` („widerspricht“) is undirected and is stored with `from < to`. `idea.link` on an already
+existing pair with the same kind: active → unchanged (`changed: false`, no commit); softly deleted →
+restored (`changed: true`, note replaced if a new one comes along). `idea.link_restore` likewise requires
+two connectable ideas. A deleted idea takes its connections and position out of map, lists and mirror
+(only filtered) and brings them back with `idea.restore`.
 
-Spiegel: jede Änderung an einer Verbindung ist genau ein Commit im Spiegel des Werks (ohne Werk in
-`<data>/einfaelle/`), Betreff „Verbindung <id>: Einfall <a> <Art> Einfall <b> (angelegt|gelöscht|wiederhergestellt)“,
-Trailer `Baruch-Action: idea-link|idea-unlink|idea-link-restore`, `Baruch-Idea-Link: <id>`, `Baruch-Origin:
-human|persona|mcp` (bei Persona/MCP dazu `Persona`); `einfaelle.md` trägt je Einfall die Zeile „- Verbindungen: …“
-(siehe „Einfälle“). Lagen ergeben keinen Commit.
+Mirror: every change to a connection is exactly one commit in the mirror of the work (without a work in
+`<data>/einfaelle/`), subject „Verbindung <id>: Einfall <a> <Art> Einfall <b> (angelegt|gelöscht|wiederhergestellt)“,
+trailers `Baruch-Action: idea-link|idea-unlink|idea-link-restore`, `Baruch-Idea-Link: <id>`, `Baruch-Origin:
+human|persona|mcp` (with persona/MCP plus `Persona`); `einfaelle.md` carries for every idea the line „- Verbindungen: …“
+(see "Ideas"). Positions yield no commit.
 
 ```json
 {"jsonrpc":"2.0","id":2,"method":"idea.link","params":{"from":79,"to":48,"kind":"contradicts","note":"beißt sich"}}
@@ -1381,150 +1381,150 @@ human|persona|mcp` (bei Persona/MCP dazu `Persona`); `einfaelle.md` trägt je Ei
 → {"removed":1}
 ```
 
-Lagen: je (Werk, Einfall) höchstens eine; der Einfall muss zum Werk gehören und nicht gelöscht sein, `x`/`y`
-endlich mit Betrag höchstens 1 000 000 (sonst -32602); ein zweites Setzen ersetzt die Lage. Zurücksetzen löscht hart
-(Grabstein `idea_map_pos` für den Austausch). Fehler: unbekanntes Werk wie bei den übrigen Methoden, unbekannter
-Einfall bzw. unbekannte Verbindung („Verbindung 7 gibt es nicht.“), falsche Parameter → -32602.
+Positions: at most one per (work, idea); the idea must belong to the work and not be deleted, `x`/`y`
+finite with an absolute value of at most 1 000 000 (otherwise -32602); setting a second time replaces the position. Resetting deletes hard
+(tombstone `idea_map_pos` for the exchange). Errors: unknown work as with the other methods, unknown
+idea or unknown connection („Verbindung 7 gibt es nicht.“), wrong parameters → -32602.
 
-### Fäden ohne Abschnitt (Runde 15)
+### Threads without a section (Round 15)
 
-Gespräche je Werk, die an keinem Abschnitt hängen (Migration 0038, `src/threads.rs`): MCP `chat` ohne `key` legt
-einen an bzw. setzt ihn fort, der Mensch liest und antwortet. Kein Buchtext, kein Abschnitts-Chat, nicht im Spiegel.
-Alle nehmen `work?` (fehlt → Vorgabewerk).
+Conversations per work that hang at no section (migration 0038, `src/threads.rs`): MCP `chat` without `key` creates
+one or continues it, the human reads and answers. No book text, no section chat, not in the mirror.
+All take `work?` (missing → default work).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `thread.list` | `{work?}` | `{work, threads: [{id, work, title, created_by, created, updated, posts, last_author}]}`, zuletzt beschriebene zuerst |
-| `thread.get` | `{work?, thread}` | `{work, thread: {…wie oben}, posts: [{id, thread, position, author, body, sources, created}], url}`; unbekannter Faden (auch eines anderen Werks) → -32000 „Diesen Faden gibt es in diesem Werk nicht.“ |
-| `thread.post` | `{work?, thread?, message, persona?}` | Beitrag des Menschen („Autor“; ohne `thread` ein neuer Faden, Titel aus der Nachricht, ≤ 80 Zeichen), dann antworten die erwähnten aktiven Personas (`@handle`) und `persona` (höchstens drei, ohne Relay): `{work, thread, title, posts: [{id, author, body, position}], answers: [{persona, model, post_id, text, cut, truncated, relay, asked_by}], errors, url, cut, truncated}`; leere Nachricht → -32602 |
+| `thread.list` | `{work?}` | `{work, threads: [{id, work, title, created_by, created, updated, posts, last_author}]}`, most recently written first |
+| `thread.get` | `{work?, thread}` | `{work, thread: {…as above}, posts: [{id, thread, position, author, body, sources, created}], url}`; unknown thread (also one of another work) → -32000 „Diesen Faden gibt es in diesem Werk nicht.“ |
+| `thread.post` | `{work?, thread?, message, persona?}` | post of the human („Autor“; without `thread` a new thread, title from the message, ≤ 80 characters), then the mentioned active personas (`@handle`) and `persona` answer (at most three, without relay): `{work, thread, title, posts: [{id, author, body, position}], answers: [{persona, model, post_id, text, cut, truncated, relay, asked_by}], errors, url, cut, truncated}`; empty message → -32602 |
 
-Kontext einer Antwort im Faden: Rollen-Prompt, Werk (Titel, Art, Zielgruppe), die letzten 12 Beiträge des Fadens (je
-höchstens 600 Zeichen; reicht die Kontextlänge nicht, fallen die ältesten), der Auftrag; `max_tokens` 500. Seit Runde
-17a prüft Baruch auch hier „Kritisch:“-Zitate gegen den gezeigten Text (Werkzeile, Gliederung, Belege aus SWORD, die
-eigene Frage – nicht die Fadenbeiträge) und vermerkt falsche Stellenaussagen („(Stelle steht im Text: …)“,
-„(Stelle ungültig: …)“). Seiten
-ohne JavaScript: `GET /faeden?work` (Übersicht, „Neuer Faden“), `GET /faden?work&thread` (Beiträge, Antwortformular),
-`POST /faden/act` (hinter `same_origin`; Felder `work`, `thread?`, `message`, `persona?`; 303 auf den Faden, Fehler
-als Hinweis auf derselben Seite mit dem Entwurf im Feld).
+Context of an answer in the thread: role prompt, work (title, kind, target audience), the last 12 posts of the thread (each
+at most 600 characters; if the context length is not enough, the oldest drop out), the task; `max_tokens` 500. Since Round
+17a Baruch also checks „Kritisch:“ quotations here against the shown text (work line, outline, evidence from SWORD, the
+own question – not the thread posts) and notes wrong statements about references („(Stelle steht im Text: …)“,
+„(Stelle ungültig: …)“). Pages
+without JavaScript: `GET /faeden?work` (overview, „Neuer Faden“), `GET /faden?work&thread` (posts, answer form),
+`POST /faden/act` (behind `same_origin`; fields `work`, `thread?`, `message`, `persona?`; 303 to the thread, errors
+as a notice on the same page with the draft in the field).
 
-#### thread.post_edit, thread.post_versions (Runde 28, chat-auftrag)
+#### thread.post_edit, thread.post_versions (Round 28, chat-auftrag)
 
-- `thread.post_edit {work?, thread, id, body}` → `{work, thread, id, body, edited, versions, url}`: nur eigene
-  Fadenbeiträge des Menschen (fremde und Persona-Beiträge → -32000); die alte Fassung bleibt als `post_version`.
-  Fadenbeiträge stehen nie im Spiegel (Regel seit Runde 15), darum **kein Commit**.
-- `thread.post_versions {work?, thread, id}` → `{work, thread, id, versions}` (älteste zuerst).
-- `thread.post` erkennt RFC bzw. „@alle“ wie `persona.chat` (alle aktiven Personas, der Lektor zuletzt mit Sammlung,
-  keine Relay-Stufe) und liefert zusätzlich `{rfc, findings}`. Ein Schreibauftrag im Faden bleibt eine Antwort (es
-  gibt keinen Abschnitt für einen Vorschlag).
-- Formular ohne JavaScript `POST /faden/bearbeiten` (`work`, `thread`, `id`, `body`; hinter `same_origin`) → 303 auf
-  `/faden?work&thread#beitrag-<id>`, Fehler als Hinweis auf der Seite (200). `GET /faden?…&zitat=<id>` belegt die
-  Antwort mit dem zitierten Beitrag („> …“) vor; `POST /faden/act` leitet auf `…#chat-neueste`.
+- `thread.post_edit {work?, thread, id, body}` → `{work, thread, id, body, edited, versions, url}`: only own
+  thread posts of the human (others' and persona posts → -32000); the old revision stays as `post_version`.
+  Thread posts never stand in the mirror (rule since Round 15), therefore **no commit**.
+- `thread.post_versions {work?, thread, id}` → `{work, thread, id, versions}` (oldest first).
+- `thread.post` recognises RFC or „@alle“ like `persona.chat` (all active personas, the lector last with a collection,
+  no relay stage) and additionally delivers `{rfc, findings}`. A writing task in the thread stays an answer (there
+  is no section for a proposal).
+- Form without JavaScript `POST /faden/bearbeiten` (`work`, `thread`, `id`, `body`; behind `same_origin`) → 303 to
+  `/faden?work&thread#beitrag-<id>`, errors as a notice on the page (200). `GET /faden?…&zitat=<id>` prefills the
+  answer with the quoted post („> …“); `POST /faden/act` redirects to `…#chat-neueste`.
 
-### Zeitwächter (Runde 16b)
+### Time watch (Round 16b)
 
-Sprechdauer je Gliederungspunkt und gesamt (`src/timing.rs`, Zählung `baruch_typst::timing`, Regeln in
-`docs/Bedienung.md`, „Zeitwächter“). Wörter je Minute und Zielzeit stehen je Werk nur in SQLite (`work_timing`,
-Migration 0039; ohne Zeile 110 Wörter je Minute, keine Zielzeit), **nicht im Spiegel** (wie die Farben der
-Personas). Alle nehmen `work?` (fehlt → Vorgabewerk, unbekannt → -32602).
+Speaking time per outline item and in total (`src/timing.rs`, counting `baruch_typst::timing`, rules in
+`docs/Bedienung.md`, time watch). Words per minute and target time stand per work only in SQLite (`work_timing`,
+migration 0039; without a row 110 words per minute, no target time), **not in the mirror** (like the colours of the
+personas). All take `work?` (missing → default work, unknown → -32602).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `work.timing` | `{work?}` | `{work, kind: "book" \| "sermon", words_per_minute, target_seconds, words, seconds, status: "none" \| "ok" \| "over", over_seconds, shown, clock, target_clock, over_clock, sections: [{key, seq, depth, number, title, words, seconds, start_seconds, subtree_seconds, clock, start_clock, subtree_clock}]}` – nur lesend, keine Schreibsperre, kein Commit. Je Punkt in `seq`-Reihenfolge die **aktuelle** Fassung; `words`/`seconds` nur der eigene Text, `start_seconds` = Summe der vorherigen Punkte (Zeitmarke), `subtree_seconds` = eigener Text samt Nachfahren, `depth` = Zahl der Vorfahren; `seconds` gesamt = Summe der Punkte; `status` `over` genau dann, wenn `seconds > target_seconds` (`over_seconds` = Differenz), `none` ohne Zielzeit; `shown` = Predigt oder Zielzeit gesetzt (dann zeigen Gliederung, Baum und Editorkopf die Zeiten); `*_clock` = „m:ss“ bzw. „h:mm:ss“ |
-| `work.timing_set` | `{work, words_per_minute?, target_minutes?: Zahl \| null}` | `{work, words_per_minute, target_seconds}`; fehlende Felder bleiben, `target_minutes: null` (oder leerer Text) löscht die Zielzeit. `work` Pflicht; Wörter je Minute 60–250, Zielzeit ganze Minuten 1–240, sonst -32602, nichts geändert. **Nur der Mensch:** nicht über `/act`, nicht über MCP |
-| `timing.count` | `{work?, text}` | `{words, seconds, clock, words_per_minute}` – zählt `text` mit derselben Regel wie `work.timing` und rechnet mit den Wörtern je Minute des Werks; `text` höchstens 1 000 000 Zeichen (sonst bzw. ohne `text` -32602). Damit zählt das Editor-Widget live (keine zweite Zählregel in TypeScript) |
+| `work.timing` | `{work?}` | `{work, kind: "book" \| "sermon", words_per_minute, target_seconds, words, seconds, status: "none" \| "ok" \| "over", over_seconds, shown, clock, target_clock, over_clock, sections: [{key, seq, depth, number, title, words, seconds, start_seconds, subtree_seconds, clock, start_clock, subtree_clock}]}` – read only, no write lock, no commit. Per item in `seq` order the **current** revision; `words`/`seconds` only the item's own text, `start_seconds` = sum of the previous items (time mark), `subtree_seconds` = own text including descendants, `depth` = number of ancestors; `seconds` in total = sum of the items; `status` `over` exactly when `seconds > target_seconds` (`over_seconds` = difference), `none` without a target time; `shown` = sermon or target time set (then outline, tree and editor head show the times); `*_clock` = „m:ss“ or „h:mm:ss“ |
+| `work.timing_set` | `{work, words_per_minute?, target_minutes?: number \| null}` | `{work, words_per_minute, target_seconds}`; missing fields stay, `target_minutes: null` (or empty text) deletes the target time. `work` required; words per minute 60–250, target time whole minutes 1–240, otherwise -32602, nothing changed. **Human only:** not over `/act`, not over MCP |
+| `timing.count` | `{work?, text}` | `{words, seconds, clock, words_per_minute}` – counts `text` with the same rule as `work.timing` and computes with the words per minute of the work; `text` at most 1 000 000 characters (otherwise or without `text` -32602). The editor widget counts live with it (no second counting rule in TypeScript) |
 
-MCP: `work_timing {work}` liefert dasselbe wie `work.timing` (`docs/MCP.md`).
+MCP: `work_timing {work}` delivers the same as `work.timing` (`docs/MCP.md`).
 
 ### work.sheet
 
-Runde 18c (`src/sheet.rs`, Store `work_sheet`, Migration 0044): Satzbild-Einstellungen des Werks. Nur lesend.
+Round 18c (`src/sheet.rs`, store `work_sheet`, migration 0044): typeset view settings of the work. Read only.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---------|-----------|----------|
-| `work.sheet` | `{work?}` | `{settings: {font, heading_font, size, fill, heading_fill, background, width}, css}` – jedes Feld Text oder `null` (= aus der Werkvorlage); `css` = `.ws-sheet { --ws-…: …; }` aus der Werkvorlage, überschrieben mit den gesetzten Feldern (`sheet_style_over`), dasselbe wie `wysiwyg.style` und das `<style id="ws-style" data-work="W">` im Editor. Unbekanntes Werk → Fehler |
+| `work.sheet` | `{work?}` | `{settings: {font, heading_font, size, fill, heading_fill, background, width}, css}` – each field text or `null` (= from the work template); `css` = `.ws-sheet { --ws-…: …; }` from the work template, overridden by the set fields (`sheet_style_over`), the same as `wysiwyg.style` and the `<style id="ws-style" data-work="W">` in the editor. Unknown work → error |
 
 ### work.sheet_set
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---------|-----------|----------|
-| `work.sheet_set` | `{work?, font?, heading_font?, size?, fill?, heading_fill?, background?, width?, reset?: bool}` | `{settings, css}` wie `work.sheet`. Ein fehlendes Feld bleibt, `null` oder leerer Text nimmt es zurück (wieder aus der Vorlage), `reset: true` nimmt vorher alle zurück; alles zurück löscht die Zeile. Prüfung im Store: Schrift/Schrift der Überschriften höchstens 200 Zeichen, Familien durch Kommas getrennt, je Name aus Buchstaben, Ziffern, Leerzeichen, `- _ .` (auch in `"…"`/`'…'`); `size` 6–48 pt, `width` 6–60 cm, je als Zahl mit Einheit `pt`, `mm`, `cm` oder `em` (`em` = 12 pt); Farben `#rrggbb` (gespeichert klein). Ungültig → -32000 mit deutscher Meldung („Satzbild: …“), nichts geändert; ein Feld, das kein Text ist → -32602. Kein Spiegel-Commit, nicht im Austauschformat; Typst, PDF und Export bleiben byte-gleich. **Nur der Mensch:** nicht über MCP |
+| `work.sheet_set` | `{work?, font?, heading_font?, size?, fill?, heading_fill?, background?, width?, reset?: bool}` | `{settings, css}` like `work.sheet`. A missing field stays, `null` or empty text takes it back (again from the template), `reset: true` first takes all back; taking everything back deletes the row. Check in the store: font/heading font at most 200 characters, families separated by commas, each name of letters, digits, spaces, `- _ .` (also in `"…"`/`'…'`); `size` 6–48 pt, `width` 6–60 cm, each as a number with the unit `pt`, `mm`, `cm` or `em` (`em` = 12 pt); colours `#rrggbb` (stored lower case). Invalid → -32000 with a German message („Satzbild: …“), nothing changed; a field that is not text → -32602. No mirror commit, not in the exchange format; Typst, PDF and export stay byte-identical. **Human only:** not over MCP |
 
-Formular ohne JavaScript: `POST /einstellungen/werk/satzbild` (hinter `guard::same_origin`, fremder `Origin` → 403):
-`method=work.sheet_set`, `work` und alle sieben Felder (leer = aus der Vorlage) bzw. `reset=1` → 303
-`/einstellungen/werk?work=W&ok=satzbild#satzbild`; ungültig → 303 `…&satzbildfehler=1#satzbild`, nichts geändert.
+Form without JavaScript: `POST /einstellungen/werk/satzbild` (behind `guard::same_origin`, foreign `Origin` → 403):
+`method=work.sheet_set`, `work` and all seven fields (empty = from the template) or `reset=1` → 303
+`/einstellungen/werk?work=W&ok=satzbild#satzbild`; invalid → 303 `…&satzbildfehler=1#satzbild`, nothing changed.
 
-Bild an der Cursorstelle (Runde 18c, Formular `POST /werke/bilder/einfuegen`, hinter `guard::same_origin`): zu
-`work, key, rev` (Basis), `name`, `caption?` kommen `place` = `end` (Vorgabe) | `start` (unter der Überschrift) |
-`block:<n>` (vor dem obersten Block `n` von `wysiwyg.parse`; `n` ≥ Blockzahl = Ende) | `offset:<n>` (UTF-16-Stelle,
-an der nächsten Zeilengrenze ≥ n; mitten in einem Block, der kein Absatz ist, dahinter; Leerzeilen hinter einem Block
-übersprungen) und optional `body` (vollständiger ungespeicherter Text, CRLF wird LF; dann gelten die Stellen darin,
-und seine Überschriftszeile muss die der Fassung `rev` sein, sonst 422 „erst speichern“). Nie vor oder in die
-Überschrift des Abschnitts. Die Abbildung steht als eigener Block (Leerzeile davor und dahinter). Pfadvergabe
-(`bilder/<name>`, falls das Bild keinen hat) und Fassung in **einer** Transaktion
-(`Store::save_human_with_asset_path`), ein Spiegel-Commit; scheitert das Speichern, bleibt kein Pfad. Unbekannte
-Stelle → 422.
+Image at the cursor position (Round 18c, form `POST /werke/bilder/einfuegen`, behind `guard::same_origin`): to
+`work, key, rev` (base), `name`, `caption?` come `place` = `end` (default) | `start` (under the heading) |
+`block:<n>` (before the top-level block `n` of `wysiwyg.parse`; `n` ≥ number of blocks = end) | `offset:<n>` (UTF-16 position,
+at the next line boundary ≥ n; in the middle of a block that is not a paragraph, after it; empty lines after a block
+skipped) and optionally `body` (complete unsaved text, CRLF becomes LF; then the positions within it apply,
+and its heading line must be that of the revision `rev`, otherwise 422 „erst speichern“). Never before or into the
+heading of the section. The figure stands as a block of its own (an empty line before and after it). Path assignment
+(`bilder/<name>` if the image has none) and revision in **one** transaction
+(`Store::save_human_with_asset_path`), one mirror commit; if saving fails, no path stays. Unknown
+position → 422.
 
 ### `library.search`
-- `query`: Wörter, alle müssen vorkommen; Groß-/Kleinschreibung und Akzente egal („langmutig“ findet „langmütig“).
-  FTS-Operatoren im Text haben keine Wirkung. NUL und Steuerzeichen trennen Wörter wie ein Leerzeichen; besteht
-  `query` nur daraus (oder aus Wörtern ohne Buchstaben und Ziffern), lautet die Antwort -32602 „Leere Suche.“.
-- `kinds`: Liste aus `revision`, `post`, `title`, `quote`, `highlight`; fehlt sie, alle. Abgelehnte
-  Hervorhebungen kommen nie vor.
-- `work`: Werk-Treffer nur aus diesem Werk (Vorgabe: Vorgabewerk); Bibliothekstreffer immer.
-- `all_revisions`: `true` auch ersetzte, verworfene und vorgeschlagene Revisionen; Vorgabe nur aktuelle.
-- `limit`: Vorgabe 20, höchstens 100.
-- Treffer: `kind`, `work`, `node`, `node_key` (fester Schlüssel des Abschnitts bei `revision`/`post`, sonst
-  `null`), `rev`, `title_id`, `quote_id` (bei `quote` das Zitat, bei `highlight` das
-  Zitat, in dem sie liegt), `highlight_id` (bei `highlight`), `key` (Zitierschlüssel), `label` (bei
-  Hervorhebungen mit ihrer Fundstelle), `snippet`, `rank` (bm25, kleiner ist besser). `snippet` ist **HTML**: Text maskiert (`&` `<` `>` `"` `'`), Treffer in `<mark>…</mark>`;
-  Typst-Klammern bleiben wörtlich. Aufrufer zeigen ihn als HTML oder entfernen die Tags.
+- `query`: words, all must occur; case and accents do not matter („langmutig“ finds „langmütig“).
+  FTS operators in the text have no effect. NUL and control characters separate words like a space; if
+  `query` consists only of them (or of words without letters and digits), the answer is -32602 „Leere Suche.“.
+- `kinds`: list of `revision`, `post`, `title`, `quote`, `highlight`; if missing, all. Refused
+  highlights never occur.
+- `work`: work hits only from this work (default: default work); library hits always.
+- `all_revisions`: `true` also replaced, discarded and proposed revisions; default only current ones.
+- `limit`: default 20, at most 100.
+- Hits: `kind`, `work`, `node`, `node_key` (fixed key of the section with `revision`/`post`, otherwise
+  `null`), `rev`, `title_id`, `quote_id` (with `quote` the quotation, with `highlight` the
+  quotation in which it lies), `highlight_id` (with `highlight`), `key` (citation key), `label` (with
+  highlights with their locator), `snippet`, `rank` (bm25, smaller is better). `snippet` is **HTML**: text escaped (`&` `<` `>` `"` `'`), hits in `<mark>…</mark>`;
+  Typst brackets stay literal. Callers show it as HTML or remove the tags.
 
-## Fehler
+## Errors
 
-| Code | Bedeutung |
+| Code | Meaning |
 |---|---|
-| -32700 | JSON nicht lesbar |
-| -32600 | keine JSON-RPC-2.0-Anfrage |
-| -32601 | unbekannte Methode |
-| -32602 | ungültige Parameter: unbekanntes Werk, unbekannter Abschnitt, unbekannte (auch gelöschte) Revision bzw. Basis („Fassung 3 gibt es nicht; vorhanden: 1, 2, 4“, ohne Fassungen „vorhanden: keine“), Löschen ohne `confirm: true` („Löschen bitte bestätigen (confirm).“), leerer Beitrag, leere Suche, unbekannter Titel, Import ohne Überschrift, unbekanntes Gliederungsschema oder ungültiges Muster („Nummerierung: …“), unbekanntes Bild, zu großes oder nicht unterstütztes Bild, kaputtes Base64, Titel eines Gliederungspunkts leer, mit Zeilenumbruch oder über 200 Zeichen, unbekannte Persona oder ungültige Farbe, unbekannter oder abgelehnter Einfall |
-| -32603 | interner Fehler (Datenbank, Vorlage) |
-| -32000 | fachlich abgelehnt, z. B. „Nur Vorschläge lassen sich übernehmen.“, „Diese Fassung ist schon aktuell.“, „Eine Fassung braucht Text.“, „Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.“, „Diese Datei ist schon importiert …“ |
-| -32001 | Bedeutungssuche ausgefallen (idea.search mit mode rag, Runde 19c) |
+| -32700 | JSON not readable |
+| -32600 | not a JSON-RPC 2.0 request |
+| -32601 | unknown method |
+| -32602 | invalid parameters: unknown work, unknown section, unknown (also deleted) revision or base („Fassung 3 gibt es nicht; vorhanden: 1, 2, 4“, without revisions „vorhanden: keine“), deleting without `confirm: true` („Löschen bitte bestätigen (confirm).“), empty post, empty search, unknown title, import without a heading, unknown numbering scheme or invalid pattern („Nummerierung: …“), unknown image, too large or unsupported image, broken Base64, title of an outline item empty, with a line break or above 200 characters, unknown persona or invalid colour, unknown or refused idea |
+| -32603 | internal error (database, template) |
+| -32000 | refused on domain grounds, e.g. „Nur Vorschläge lassen sich übernehmen.“, „Diese Fassung ist schon aktuell.“, „Eine Fassung braucht Text.“, „Die aktuelle Fassung lässt sich nicht löschen; erst auf eine andere umschalten.“, „Diese Datei ist schon importiert …“ |
+| -32001 | semantic search failed (idea.search with mode rag, Round 19c) |
 
-Die Datenbank sichert die Regeln des Revisionsbaums zusätzlich selbst (Migration 0004, siehe
-`docs/Architektur.md`): Statuswechsel nur → current (aus proposed, rejected, superseded), current → superseded
-und proposed → rejected („Unzulässiger Statuswechsel der Revision“), Herkunft unveränderlich, aktuelle Fassung
-nicht löschbar, Elternteil vorhanden und kleiner, Nummern nie wiederverwendet. Der Store prüft vorher und
-meldet fachliche Fälle als -32000; ein Verstoß, der je außerhalb des Stores auftritt, käme als -32603.
+The database additionally secures the rules of the revision tree itself (migration 0004, see
+`docs/Architektur.md`): status changes only → current (from proposed, rejected, superseded), current → superseded
+and proposed → rejected („Unzulässiger Statuswechsel der Revision“), origin immutable, current revision
+not deletable, parent present and smaller, numbers never reused. The store checks beforehand and
+reports domain cases as -32000; a violation that ever occurred outside the store would come as -32603.
 
-HTTP: 421 bei fremdem `Host`, 403 bei Anfragen fremder Webseiten, 415 ohne `Content-Type: application/json`. Die Seite `/?work=<id>`
-mit unbekanntem Werk antwortet 404 „unbekanntes Werk“.
+HTTP: 421 with a foreign `Host`, 403 for requests from foreign web pages, 415 without `Content-Type: application/json`. The page `/?work=<id>`
+with an unknown work answers 404 „unbekanntes Werk“.
 
-## Austausch (Runde 26)
+## Exchange (Round 26)
 
-Austausch zwischen Baruch-Instanzen (`crates/baruch-server/src/exchange/`, `src/instance.rs`; Format in
-`docs/Austauschformat.md`). Die Methoden werden vor dem Auflösen des Vorgabewerks verteilt; `work.exchange_export` nimmt ohne `work` das
-Vorgabewerk, das Einlesen braucht kein Werk (es legt eins an oder findet es über die Werk-UUID). Das Einlesen gibt es nur über RPC,
-Formular und Kommandozeile, nicht über MCP.
+Exchange between Baruch instances (`crates/baruch-server/src/exchange/`, `src/instance.rs`; format in
+`docs/Austauschformat.md`). The methods are dispatched before the default work is resolved; `work.exchange_export` takes the
+default work without `work`, reading in needs no work (it creates one or finds it by the work UUID). Reading in exists only over RPC,
+form and command line, not over MCP.
 
 ### work.exchange_export
 
 
-Ganzes Werk als Austauschdatei (`src/exchange/export.rs`), nur lesend.
+Whole work as an exchange file (`src/exchange/export.rs`), read only.
 
-- Parameter: `work?` (Werk-id; fehlt → Vorgabewerk), `format?`: `"baruch"` (Vorgabe, ZIP-Container) | `"xml"`
-  (nur XML, Bilder als Base64).
-- Antwort: `{work, uuid, format, file_name, media_type, bytes, sha256, data?, xml?}` – `uuid` des Werks,
-  `file_name` `<slug>.baruch` bzw. `<slug>.baruch.xml`, `media_type` `application/vnd.baruch.werk+zip` bzw.
-  `application/vnd.baruch.werk+xml`, `bytes` und `sha256` (Kleinbuchstaben-Hex) der gelieferten Datei; bei
-  `baruch` die Datei als Base64 in `data`, bei `xml` als Text in `xml`.
-- Fehler: unbekanntes Werk, `work` keine Zahl, unbekanntes `format` → -32602; ein in XML verbotenes Zeichen in
-  einem Attribut (z. B. Autorname) → -32603 mit dem Namen des Felds.
-- Format-Unterversion 2 (Runde 25): mit `<karte>` (Verbindungen zwischen Einfällen, auch weich gelöschte, und
-  gemerkte Lagen, je mit UUID) und den Grabsteinarten `verbindung`/`lage`.
-- Kein Geheimnis, keine Verbindung zu Diensten, keine Persona-Modelle, keine Anträge in der Datei
-  (`docs/Austauschformat.md` §1). Die Antwort ist nicht begrenzt; für sehr große Werke sind Download (`GET /werke/{id}/austausch.baruch`)
-  und Kommandozeile handlicher.
+- Parameters: `work?` (work id; missing → default work), `format?`: `"baruch"` (default, ZIP container) | `"xml"`
+  (XML only, images as Base64).
+- Answer: `{work, uuid, format, file_name, media_type, bytes, sha256, data?, xml?}` – `uuid` of the work,
+  `file_name` `<slug>.baruch` or `<slug>.baruch.xml`, `media_type` `application/vnd.baruch.werk+zip` or
+  `application/vnd.baruch.werk+xml`, `bytes` and `sha256` (lower-case hex) of the delivered file; with
+  `baruch` the file as Base64 in `data`, with `xml` as text in `xml`.
+- Errors: unknown work, `work` not a number, unknown `format` → -32602; a character forbidden in XML in
+  an attribute (e.g. author name) → -32603 with the name of the field.
+- Format sub-version 2 (Round 25): with `<karte>` (connections between ideas, also softly deleted ones, and
+  remembered positions, each with a UUID) and the tombstone kinds `verbindung`/`lage`.
+- No secret, no connection to services, no persona models, no requests in the file
+  (`docs/Austauschformat.md` §1). The answer is not limited; for very large works download (`GET /werke/{id}/austausch.baruch`)
+  and command line are handier.
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"work.exchange_export","params":{"work":2,"format":"xml"}}
@@ -1535,23 +1535,23 @@ Ganzes Werk als Austauschdatei (`src/exchange/export.rs`), nur lesend.
 ### work.exchange_preview
 
 
-Vorschau des Einlesens; schreibt nichts (geplant in einer zurückgerollten Transaktion).
+Preview of reading in; writes nothing (planned in a rolled-back transaction).
 
-- Parameter: `data` (Base64 der Datei, `.baruch` oder `.baruch.xml`), `file_name?`, `title?` (für die Vorschau
-  eines neuen Werks unter eigenem Titel).
-- Antwort: `{mode: "new"|"merge", work_uuid, title, known_work: id|null, instance: {uuid, name}, exported,
+- Parameters: `data` (Base64 of the file, `.baruch` or `.baruch.xml`), `file_name?`, `title?` (for the preview
+  of a new work under its own title).
+- Answer: `{mode: "new"|"merge", work_uuid, title, known_work: id|null, instance: {uuid, name}, exported,
   version, sha256, add: {nodes, revisions, template_revisions, ideas, posts, threads, thread_posts, assets,
-  asset_revisions, links, positions}, items: [{kind, uuid, label}] (höchstens 500), truncated, deviations: [{kind, uuid, key?, rev?,
+  asset_revisions, links, positions}, items: [{kind, uuid, label}] (at most 500), truncated, deviations: [{kind, uuid, key?, rev?,
   label, here, there, action: "fassung"|"antrag"|"hinweis"}], requests: [{op, key, label}], deleted_here: [{kind,
-  uuid, label}], unknown: [String], refusals: [String]}`. `kind` sind die XML-Wörter (`punkt`, `fassung`,
-  `vorlage`, `einfall`, `beitrag`, `faden`, `faden-beitrag`, `bild`, `bildfassung`, seit Runde 25 `verbindung`,
-  `lage`; bei Hinweisen auch `werk`, `buch`, `sprechdauer`, `bibelmodul`, `quellen`, `version`). `links`/`positions`
-  zählen Verbindungen und Lagen der Gedankenkarte (Abgleich: kein Doppel bei gleichem Paar und gleicher Art, eine
-  Lage nur ohne lokale; `docs/Austauschformat.md` §4 (h)). `key`/`rev` führen zu `/?work=W&key=K&rev=R`.
-- Fehler: unsichere, kaputte oder ungültige Datei, falscher Namensraum, Grenze → -32602 mit Grund (§5 in
-  `docs/Austauschformat.md`). Ein vergebener Titel ist kein Fehler, sondern steht in `refusals`.
-- Größe: begrenzt durch `RPC_BODY_LIMIT` (32 MiB + 64 KiB, Base64); größere Dateien über das Formular oder die
-  Kommandozeile.
+  uuid, label}], unknown: [String], refusals: [String]}`. `kind` are the XML words (`punkt`, `fassung`,
+  `vorlage`, `einfall`, `beitrag`, `faden`, `faden-beitrag`, `bild`, `bildfassung`, since Round 25 `verbindung`,
+  `lage`; with notes also `werk`, `buch`, `sprechdauer`, `bibelmodul`, `quellen`, `version`). `links`/`positions`
+  count connections and positions of the idea map (sync: no duplicate for the same pair and the same kind, a
+  position only without a local one; `docs/Austauschformat.md` §4 (h)). `key`/`rev` lead to `/?work=W&key=K&rev=R`.
+- Errors: unsafe, broken or invalid file, wrong namespace, limit → -32602 with a reason (§5 in
+  `docs/Austauschformat.md`). A taken title is not an error but stands in `refusals`.
+- Size: limited by `RPC_BODY_LIMIT` (32 MiB + 64 KiB, Base64); larger files through the form or the
+  command line.
 
 ```json
 {"jsonrpc":"2.0","id":1,"method":"work.exchange_preview","params":{"data":"PD94bWwg…","file_name":"muehle.baruch.xml"}}
@@ -1561,91 +1561,91 @@ Vorschau des Einlesens; schreibt nichts (geplant in einer zurückgerollten Trans
 ### work.exchange_import
 
 
-Übernehmen (eine Transaktion unter der Schreibsperre, plant neu, ein Commit im Spiegel).
+Taking over (one transaction under the write lock, plans anew, one commit in the mirror).
 
-- Parameter: `data` (Base64), `sha256` (Prüfsumme der vorher gezeigten Datei), `mode: "new"|"merge"`, `title?`
-  (nur „neu“).
-- Antwort: `{work, slug, title, mode, added: {…wie add}, requests: [id], deviations: [...], deleted_here,
-  refusals, unknown, commit?, mirror?}` (`mirror` statt `commit`, wenn der Spiegel scheiterte; ohne beides,
-  wenn ein Abgleich nichts änderte).
-- Fehler: `sha256` passt nicht → -32602; Modus passt nicht zur Datei (neu bei bekanntem Werk, abgleichen bei
-  unbekanntem) → -32000; vergebener Titel → -32000 mit Hinweis auf einen eigenen Titel; Datei wie bei der Vorschau
-  → -32602. Bei jedem Fehler wird nichts geschrieben.
-- Einlesen gibt es nicht über MCP (nur der Mensch liest ein).
+- Parameters: `data` (Base64), `sha256` (checksum of the file shown before), `mode: "new"|"merge"`, `title?`
+  (only „neu“).
+- Answer: `{work, slug, title, mode, added: {…like add}, requests: [id], deviations: [...], deleted_here,
+  refusals, unknown, commit?, mirror?}` (`mirror` instead of `commit` if the mirror failed; without either
+  if a merge changed nothing).
+- Errors: `sha256` does not match → -32602; mode does not match the file (new with a known work, merge with an
+  unknown one) → -32000; taken title → -32000 with a hint at an own title; file as with the preview
+  → -32602. On every error nothing is written.
+- Reading in does not exist over MCP (only the human reads in).
 
 ```json
 {"jsonrpc":"2.0","id":2,"method":"work.exchange_import","params":{"data":"PD94bWwg…","sha256":"0b2e…","mode":"merge"}}
 ```
 
 
-### instance.get und instance.set_name
+### instance.get and instance.set_name
 
 
-Kennung und Name dieser Baruch-Instanz (`crates/baruch-server/src/instance.rs`, Store `uuids.rs`). Der Name geht
-im Austauschformat als Herkunft mit (`<ausgabe instanzname>`, Herkunft der Anträge „Austausch: <Name>“).
+Identifier and name of this Baruch instance (`crates/baruch-server/src/instance.rs`, store `uuids.rs`). The name goes
+along in the exchange format as the origin (`<ausgabe instanzname>`, origin of the requests „Austausch: <Name>“).
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 | --- | --- | --- |
-| `instance.get` | – | `{uuid, name}` – `uuid` aus `store_meta.instance_uuid` (Migration 0041), `name` leer, solange keiner gesetzt ist |
-| `instance.set_name` | `name` (Text; fehlt oder `null` = leer) | `{uuid, name}` nach dem Speichern |
+| `instance.get` | – | `{uuid, name}` – `uuid` from `store_meta.instance_uuid` (migration 0041), `name` empty as long as none is set |
+| `instance.set_name` | `name` (text; missing or `null` = empty) | `{uuid, name}` after saving |
 
-- `name` wird getrimmt; höchstens 80 Zeichen (Zeichen, nicht Bytes), keine Steuerzeichen (Zeilenumbruch, Tab,
-  DEL, C1). Sonst -32602 mit deutscher Meldung („Der Name der Instanz darf höchstens 80 Zeichen haben …“ bzw.
-  „… keine Steuerzeichen …“), nichts gespeichert. `<` und `>` sind erlaubt; ein Name aus einer eingelesenen Datei
-  wird gesäubert (`<` → `‹`, `>` → `›`, Steuerzeichen → Leerzeichen, höchstens 80 Zeichen; `docs/Austauschformat.md`
-  §4), weil Git sie im Autor des Austausch-Commits ablehnt. Kein Text (z. B. eine Zahl) → -32602.
-- Leer (auch nur Leerraum) setzt den Namen zurück; die Kennung bleibt immer gleich.
-- Über MCP gibt es dafür kein Werkzeug (Einstellung des Menschen). Formular ohne JavaScript:
-  `POST /einstellungen/daten/instanz` (siehe `docs/Bedienung.md`). `settings.get {page: "daten"}` liefert
-  zusätzlich `instance: {uuid, name}`.
-- Die Werk-UUID steht in `work.meta` → `work.uuid` (nur lesend; `work.update` kennt kein Feld dafür).
+- `name` is trimmed; at most 80 characters (characters, not bytes), no control characters (line break, tab,
+  DEL, C1). Otherwise -32602 with a German message („Der Name der Instanz darf höchstens 80 Zeichen haben …“ or
+  „… keine Steuerzeichen …“), nothing stored. `<` and `>` are allowed; a name from a file read in
+  is cleaned (`<` → `‹`, `>` → `›`, control characters → spaces, at most 80 characters; `docs/Austauschformat.md`
+  §4), because Git refuses them in the author of the exchange commit. Not text (e.g. a number) → -32602.
+- Empty (also only white space) resets the name; the identifier always stays the same.
+- There is no MCP tool for it (a setting of the human). Form without JavaScript:
+  `POST /einstellungen/daten/instanz` (see `docs/Bedienung.md`). `settings.get {page: "daten"}` additionally delivers
+  `instance: {uuid, name}`.
+- The work UUID stands in `work.meta` → `work.uuid` (read only; `work.update` knows no field for it).
 
 ```json
 → {"jsonrpc": "2.0", "id": 1, "method": "instance.set_name", "params": {"name": "  Arbeitszimmer "}}
 ← {"jsonrpc": "2.0", "id": 1, "result": {"uuid": "3f2b8c1e-9a47-4d2e-b5c3-0e1f2a3b4c5d", "name": "Arbeitszimmer"}}
 ```
 
-## Umschlag-Anordnung und Impressum (Runde 27)
+## Cover layout and imprint (Round 27)
 
-Vertrag Runde 27, Abschnitt 4. Blöcke (`CoverBlock`): `{kind, x_mm, y_mm, width_mm, align, size_pt, leading_em,
-color, font, style, backdrop, visible, direction, text}`; Koordinaten in mm ab der Schnittkante der eigenen Fläche.
+Contract Round 27, section 4. Blocks (`CoverBlock`): `{kind, x_mm, y_mm, width_mm, align, size_pt, leading_em,
+color, font, style, backdrop, visible, direction, text}`; coordinates in mm from the trim edge of the respective face.
 
-### Anordnung (umschlag-daten)
+### Layout (umschlag-daten)
 
 - `cover.layout {work}` → `{work, stored, title_area, blocks: [CoverBlock + stored + height_mm], geometry:
   {page_width_mm, page_height_mm, spine_mm, bleed_mm, safety_mm}, warnings: [{code, block, message}], default_font}`.
-  `blocks` hat immer alle 15 Arten in fester Reihenfolge (`front_title` … `back_free`): der gespeicherte Block
-  (`stored: true`) oder der Vorgabeblock (`stored: false`). `stored` oben = das Werk hat mindestens eine Zeile (eigene
-  Anordnung). Satzfehler (kein Seitenmaß) → `REFUSED`.
-- `cover.layout_set {work, blocks}` → `{work, layout, commit?, mirror?}`. Jeder genannte Block ersetzt seine Art
-  ganz, ungenannte Arten bleiben. Ein Block braucht alle Felder außer `font`, `direction`, `text` (fehlen = `null`);
-  die Felder `stored` und `height_mm` aus `cover.layout` dürfen mitkommen, so lässt sich ein gelesener Block geändert
-  zurückschicken. Grenzen (gleich den CHECKs der Migration 0045): `x_mm`, `y_mm` −50 bis 1000, `width_mm` 1 bis
-  1000, `size_pt` 4 bis 200, `leading_em` 0 bis 3, `align` `left|center|right|justify`, `color` `light|dark|#rrggbb`
-  (klein gespeichert), `style` `normal|bold|italic`, `backdrop` `none|shadow|gradient`, `font` höchstens 200 Zeichen
-  aus Buchstaben, Ziffern, Leerzeichen, `- _ .` (kein `; { } < > \`, keine Steuerzeichen; leer = Schrift der
-  Werkvorlage), `direction` `down|up` nur auf dem Rücken (fehlt sie dort: `down`), `text` (höchstens 1000 Zeichen)
-  nur bei `front_free`, `spine_free`, `back_free`, `back_motto`; dieselbe Art zweimal in einer Liste geht nicht.
-  Ungültig → `-32602` mit deutscher Meldung, die Art und Feld nennt (z. B. „Umschlag-Block „Titel (Vorderseite)“
-  (front_title), Feld x_mm: erlaubt -50 bis 1000 mm, nicht 2000.“), nichts geändert. Ändert sich etwas: genau ein
-  Commit „Umschlag: Anordnung geändert“ (`Baruch-Action: cover-layout`, leer erlaubt), Rumpf je Block
-  „Titel (Vorderseite): x 12,0 → 15,0 mm, Schnitt normal → fett“; ein erstmals gespeicherter Block wird mit seinem
-  Vorgabeblock verglichen („… (vorher Vorgabe)“). Unverändert → kein Commit. Lässt sich die Ansicht danach nicht
-  bauen (Satzfehler), steht `layout: null` und `layout_error` in der Antwort; gespeichert ist trotzdem.
-- `cover.layout_reset {work, faces?: ["front"|"spine"|"back"], area?: "top"|"middle"|"bottom"}` → wie
-  `cover.layout_set`. Löscht die Zeilen der Flächen (fehlt `faces`: alle; je Zeile ein Grabstein `cover_block`) und
-  setzt mit `area` den Titelbereich, beides in einer Transaktion mit einem Commit: „Umschlag: Schnellwahl
-  oben|Mitte|unten“ (bei `faces: ["front"]` mit `area`) bzw. „Umschlag: Anordnung zurückgesetzt“
-  (`Baruch-Action: cover-layout-reset`), Rumpf mit den gelöschten Blöcken und „Titelbereich: oben → unten“. Ändert
-  sich nichts, kein Commit.
-- `cover.fonts {work?}` → `{families: [{name, styles, embedded}], default}` (Schriften des Satzes, `default` =
-  Schrift der Werkvorlage bzw. „Libertinus Serif“).
-- Anträge (MCP `cover_layout_set`, `docs/MCP.md`): `asset.request_list` zeigt einen Antrag mit `op: "cover_layout"`,
-  `blocks` (in Normalform) und `expected_layout` (SHA-256 über das JSON der gespeicherten Blöcke beim Antrag).
-  `asset.request_decide {decision: "confirm"}` führt ihn aus wie `cover.layout_set`, mit Commit „Umschlag: Anordnung
-  geändert (Antrag N)“, Antragsteller und Bestätiger im Rumpf und in den Trailern (`Baruch-Request`,
-  `Baruch-Requested-By`, `Baruch-Confirmed-By`). Hat der Mensch die Anordnung inzwischen geändert (Fingerabdruck
-  passt nicht mehr), wird der Antrag `stale` mit Grund; Ablehnen ändert nichts.
+  `blocks` always has all 15 kinds in a fixed order (`front_title` … `back_free`): the stored block
+  (`stored: true`) or the default block (`stored: false`). `stored` at the top = the work has at least one row (own
+  layout). Typesetting error (no page size) → `REFUSED`.
+- `cover.layout_set {work, blocks}` → `{work, layout, commit?, mirror?}`. Every named block replaces its kind
+  entirely, unnamed kinds stay. A block needs all fields except `font`, `direction`, `text` (missing = `null`);
+  the fields `stored` and `height_mm` from `cover.layout` may come along, so a block that was read can be sent back
+  changed. Limits (equal to the CHECKs of migration 0045): `x_mm`, `y_mm` −50 to 1000, `width_mm` 1 to
+  1000, `size_pt` 4 to 200, `leading_em` 0 to 3, `align` `left|center|right|justify`, `color` `light|dark|#rrggbb`
+  (stored lower case), `style` `normal|bold|italic`, `backdrop` `none|shadow|gradient`, `font` at most 200 characters
+  of letters, digits, spaces, `- _ .` (no `; { } < > \`, no control characters; empty = font of the
+  work template), `direction` `down|up` only on the spine (if missing there: `down`), `text` (at most 1000 characters)
+  only with `front_free`, `spine_free`, `back_free`, `back_motto`; the same kind twice in one list is not possible.
+  Invalid → `-32602` with a German message naming kind and field (e.g. `„Umschlag-Block „Titel (Vorderseite)“
+  (front_title), Feld x_mm: erlaubt -50 bis 1000 mm, nicht 2000.“`), nothing changed. If something changes: exactly one
+  commit „Umschlag: Anordnung geändert“ (`Baruch-Action: cover-layout`, empty allowed), body per block
+  „Titel (Vorderseite): x 12,0 → 15,0 mm, Schnitt normal → fett“; a block stored for the first time is compared with its
+  default block („… (vorher Vorgabe)“). Unchanged → no commit. If the view cannot be built afterwards
+  (typesetting error), `layout: null` and `layout_error` stand in the answer; it is stored nevertheless.
+- `cover.layout_reset {work, faces?: ["front"|"spine"|"back"], area?: "top"|"middle"|"bottom"}` → like
+  `cover.layout_set`. Deletes the rows of the faces (if `faces` is missing: all; per row a tombstone `cover_block`) and
+  with `area` sets the title area, both in one transaction with one commit: „Umschlag: Schnellwahl
+  oben|Mitte|unten“ (with `faces: ["front"]` with `area`) or „Umschlag: Anordnung zurückgesetzt“
+  (`Baruch-Action: cover-layout-reset`), body with the deleted blocks and „Titelbereich: oben → unten“. If
+  nothing changes, no commit.
+- `cover.fonts {work?}` → `{families: [{name, styles, embedded}], default}` (fonts of typesetting, `default` =
+  font of the work template or „Libertinus Serif“).
+- Requests (MCP `cover_layout_set`, `docs/MCP.md`): `asset.request_list` shows a request with `op: "cover_layout"`,
+  `blocks` (in normal form) and `expected_layout` (SHA-256 over the JSON of the stored blocks at the time of the request).
+  `asset.request_decide {decision: "confirm"}` executes it like `cover.layout_set`, with the commit „Umschlag: Anordnung
+  geändert (Antrag N)“, requester and confirmer in the body and in the trailers (`Baruch-Request`,
+  `Baruch-Requested-By`, `Baruch-Confirmed-By`). If the human has changed the layout in the meantime (fingerprint
+  no longer matches), the request becomes `stale` with a reason; refusing changes nothing.
 
 ```json
 → {"jsonrpc": "2.0", "id": 1, "method": "cover.layout_set", "params": {"work": 2, "blocks": [
@@ -1655,96 +1655,96 @@ color, font, style, backdrop, visible, direction, text}`; Koordinaten in mm ab d
 → {"jsonrpc": "2.0", "id": 2, "method": "cover.layout_reset", "params": {"work": 2, "faces": ["front"], "area": "bottom"}}
 ```
 
-### Impressum-Vorlage und Anschriften (umschlag-widget)
+### Imprint template and addresses (umschlag-widget)
 
-- `cover.imprint_adopt {work}` → `{work, template_rev, commit?, mirror?}`: hängt die Titelei-Funktionen der
-  Impressum-Vorlage, die der Werkvorlage fehlen (`baruch_typst::cover::imprint_template_missing`), an die Vorlage – als
-  neue Vorlagenfassung durch den Menschen über `work.update` (Commit wie dort). Hat die Vorlage schon alle vier
-  (`schmutztitel`, `haupttitel`, `impressum`, `widmung`): `REFUSED` („Impressum-Vorlage nicht übernommen: …“), nichts
-  geändert. Formular ohne JavaScript: `POST /werke/umschlag/impressum` (`work`, `back`) → 303 auf `back` mit
-  `ok=impressum`, abgelehnt 422 mit Meldung.
-- `work.meta.get` liefert in `meta` dazu `publisher_address` und `printer_address`; `work.meta.set` nimmt beide an
-  (Text, mehrzeilig, höchstens 500 Zeichen, Grenzen im Store). Im Commit-Rumpf heißen sie „Anschrift des Verlags bzw.
-  Herausgebers“ und „Anschrift der Druckerei“ (je eine Zeile, Zeilenumbrüche als Leerzeichen). Formular: Felder
+- `cover.imprint_adopt {work}` → `{work, template_rev, commit?, mirror?}`: appends the front matter functions of the
+  imprint template that the work template lacks (`baruch_typst::cover::imprint_template_missing`) to the template – as a
+  new template revision by the human through `work.update` (commit as there). If the template already has all four
+  (`schmutztitel`, `haupttitel`, `impressum`, `widmung`): `REFUSED` („Impressum-Vorlage nicht übernommen: …“), nothing
+  changed. Form without JavaScript: `POST /werke/umschlag/impressum` (`work`, `back`) → 303 to `back` with
+  `ok=impressum`, refused 422 with a message.
+- `work.meta.get` additionally delivers `publisher_address` and `printer_address` in `meta`; `work.meta.set` takes both
+  (text, multi-line, at most 500 characters, limits in the store). In the commit body they are called „Anschrift des Verlags bzw.
+  Herausgebers“ and „Anschrift der Druckerei“ (one line each, line breaks as spaces). Form: fields
   `publisher_address`, `printer_address` in `POST /werke/buchangaben/act`.
-- `work.cover_pdf` antwortet zusätzlich mit `checks: [{code, block, message}]` (`cover_print::cover_checks` der
-  gespeicherten Anordnung, Codes wie in `cover.layout`).
-- Editor ohne JavaScript (Routen in `cover::pages()`/`writes()`): `GET /werke/{id}/umschlag` und
-  `GET /werke/{id}/umschlag.svg` nehmen Abfragefelder `b.<kind>.<feld>` (`feld` = `x_mm`, `y_mm`, `width_mm`, `align`,
-  `size_pt`, `leading_em`, `color`, `font`, `style`, `backdrop`, `visible` (1/0), `direction`, `text`; Zahlen mit Punkt
-  oder Komma) als Vorschau ohne Speichern; ungültig → 422 mit Meldung, die Block und Feld nennt.
-  `POST /werke/umschlag/anordnung` mit `work`, `back`, `action=save` (alle `b.*`-Felder → `cover.layout_set`),
-  `action=quick` mit `area=top|middle|bottom` (→ `cover.layout_reset {faces: ["front"], area}`) bzw. `action=reset`
-  mit wiederholtem `faces` (keins = alle) → 303 auf `back` mit `ok=anordnung`; ungültig → 422 mit der Eingabe. GET mit
-  Satz von fremden Seiten (`Sec-Fetch-Site: cross-site|same-site`) → 403 ohne Typst-Lauf; die POST-Formulare stehen
-  hinter `guard::same_origin`.
+- `work.cover_pdf` additionally answers with `checks: [{code, block, message}]` (`cover_print::cover_checks` of the
+  stored layout, codes as in `cover.layout`).
+- Editor without JavaScript (routes in `cover::pages()`/`writes()`): `GET /werke/{id}/umschlag` and
+  `GET /werke/{id}/umschlag.svg` take query fields `b.<kind>.<feld>` (`feld` = `x_mm`, `y_mm`, `width_mm`, `align`,
+  `size_pt`, `leading_em`, `color`, `font`, `style`, `backdrop`, `visible` (1/0), `direction`, `text`; numbers with a point
+  or comma) as a preview without saving; invalid → 422 with a message naming block and field.
+  `POST /werke/umschlag/anordnung` with `work`, `back`, `action=save` (all `b.*` fields → `cover.layout_set`),
+  `action=quick` with `area=top|middle|bottom` (→ `cover.layout_reset {faces: ["front"], area}`) or `action=reset`
+  with repeated `faces` (none = all) → 303 to `back` with `ok=anordnung`; invalid → 422 with the input. GET with
+  typesetting from foreign pages (`Sec-Fetch-Site: cross-site|same-site`) → 403 without a Typst run; the POST forms stand
+  behind `guard::same_origin`.
 
-## Befunde (Runde 28)
+## Findings (Round 28)
 
-Antworten der Personas werden in Befunde zerlegt (Art Lob/Hinweis/kritisch; Status offen, übernommen, verworfen,
-verschoben, erledigt ohne Änderung). Status setzt nur der Mensch; Assistenten stellen nur Vorschläge. Daten in
-Migration 0046 (`finding`, `finding_status`, `post_version`). Fehler: unbekannter Befund, Grenzen und Statusregeln →
+Answers of the personas are split into findings (kind praise/hint/critical; status open, adopted, rejected,
+deferred, done without a change). Only the human sets a status; assistants only make proposals. Data in
+migration 0046 (`finding`, `finding_status`, `post_version`). Errors: unknown finding, limits and status rules →
 -32602.
 
 ### finding.list, finding.get, finding.set_status, finding.decide (befunde)
 
-Beantwortet von `src/findings/rpc.rs`. Alle nehmen `work` (Zahl oder Ziffern; fehlt → Vorgabewerk). Zahlen dürfen
-auch als Ziffern-Text kommen (Formulare). Ein Befund als JSON (`Finding`): `{id, uuid, work, key, node, post,
+Answered by `src/findings/rpc.rs`. All take `work` (number or digits; missing → default work). Numbers may
+also come as digit text (forms). A finding as JSON (`Finding`): `{id, uuid, work, key, node, post,
 thread, thread_post, position, persona, kind, body, quote, quote_check, status, reason, adopted_rev,
 adopted_revision, deferred: {kind: "node", key} | {kind: "idea", id} | null, deferred_uuid, similar_to, summary_of:
 [uuid], pending: FindingStatusEntry | null, created, updated, kind_label, status_label, url}`; `kind` = `praise`,
 `hint`, `critical` („Lob“, „Hinweis“, „kritisch“), `status` = `open`, `adopted`, `rejected`, `deferred`, `done`
 („offen“, „übernommen“, „verworfen“, „verschoben“, „erledigt ohne Änderung“); `url` = `/werke/<work>/befunde?befund=<id>`.
-Ein Verlaufseintrag (`FindingStatusEntry`): `{id, uuid, finding, status, reason, adopted_rev, adopted_revision,
+A history entry (`FindingStatusEntry`): `{id, uuid, finding, status, reason, adopted_rev, adopted_revision,
 deferred, deferred_uuid, actor: {kind: "human"|"persona"|"mcp", …}, proposed, note, decision:
 "confirmed"|"rejected"|"stale"|null, decided, decided_by, created}`.
 
 - `finding.list {work, key?, keys?, subtree?, post?, status?, kind?, persona?, since?, until?, include_praise? =
-  false, include_attached? = false, limit?}` → `{findings: [Finding], total, truncated}` – älteste zuerst; passen
-  mehr als `limit`, die neuesten `limit`. `keys`, `status` und
-  `kind` als Liste oder Text „a,b“; `subtree: true` nimmt zu `key`/`keys` alle Unterpunkte dazu; `since`/`until`
-  vergleichen `created` (ISO, `until` ausschließlich); `limit` 1 bis 2000 (Vorgabe 500). Ohne `include_praise` kein
-  Lob (außer `kind` nennt es), ohne `include_attached` keine angehängten Befunde (`similar_to`). `total` = Zahl aller
-  passenden Befunde (ohne Grenze), `truncated` = `total` ist größer als die gelieferte Liste. Nur lesend.
-- `finding.get {work, id}` → `{finding, history: [FindingStatusEntry] (älteste zuerst), attached: [Finding] (an
-  diesen angehängt), summary_of: [Finding] (die ein Sammelvorschlag zusammenfasst)}`. Unbekannter Befund bzw.
-  Befund eines anderen Werks → -32602.
-- `finding.set_status {work, id, status, reason?, rev?, target_key?, target_idea?}` (nur der Mensch, auch über
-  `POST /act`; über MCP gibt es keinen Weg) → `{finding, before, commit?|mirror?}`. `adopted` braucht `rev` (eine
-  Fassung, die es im Abschnitt des Befunds gibt), `rejected` eine Begründung `reason` (getrimmt nicht leer, höchstens
-  2000 Zeichen), `deferred` genau eines von `target_key` (anderer Abschnitt desselben Werks) und `target_idea`
-  (Einfall desselben Werks), `done` und `open` nehmen `reason` wahlweise. Fehlt etwas, ist etwas zu lang, gibt es
-  Fassung oder Ziel nicht oder hat der Befund genau diesen Stand schon → -32602, und es ändert sich nichts. Sonst
-  schreibt der Store Befund und einen Verlaufseintrag (`actor_kind = human`, `proposed = 0`) in einer Transaktion,
-  und der Spiegel bekommt **genau einen Commit**: Betreff „Befund <id>: <Status>“ (z. B. „verworfen“, „übernommen in
-  Fassung 3“, „verschoben nach 1.2 Titel“), Rumpf mit Art, Persona, Ort, Text und Begründung, Trailer
-  `Baruch-Finding`, `Baruch-Action: finding-status`, `Baruch-Node` (fester Schlüssel, falls der Befund einen
-  Abschnitt hat); Autor ist der Mensch.
-- `finding.decide {work, entry, confirm: bool}` (nur der Mensch) → `{finding, entry, commit?|mirror?}`. Bestätigt
-  (`confirm: true`) bekommt der Befund den vorgeschlagenen Status (`decision = confirmed`), abgelehnt bleibt er
-  (`rejected`). Ein **veralteter** Vorschlag – der Befund bekam seitdem einen Status vom Menschen oder aus einem
-  bestätigten Vorschlag, die vorgeschlagene Fassung bzw. das Ziel fehlt, oder der Befund hat den Status schon – wird
-  `stale` und ändert nichts. Unbekannter oder schon entschiedener Vorschlag → -32602. Genau ein Commit (Trailer
-  `Baruch-Action: finding-decide`, `Baruch-Proposer: <Herkunft des Vorschlags>`; Autor ist der Mensch).
+  false, include_attached? = false, limit?}` → `{findings: [Finding], total, truncated}` – oldest first; if
+  more than `limit` match, the newest `limit`. `keys`, `status` and
+  `kind` as a list or text „a,b“; `subtree: true` adds all sub-items to `key`/`keys`; `since`/`until`
+  compare `created` (ISO, `until` exclusive); `limit` 1 to 2000 (default 500). Without `include_praise` no
+  praise (unless `kind` names it), without `include_attached` no attached findings (`similar_to`). `total` = number of all
+  matching findings (without the limit), `truncated` = `total` is larger than the delivered list. Read only.
+- `finding.get {work, id}` → `{finding, history: [FindingStatusEntry] (oldest first), attached: [Finding] (attached to
+  this one), summary_of: [Finding] (those a collective proposal summarises)}`. Unknown finding or
+  finding of another work → -32602.
+- `finding.set_status {work, id, status, reason?, rev?, target_key?, target_idea?}` (human only, also over
+  `POST /act`; there is no way over MCP) → `{finding, before, commit?|mirror?}`. `adopted` needs `rev` (a
+  revision that exists in the finding's section), `rejected` a reason `reason` (trimmed not empty, at most
+  2000 characters), `deferred` exactly one of `target_key` (another section of the same work) and `target_idea`
+  (idea of the same work), `done` and `open` take `reason` optionally. If something is missing, too long, if
+  the revision or target does not exist or the finding already has exactly this state → -32602, and nothing changes. Otherwise
+  the store writes the finding and a history entry (`actor_kind = human`, `proposed = 0`) in one transaction,
+  and the mirror gets **exactly one commit**: subject „Befund <id>: <Status>“ (e.g. „verworfen“, „übernommen in
+  Fassung 3“, „verschoben nach 1.2 Titel“), body with kind, persona, place, text and reason, trailers
+  `Baruch-Finding`, `Baruch-Action: finding-status`, `Baruch-Node` (fixed key, if the finding has a
+  section); the author is the human.
+- `finding.decide {work, entry, confirm: bool}` (human only) → `{finding, entry, commit?|mirror?}`. Confirmed
+  (`confirm: true`), the finding gets the proposed status (`decision = confirmed`); refused, it stays
+  (`rejected`). A **stale** proposal – the finding has since received a status from the human or from a
+  confirmed proposal, the proposed revision or the target is missing, or the finding already has the status – becomes
+  `stale` and changes nothing. Unknown or already decided proposal → -32602. Exactly one commit (trailers
+  `Baruch-Action: finding-decide`, `Baruch-Proposer: <Herkunft des Vorschlags>`; the author is the human).
 
-Vorschläge von Assistenten laufen nicht über `/rpc`, sondern über `findings::rpc::propose` (MCP
-`finding_propose_status`, befund-uebersicht): nur `adopted`, `deferred`, `done` – `rejected` und `open` lehnt der Store
-ab („Nur der Mensch kann einen Befund verwerfen oder wieder öffnen …“, -32602); ein gleicher offener Vorschlag
-(gleicher Status, gleiche Fassung bzw. gleiches Ziel) wird nicht doppelt angelegt (-32602). Genau ein Commit
-(`Baruch-Action: finding-propose`, Trailer `Persona: <handle>`, Autor die Persona bzw. der MCP-Client). Das Anlegen
-von Befunden beim Zerlegen ist kein Commit; `befunde.md` steht im nächsten Schnappschuss.
+Proposals of assistants do not go through `/rpc` but through `findings::rpc::propose` (MCP
+`finding_propose_status`, befund-uebersicht): only `adopted`, `deferred`, `done` – the store refuses `rejected` and `open`
+(„Nur der Mensch kann einen Befund verwerfen oder wieder öffnen …“, -32602); an equal open proposal
+(same status, same revision or same target) is not created twice (-32602). Exactly one commit
+(`Baruch-Action: finding-propose`, trailer `Persona: <handle>`, author the persona or the MCP client). Creating
+findings when splitting is not a commit; `befunde.md` stands in the next snapshot.
 
-Austausch: Seit Unterversion 4 tragen `work.exchange_export`/`work.exchange_import` Befunde samt Verlauf und alte
-Beitragsfassungen; die Vorschau zählt sie in `add.findings`, `add.finding_entries`, `add.post_versions`
+Exchange: since sub-version 4, `work.exchange_export`/`work.exchange_import` carry findings with their history and old
+post revisions; the preview counts them in `add.findings`, `add.finding_entries`, `add.post_versions`
 (`docs/Austauschformat.md`).
 
-### finding.matrix und Seite /werke/<id>/befunde (befund-uebersicht)
+### finding.matrix and page /werke/<id>/befunde (befund-uebersicht)
 
-`finding.matrix {work?, status?, kind?, persona?, since?, until?, include_praise? = false, older_than_days?}` – nur
-lesend (`src/findings/page.rs`). Fehlt `work`, das Vorgabewerk. `status` bzw. `kind` als Liste oder Text mit Komma
-(Datenbankwörter `open|adopted|rejected|deferred|done` bzw. `praise|hint|critical`); `since`/`until` als Zeit wie
-`2026-11-01` (`created >= since`, `created < until`); `older_than_days` 0–3650 (nur Befunde, die älter sind). Falsche
-Werte → -32602. Antwort:
+`finding.matrix {work?, status?, kind?, persona?, since?, until?, include_praise? = false, older_than_days?}` – read
+only (`src/findings/page.rs`). If `work` is missing, the default work. `status` or `kind` as a list or text with commas
+(database words `open|adopted|rejected|deferred|done` or `praise|hint|critical`); `since`/`until` as a time like
+`2026-11-01` (`created >= since`, `created < until`); `older_than_days` 0–3650 (only findings that are older). Wrong
+values → -32602. Answer:
 
 ```json
 {"work": 2, "title": "Wanderbuch", "personas": ["@lektor", "@nathan"],
@@ -1761,178 +1761,178 @@ Werte → -32602. Antwort:
  "truncated": null}
 ```
 
-- **Zeilen** sind Kapitel samt Unterpunkten (`keys`); Abschnitte ohne Kapitel stehen für sich, ein Teil mit eigenen
-  Befunden (am Teil oder an Abschnitten direkt darunter) bekommt die Zeile „… (Teil selbst)“ (`part: true`). Jedes
-  Kapitel hat eine Zeile, auch ohne Befunde.
-- **Gruppen**: `kind = "part"` je Teil, `"none"` für Kapitel ohne Teil davor, `"unplaced"` für Befunde ohne Abschnitt
-  (Fäden, gelöschte Abschnitte) am Ende; je Gruppe Summen je Persona (`totals`) und gesamt (`total`).
-- **Spalten** (`personas`): Personas mit Befunden im Filter, in der Reihenfolge der Personas, dann alphabetisch.
-- **Zählen**: angehängte Befunde (`similar_to`) nie; Lob nur mit `include_praise` und dann nur in `praise` (nie als
-  offen). `open_badge` = Summe von `open_by_key` über `keys` (Zählregel §1.5, ohne Filter): ohne Filter gilt je Zeile
-  `total.open == open_badge` – dieselbe Zahl wie die Abzeichen in Gliederung, Editorkopf und `/gliederung`.
-- **Gekappt** (`truncated`): passen mehr als 2000 Befunde zum Filter, zählen die Zellen nur die neuesten 2000 und
-  `truncated` nennt die Zahl aller (sonst `null`); die Abzeichen (`open_by_key`, `open_findings`) zählen immer alle.
-- **Verlauf** (`history`): Zeilen mit entschiedenen Befunden; `revisions` je Abschnitt und Fassung die übernommenen
-  Befunde (`Store::findings_adopted_in`, nur Befunde im Filter).
+- **Rows** are chapters with their sub-items (`keys`); sections without a chapter stand on their own, a part with its own
+  findings (at the part or at sections directly under it) gets the row „… (Teil selbst)“ (`part: true`). Every
+  chapter has a row, even without findings.
+- **Groups**: `kind = "part"` per part, `"none"` for chapters without a part before them, `"unplaced"` for findings without a section
+  (threads, deleted sections) at the end; per group sums per persona (`totals`) and in total (`total`).
+- **Columns** (`personas`): personas with findings in the filter, in the order of the personas, then alphabetical.
+- **Counting**: attached findings (`similar_to`) never; praise only with `include_praise` and then only in `praise` (never as
+  open). `open_badge` = sum of `open_by_key` over `keys` (counting rule §1.5, without a filter): without a filter, per row
+  `total.open == open_badge` holds – the same number as the badges in outline, editor head and `/gliederung`.
+- **Capped** (`truncated`): if more than 2000 findings match the filter, the cells count only the newest 2000 and
+  `truncated` names the number of all (otherwise `null`); the badges (`open_by_key`, `open_findings`) always count all.
+- **History** (`history`): rows with decided findings; `revisions` per section and revision the adopted
+  findings (`Store::findings_adopted_in`, only findings in the filter).
 
-Seite und Formulare (ohne JavaScript bedienbar):
+Page and forms (usable without JavaScript):
 
-- `GET /werke/<id>/befunde` mit denselben Filtern als GET-Parametern (`status` und `kind` mehrfach,
-  `include_praise=1`); unbekanntes Werk → 404, ungültige Werte fallen weg. Dazu `key` (+ `persona`): Befunde der Zelle
-  (Kapitel samt Unterpunkten; angehängte unter ihrem Original), `befund=<id>`: ein Befund mit Verlauf, Original und
-  Ursprüngen eines Sammelvorschlags; ohne beides die Liste „offen, älter als n Tagen“ (`older_than_days`, Vorgabe 14),
-  die Sammelvorschläge und der Verlauf je Kapitel. `ok=status|entscheidung` zeigt die Rückmeldung.
-- `POST /werke/befunde/act` (hinter `guard::same_origin`): `method=finding.set_status` (`work`, `id`, `status`,
-  `reason?`, `rev?`, `target_key?`, `target_idea?`; leere Felder fallen weg) über `findings::rpc::parse_change` und
-  `findings::rpc::set_status`; `method=finding.decide` (`work`, `entry`, `confirm=1|0`, `id` nur für die Fehlerseite)
-  über `findings::rpc::decide`. Danach 303 auf `back` (nur eigene Adressen) bzw. `/werke/<id>/befunde?befund=<id>&ok=…`;
-  Fehler 200 mit Hinweis (`role="alert"`) und dem Entwurf im Formular; unbekannte Aktion 400, unbekanntes Werk 404,
-  fremde Seite 403.
-- Gedankenkarte: `idea.map` nimmt zusätzlich `findings?: bool` (Ebene „Befunde“, Vorgabe `false`); dann trägt jeder
-  Knoten `open_findings` (am Knoten samt allem darunter) und jeder zusammengefasste Abschnitt seine eigenen. Seite
+- `GET /werke/<id>/befunde` with the same filters as GET parameters (`status` and `kind` repeatable,
+  `include_praise=1`); unknown work → 404, invalid values are dropped. In addition `key` (+ `persona`): findings of the cell
+  (chapter with sub-items; attached ones under their original), `befund=<id>`: one finding with history, original and
+  sources of a collective proposal; without either the list „offen, älter als n Tagen“ (`older_than_days`, default 14),
+  the collective proposals and the history per chapter. `ok=status|entscheidung` shows the feedback.
+- `POST /werke/befunde/act` (behind `guard::same_origin`): `method=finding.set_status` (`work`, `id`, `status`,
+  `reason?`, `rev?`, `target_key?`, `target_idea?`; empty fields are dropped) through `findings::rpc::parse_change` and
+  `findings::rpc::set_status`; `method=finding.decide` (`work`, `entry`, `confirm=1|0`, `id` only for the error page)
+  through `findings::rpc::decide`. Then 303 to `back` (own addresses only) or `/werke/<id>/befunde?befund=<id>&ok=…`;
+  errors 200 with a notice (`role="alert"`) and the draft in the form; unknown action 400, unknown work 404,
+  foreign page 403.
+- Idea map: `idea.map` additionally takes `findings?: bool` (layer „Befunde“, default `false`); then every
+  node carries `open_findings` (at the node including everything below it) and every summarised section its own. Page
   `/werke/<id>/karte?befunde=1`.
 
-## Suchen und Ersetzen (Runde 30a)
+## Search and replace (Round 30a)
 
-Alle mit `work?`; die Felder der Suche liegen flach: `q` (1–500 Zeichen), `case`, `word`, `re` (Vorgabe `false`),
-`range` = `selection|section|chapter|part|from|picked|work|all` (Vorgabe `section`), `key` (für selection, section,
-chapter, part, from), `sel: [key]` (picked), `start`/`end` (UTF-16, nur selection), `rev` = `current|shown` (shown nur
-bei section/selection, mit `shown_rev`), `kinds: [text|heading|footnote|quote|code]` (Vorgabe beim Suchen
-`text, heading, footnote, quote`, beim Ersetzen `text, heading, footnote`; Code ersetzt Baruch nie), `text`
-(ungespeicherter Editortext von `key`), `limit` (Vorgabe 500, höchstens 2000).
+All with `work?`; the fields of the search lie flat: `q` (1–500 characters), `case`, `word`, `re` (default `false`),
+`range` = `selection|section|chapter|part|from|picked|work|all` (default `section`), `key` (for selection, section,
+chapter, part, from), `sel: [key]` (picked), `start`/`end` (UTF-16, selection only), `rev` = `current|shown` (shown only
+with section/selection, with `shown_rev`), `kinds: [text|heading|footnote|quote|code]` (default when searching
+`text, heading, footnote, quote`, when replacing `text, heading, footnote`; Baruch never replaces code), `text`
+(unsaved editor text of `key`), `limit` (default 500, at most 2000).
 
 - `search.find {…}` → `{hits: [{work, key, number, title, rev, kind, start, end, u16_start, u16_end, line, before,
-  matched, after, url}], total, truncated, timed_out, range_label}`. `start`/`end` sind Bytes, `u16_*` UTF-16-Einheiten
-  im Text der Fassung; `url` ist die Sprung-Adresse (`/?work=W&key=K[&rev=R]&find=…&at=Byte`). Zeitgrenze 2 s
-  (`timed_out: true`, die Liste ist dann unvollständig). Ungültiger oder zu großer regulärer Ausdruck → -32602.
+  matched, after, url}], total, truncated, timed_out, range_label}`. `start`/`end` are bytes, `u16_*` UTF-16 units
+  in the text of the revision; `url` is the jump address (`/?work=W&key=K[&rev=R]&find=…&at=Byte`). Time limit 2 s
+  (`timed_out: true`, the list is then incomplete). Invalid or too large regular expression → -32602.
 - `search.preview {…, replacement}` → `{sections: [{key, number, title, base_rev, hits, replacements, diff_html,
-  body_after}], total, truncated, timed_out, range_label}`. `replacement` höchstens 2000 Zeichen, Regex mit `$1`/
-  `${name}`, im Wortlaut-Modus für Typst maskiert. `range=all` → -32602. Die eingesetzten Ersatztexte aller Treffer
-  zusammen dürfen höchstens 8 MiB groß sein (jeder Treffer zählt mindestens ein Byte), sonst -32000 „Zu viele
-  Ersetzungen auf einmal …“ (gilt ebenso für `search.replace`, dann wird nichts ersetzt). `sections` enthält nur
-  ganze Abschnitte, zusammen höchstens 500 Abschnitte und 2000 Stellen (sonst `truncated: true`).
+  body_after}], total, truncated, timed_out, range_label}`. `replacement` at most 2000 characters, regex with `$1`/
+  `${name}`, escaped for Typst in the wording mode. `range=all` → -32602. The inserted replacement texts of all hits
+  together may be at most 8 MiB (every hit counts at least one byte), otherwise -32000 „Zu viele
+  Ersetzungen auf einmal …“ (applies likewise to `search.replace`, then nothing is replaced). `sections` contains only
+  whole sections, together at most 500 sections and 2000 places (otherwise `truncated: true`).
 - `search.replace {…, replacement, sections?: [{key, base_rev, skip: [Stelle]}], confirm: true}` → `{batch: {id, work,
   created, query, replacement, items: [{key, prev_rev, new_rev}], undone}, changed: [{key, rev, prev}], skipped:
-  [{key, reason}], commit?, mirror?}`. Nur der Mensch (nicht über MCP, nicht über `/act`). `skip` zählt in der
-  Trefferliste der Vorschau; ohne `sections` alle Abschnitte mit Treffern auf ihrer aktuellen Fassung. Übersprungen
-  mit Grund: Basis nicht mehr aktuell, Ebene oder Überschriften würden sich ändern, kein Treffer mehr. Höchstens 500
-  Abschnitte; ohne `confirm` → -32602; nach Zeitablauf → -32000, nichts ersetzt. Genau ein Commit „Ersetzt „x“ → „y“ in
-  n Abschnitten“.
-- `search.undo {batch, confirm: true}` → `{batch, restored: [{key, rev}], skipped: [{key, reason}], commit?}`; ein
-  Commit „Ersetzen rückgängig: „x“ → „y“ (n Abschnitte)“; schon rückgängig → -32000.
+  [{key, reason}], commit?, mirror?}`. Human only (not over MCP, not over `/act`). `skip` counts in the
+  hit list of the preview; without `sections` all sections with hits on their current revision. Skipped
+  with a reason: base no longer current, level or headings would change, no hit any more. At most 500
+  sections; without `confirm` → -32602; after the time runs out → -32000, nothing replaced. Exactly one commit `„Ersetzt „x“ → „y“ in
+  n Abschnitten“`.
+- `search.undo {batch, confirm: true}` → `{batch, restored: [{key, rev}], skipped: [{key, reason}], commit?}`; one
+  commit `„Ersetzen rückgängig: „x“ → „y“ (n Abschnitte)“`; already undone → -32000.
 
-## Querverweise (Runde 30a)
+## Cross-references (Round 30a)
 
-Alle mit `work?`.
+All with `work?`.
 
-- `xref.targets {q?, limit?}` → `{targets: [{key, label, number, title, level, snippet}]}`. Filtert nach Titel
-  (enthält), Nummer (beginnt mit) oder Sprungmarke `kN`; `level` 0 Teil … 3 Unterabschnitt; `snippet` =
-  `#link(<kN>)[Titel]`; `limit` Vorgabe 50, höchstens 500.
-- `xref.resolve {label}` → `{key, url, number, title}` (`label` als `kN` oder `<kN>`; unbekannt → -32602).
-- `xref.candidates {key?}` → `{candidates: [{key, rev, start, end, text, target_key, replacement}]}`: mögliche
-  Querverweise (Nennungen im Fließtext der aktuellen Fassung, siehe `xref::outline_mentions`), nur Vorschlag.
-- `xref.convert {key, rev, picks: [Stelle], confirm: true}` → `{node, key, rev, converted, commit?}`: die gewählten
-  Kandidaten der Fassung `rev` (Stellen in der Liste von `xref.candidates` für diesen Abschnitt) werden eingesetzt,
-  neue Fassung vom Menschen auf `rev`, ein Commit. Ohne `confirm` → -32602.
-- `xref.broken {}` → `{broken: [{key, rev, label, start, text, target}]}`: Verweise auf Schlüssel ohne aktuelle
-  Fassung.
+- `xref.targets {q?, limit?}` → `{targets: [{key, label, number, title, level, snippet}]}`. Filters by title
+  (contains), number (begins with) or label `kN`; `level` 0 part … 3 subsection; `snippet` =
+  `#link(<kN>)[Titel]`; `limit` default 50, at most 500.
+- `xref.resolve {label}` → `{key, url, number, title}` (`label` as `kN` or `<kN>`; unknown → -32602).
+- `xref.candidates {key?}` → `{candidates: [{key, rev, start, end, text, target_key, replacement}]}`: possible
+  cross-references (mentions in the running text of the current revision, see `xref::outline_mentions`), proposal only.
+- `xref.convert {key, rev, picks: [Stelle], confirm: true}` → `{node, key, rev, converted, commit?}`: the chosen
+  candidates of the revision `rev` (positions in the list of `xref.candidates` for this section) are inserted,
+  a new revision by the human on `rev`, one commit. Without `confirm` → -32602.
+- `xref.broken {}` → `{broken: [{key, rev, label, start, text, target}]}`: references to keys without a current
+  revision.
 
-## Lösungsvorschläge und Varianten (Runde 30b)
+## Solution proposals and variants (Round 30b)
 
-Alle Methoden mit `work?` (fehlt → Vorgabewerk) und `key` (fester Schlüssel des Abschnitts).
+All methods with `work?` (missing → default work) and `key` (fixed key of the section).
 
 - `solution.list {key, post?, rev?}` → `{solutions: [{index, quote, replacement, step, adoptable, finding}], rev}`:
-  mit `post` die Lösungen des Beitrags (`index` = Stelle für `picks`), sonst die Lösungen aller Befunde des Abschnitts
-  (`index` je Befund, `finding` gesetzt). `adoptable`: Zitat und neue Formulierung, das Zitat steht in Fassung `rev`
-  (ohne: Prüfgrundlage des Beitrags bzw. die aktuelle; Leerraum darf abweichen).
+  with `post` the solutions of the post (`index` = position for `picks`), otherwise the solutions of all findings of the section
+  (`index` per finding, `finding` set). `adoptable`: quotation and new wording, the quotation stands in revision `rev`
+  (without: the basis of review of the post or the current one; white space may differ).
 - `solution.adopt {key, post | finding, rev?, picks: [usize]}` → `{rev, base, persona, note, url,
-  proposed_findings: [id], notes: [..]}`: setzt die gewählten Lösungen der Reihe nach in die Basis ein (`rev`, sonst
-  die Prüfgrundlage des Beitrags, beim Befund die aktuelle Fassung) und legt **einen Vorschlag** an (Herkunft die
-  Persona des Beitrags, Notiz „Lösung aus Beitrag n“ bzw. „… (Befund [B m])“); die Befunde mit diesen Lösungen
-  bekommen den Statusvorschlag „übernommen in Fassung n“. Nicht übernehmbare Lösung, unbekannte Stelle, Beitrag aus
-  einem anderen Abschnitt → `-32602`; Text unverändert → `-32000`. `picks` auch als Zahl oder „1,2“.
+  proposed_findings: [id], notes: [..]}`: inserts the chosen solutions one after another into the base (`rev`, otherwise
+  the basis of review of the post, for a finding the current revision) and creates **one proposal** (origin the
+  persona of the post, note „Lösung aus Beitrag n“ or „… (Befund [B m])“); the findings with these solutions
+  get the status proposal „übernommen in Fassung n“. A solution that cannot be adopted, an unknown position, a post from
+  another section → `-32602`; text unchanged → `-32000`. `picks` also as a number or „1,2“.
 - `solution.variants {key, rev?, findings?: [id], count?: 2|3, post?}` → `{group, base, persona, variants: [{rev,
-  label, summary, findings, url}], notes}`: der Lektor (nach Einstellung) schreibt die Varianten als Vorschläge auf
-  der Basis `rev` (Vorgabe: aktuelle Fassung) aus den genannten bzw. offenen Befunden des Abschnitts; `count` anders
-  als 2 oder 3 → `-32602`; ohne Befunde → `-32000`.
-- `solution.reject_siblings {key, rev, confirm: true}` → `{rejected: [rev], group, kept}`: verwirft die übrigen offenen
-  Vorschläge der Variantengruppe von `rev` (nur der Mensch; ohne `confirm` bzw. keine Variante → `-32602`).
+  label, summary, findings, url}], notes}`: the lector (by setting) writes the variants as proposals on
+  the base `rev` (default: current revision) from the named or open findings of the section; `count` other
+  than 2 or 3 → `-32602`; without findings → `-32000`.
+- `solution.reject_siblings {key, rev, confirm: true}` → `{rejected: [rev], group, kept}`: discards the other open
+  proposals of the variant group of `rev` (human only; without `confirm` or no variant → `-32602`).
 - `solution.compare {key, group}` → `{base, group, key, work, title, variants: [{rev, label, summary, findings,
-  status, diff_html, against: [{rev, label, diff_html}], url}]}`; `diff_html` ist maskiertes HTML (`<ins>`/`<del>`).
-- Prüfgrundlage `basis` = `shown` (Vorgabe) | `current` | Zahl bzw. Ziffern bei `persona.ask` und `persona.review`
-  (Antwort `basis: {rev, label, proposal}`); `persona.propose` beruht auf der gezeigten Fassung `rev` bzw. der
-  ausdrücklich gewählten (`basis` = `current` | Nummer), auch auf einem offenen Vorschlag (Fehler 0.9.0, Kritik-Zyklus;
-  vorher stets auf der aktuellen). Seit Runde 36 gilt das auch für `scope: "chapter"`: Der Vorschlag für den Teil
-  des Auftrags (`key`) beruht auf der gezeigten bzw. gewählten Fassung, die übrigen Teile auf ihrer aktuellen; die
-  Antwort nennt sie in `basis` („Grundlage: Fassung 2 (Vorschlag von @lektor)“), und ein Vorschlag, der der gezeigten
-  Fassung gleicht, zählt als unverändert. Im Chat sieht eine direkt angesprochene Persona ihre eigenen offenen Befunde
-  des Abschnitts (erneutes Prüfen wie beim RFC) – seit Runde 36 nur noch bei einem Prüfauftrag
-  (`assist::chat::is_check_order`: ein Wort beginnt mit prüf, überprüf, nachprüf, gegenprüf, kontrollier, check oder
-  review, oder die Nachricht nennt „[B<n>]“), nicht bei einer schlichten Frage. Für den Chat
-  liest `persona.chat` den Parameter mit Runde 30c (chat-bedienung). Unbekanntes Wort → `-32602`.
-- Formular `POST /loesungen/act` (hinter `same_origin`): `method` = `solution.adopt` | `solution.variants` |
-  `solution.reject_siblings`, dazu `work`, `key`, `rev`, `post`, `finding`, `picks` (mehrfach), `findings` (mehrfach),
-  `count`, `confirm`, `back` (eigene Adresse); Erfolg → 303 (Vorschlag bzw. `/varianten` bzw. `back`), Fehler → 200
-  mit Hinweis. Seite `GET /varianten?work=W&key=K&group=G` (ohne `key`: Abschnitt aus der Gruppe).
+  status, diff_html, against: [{rev, label, diff_html}], url}]}`; `diff_html` is escaped HTML (`<ins>`/`<del>`).
+- Basis of review `basis` = `shown` (default) | `current` | number or digits with `persona.ask` and `persona.review`
+  (answer `basis: {rev, label, proposal}`); `persona.propose` is based on the shown revision `rev` or the
+  explicitly chosen one (`basis` = `current` | number), also on an open proposal (bug 0.9.0, critique cycle;
+  before always on the current one). Since Round 36 this also holds for `scope: "chapter"`: the proposal for the part
+  of the task (`key`) is based on the shown or chosen revision, the other parts on their current one; the
+  answer names it in `basis` („Grundlage: Fassung 2 (Vorschlag von @lektor)“), and a proposal equal to the shown
+  revision counts as unchanged. In the chat a directly addressed persona sees its own open findings
+  of the section (re-checking as with the RFC) – since Round 36 only with a review task
+  (`assist::chat::is_check_order`: a word begins with `prüf`, `überprüf`, `nachprüf`, `gegenprüf`, `kontrollier`, `check` or
+  `review`, or the message names „[B<n>]“), not with a plain question. For the chat
+  `persona.chat` reads the parameter with Round 30c (chat-bedienung). Unknown word → `-32602`.
+- Form `POST /loesungen/act` (behind `same_origin`): `method` = `solution.adopt` | `solution.variants` |
+  `solution.reject_siblings`, plus `work`, `key`, `rev`, `post`, `finding`, `picks` (repeatable), `findings` (repeatable),
+  `count`, `confirm`, `back` (own address); success → 303 (proposal or `/varianten` or `back`), error → 200
+  with a notice. Page `GET /varianten?work=W&key=K&group=G` (without `key`: section from the group).
 
-## Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c)
+## Chat: repeating, deleting, addressing, live, structured posts, labels (Round 30c)
 
-Alle Methoden nehmen `work?` (sonst das Vorgabewerk); Handelnder ist der Mensch.
+All methods take `work?` (otherwise the default work); the acting party is the human.
 
 - `post.repeat {id, rev?, basis?}` → `{work, key, post: {id, author, body}, url, repeat_of, basis: {rev, label, proposal},
-  proposed_done: [finding id], notes: [Text]}`. Wiederholt die Anfrage eines Persona-Beitrags: Persona, Modus (`ask`,
-  `review`, `chat`), Umfang und Text aus dem gespeicherten Auftrag (`post.request`, Migration 0047), gegen die gezeigte
-  Fassung `rev` bzw. nach `basis` (`shown` Vorgabe | `current` | `<n>`, `assist::basis::choose`). Der neue Beitrag trägt
-  `repeat_of` (alter Beitrag bleibt), `reply_to` wie der alte. Offene Befunde (ohne Lob) der alten Antwort, die in der
-  neuen nicht wiederkommen (`findings::parse::similar` gegen die Befunde der neuen Antwort), schlägt die Persona als
-  „erledigt“ vor (`finding_propose_status`, je ein Commit `finding-propose`; der Mensch entscheidet). Rückfall für
-  Beiträge ohne gespeicherten Auftrag (vor Runde 30): die vorangehende Nachricht des Menschen bzw. eines MCP-Clients im
-  selben Abschnitt als Chat; gibt es keine oder ist der Beitrag nicht von einer Persona (bzw. der kurze Beitrag eines
-  Schreibauftrags) → `-32000`. Scheitert das Modell → `-32000`, nichts gespeichert, Fehler in der Live-Anzeige.
+  proposed_done: [finding id], notes: [Text]}`. Repeats the request of a persona post: persona, mode (`ask`,
+  `review`, `chat`), scope and text from the stored task (`post.request`, migration 0047), against the shown
+  revision `rev` or according to `basis` (`shown` default | `current` | `<n>`, `assist::basis::choose`). The new post carries
+  `repeat_of` (the old post stays), `reply_to` like the old one. Open findings (without praise) of the old answer that do not
+  come back in the new one (`findings::parse::similar` against the findings of the new answer) are proposed by the persona as
+  „erledigt“ (`finding_propose_status`, one commit `finding-propose` each; the human decides). Fallback for
+  posts without a stored task (before Round 30): the preceding message of the human or of an MCP client in the
+  same section as chat; if there is none or the post is not from a persona (or is the short post of a
+  writing task) → `-32000`. If the model fails → `-32000`, nothing stored, error in the live display.
 - `post.since {key, after, rev?}` → `{work, key, posts: [{id, author, html}], truncated, typing: [{persona, since}],
-  failures: [{persona, message, at}]}`. Beiträge des Abschnitts nach dem Beitrag `after` (steht er nicht mehr dort: alle
-  mit größerer id), höchstens 50, als fertiges HTML (Makro `post_entry` aus `fragments/post_item.html`, wie im
-  Abschnitts-Chat gegen die Fassung `rev`); `typing` = Personas mit laufendem Auftrag in diesem Abschnitt
-  (`chat_live::typing_now`), `failures` = gescheiterte Modellaufrufe der letzten zehn Minuten (höchstens fünf, ältester
-  zuerst; `at` ISO-Zeit, der Browser zeigt jeden einmal).
+  failures: [{persona, message, at}]}`. Posts of the section after the post `after` (if it no longer stands there: all
+  with a larger id), at most 50, as finished HTML (macro `post_entry` from `fragments/post_item.html`, as in the
+  section chat against the revision `rev`); `typing` = personas with a running task in this section
+  (`chat_live::typing_now`), `failures` = failed model calls of the last ten minutes (at most five, oldest
+  first; `at` ISO time, the browser shows each once).
 - `thread.post_delete {thread, id, confirm: true}` → `{work, thread, id, deleted: {author, body}, url, commit?|mirror?}`.
-  Ohne `confirm: true` → `-32602`. Der Mensch löscht jeden Fadenbeitrag; genau ein Commit „Fadenbeitrag n: gelöscht“
-  über `mirror::record_request` (Trailer `Baruch-Thread`, `Baruch-Thread-Post`, `Baruch-Action: thread-post-delete`,
-  Rumpf mit dem ganzen Text; der Baum des Spiegels bleibt, Fäden stehen nicht im Spiegel). Verweise anderer Beiträge
-  (`reply_to`, `repeat_of`) werden NULL.
-- `thread.repeat {thread, id}` → `{work, thread, post: {id, author, body}, url, repeat_of, proposed_done, notes}`: wie
-  `post.repeat` im Faden (Auftrag = Nachricht des Absenders, `request.scope = "thread"`; Rückfall die vorangehende
-  Nachricht des Menschen bzw. eines MCP-Clients); ohne neues Relay.
-- `thread.since {thread, after}` → `{work, thread, posts: [{id, author, html}], truncated, typing, failures}` (Makro
+  Without `confirm: true` → `-32602`. The human deletes any thread post; exactly one commit „Fadenbeitrag n: gelöscht“
+  through `mirror::record_request` (trailers `Baruch-Thread`, `Baruch-Thread-Post`, `Baruch-Action: thread-post-delete`,
+  body with the whole text; the tree of the mirror stays, threads do not stand in the mirror). References of other posts
+  (`reply_to`, `repeat_of`) become NULL.
+- `thread.repeat {thread, id}` → `{work, thread, post: {id, author, body}, url, repeat_of, proposed_done, notes}`: like
+  `post.repeat` in the thread (task = message of the sender, `request.scope = "thread"`; fallback the preceding
+  message of the human or of an MCP client); without a new relay.
+- `thread.since {thread, after}` → `{work, thread, posts: [{id, author, html}], truncated, typing, failures}` (macro
   `thread_entry`).
 
-Geändertes Verhalten bestehender Methoden:
-- `persona.chat` und `thread.post`: Anrede mit Namen am Satzanfang („Lektor, …“, `assist::chat::addressed`) ruft wie
-  `@handle`; eine Persona-Antwort mit `@handle:` bzw. Anrede am Zeilenanfang ruft die angesprochene Persona einmal
-  (Relay: eine Stufe, höchstens drei Relay-Antworten, jede Persona einmal, nicht beim RFC/Schreibauftrag). `persona.chat`
-  nimmt `basis` (`shown` | `current` | `<n>`); unbekannter Wert → `-32602`.
-- `post.page` bleibt schlicht (Text ohne Gliederung); `post.since` liefert das gesetzte HTML.
+Changed behaviour of existing methods:
+- `persona.chat` and `thread.post`: addressing by name at the start of a sentence („Lektor, …“, `assist::chat::addressed`) calls like
+  `@handle`; a persona answer with `@handle:` or an address at the start of a line calls the addressed persona once
+  (relay: one stage, at most three relay answers, each persona once, not with RFC/writing task). `persona.chat`
+  takes `basis` (`shown` | `current` | `<n>`); unknown value → `-32602`.
+- `post.page` stays plain (text without structure); `post.since` delivers the typeset HTML.
 
-Formulare (ohne JavaScript, hinter `guard::same_origin`):
-- `POST /beitraege/act` nimmt `method=post.repeat` (Felder `id`, `rev`, `basis`) → 303 auf den Abschnitt mit
-  `#post-<neu>`; Fehler 422 mit Text.
-- `POST /faden/act` nimmt `method=thread.post_delete` (Kästchen `confirm=1`, sonst Hinweis auf der Seite, Status 200)
-  bzw. `method=thread.repeat` (Feld `id`) → 303 auf den Faden; ohne `method` wie bisher eine Nachricht.
-- `POST /assistenten/act` reicht `basis` für alle vier Methoden an die RPC.
+Forms (without JavaScript, behind `guard::same_origin`):
+- `POST /beitraege/act` takes `method=post.repeat` (fields `id`, `rev`, `basis`) → 303 to the section with
+  `#post-<neu>`; error 422 with text.
+- `POST /faden/act` takes `method=thread.post_delete` (checkbox `confirm=1`, otherwise a notice on the page, status 200)
+  or `method=thread.repeat` (field `id`) → 303 to the thread; without `method` a message as before.
+- `POST /assistenten/act` passes `basis` on to the RPC for all four methods.
 
-## Satz-Einstellungen (Runde 29)
+## Typesetting settings (Round 29)
 
-Satz-Einstellungen eines Werks (Kapitelanfang, Seitenformat, Ränder, Schrift, Seitenzahlen …) als Typst-Regeln
-„// Baruch: Satz“ hinter der Werkvorlage; Datenmodell `baruch_typst::typeset::TypesetSettings` (JSON: nur gesetzte
-Felder, unbekannte Felder werden abgelehnt). Ändern nur durch den Menschen (Oberfläche); MCP liest nur.
+Typesetting settings of a work (chapter start, page format, margins, font, page numbers …) as Typst rules
+„// Baruch: Satz“ after the work template; data model `baruch_typst::typeset::TypesetSettings` (JSON: only set
+fields, unknown fields are refused). Changed only by the human (user interface); MCP only reads.
 
 ### work.typeset_get, work.typeset_set, work.typeset_reset, work.typeset_adopt_rule (satz-daten)
 
-Modul `crate::typeset_settings` (Runde 29a). Nur aus der Oberfläche (= Mensch, `HUMAN_NAME`); `work` fehlt → das
-Vorgabewerk, unbekanntes Werk → `-32602`. Die schreibenden Methoden nehmen die Schreibsperre und erzeugen je Änderung
-**genau einen** Spiegel-Commit; ohne Änderung keinen.
+Module `crate::typeset_settings` (Round 29a). Only from the user interface (= human, `HUMAN_NAME`); `work` missing → the
+default work, unknown work → `-32602`. The writing methods take the write lock and produce **exactly one**
+mirror commit per change; none without a change.
 
-JSON der Einstellungen (Beispiel mit allen sechzehn Feldern; jedes fehlende Feld = „aus der Werkvorlage“):
+JSON of the settings (example with all sixteen fields; every missing field = „aus der Werkvorlage“):
 
 ```json
 {"chapter_start":"right_page","part_page":{"side":"right","blank_back":true},"page_format":{"kind":"a5"},
@@ -1943,721 +1943,721 @@ JSON der Einstellungen (Beispiel mit allen sechzehn Feldern; jedes fehlende Feld
  "xref_with_page":true}
 ```
 
-Werte: `chapter_start` `continuous|new_page|right_page`; `part_page.side` `right|any`; `page_format.kind`
-`a5|120x190|135x215|a4|custom` (bei `custom` mit `width_mm`, `height_mm`); `paragraph.kind` `indent|spacing`;
+Values: `chapter_start` `continuous|new_page|right_page`; `part_page.side` `right|any`; `page_format.kind`
+`a5|120x190|135x215|a4|custom` (with `custom` with `width_mm`, `height_mm`); `paragraph.kind` `indent|spacing`;
 `page_numbers.position` `bottom_center|bottom_outside|top_outside|hidden`, `.start` `first_page|first_chapter`;
 `running_head` `off|work_title|chapter`; `footnotes.numbering` `arabic|symbols|letters`, `.restart`
-`continuous|per_chapter`. Grenzen und Rundung wie `TypesetSettings::validate`/`normalized` (mm und pt auf 0,1, em auf
-0,01; Schrift und Sprache getrimmt).
+`continuous|per_chapter`. Limits and rounding as `TypesetSettings::validate`/`normalized` (mm and pt to 0.1, em to
+0.01; font and language trimmed).
 
 - `work.typeset_get {work?}` → `{work, set, uuid|null, updated|null, updated_by|null, settings, rules, conflicts
   [{field, label, line, text, effect, message}], template_rule {line, text, chapter_start}|null, warnings [String],
-  fields [{id, label}]}`. `rules` ist der Block „// Baruch: Satz“ aus `baruch_typst::typeset::rules` ("" ohne
-  Einstellungen); `warnings` nennt etwa eine Grundschrift, die Typst nicht kennt („Schrift „X“ fehlt; Typst setzt mit
-  der eingebetteten Schrift“) oder den Kolumnentitel „Werktitel“, obwohl die Werkvorlage kein `#set document(title: …)`
-  hat (die Kolumne bliebe leer); `fields` sind die sechzehn Feld-ids mit Bezeichnung in fester Reihenfolge.
-- `work.typeset_set {work?, settings}` → `{work, settings, changed [ids], commit?, mirror?}`. Ersetzt die Einstellungen
-  ganz (normalisiert). Ungültig → `-32602` mit **allen** Meldungen („Satz-Einstellungen: Rand innen: 5 bis 80 mm;
-  Schriftgröße: 6 bis 24 pt; …“), nichts geändert; unbekannte Felder oder fehlendes `settings` → `-32602`. Gleiche
-  Werte → `changed: []`, kein Commit. Leere Einstellungen `{}` setzen zurück (Commit wie `work.typeset_reset`).
-  Die uuid der Zeile bleibt bei Änderungen gleich.
-- `work.typeset_reset {work?}` → `{work, changed, commit?, mirror?}`. Löscht die Zeile (Grabstein `work_typeset`,
-  im Austausch `satz`); ohne Einstellungen `changed: []`, kein Commit.
-- `work.typeset_adopt_rule {work?, confirm: true}` (Runde 23: ohne `confirm: true` -32602) → `{work, chapter_start, template_rev, changed, commit?, mirror?}`. Erkennt die
-  Kapitelanfangs-Regel der Werkvorlage (`detect_chapter_break`), setzt `chapter_start` auf ihren Wert (übrige Felder
-  bleiben), entfernt die Zeile(n) aus der Vorlage (`remove_rule`) und legt in **einer** Transaktion eine neue
-  Vorlagenfassung an (Notiz „Kapitelanfang in die Satz-Einstellungen übernommen (Runde 29)“, Autor der Mensch) – ein
-  Commit für beides. Keine erkannte Regel → `-32000` „Die Werkvorlage hat keine erkennbare Regel für den
+  fields [{id, label}]}`. `rules` is the block „// Baruch: Satz“ from `baruch_typst::typeset::rules` ("" without
+  settings); `warnings` names e.g. a base font that Typst does not know (`„Schrift „X“ fehlt; Typst setzt mit
+  der eingebetteten Schrift“`) or the running head „Werktitel“ although the work template has no `#set document(title: …)`
+  (the running head would stay empty); `fields` are the sixteen field ids with a label in a fixed order.
+- `work.typeset_set {work?, settings}` → `{work, settings, changed [ids], commit?, mirror?}`. Replaces the settings
+  entirely (normalised). Invalid → `-32602` with **all** messages („Satz-Einstellungen: Rand innen: 5 bis 80 mm;
+  Schriftgröße: 6 bis 24 pt; …“), nothing changed; unknown fields or missing `settings` → `-32602`. Equal
+  values → `changed: []`, no commit. Empty settings `{}` reset (commit like `work.typeset_reset`).
+  The uuid of the row stays the same on changes.
+- `work.typeset_reset {work?}` → `{work, changed, commit?, mirror?}`. Deletes the row (tombstone `work_typeset`,
+  in the exchange `satz`); without settings `changed: []`, no commit.
+- `work.typeset_adopt_rule {work?, confirm: true}` (Round 23: without `confirm: true` -32602) → `{work, chapter_start, template_rev, changed, commit?, mirror?}`. Recognises the
+  chapter start rule of the work template (`detect_chapter_break`), sets `chapter_start` to its value (other fields
+  stay), removes the line(s) from the template (`remove_rule`) and creates in **one** transaction a new
+  template revision (note „Kapitelanfang in die Satz-Einstellungen übernommen (Runde 29)“, author the human) – one
+  commit for both. No recognised rule → `-32000` „Die Werkvorlage hat keine erkennbare Regel für den
   Kapitelanfang; nichts geändert.“
-  Die Methode fragt nicht nach einer Bestätigung (wie `work.typeset_reset`): `/rpc` ist der Weg des Menschen hinter der
-  Herkunftsprüfung, die Bestätigung holt der Aufrufer ein – das Formular verlangt das Häkchen (`confirm=1`, sonst 422),
-  heute ruft kein Widget die Methode auf. Die alte Vorlagenfassung bleibt in der Fassungsgeschichte.
+  The method does not ask for a confirmation (like `work.typeset_reset`): `/rpc` is the human's way behind the
+  origin check, the caller obtains the confirmation – the form requires the checkbox (`confirm=1`, otherwise 422);
+  today no widget calls the method. The old template revision stays in the revision history.
 
-Spiegel-Commit (`mirror::describe_typeset`): Autor und Committer der Mensch; Betreff „Satz: <Bezeichnungen> geändert“,
-„Satz: Einstellungen zurückgesetzt“ bzw. „Satz: Kapitelanfang aus der Werkvorlage übernommen (Vorlagenfassung n)“;
-Rumpf je geändertem Feld „Bezeichnung: vorher → nachher“ (ungesetzt = „aus der Werkvorlage“, z. B. „Schriftgröße:
-10,5 pt → 11 pt“); Trailer `Baruch-Action: typeset-set|typeset-reset|typeset-adopt`. Der Commit entsteht auch ohne
-Dateiänderung (`allow_empty`, etwa für „Verweis mit Seitenzahl“, das keine Typst-Regel erzeugt). `main.typ` trägt den
-Regelblock automatisch (`snapshot::head`); ein eigenes Spiegel-File gibt es nicht. Scheitert der Spiegel, gilt die
-Änderung trotzdem, die Antwort trägt `mirror` statt `commit`.
+Mirror commit (`mirror::describe_typeset`): author and committer the human; subject „Satz: <Bezeichnungen> geändert“,
+„Satz: Einstellungen zurückgesetzt“ or „Satz: Kapitelanfang aus der Werkvorlage übernommen (Vorlagenfassung n)“;
+body per changed field „Bezeichnung: vorher → nachher“ (unset = „aus der Werkvorlage“, e.g. „Schriftgröße:
+10,5 pt → 11 pt“); trailer `Baruch-Action: typeset-set|typeset-reset|typeset-adopt`. The commit is made even without a
+file change (`allow_empty`, e.g. for „Verweis mit Seitenzahl“, which produces no Typst rule). `main.typ` carries the
+rule block automatically (`snapshot::head`); there is no mirror file of its own. If the mirror fails, the
+change holds nevertheless; the answer carries `mirror` instead of `commit`.
 
 ### work.typeset_preview (satz-oberflaeche)
 
-`work.typeset_preview {work?, settings}` → `{work, stand, pages, urls, errors, warnings, diagnostics, conflicts}` – setzt
-die **ungespeicherten** Einstellungen `settings` (JSON wie bei `work.typeset_set`) zur Probe; nur lesend, kein Commit.
-Quelle: `baruch_typst::typeset::preview_source(settings, Werkvorlage, Werktitel)` (Werkvorlage, Regelblock
-„// Baruch: Satz“, erfundener Mustertext mit einem Teil und drei Kapiteln) und die Bilder des Werks; gesetzt über
-`typeset::compile` (eine Sperre mit Satz-Vorschau und PDF, Zeitlimit 60 s).
+`work.typeset_preview {work?, settings}` → `{work, stand, pages, urls, errors, warnings, diagnostics, conflicts}` – typesets
+the **unsaved** settings `settings` (JSON as with `work.typeset_set`) as a trial; read only, no commit.
+Source: `baruch_typst::typeset::preview_source(settings, Werkvorlage, Werktitel)` (work template, rule block
+„// Baruch: Satz“, invented sample text with one part and three chapters) and the images of the work; typeset through
+`typeset::compile` (one lock with the typesetting preview and PDF, time limit 60 s).
 
-- `stand`: Hash des gesetzten Stands; `pages`: Seitenzahl; `urls`: je Seite
-  `/einstellungen/werk/satz/vorschau/<stand>/<n>.svg` (n ab 1).
-- `errors`, `warnings`: **Zahl** der Fehler bzw. Warnungen von Typst; `diagnostics`: `[{severity, message}]`.
-- `conflicts`: `[{field, label, line, text, effect, message}]` wie bei `work.typeset_get`, aber für die übergebenen
-  Einstellungen.
-- Fehler: `settings` fehlt, unbekannte Felder oder falsche Typen → `-32602`; Werte außerhalb der Grenzen → `-32602` mit
-  allen Meldungen von `TypesetSettings::validate`, durch „; “ getrennt (jede beginnt mit der Bezeichnung, z. B.
-  „Schriftgröße: 6 bis 24 pt“); unbekanntes Werk → `-32602`; Zeitlimit oder Abbruch → `-32000`.
+- `stand`: hash of the typeset state; `pages`: page count; `urls`: per page
+  `/einstellungen/werk/satz/vorschau/<stand>/<n>.svg` (n from 1).
+- `errors`, `warnings`: **number** of errors or warnings from Typst; `diagnostics`: `[{severity, message}]`.
+- `conflicts`: `[{field, label, line, text, effect, message}]` as with `work.typeset_get`, but for the passed
+  settings.
+- Errors: `settings` missing, unknown fields or wrong types → `-32602`; values outside the limits → `-32602` with
+  all messages of `TypesetSettings::validate`, separated by „; “ (each begins with the label, e.g.
+  „Schriftgröße: 6 bis 24 pt“); unknown work → `-32602`; time limit or abort → `-32000`.
 
-Formulare und Seiten (Block „Satz“ in Einstellungen → Werk, ohne JavaScript; POST hinter `guard::same_origin`, fremde
-Herkunft → 403):
+Forms and pages (block „Satz“ in Settings → Work, without JavaScript; POST behind `guard::same_origin`, foreign
+origin → 403):
 
-- `POST /einstellungen/werk/satz` mit `work` und `action`:
-  - `save` (Vorgabe) → `typeset_settings::save` → 303 `/einstellungen/werk?work=W&ok=satz#satz`;
-  - `preview` → 200, ganze Einstellungsseite mit den ungespeicherten Werten und `<img>` auf die Vorschaubilder;
-  - `reset` (Pflicht `confirm=1`) → `typeset_settings::reset` → 303 `…&ok=satz_zurueck#satz`.
-  Felder (wörtlich, "" = aus der Werkvorlage, Dezimalkomma erlaubt): `chapter_start`, `part_side`, `part_blank_back=1`,
-  `page_format`, `page_width_mm`, `page_height_mm` (nur `custom`), `margin_inside_mm`, `margin_outside_mm`,
-  `margin_top_mm`, `margin_bottom_mm`, `binding_mm` (alle vier Ränder oder keiner; Bundsteg leer = 0), `font`,
-  `font_size_pt`, `leading_em`, `paragraph`, `paragraph_em` (leer = 1 bzw. 0,5), `justify`, `hyphenate`,
-  `widows_orphans`, `xref_with_page` (je `""|on|off`), `lang`, `page_number_position`, `page_number_start` (leer =
-  `first_page`), `running_head`, `footnote_numbering`, `footnote_restart` (leer = `continuous`). Unterfelder ohne
-  Hauptwahl (z. B. `part_blank_back` ohne `part_side`) zählen nicht. Gelesen von
-  `settings::work_typeset::settings_from_form` (Meldungen wie `TypesetSettings::validate`, dazu „unbekannte Wahl“ und
-  unvollständige Ränder).
-- `POST /einstellungen/werk/satz/vorlage` mit `work`, Pflicht `confirm=1` → `typeset_settings::adopt_template_rule` → 303
+- `POST /einstellungen/werk/satz` with `work` and `action`:
+  - `save` (default) → `typeset_settings::save` → 303 `/einstellungen/werk?work=W&ok=satz#satz`;
+  - `preview` → 200, whole settings page with the unsaved values and `<img>` on the preview images;
+  - `reset` (required `confirm=1`) → `typeset_settings::reset` → 303 `…&ok=satz_zurueck#satz`.
+  Fields (literal, "" = from the work template, decimal comma allowed): `chapter_start`, `part_side`, `part_blank_back=1`,
+  `page_format`, `page_width_mm`, `page_height_mm` (only `custom`), `margin_inside_mm`, `margin_outside_mm`,
+  `margin_top_mm`, `margin_bottom_mm`, `binding_mm` (all four margins or none; binding offset empty = 0), `font`,
+  `font_size_pt`, `leading_em`, `paragraph`, `paragraph_em` (empty = 1 or 0.5), `justify`, `hyphenate`,
+  `widows_orphans`, `xref_with_page` (each `""|on|off`), `lang`, `page_number_position`, `page_number_start` (empty =
+  `first_page`), `running_head`, `footnote_numbering`, `footnote_restart` (empty = `continuous`). Sub-fields without
+  a main choice (e.g. `part_blank_back` without `part_side`) do not count. Read by
+  `settings::work_typeset::settings_from_form` (messages like `TypesetSettings::validate`, plus „unbekannte Wahl“ and
+  incomplete margins).
+- `POST /einstellungen/werk/satz/vorlage` with `work`, required `confirm=1` → `typeset_settings::adopt_template_rule` → 303
   `…&ok=satz_vorlage#satz`.
-- Ungültig oder abgelehnt (auch fehlendes `confirm`) → 422, ganze Einstellungsseite mit den Eingaben und der Meldung beim
-  Feld (`settings::work_retry_page`, `WorkRetry::Typeset`); interner Fehler → 500. Unbekanntes Werk → 404, unbekannte
+- Invalid or refused (also a missing `confirm`) → 422, whole settings page with the input and the message at the
+  field (`settings::work_retry_page`, `WorkRetry::Typeset`); internal error → 500. Unknown work → 404, unknown
   `action` → 400.
-- `GET /einstellungen/werk/satz/vorschau/{stand}/{n}.svg`: nur Stände aus dem Zwischenspeicher des Satzes
-  (`typeset::cached_page`, startet nie einen Satzlauf), sonst 404; `Sec-Fetch-Site: cross-site|same-site` → 403. Kopf wie
-  die Seiten der Satz-Ansicht: `image/svg+xml`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy` =
+- `GET /einstellungen/werk/satz/vorschau/{stand}/{n}.svg`: only states from the typesetting cache
+  (`typeset::cached_page`, never starts a typesetting run), otherwise 404; `Sec-Fetch-Site: cross-site|same-site` → 403. Headers like
+  the pages of the typesetting view: `image/svg+xml`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy` =
   `typeset::SVG_CSP`, `Cache-Control: no-cache`.
 
-## Runde 19 – RAG-Pflege, Reste der Stellen
+## Round 19 – RAG maintenance, rest of the references
 
 ### R19a index
 
-Keine neue Methode, keine neue Route; Einzelheiten in „Bedeutungssuche (RAG, Runde 12)“ und „Abgleich mit
-MultiGPT (Runde 13)“.
+No new method, no new route; details in "Semantic search (RAG, Round 12)" and "Sync with
+MultiGPT (Round 13)".
 
-- `rag.search`: jeder Treffer mit `weak: bool` (Score unter 0,45 bzw. keine Zahl).
-- `rag.status`: `index.stale` (liegengebliebene Aufträge); `problem` bleibt gesetzt, solange etwas liegt, auch
-  wenn der letzte (billige) Auftrag gelang; Suchen stoßen keinen neuen Versuch an.
-- `rag.reindex`: antwortet sofort, zusätzlich `deferred: bool` (Rücksetzwunsch, weil der Worker die
-  Schreibsperre hielt; er bricht zwischen zwei Stapeln bzw. eine hängende Einbettung sofort ab).
-- LanceDB: `query_prefix`/`document_prefix` der Verbindung (Wechsel des Dokument-Präfixes → ausgefallen bis
-  zum Neuaufbau); `Index::replace` löscht nur im Bereich (ein Werk bzw. gemeinsam).
-- Start mit eigenem `--data` ohne gespeicherte Verbindung Eliezer: kein Einbetter, `problem` nennt den Grund.
-- `sync.run`: Hochladen ohne ID mit Hinweis und Sperrvermerk, `isError` für ein Dokument blockiert nur dieses,
-  unvollständige Listen löschen keine lokale Kopie, Marke gegen stillen Abbruch zwischen Hochladen und Stand.
-- `connection.check` für MultiGPT beendet ihre MCP-Sitzung zuletzt mit HTTP `DELETE`.
+- `rag.search`: every hit with `weak: bool` (score below 0.45 or not a number).
+- `rag.status`: `index.stale` (stuck jobs); `problem` stays set as long as something is stuck, even
+  if the last (cheap) job succeeded; searches trigger no new attempt.
+- `rag.reindex`: answers immediately, additionally `deferred: bool` (reset wish because the worker held the
+  write lock; it aborts between two batches, or a hanging embedding immediately).
+- LanceDB: `query_prefix`/`document_prefix` of the connection (change of the document prefix → failed until
+  the rebuild); `Index::replace` deletes only within its area (one work or shared).
+- Start with its own `--data` without a stored connection Eliezer: no embedder, `problem` names the reason.
+- `sync.run`: upload without an id with a note and a block mark, `isError` for one document blocks only that one,
+  incomplete lists delete no local copy, a mark against a silent abort between upload and state.
+- `connection.check` for MultiGPT ends its MCP session last with HTTP `DELETE`.
 
 ### R19b pgvector
 
-- `connection.set`/`connection.get`: `query_prefix` (lancedb, pgvector) und `document_prefix` (lancedb), siehe
-  „Verbindungen und Quellen“; `connection.check` (pgvector) mit gekürzten Feldern und TLS-Hinweis.
-- pgvector-Suche (`rag.search` über den Weg pgvector): alle Felder in SQL gekürzt – Dokument 500, Stelle 200, Titel
-  300, Adresse 2000, Sammlung 200, Text 2000 Zeichen; eine Sammlung mit längerem Namen ist über den gekürzten Namen
-  wählbar; die Anfrage wird mit `query_prefix` eingebettet.
-- Gedankenkarte: `idea.map_groups`, `idea.map_groups_name`, `idea.map_group_accept`, `idea.map_group_dismiss` (siehe
-  „Gedankenkarte (Runde 25)“); Formular `POST /werke/{id}/karte/act` mit denselben drei schreibenden Methoden.
-- `ribbon.formats`: `scripture` und `cite` aus der Werkvorlage (siehe „ribbon.formats“).
+- `connection.set`/`connection.get`: `query_prefix` (lancedb, pgvector) and `document_prefix` (lancedb), see
+  "Connections and sources"; `connection.check` (pgvector) with shortened fields and a TLS note.
+- pgvector search (`rag.search` over the way pgvector): all fields shortened in SQL – document 500, section 200, title
+  300, address 2000, collection 200, text 2000 characters; a collection with a longer name can be chosen through the shortened name;
+  the query is embedded with `query_prefix`.
+- Idea map: `idea.map_groups`, `idea.map_groups_name`, `idea.map_group_accept`, `idea.map_group_dismiss` (see
+  "Idea map (Round 25)"); form `POST /werke/{id}/karte/act` with the same three writing methods.
+- `ribbon.formats`: `scripture` and `cite` from the work template (see "ribbon.formats").
 
 ### R19c treffer
 
-Schwache Treffer, Wortlaut mit Trennresten und die Reste der Stellen (Abschnitte „Einfälle“, „Bibelstellen“,
-„Bibeln“, „Literatur und Hervorhebungen“). Alles additiv, keine neuen Methoden.
+Weak hits, wording with hyphenation remnants and the rest of the references (sections "Ideas", "Bible references",
+"Bibles", "Literature and highlights"). Everything additive, no new methods.
 
-- **Schwach** heißt: Ähnlichkeit `score` < `baruch_rag::WEAK_SCORE` (0,45, Annahme für alle Wege) oder keine Zahl
-  (`baruch_rag::is_weak`). Nichts wird endgültig ausgeblendet.
-- `idea.search {mode: "rag"}`: je Treffer `weak: bool`, schwache Treffer nach den übrigen (sonst Rang). Ausfall der
-  Bedeutungssuche (LanceDB nicht verbunden oder Fehler der Suche außer ungültiger Eingabe) → **-32001**
-  (`rpc::RAG_UNAVAILABLE`) mit der Nachricht „Bedeutungssuche nicht verfügbar: LanceDB (lokal): <Grund>.“; ungültige
-  Eingaben bleiben -32602.
-- `literature.render` (Modus `rag`) und die Bedeutungssuche der Literatur (`literature::rag_view`): je Treffer
-  `weak`, Treffer nach `weak` geordnet (stabil), dazu `weak_count` und `weak_label` („schwach“).
-- `scripture.check`: je Stelle neu `module_spacing: bool` – der Wortlaut stimmt nur ohne Leerraum (Trennreste im
-  Modul wie „die ses“, „Men schen“); `wording_code` bleibt `match`, `wording` „Wortlaut stimmt (Leerraum im Modul)“
-  (Teilzitat: „Wortlaut stimmt (Teilzitat, Leerraum im Modul)“). Neu je Antwort und je Stelle `module_note:
-  string|null`: Hinweis, wenn das Modul auffällig viele Wortfragmente hat (Schätzung auf den ersten 4000 Versen,
-  höchstens 2 s, je conf-Datei im Speicher; sonst `null`, ohne Bibel immer `null`).
-- `bible.marks`: je Markierung `module_spacing`, je Antwort `module_note` (wie oben).
-- `bible.lookup`: je Vers neu `german_ref` (deutsche Stelle, Rückabbildung aus der Zählung des Moduls, z. B. KJV
-  „Mal 4,2“ → „Mal 3,20“) bzw. `german_problem` (Grund, warum sich der Vers nicht abbilden lässt; dann
+- **Weak** means: similarity `score` < `baruch_rag::WEAK_SCORE` (0.45, an assumption for all ways) or not a number
+  (`baruch_rag::is_weak`). Nothing is hidden for good.
+- `idea.search {mode: "rag"}`: per hit `weak: bool`, weak hits after the others (otherwise rank). Failure of the
+  semantic search (LanceDB not connected or an error of the search other than invalid input) → **-32001**
+  (`rpc::RAG_UNAVAILABLE`) with the message „Bedeutungssuche nicht verfügbar: LanceDB (lokal): <Grund>.“; invalid
+  input stays -32602.
+- `literature.render` (mode `rag`) and the semantic search of the literature (`literature::rag_view`): per hit
+  `weak`, hits ordered by `weak` (stable), plus `weak_count` and `weak_label` („schwach“).
+- `scripture.check`: per reference new `module_spacing: bool` – the wording matches only without white space (hyphenation remnants in the
+  module like „die ses“, „Men schen“); `wording_code` stays `match`, `wording` „Wortlaut stimmt (Leerraum im Modul)“
+  (partial quotation: „Wortlaut stimmt (Teilzitat, Leerraum im Modul)“). New per answer and per reference `module_note:
+  string|null`: a note if the module has conspicuously many word fragments (estimate on the first 4000 verses,
+  at most 2 s, per conf file in memory; otherwise `null`, without a Bible always `null`).
+- `bible.marks`: per mark `module_spacing`, per answer `module_note` (as above).
+- `bible.lookup`: per verse new `german_ref` (German reference, mapped back from the versification of the module, e.g. KJV
+  „Mal 4,2“ → „Mal 3,20“) or `german_problem` (reason why the verse cannot be mapped; then
   `german_ref: null`).
-- `lexicon.lookup`: Lemma-Probe, wenn das Stichwort fehlt – Strong-Schreibweisen („G26“ ↔ „G0026“, auch bei
-  `StrongsPadding=false`), einfache Endungen, Umlaut-Rückführung („Bäume“ → „Baum“), zuletzt der letzte Bestandteil
-  eines Kompositums („Feigenbaum“ → „Baum“). Neu `probe` (die probierte Form oder `null`, wenn das Stichwort selbst
-  passte) und `asked` (das gefragte Stichwort).
-- Stellen im Fließtext: „Mal“ mit folgender Kapitel- und Versangabe ist Maleachi, kein Zahlwort („Er las Joh 3,16
-  Mal 3,20 vor.“ ergibt beide Stellen). Zitat-Zuordnung: zwischen Stelle und folgendem Zitat dürfen bis zu drei
-  kurze Einleitungswörter mit Doppelpunkt stehen („wie Lk 15,6 erzählt: „…““, „heißt es:“, „sagt:“; Liste
-  `wording::INTRO_WORDS`). Wortlautvergleich in Unicode-Normalform NFC.
+- `lexicon.lookup`: lemma probe if the keyword is missing – Strong spellings („G26“ ↔ „G0026“, also with
+  `StrongsPadding=false`), simple endings, umlaut restoration („Bäume“ → „Baum“), finally the last component
+  of a compound („Feigenbaum“ → „Baum“). New `probe` (the form tried or `null` if the keyword itself
+  matched) and `asked` (the keyword asked for).
+- References in running text: „Mal“ with a following chapter and verse is Malachi, not a numeral („Er las Joh 3,16
+  Mal 3,20 vor.“ yields both references). Quotation assignment: between a reference and the following quotation up to three
+  short introductory words with a colon may stand („wie Lk 15,6 erzählt: „…““, „heißt es:“, „sagt:“; list
+  `wording::INTRO_WORDS`). Wording comparison in Unicode normal form NFC.
 
 ### Integration
 
-Keine RPC-Änderung durch die Integration. Die Abnahme `tests/round19_abnahme.rs` geht über die hier beschriebenen
-Methoden: `connection.set` mit `query_prefix`/`document_prefix`, `rag.status` (`index.stale`), `rag.search`
-(`weak`, pgvector über `connection.rag_set`/`connection.collections_set`), `rag.reindex` (`deferred`), `work.delete`,
-`idea.search` (`mode: "rag"`, `weak`), `persona.review` (Belegblock), `idea.map_groups`, die Formulare an
-`/werke/{id}/karte/act` (`idea.map_groups_name`, `idea.map_group_accept`) und `scripture.check` (`module_spacing`,
+No RPC change through the integration. The acceptance test `tests/round19_abnahme.rs` goes through the methods described here:
+`connection.set` with `query_prefix`/`document_prefix`, `rag.status` (`index.stale`), `rag.search`
+(`weak`, pgvector through `connection.rag_set`/`connection.collections_set`), `rag.reindex` (`deferred`), `work.delete`,
+`idea.search` (`mode: "rag"`, `weak`), `persona.review` (evidence block), `idea.map_groups`, the forms to
+`/werke/{id}/karte/act` (`idea.map_groups_name`, `idea.map_group_accept`) and `scripture.check` (`module_spacing`,
 `module_note`, „Mal“).
 
-## EPUB (Runde 20)
+## EPUB (Round 20)
 
-Seit Runde 20 alle umgesetzt (kein STUB): `work.epub` (R20a), `epub.readers` und `epub.preview` (R20b),
-`epub.check`, `epub.checker_get` und `epub.checker_set` (R20c).
+Since Round 20 all implemented (no STUB): `work.epub` (R20a), `epub.readers` and `epub.preview` (R20b),
+`epub.check`, `epub.checker_get` and `epub.checker_set` (R20c).
 
 ### work.epub (R20a)
 
-Seit R20a umgesetzt (kein STUB mehr).
+Implemented since R20a (no longer a STUB).
 
 `work.epub {work, inline?: bool=false, footnotes?: "popup"|"endnotes"="popup"}` → `{file_name, bytes, sha256, url,
 footnotes, files:[{href, media_type, kind, title, key}], warnings:[{code, message, key}], epub_base64?}`.
 
-- Baut das EPUB zum aktuellen Stand (aktuelle Fassungen, Werkvorlage, Bilder, Umschlag, Buchangaben,
-  Satz-Einstellungen) und liefert Angaben; **kein Commit**, nichts wird gespeichert.
-- `file_name` = `<slug>.epub`, `bytes` = Größe der ZIP-Datei, `sha256` = Prüfsumme, `url` = `/werke/{id}/epub`.
-- `files`: Dateien in Lesereihenfolge (Spine), relativ zu `OEBPS/` – `kind` ∈ `cover`, `front` (Titelei, Vorspann),
-  `part`, `chapter`, `notes`; `title` = angezeigte Überschrift, `key` = Schlüssel des ersten Abschnitts der Datei.
-- `warnings`: `{code, message, key}` (`key` = Abschnitt oder `null` für Werkvorlage/Metadaten). Codes:
+- Builds the EPUB of the current state (current revisions, work template, images, cover, book details,
+  typesetting settings) and delivers information; **no commit**, nothing is stored.
+- `file_name` = `<slug>.epub`, `bytes` = size of the ZIP file, `sha256` = checksum, `url` = `/werke/{id}/epub`.
+- `files`: files in reading order (spine), relative to `OEBPS/` – `kind` ∈ `cover`, `front` (front matter, preliminaries),
+  `part`, `chapter`, `notes`; `title` = displayed heading, `key` = key of the first section of the file.
+- `warnings`: `{code, message, key}` (`key` = section or `null` for work template/metadata). Codes:
   `ISLAND_OMITTED`, `ARGS_OMITTED`, `IMAGE_NO_ALT`, `IMAGE_MISSING`, `IMAGE_PATH_INVALID`, `IMAGE_TYPE_FOREIGN`,
-  `XREF_UNKNOWN`, `TEMPLATE_PAGEBREAK_MAPPED` (Info), `TEMPLATE_PAGEBREAK_UNMAPPED`, `ISBN_INVALID`,
+  `XREF_UNKNOWN`, `TEMPLATE_PAGEBREAK_MAPPED` (info), `TEMPLATE_PAGEBREAK_UNMAPPED`, `ISBN_INVALID`,
   `META_YEAR_IGNORED`, `LANGUAGE_INVALID`.
-- `inline: true` → zusätzlich `epub_base64` (die Datei als Base64).
-- Fehler: unbekannte Fußnotenart → -32602; Werk ohne Abschnitt → -32000 („Das Werk hat keinen Abschnitt …“).
-- Gleicher Stand → gleiche Bytes: feste ZIP-Zeitstempel und Reihenfolge, `dcterms:modified` = jüngster Zeitpunkt aus
-  Werk, Buchangaben, Satz-Einstellungen, Bildern und Fassungen. Annahme: Ein bloßes Umschalten der aktuellen Fassung
-  ohne neue Fassung ändert diesen Zeitpunkt nicht (der Inhalt und damit die Prüfsumme ändern sich trotzdem).
+- `inline: true` → additionally `epub_base64` (the file as Base64).
+- Errors: unknown kind of footnotes → -32602; work without a section → -32000 („Das Werk hat keinen Abschnitt …“).
+- Same state → same bytes: fixed ZIP timestamps and order, `dcterms:modified` = latest point in time from
+  work, book details, typesetting settings, images and revisions. Assumption: merely switching the current revision
+  without a new revision does not change this point in time (the content and therefore the checksum change nevertheless).
 
-### epub.readers und epub.preview (R20b)
+### epub.readers and epub.preview (R20b)
 
-Beide umgesetzt (R20b). Nur lesend, kein Commit.
+Both implemented (R20b). Read only, no commit.
 
-- `epub.readers {}` → `{readers:[ReaderProfile…]}` in Anzeige-Reihenfolge: je `{slug, name, device, width_px,
+- `epub.readers {}` → `{readers:[ReaderProfile…]}` in display order: each `{slug, name, device, width_px,
   height_px, required, via_conversion, supports:{popup_footnotes, embedded_fonts, css_backgrounds, page_break_css,
-  hyphenation, svg_images, night_mode, overrides_publisher_font}, note}`. Slugs (eingefroren): `apple-books-iphone`,
+  hyphenation, svg_images, night_mode, overrides_publisher_font}, note}`. Slugs (frozen): `apple-books-iphone`,
   `apple-books-ipad`, `google-play-books`, `kindle` („Kindle (über EPUB)“), `kindle-app` („Kindle-App (über
-  EPUB)“) mit `required: true`; `tolino`, `kobo`, `thorium`, `calibre`. `via_conversion: true` nur bei Kindle und
-  Kindle-App (Send to Kindle wandelt das EPUB um). Die Werte sind Annahmen ohne Gerät (siehe Architektur, R20b).
+  EPUB)“) with `required: true`; `tolino`, `kobo`, `thorium`, `calibre`. `via_conversion: true` only for Kindle and
+  Kindle app (Send to Kindle converts the EPUB). The values are assumptions without a device (see Architektur, R20b).
 - `epub.preview {work, readers?: [slug], file?: href, footnotes?: "popup"|"endnotes"="popup"}` →
   `{readers:[{slug, name, url}], files:[{href, title, kind, key}], file, footnotes, warnings:[{code, message,
-  key}]}`. Ohne `readers` (oder leer) die Pflicht-Profile; Reihenfolge immer wie `epub.readers`. Ohne `file` die
-  erste Teil- bzw. Kapiteldatei, sonst die erste Datei mit Text. `files` = Dateien mit Text in Lesereihenfolge
-  (Spine ohne `nav.xhtml`/`toc.ncx`; `kind` wie `ItemKind`, z. B. `part`, `chapter`, `front`, `cover`, `notes`).
-  `url` = `/werke/{work}/epub/leser/{slug}/{file}` (mit Endnoten `?fussnoten=endnoten`). Unbekannter Slug, unbekannte
-  oder unsichere Datei (`..`, `/` am Anfang) → -32602; Werk ohne Abschnitt → -32000.
+  key}]}`. Without `readers` (or empty) the required profiles; order always as `epub.readers`. Without `file` the
+  first part or chapter file, otherwise the first file with text. `files` = files with text in reading order
+  (spine without `nav.xhtml`/`toc.ncx`; `kind` like `ItemKind`, e.g. `part`, `chapter`, `front`, `cover`, `notes`).
+  `url` = `/werke/{work}/epub/leser/{slug}/{file}` (with endnotes `?fussnoten=endnoten`). Unknown slug, unknown
+  or unsafe file (`..`, `/` at the start) → -32602; work without a section → -32000.
 
 ### epub.check, epub.checker_get, epub.checker_set (R20c)
 
 - `epub.check {work, readers?: [slug], epubcheck?: bool = false, footnotes?: "popup"|"endnotes" = "popup"}` →
   `{findings: [Finding], xml_tool: "xmllint"|"quick_xml", epubcheck: EpubcheckStatus, summary: {errors, warnings,
-  infos}, readers: [slug]}`. Baut das EPUB wie `work.epub` (kein Commit) und prüft es: eigene Struktur- und
-  Barrierefreiheitsprüfung (`baruch_epub::check::check_structure`, xmllint aus PATH mit `--noout --nonet`, sonst
-  quick-xml), Warnungen des Baus (z. B. `ISLAND_OMITTED`, `TEMPLATE_PAGEBREAK_MAPPED` als Hinweis) und je Reader
-  (`reader_warnings`). Ohne `readers` die Pflicht-Profile; unbekannter Slug → -32602; ohne Abschnitte -32000.
-  - `Finding = {code, severity: "error"|"warning"|"info", message, path: string|null, reader: slug|null}`. Codes der
-    eigenen Prüfung u. a. `MIMETYPE_NOT_FIRST`, `MIMETYPE_COMPRESSED`, `CONTAINER_MISSING`, `MANIFEST_FILE_MISSING`,
+  infos}, readers: [slug]}`. Builds the EPUB like `work.epub` (no commit) and checks it: own structure and
+  accessibility check (`baruch_epub::check::check_structure`, xmllint from PATH with `--noout --nonet`, otherwise
+  quick-xml), warnings of the build (e.g. `ISLAND_OMITTED`, `TEMPLATE_PAGEBREAK_MAPPED` as a note) and per reader
+  (`reader_warnings`). Without `readers` the required profiles; unknown slug → -32602; without sections -32000.
+  - `Finding = {code, severity: "error"|"warning"|"info", message, path: string|null, reader: slug|null}`. Codes of the
+    own check include `MIMETYPE_NOT_FIRST`, `MIMETYPE_COMPRESSED`, `CONTAINER_MISSING`, `MANIFEST_FILE_MISSING`,
     `FILE_NOT_IN_MANIFEST`, `SPINE_IDREF_UNKNOWN`, `XHTML_NOT_WELLFORMED`, `NAV_MISSING`, `LANGUAGE_MISSING`,
-    `IMG_ALT_MISSING` (Fehler), `IMG_ALT_EMPTY`, `NCX_MISSING`, `A11Y_METADATA_MISSING` (Hinweise),
-    `SPINE_NAV_ORDER`, `XHTML_TITLE_MISSING` (Warnungen); vollständig in `baruch_epub::check::codes`. Reader:
+    `IMG_ALT_MISSING` (errors), `IMG_ALT_EMPTY`, `NCX_MISSING`, `A11Y_METADATA_MISSING` (notes),
+    `SPINE_NAV_ORDER`, `XHTML_TITLE_MISSING` (warnings); complete in `baruch_epub::check::codes`. Reader:
     `READER_POPUP_FOOTNOTES`, `READER_PAGE_BREAKS`, `READER_EMBEDDED_FONTS`, `READER_CSS_BACKGROUNDS`, `READER_SVG`,
-    `READER_HYPHENATION`, `READER_PUBLISHER_FONT` (nur wenn das Werk eine Schrift einstellt; der Grundstil zählt
-    nicht), `READER_NIGHT_MODE`, `READER_CONVERSION`. EPUBCheck:
-    `EPUBCHECK_<Code>` (z. B. `EPUBCHECK_RSC-005`), Pfad im EPUB.
+    `READER_HYPHENATION`, `READER_PUBLISHER_FONT` (only if the work sets a font; the base style does not
+    count), `READER_NIGHT_MODE`, `READER_CONVERSION`. EPUBCheck:
+    `EPUBCHECK_<Code>` (e.g. `EPUBCHECK_RSC-005`), path in the EPUB.
   - `EpubcheckStatus = {status: "not_requested"} | {status: "not_found"} | {status: "ran", tool: {kind:
-    "binary"|"jar", path}, version: string|null, ok: bool} | {status: "failed", message}`. Mit `epubcheck: true`
-    sucht Baruch `epubcheck` im PATH, sonst das eingestellte epubcheck.jar (`java -jar`); höchstens ein Lauf zur Zeit,
-    Zeitgrenze 180 s (dann wird das Programm samt Prozessgruppe beendet, `failed`). Nie ein Download.
-- `epub.checker_get {}` → `{jar: string|null, found: {kind: "binary"|"jar", path}|null, java: bool}` (werklos).
-- `epub.checker_set {jar: string|null}` → wie `checker_get`. `jar`: absoluter Pfad, Endung `.jar`, vorhandene
-  reguläre Datei, keine Steuerzeichen, höchstens 4096 Bytes – sonst -32602, nichts gespeichert; `null` (oder leer)
-  entfernt die Einstellung (`store_meta.epubcheck_jar`). Kein Commit (kein Werk). Nur RPC und Formular
-  `POST /einstellungen/daten/epubcheck`, kein MCP.
-- **Buchangaben-Reste (R20c):** `work.meta.set` lehnt eine ISBN-13 ohne Präfix 978/979 mit -32602 ab („Eine ISBN-13
-  beginnt mit 978 oder 979 …“); der Vorsatz „ISBN“, „ISBN-13“, „isbn-13“, „ISBN 13“ steht in jeder Schreibung davor;
-  eine nur anders geschriebene ISBN (Bindestriche, Vorsatz) ist eine Änderung und wird so gespeichert, wie eingegeben
-  (Commit „Buchangaben geändert: ISBN“). `work.meta.get` liefert `paper_sheet_mm` (Dicke je Blatt = 2 Seiten);
-  `work.meta.set` nimmt `paper_sheet_mm` (über 0 bis 2 mm, gespeichert als `paper_mm` = Hälfte, keine Migration;
-  zusammen mit `paper_mm` → -32602). Der Commit-Rumpf nennt bei der Papierdicke beides („Papierdicke: 0.1 → 0.075 mm je
-  Seite (je Blatt 0.2 → 0.15 mm)“). `asset.delete` ohne `rev` auf das Umschlagbild entfernt zuerst den Umschlag mit
-  eigenem Commit „Umschlag entfernt“ und meldet `cover_removed: true` (dazu `cover_commit` bzw. `cover_mirror`), dann
-  das Bild; ebenso Formular `POST /werke/bilder/act` (`action=remove`) und ein bestätigter Löschantrag.
-  `asset.request_decide` mit `confirm` auf einen Umschlag-Antrag schreibt genau **einen** Commit „Bildantrag <n>
-  bestätigt: …“ (Rumpf mit „Umschlag vorher/nachher“); `cover` in der Antwort ist `{work, cover, commit?}`.
+    "binary"|"jar", path}, version: string|null, ok: bool} | {status: "failed", message}`. With `epubcheck: true`
+    Baruch looks for `epubcheck` in PATH, otherwise the configured epubcheck.jar (`java -jar`); at most one run at a time,
+    time limit 180 s (then the program is ended together with its process group, `failed`). Never a download.
+- `epub.checker_get {}` → `{jar: string|null, found: {kind: "binary"|"jar", path}|null, java: bool}` (without a work).
+- `epub.checker_set {jar: string|null}` → like `checker_get`. `jar`: absolute path, ending `.jar`, an existing
+  regular file, no control characters, at most 4096 bytes – otherwise -32602, nothing stored; `null` (or empty)
+  removes the setting (`store_meta.epubcheck_jar`). No commit (no work). Only RPC and the form
+  `POST /einstellungen/daten/epubcheck`, no MCP.
+- **Leftovers of book details (R20c):** `work.meta.set` refuses an ISBN-13 without the prefix 978/979 with -32602 („Eine ISBN-13
+  beginnt mit 978 oder 979 …“); the prefix „ISBN“, „ISBN-13“, „isbn-13“, „ISBN 13“ in any spelling may stand before it;
+  an ISBN only written differently (hyphens, prefix) is a change and is stored as entered
+  (commit „Buchangaben geändert: ISBN“). `work.meta.get` delivers `paper_sheet_mm` (thickness per sheet = 2 pages);
+  `work.meta.set` takes `paper_sheet_mm` (above 0 up to 2 mm, stored as `paper_mm` = half, no migration;
+  together with `paper_mm` → -32602). For the paper thickness the commit body names both („Papierdicke: 0.1 → 0.075 mm je
+  Seite (je Blatt 0.2 → 0.15 mm)“). `asset.delete` without `rev` on the cover image first removes the cover with
+  its own commit „Umschlag entfernt“ and reports `cover_removed: true` (plus `cover_commit` or `cover_mirror`), then
+  the image; likewise the form `POST /werke/bilder/act` (`action=remove`) and a confirmed delete request.
+  `asset.request_decide` with `confirm` on a cover request writes exactly **one** commit „Bildantrag <n>
+  bestätigt: …“ (body with „Umschlag vorher/nachher“); `cover` in the answer is `{work, cover, commit?}`.
 
 ### Integration
 
-Keine RPC-Änderung durch die Integration. Die Abnahme `tests/round20_abnahme.rs` nutzt `work.epub` (`inline`),
-`epub.preview` (alle Profile), `asset.add`, `work.set_cover`, `work.meta.set`, `work.typeset_set` und
-`revision.accept` (Querverweis); `epub.check` über `epub_check::run_check` mit eigenem PATH-Inhalt.
+No RPC change through the integration. The acceptance test `tests/round20_abnahme.rs` uses `work.epub` (`inline`),
+`epub.preview` (all profiles), `asset.add`, `work.set_cover`, `work.meta.set`, `work.typeset_set` and
+`revision.accept` (cross-reference); `epub.check` through `epub_check::run_check` with its own PATH content.
 
-## Runde 31 – Register und Glossar
+## Round 31 – Index and glossary
 
-### Schnittstelle R31-S1
+### Interface R31-S1
 
-Neue Methoden (Vertrag §3.1/§3.2); in der Schnittstelle bekannt, aber mit REFUSED „noch nicht umgesetzt (R31 …)“
-abgelehnt, seit 31a/31b alle umgesetzt:
+New methods (contract §3.1/§3.2); known in the interface but refused with REFUSED „noch nicht umgesetzt (R31 …)“,
+since 31a/31b all implemented:
 
 - glossar-daten: `glossary.list`, `glossary.get`, `glossary.lookup`, `glossary.add`, `glossary.update`,
   `glossary.delete`, `glossary.decide`, `glossary.suggest`, `index.registers`, `index.register_add`,
   `index.register_rename`, `index.register_delete`, `index.proposals`, `index.decide`.
 - register-satz: `index.entries`, `index.mark`, `index.unmark`, `index.overview`.
 
-Die neuen `StoreError`-Varianten (`Glossary`, `UnknownGlossaryTerm`, `UnknownIndexProposal`) kommen als INVALID_PARAMS.
-`work.typeset_get`/`work.typeset_set` tragen die neuen Felder `glossary_page`, `index_pages {registers, columns}` und
-`glossary_first_mention` über das JSON der Satz-Einstellungen mit (Prüfung: mindestens ein Register, gültige und
-eindeutige Kennungen, höchstens 16, 1–3 Spalten).
+The new `StoreError` variants (`Glossary`, `UnknownGlossaryTerm`, `UnknownIndexProposal`) come as INVALID_PARAMS.
+`work.typeset_get`/`work.typeset_set` carry the new fields `glossary_page`, `index_pages {registers, columns}` and
+`glossary_first_mention` through the JSON of the typesetting settings (check: at least one index, valid and
+unique identifiers, at most 16, 1–3 columns).
 
 ### 31a glossar-daten
 
-Umgesetzt (`src/glossary.rs`, `src/assist/glossary.rs`). Werk über `work` (fehlt → Vorgabewerk). Term =
+Implemented (`src/glossary.rs`, `src/assist/glossary.rs`). Work through `work` (missing → default work). Term =
 `{id, uuid, term, short, long, variants, source, bible_refs, status: "accepted"|"proposed", origin, created, updated,
-updated_by, anchor}` (`anchor` = `baruch-gl-<uuid>`). Schreibende Methoden: genau ein Spiegel-Commit
-(`commit` in der Antwort; scheitert der Spiegel, `mirror` mit der Meldung, die Änderung gilt trotzdem).
+updated_by, anchor}` (`anchor` = `baruch-gl-<uuid>`). Writing methods: exactly one mirror commit
+(`commit` in the answer; if the mirror fails, `mirror` with the message, the change holds nevertheless).
 
-| Methode | Parameter | Ergebnis | Commit (`Baruch-Action`) |
+| Method | Parameters | Result | Commit (`Baruch-Action`) |
 |---|---|---|---|
-| `glossary.list` | `{work?, status?: "accepted"\|"proposed"\|"all"}` (Vorgabe `all`) | `{work, terms: [Term]}` nach `sort_key` | – |
+| `glossary.list` | `{work?, status?: "accepted"\|"proposed"\|"all"}` (default `all`) | `{work, terms: [Term]}` by `sort_key` | – |
 | `glossary.get` | `{work?, id}` | `{work, term}` | – |
-| `glossary.lookup` | `{work?, word}` | `{work, word, terms}` – nur angenommene, über Begriff oder Variante | – |
-| `glossary.add` | `{work?, term, short?, long?, variants?, source?, bible_refs?}` | `{work, term, commit?}` | `glossary-add` (Autor Mensch) |
-| `glossary.update` | `{work?, id, term, …}` wie add | `{work, term, commit?}` | `glossary-update` (Rumpf vorher/nachher) |
-| `glossary.delete` | `{work?, id, confirm: true}` | `{work, deleted: id, commit?}` | `glossary-delete` (Rumpf mit dem Begriff) |
-| `glossary.decide` | `{work?, id, accept}` | `{work, term}` bzw. `{work, deleted}` | `glossary-accept`/`glossary-reject` (`Baruch-Proposer`) |
-| `glossary.suggest` | `{work?, key?, persona?}` | `{work, persona, model, proposed: [Term], skipped: [{term, reason}], notes}` | je Vorschlag `glossary-propose` (Autor die Persona) |
+| `glossary.lookup` | `{work?, word}` | `{work, word, terms}` – only accepted ones, by term or variant | – |
+| `glossary.add` | `{work?, term, short?, long?, variants?, source?, bible_refs?}` | `{work, term, commit?}` | `glossary-add` (author human) |
+| `glossary.update` | `{work?, id, term, …}` like add | `{work, term, commit?}` | `glossary-update` (body before/after) |
+| `glossary.delete` | `{work?, id, confirm: true}` | `{work, deleted: id, commit?}` | `glossary-delete` (body with the term) |
+| `glossary.decide` | `{work?, id, accept}` | `{work, term}` or `{work, deleted}` | `glossary-accept`/`glossary-reject` (`Baruch-Proposer`) |
+| `glossary.suggest` | `{work?, key?, persona?}` | `{work, persona, model, proposed: [Term], skipped: [{term, reason}], notes}` | per proposal `glossary-propose` (author the persona) |
 | `index.registers` | `{work?}` | `{work, registers: [{slug, title, kind, builtin}]}` | – |
 | `index.register_add` | `{work?, slug, title}` | `{work, register: {slug, title, uuid, position, created}, commit?}` | `register-add` |
-| `index.register_rename` | `{work?, slug, title}` | wie add | `register-rename` |
-| `index.register_delete` | `{work?, slug, confirm: true}` | wie add, dazu `deleted: slug` | `register-delete` |
-| `index.proposals` | `{work?, status?: "open"\|"all"}` (Vorgabe `open`) | `{work, proposals: [{id, key, based_on, word, occurrence, mark, reason, origin, status, created, decided, decided_by, url}]}` | – |
-| `index.decide` | `{work?, id, accept}` | accept: `{work, proposal, key, rev, marks, commit?}`; reject: `{work, proposal, commit?}` | `index-accept` (neue Fassung des Menschen, `Baruch-Node`, `Baruch-Revision`, `Baruch-Proposer`) bzw. `index-reject` |
+| `index.register_rename` | `{work?, slug, title}` | like add | `register-rename` |
+| `index.register_delete` | `{work?, slug, confirm: true}` | like add, plus `deleted: slug` | `register-delete` |
+| `index.proposals` | `{work?, status?: "open"\|"all"}` (default `open`) | `{work, proposals: [{id, key, based_on, word, occurrence, mark, reason, origin, status, created, decided, decided_by, url}]}` | – |
+| `index.decide` | `{work?, id, accept}` | accept: `{work, proposal, key, rev, marks, commit?}`; reject: `{work, proposal, commit?}` | `index-accept` (new revision of the human, `Baruch-Node`, `Baruch-Revision`, `Baruch-Proposer`) or `index-reject` |
 
-- `variants` und `bible_refs` als Liste von Texten (ein einzelner Text gilt als Liste mit einer Zeile je Eintrag).
-  Bibelstellen werden mit `baruch_scripture::parse` geprüft und normalisiert (mehrere mit `;` werden einzelne Einträge);
-  Unlesbares → INVALID_PARAMS mit Meldung, nichts gespeichert.
-- Fehler: Grenzen, Doppel (`term_key` unter angenommenen), eingebaute/ungültige Register-Kennung, unbekannter Begriff
-  bzw. Vorschlag, schon entschiedener Vorschlag, Wort nicht mehr im Text (Vorschlag wird `stale`) → INVALID_PARAMS;
-  `glossary.delete`/`index.register_delete` ohne `confirm: true` → INVALID_PARAMS; Fehler des Modells bei
-  `glossary.suggest` (kein Backend, keine Antwort in der Form „Begriff | Erklärung“) → REFUSED.
-- `index.decide` mit `accept: true` setzt die Marke mit `baruch_typst::index::mark_word`; steht das Wort nicht mehr im
-  Text oder trägt die gewählte Fundstelle schon dieselbe Marke → INVALID_PARAMS mit Meldung, der Vorschlag wird
-  `stale`, keine neue Fassung.
-- `work.exchange_preview`/`work.exchange_import`: `add` bzw. `added` zählen zusätzlich `registers` und
-  `glossary_terms`; Abweichungen der Arten `register` und `glossar-begriff` stehen in `deviations`.
+- `variants` and `bible_refs` as a list of texts (a single text counts as a list with one line per entry).
+  Bible references are checked and normalised with `baruch_scripture::parse` (several with `;` become separate entries);
+  unreadable ones → INVALID_PARAMS with a message, nothing stored.
+- Errors: limits, duplicates (`term_key` among accepted ones), built-in/invalid index identifier, unknown term
+  or proposal, already decided proposal, word no longer in the text (proposal becomes `stale`) → INVALID_PARAMS;
+  `glossary.delete`/`index.register_delete` without `confirm: true` → INVALID_PARAMS; errors of the model with
+  `glossary.suggest` (no backend, no answer in the form „Begriff | Erklärung“) → REFUSED.
+- `index.decide` with `accept: true` sets the mark with `baruch_typst::index::mark_word`; if the word no longer stands in the
+  text or the chosen occurrence already carries the same mark → INVALID_PARAMS with a message, the proposal becomes
+  `stale`, no new revision.
+- `work.exchange_preview`/`work.exchange_import`: `add` or `added` additionally count `registers` and
+  `glossary_terms`; deviations of the kinds `register` and `glossar-begriff` stand in `deviations`.
 
 ### 31b register-satz
 
-Fehler sind INVALID_PARAMS mit deutscher Meldung (Abschnitt oder Fassung unbekannt, Wort fehlt bzw. steht nicht im
-Abschnitt außerhalb von Überschriften, Code, Kommentaren und Marken, ungültige Marke, unbekanntes Register, kein
-Markenbereich).
+Errors are INVALID_PARAMS with a German message (section or revision unknown, word missing or not standing in the
+section outside headings, code, comments and marks, invalid mark, unknown index, no
+mark range).
 
-- `index.entries {work?, key?}` → `{work, entries:[{key, register, term, sub, see, also, auto, start, end}]}`: die
-  Marken der aktuellen Fassungen (`start`/`end` = Bytebereich der Marke im gespeicherten Text, für `index.unmark`);
-  ist das Register `bibel` in den Registerseiten eingeschaltet, dazu die automatischen Bibelstellen der Projektion
-  (`auto: true`, `term` = Buch, `sub` = Kapitel/Vers, `start`/`end` = null). Unbekannter `key` → INVALID_PARAMS.
+- `index.entries {work?, key?}` → `{work, entries:[{key, register, term, sub, see, also, auto, start, end}]}`: the
+  marks of the current revisions (`start`/`end` = byte range of the mark in the stored text, for `index.unmark`);
+  if the index `bibel` is switched on in the index pages, also the automatic Bible references of the projection
+  (`auto: true`, `term` = book, `sub` = chapter/verse, `start`/`end` = null). Unknown `key` → INVALID_PARAMS.
 - `index.mark {work?, key, rev, word, occurrence?, register?, term?, sub?, see?, also?}` → `{work, key, node, rev,
-  marks, commit?|mirror?}`: setzt die Marke direkt hinter das Wort (`occurrence` = `"first"` (Vorgabe), `"all"` oder
-  eine Zahl ab 1; `register` Vorgabe `stichwort`, muss im Werk vorhanden sein; `term` Vorgabe = `word`) und speichert
-  eine neue Fassung des Menschen auf `rev` (ein Spiegel-Commit). `marks` = Zahl der gesetzten Marken. Dieselbe Marke
-  wird nie zweimal gesetzt: Fundstellen, hinter denen sie (auch in einer Kette mehrerer Marken) schon steht, bleiben;
-  ist die gewählte Fundstelle schon markiert bzw. bei `"all"` keine mehr offen → INVALID_PARAMS „… trägt an der
-  gewählten Fundstelle schon diese Registermarke; nichts geändert …“, keine neue Fassung.
-- `index.unmark {work?, key, rev, start, end}` → `{work, key, node, rev, commit?|mirror?}`: neue Fassung ohne die Marke
-  genau in diesem Bereich.
+  marks, commit?|mirror?}`: sets the mark directly after the word (`occurrence` = `"first"` (default), `"all"` or
+  a number from 1; `register` default `stichwort`, must exist in the work; `term` default = `word`) and stores
+  a new revision of the human on `rev` (one mirror commit). `marks` = number of marks set. The same mark
+  is never set twice: occurrences after which it already stands (also in a chain of several marks) stay;
+  if the chosen occurrence is already marked or, with `"all"`, none is open any more → INVALID_PARAMS „… trägt an der
+  gewählten Fundstelle schon diese Registermarke; nichts geändert …“, no new revision.
+- `index.unmark {work?, key, rev, start, end}` → `{work, key, node, rev, commit?|mirror?}`: new revision without the mark
+  exactly in this range.
 - `index.overview {work?}` → `{work, registers:[{slug, title, kind, terms:[{term, sub, keys, see, also, auto}]}]}`:
-  alle Register des Werks, Einträge sortiert wie auf den Registerseiten (DIN 5007-1, Bibel in biblischer Reihenfolge),
-  `keys` = Abschnitte mit Fundstellen.
+  all indexes of the work, entries sorted as on the index pages (DIN 5007-1, Bible in biblical order),
+  `keys` = sections with occurrences.
 
-`work.export` trägt mit Registerseiten bzw. Glossarseite das Buchende ab der Zeile `// Baruch: Register und Glossar`;
-`work.epub` die Dateien `text/glossary.xhtml` und `text/index-{slug}.xhtml`.
+`work.export` carries, with index pages or a glossary page, the back matter from the line `// Baruch: Register und Glossar`;
+`work.epub` the files `text/glossary.xhtml` and `text/index-{slug}.xhtml`.
 
 ### 31c kontextmenue
 
-Keine neue RPC-Methode. Das Kontextmenü (`web/src/context_menu.ts`) ruft `glossary.add` („In Glossar aufnehmen“),
-`glossary.lookup` („Im Glossar nachschlagen“) und `index.registers` (Auswahl des Registers) aus 31a; Registermarken setzt
-es nicht über RPC, sondern in den Editor (Satzbild bzw. Textfeld), gespeichert wird wie immer über `outline.save`.
+No new RPC method. The context menu (`web/src/context_menu.ts`) calls `glossary.add` („In Glossar aufnehmen“),
+`glossary.lookup` („Im Glossar nachschlagen“) and `index.registers` (choice of the index) from 31a; it does not set index marks
+over RPC but in the editor (typeset view or text field); saving goes as always through `outline.save`.
 
-- `wysiwyg.parse`: eine Registermarke erscheint im `html` als `span.ws-index-mark` (Felder `data-register`, `data-term`,
-  `data-sub`, `data-see`, `data-also`, `data-sort`, Beschreibung in `title`/`aria-label`, `data-raw` = kanonische Form),
-  in `blocks` als Inline `{"t": "index_mark", "mark": {…}}`.
-- `wysiwyg.serialize`: nimmt `{"t": "index_mark", "mark": {"register", "term", "sub"?, "see"?, "also"?, "sort"?}}` in
-  neu erzeugten Blöcken an und schreibt `mark_source`; unbekannte Felder der Marke → `INVALID_PARAMS`.
+- `wysiwyg.parse`: an index mark appears in `html` as `span.ws-index-mark` (fields `data-register`, `data-term`,
+  `data-sub`, `data-see`, `data-also`, `data-sort`, description in `title`/`aria-label`, `data-raw` = canonical form),
+  in `blocks` as the inline `{"t": "index_mark", "mark": {…}}`.
+- `wysiwyg.serialize`: takes `{"t": "index_mark", "mark": {"register", "term", "sub"?, "see"?, "also"?, "sort"?}}` in
+  newly generated blocks and writes `mark_source`; unknown fields of the mark → `INVALID_PARAMS`.
 
-Formulare ohne JavaScript (kein RPC, `docs/Bedienung.md`): `POST /werke/{id}/glossar/act` (`action` =
-add|update|delete|accept|reject|suggest; `suggest` mit wahlweise `key` ruft `glossary.suggest` und leitet auf
-`/werke/{id}/glossar?ok=suggest&neu=N&uebersprungen=M#vorschlaege` weiter, Fehler des Modells 422 mit Meldung) und `POST /werke/{id}/register/act` (`action` =
-mark|unmark|accept|reject|register_add|register_rename|register_delete) → 303 mit `ok=<action>`, Fehler 422 mit den
-Eingaben; Satz-Einstellungen über `POST /einstellungen/werk/satz` mit den neuen Feldern `glossary_page`
-(`before_indexes|after_indexes`, leer = keine), `index_register` (mehrfach, Satzreihenfolge), `index_columns` (1–3, leer
-= 2) und `glossary_first_mention` (`on|off`, leer = keine Angabe).
+Forms without JavaScript (no RPC, `docs/Bedienung.md`): `POST /werke/{id}/glossar/act` (`action` =
+add|update|delete|accept|reject|suggest; `suggest` with optional `key` calls `glossary.suggest` and redirects to
+`/werke/{id}/glossar?ok=suggest&neu=N&uebersprungen=M#vorschlaege`, errors of the model 422 with a message) and `POST /werke/{id}/register/act` (`action` =
+mark|unmark|accept|reject|register_add|register_rename|register_delete) → 303 with `ok=<action>`, errors 422 with the
+input; typesetting settings through `POST /einstellungen/werk/satz` with the new fields `glossary_page`
+(`before_indexes|after_indexes`, empty = none), `index_register` (repeatable, typesetting order), `index_columns` (1–3, empty
+= 2) and `glossary_first_mention` (`on|off`, empty = not specified).
 
 ### Integration
 
-- Keine neue Methode. `work.import` und die Kommandozeile `import` nehmen aus einem Export mit Buchende das Buchende
-  (ab `// Baruch: Register und Glossar`) und die Zusätze der Projektion (automatische Bibelstellen-Marken, verlinkte
-  erste Erwähnung) heraus, bevor die Abschnitte entstehen (`baruch_typst::index::strip_back_matter`,
+- No new method. `work.import` and the command line `import` take the back matter (from
+  `// Baruch: Register und Glossar`) and the additions of the projection (automatic Bible reference marks, linked
+  first mention) out of an export with back matter before the sections are created (`baruch_typst::index::strip_back_matter`,
   `strip_projection`).
-- MCP `initialize` → `instructions` nennen die drei Glossar-Werkzeuge (nur Vorschläge).
+- MCP `initialize` → `instructions` name the three glossary tools (proposals only).
 
-## Runde 22 – Revisionen und Spiegel
+## Round 22 – Revisions and mirror
 
-Fortschreiben statt neuer Fassung, Verlauf und Rückgängig, Einstellung „Fassungen“, Rückfrage erledigter Befunde,
-Archiv, Entwurf als Wasserzeichen, Austausch Unterversion 8. Migration 0050 (`0050_revision_amend.sql`).
+Amending instead of a new revision, history and undo, setting „Fassungen“, follow-up questions on done findings,
+archive, draft as watermark, exchange sub-version 8. Migration 0050 (`0050_revision_amend.sql`).
 
 ### fassungen
 
-#### Methoden (`revision.save` und `outline.save` stehen auch oben in der Tabelle)
+#### Methods (`revision.save` and `outline.save` also stand in the table above)
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `revision.save` | `{node, body, based_on?, based_on_amend?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, commit?, mirror?}` – wie bisher; Runde 22: `mode` `"auto"` schreibt die eigene aktuelle Fassung fort, wenn keine Regel eine neue Fassung verlangt (siehe „Fortschreiben“), `"new"` legt immer eine neue Fassung an; **fehlt `mode`, gilt `"new"`** (alle alten Clients unverändert); unbekannter Wert → -32602. `saved`: `"amended"` (mit `amend_seq` = neuer Stand), `"new"` (im Modus `"auto"` mit `reason` und `reason_label`) oder `"unchanged"` |
-| `outline.save` | `{node, body, based_on?, based_on_amend?, split?, merge?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, outline?, commit?, mirror?}` – wie bisher; `mode` wie bei `revision.save`. Teilen, Zusammenführen, neue Überschrift oder Ebene ergeben immer eine neue Fassung (`reason: "heading_changed"`) |
-| `revision.amends` | `{node\|key, rev}` | `{node, key, rev, amend_seq, steps: [{uuid, seq, kind, undo_of?, author, created, body_before, body_after}]}` – Verlauf der Fortschreibungen der Fassung `rev` nach `seq` (nur lesend); `kind` `"amend"` (Fortschreibung des Menschen) oder `"undo"` (Rücknahme über den Verlauf, `undo_of` = Schritt, dessen Stand vorher wiederhergestellt wurde); unbekannte Fassung → -32602 wie bei den anderen Revisionsmethoden |
-| `revision.amend_undo` | `{node\|key, rev, seq}` | `{node, key, rev, amend_seq, commit?, mirror?}` – setzt den Text der Fassung auf den Stand **vor** Schritt `seq` (`body_before`) – als **neuer** Schritt (`kind: "undo"`, `undo_of: seq`), nie durch Löschen von Verlaufszeilen; nur auf der aktuellen Fassung des Menschen, sonst -32000 mit deutscher Meldung („… nur auf der aktuellen Fassung …“ bzw. „… nur auf einer Fassung des Menschen …“); unbekannter Schritt bzw. gleicher Stand → -32000. Nur Mensch: nicht über `/act`, nicht über MCP (Formular `POST /werke/fassungen/act`) |
-| `revision.policy_get` | `{work?}` | `{work, amend, max_change_percent, new_after_minutes, defaults: {amend, max_change_percent, new_after_minutes}, limits: {max_change_percent: [1, 100], new_after_minutes: [0, 1440]}}` – Einstellung „Fassungen“ des Werks (fehlt sie, die Vorgabe: an, 100 %, 0 min – seit 2026-11-27 ohne Größen- und Zeitgrenze, Speichern schreibt immer fort) |
-| `revision.policy_set` | `{work?, amend?, max_change_percent?, new_after_minutes?}` | `{work, changed: [Feld…], commit?, mirror?}` – Einstellung setzen (fehlende Felder bleiben; Wahrheitswerte auch `"1"`/`"0"`, Zahlen auch als Text); Grenzen 1–100 % bzw. 0–1440 min (0 = keine Zeitgrenze) → sonst -32602 mit Meldung; nur bei einer Änderung ein Commit „Fassungen: <Felder> geändert“ (`Baruch-Action: revision-policy-set`). Nur Mensch: nicht über `/act`, nicht über MCP (Formular `POST /einstellungen/werk/fassungen`) |
+| `revision.save` | `{node, body, based_on?, based_on_amend?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, commit?, mirror?}` – as before; Round 22: `mode` `"auto"` amends the author's own current revision if no rule requires a new revision (see "Amending"), `"new"` always creates a new revision; **if `mode` is missing, `"new"` applies** (all old clients unchanged); unknown value → -32602. `saved`: `"amended"` (with `amend_seq` = new state), `"new"` (in mode `"auto"` with `reason` and `reason_label`) or `"unchanged"` |
+| `outline.save` | `{node, body, based_on?, based_on_amend?, split?, merge?, mode?}` | `{node, rev, saved, amend_seq?, reason?, reason_label?, outline?, commit?, mirror?}` – as before; `mode` as with `revision.save`. Splitting, merging, a new heading or level always yield a new revision (`reason: "heading_changed"`) |
+| `revision.amends` | `{node\|key, rev}` | `{node, key, rev, amend_seq, steps: [{uuid, seq, kind, undo_of?, author, created, body_before, body_after}]}` – history of the amendments of the revision `rev` by `seq` (read only); `kind` `"amend"` (amendment by the human) or `"undo"` (taking back through the history, `undo_of` = step whose previous state was restored); unknown revision → -32602 as with the other revision methods |
+| `revision.amend_undo` | `{node\|key, rev, seq}` | `{node, key, rev, amend_seq, commit?, mirror?}` – sets the text of the revision to the state **before** step `seq` (`body_before`) – as a **new** step (`kind: "undo"`, `undo_of: seq`), never by deleting history rows; only on the current revision of the human, otherwise -32000 with a German message („… nur auf der aktuellen Fassung …“ or „… nur auf einer Fassung des Menschen …“); unknown step or same state → -32000. Human only: not over `/act`, not over MCP (form `POST /werke/fassungen/act`) |
+| `revision.policy_get` | `{work?}` | `{work, amend, max_change_percent, new_after_minutes, defaults: {amend, max_change_percent, new_after_minutes}, limits: {max_change_percent: [1, 100], new_after_minutes: [0, 1440]}}` – setting „Fassungen“ of the work (if missing, the default: on, 100 %, 0 min – since 2026-11-27 without a size and time limit, saving always amends) |
+| `revision.policy_set` | `{work?, amend?, max_change_percent?, new_after_minutes?}` | `{work, changed: [Feld…], commit?, mirror?}` – sets the setting (missing fields stay; booleans also `"1"`/`"0"`, numbers also as text); limits 1–100 % or 0–1440 min (0 = no time limit) → otherwise -32602 with a message; only on a change a commit „Fassungen: <Felder> geändert“ (`Baruch-Action: revision-policy-set`). Human only: not over `/act`, not over MCP (form `POST /einstellungen/werk/fassungen`) |
 
-`revision.tree` und `node.get`: jede Fassung (`RevisionInfo`) trägt `amend_seq` (Stand, 0 = nie fortgeschrieben)
-und bei Vorschlägen, die auf einer fortgeschriebenen Basis entstanden sind, `based_on_amend` (Stand der Basis).
+`revision.tree` and `node.get`: every revision (`RevisionInfo`) carries `amend_seq` (state, 0 = never amended)
+and, for proposals created on an amended base, `based_on_amend` (state of the base).
 
-#### Fortschreiben
+#### Amending
 
-Speichert der Mensch im Editor (Modus `"auto"`) auf seiner aktuellen Fassung, wird sie **fortgeschrieben**: Text
-ersetzt, `amend_seq` + 1, eine Zeile in `revision_amend` (Text vorher und nachher, Mensch, Zeit, uuid). Nummer,
-Herkunft, Status, `based_on` und `edited` bleiben (`edited` setzt nur `revision.update`). Eine **neue Fassung**
-entsteht stattdessen beim ersten zutreffenden Grund (`reason`, Reihenfolge fest, `baruch_core::revision_policy::decide`):
+If the human saves in the editor (mode `"auto"`) on their current revision, it is **amended**: text
+replaced, `amend_seq` + 1, a row in `revision_amend` (text before and after, human, time, uuid). Number,
+origin, status, `based_on` and `edited` stay (`edited` is set only by `revision.update`). A **new revision**
+is created instead on the first applicable reason (`reason`, fixed order, `baruch_core::revision_policy::decide`):
 
-| `reason` | `reason_label` | wann |
+| `reason` | `reason_label` | when |
 |---|---|---|
-| `requested` | als neue Fassung gewünscht | Modus `"new"` (dann ohne `reason` in der Antwort) |
-| `no_current` | keine aktuelle Fassung | Abschnitt ohne aktuelle Fassung |
-| `policy_off` | Fortschreiben ausgeschaltet | Einstellung „Fassungen“: aus |
-| `not_own` | aktuelle Fassung stammt nicht vom Menschen | Fassung einer Persona/eines MCP-Clients, auch jeder übernommene Vorschlag |
-| `not_on_current` | nicht auf der aktuellen Fassung bearbeitet | `based_on` ≠ aktuelle Fassung, oder `based_on_amend` ≠ Stand der aktuellen Fassung (inzwischen anderswo fortgeschrieben, z. B. in einem zweiten Reiter) |
-| `heading_changed` | Überschrift oder Gliederung geändert | Titel, Ebene, Teilen, Zusammenführen, Titel eines Teils |
-| `large_change` | große Änderung | `change_percent` > `max_change_percent` |
-| `time_elapsed` | Zeitgrenze überschritten | `new_after_minutes` > 0 und seit dem letzten Schreiben (max. aus Anlage der Fassung und letzter Fortschreibung) mindestens so viele Minuten |
+| `requested` | „als neue Fassung gewünscht“ | mode `"new"` (then without `reason` in the answer) |
+| `no_current` | „keine aktuelle Fassung“ | section without a current revision |
+| `policy_off` | „Fortschreiben ausgeschaltet“ | setting „Fassungen“: off |
+| `not_own` | „aktuelle Fassung stammt nicht vom Menschen“ | revision of a persona/an MCP client, also every accepted proposal |
+| `not_on_current` | „nicht auf der aktuellen Fassung bearbeitet“ | `based_on` ≠ current revision, or `based_on_amend` ≠ state of the current revision (amended elsewhere in the meantime, e.g. in a second tab) |
+| `heading_changed` | „Überschrift oder Gliederung geändert“ | title, level, splitting, merging, title of a part |
+| `large_change` | „große Änderung“ | `change_percent` > `max_change_percent` |
+| `time_elapsed` | „Zeitgrenze überschritten“ | `new_after_minutes` > 0 and since the last write (max. of the creation of the revision and the last amendment) at least that many minutes |
 
-`change_percent(alt, neu) = (1 − similar::TextDiff::from_words(alt, neu).ratio()) · 100`. Hinweis: Die Wortgrenzen
-(Leerräume) zählen dabei als gleiche Teile; ein völlig neuer Satz mit gleich vielen Wörtern liegt darum bei etwa
-50 %, eine Grenze von 20 % (die Vorgabe bis 2026-11-26) entspricht grob einem Drittel bis der Hälfte geänderter Wörter.
+`change_percent(alt, neu) = (1 − similar::TextDiff::from_words(alt, neu).ratio()) · 100`. Note: the word boundaries
+(white space) count as equal parts; an entirely new sentence with the same number of words therefore lies at about
+50 %, a limit of 20 % (the default until 2026-11-26) corresponds roughly to a third to half of the words changed.
 
-Nur das Speichern aus dem Editor schreibt fort (`outline.save`/`revision.save` mit `mode: "auto"`). Bild einfügen,
-Registermarken, Verweis umwandeln, Ersetzen und Gliederungsaktionen legen weiter neue Fassungen an. Personas und
-MCP legen immer Vorschläge an. `add_proposal`/`add_proposal_on` merken den Stand der Basis (`based_on_amend`).
+Only saving from the editor amends (`outline.save`/`revision.save` with `mode: "auto"`). Inserting an image,
+index marks, converting a reference, replacing and outline actions still create new revisions. Personas and
+MCP always create proposals. `add_proposal`/`add_proposal_on` remember the state of the base (`based_on_amend`).
 
-#### Git-Spiegel und Seitenzweige
+#### Git mirror and side branches
 
-Jede Fortschreibung und jede Rücknahme ist genau ein Commit (auch bei gleichem Baum): Betreff
-„<Nummer> <Titel>: Fassung n fortgeschrieben (Stand k)“ bzw. „…: Fortschreibung von Fassung n zurückgenommen
-(Stand k)“, Trailer `Baruch-Action: amended` bzw. `amend-undone` und `Baruch-Amend: k`. Die Einstellung „Fassungen“
-ist ein leerer Protokoll-Commit „Fassungen: <Felder> geändert“ mit vorher → nachher im Rumpf
+Every amendment and every undo is exactly one commit (even with the same tree): subject
+„<Nummer> <Titel>: Fassung n fortgeschrieben (Stand k)“ or „…: Fortschreibung von Fassung n zurückgenommen
+(Stand k)“, trailers `Baruch-Action: amended` or `amend-undone` and `Baruch-Amend: k`. The setting „Fassungen“
+is an empty log commit „Fassungen: <Felder> geändert“ with before → after in the body
 (`Baruch-Action: revision-policy-set`).
 
-**Seitenzweige (Runde 22):** Jede nicht aktuelle Fassung (ersetzt, verworfen, offener Vorschlag samt Varianten)
-steht als Referenz `refs/revisions/<key>/<n>` im Spiegel (key = fester Schlüssel des Abschnitts, n =
-Fassungsnummer): ein Commit mit dem Schnappschuss des Werks, in dem der Abschnitt diese Fassung trägt (Abschnittsdatei
-mit Import-Zeile der Werkvorlage, Sprungmarke `<kN>` und Bildpfaden ab der Wurzel wie im HEAD, ohne die Umstellung „Nummer an/aus“ und ohne
-Register-Projektion), Elternteil = HEAD bei der Anlage; Autor wie bei den Revisions-Commits, Trailer `Baruch-Node`,
-`Baruch-Key`, `Baruch-Revision`, `Baruch-Side` (`superseded`|`rejected`|`proposed`) und bei Personas `Persona`/`Model`.
-Nachgeführt nach jedem Revisions-Commit (Speichern, Fortschreiben, Umschalten, Ändern, Löschen, Gliederung, Austausch),
-nach `revision.reject` und beim Start; eine unveränderte Fassung behält ihren Commit, eine gelöschte verliert ihre
-Referenz. Arbeitsordner, Index und HEAD bleiben unberührt. Lesen: `git log refs/revisions/<key>/<n>` im
-Spiegelordner. Ein neuer Vorschlag selbst ist kein Commit; seine Referenz legt der Server gleich danach an
-(`mirror::side_refs_after_proposal`, Integrator).
+**Side branches (Round 22):** every non-current revision (replaced, discarded, open proposal with its variants)
+stands as a reference `refs/revisions/<key>/<n>` in the mirror (key = fixed key of the section, n =
+revision number): a commit with the snapshot of the work in which the section carries this revision (section file
+with the import line of the work template, label `<kN>` and image paths from the root as in HEAD, without the switch „Nummer an/aus“ and without
+the index projection), parent = HEAD at creation; author as with the revision commits, trailers `Baruch-Node`,
+`Baruch-Key`, `Baruch-Revision`, `Baruch-Side` (`superseded`|`rejected`|`proposed`) and for personas `Persona`/`Model`.
+Updated after every revision commit (saving, amending, switching, changing, deleting, outline, exchange),
+after `revision.reject` and at start; an unchanged revision keeps its commit, a deleted one loses its
+reference. Working folder, index and HEAD stay untouched. Reading: `git log refs/revisions/<key>/<n>` in the
+mirror folder. A new proposal itself is not a commit; the server creates its reference right afterwards
+(`mirror::side_refs_after_proposal`, integrator).
 
-#### Routen (Formulare ohne JavaScript)
+#### Routes (forms without JavaScript)
 
-- `GET /werke/{id}/fassungen/verlauf?key=K&rev=R` – Verlauf einer Fassung, neueste Schritte zuerst, je Schritt der
-  Wort-Unterschied (vorher → nachher) und auf der aktuellen Fassung des Menschen „Bis hier zurück“; `ok=1` zeigt den
-  Hinweis nach einer Rücknahme.
-- `POST /werke/fassungen/act` – `method=revision.amend_undo`, `work`, `key`, `rev`, `seq` → 303 auf den Verlauf mit
-  `ok=1`; abgelehnt: Verlauf mit Meldung (409/422).
-- `POST /einstellungen/werk/fassungen` – `work`, `amend` (Kästchen, fehlt = aus), `max_change_percent`,
-  `new_after_minutes` → 303 auf `/einstellungen/werk?work=W&ok=fassungen#fassungen`, abgelehnt
-  `…&fassungenfehler=1#fassungen` (nichts geändert).
-- `POST /gliederung/act` mit `method=outline.save`: nimmt `mode` (der Editor schickt `auto`) und `as_new=1` (Knopf
-  „Als neue Fassung speichern“ → `mode` `"new"`); die Weiterleitung trägt `saved=amended-<k>` bzw.
-  `saved=new-<n>[-<grund>]`, der Editor-Kopf zeigt daraus die Rückmeldung.
-- `/act` nimmt `revision.save` weiter mit `mode`; `revision.amend_undo` und `revision.policy_set` lehnt es ab.
+- `GET /werke/{id}/fassungen/verlauf?key=K&rev=R` – history of a revision, newest steps first, per step the
+  word difference (before → after) and, on the current revision of the human, „Bis hier zurück“; `ok=1` shows the
+  notice after an undo.
+- `POST /werke/fassungen/act` – `method=revision.amend_undo`, `work`, `key`, `rev`, `seq` → 303 to the history with
+  `ok=1`; refused: history with a message (409/422).
+- `POST /einstellungen/werk/fassungen` – `work`, `amend` (checkbox, missing = off), `max_change_percent`,
+  `new_after_minutes` → 303 to `/einstellungen/werk?work=W&ok=fassungen#fassungen`, refused
+  `…&fassungenfehler=1#fassungen` (nothing changed).
+- `POST /gliederung/act` with `method=outline.save`: takes `mode` (the editor sends `auto`) and `as_new=1` (button
+  „Als neue Fassung speichern“ → `mode` `"new"`); the redirect carries `saved=amended-<k>` or
+  `saved=new-<n>[-<grund>]`, from which the editor head shows the feedback.
+- `/act` still takes `revision.save` with `mode`; it refuses `revision.amend_undo` and `revision.policy_set`.
 
-#### Ältere Fassungen ausblenden (0.9.0, Nutzer 2026-11-24)
+#### Hiding older revisions (0.9.0, user 2026-11-24)
 
-Je Abschnitt höchstens eine **Marke** „bis hierhin“ (Nummer einer Fassung, Tabelle `node_revision_fold`, Migration
-0051). Ausgeblendet werden **ersetzte und verworfene** Fassungen mit kleinerer Nummer; **nie** die aktuelle Fassung und
-**nie** offene Vorschläge (auch ältere nicht, sie warten auf eine Entscheidung). Liegt die Marke über der aktuellen
-Fassung (weil später auf eine ältere umgeschaltet wurde), gilt sie nur bis unter die aktuelle (`cutoff`); **setzen**
-lässt sie sich über der aktuellen nicht (-32000). Nichts wird gelöscht: Fassungen, Verlauf und Spiegel bleiben
-unverändert, kein Commit im Spiegel (kein Buchtext); protokolliert in der Datenbank (`updated`, `updated_by`) wie die
-Einstellung „Fassungen“; nicht im Austauschformat. Nur der Mensch setzt und hebt auf – über RPC und Formular, **nicht
-über MCP** (kein Werkzeug). Regel in `baruch_core::revision_fold`, Methoden in `src/revision_fold.rs`.
+Per section at most one **mark** „bis hierhin“ (number of a revision, table `node_revision_fold`, migration
+0051). Hidden are **replaced and discarded** revisions with a smaller number; **never** the current revision and
+**never** open proposals (older ones neither; they wait for a decision). If the mark lies above the current
+revision (because a switch to an older one happened later), it applies only up to below the current one (`cutoff`); it can**not
+be set** above the current one (-32000). Nothing is deleted: revisions, history and mirror stay
+unchanged, no commit in the mirror (no book text); logged in the database (`updated`, `updated_by`) like the
+setting „Fassungen“; not in the exchange format. Only the human sets and removes it – over RPC and form, **not
+over MCP** (no tool). Rule in `baruch_core::revision_fold`, methods in `src/revision_fold.rs`.
 
-| Methode | Parameter | Ergebnis |
+| Method | Parameters | Result |
 |---|---|---|
-| `revision.fold_get` | `{node\|key}` | `{node, key, below, cutoff, hidden, updated?, updated_by?}` – `below` = gespeicherte Marke (`null` = keine), `cutoff` = wirksame Grenze (höchstens die aktuelle Fassung), `hidden` = Zahl der ausgeblendeten Fassungen (nur lesend) |
-| `revision.fold_set` | `{node\|key, rev}` | `{node, key, rev, below, cutoff, hidden, updated, updated_by}` – Marke an Fassung `rev` setzen (ersetzt eine vorhandene); unbekannte Fassung → -32602 wie bei den anderen Revisionsmethoden, über der aktuellen Fassung → -32000 („Über der aktuellen Fassung lässt sich nicht ausblenden …“). Auch über `/act` |
-| `revision.fold_clear` | `{node\|key, rev?}` | `{node, key, cleared, below: null, cutoff: null, hidden: 0, rev?}` – Marke aufheben („Wieder alle zeigen“); `cleared` = es gab eine; `rev` wird nur für den Rücksprung von `/act` durchgereicht. Auch über `/act` |
-| `revision.fold_before` | `{work?, date}` | `{work, date, sections: [{key, below}]}` – werkweit: für jeden Abschnitt die Marke auf die letzte Fassung, die vor `date` (Tag `JJJJ-MM-TT`, Mitternacht Ortszeit) entstand, höchstens auf die aktuelle; Abschnitte ohne solche Fassung bleiben unverändert, vorhandene Marken werden ersetzt; ein Schritt. Ungültiger Tag → -32602 |
-| `revision.fold_clear_all` | `{work?}` | `{work, cleared}` – alle Marken des Werks aufheben (Zahl) |
+| `revision.fold_get` | `{node\|key}` | `{node, key, below, cutoff, hidden, updated?, updated_by?}` – `below` = stored mark (`null` = none), `cutoff` = effective limit (at most the current revision), `hidden` = number of hidden revisions (read only) |
+| `revision.fold_set` | `{node\|key, rev}` | `{node, key, rev, below, cutoff, hidden, updated, updated_by}` – sets the mark at revision `rev` (replaces an existing one); unknown revision → -32602 as with the other revision methods, above the current revision → -32000 („Über der aktuellen Fassung lässt sich nicht ausblenden …“). Also over `/act` |
+| `revision.fold_clear` | `{node\|key, rev?}` | `{node, key, cleared, below: null, cutoff: null, hidden: 0, rev?}` – removes the mark („Wieder alle zeigen“); `cleared` = there was one; `rev` is only passed through for the jump back from `/act`. Also over `/act` |
+| `revision.fold_before` | `{work?, date}` | `{work, date, sections: [{key, below}]}` – work-wide: for every section the mark on the last revision created before `date` (day `JJJJ-MM-TT`, midnight local time), at most on the current one; sections without such a revision stay unchanged, existing marks are replaced; one step. Invalid day → -32602 |
+| `revision.fold_clear_all` | `{work?}` | `{work, cleared}` – removes all marks of the work (number) |
 
-Ansicht: Auf der Arbeitsseite überspringt das Blättern ‹ › ausgeblendete Fassungen, der Zähler zeigt „2/3 (+ 24
-ausgeblendet)“. Der Schalter steht in der Adresse: `&fassungen=alle` (nach `lq`) zeigt alle, auch beim Blättern;
-`ui.render` nimmt `fassungen` wie die übrigen Felder der Adresse. Eine ausgeblendete Fassung direkt über `?rev=`
-aufgerufen öffnet den Schalter von selbst.
+View: on the work page, paging ‹ › skips hidden revisions, the counter shows „2/3 (+ 24
+ausgeblendet)“. The switch stands in the address: `&fassungen=alle` (after `lq`) shows all, also when paging;
+`ui.render` takes `fassungen` like the other fields of the address. A hidden revision called directly through `?rev=`
+opens the switch by itself.
 
-Routen (ohne JavaScript):
+Routes (without JavaScript):
 
-- `/act` nimmt `revision.fold_set` und `revision.fold_clear` (`work`, `key`, `rev`) → 303 auf die Fassung.
-- `POST /einstellungen/werk/fassungen/ausblenden` – `work`, `date` und `do=fold` (Vorgabe) bzw. `do=clear` (alle
-  Marken aufheben) → 303 auf `/einstellungen/werk?work=W&ok=ausgeblendet#fassungen` bzw. `ok=eingeblendet`;
-  abgelehnt `…&ausblendenfehler=1#fassungen` (nichts geändert).
+- `/act` takes `revision.fold_set` and `revision.fold_clear` (`work`, `key`, `rev`) → 303 to the revision.
+- `POST /einstellungen/werk/fassungen/ausblenden` – `work`, `date` and `do=fold` (default) or `do=clear` (remove all
+  marks) → 303 to `/einstellungen/werk?work=W&ok=ausgeblendet#fassungen` or `ok=eingeblendet`;
+  refused `…&ausblendenfehler=1#fassungen` (nothing changed).
 
 ### befund-rueckfrage
 
-#### Werke: Löschen, Archiv, Wiederherstellen
+#### Works: deleting, archive, restoring
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `work.delete` | `{work, confirm_title}` | wie bisher, seit Runde 22 zusätzlich `ideas_commit?` bzw. `ideas_mirror?`: Danach führt der Server den Spiegel der Einfälle ohne Werk (`<data>/einfaelle/`) nach – die Einfälle des gelöschten Werks sind dort sofort; ohne Änderung kein Commit |
-| `work.archives` | `{}` | `{archives: [{slug, title, deleted, folder?, restorable, reason?}]}` – gelöschte Werke aus `work_retired`, neueste zuerst (nur lesend). `folder` = Archivordner `works/.geloescht/<slug>-<JJJJ-MM-TT>[-n]` relativ zum Datenordner (bei mehreren der jüngste; ein Werk, dessen slug nur mit `<slug>-` beginnt, passt nicht); `restorable: false` mit deutschem `reason`, wenn der Ordner oder `main.typ` fehlt oder ein lebendes Werk denselben Titel trägt |
-| `work.restore` | `{slug}` | `{work, slug, title, nodes, folder, skipped_images, commit?\|mirror?}` – archiviertes Werk wiederherstellen (nur der Mensch; **nicht** über `/act` und MCP). Der Server liest unter der Schreibsperre den Archivordner (keine symbolischen Verknüpfungen – weder Ordner noch `abschnitte/` noch Dateien –, nur `main.typ`, `vorlage.typ` und die eingebundenen `abschnitte/<name>.typ`, zusammen höchstens 16 MiB, höchstens 10 000 Abschnitte), setzt den Typst-Text wie einen Export zusammen (jede Zeile `#include "abschnitte/…"` durch den Text der Datei ohne die Zeile `#import "../vorlage.typ": *`, ohne Werkvorlage ohne die Kopfzeile `// Baruch: <Titel>`; Buchende und Projektion wie beim Import entfernt) und legt das Werk mit dem reservierten slug an (`Store::restore_retired`, eine Transaktion): Titel aus `work_retired`, Werkvorlage als Fassung 1, jede Überschrift ein Gliederungspunkt mit Fassung 1 vom Menschen (aktuell, Notiz „aus dem Archiv wiederhergestellt“), ein Regelblock „// Baruch: Satz“ wird wieder Satz-Einstellung, die Zeile in `work_retired` entfällt; das Werk bekommt eine neue id und die Werkart „Buch“ (`work_retired` kennt die Art nicht). Danach wandert der Ordner zurück nach `works/<slug>` und bekommt **einen** Commit „Werk wiederhergestellt: <Titel>“ (`Baruch-Action: work-restored`, auch bei gleichem Stand). `skipped_images` = Bilder unter `bilder/` des Archivs, die **nicht** mitkommen. Fehler: `slug` fehlt → -32602; unbekannter slug („steht nicht im Archiv“), kein Archivordner, symbolische Verknüpfung, fremder `#include`, zu groß, `works/<slug>` gibt es schon, Titel vergeben, dieselbe Quelle schon als Werk importiert → -32000 mit deutscher Meldung, nichts geändert; keine Überschrift → -32602. Ein Fehler beim Verschieben oder im Spiegel hält das Werk in der Datenbank nicht auf (`mirror`) |
+| `work.delete` | `{work, confirm_title}` | as before, since Round 22 additionally `ideas_commit?` or `ideas_mirror?`: afterwards the server updates the mirror of the ideas without a work (`<data>/einfaelle/`) – the ideas of the deleted work are there at once; without a change no commit |
+| `work.archives` | `{}` | `{archives: [{slug, title, deleted, folder?, restorable, reason?}]}` – deleted works from `work_retired`, newest first (read only). `folder` = archive folder `works/.geloescht/<slug>-<JJJJ-MM-TT>[-n]` relative to the data folder (with several the youngest; a work whose slug only begins with `<slug>-` does not match); `restorable: false` with a German `reason` if the folder or `main.typ` is missing or a living work carries the same title |
+| `work.restore` | `{slug}` | `{work, slug, title, nodes, folder, skipped_images, commit?\|mirror?}` – restores an archived work (human only; **not** over `/act` and MCP). Under the write lock the server reads the archive folder (no symbolic links – neither folder nor `abschnitte/` nor files –, only `main.typ`, `vorlage.typ` and the included `abschnitte/<name>.typ`, together at most 16 MiB, at most 10 000 sections), assembles the Typst text like an export (every line `#include "abschnitte/…"` replaced by the text of the file without the line `#import "../vorlage.typ": *`, without a work template without the header line `// Baruch: <Titel>`; back matter and projection removed as on import) and creates the work with the reserved slug (`Store::restore_retired`, one transaction): title from `work_retired`, work template as revision 1, every heading an outline item with revision 1 by the human (current, note „aus dem Archiv wiederhergestellt“), a rule block „// Baruch: Satz“ becomes typesetting settings again, the row in `work_retired` is dropped; the work gets a new id and the kind „Buch“ (`work_retired` does not know the kind). Afterwards the folder moves back to `works/<slug>` and gets **one** commit „Werk wiederhergestellt: <Titel>“ (`Baruch-Action: work-restored`, even with the same state). `skipped_images` = images under `bilder/` of the archive that do **not** come along. Errors: `slug` missing → -32602; unknown slug („steht nicht im Archiv“), no archive folder, symbolic link, foreign `#include`, too large, `works/<slug>` already exists, title taken, the same source already imported as a work → -32000 with a German message, nothing changed; no heading → -32602. An error when moving or in the mirror does not stop the work in the database (`mirror`) |
 
-Ohne JavaScript: Seite `GET /werke/archiv` (Liste mit Archivordner und je Werk Formular) und
-`POST /werke/archiv/wiederherstellen` (Felder `slug`, `confirm` = `1`; hinter demselben Schutz wie `/werke/act`):
-Erfolg → 303 `/?work=<id>`; ohne Bestätigung → 422, Fehler → 409/422, jeweils die Archivseite mit Meldung
+Without JavaScript: page `GET /werke/archiv` (list with archive folder and one form per work) and
+`POST /werke/archiv/wiederherstellen` (fields `slug`, `confirm` = `1`; behind the same protection as `/werke/act`):
+success → 303 `/?work=<id>`; without confirmation → 422, errors → 409/422, each the archive page with a message
 (`role="alert"`).
 
-#### Befunde: Stand und Rückfrage
+#### Findings: state and follow-up question
 
-- `Finding` und `FindingStatusEntry` tragen seit Runde 22 `adopted_amend: number | null` (Migration 0050): den
-  Stand der Fortschreibung (`revision.amend_seq`) der übernommenen Fassung. `finding.set_status` mit `adopted`
-  merkt den Stand der Fassung in diesem Augenblick (Befund und Verlaufseintrag); ein Vorschlag „übernommen“ eines
-  Assistenten merkt im Eintrag den Stand beim Vorschlag, `finding.decide` mit `confirm: true` setzt Befund **und**
-  Eintrag auf den Stand beim Bestätigen. Jeder andere Status setzt `finding.adopted_amend` auf `null` (der Verlauf
-  behält seine Werte). Anzeige „Fassung n · Stand k“ nur für k > 0 (Karte, Liste, Verlauf je Kapitel der Matrix,
-  `befunde.md` im Spiegel: „- Übernommen in Fassung 1 · Stand 3“); Stand 0 bzw. `null` zeigt wie bisher nur „Fassung n“.
-- `finding.matrix`: `history[].revisions[]` (`AdoptedIn`) hat zusätzlich `stands: [number]` – je Befund in `findings`
-  (gleiche Reihenfolge) der gemerkte Stand, 0 = keiner.
-- Rückfrage einer Persona („Befund n scheint erledigt?“, siehe Bedienung): ein offener Vorschlag `done` eines
-  Assistenten mit `note` „Befund n scheint erledigt (Stelle „…“) – als erledigt markieren?“ und `reason` „laut
-  @persona umgesetzt (Stelle „…“)“. Er steht in `finding.list`/`finding.get` als `pending`; entschieden wird mit
-  `finding.decide {entry, confirm: true|false}` („Ja, erledigt“ / „Nein, noch offen“). Keine neuen RPC-Namen.
+- `Finding` and `FindingStatusEntry` carry since Round 22 `adopted_amend: number | null` (migration 0050): the
+  amendment state (`revision.amend_seq`) of the adopted revision. `finding.set_status` with `adopted`
+  remembers the state of the revision at this moment (finding and history entry); a proposal „übernommen“ of an
+  assistant remembers in the entry the state at the time of the proposal, `finding.decide` with `confirm: true` sets finding **and**
+  entry to the state at confirmation. Every other status sets `finding.adopted_amend` to `null` (the history
+  keeps its values). Display „Fassung n · Stand k“ only for k > 0 (card, list, history per chapter of the matrix,
+  `befunde.md` in the mirror: „- Übernommen in Fassung 1 · Stand 3“); state 0 or `null` shows only „Fassung n“ as before.
+- `finding.matrix`: `history[].revisions[]` (`AdoptedIn`) additionally has `stands: [number]` – per finding in `findings`
+  (same order) the remembered state, 0 = none.
+- Follow-up question of a persona („Befund n scheint erledigt?“, see Bedienung): an open proposal `done` of an
+  assistant with `note` `„Befund n scheint erledigt (Stelle „…“) – als erledigt markieren?“` and `reason` `„laut
+  @persona umgesetzt (Stelle „…“)“`. It stands in `finding.list`/`finding.get` as `pending`; it is decided with
+  `finding.decide {entry, confirm: true|false}` („Ja, erledigt“ / „Nein, noch offen“). No new RPC names.
 
-#### Personas: erneutes Prüfen (`persona.review`, `persona.chat`, `post.repeat`)
+#### Personas: re-checking (`persona.review`, `persona.chat`, `post.repeat`)
 
-Erneutes Prüfen (`persona.review`, `post.repeat`, RFC über `persona.chat`, MCP `ask_persona` mit `mode: "review"`)
-gibt der Persona ihre eigenen offenen Befunde des Abschnitts mit (siehe Architektur). Meldet sie „Erledigt: Befund
-n“, entsteht statt eines neuen Befunds ein Statusvorschlag `done` (genau ein Commit `Baruch-Action:
-finding-propose`, Trailer `Persona`). Das Ergebnis von `assist::run` (`Outcome`) trägt dazu `done_proposals` (ids mit
-neuem Vorschlag), `done_notes` (übergangene Rückmeldungen mit Grund) und `all_done`; `persona.ask`/`persona.review`
-geben die drei Felder in ihrer Antwort aus, sobald es eine Rückmeldung gab (sonst fehlen sie wie bisher).
-`persona.chat` und MCP `ask_persona` geben sie nicht eigens aus (nach Runde 22 offen). `post.repeat` schlägt einen
-Befund mit offener Rückfrage nicht noch einmal als „erledigt“ vor (Integrator); ein offener Vorschlag anderer Art
-hält ihn nicht auf. Rückmeldungen zu Befunden, die nicht im Auftrag standen (anderer Abschnitt, kein erneutes Prüfen),
-übergeht Baruch mit Vermerk in `done_notes` (PM-Abschluss R22).
+Re-checking (`persona.review`, `post.repeat`, RFC through `persona.chat`, MCP `ask_persona` with `mode: "review"`)
+passes the persona its own open findings of the section (see Architektur). If it reports „Erledigt: Befund
+n“, a status proposal `done` is created instead of a new finding (exactly one commit `Baruch-Action:
+finding-propose`, trailer `Persona`). The result of `assist::run` (`Outcome`) additionally carries `done_proposals` (ids with
+a new proposal), `done_notes` (skipped reports with a reason) and `all_done`; `persona.ask`/`persona.review`
+output the three fields in their answer as soon as there was a report (otherwise they are missing as before).
+`persona.chat` and MCP `ask_persona` do not output them separately (open after Round 22). `post.repeat` does not propose a
+finding with an open follow-up question as „erledigt“ once more (integrator); an open proposal of another kind
+does not stop it. Reports on findings that were not in the task (another section, no re-check)
+are skipped by Baruch with a note in `done_notes` (PM close R22).
 
 ### spiegel-entwurf
 
-#### Entwurf (Wasserzeichen) an den Ausgaben – Runde 22
+#### Draft (watermark) on the outputs – Round 22
 
-Parameter `draft?: bool` (dreiwertig) an `work.pdf`, `notes.pdf`, `work.epub`, `work.cover_pdf` und `preview.typst`:
+Parameter `draft?: bool` (three-valued) on `work.pdf`, `notes.pdf`, `work.epub`, `work.cover_pdf` and `preview.typst`:
 
-| `draft` | Wirkung |
+| `draft` | Effect |
 | --- | --- |
-| fehlt / `null` | nach der Satz-Einstellung `draft` (Umschlag-PDF nur mit `draft.cover`) |
-| `true` | mit Wasserzeichen: gespeicherte Werte, sonst Vorgabe („ENTWURF“, 12 %, diagonal) |
-| `false` | ohne Wasserzeichen (Quelle und PDF byte-gleich zum Werk ohne Einstellung) |
+| missing / `null` | according to the typesetting setting `draft` (cover PDF only with `draft.cover`) |
+| `true` | with watermark: stored values, otherwise default („ENTWURF“, 12 %, diagonal) |
+| `false` | without watermark (source and PDF byte-identical to the work without the setting) |
 
-Kein Weg ändert die gespeicherte Einstellung. Ein anderer Wert als `true`/`false`/`null` → -32602 „draft: true (mit
+No way changes the stored setting. A value other than `true`/`false`/`null` → -32602 „draft: true (mit
 Wasserzeichen), false (ohne) oder weglassen (nach Einstellung)“.
 
-- `work.pdf {work, inline?, draft?}` – Antwort wie bisher; `url` trägt mit `draft` den Schalter
+- `work.pdf {work, inline?, draft?}` – answer as before; with `draft`, `url` carries the switch
   (`/werke/{id}/pdf?entwurf=1|0`).
-- `notes.pdf {work, format?, font_pt?, inline?, draft?}` – `url` mit `&entwurf=1|0`.
-- `work.epub {work, inline?, footnotes?, draft?}` – mit Entwurf: Titelseite mit Hinweis („Entwurf: <Text> · <Zusatz>“,
-  ohne Titelei entsteht dafür eine Titelseite), `dc:title` und `docTitle` „<Titel> (Entwurf)“; `url` mit `?entwurf=…`.
-- `work.cover_pdf {work, inline?, draft?}` – zusätzlich `draft: bool` (das PDF trägt ein Wasserzeichen); `checks`
-  enthält dann die Warnung `{code: "draft", block: null, message: "Das Umschlag-PDF trägt das Wasserzeichen „Entwurf“ –
+- `notes.pdf {work, format?, font_pt?, inline?, draft?}` – `url` with `&entwurf=1|0`.
+- `work.epub {work, inline?, footnotes?, draft?}` – with draft: title page with a note („Entwurf: <Text> · <Zusatz>“;
+  without front matter a title page is created for it), `dc:title` and `docTitle` „<Titel> (Entwurf)“; `url` with `?entwurf=…`.
+- `work.cover_pdf {work, inline?, draft?}` – additionally `draft: bool` (the PDF carries a watermark); `checks`
+  then contains the warning `{code: "draft", block: null, message: "Das Umschlag-PDF trägt das Wasserzeichen „Entwurf“ –
   so nicht an die Druckerei geben …"}`.
-- `preview.typst {work?, key?, page?, draft?}` – zusätzlich `draft: bool` in der Antwort (Satzquelle trägt das
-  Wasserzeichen); `stand` ist je Schalter verschieden.
-- `work.typeset_get/set/reset/preview` tragen das Feld `settings.draft` (`{text, note?, date, opacity_percent,
-  placement: "diagonal"|"header"|"footer", cover}`), geprüft in `TypesetSettings::validate` (Text getrimmt 1–40 Zeichen
-  ohne Steuerzeichen, Zusatz getrimmt ≤ 120 ohne Steuerzeichen, Deckkraft 5–50 %; Meldungen „Entwurf: …“, Feld
-  `draft.text`, `draft.note`, `draft.opacity_percent`). `rules` bleibt ohne Zeile für den Entwurf. Spiegel-Commit
-  „Satz: Entwurf geändert“ mit „Entwurf: aus → an: „<Text>“, <Lage>“ im Rumpf.
+- `preview.typst {work?, key?, page?, draft?}` – additionally `draft: bool` in the answer (typesetting source carries the
+  watermark); `stand` differs per switch.
+- `work.typeset_get/set/reset/preview` carry the field `settings.draft` (`{text, note?, date, opacity_percent,
+  placement: "diagonal"|"header"|"footer", cover}`), checked in `TypesetSettings::validate` (text trimmed 1–40 characters
+  without control characters, addition trimmed ≤ 120 without control characters, opacity 5–50 %; messages „Entwurf: …“, fields
+  `draft.text`, `draft.note`, `draft.opacity_percent`). `rules` stays without a line for the draft. Mirror commit
+  „Satz: Entwurf geändert“ with `„Entwurf: aus → an: „<Text>“, <Lage>“` in the body.
 
-Routen (GET, Parameter `?entwurf=1|0`, fehlt = nach Einstellung; ein anderer Wert → 400): `/werke/{id}/pdf`,
-`/werke/{id}/stichwortzettel.pdf`, `/werke/{id}/epub`, `/werke/{id}/umschlag.pdf`, `/werke/{id}/satz` (dort auch an den
-Seitenlinks und `…/satz/{stand}/{n}.svg?entwurf=…`; ein unlesbarer Wert zählt auf der Seite als „fehlt“).
+Routes (GET, parameter `?entwurf=1|0`, missing = according to the setting; another value → 400): `/werke/{id}/pdf`,
+`/werke/{id}/stichwortzettel.pdf`, `/werke/{id}/epub`, `/werke/{id}/umschlag.pdf`, `/werke/{id}/satz` (there also on the
+page links and `…/satz/{stand}/{n}.svg?entwurf=…`; an unreadable value counts as „fehlt“ on the page).
 
-#### Austausch Unterversion 8 – Runde 22
+#### Exchange sub-version 8 – Round 22
 
-`work.exchange_export` schreibt Unterversion 8 (`docs/Austauschformat.md`, Abschnitt „Fortschreibungen, Entwurf und
-Stand“). `work.exchange_preview`/`work.exchange_import`: `added.amends` (Fortschreibungen, auch beim Vorspulen),
-Abweichung „Fassung n: vorgespult von Stand k auf Stand m“ (Hinweis); ein neuer Teil, der Kapitel übernähme, wird ein
-Antrag `add` mit Kennung und Fassungen (Abweichung „… Antrag mit Kennung und n Fassung(en)“).
-`outline.requests`/`outline.request_decide`: Die Zusammenfassung eines solchen Antrags lautet „Teil „…“ (mit Kennung und
-n Fassungen) vor „…“ anlegen; … wandern unter den neuen Teil“; Zustimmen legt den Teil mit dieser Kennung und diesen
-Fassungen an (ein Spiegel-Commit wie bisher).
+`work.exchange_export` writes sub-version 8 (`docs/Austauschformat.md`, section on amendments, draft and
+state). `work.exchange_preview`/`work.exchange_import`: `added.amends` (amendments, also when fast-forwarding),
+deviation „Fassung n: vorgespult von Stand k auf Stand m“ (note); a new part that would take over chapters becomes a
+request `add` with identifier and revisions (deviation „… Antrag mit Kennung und n Fassung(en)“).
+`outline.requests`/`outline.request_decide`: the summary of such a request reads `„Teil „…“ (mit Kennung und
+n Fassungen) vor „…“ anlegen; … wandern unter den neuen Teil“`; approving creates the part with this identifier and these
+revisions (one mirror commit as before).
 
 ### Integration
 
-- `node.get`: jede Fassung trägt wie in `revision.tree` `amend_seq` und bei Vorschlägen auf fortgeschriebener Basis
+- `node.get`: every revision carries, as in `revision.tree`, `amend_seq` and, for proposals on an amended base,
   `based_on_amend`.
-- Jeder neue Vorschlag (Personas, MCP `propose_revision`, Zitate aus Literatur und Bibel, Varianten, Lösungen) legt
-  seinen Seitenzweig `refs/revisions/<key>/<n>` gleich an, ohne eigenen Commit.
-- `post.repeat`: `proposed_done`/`notes` übergehen Befunde, zu denen die Persona in derselben Antwort schon
-  „Erledigt: Befund n“ gemeldet hat (offene Rückfrage).
-- Re-Import eines Exports mit dem Block „Überschriften ohne Nummer über die Sprungmarke“: der Block verschwindet aus
-  der Vorlage, die genannten Abschnitte kommen „ohne Nummer“ zurück.
+- Every new proposal (personas, MCP `propose_revision`, quotations from literature and Bible, variants, solutions) creates
+  its side branch `refs/revisions/<key>/<n>` right away, without its own commit.
+- `post.repeat`: `proposed_done`/`notes` skip findings for which the persona already reported
+  „Erledigt: Befund n“ in the same answer (open follow-up question).
+- Re-import of an export with the block „Überschriften ohne Nummer über die Sprungmarke“: the block disappears from
+  the template, the named sections come back „ohne Nummer“.
 
-## Runde 23 – Härtung
+## Round 23 – Hardening
 
-Keine neuen Methoden; geänderte Parameter, Antworten und Fehler. Die Tabellen oben nennen die Änderung jeweils kurz
-und verweisen hierher.
+No new methods; changed parameters, answers and errors. The tables above each name the change briefly
+and refer here.
 
 ### web
 
 **`revision.update {node|key, rev, body?, note?, based_on_amend?}` → `{node, rev, changed, amend_seq?, mirror?}`**
-(geändert, Runde 23a). Ändert sich der **Text** der aktuellen Fassung oder einer schon fortgeschriebenen (Stand > 0),
-legt das Ändern über den Baum einen Schritt im Verlauf an (`revision_amend`, Art `amend`, Text vorher und nachher) und
-erhöht den Stand; die Antwort nennt ihn in `amend_seq`. Eine nie fortgeschriebene, nicht aktuelle Fassung (etwa ein
-Vorschlag) bekommt wie bisher keinen Verlauf, eine reine Notizänderung auch nicht. Neu ist der optionale Parameter
-`based_on_amend` (Stand, den der Client geladen hatte): Steht die Fassung inzwischen auf einem anderen Stand, wird
-nichts geändert und die Methode meldet -32000 „Veraltet: Fassung n steht inzwischen auf Stand k (geladen war Stand j); bitte
-neu laden und die Änderung dort eintragen.“ (`StoreError::Stale`). Ohne den Parameter wird nicht geprüft (alte Clients).
-Das Formular „Fassung ändern“ schickt ihn mit.
+(changed, Round 23a). If the **text** of the current revision or of an already amended one (state > 0) changes,
+changing through the tree creates a step in the history (`revision_amend`, kind `amend`, text before and after) and
+increases the state; the answer names it in `amend_seq`. A never amended, non-current revision (e.g. a
+proposal) gets no history as before, nor does a mere change of the note. New is the optional parameter
+`based_on_amend` (state the client had loaded): if the revision now stands on another state,
+nothing is changed and the method reports -32000 „Veraltet: Fassung n steht inzwischen auf Stand k (geladen war Stand j); bitte
+neu laden und die Änderung dort eintragen.“ (`StoreError::Stale`). Without the parameter nothing is checked (old clients).
+The form „Fassung ändern“ sends it along.
 
-**`revision.save` / `outline.save`** (geändert): `based_on_amend` zählt auch ohne `based_on` – der Stand bezieht sich dann
-auf die aktuelle Fassung. Vorher wurde er in dem Fall übergangen.
+**`revision.save` / `outline.save`** (changed): `based_on_amend` also counts without `based_on` – the state then refers
+to the current revision. Before, it was skipped in that case.
 
-**`ui.render {work?, …}`** (geändert): Fehlt `work`, zeichnet die Methode das Werk aus dem Cookie `baruch_work` (wie
-die Seite `/`), nur ohne Cookie bzw. bei unbekanntem Werk das Vorgabewerk. Vorher zeigte „Zurück“ auf die Adresse `/`
-ohne Hinweis das Vorgabewerk.
+**`ui.render {work?, …}`** (changed): if `work` is missing, the method draws the work from the cookie `baruch_work` (like
+the page `/`), only without a cookie or with an unknown work the default work. Before, „Zurück“ to the address `/`
+showed the default work without a notice.
 
-**`work.typeset_adopt_rule {work?, confirm: true}`** (geändert): verlangt `confirm: true`, sonst -32602 „confirm: true
-erwartet“. Die Methode schreibt die Werkvorlage um; das Formular verlangt dafür schon sein Kästchen. Kein Widget ruft sie
-auf (`grep -rn typeset_adopt_rule crates/baruch-server/web/src` ohne Treffer). `work.typeset_reset` bleibt unverändert.
+**`work.typeset_adopt_rule {work?, confirm: true}`** (changed): requires `confirm: true`, otherwise -32602 „confirm: true
+erwartet“. The method rewrites the work template; the form already requires its checkbox for that. No widget calls it
+(`grep -rn typeset_adopt_rule crates/baruch-server/web/src` without hits). `work.typeset_reset` stays unchanged.
 
-**`idea.map_group_accept {work, group, name?}`** (geändert): Maßgeblich ist die Gruppe, wie die Karte sie jetzt zeigt.
-Ein gespeicherter Vorschlag, dessen Gruppe inzwischen andere Einfälle hat, wird ohne eigenen `name` mit -32000
-„Veraltet: Die Gruppe gN hat inzwischen andere Einfälle als beim Vorschlag „…“; nichts geändert. …“ abgelehnt und
-entfernt; kein Einfall ändert sich. Die Grenzen (Name, höchstens 20 Schlagwörter je Einfall) sind geprüft, bevor der erste
-Einfall geändert wird.
+**`idea.map_group_accept {work, group, name?}`** (changed): the group as the map now shows it is decisive.
+A stored proposal whose group now has other ideas is refused without its own `name` with -32000
+`„Veraltet: Die Gruppe gN hat inzwischen andere Einfälle als beim Vorschlag „…“; nichts geändert. …“` and
+removed; no idea changes. The limits (name, at most 20 keywords per idea) are checked before the first
+idea is changed.
 
-**`idea.map`** (geändert): `near.message` nennt eine Kappung, wenn die Karte mehr als 1500 Einfälle zeigt („… die Nähe
+**`idea.map`** (changed): `near.message` names a cap if the map shows more than 1500 ideas („… die Nähe
 ist nur für die ersten 1500 (nach Nummer) berechnet.“).
 
-**`cover.layout_set`, `asset.request_decide`** (unverändert im Wortlaut): Ungültige Blöcke melden weiter -32602 mit
-„Umschlag-Block „…“ (art), Feld x: …“; im Store ist es jetzt die eigene Fehlerart `StoreError::CoverBlock`.
-`cover.layout` liefert Vorgabeblöcke auf 0,01 mm gerundet.
+**`cover.layout_set`, `asset.request_decide`** (wording unchanged): invalid blocks still report -32602 with
+`„Umschlag-Block „…“ (art), Feld x: …“`; in the store it is now the error kind of its own `StoreError::CoverBlock`.
+`cover.layout` delivers default blocks rounded to 0.01 mm.
 
-**`commentary.lookup {ref, module?, work?}`** (geändert): Die Stelle wird in deutscher Zählung gelesen und in die
-Zählung des Kommentars **abgebildet**; `entries[].ref` nennt die Stelle des Kommentars, bei abweichender Zählung mit
-deren Namen („Joel 2,28 (KJV)“). Vorher wurden die deutschen Nummern unverändert im Kommentar nachgeschlagen.
+**`commentary.lookup {ref, module?, work?}`** (changed): the reference is read in German versification and **mapped** into the
+versification of the commentary; `entries[].ref` names the reference of the commentary, with a differing versification with
+its name („Joel 2,28 (KJV)“). Before, the German numbers were looked up unchanged in the commentary.
 
-**`source.read {…, q?}`** (geändert): `q` höchstens 500 Zeichen, sonst -32602 „q: höchstens 500 Zeichen (die Anfrage
+**`source.read {…, q?}`** (changed): `q` at most 500 characters, otherwise -32602 „q: höchstens 500 Zeichen (die Anfrage
 dient nur dem Markieren der Fundstellen).“
 
-**`finding.get`, `finding.list`** (ergänzt): Ein Befund trägt `stale_summary: true`, wenn er ein offener Sammelbefund ist,
-dessen Ursprünge alle entschieden sind (Feld fehlt sonst). `finding.matrix`: Ein offener Sammelbefund zählt nicht unter
-`open` (weder in den Zellen noch in `open_findings`).
+**`finding.get`, `finding.list`** (added): a finding carries `stale_summary: true` if it is an open collective finding
+whose sources are all decided (the field is missing otherwise). `finding.matrix`: an open collective finding does not count under
+`open` (neither in the cells nor in `open_findings`).
 
-**`menu.badges`** (unverändert): `open_findings` zählt Sammelbefunde nicht mehr mit (Zählregel unten).
+**`menu.badges`** (unchanged): `open_findings` no longer counts collective findings (counting rule below).
 
 ### mcp-namen
 
-**`mcp_token.create`:** Seit Runde 23 prüft die Methode zusätzlich den Autor, der aus dem Namen entsteht (`@mcp:<handle>`, Regel `mcp::session::handle_name`: getrimmt, klein, ä → ae, ö → oe, ü → ue, ß → ss, Akzente weg, sonst alles außerhalb `[a-z0-9._-]` als „-“, höchstens 32 Zeichen). Abgelehnt mit **-32000** und ohne dass etwas angelegt wird: ein Name, dessen Handle oder Alt-Handle (Regel bis Runde 22: Umlaut → „-“) dem Handle oder Alt-Handle eines **vorhandenen oder widerrufenen** Tokens gleicht, und ein Name, dessen Handle mit `lokal-` beginnt (Clients ohne Token vorbehalten). Ein widerrufener Name ist damit nicht wieder frei. Prüfung und Anlegen laufen in einer Transaktion: von zwei gleichzeitigen Anfragen mit gleichem Handle entsteht genau ein Token. Das Formular `POST /einstellungen/mcp/act` geht denselben Weg (422 mit derselben Meldung). Vorhandene Tokens behalten Namen und Beiträge; kein Autor wird in der Datenbank umgeschrieben.
+**`mcp_token.create`:** Since Round 23 the method additionally checks the author that results from the name (`@mcp:<handle>`, rule `mcp::session::handle_name`: trimmed, lower case, `ä` → `ae`, `ö` → `oe`, `ü` → `ue`, `ß` → `ss`, accents removed, otherwise everything outside `[a-z0-9._-]` as „-“, at most 32 characters). Refused with **-32000**, and nothing is created: a name whose handle or old handle (rule until Round 22: umlaut → „-“) equals the handle or old handle of an **existing or revoked** token, and a name whose handle begins with `lokal-` (reserved for clients without a token). A revoked name is thus not free again. Check and creation run in one transaction: of two simultaneous requests with the same handle exactly one token is created. The form `POST /einstellungen/mcp/act` goes the same way (422 with the same message). Existing tokens keep their names and posts; no author is rewritten in the database.
 
-**`persona.chat`, Antwort:** dazu `done_proposals` (Liste der Befundnummern, zu denen aus einer Rückmeldung „Erledigt: Befund n“ ein Statusvorschlag „erledigt“ entstand, ohne Doppelte), `done_notes` (Liste der übergangenen Rückmeldungen mit Grund) und `all_done` (`true`, wenn mindestens eine antwortende Persona sagt, alle ihre Befunde zum Abschnitt scheinen erledigt). Namen wie bei `persona.ask`; jedes Feld steht nur in der Antwort, wenn es nicht leer bzw. `true` ist. Im Chat gibt es solche Rückmeldungen nur beim RFC (dort prüft jede Persona erneut).
+**`persona.chat`, answer:** plus `done_proposals` (list of the finding numbers for which a report „Erledigt: Befund n“ produced a status proposal „erledigt“, without duplicates), `done_notes` (list of the skipped reports with a reason) and `all_done` (`true` if at least one answering persona says that all its findings on the section seem done). Names as with `persona.ask`; each field stands in the answer only if it is not empty or is `true`. In the chat such reports exist only with the RFC (there every persona checks again).
 
-**`persona.chat`, Erkennung der Nachricht:** Zeilen, die – nach Leerraum – mit „>“ beginnen, sind Zitat und zählen weder für Erwähnungen und Anreden noch für RFC („@alle“, „RFC“), Schreibauftrag oder Varianten-Auftrag. Beim Schreibauftrag entstehen Statusvorschläge „übernommen in Fassung n“ nur noch für `[B<id>]` aus der **Nachricht**, nicht mehr aus dem Text des Vorschlags.
+**`persona.chat`, recognition of the message:** lines that begin – after white space – with „>“ are quotations and count neither for mentions and addresses nor for RFC („@alle“, „RFC“), writing task or variant task. With a writing task, status proposals „übernommen in Fassung n“ are created only for `[B<id>]` from the **message**, no longer from the text of the proposal.
 
-**`post.move`:** Die Befunde aus dem Beitrag (`finding.post_id`) wechseln in derselben Transaktion mit in den Zielabschnitt, ein Commit. Ausnahme: übernommene Befunde bleiben am alten Abschnitt, weil ihr Status eine Fassung dieses Abschnitts nennt.
+**`post.move`:** the findings from the post (`finding.post_id`) move along into the target section in the same transaction, one commit. Exception: adopted findings stay at the old section because their status names a revision of that section.
 
-**`post.repeat` und `thread.repeat`:** Der gespeicherte Auftrag (`PostRequest`, JSON in `post.request`) trägt seit Runde 23 zusätzlich `web` (bool), `asker` (Text) und `relay` (JSON `{persona, post, text, findings}` der anredenden Antwort). Die Wiederholung übernimmt alle drei: Ein Relay-Beitrag wird wieder mit dem Relay-Rahmen gestellt und bleibt ein Relay-Beitrag (`relay_from`); ein Auftrag eines MCP-Clients behält seine Herkunft und löst weiter keine Websuche aus. Zeilen ohne diese Felder (vor Runde 23) wiederholen wie bisher: Websuche zugelassen, Fragender der Mensch, kein Rahmen. Keine Migration, die Felder sind `#[serde(default)]`.
+**`post.repeat` and `thread.repeat`:** the stored task (`PostRequest`, JSON in `post.request`) additionally carries since Round 23 `web` (bool), `asker` (text) and `relay` (JSON `{persona, post, text, findings}` of the addressing answer). The repetition takes over all three: a relay post is asked again with the relay frame and stays a relay post (`relay_from`); a task of an MCP client keeps its origin and still triggers no web search. Rows without these fields (before Round 23) repeat as before: web search allowed, asker the human, no frame. No migration; the fields are `#[serde(default)]`.
 
-**`outline.requests {preview: true}`:** `preview_error` eines veralteten Antrags lautet unverändert „Veraltet: <Grund>“; im Store ist es jetzt `StoreError::Stale` (vorher `Heading`), über RPC weiter -32000. „Nicht mehr ausführbar: …“ bleibt `Heading`.
+**`outline.requests {preview: true}`:** `preview_error` of a stale request still reads „Veraltet: <Grund>“; in the store it is now `StoreError::Stale` (before `Heading`), over RPC still -32000. „Nicht mehr ausführbar: …“ stays `Heading`.
 
 ### geheimnisse
 
-- `model.connection_delete`: Parameter `{id, confirm: true}`. Ohne `confirm: true` (fehlt, `false`, Text) →
-  -32602 „confirm: true erwartet“, und nichts ist gelöscht. Sonst wie bisher `{id, deleted: true, personas: [Handle]}`.
-- `model.connection_delete_secret`: Parameter `{id, confirm: true}`; ohne `confirm: true` → -32602 „confirm: true
-  erwartet“, der Schlüssel bleibt. Sonst `{id, secret: "fehlt"}`.
-- Die Formulare `POST /einstellungen/modelle/act` (`action=delete`, `action=delete_secret`)
-  verlangen weiter das Pflicht-Kästchen `confirm=1` und rufen danach dieselben Funktionen (`models::delete_connection`,
-  `models::delete_secret`) – ohne JavaScript bedienbar. Kein Widget ruft die beiden Methoden
+- `model.connection_delete`: parameters `{id, confirm: true}`. Without `confirm: true` (missing, `false`, text) →
+  -32602 „confirm: true erwartet“, and nothing is deleted. Otherwise as before `{id, deleted: true, personas: [Handle]}`.
+- `model.connection_delete_secret`: parameters `{id, confirm: true}`; without `confirm: true` → -32602 „confirm: true
+  erwartet“, the key stays. Otherwise `{id, secret: "fehlt"}`.
+- The forms `POST /einstellungen/modelle/act` (`action=delete`, `action=delete_secret`)
+  still require the mandatory checkbox `confirm=1` and then call the same functions (`models::delete_connection`,
+  `models::delete_secret`) – usable without JavaScript. No widget calls the two methods
   (`grep -rn "connection_delete" crates/baruch-server/web/src crates/baruch-server/static crates/baruch-server/templates`
-  findet nichts).
-- `model.context`: Ist die Verbindung der Persona extern und die Persona nicht freigegeben, geht **keine** Anfrage
-  hinaus; Antwort `{tokens: <Einstellung>, reported: null, warning: null, …}`.
-- `model.list`: Der Zwischenspeicher (60 s) gilt je (Art, Adresse). Zwei Verbindungen verschiedener Art auf derselben
-  Adresse teilen weder Liste noch Kontextlänge.
-- `model.connection_check`, `connection.check`: Antwortet die Gegenstelle mit einer Weiterleitung (3xx), ist das
-  `ok: false` mit „… leitet weiter (HTTP 30x); Baruch folgt Weiterleitungen nicht – bitte die endgültige Adresse
-  eintragen.“ bzw. „HTTP 30x von …: Weiterleitung. Baruch folgt ihr nicht …“. Das Ziel (`Location`) wird nicht genannt.
-- `work.create`: `module` höchstens 100 Zeichen in einer Zeile, sonst -32602 „module: Modulname mit höchstens 100
-  Zeichen in einer Zeile erwartet“. Werk und SWORD-Bibel entstehen in einer Transaktion.
-- `work.exchange_import` (und Vorschau): -32602 „Austausch: Das Glossar hätte N Begriffe; höchstens 5000 je Werk
-  (Vorschläge mitgezählt). Nichts eingelesen.“ bzw. „… Register <kennung>: Titel hat N Zeichen (höchstens 80) …“.
+  finds nothing).
+- `model.context`: if the connection of the persona is external and the persona is not allowed, **no** request goes
+  out; answer `{tokens: <Einstellung>, reported: null, warning: null, …}`.
+- `model.list`: the cache (60 s) applies per (kind, address). Two connections of different kinds on the same
+  address share neither list nor context length.
+- `model.connection_check`, `connection.check`: if the remote side answers with a redirect (3xx), that is
+  `ok: false` with „… leitet weiter (HTTP 30x); Baruch folgt Weiterleitungen nicht – bitte die endgültige Adresse
+  eintragen.“ or „HTTP 30x von …: Weiterleitung. Baruch folgt ihr nicht …“. The target (`Location`) is not named.
+- `work.create`: `module` at most 100 characters in one line, otherwise -32602 „module: Modulname mit höchstens 100
+  Zeichen in einer Zeile erwartet“. Work and SWORD Bible are created in one transaction.
+- `work.exchange_import` (and preview): -32602 „Austausch: Das Glossar hätte N Begriffe; höchstens 5000 je Werk
+  (Vorschläge mitgezählt). Nichts eingelesen.“ or „… Register <kennung>: Titel hat N Zeichen (höchstens 80) …“.
 
 ### Integration
 
-- **`POST /act`** (Formulare ohne JavaScript) reicht `based_on_amend` an `revision.update` weiter: Das Formular
-  „Fassung ändern“ wird bei veraltetem Stand auch ohne JavaScript abgelehnt („Veraltet: …“).
-- **`POST /mcp`:** eigene Größengrenze `MCP_BODY_LIMIT` = 12 MiB (ein Bild mit 8 MiB als Base64 samt Rahmen), darüber
-  413; `/rpc` behält `works::RPC_BODY_LIMIT` (Codereview ki-2).
-- Re-Exporte in `baruch_store`: `MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN` (200), `MAX_OPEN_INDEX_PROPOSALS_PER_WORK` (2000),
+- **`POST /act`** (forms without JavaScript) passes `based_on_amend` on to `revision.update`: the form
+  „Fassung ändern“ is refused with a stale state even without JavaScript („Veraltet: …“).
+- **`POST /mcp`:** its own size limit `MCP_BODY_LIMIT` = 12 MiB (an image of 8 MiB as Base64 with its frame), above that
+  413; `/rpc` keeps `works::RPC_BODY_LIMIT` (code review ki-2).
+- Re-exports in `baruch_store`: `MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN` (200), `MAX_OPEN_INDEX_PROPOSALS_PER_WORK` (2000),
   `MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN` (50).
 
-## Runde 32 – Word und Beenden
+## Round 32 – Word and quitting
 
-### docx_import.preview, docx_import.get, docx_import.apply, docx_import.discard (Runde 32 – Word)
+### docx_import.preview, docx_import.get, docx_import.apply, docx_import.discard (Round 32 – Word)
 
-Global (ohne Werk; Weiche in `rpc::call` über `docx_import::handles`, Modul `docx_import`). Kein MCP-Gegenstück: Ein
-Import legt aktuelle Fassungen unter dem Namen des Menschen an.
+Global (without a work; switch in `rpc::call` through `docx_import::handles`, module `docx_import`). No MCP counterpart: an
+import creates current revisions under the name of the human.
 
-- **`docx_import.preview {file_name, data_base64, title?}`** – `data_base64` = Datei als Base64 (Standard, mit `=`);
-  `file_name` endet auf `.docx`. Liest die Datei und legt nur einen **Entwurf** an
-  (`<data>/docx-drafts/<draft>/` mit `draft.json` und `source.docx`; kein Werk). Antwort:
+- **`docx_import.preview {file_name, data_base64, title?}`** – `data_base64` = file as Base64 (standard, with `=`);
+  `file_name` ends in `.docx`. Reads the file and creates only a **draft**
+  (`<data>/docx-drafts/<draft>/` with `draft.json` and `source.docx`; no work). Answer:
   `{draft, file_name, title, sections: [{level 0..3, numbered, title, chars, sample}], editors: [{name, handle,
   insertions, deletions, sections}], comments, footnotes, images, warnings: [{code, message}]}`.
-  `title` = Titel, unter dem übernommen würde (eigener `title`, sonst Titel der Datei, sonst Dateiname ohne Endung);
-  `level` 0 = Teil; `sample` = Anfang des Abschnitts als Typst (höchstens 160 Zeichen); `editors[].sections` = Zahl
-  der Abschnitte, zu denen ein Vorschlag entstünde; `handle` = `@word:<name>`.
-  Fehler: kein `.docx`-Name, kaputtes Base64, größer als 64 MiB, Fehler der Datei (kein ZIP, altes `.doc` oder
-  verschlüsselt, unsicherer Pfad oder Beziehungsziel, DTD, Grenze überschritten, kaputtes XML, kein Text) → -32602 mit
-  dem Grund; es entsteht nichts. Über `POST /rpc` liegt die ganze Anfrage zudem innerhalb von `RPC_BODY_LIMIT`
-  (sonst 413 vor dem Aufruf, also eine Datei bis etwa 24 MiB – größere über das Formular
-  `POST /werke/import/word/vorschau`, bis 64 MiB).
-- **`docx_import.get {draft}`** → dasselbe Objekt wie `preview`. Unbekannt, verworfen, übernommen oder älter als 24 h
+  `title` = title under which it would be taken over (own `title`, otherwise title of the file, otherwise file name without the ending);
+  `level` 0 = part; `sample` = start of the section as Typst (at most 160 characters); `editors[].sections` = number
+  of the sections for which a proposal would be created; `handle` = `@word:<name>`.
+  Errors: not a `.docx` name, broken Base64, larger than 64 MiB, errors of the file (not a ZIP, old `.doc` or
+  encrypted, unsafe path or relationship target, DTD, limit exceeded, broken XML, no text) → -32602 with
+  the reason; nothing is created. Over `POST /rpc` the whole request additionally lies within `RPC_BODY_LIMIT`
+  (otherwise 413 before the call, so a file up to about 24 MiB – larger ones through the form
+  `POST /werke/import/word/vorschau`, up to 64 MiB).
+- **`docx_import.get {draft}`** → the same object as `preview`. Unknown, discarded, taken over or older than 24 h
   → -32602.
-- **`docx_import.apply {draft, title?, changes?: bool = true, comments?: bool = true}`** – legt das Werk an (Fassung 1
-  je Abschnitt = Stand vor allen Änderungen, aktuell), mit `changes` je Bearbeiter und geändertem Abschnitt einen
-  offenen Vorschlag (Persona `@word:<name>`, Modell `word`) und je geänderter Überschrift einen Beitrag, mit `comments`
-  je Kommentar einen Beitrag. Antwort: `{work, slug, sections, proposals, posts, warnings: [{code, message}]}`. Der
-  Entwurf ist danach gelöscht. Fehler: unbekannter Entwurf → -32602; vergebener Titel → -32000 (wie
-  `source_import.apply`, der Entwurf bleibt); derselbe Entwurf wird gerade übernommen → -32000. Ließ sich ein
-  einzelner Vorschlag oder Beitrag nicht anlegen, bleibt das Werk bestehen und `warnings` nennt es
+- **`docx_import.apply {draft, title?, changes?: bool = true, comments?: bool = true}`** – creates the work (revision 1
+  per section = state before all changes, current), with `changes` per editor and changed section one
+  open proposal (persona `@word:<name>`, model `word`) and per changed heading a post, with `comments`
+  per comment a post. Answer: `{work, slug, sections, proposals, posts, warnings: [{code, message}]}`. The
+  draft is deleted afterwards. Errors: unknown draft → -32602; taken title → -32000 (like
+  `source_import.apply`, the draft stays); the same draft is being taken over right now → -32000. If a
+  single proposal or post could not be created, the work stays and `warnings` names it
   (`docx_vorschlag_abgelehnt`, `docx_beitrag_abgelehnt`, `docx_gliederung_abweichend`).
-- **`docx_import.discard {draft}`** → `{discarded: true}` (auch wenn der Entwurf schon weg ist). `draft` ist kein
-  32-stelliger Hex-Name → -32602.
+- **`docx_import.discard {draft}`** → `{discarded: true}` (even if the draft is already gone). `draft` is not a
+  32-digit hex name → -32602.
 
-Höchstens 20 Entwürfe, je höchstens 24 Stunden alt; beim nächsten `preview` fallen ältere weg.
-`work.import` und `POST /werke/import` weisen `.docx` mit Verweis auf `/werke/import/word` ab (S1).
+At most 20 drafts, each at most 24 hours old; older ones are dropped at the next `preview`.
+`work.import` and `POST /werke/import` refuse `.docx` with a reference to `/werke/import/word` (S1).
 
-Seiten (ohne JavaScript): `GET /werke/import/word` (Formular; mit `?draft=<id>` die Vorschau, unbekannter Entwurf 422),
-`POST /werke/import/word/vorschau` (multipart `file`, `title` → 303 `/werke/import/word?draft=<id>`; Fehler 422, zu
-groß 413, jeweils mit Formular), `POST /werke/import/word/uebernehmen` (`draft`, `title`, Häkchen `changes`,
-`comments` → 303 `/?work=<id>`; entstanden beim Übernehmen neue Hinweise, 200 mit Bericht und Link zum Werk; Fehler
-422 mit der Vorschau), `POST /werke/import/word/verwerfen` (`draft` → 303 `/werke/import/word`). Alle POST hinter
-`guard::same_origin` (fremde Herkunft 403).
+Pages (without JavaScript): `GET /werke/import/word` (form; with `?draft=<id>` the preview, unknown draft 422),
+`POST /werke/import/word/vorschau` (multipart `file`, `title` → 303 `/werke/import/word?draft=<id>`; errors 422, too
+large 413, each with the form), `POST /werke/import/word/uebernehmen` (`draft`, `title`, checkboxes `changes`,
+`comments` → 303 `/?work=<id>`; if new notes arose on taking over, 200 with a report and a link to the work; errors
+422 with the preview), `POST /werke/import/word/verwerfen` (`draft` → 303 `/werke/import/word`). All POSTs behind
+`guard::same_origin` (foreign origin 403).
 
-### Runde 32 – Word: `work.docx_export`
+### Round 32 – Word: `work.docx_export`
 
-Nur lesend; kein MCP-Werkzeug.
+Read only; no MCP tool.
 
 `work.docx_export {work?: number|string, proposals?: bool = false}`
 
-- `work`: Werk-id (Zahl), Ordnername des Werks (Text) oder – ohne Angabe – das Vorgabewerk.
-- `proposals`: `true` legt je Abschnitt den jüngsten offenen Vorschlag als Änderungsverfolgung über die aktuelle
-  Fassung.
+- `work`: work id (number), folder name of the work (text) or – without it – the default work.
+- `proposals`: `true` lays, per section, the youngest open proposal as tracked changes over the current
+  revision.
 
-Antwort:
+Answer:
 
 ```json
 {
@@ -2672,247 +2672,247 @@ Antwort:
 }
 ```
 
-- `proposals`: Zahl der Abschnitte, deren Vorschlag als Änderungsverfolgung in der Datei steht (ohne `proposals: true`
-  immer 0; ein Vorschlag, der der aktuellen Fassung gleicht, zählt nicht).
-- `warnings`, feste Codes: `docx_typst_insel` (Insel mit sichtbarem Ersatz; ab der sechsten nur noch als Zahl),
-  `docx_bild_fehlt` (Bildpfad ohne einbettbares Bild: fehlt im Werk oder ist SVG/WebP), `docx_tabelle_vereinfacht`
-  (Gestaltung einer Tabelle entfiel), `docx_weitere_vorschlaege` (mehr als ein offener Vorschlag im Abschnitt).
-- Fehler: unbekanntes Werk oder unbekannter Parameter → `-32602`; Schreibfehler → `-32603`.
-- Gleicher Stand des Werks ergibt dieselben Bytes (der Zeitpunkt in der Datei ist die jüngste Änderung des Werks,
-  nicht die Uhrzeit des Exports).
+- `proposals`: number of the sections whose proposal stands as tracked changes in the file (without `proposals: true`
+  always 0; a proposal equal to the current revision does not count).
+- `warnings`, fixed codes: `docx_typst_insel` (island with a visible replacement; from the sixth on only as a number),
+  `docx_bild_fehlt` (image path without an embeddable image: missing in the work or SVG/WebP), `docx_tabelle_vereinfacht`
+  (formatting of a table dropped), `docx_weitere_vorschlaege` (more than one open proposal in the section).
+- Errors: unknown work or unknown parameter → `-32602`; write error → `-32603`.
+- The same state of the work yields the same bytes (the point in time in the file is the latest change of the work,
+  not the time of the export).
 
-Seiten dazu (kein RPC): `GET /werke/{id}/word` (Erklärung und Formular), `GET /werke/{id}/word.docx[?vorschlaege=1]`
-(Datei, `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`,
-`Content-Disposition: attachment; filename="<slug>.docx"`; unbekanntes Werk 404, anderer Wert für `vorschlaege` 400,
-Anfrage einer fremden Seite 403).
+Pages for it (no RPC): `GET /werke/{id}/word` (explanation and form), `GET /werke/{id}/word.docx[?vorschlaege=1]`
+(file, `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`,
+`Content-Disposition: attachment; filename="<slug>.docx"`; unknown work 404, another value for `vorschlaege` 400,
+request from a foreign page 403).
 
-### Beenden
+### Quitting
 
-Keine Methode. Beenden ist bewusst weder RPC-Methode noch MCP-Werkzeug (`rpc::call` kennt die Gegenstelle nicht;
-Test `there_is_no_rpc_method_and_no_mcp_tool_to_quit`).
+No method. Quitting is deliberately neither an RPC method nor an MCP tool (`rpc::call` does not know the remote side;
+test `there_is_no_rpc_method_and_no_mcp_tool_to_quit`).
 
-Baruch beenden gibt es weder über RPC noch über MCP: Das geht nur über die Seite `/beenden` am eigenen Rechner
-oder über ein Signal an den Prozess. Routen: `GET /beenden` (Rückfrage; nicht vom eigenen Rechner 403) und
-`POST /beenden` (hinter `guard::same_origin`, nur vom eigenen Rechner, Antwort 200 mit der Abschlussseite, 500 ms
-später fährt Baruch herunter).
+Quitting Baruch exists neither over RPC nor over MCP: it is only possible through the page `/beenden` on the own machine
+or through a signal to the process. Routes: `GET /beenden` (confirmation question; not from the own machine 403) and
+`POST /beenden` (behind `guard::same_origin`, only from the own machine, answer 200 with the closing page, 500 ms
+later Baruch shuts down).
 
-## Runde 34 – Mindmap
+## Round 34 – Mind map
 
-Die Gedankenkarte ist eine Mindmap geworden: Einfälle tragen Titel, Elternknoten und Reihenfolge (Migration 0052),
-Einfälle ohne Platz liegen in der **Wolke** neben der Mindmap. Die Abschnitte „Einfälle“ und „Gedankenkarte (Runde
-25)“ weiter oben gelten weiter; hier steht, was dazugekommen ist. Abweichungen vom Vertrag der Runde: Die Liste der
-mitgelöschten Einfälle heißt `deleted_ids` (`deleted` bleibt `true`), Ablehnungen tragen -32000 (nicht -32001, das
-seit Runde 19c `RAG_UNAVAILABLE` ist).
+The idea map has become a mind map: ideas carry a title, a parent node and an order (migration 0052),
+ideas without a place lie in the **cloud** next to the mind map. The sections "Ideas" and "Idea map (Round
+25)" further above still apply; here stands what was added. Deviations from the contract of the round: the list of
+ideas deleted along is called `deleted_ids` (`deleted` stays `true`), refusals carry -32000 (not -32001, which
+has been `RAG_UNAVAILABLE` since Round 19c).
 
-### Methoden
+### Methods
 
-Herkunft über RPC ist immer der Mensch. Jede Antwort mit `idea` trägt zusätzlich `title`, `parent` (id oder
-`null`), `position`, `main_topic` und `cloud` (abgeleitet: liegt in der Wolke).
+Over RPC the origin is always the human. Every answer with `idea` additionally carries `title`, `parent` (id or
+`null`), `position`, `main_topic` and `cloud` (derived: lies in the cloud).
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `idea.create` | wie bisher, dazu `title?` (≤ 200 Zeichen), `parent?` (Einfall-id, gleiches Werk; setzt `work` daraus, wenn es fehlt), `before?` (id eines Geschwisters; ohne = ans Ende), `cloud?` (`false` = ohne `parent` und `key` freies Hauptthema; Vorgabe: in die Wolke). `words` darf fehlen, wenn `title` nicht leer ist; ohne beides -32602. | `{idea, commit?}` |
-| `idea.update` | wie bisher, dazu `title?` (Umbenennen; leer nur, solange ein Schlagwort bleibt) | `{idea, changed, commit?}` |
-| `idea.move` | `{id, parent?: id\|null, key?: key\|null, before?: id\|null, cloud?: bool}` – fehlende Felder bleiben. `parent: null` löst vom Elternknoten; bleibt auch kein Bezug, wird der Einfall freies Hauptthema am Werk. `key` setzt bzw. löscht den Bezug. `before` ordnet vor ein Geschwister, `null` ans Ende. `cloud: true` legt in die Wolke (löst Elternknoten und Bezug, Unterknoten bleiben am Einfall); `cloud: false` macht einen Einfall ohne Elternknoten und Bezug zum Hauptthema. | `{idea, changed, commit?}`; unverändert → `changed: false` ohne Commit |
-| `idea.delete` | `{id, confirm: true}` | `{id, deleted: true, deleted_ids: [ids], idea, commit?}` – der Einfall zuerst, dann die mitgelöschten Unterknoten |
+| `idea.create` | as before, plus `title?` (≤ 200 characters), `parent?` (idea id, same work; sets `work` from it if missing), `before?` (id of a sibling; without = at the end), `cloud?` (`false` = without `parent` and `key` a free main topic; default: into the cloud). `words` may be missing if `title` is not empty; without both -32602. | `{idea, commit?}` |
+| `idea.update` | as before, plus `title?` (renaming; empty only as long as a keyword stays) | `{idea, changed, commit?}` |
+| `idea.move` | `{id, parent?: id\|null, key?: key\|null, before?: id\|null, cloud?: bool}` – missing fields stay. `parent: null` detaches from the parent node; if no reference stays either, the idea becomes a free main topic at the work. `key` sets or deletes the reference. `before` orders before a sibling, `null` at the end. `cloud: true` puts into the cloud (releases parent node and reference, child nodes stay at the idea); `cloud: false` makes an idea without parent node and reference a main topic. | `{idea, changed, commit?}`; unchanged → `changed: false` without a commit |
+| `idea.delete` | `{id, confirm: true}` | `{id, deleted: true, deleted_ids: [ids], idea, commit?}` – the idea first, then the child nodes deleted along |
 | `idea.restore` | `{id}` | `{idea, restored: [ids], detached?: true, commit?}` |
-| `idea.tree` | `{work, status?, word?, origin?, q?, near?, near_limit?, near_threshold?, findings?}` (Filter wie `idea.map`) | `{map: MindMap, cloud: Cloud}` |
-| `idea.map` | unverändert | wie bisher; je Einfall zusätzlich `title`, `parent`, `position`, `main_topic`, `cloud`; `label` ist der Titel, sonst die Schlagwörter |
+| `idea.tree` | `{work, status?, word?, origin?, q?, near?, near_limit?, near_threshold?, findings?}` (filter like `idea.map`) | `{map: MindMap, cloud: Cloud}` |
+| `idea.map` | unchanged | as before; per idea additionally `title`, `parent`, `position`, `main_topic`, `cloud`; `label` is the title, otherwise the keywords |
 
-`idea.move` lehnt mit -32000 ab (nichts geändert, kein Commit): Elternknoten in einem anderen Werk, der Einfall
-selbst oder ein eigener Nachfahre als Elternknoten (Kreis), Tiefe über 32, gelöschter Einfall oder Elternknoten,
-`before` kein Geschwister, `cloud: true` zusammen mit `parent` oder `key`. Unbekannter Einfall bzw. falsche Typen:
--32602. Jede Änderung ist ein Commit „Einfall <id>: umgehängt“ (`Baruch-Action: idea-move`) mit Platz vorher und
-nachher im Rumpf. Kapitel und Teile lassen sich über `idea.*` nicht ändern – ihre Kennung `n:<key>` ist keine
-Einfall-id; dafür bleiben `outline.*` und die Antragsregel.
+`idea.move` refuses with -32000 (nothing changed, no commit): a parent node in another work, the idea
+itself or one of its own descendants as parent node (cycle), depth above 32, a deleted idea or parent node,
+`before` not a sibling, `cloud: true` together with `parent` or `key`. Unknown idea or wrong types:
+-32602. Every change is a commit „Einfall <id>: umgehängt“ (`Baruch-Action: idea-move`) with the place before and
+after in the body. Chapters and parts cannot be changed through `idea.*` – their identifier `n:<key>` is not an
+idea id; for those, `outline.*` and the request rule stay.
 
-`idea.map_pos_set` und `idea.map_pos_reset` bleiben: gespeichert, in der Mindmap ohne Wirkung.
+`idea.map_pos_set` and `idea.map_pos_reset` stay: stored, without effect in the mind map.
 
-Umkehr für „Rückgängig“ im Widget: anlegen ↔ `idea.delete`, löschen ↔ `idea.restore` (bringt die Unterknoten mit),
-umbenennen ↔ `idea.update` mit dem alten `title`, umhängen ↔ `idea.move` mit `parent`/`key`/`before` bzw. `cloud`
-aus dem Einfall vor der Aktion (`cloud: true`, wenn er in der Wolke lag; `parent: null, key: null, cloud: false`,
-wenn er Hauptthema war).
+Reversal for „Rückgängig“ in the widget: create ↔ `idea.delete`, delete ↔ `idea.restore` (brings the child nodes along),
+rename ↔ `idea.update` with the old `title`, move ↔ `idea.move` with `parent`/`key`/`before` or `cloud`
+from the idea before the action (`cloud: true` if it lay in the cloud; `parent: null, key: null, cloud: false`
+if it was a main topic).
 
-Formulare ohne JavaScript: `POST /einfaelle/act` nimmt zusätzlich `method=idea.move` mit `parent` („in die Mindmap
-unter Einfall Nr. …“), `cloud=1` („in die Wolke“) bzw. `parent=none&key=none&cloud=0` („als Hauptthema ans Werk“);
-die Seite `/einfaelle/{id}` zeigt den Platz und diese drei Formulare, `idea.create`/`idea.update` haben ein Feld
+Forms without JavaScript: `POST /einfaelle/act` additionally takes `method=idea.move` with `parent` („in die Mindmap
+unter Einfall Nr. …“), `cloud=1` („in die Wolke“) or `parent=none&key=none&cloud=0` („als Hauptthema ans Werk“);
+the page `/einfaelle/{id}` shows the place and these three forms, `idea.create`/`idea.update` have a field
 `title`.
 
-### Routen der Seite und des Bildes
+### Routes of the page and the image
 
-| Route | Inhalt |
+| Route | Content |
 | --- | --- |
-| `GET /werke/{id}/karte` | Seite „Mindmap“ (`idea_map/bild/mod.rs`, Vorlage `karte.html`) |
-| `GET /werke/{id}/karte/bild` | nur das SVG (`image/svg+xml`, `Cache-Control: no-store`), gleiche Abfrage; das Fragment bekommt hier `xmlns` |
+| `GET /werke/{id}/karte` | page „Mindmap“ (`idea_map/bild/mod.rs`, template `karte.html`) |
+| `GET /werke/{id}/karte/bild` | only the SVG (`image/svg+xml`, `Cache-Control: no-store`), same query; here the fragment gets `xmlns` |
 
-Abfrage: Filter wie bisher (`status`, `word`, `origin`, `q`, `near`, `near_limit`, `near_threshold`, `befunde`),
-dazu `zu=<Kennungen, Komma>` (eingeklappte Knoten) und `wahl=<Kennung>` (gewählter Knoten, im Bild
-`aria-current="true"`). Kennungen sind `w`, `n:<key>`, `i:<id>`; alles andere fällt weg (`bild::node_id`,
-höchstens 2000). Beide stehen in `bild::Extra` (`closed`, `wahl`), das `parse_filter` füllt; `filter_query` trägt
-sie nicht (Ausgaben klappen nie ein).
+Query: filters as before (`status`, `word`, `origin`, `q`, `near`, `near_limit`, `near_threshold`, `befunde`),
+plus `zu=<Kennungen, Komma>` (folded nodes) and `wahl=<Kennung>` (selected node, in the image
+`aria-current="true"`). Identifiers are `w`, `n:<key>`, `i:<id>`; everything else is dropped (`bild::node_id`,
+at most 2000). Both stand in `bild::Extra` (`closed`, `wahl`), which `parse_filter` fills; `filter_query` does not carry
+them (outputs never fold).
 
-Die Seite baut zwei Sichten: Baum und Wolke (`tree::scene`) für das Bild und – für den Abschnitt „Gruppen“ – die flache
-Karte (`idea_map::build`). Das ist ein zweiter Durchlauf mit demselben Filter; fällt er aus, fehlen nur die Gruppen.
+The page builds two views: tree and cloud (`tree::scene`) for the image and – for the section „Gruppen“ – the flat
+map (`idea_map::build`). That is a second pass with the same filter; if it fails, only the groups are missing.
 
-### Routen für Ausgabe, Einlesen und Formulare (kein RPC)
+### Routes for output, reading in and forms (no RPC)
 
-| Route | Zweck |
+| Route | Purpose |
 |---|---|
-| `GET /werke/{id}/karte.svg` \| `.pdf` \| `.md` \| `.mm` \| `.xmind` | Ausgaben; Abfrage wie die Seite (`status`, `word`, `origin`, `q`, `near`, `befunde`), `.svg`/`.pdf` zusätzlich `zu=<Kennungen>` |
-| `GET /werke/{id}/karte/gliederung` | Gliederungsansicht; dazu `wahl=<Kennung>` (gewählter Knoten), `zu=<Kennungen>`, nach Formularen `ok`, `undo`, `wieder` |
-| `POST /werke/{id}/karte/act` | Formulare (urlencoded), siehe unten |
-| `GET /werke/{id}/karte/einlesen` | Formular; `unter=i:<id>` wählt den Zielknoten vor |
-| `POST /werke/{id}/karte/einlesen` | multipart `file`, wahlweise `parent`; zeigt die Vorschau, legt nichts an (413 über 10 MiB, 422 nicht lesbar, 409 Zielknoten aus anderem Werk) |
-| `POST /werke/{id}/karte/einlesen/anlegen` | urlencoded `tree` (JSON aus der Vorschau), `parent`; legt über `tree::import` an, 303 auf `/werke/{id}/karte?ok=eingelesen` |
+| `GET /werke/{id}/karte.svg` \| `.pdf` \| `.md` \| `.mm` \| `.xmind` | outputs; query like the page (`status`, `word`, `origin`, `q`, `near`, `befunde`), `.svg`/`.pdf` additionally `zu=<Kennungen>` |
+| `GET /werke/{id}/karte/gliederung` | outline view; plus `wahl=<Kennung>` (selected node), `zu=<Kennungen>`, after forms `ok`, `undo`, `wieder` |
+| `POST /werke/{id}/karte/act` | forms (urlencoded), see below |
+| `GET /werke/{id}/karte/einlesen` | form; `unter=i:<id>` preselects the target node |
+| `POST /werke/{id}/karte/einlesen` | multipart `file`, optionally `parent`; shows the preview, creates nothing (413 above 10 MiB, 422 not readable, 409 target node from another work) |
+| `POST /werke/{id}/karte/einlesen/anlegen` | urlencoded `tree` (JSON from the preview), `parent`; creates through `tree::import`, 303 to `/werke/{id}/karte?ok=eingelesen` |
 
-`POST /werke/{id}/karte/act`: Feld `method` ∈ `idea.create`, `idea.update`, `idea.move`, `idea.delete`,
+`POST /werke/{id}/karte/act`: field `method` ∈ `idea.create`, `idea.update`, `idea.move`, `idea.delete`,
 `idea.restore`, `idea.link`, `idea.unlink`, `idea.link_restore`, `idea.map_pos_reset`, `idea.map_groups_name`,
-`idea.map_group_accept`, `idea.map_group_dismiss`. Dazu die Felder der Aktion:
+`idea.map_group_accept`, `idea.map_group_dismiss`. Plus the fields of the action:
 
-- `idea.create`: `title`, `words`, `note`, `parent`, `key`, `before`, `ort` (`ort=werk` → freies Hauptthema; ohne
-  `parent`, `key` und `ort` → Wolke).
-- `idea.update`: `id`, wahlweise `title`, `key`, `words`, `note` – nur Felder, die das Formular schickt, ändern sich.
-- `idea.move`: `id`, entweder `ziel` ∈ `wolke` (RPC `cloud: true`) \| `w` (Hauptthema am Werk) \| `i:<Einfall>` \|
-  `n:<Kapitel-key>` oder die Felder der RPC
-  `parent`, `key`, `before` (vorhanden und leer = `null`).
+- `idea.create`: `title`, `words`, `note`, `parent`, `key`, `before`, `ort` (`ort=werk` → free main topic; without
+  `parent`, `key` and `ort` → cloud).
+- `idea.update`: `id`, optionally `title`, `key`, `words`, `note` – only fields that the form sends change.
+- `idea.move`: `id`, either `ziel` ∈ `wolke` (RPC `cloud: true`) \| `w` (main topic at the work) \| `i:<Einfall>` \|
+  `n:<Kapitel-key>` or the fields of the RPC
+  `parent`, `key`, `before` (present and empty = `null`).
 - `idea.delete`, `idea.restore`: `id`. `idea.link`: `from`, `to`, `kind`, `note`. `idea.unlink`,
-  `idea.link_restore`: `id` (Verbindung).
-- `back` (Abfrageteil des Filters), `seite` ∈ `karte` \| `gliederung` (Ziel der Weiterleitung, Vorgabe `karte`),
-  `wahl` (gewählter Knoten, nur mit `seite=gliederung`).
+  `idea.link_restore`: `id` (connection).
+- `back` (query part of the filter), `seite` ∈ `karte` \| `gliederung` (target of the redirect, default `karte`),
+  `wahl` (selected node, only with `seite=gliederung`).
 
-Antwort: 303 auf `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>` (`angelegt`, `umbenannt`, `bezug`, `umgehaengt`,
-`in-wolke`, `ort-unveraendert`, `geloescht` mit `wieder=<id>`, `einfall-wieder`, `verbunden`, `unveraendert`,
-`geloest` mit `undo=<id>`, `wiederhergestellt`, …). Fehler als Seite mit Meldung: 400 unbekannte Aktion, 409 abgelehnt
-(auch: ein genannter Einfall gehört nicht zum Werk der Adresse – bisher 422), 422 ungültige Eingabe, 404 unbekanntes
-Werk, 403 fremde Herkunft.
+Answer: 303 to `/werke/{id}/karte[/gliederung]?<back>&ok=<wort>` (`angelegt`, `umbenannt`, `bezug`, `umgehaengt`,
+`in-wolke`, `ort-unveraendert`, `geloescht` with `wieder=<id>`, `einfall-wieder`, `verbunden`, `unveraendert`,
+`geloest` with `undo=<id>`, `wiederhergestellt`, …). Errors as a page with a message: 400 unknown action, 409 refused
+(also: a named idea does not belong to the work of the address – before 422), 422 invalid input, 404 unknown
+work, 403 foreign origin.
 
-## Runde 35 – Konten und Rollen
+## Round 35 – Accounts and roles
 
-Aufbau und Rechteprüfung: `docs/Architektur.md` („Runde 35 – Konten und Rollen“, dort auch die Tabellen
-`LEKTOR_ROUTES` und `LEKTOR_RPC`). **Ohne Konten** ändert sich an `/rpc`, `/act` und allen Formularen nichts.
+Structure and permission check: `docs/Architektur.md` ("Round 35 – Accounts and roles", there also the tables
+`LEKTOR_ROUTES` and `LEKTOR_RPC`). **Without accounts** nothing changes at `/rpc`, `/act` and all forms.
 
-**Fehlercodes neu:** `-32002` (`UNAUTHENTICATED`: es gibt Konten und die Anfrage trägt keine gültige Sitzung; HTTP
-401 an `/rpc`, schon in der Schicht `auth::gate`) und `-32003` (`FORBIDDEN`: die Rolle darf die Methode bzw. das Werk
-nicht; HTTP 200 an `/rpc`, 403 an `/lektorat/act`). `rpc::call` prüft **jede** Methode über `roles::check_rpc`, bevor
-sie ausgeführt wird – für `/rpc` (einzeln und Liste), `/act` und `/lektorat/act`; für Lektoren ist jede Methode
-außerhalb von `LEKTOR_RPC` gesperrt, auch ein unbekannter Name („Das darf nur der Autor: <methode>“).
+**New error codes:** `-32002` (`UNAUTHENTICATED`: there are accounts and the request carries no valid session; HTTP
+401 at `/rpc`, already in the layer `auth::gate`) and `-32003` (`FORBIDDEN`: the role may not use the method or the work;
+HTTP 200 at `/rpc`, 403 at `/lektorat/act`). `rpc::call` checks **every** method through `roles::check_rpc` before
+it is executed – for `/rpc` (single and batch), `/act` and `/lektorat/act`; for Lektor accounts every method
+outside `LEKTOR_RPC` is locked, also an unknown name („Das darf nur der Autor: <methode>“).
 
 ### `account.*`
 
-Anmelden, Abmelden und Einrichten gibt es nur als Formular (Cookie). Passwörter, Hashes und Tokens stehen nie in
-einer Antwort. Fehler: `-32602` falsche Parameter (die Meldung zitiert keinen Wert), `-32000` fachlich abgelehnt,
-`-32002` nicht angemeldet (HTTP 401, schon in der Schicht), `-32003` nur der Autor.
+Signing in, signing out and setting up exist only as a form (cookie). Passwords, hashes and tokens never stand in
+an answer. Errors: `-32602` wrong parameters (the message quotes no value), `-32000` refused on domain grounds,
+`-32002` not signed in (HTTP 401, already in the layer), `-32003` author only.
 
-| Methode | Parameter | Antwort |
+| Method | Parameters | Answer |
 |---|---|---|
-| `account.me` | `{}` | `{accounts_exist, signed_in, local_open, id?, name?, display?, kind?, handle?}` – die Felder des Kontos nur mit Sitzung (`kind`: `author` \| `lektor`). Jeder, auch ohne Konten. |
-| `account.list` | `{}` | `{accounts: [{id, name, display, kind, handle, active, created, last_login}]}` nach id. Nur volle Rechte. |
-| `account.create` | `{name, display?, password}` | das Konto (wie in `account.list`), immer `kind: "lektor"`. Nur volle Rechte. Ohne jedes Konto `-32000` mit Hinweis auf `/einrichten`; Name ungültig oder vergeben, Passwort zu kurz oder zu lang → `-32000`. |
-| `account.set_active` | `{id, active}` | das Konto. Nur volle Rechte. Letztes aktives Autor-Konto oder unbekanntes Konto → `-32000`. Sperren beendet alle Sitzungen des Kontos. |
-| `account.set_local_open` | `{open}` | `{local_open}`. Nur volle Rechte. |
-| `account.set_password` | `{current?, password, id?}` | `{id, changed: true}`. Eigenes Konto (ohne `id` oder mit der eigenen): `current` ist Pflicht (`-32602` ohne, `-32000` wenn falsch); die Sitzung der Anfrage bleibt, alle anderen enden. Fremdes Konto (`id`): nur volle Rechte, alle Sitzungen des Kontos enden. |
-| `account.logout_all` | `{}` | `{sessions}` – beendet alle Sitzungen des eigenen Kontos, auch die der Anfrage. Ohne Sitzung `-32000`. |
+| `account.me` | `{}` | `{accounts_exist, signed_in, local_open, id?, name?, display?, kind?, handle?}` – the fields of the account only with a session (`kind`: `author` \| `lektor`). Anyone, also without accounts. |
+| `account.list` | `{}` | `{accounts: [{id, name, display, kind, handle, active, created, last_login}]}` by id. Full rights only. |
+| `account.create` | `{name, display?, password}` | the account (as in `account.list`), always `kind: "lektor"`. Full rights only. Without any account `-32000` with a hint at `/einrichten`; name invalid or taken, password too short or too long → `-32000`. |
+| `account.set_active` | `{id, active}` | the account. Full rights only. Last active author account or unknown account → `-32000`. Locking ends all sessions of the account. |
+| `account.set_local_open` | `{open}` | `{local_open}`. Full rights only. |
+| `account.set_password` | `{current?, password, id?}` | `{id, changed: true}`. Own account (without `id` or with one's own): `current` is required (`-32602` without, `-32000` if wrong); the session of the request stays, all others end. Another account (`id`): full rights only, all sessions of the account end. |
+| `account.logout_all` | `{}` | `{sessions}` – ends all sessions of the own account, including that of the request. Without a session `-32000`. |
 
-`roles::check_rpc` entscheidet vor dem Dispatch, was ein Lektor aufrufen darf (`account.me`,
-`account.set_password`, `account.logout_all`); die Methoden „nur volle Rechte“ prüfen `who.full_rights()` hier ein
-zweites Mal.
+`roles::check_rpc` decides before the dispatch what a Lektor may call (`account.me`,
+`account.set_password`, `account.logout_all`); the methods „nur volle Rechte“ (full rights only) check `who.full_rights()` here a
+second time.
 
 ### `revision.propose`, `finding.add`, `member.*`
 
-| Methode | Parameter | Antwort / Fehler |
+| Method | Parameters | Answer / errors |
 
 |---|---|---|
-| `revision.propose` | `{work?, key \| node, body, note?}` | `{work, node, key, rev, status: "proposal", author}`; nur Lektor (andere: -32000 mit Hinweis auf `revision.save`). Vorschlag unter `@lektorat:<slug>`, nie aktuelle Fassung; Markdown-Überschriften wie bei `revision.save`. Leerer Text, über 1 MiB, `note` über 2000 Zeichen → -32602; Text gleich der aktuellen Fassung → -32000; unbekannter Abschnitt → -32602 bzw. -32000 (Schlüssel fort). Kein Commit am Hauptzweig, Seitenzweig `refs/revisions/<key>/<rev>`. |
-| `finding.add` | `{work?, key?, kind: "hint" \| "critical" \| "praise", body, quote?}` | `{finding, commit? \| mirror?}` (`finding` wie in `finding.get`, `persona` = Handle, `status: "open"`, ohne Beitrag); ohne `key` „Anmerkung zum Buch“ (Befund ohne Abschnitt). Nur Lektor (andere: -32000). Leerer Text, unbekannte Art, Abschnitt nicht im Werk → -32602. Genau ein Commit im Spiegel. |
-| `member.list` | `{work}` | `{work, members: [{account, name, display, handle, role, granted, active}], candidates: [{account, name, display, handle}]}`; `candidates` = aktive Lektor-Konten ohne Freigabe. Nur volle Rechte (Lektor: -32003). `work` ist Pflicht (kein Vorgabewerk). |
-| `member.grant` | `{work, account, role?: "lektor"}` | `{work, account, role, granted}`; idempotent. Unbekanntes Werk oder Konto, andere Rolle → -32602; Autor-Konto → -32000. Nur volle Rechte. Kein Commit. |
-| `member.revoke` | `{work, account}` | `{work, account, revoked}` (`false`, wenn es keine Freigabe gab). Nur volle Rechte. Kein Commit. |
+| `revision.propose` | `{work?, key \| node, body, note?}` | `{work, node, key, rev, status: "proposal", author}`; Lektor only (others: -32000 with a hint at `revision.save`). Proposal under `@lektorat:<slug>`, never the current revision; Markdown headings as with `revision.save`. Empty text, above 1 MiB, `note` above 2000 characters → -32602; text equal to the current revision → -32000; unknown section → -32602 or -32000 (key gone). No commit on the main branch, side branch `refs/revisions/<key>/<rev>`. |
+| `finding.add` | `{work?, key?, kind: "hint" \| "critical" \| "praise", body, quote?}` | `{finding, commit? \| mirror?}` (`finding` as in `finding.get`, `persona` = handle, `status: "open"`, without a post); without `key` „Anmerkung zum Buch“ (finding without a section). Lektor only (others: -32000). Empty text, unknown kind, section not in the work → -32602. Exactly one commit in the mirror. |
+| `member.list` | `{work}` | `{work, members: [{account, name, display, handle, role, granted, active}], candidates: [{account, name, display, handle}]}`; `candidates` = active Lektor accounts without access. Full rights only (Lektor: -32003). `work` is required (no default work). |
+| `member.grant` | `{work, account, role?: "lektor"}` | `{work, account, role, granted}`; idempotent. Unknown work or account, another role → -32602; author account → -32000. Full rights only. No commit. |
+| `member.revoke` | `{work, account}` | `{work, account, revoked}` (`false` if there was no access). Full rights only. No commit. |
 
-Geändert:
+Changed:
 
-- `post.add`: Autor des Beitrags ist `roles::author_name` – für Lektoren der Handle, sonst „Autor“ wie bisher.
-- `post.edit`, `post.delete`: Lektoren nur eigene Beiträge (Autor des Beitrags = Handle); fremde und die des Autors
-  → -32000 mit der Meldung „Nur eigene Beiträge lassen sich bearbeiten: …“. Der Autor verwaltet weiter jeden Beitrag.
-- `post.page`, Seiten `/beitraege` und `/beitrag`: `own` ist für Lektoren „unter dem eigenen Handle“.
-- `work.list`: für Lektoren nur freigegebene Werke.
-- `ui.render`: für Lektoren ohne Literatur.
-- Jede Methode außerhalb von `LEKTOR_RPC` (auch unbekannte Namen): für Lektoren -32003.
+- `post.add`: the author of the post is `roles::author_name` – for Lektor accounts the handle, otherwise „Autor“ as before.
+- `post.edit`, `post.delete`: Lektor accounts only their own posts (author of the post = handle); others' and those of the author
+  → -32000 with the message „Nur eigene Beiträge lassen sich bearbeiten: …“. The author still manages every post.
+- `post.page`, pages `/beitraege` and `/beitrag`: for Lektor accounts `own` means „under the own handle“.
+- `work.list`: for Lektor accounts only works shared with them.
+- `ui.render`: for Lektor accounts without literature.
+- Every method outside `LEKTOR_RPC` (also unknown names): for Lektor accounts -32003.
 
-### Routen (Formulare ohne JavaScript, alle hinter `guard::same_origin`)
+### Routes (forms without JavaScript, all behind `guard::same_origin`)
 
-| Route | Felder | Antwort |
+| Route | Fields | Answer |
 |---|---|---|
-| `POST /anmelden` | `name`, `password`, `next` | 303 auf `konten_ui::safe_next(next)` mit Cookie; sonst Anmeldeseite mit 401, bei Sperre 429 mit `Retry-After`. Ohne Konten 303 `/` ohne Cookie. |
-| `POST /abmelden` | – | 303 `/anmelden?ok=abgemeldet`, Cookie gelöscht. Ohne Konten 303 `/`. |
-| `POST /einrichten` | `name`, `display`, `password`, `password2` | Nur ohne Konten und vom eigenen Rechner: Autor-Konto, Sitzung, 303 `/einstellungen/konten?ok=konto_angelegt`. Konto vorhanden oder nicht eigener Rechner → Seite mit 403; ungültige Eingabe → 422. |
-| `POST /konto/passwort` | `current`, `password`, `password2` | 303 `/konto?ok=passwort_geaendert` bzw. `?fehler=passwort_falsch\|passwort_kurz\|passwort_lang\|passwort_ungleich\|unbekanntes_konto` (ohne eigenes Konto) |
-| `POST /einstellungen/konten/act` | `action`, `id`, … | 303 `/einstellungen/konten?ok=…\|fehler=…`; nur volle Rechte (sonst 403 mit `x-baruch-abgelehnt: rolle`); unbekannte Aktion 422 |
+| `POST /anmelden` | `name`, `password`, `next` | 303 to `konten_ui::safe_next(next)` with a cookie; otherwise the sign-in page with 401, when locked 429 with `Retry-After`. Without accounts 303 `/` without a cookie. |
+| `POST /abmelden` | – | 303 `/anmelden?ok=abgemeldet`, cookie deleted. Without accounts 303 `/`. |
+| `POST /einrichten` | `name`, `display`, `password`, `password2` | Only without accounts and from the own machine: author account, session, 303 `/einstellungen/konten?ok=konto_angelegt`. Account present or not the own machine → page with 403; invalid input → 422. |
+| `POST /konto/passwort` | `current`, `password`, `password2` | 303 `/konto?ok=passwort_geaendert` or `?fehler=passwort_falsch\|passwort_kurz\|passwort_lang\|passwort_ungleich\|unbekanntes_konto` (without an own account) |
+| `POST /einstellungen/konten/act` | `action`, `id`, … | 303 `/einstellungen/konten?ok=…\|fehler=…`; full rights only (otherwise 403 with `x-baruch-abgelehnt: rolle`); unknown action 422 |
 
-Aktionen von `/einstellungen/konten/act`:
+Actions of `/einstellungen/konten/act`:
 
-| `action` | Felder | ok | Fehler |
+| `action` | Fields | ok | Errors |
 |---|---|---|---|
-| `create` | `name`, `display`, `password`, `password2` – immer `kind = lektor` | `konto_angelegt` | `name_ungueltig`, `name_vergeben`, `passwort_kurz`, `passwort_lang`, `passwort_ungleich`; ohne jedes Konto 303 `/einrichten` |
+| `create` | `name`, `display`, `password`, `password2` – always `kind = lektor` | `konto_angelegt` | `name_ungueltig`, `name_vergeben`, `passwort_kurz`, `passwort_lang`, `passwort_ungleich`; without any account 303 `/einrichten` |
 | `deactivate` | `id` | `konto_gesperrt` | `letzter_autor`, `unbekanntes_konto` |
 | `activate` | `id` | `konto_entsperrt` | `unbekanntes_konto` |
-| `reset_password` | `id`, `password`, `password2` | `passwort_geaendert` | wie `create` (Passwort), `unbekanntes_konto` |
+| `reset_password` | `id`, `password`, `password2` | `passwort_geaendert` | like `create` (password), `unbekanntes_konto` |
 | `local_open` | `open` = `0` \| `1` | `lokal_offen` / `lokal_anmelden` | – |
 
-Namen: 1 bis 40 Zeichen ohne Steuerzeichen; der Slug (Regel wie `docx_import::word_author`) darf nicht `unbekannt`
-sein – ein Name braucht also mindestens einen Buchstaben a–z (auch ä, ö, ü, ß) oder eine Ziffer. Name
-(ohne Rücksicht auf Groß-/Kleinschreibung und Leerraum) und Slug sind eindeutig, auch gegenüber gesperrten Konten.
-Anzeigename höchstens 80 Zeichen.
+Names: 1 to 40 characters without control characters; the slug (rule like `docx_import::word_author`) may not be `unbekannt`
+– a name therefore needs at least one letter a–z (also `ä`, `ö`, `ü`, `ß`) or a digit. Name
+(regardless of case and white space) and slug are unique, also against locked accounts.
+Display name at most 80 characters.
 
-- `POST /lektorat/act` (hinter `guard::same_origin`): Felder `method`, `work`, `key`, `node`, `id`, `body`, `note`,
-  `kind`, `quote`, `confirm` (`1` | `on` | `true`), `back`. Ruft `rpc::call` – dieselbe Rechteprüfung wie `/rpc`.
-  Angenommen werden nur Methoden aus `LEKTOR_RPC` (auch vom Autor: sonst 403). Fehlt `work`, gilt für Lektoren das
-  kleinste freigegebene Werk. Danach 303: nach `revision.propose` auf `/?work=W&key=K&rev=N`, sonst auf den Abschnitt
-  `/?work=W&key=K`; mit `back=befunde` (und nach `finding.add` ohne `key`) auf `/werke/W/befunde`; mit `back=post`
-  auf `/beitrag?work=W&id=N` (nach `post.delete` auf den Abschnitt). Fehler: 403 „Abgelehnt: …“ mit
-  `x-baruch-abgelehnt: rolle` (`-32003`), 401 (`-32002`), 500 (intern), sonst 422 „Fehler: …“.
-- `POST /werke/{id}/mitwirkende/act` (nur volle Rechte): `action` = `grant` | `revoke`, `account`. 303 auf
-  `/werke/{id}/mitwirkende?ok=freigegeben` bzw. `?ok=entzogen`; `?fehler=unbekanntes_konto` (Konto fehlt, unbekannt
-  oder keine Zahl) bzw. `?fehler=kein_lektor` (Freigabe für ein Autor-Konto). Unbekannte Aktion 400, unbekanntes Werk
+- `POST /lektorat/act` (behind `guard::same_origin`): fields `method`, `work`, `key`, `node`, `id`, `body`, `note`,
+  `kind`, `quote`, `confirm` (`1` | `on` | `true`), `back`. Calls `rpc::call` – the same permission check as `/rpc`.
+  Only methods from `LEKTOR_RPC` are accepted (also from the author: otherwise 403). If `work` is missing, for Lektor accounts the
+  smallest work shared with them applies. Then 303: after `revision.propose` to `/?work=W&key=K&rev=N`, otherwise to the section
+  `/?work=W&key=K`; with `back=befunde` (and after `finding.add` without `key`) to `/werke/W/befunde`; with `back=post`
+  to `/beitrag?work=W&id=N` (after `post.delete` to the section). Errors: 403 „Abgelehnt: …“ with
+  `x-baruch-abgelehnt: rolle` (`-32003`), 401 (`-32002`), 500 (internal), otherwise 422 „Fehler: …“.
+- `POST /werke/{id}/mitwirkende/act` (full rights only): `action` = `grant` | `revoke`, `account`. 303 to
+  `/werke/{id}/mitwirkende?ok=freigegeben` or `?ok=entzogen`; `?fehler=unbekanntes_konto` (account missing, unknown
+  or not a number) or `?fehler=kein_lektor` (access for an author account). Unknown action 400, unknown work
   422.
 
-Seiten (`konten_ui::pages`):
+Pages (`konten_ui::pages`):
 
-| Route | Verhalten |
+| Route | Behaviour |
 |---|---|
-| `GET /anmelden[?next=…][&ok=abgemeldet]` | ohne Konten 303 `/`; sonst Formular `POST /anmelden` (`name`, `password`, `next`), Link „Weiter“ auf `safe_next(next)`; mit Sitzung „Angemeldet als …“ |
-| `GET /einrichten` | mit Konten 303 `/einstellungen/konten`; nicht vom eigenen Rechner 403 mit Erklärung (ohne Formular); sonst Formular `POST /einrichten` (`name`, `display`, `password`, `password2`) |
-| `GET /konto[?ok=…][&fehler=…]` | Name, Rolle, Herkunft, Werke (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; ohne Konten Erklärung; `LocalAuthor` Hinweis |
-| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | nur volle Rechte (sonst 403), unbekanntes Werk 404; Daten aus `rpc::call("member.list", {work})`; Formulare `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
-| `GET /einstellungen/konten[?ok=…][&fehler=…]` | Liste aus `Store::account_list`, Schalter aus `account.me` (`local_open`); Formulare `POST /einstellungen/konten/act` mit `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); ohne Konten Erklärung und „Einrichten“ |
+| `GET /anmelden[?next=…][&ok=abgemeldet]` | without accounts 303 `/`; otherwise the form `POST /anmelden` (`name`, `password`, `next`), link „Weiter“ to `safe_next(next)`; with a session „Angemeldet als …“ |
+| `GET /einrichten` | with accounts 303 `/einstellungen/konten`; not from the own machine 403 with an explanation (without a form); otherwise the form `POST /einrichten` (`name`, `display`, `password`, `password2`) |
+| `GET /konto[?ok=…][&fehler=…]` | name, role, origin, works (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; without accounts an explanation; `LocalAuthor` a note |
+| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | full rights only (otherwise 403), unknown work 404; data from `rpc::call("member.list", {work})`; forms `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
+| `GET /einstellungen/konten[?ok=…][&fehler=…]` | list from `Store::account_list`, switch from `account.me` (`local_open`); forms `POST /einstellungen/konten/act` with `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); without accounts an explanation and „Einrichten“ |
 
-`?ok=`/`?fehler=` zeigen nur den Satz aus `MESSAGES` (ein Erfolgscode gilt nicht als Fehler und umgekehrt, Unbekanntes
-zeigt nichts). Alle Konto-Seiten antworten mit `Cache-Control: no-store`.
+`?ok=`/`?fehler=` show only the sentence from `MESSAGES` (a success code does not count as an error and vice versa; unknown codes
+show nothing). All account pages answer with `Cache-Control: no-store`.
 
-## Runde 36 – Reste
+## Round 36 – Leftovers
 
-Keine neue Methode, keine neue Route. Geändert:
+No new method, no new route. Changed:
 
-- **Rollen (`roles::LEKTOR_RPC`, `LEKTOR_ROUTES`):** `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`,
-  `wysiwyg.style` und `ribbon.formats` stehen für Lektoren wieder „ohne Werk“ (Runde 35: Werk-Bindung über den
-  Parameter). Fehlt `work`, gilt wie für alle `AppState::default_work` – für einen Lektor das kleinste freigegebene
-  Werk, ohne Freigabe ein Fehler (`-32602`, „unbekanntes Werk 0“; vorher `-32003` „Noch kein Werk freigegeben.“);
-  ein genanntes `work` wird weiter geprüft (`-32003`). `GET /einstellungen/darstellung` braucht für Lektoren kein
-  `work` mehr (200 statt 303 auf `?work=`; ohne Freigabe erreichbar statt 303 auf `/werke`); das Cookie
-  `baruch_work` zählt für einen Lektor nur, wenn das Werk freigegeben ist.
-- **`persona.propose`:** Antwort mit `basis` (siehe „Prüfgrundlage“); `scope: "chapter"` beruht für den eigenen
-  Teil auf der gezeigten bzw. gewählten Fassung.
-- **`persona.chat`:** eigene offene Befunde nur noch bei einem Prüfauftrag bzw. RFC.
-- **`ui.render`:** Die HTML-Stücke tragen mit Konten den Anzeigenamen zur Herkunft („Erika Beispiel
-  (@lektorat:erika)“), nur als Text der Herkunfts-Elemente; Attribute (`data-post-author`) bleiben der Handle.
-- **`outline.delete` und `outline.request_decide` (bestätigtes Löschen):** unveränderte Antwort; der Spiegel-Commit
-  nennt zusätzlich die mitgelöschten Fassungen und Beiträge (Trailer `Baruch-Lost-Revisions`, `Baruch-Lost-Posts`).
-- **`ribbon.formats`:** Das Format `quote` trägt den Text `#quote(block: true)[]\n` ohne Folgezeile „– “.
-- **`idea_map`-Einlesen (`POST /werke/{id}/karte/einlesen/anlegen`):** Knoten des Baums im Feld `tree` können
-  `cloud: true` tragen (oberste Ebene, ohne `parent`): Sie kommen in die Wolke. Fehlt das Feld, gilt `false`.
-- **`GET /einstellungen/daten?ok=sicherung`:** zeigt die Meldung nur einmal nach einer über das Formular angelegten
-  Sicherung (Vermerk im Prozess); `settings.backup` (RPC) antwortet wie bisher direkt.
-- **`GET /static/js/vw.js`:** neues ausgeliefertes Skript unter der vorhandenen Route `/static/js/{name}` (klassisch,
-  kein Modul; berichtigt Cookie `baruch_vw` und die Attribute an `<html>` vor dem ersten Zeichnen).
+- **Roles (`roles::LEKTOR_RPC`, `LEKTOR_ROUTES`):** `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`,
+  `wysiwyg.style` and `ribbon.formats` stand for Lektor accounts again „ohne Werk“ (without a work; Round 35: binding to the work through the
+  parameter). If `work` is missing, as for everyone `AppState::default_work` applies – for a Lektor the smallest
+  work shared with them, without access an error (`-32602`, „unbekanntes Werk 0“; before `-32003` „Noch kein Werk freigegeben.“);
+  a named `work` is still checked (`-32003`). `GET /einstellungen/darstellung` no longer needs a
+  `work` for Lektor accounts (200 instead of 303 to `?work=`; reachable without access instead of 303 to `/werke`); the cookie
+  `baruch_work` counts for a Lektor only if the work is shared with them.
+- **`persona.propose`:** answer with `basis` (see the basis of review under "Solution proposals and variants"); `scope: "chapter"` is based, for the own
+  part, on the shown or chosen revision.
+- **`persona.chat`:** own open findings only with a review task or RFC.
+- **`ui.render`:** with accounts the HTML pieces carry the display name of the origin („Erika Beispiel
+  (@lektorat:erika)“), only as the text of the origin elements; attributes (`data-post-author`) stay the handle.
+- **`outline.delete` and `outline.request_decide` (confirmed deletion):** unchanged answer; the mirror commit
+  additionally names the revisions and posts deleted along (trailers `Baruch-Lost-Revisions`, `Baruch-Lost-Posts`).
+- **`ribbon.formats`:** the format `quote` carries the text `#quote(block: true)[]\n` without the following line „– “.
+- **`idea_map` reading in (`POST /werke/{id}/karte/einlesen/anlegen`):** nodes of the tree in the field `tree` may
+  carry `cloud: true` (top level, without `parent`): they go into the cloud. If the field is missing, `false` applies.
+- **`GET /einstellungen/daten?ok=sicherung`:** shows the message only once after a backup created through the form
+  (a note in the process); `settings.backup` (RPC) answers directly as before.
+- **`GET /static/js/vw.js`:** new delivered script under the existing route `/static/js/{name}` (classic,
+  not a module; corrects the cookie `baruch_vw` and the attributes on `<html>` before the first paint).
 
 ## Work language
 
@@ -2933,8 +2933,11 @@ attribute `sprache` at `<angaben>`).
 
 Form (without JavaScript): `POST /einstellungen/werk/sprache` with `work` and `language`, behind
 `guard::same_origin`, not in `LEKTOR_ROUTES`. Answer 303 to `/einstellungen/werk?work=W&ok=sprache#sprache`, or with
-an invalid value to `…&sprachfehler=1#sprache` (nothing changed). The block `id="sprache"` ("Werksprache") stands on
-the page Einstellungen → Werk directly before "Predigtzeit".
+an invalid value to `…&sprachfehler=1#sprache` (nothing changed). An unknown or missing work
+(also when no default work can be determined) → 303 to `/einstellungen/werk?sprachfehler=werk#sprache`; the block
+`id="sprache"` then shows „Die Werksprache ließ sich nicht speichern: dieses Werk gibt es nicht; nichts geändert.“,
+and nothing changes. The block `id="sprache"` („Werksprache“) stands on the page „Einstellungen → Werk“ directly before
+„Predigtzeit“.
 
 MCP: no tool sets the language. `list_works` (per work) and `outline` (top level) carry `language` (`docs/MCP.md`).
 
@@ -2943,16 +2946,18 @@ MCP: no tool sets the language. `list_works` (per work) and `outline` (top level
 English are since Round 38: the MCP `instructions`, every tool and parameter description, the answers of stubs and
 every error text that arises only in `src/mcp/**`; for RPC the protocol errors – parse error, invalid request,
 `unknown method …`, the parameter checks of `rpc.rs` (`work: work id (number) expected`, `key: stable key (number)
-expected`, `mode: "auto" or "new" expected`), `Login required.` (-32001 on `/rpc` without a session) and `Only the
+expected`, `mode: "auto" or "new" expected`), `Login required.` (-32002 on `/rpc` without a session) and `Only the
 author may do this: <method>` (role). **Error codes are unchanged.**
 
-German stay until Round 39 all messages that a page, a form or a notice bar shows as well, even when they travel
-through RPC or MCP: the texts of `StoreError` (`Refused`, unknown work, section or revision), the refusals of the
-modules (`REFUSED`, -32000) and their parameter checks outside `rpc.rs`, progress reasons such as `fehlendes
-„Kritisch:“`, the notes `CUT_NOTE` and `TRUNCATED_NOTE` below a post, the note of a cover request created by
-`asset_add`, labels of model calls, and the task texts that Baruch puts around the text of a section when it calls
-a model (`assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`, `threads.rs`; see "Open" below). The
-rest of this document is still German and will be translated in a later round; new sections are written in English.
+**Messages of the user interface stay German until the catalogs of Round 39a, also when they travel through RPC or
+MCP:** every message that a page, a form or a notice bar shows as well – the texts of `StoreError` (`Refused`,
+unknown work, section or revision), the refusals of the modules (`REFUSED`, -32000) and their parameter checks outside
+`rpc.rs`, progress reasons such as `fehlendes „Kritisch:“`, the notes `CUT_NOTE` and `TRUNCATED_NOTE` below a post,
+the note of a cover request created by `asset_add`, and labels of model calls. That is why this document quotes such
+messages in German („…“). Until Round 38 this also held for the task texts that Baruch puts around the text of a
+section when it calls a model (`assist/context.rs`, `solutions.rs`, `variants.rs`, `glossary.rs`, `threads.rs`; see
+"Open" below). Since Round 38c this whole document is English; German stays only as quotation (texts of the user
+interface, messages, commit subjects, model markers) and in code.
 
 ### Prompts and markers
 
@@ -2960,7 +2965,7 @@ The default prompts of the personas (`assist/prompts.rs`) are English since Roun
 stays untouched. Below **every** effective prompt of a model call – default or stored – stands the language rule
 `assist::lang::language_rule(language)`: "Always answer in {German|English} – the language of this work – whatever
 language this prompt or the question uses. Use these markers literally: …" with the markers of the work language.
-The prompt shown for editing (`persona.prompt_get`, Einstellungen → Assistenten) carries no language rule, so that a
+The prompt shown for editing (`persona.prompt_get`, „Einstellungen → Assistenten“) carries no language rule, so that a
 saved prompt does not take the rule of one work into another.
 
 The prompt prescribes the markers of the work language; **every recognition accepts both languages**, whatever the
