@@ -44,10 +44,10 @@ const FILES: [(&str, Part, State); 13] = [
     ("README.md", Part::Whole, State::Translated),
     ("docs/Betrieb.md", Part::Whole, State::Translated),
     // Round 38c, skills_plan.
-    ("SKILLS.md", Part::Whole, State::Pending),
-    ("docs/Plan.md", Part::Whole, State::Pending),
-    ("docs/Verteilung.md", Part::Whole, State::Pending),
-    ("docs/Bedienung.md", Part::Whole, State::Pending),
+    ("SKILLS.md", Part::Whole, State::Translated),
+    ("docs/Plan.md", Part::Whole, State::Translated),
+    ("docs/Verteilung.md", Part::Whole, State::Translated),
+    ("docs/Bedienung.md", Part::Whole, State::Translated),
     // Round 38c, mcp_austausch_wysiwyg.
     ("docs/MCP.md", Part::Whole, State::Pending),
     ("docs/Austauschformat.md", Part::Whole, State::Pending),
@@ -452,6 +452,7 @@ fn the_developer_docs_describe_the_work_language() {
                 "`POST /einstellungen/werk/sprache`",
                 "`ok=sprache#sprache`",
                 "`sprachfehler=1#sprache`",
+                "`sprachfehler=werk#sprache`",
                 "`work.language_set`",
                 "usable without JavaScript",
                 "not in `LEKTOR_ROUTES`",

@@ -815,15 +815,16 @@ fn pages_group_limit_is_documented() {
     );
     let doc = std::fs::read_to_string(root().join("docs/Verteilung.md")).unwrap();
     assert!(
-        !doc.contains("Es laufen nie zwei Auslieferungen zugleich"),
+        !doc.contains("Es laufen nie zwei Auslieferungen zugleich")
+            && !doc.contains("Two deliveries never run at the same time"),
         "Verteilung.md: das alte Versprechen gilt seit der Trennung in zwei Jobs nicht mehr"
     );
     assert!(
-        doc.contains("**`main` erst schieben, wenn der Release-Lauf ganz durch ist**"),
+        doc.contains("**push `main` only when the release run is completely through**"),
         "Verteilung.md: die Regel, die das Überholen und Verdrängen umgeht, steht bei der Auslieferung"
     );
     assert!(
-        doc.contains("verdrängt den wartenden") && doc.contains("**Ungemessen:**"),
+        doc.contains("displaces the waiting one") && doc.contains("**Unmeasured:**"),
         "Verteilung.md: der Grund steht da, ehrlich als Analyse und nicht als Messung"
     );
     for (name, text) in [("release.yml", &release), ("pages.yml", &pages)] {

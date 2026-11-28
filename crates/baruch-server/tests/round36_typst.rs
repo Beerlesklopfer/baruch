@@ -622,11 +622,11 @@ fn pages_are_delivered_again_when_a_release_is_published() {
     assert_eq!(pages.matches("ref: ").count(), 1, "pages.yml: nur der eine Checkout im bauenden Job trägt ref");
     let doc = repo_file("docs/Verteilung.md");
     for wanted in [
-        "### Auslieferung je Commit",
+        "### Delivery per commit",
         "release: types: [published]",
         "gh workflow run pages.yml",
         "RELEASE_DRAFT=false",
-        "Nie ausgeführt geprüft",
+        "Never checked by execution",
     ] {
         assert!(
             doc.contains(wanted),
@@ -638,7 +638,7 @@ fn pages_are_delivered_again_when_a_release_is_published() {
 #[test]
 fn the_docs_describe_the_typst_command_line() {
     let doc = repo_file("docs/Verteilung.md");
-    let at = doc.find("\n## Typst-Kommandozeile\n").expect("Verteilung.md: Abschnitt „Typst-Kommandozeile“");
+    let at = doc.find("\n## Typst command line\n").expect("Verteilung.md: Abschnitt „Typst command line“");
     let section = &doc[at..at + doc[at + 1..].find("\n## ").expect("Folgeabschnitt") + 1];
     for wanted in [
         "baruch-typst",
@@ -646,16 +646,16 @@ fn the_docs_describe_the_typst_command_line() {
         "`--root ORDNER`",
         "`--font-path ORDNER`",
         "TYPST_FONT_PATHS",
-        "überschreibt",
+        "overwrites",
         "`watch`",
         "@preview",
         "Exit 2",
         "/usr/bin/baruch-typst",
         "baruch-typst.cmd",
         "Contents/MacOS/baruch-typst",
-        "nie eine Datei namens `typst`",
+        "never a file named `typst`",
     ] {
-        assert!(section.contains(wanted), "Verteilung.md, „Typst-Kommandozeile“: {wanted} fehlt");
+        assert!(section.contains(wanted), "Verteilung.md, „Typst command line“: {wanted} fehlt");
     }
     assert!(
         !doc.contains("scripts/ci-tool.sh typst")
