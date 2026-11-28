@@ -261,7 +261,7 @@ baut `baruch_wysiwyg::serialize(original, edits)` den Text aus Anweisungen:
   den Leerzeilen des alten Blocks dahinter. Eine bearbeitete Überschrift behält Marke und Kommentar der
   ursprünglichen Zeile (wie `baruch_typst::heading_line`; die Marke nur, wenn die neue keine trägt).
 - `{"replaces": null, "block": {…}}`: neuer Block, gefolgt von einer Leerzeile.
-- `{"replaces": i, "body": [Anweisungen]}`: Änderung nur im Rumpf der Szene oder des Arbeitsauftrags `i`, mit denselben
+- `{"replaces": i, "body": [instructions]}`: Änderung nur im Rumpf der Szene oder des Arbeitsauftrags `i`, mit denselben
   Regeln für die Blöcke des Rumpfs (Indizes innerhalb des Rumpfs). Rahmen (`#szene(…)[`, `]`), Argumente und Leerraum
   bleiben wörtlich; neu erzeugte Blöcke erhalten den Einzug des Rumpfs. Der Einzug der ersten Zeile des
   Rumpfs gehört zum ersten Block und wandert mit ihm, wenn davor etwas eingefügt oder umgeordnet wird (sonst
