@@ -99,11 +99,12 @@ How it works:
 1. Choose **Baruch ▾ → New work / Import…**. On the workspace a window opens above the text, otherwise (and
    without JavaScript) a page of its own.
 2. Under **Create a new work** enter title, subtitle and author.
-3. Choose the **Kind**: Book or Sermon. In addition the framework, audience and Bible translation.
+3. Choose the **Kind**: Book or Sermon. In addition the framework, audience and Bible translation. The **Work
+   language** (German or English) is preselected with the current interface language; it decides the titles of the
+   first chapter or the sermon parts and the words that appear in the book.
 4. Create. The new work opens.
 
-A book begins with one chapter (its title is created in German in this version: `Erstes Kapitel`, "first
-chapter") and a plain template that numbers chapters in the form "1.1". Whoever already has a text imports it instead: [Importing existing texts](/en/hilfe/einlesen/).
+A book begins with one chapter (`First chapter` in an English work, `Erstes Kapitel` in a German one) and a plain template that numbers chapters in the form "1.1". Whoever already has a text imports it instead: [Importing existing texts](/en/hilfe/einlesen/).
 
 **Titles are unique.** Upper and lower case and spaces do not count ("The Book" is the same as "the  book"). If
 the title is already taken when creating, importing or renaming, Baruch reports "There already is a work …" and

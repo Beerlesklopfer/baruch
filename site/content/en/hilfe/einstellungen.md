@@ -90,7 +90,7 @@ Every work has a **work language**: German or English. You choose it in the bloc
 with "Save". The assistants answer in this language – even when the question or an own prompt is written in
 another language –, and they write their markers in it ("Kritisch:" or "Critical:", "Vorschlag:" or
 "Suggestion:"). The language of the interface does not change through this, and Baruch changes nothing in the
-text of the work. A new work is German; in the [exchange](/en/hilfe/austausch-sicherung/#einlesen) the work
+text of the work. A new work has the work language chosen when it was created (preselected: the interface language); in the [exchange](/en/hilfe/austausch-sicherung/#einlesen) the work
 language travels with the work. Only the human can change it, no assistant.
 
 The page also shows the **identifier of the work** – a fixed mark that cannot be changed, by which another Baruch

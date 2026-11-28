@@ -91,7 +91,7 @@ Jedes Werk hat eine **Werksprache**: Deutsch oder Englisch. Im Block „Werkspra
 bestätigt mit „Speichern“. In dieser Sprache antworten die Assistenten – auch dann, wenn die Frage oder ein
 eigener Prompt in einer anderen Sprache geschrieben ist –, und in ihr schreiben sie ihre Marken („Kritisch:“
 bzw. „Critical:“, „Vorschlag:“ bzw. „Suggestion:“). Die Sprache der Oberfläche ändert sich dadurch nicht, und
-am Text des Werks ändert Baruch nichts. Ein neues Werk ist deutsch; beim
+am Text des Werks ändert Baruch nichts. Ein neues Werk hat die Werksprache, die beim Anlegen gewählt wurde (Standard: die Oberflächensprache); beim
 [Austausch](/hilfe/austausch-sicherung/#einlesen) reist die Werksprache mit dem Werk. Umstellen kann sie nur
 der Mensch, kein Assistent.
 

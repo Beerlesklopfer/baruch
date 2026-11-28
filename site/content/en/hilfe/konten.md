@@ -40,7 +40,7 @@ sign-in" under **Settings → Accounts**. Take the warning there seriously; what
 
 {{< hilfebild name="konten-mein-konto" alt="The page My account: name, role, origin of the own posts, the shared works and the form for changing the password." titel="My account shows the role and the shared works – and changes the password." >}}
 
-**Baruch ▾** shows "Signed in: Name (Author)" or "(Lektor)", below it **My account** (name, role, shared works,
+**Baruch ▾** shows "Signed in: Name (Author)" or "(Lector)", below it **My account** (name, role, shared works,
 change password) and **Sign out**. A new password signs out all other devices of this account.
 
 ## Adding lectors and sharing works {#lektoren}

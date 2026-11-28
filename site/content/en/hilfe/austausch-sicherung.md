@@ -9,7 +9,7 @@ And who can access my Baruch?
 
 ## Writing out a work {#ausgeben}
 
-{{< hilfebild name="austausch-ausgeben" alt="The page Exchange: output of the sample work: an explanation of what is in the file, the scope in numbers – outline items, revisions, posts, ideas, pictures –, the name of this instance and two buttons for downloading." titel="The exchange file contains the whole work with all revisions." >}}
+{{< hilfebild name="austausch-ausgeben" alt="The page Exchange: Write out of the sample work: an explanation of what is in the file, the scope in numbers – outline items, revisions, posts, ideas, pictures –, the name of this instance and two buttons for downloading." titel="The exchange file contains the whole work with all revisions." >}}
 
 The **exchange file** carries a whole work from one Baruch to another – unlike the Typst export with **all**
 revisions, posts, ideas and pictures.
@@ -36,7 +36,7 @@ baruch-server export mein-buch --baruch mein-buch.baruch
 
 ## Reading in and merging a work {#einlesen}
 
-{{< hilfebild name="austausch-einlesen" alt="The page Exchange: read in: file choice for an exchange file, a field for an own title for a new work and the button Show preview." titel="Step 1: choose the exchange file." >}}
+{{< hilfebild name="austausch-einlesen" alt="The page Exchange: Read in: file choice for an exchange file, a field for an own title for a new work and the button Show preview." titel="Step 1: choose the exchange file." >}}
 
 How it works:
 

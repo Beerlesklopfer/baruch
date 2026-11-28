@@ -150,8 +150,8 @@ A book quickly collects dozens of revisions per section. Older ones can be **hid
 - The counter then shows, for example, "2/3 (+ 24 hidden)"; ‹ › skips the hidden ones. A click on "(+ 24 hidden)"
   shows all again, "Hide 24 older ▾" hides them again.
 - **Show all again** in the panel "Revisions" removes the mark of the section.
-- **For the whole work:** **Settings → Work → Revisions → Hide older versions up to** (date) hides everything
-  before this day in every section; **Remove all marks (show all versions again)** shows everything again.
+- **For the whole work:** **Settings → Work → Revisions → Hide older revisions up to** (date) hides everything
+  before this day in every section; **Remove all marks (show all revisions again)** shows everything again.
 
 Only the human can hide.
 

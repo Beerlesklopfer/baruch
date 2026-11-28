@@ -102,10 +102,12 @@ So geht es:
 1. **Baruch ▾ → Neues Werk / Importieren…** wählen. Auf der Arbeitsseite öffnet sich ein Fenster über dem Text,
    sonst (und ohne JavaScript) eine eigene Seite.
 2. Unter **Neues Werk anlegen** Titel, Untertitel und Autor eintragen.
-3. **Art** wählen: Buch oder Predigt. Dazu Grundgerüst, Zielgruppe und Bibelübersetzung.
+3. **Art** wählen: Buch oder Predigt. Dazu Grundgerüst, Zielgruppe und Bibelübersetzung. Die **Werksprache**
+   (Deutsch oder Englisch) ist mit der aktuellen Sprache der Oberfläche vorbelegt; sie bestimmt die Titel des ersten
+   Kapitels bzw. der Predigtteile und die Wörter, die im Buch erscheinen.
 4. Anlegen. Das neue Werk öffnet sich.
 
-Ein Buch beginnt mit dem Kapitel „Erstes Kapitel“ und einer schlichten Vorlage, die Kapitel in der Form „1.1“
+Ein deutsches Buch beginnt mit dem Kapitel „Erstes Kapitel“ und einer schlichten Vorlage, die Kapitel in der Form „1.1“
 zählt. Wer schon einen Text hat, liest ihn stattdessen ein: [Vorhandene Texte einlesen](/hilfe/einlesen/).
 
 **Titel sind eindeutig.** Groß- und Kleinschreibung und Leerzeichen zählen dabei nicht („Das Buch“ ist dasselbe
