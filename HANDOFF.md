@@ -5,6 +5,12 @@
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
+- **Round 39d "German developer docs" integrated** (2026-11-28, integrator, on `development`; S1 `c2fb812`; branches
+  `team/r39d-docs_de_1` `c5ae77f`, `-docs_de_2` `d798feb`, `-docs_de_3` `745404b`, `-architektur_de_1` `a230b27`,
+  `-architektur_de_2` `19d2526`, `-site_de` `c253af6`, merged with `--no-ff`, no conflicts). Delivered: `docs/de/` with
+  nine documents (Architektur as four parts), `/docs/` on the German site, `scripts/check-doc-lag.py`,
+  `scripts/docs-anchors.py`; `scripts/ci-site.sh` green (both languages), lag check `ok`. Open points in Backlog
+  "Round 39d – integrated". Worktrees and branches stay. Version unchanged.
 - **Round 39c PM close (2026-11-28):** review finding (doubled English wording-search note) fixed in `d9e0821`; two
   low findings open (English "ways"/"paths" wording, picture `start-neues-werk`). Full run after `cargo clean -p`:
   exit 0, 3800 passed, 0 failed, 2 ignored. Worktrees of the round removed, branches `team/r39c-*` kept. Nothing pushed.

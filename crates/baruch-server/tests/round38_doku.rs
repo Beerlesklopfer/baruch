@@ -209,8 +209,12 @@ fn the_history_files_announce_english_and_stay_german_below() {
         .expect("CHANGELOG.md keeps the heading „Unveröffentlicht“ (other tests look for it)");
     let first = unreleased.lines().find(|l| l.starts_with("### ")).expect("a section below „Unveröffentlicht“");
     assert_eq!(
-        first, "### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)",
+        first, "### German developer documentation (Round 39d)",
         "the newest round is the first section below „Unveröffentlicht“"
+    );
+    assert!(
+        unreleased.contains("\n### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)\n"),
+        "the section of Round 39c stays below „Unveröffentlicht“, after the newer round"
     );
     assert!(
         unreleased.contains("\n### User interface in English and German (Round 39a)\n"),

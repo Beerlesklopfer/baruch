@@ -1890,6 +1890,20 @@ The review after the integration reported five findings. Follow-up `6880d80` and
 - **Worktrees** `.claude/worktrees/wf_b51eb61c-fd2-{40..44}` were removed with their `target/` (all five branches
   merged, no open changes); the branches `team/r39b-*` stay.
 
+## Round 39d – integrated (2026-11-28)
+
+German translation of the nine developer documents under `docs/de/`, German section `/docs/` on the website, lag
+check and checks for both languages (see CHANGELOG "Unveröffentlicht").
+
+- **Open:** the translators kept the English heading names inside quoted cross references (RPC.md) or guessed the
+  German names of headings in other parts (Architektur parts 1 to 4); a consistency pass over quoted heading names is
+  still to do. Anchors are not affected.
+- **Open:** the German UI terms in Bedienung.md and MCP.md were not all looked up in `crates/baruch-server/locales/de/*.ftl`;
+  a review against the catalogs is to do.
+- **Open:** three table oddities of the English `docs/RPC.md` (blank line in the Images table before `asset.search`,
+  one in the `revision.propose` table, one table header split across two lines) belong in the English source.
+- **Open:** Architektur part headers carry `source-commit: 4d3148c`; refresh with the next change of the English file.
+
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
 Vor dem erneuten Tag v0.9.0 meldete `cargo deny check advisories` in der CI elf Einträge. Gehoben: quick-xml 0.38 →
