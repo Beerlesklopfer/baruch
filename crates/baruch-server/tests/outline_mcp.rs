@@ -169,7 +169,7 @@ async fn a_whole_outline_in_one_call_is_one_transaction_and_one_commit() {
     let commits = log(&server, &slug);
     let bad = json!([{ "title": "Eins" }, { "title": "Zwei" }, { "title": "   " }]);
     let text = refused(&server, &s, "outline_add", json!({ "work": work, "key": summer, "items": bad })).await;
-    assert_eq!(text, "Punkt 3: Ein Gliederungspunkt braucht einen Titel.", "Meldung nennt den Punkt");
+    assert_eq!(text, "Item 3: An outline item needs a title.", "Meldung nennt den Punkt (MCP englisch)");
     let jump = json!([{ "title": "Eins" }, { "title": "Drei", "level": 3 }]);
     let text = refused(&server, &s, "outline_add", json!({ "work": work, "key": summer, "items": jump })).await;
     assert!(text.contains("höchstens eine Ebene tiefer"), "Ebenensprung abgelehnt: {text}");
@@ -179,7 +179,7 @@ async fn a_whole_outline_in_one_call_is_one_transaction_and_one_commit() {
     let part = json!([{ "title": "Erster Teil", "level": 0 }]);
     let args = json!({ "work": work, "key": summer, "place": "into", "items": part });
     let text = refused(&server, &s, "outline_add", args).await;
-    assert!(text.contains("oberster Ebene"), "kein Teil unter einem Kapitel: {text}");
+    assert!(text.contains("top level"), "kein Teil unter einem Kapitel (MCP englisch): {text}");
     assert_eq!(titles(&server, work).await, shown, "bei einem Fehler nichts angelegt");
     assert_eq!(log(&server, &slug), commits, "und kein Commit");
 }
@@ -190,10 +190,10 @@ async fn outline_add_keeps_the_title_rules_and_refuses_node() {
     let summer = key_of(&server, work, "Sommer").await;
     let long = "W".repeat(201);
     let text = refused(&server, &s, "outline_add", json!({ "work": work, "key": summer, "title": long })).await;
-    assert_eq!(text, "Der Titel ist zu lang (höchstens 200 Zeichen, hier 201).", "Titelregel wie überall");
+    assert_eq!(text, "The title is too long (at most 200 characters, here 201).", "Titelregel wie überall (englisch)");
     let text =
         refused(&server, &s, "outline_add", json!({ "work": work, "key": summer, "title": "Zwei\nZeilen" })).await;
-    assert_eq!(text, "Der Titel darf keinen Zeilenumbruch enthalten.", "einzeilig");
+    assert_eq!(text, "The title must not contain a line break.", "einzeilig (MCP englisch)");
     let answer = call(&server, &s, "outline_add", json!({ "work": work, "node": 3, "title": "Herbst" })).await;
     assert_eq!(answer["error"]["code"], -32602, "node (Stelle) wird abgelehnt: {answer}");
     let answer = call(&server, &s, "outline_add", json!({ "work": work, "title": "Herbst" })).await;
@@ -324,18 +324,18 @@ async fn requests_that_could_not_run_now_are_refused_at_once_and_not_stored() {
     let (server, work, _, s) = garden().await;
     let spring = key_of(&server, work, "Frühling").await;
     let text = refused(&server, &s, "outline_delete", json!({ "work": work, "key": spring })).await;
-    assert!(text.contains("Unterpunkte"), "Löschen nur ohne Unterpunkte wie im Store: {text}");
+    assert!(text.contains("sub-items"), "Löschen nur ohne Unterpunkte wie im Store (MCP englisch): {text}");
     let text = refused(&server, &s, "outline_rename", json!({ "work": work, "key": spring, "title": "" })).await;
-    assert_eq!(text, "Ein Gliederungspunkt braucht einen Titel.", "Titelregeln schon beim Antrag");
+    assert_eq!(text, "An outline item needs a title.", "Titelregeln schon beim Antrag (MCP englisch)");
     let text = refused(&server, &s, "outline_set_level", json!({ "work": work, "key": spring, "level": 1 })).await;
-    assert!(text.contains("schon diese Ebene"), "ohne Wirkung kein Antrag: {text}");
+    assert!(text.contains("already has this level"), "ohne Wirkung kein Antrag (MCP englisch): {text}");
     let arguments = json!({ "work": work, "key": spring, "target": 3, "place": "after" });
     let answer = call(&server, &s, "outline_move", arguments).await;
     assert_eq!(answer["error"]["code"], -32602, "target (Stelle) wird abgelehnt: {answer}");
     let summer = key_of(&server, work, "Sommer").await;
     ok(&server, &s, "outline_set_level", json!({ "work": work, "key": summer, "level": 2 })).await;
     let text = refused(&server, &s, "outline_set_level", json!({ "work": work, "key": summer, "level": 2 })).await;
-    assert!(text.contains("gibt es schon"), "kein doppelter offener Antrag: {text}");
+    assert!(text.contains("already exists"), "kein doppelter offener Antrag (MCP englisch): {text}");
     let all = server.rpc("outline.requests", json!({ "work": work, "open": false })).await;
     assert_eq!(result(&all)["requests"].as_array().unwrap().len(), 1, "nur der eine gültige Antrag: {all}");
 }

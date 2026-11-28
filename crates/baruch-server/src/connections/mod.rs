@@ -18,7 +18,7 @@
 //! „Kurztest“ = `model.probe`). Since Round 12 the semantic search (RAG) uses pgvector directly
 //! ([`pgvector`]), MultiGPT and LanceDB; per work the human chooses the collections of pgvector and
 //! MultiGPT for it (`connection.collections_*`, [`collections`]). The web search of `@belege` queries the sources
-//! first (Round 13, [`crate::websearch`], usage text `sources::USAGE`).
+//! first (Round 13, [`crate::websearch`], usage text `connections_msg.sources.usage`).
 
 pub mod check;
 mod collections;
@@ -90,7 +90,9 @@ impl From<Fault> for RpcError {
     fn from(fault: Fault) -> Self {
         match fault {
             Fault::Invalid(_, message) => RpcError::new(INVALID_PARAMS, message),
-            Fault::Keyring(message) => RpcError::new(INTERNAL, format!("Schlüsselbund: {message}")),
+            Fault::Keyring(message) => {
+                RpcError::new(INTERNAL, crate::i18n::tc("connections_msg.rpc.keyring", &[("detail", message.into())]))
+            }
             Fault::Internal(message) => RpcError::new(INTERNAL, message),
         }
     }
@@ -99,8 +101,12 @@ impl From<Fault> for RpcError {
 impl From<StoreError> for Fault {
     fn from(e: StoreError) -> Self {
         match e {
-            StoreError::UnknownWork(_) => Fault::Invalid("werk", e.to_string()),
-            StoreError::Refused(message) => Fault::Invalid("feld", message.to_owned()),
+            StoreError::UnknownWork(_) => {
+                Fault::Invalid("werk", crate::store_text::store_error_text(crate::i18n::current(), &e))
+            }
+            StoreError::Refused(message) => {
+                Fault::Invalid("feld", crate::store_text::translate(crate::i18n::current(), message))
+            }
             other => {
                 let rpc = RpcError::from(other);
                 if rpc.code == INTERNAL { Fault::Internal(rpc.message) } else { Fault::Invalid("feld", rpc.message) }
@@ -114,7 +120,7 @@ pub fn parse_kind(kind: &str) -> Result<ConnectionKind, Fault> {
     ConnectionKind::ALL
         .into_iter()
         .find(|k| k.as_str() == kind.trim())
-        .ok_or_else(|| Fault::Invalid("kind", "kind: eliezer, multigpt, pgvector oder lancedb.".into()))
+        .ok_or_else(|| Fault::Invalid("kind", crate::i18n::tc("connections_msg.rpc.kind", &[])))
 }
 
 /// Display name.
@@ -175,7 +181,9 @@ async fn secret_state(state: &AppState, kind: ConnectionKind) -> (Value, Option<
     match secrets::get(&state.secrets, account).await {
         Ok(Some(_)) => (json!("hinterlegt"), None),
         Ok(None) => (json!("fehlt"), None),
-        Err(e) => (Value::Null, Some(format!("Schlüsselbund: {e}"))),
+        Err(e) => {
+            (Value::Null, Some(crate::i18n::tc("connections_msg.rpc.keyring", &[("detail", e.to_string().into())])))
+        }
     }
 }
 
@@ -234,14 +242,14 @@ pub(crate) async fn set_config(state: &AppState, kind: ConnectionKind, given: &V
 /// show up only after the settings are stored.
 pub(crate) fn valid_secret(kind: ConnectionKind, secret: &str) -> Result<&str, Fault> {
     if account(kind).is_none() {
-        return Err(Fault::Invalid("kein_geheimnis", "LanceDB braucht kein Geheimnis.".into()));
+        return Err(Fault::Invalid("kein_geheimnis", crate::i18n::tc("connections_msg.rpc.no_secret", &[])));
     }
     let secret = secret.trim();
     if secret.is_empty() {
-        return Err(Fault::Invalid("geheimnis_leer", "secret: leer; nichts geändert.".into()));
+        return Err(Fault::Invalid("geheimnis_leer", crate::i18n::tc("connections_msg.rpc.secret_empty", &[])));
     }
     if secret.chars().count() > 4096 || secret.chars().any(char::is_control) {
-        return Err(Fault::Invalid("geheimnis_ungueltig", "secret: höchstens 4096 Zeichen in einer Zeile.".into()));
+        return Err(Fault::Invalid("geheimnis_ungueltig", crate::i18n::tc("connections_msg.rpc.secret_long", &[])));
     }
     Ok(secret)
 }
@@ -260,7 +268,7 @@ pub(crate) async fn set_secret(state: &AppState, kind: ConnectionKind, secret: &
 /// Remove a secret (the caller checks the confirmation); the binding goes with it.
 pub(crate) async fn delete_secret(state: &AppState, kind: ConnectionKind) -> Result<(), Fault> {
     let Some(account) = account(kind) else {
-        return Err(Fault::Invalid("kein_geheimnis", "LanceDB braucht kein Geheimnis.".into()));
+        return Err(Fault::Invalid("kein_geheimnis", crate::i18n::tc("connections_msg.rpc.no_secret", &[])));
     };
     let _held = state.write_lock.lock().await;
     secrets::delete(&state.secrets, account).await.map_err(Fault::Keyring)?;
@@ -291,11 +299,7 @@ pub(crate) async fn run_check(state: &AppState, kind: ConnectionKind) -> Result<
     if secret.is_some() && !secret_bound(&row) {
         // The secret belongs to another target: do not send, do not connect, report honestly.
         let bound = row.secret_target.clone().unwrap_or_default();
-        let message = format!(
-            "Nicht geprüft: Das Geheimnis ist für {bound} hinterlegt, die Adresse zeigt jetzt anderswohin. \
-             Baruch schickt es nicht an ein anderes Ziel. Für die neue Adresse das Geheimnis neu eintragen \
-             (oder die alte Adresse wieder einstellen)."
-        );
+        let message = crate::i18n::tc("connections_msg.check.withheld", &[("bound", (&bound).into())]);
         let details = json!({ "secret_withheld": true, "secret_target": bound });
         let saved = state.store.connection_record_check(kind, false, &message, &details).await?;
         let at = saved.check.map(|c| c.at);
@@ -315,10 +319,7 @@ pub(crate) async fn run_check(state: &AppState, kind: ConnectionKind) -> Result<
     };
     let mut outcome = tokio::time::timeout(check::TIMEOUT, attempt).await.unwrap_or_else(|_| check::Outcome {
         ok: false,
-        message: format!(
-            "Keine vollständige Antwort innerhalb von {} s; Prüfung abgebrochen.",
-            check::TIMEOUT.as_secs()
-        ),
+        message: crate::i18n::tc("connections_msg.check.incomplete", &[("seconds", check::TIMEOUT.as_secs().into())]),
         details: json!({}),
     });
     if kind == ConnectionKind::Eliezer && outcome.ok {
@@ -362,7 +363,9 @@ async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, Fault> {
     match params.get("work") {
         None | Some(Value::Null) => Ok(state.default_work().await?),
         Some(work) => {
-            let work = work.as_i64().ok_or_else(|| Fault::Invalid("werk", "work: Werk-id (Zahl) erwartet.".into()))?;
+            let work = work
+                .as_i64()
+                .ok_or_else(|| Fault::Invalid("werk", crate::i18n::tc("connections_msg.rpc.work_id", &[])))?;
             state.store.work_slug(work).await?;
             Ok(work)
         }
@@ -372,7 +375,7 @@ async fn work_param(state: &AppState, params: &Value) -> Result<WorkId, Fault> {
 fn kind_param(params: &Value) -> Result<ConnectionKind, Fault> {
     match params.get("kind").and_then(Value::as_str) {
         Some(kind) => parse_kind(kind),
-        None => Err(Fault::Invalid("kind", "kind fehlt (eliezer, multigpt, pgvector oder lancedb).".into())),
+        None => Err(Fault::Invalid("kind", crate::i18n::tc("connections_msg.rpc.kind_missing", &[]))),
     }
 }
 
@@ -380,13 +383,13 @@ fn confirmed(params: &Value) -> Result<(), Fault> {
     if params.get("confirm") == Some(&Value::Bool(true)) {
         Ok(())
     } else {
-        Err(Fault::Invalid("bestaetigen", "confirm: true fehlt; nichts geändert.".into()))
+        Err(Fault::Invalid("bestaetigen", crate::i18n::tc("connections_msg.rpc.confirm", &[])))
     }
 }
 
 /// Ways from a list of texts; unknown → `Invalid("weg")`.
 fn ways_param(params: &Value) -> Result<Vec<RagWay>, Fault> {
-    let invalid = || Fault::Invalid("weg", "ways: Liste aus lancedb, pgvector, multigpt.".into());
+    let invalid = || Fault::Invalid("weg", crate::i18n::tc("connections_msg.rpc.ways", &[]));
     let list = params.get("ways").and_then(Value::as_array).ok_or_else(invalid)?;
     list.iter()
         .map(|w| w.as_str().and_then(|w| RagWay::ALL.into_iter().find(|r| r.as_str() == w)).ok_or_else(invalid))
@@ -397,7 +400,7 @@ fn ways_param(params: &Value) -> Result<Vec<RagWay>, Fault> {
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(RpcError::new(INVALID_PARAMS, "Parameter als Objekt erwartet"));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("connections_msg.rpc.params_object", &[])));
     }
     if let Some(answer) = sources::call(state, method, &params).await {
         return answer.map_err(RpcError::from);

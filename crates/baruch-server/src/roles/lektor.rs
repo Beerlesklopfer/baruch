@@ -47,23 +47,19 @@ struct ProposeParams {
 /// `refs/revisions/<key>/<n>` (origin: the handle). Empty text, text equal to the current revision and too large
 /// inputs are rejected without writing anything.
 pub async fn propose(state: &AppState, who: &Who, work: WorkId, params: Value) -> Result<Value, RpcError> {
-    let identity = lektor(
-        who,
-        "revision.propose ist der Weg der Lektoren: Der Autor speichert seine Fassung mit revision.save bzw. \
-         outline.save.",
-    )?;
+    let identity = lektor(who, &crate::i18n::tc("accounts_msg.lektor.propose_way", &[]))?;
     let held = state.write_lock.lock().await;
     let p: ProposeParams = serde_json::from_value(resolve_keys(state, work, params).await?)
         .map_err(|e| invalid(format!("revision.propose: {e}")))?;
     if p.body.trim().is_empty() {
-        return Err(invalid("Leerer Text: ein Vorschlag braucht den vollständigen Text des Abschnitts."));
+        return Err(invalid(crate::i18n::tc("accounts_msg.lektor.empty", &[])));
     }
     if p.body.len() > MAX_PROPOSAL_BYTES {
-        return Err(invalid(format!("Der Vorschlag darf höchstens {MAX_PROPOSAL_BYTES} Bytes haben.")));
+        return Err(invalid(crate::i18n::tc("accounts_msg.lektor.too_big", &[("max", MAX_PROPOSAL_BYTES.into())])));
     }
     let note = p.note.unwrap_or_default();
     if note.chars().count() > MAX_NOTE_CHARS {
-        return Err(invalid(format!("note darf höchstens {MAX_NOTE_CHARS} Zeichen haben.")));
+        return Err(invalid(crate::i18n::tc("accounts_msg.lektor.note_long", &[("max", MAX_NOTE_CHARS.into())])));
     }
     let body = p.body.replace("\r\n", "\n");
     let body = baruch_typst::markdown_headings(&body).into_owned();
@@ -72,7 +68,7 @@ pub async fn propose(state: &AppState, who: &Who, work: WorkId, params: Value) -
         return Err(StoreError::UnknownNode { work, node: p.node }.into());
     };
     if node.revisions.iter().any(|r| r.status == RevisionStatus::Current && r.body == body) {
-        return Err(RpcError::new(REFUSED, "Der Text gleicht der aktuellen Fassung; kein Vorschlag angelegt."));
+        return Err(RpcError::new(REFUSED, crate::i18n::tc("accounts_msg.lektor.same_text", &[])));
     }
     let rev = state.store.add_proposal(work, p.node, &body, &identity.handle, "", &note).await?;
     mirror::side_refs_after_proposal(state, &held, work).await;
@@ -86,13 +82,13 @@ fn text(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(crate::i18n::tc("accounts_msg.lektor.text_expected", &[("name", name.into())]))),
     }
 }
 
 /// Fixed key from `params.key` (number or digits as text, forms); missing or empty → `None`.
 fn key(params: &Value) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid("key: fester Schlüssel (Zahl) erwartet");
+    let wrong = || invalid(crate::i18n::tc("accounts_msg.lektor.key", &[]));
     match params.get("key") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -109,17 +105,14 @@ fn key(params: &Value) -> Result<Option<i64>, RpcError> {
 /// decides on the status. Under the write lock; exactly one commit in the mirror
 /// ([`mirror::describe_finding_added`]).
 pub async fn add_finding(state: &AppState, who: &Who, work: WorkId, params: Value) -> Result<Value, RpcError> {
-    let identity = lektor(
-        who,
-        "finding.add ist der Weg der Lektoren: Der Autor hält eine Anmerkung als Einfall oder Beitrag fest und \
-         entscheidet über Befunde mit finding.set_status.",
-    )?;
+    let identity = lektor(who, &crate::i18n::tc("accounts_msg.lektor.finding_way", &[]))?;
     let kind = match text(&params, "kind")?.as_deref().map(str::trim) {
-        None | Some("") => return Err(invalid("kind fehlt (hint, critical oder praise)")),
+        None | Some("") => return Err(invalid(crate::i18n::tc("accounts_msg.lektor.kind_missing", &[]))),
         Some(kind) => FindingKind::from_db(kind)
-            .ok_or_else(|| invalid(format!("kind: hint, critical oder praise erwartet, nicht „{kind}“")))?,
+            .ok_or_else(|| invalid(crate::i18n::tc("accounts_msg.lektor.kind_wrong", &[("kind", kind.into())])))?,
     };
-    let body = text(&params, "body")?.ok_or_else(|| invalid("body fehlt (Text des Befunds)"))?;
+    let body =
+        text(&params, "body")?.ok_or_else(|| invalid(crate::i18n::tc("accounts_msg.lektor.body_missing", &[])))?;
     let quote = text(&params, "quote")?.unwrap_or_default();
     let key = key(&params)?;
     let held = state.write_lock.lock().await;

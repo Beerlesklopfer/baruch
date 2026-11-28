@@ -64,44 +64,42 @@ pub const KONTEN_OPEN: &str = "<!--NUR-KONTEN-->";
 /// End of a piece only with accounts, see [`KONTEN_OPEN`].
 pub const KONTEN_CLOSE: &str = "<!--/NUR-KONTEN-->";
 
-/// Message codes of the addresses `?ok=<code>` and `?fehler=<code>` with their German sentence (contract §3.4): first
-/// the nine success messages, then the ten errors.
+/// Message codes of the addresses `?ok=<code>` and `?fehler=<code>` with the catalog key of their sentence (contract
+/// R35 §3.4, Round 39a): first the nine success messages, then the ten errors.
 pub const MESSAGES: &[(&str, &str)] = &[
-    ("konto_angelegt", "Das Konto ist angelegt."),
-    ("passwort_geaendert", "Das Passwort ist geändert. Andere Sitzungen dieses Kontos sind abgemeldet."),
-    ("konto_gesperrt", "Das Konto ist gesperrt; seine Sitzungen sind beendet."),
-    ("konto_entsperrt", "Das Konto ist wieder aktiv."),
-    ("lokal_offen", "Am eigenen Rechner gilt jetzt keine Anmeldung mehr (Autorrechte ohne Passwort)."),
-    ("lokal_anmelden", "Auch am eigenen Rechner ist jetzt eine Anmeldung nötig."),
-    ("freigegeben", "Das Werk ist für das Konto freigegeben."),
-    ("entzogen", "Die Freigabe ist entzogen."),
-    ("abgemeldet", "Abgemeldet."),
-    ("passwort_falsch", "Das bisherige Passwort stimmt nicht."),
-    ("passwort_kurz", "Das Passwort ist zu kurz (mindestens 10 Zeichen)."),
-    ("passwort_lang", "Das Passwort ist zu lang (höchstens 200 Zeichen)."),
-    ("passwort_ungleich", "Die beiden Passwörter stimmen nicht überein."),
-    ("name_vergeben", "Diesen Namen gibt es schon (oder einen, der dasselbe Kürzel ergäbe)."),
-    ("name_ungueltig", "Der Name ist ungültig (1 bis 40 Zeichen, nicht „unbekannt“)."),
-    ("letzter_autor", "Das letzte aktive Autor-Konto lässt sich nicht sperren."),
-    ("unbekanntes_konto", "Dieses Konto gibt es nicht."),
-    ("kein_lektor", "Freigeben lässt sich ein Werk nur für ein Lektor-Konto."),
-    (
-        "nicht_eigener_rechner",
-        "Das geht nur am eigenen Rechner (Baruch direkt im Browser dieses Rechners, nicht über einen Proxy).",
-    ),
+    ("konto_angelegt", "accounts_msg.code.konto_angelegt"),
+    ("passwort_geaendert", "accounts_msg.code.passwort_geaendert"),
+    ("konto_gesperrt", "accounts_msg.code.konto_gesperrt"),
+    ("konto_entsperrt", "accounts_msg.code.konto_entsperrt"),
+    ("lokal_offen", "accounts_msg.code.lokal_offen"),
+    ("lokal_anmelden", "accounts_msg.code.lokal_anmelden"),
+    ("freigegeben", "accounts_msg.code.freigegeben"),
+    ("entzogen", "accounts_msg.code.entzogen"),
+    ("abgemeldet", "accounts_msg.code.abgemeldet"),
+    ("passwort_falsch", "accounts_msg.code.passwort_falsch"),
+    ("passwort_kurz", "accounts_msg.code.passwort_kurz"),
+    ("passwort_lang", "accounts_msg.code.passwort_lang"),
+    ("passwort_ungleich", "accounts_msg.code.passwort_ungleich"),
+    ("name_vergeben", "accounts_msg.code.name_vergeben"),
+    ("name_ungueltig", "accounts_msg.code.name_ungueltig"),
+    ("letzter_autor", "accounts_msg.code.letzter_autor"),
+    ("unbekanntes_konto", "accounts_msg.code.unbekanntes_konto"),
+    ("kein_lektor", "accounts_msg.code.kein_lektor"),
+    ("nicht_eigener_rechner", "accounts_msg.code.nicht_eigener_rechner"),
 ];
 
 /// Number of success messages at the beginning of [`MESSAGES`]; the rest are errors.
 const OK_MESSAGES: usize = 9;
 
-/// Sentence for a code from `?ok=`; an unknown code (or an error code) yields nothing.
-pub fn ok_message(code: &str) -> Option<&'static str> {
-    MESSAGES[..OK_MESSAGES].iter().find(|(known, _)| *known == code).map(|(_, text)| *text)
+/// Sentence for a code from `?ok=` in the language of the request; an unknown code (or an error code) yields nothing.
+pub fn ok_message(code: &str) -> Option<String> {
+    MESSAGES[..OK_MESSAGES].iter().find(|(known, _)| *known == code).map(|(_, key)| crate::i18n::tc(key, &[]))
 }
 
-/// Sentence for a code from `?fehler=`; an unknown code (or a success code) yields nothing.
-pub fn error_message(code: &str) -> Option<&'static str> {
-    MESSAGES[OK_MESSAGES..].iter().find(|(known, _)| *known == code).map(|(_, text)| *text)
+/// Sentence for a code from `?fehler=` in the language of the request; an unknown code (or a success code) yields
+/// nothing.
+pub fn error_message(code: &str) -> Option<String> {
+    MESSAGES[OK_MESSAGES..].iter().find(|(known, _)| *known == code).map(|(_, key)| crate::i18n::tc(key, &[]))
 }
 
 fn escape(text: &str) -> String {
@@ -140,7 +138,9 @@ fn templates() -> &'static Environment<'static> {
 }
 
 pub(crate) fn render_template(name: &str, ctx: Value) -> Result<String, String> {
-    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
+    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| {
+        crate::i18n::tc("accounts_msg.page.template", &[("name", name.into()), ("detail", e.to_string().into())])
+    })
 }
 
 /// HTML response of an account page; never in the cache of a browser or proxy (`no-store`).
@@ -150,7 +150,10 @@ pub(crate) fn html_response(status: StatusCode, html: Result<String, String>) ->
             (status, [(header::CONTENT_TYPE, "text/html; charset=utf-8"), (header::CACHE_CONTROL, "no-store")], html)
                 .into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, crate::i18n::tc("accounts_msg.page.error", &[("detail", e.into())]))
+                .into_response()
+        }
     }
 }
 
@@ -210,33 +213,40 @@ pub fn safe_next(next: &str) -> &str {
 fn menu_entry(who: &Who, accounts_exist: bool) -> String {
     const ITEM: &str = "<a class=\"menu-item\" role=\"menuitem\"";
     const NOTE: &str = "<span class=\"menu-konto\" role=\"presentation\">";
+    let text = |key: &str| escape(&crate::i18n::tc(key, &[]));
     if !accounts_exist {
         return format!(
-            "{ITEM} href=\"/einrichten\" title=\"Ein Konto für den Autor anlegen; danach verlangt Baruch eine \
-             Anmeldung, und Lektoren können mitarbeiten\">Konten einrichten…</a>"
+            "{ITEM} href=\"/einrichten\" title=\"{}\">{}</a>",
+            text("accounts_msg.menu.setup_title"),
+            text("accounts_msg.menu.setup")
         );
     }
+    let sign_in = text("accounts_msg.menu.sign_in");
     match who {
         Who::Account(identity) => {
             let shown = if identity.display.trim().is_empty() { &identity.name } else { &identity.display };
             let role = match identity.kind {
-                AccountKind::Author => "Autor",
-                AccountKind::Lektor => "Lektor",
+                AccountKind::Author => crate::i18n::tc("accounts_msg.menu.author", &[]),
+                AccountKind::Lektor => crate::i18n::tc("accounts_msg.menu.lektor", &[]),
             };
+            let signed_in =
+                crate::i18n::tc("accounts_msg.menu.signed_in", &[("name", shown.into()), ("role", role.into())]);
             format!(
-                "{NOTE}Angemeldet: {} ({role})</span>{ITEM} href=\"/konto\" title=\"Name, Rolle, freigegebene Werke, \
-                 Passwort ändern\">Mein Konto</a><form class=\"menu-form\" method=\"post\" \
+                "{NOTE}{}</span>{ITEM} href=\"/konto\" title=\"{}\">{}</a><form class=\"menu-form\" method=\"post\" \
                  action=\"/abmelden\"><button class=\"menu-item\" role=\"menuitem\" \
-                 type=\"submit\">Abmelden</button></form>",
-                escape(shown)
+                 type=\"submit\">{}</button></form>",
+                escape(&signed_in),
+                text("accounts_msg.menu.own_title"),
+                text("accounts_msg.menu.own"),
+                text("accounts_msg.menu.sign_out")
             )
         }
         Who::LocalAuthor => {
-            format!("{NOTE}Autor (eigener Rechner, ohne Anmeldung)</span>{ITEM} href=\"/anmelden\">Anmelden</a>")
+            format!("{NOTE}{}</span>{ITEM} href=\"/anmelden\">{sign_in}</a>", text("accounts_msg.menu.local_author"))
         }
         // Without signing in no page with a menu arrives (auth::gate redirects); to be safe only the way to the
         // sign-in. `Open` with accounts exists only in the request that creates the first account.
-        Who::Anonymous | Who::Open => format!("{ITEM} href=\"/anmelden\">Anmelden</a>"),
+        Who::Anonymous | Who::Open => format!("{ITEM} href=\"/anmelden\">{sign_in}</a>"),
     }
 }
 
@@ -388,7 +398,7 @@ mod tests {
 
     #[test]
     fn without_accounts_only_the_one_menu_entry_is_new() {
-        let out = apply(&sample(), &Who::Open, false);
+        let out = crate::i18n::sync_scope(crate::i18n::Lang::De, || apply(&sample(), &Who::Open, false));
         assert_eq!(
             out,
             "<html><body>\n<nav><a class=\"menu-item\" href=\"/beenden\">Baruch beenden…</a>\n<a class=\"menu-item\" \
@@ -404,7 +414,9 @@ mod tests {
 
     #[test]
     fn an_author_account_sees_name_role_account_link_and_the_logout_form() {
-        let out = apply(&sample(), &account(AccountKind::Author, "joerg", "Jörg <B> & Co"), true);
+        let out = crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            apply(&sample(), &account(AccountKind::Author, "joerg", "Jörg <B> & Co"), true)
+        });
         assert!(!out.contains(KONTO_MARK), "die Marke steht nie in der ausgelieferten Seite");
         assert!(
             out.contains("Angemeldet: Jörg &lt;B&gt; &amp; Co (Autor)"),
@@ -433,7 +445,9 @@ mod tests {
 
     #[test]
     fn a_lektor_gets_the_role_lektor_and_keeps_the_lektor_pieces() {
-        let out = apply(&sample(), &account(AccountKind::Lektor, "Erika", ""), true);
+        let out = crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            apply(&sample(), &account(AccountKind::Lektor, "Erika", ""), true)
+        });
         assert!(out.contains("Angemeldet: Erika (Lektor)"), "ohne Anzeigenamen steht der Kontoname: {out}");
         assert!(out.contains("<body data-rolle=\"lektor\">"), "Rolle lektor am body");
         assert!(
@@ -447,12 +461,12 @@ mod tests {
 
     #[test]
     fn the_local_author_sees_the_hint_and_a_link_to_sign_in() {
-        let out = apply(&sample(), &Who::LocalAuthor, true);
+        let out = crate::i18n::sync_scope(crate::i18n::Lang::De, || apply(&sample(), &Who::LocalAuthor, true));
         assert!(out.contains("Autor (eigener Rechner, ohne Anmeldung)"), "Hinweis auf die Ausnahme: {out}");
         assert!(out.contains("href=\"/anmelden\">Anmelden</a>"), "Link zur Anmeldung");
         assert!(out.contains("<body data-rolle=\"autor\">"), "die Ausnahme gibt Autorrechte");
         assert!(!out.contains("/abmelden"), "ohne Sitzung gibt es nichts abzumelden");
-        let anonymous = apply(&sample(), &Who::Anonymous, true);
+        let anonymous = crate::i18n::sync_scope(crate::i18n::Lang::De, || apply(&sample(), &Who::Anonymous, true));
         assert!(
             !anonymous.contains("data-rolle") && anonymous.contains("href=\"/anmelden\">Anmelden</a>"),
             "ohne Anmeldung keine Rolle, nur der Weg zur Anmeldung"
@@ -489,7 +503,8 @@ mod tests {
         assert_eq!(codes.len(), 19, "neun ok-Codes und zehn Fehlercodes (Vertrag §3.4)");
         let unique: std::collections::BTreeSet<&str> = codes.iter().copied().collect();
         assert_eq!(unique.len(), codes.len(), "kein Code doppelt – sonst wäre die Meldung mehrdeutig");
-        for (code, text) in MESSAGES {
+        for (code, key) in MESSAGES {
+            let text = crate::i18n::t(crate::i18n::Lang::De, key, &[]);
             assert!(
                 text.ends_with('.') && text.starts_with(char::is_uppercase) && !text.contains('_'),
                 "{code}: ein deutscher Satz (groß begonnen, mit Punkt), nicht der Code: {text}"

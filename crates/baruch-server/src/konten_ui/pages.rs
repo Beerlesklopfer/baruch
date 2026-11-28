@@ -62,7 +62,7 @@ fn shown_name(identity: &Identity) -> &str {
 }
 
 /// Messages from the address: only the sentence from the table, never the text of the address.
-fn notices<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> (Option<&'static str>, Option<&'static str>) {
+fn notices<'a>(mut get: impl FnMut(&str) -> Option<&'a str>) -> (Option<String>, Option<String>) {
     (get("ok").and_then(ok_message), get("fehler").and_then(error_message))
 }
 
@@ -90,7 +90,7 @@ async fn login(State(state): State<Arc<AppState>>, Query(query): Query<HashMap<S
         retry_after: None,
     };
     let (notice, _) = notices(|key| query.get(key).map(String::as_str));
-    html_response(StatusCode::OK, login_html(&view, notice, who.identity().map(shown_name)))
+    html_response(StatusCode::OK, login_html(&view, notice.as_deref(), who.identity().map(shown_name)))
 }
 
 // ---- /einrichten ----------------------------------------------------------------------------------------------
@@ -178,7 +178,12 @@ async fn account(
                     Ok(works) => {
                         view.works = works.into_iter().map(|w| AccountWork { id: w.id, title: w.title }).collect();
                     }
-                    Err(e) => view.error = Some(format!("Die Werke lassen sich nicht lesen: {e}")),
+                    Err(e) => {
+                        view.error = Some(crate::i18n::tc(
+                            "accounts_msg.page.works_unreadable",
+                            &[("detail", e.to_string().into())],
+                        ));
+                    }
                 }
                 view
             }
@@ -188,9 +193,9 @@ async fn account(
         }
     };
     let (notice, error) = notices(|key| query.get(key).map(String::as_str));
-    view.notice = notice.map(str::to_owned);
+    view.notice = notice;
     if view.error.is_none() {
-        view.error = error.map(str::to_owned);
+        view.error = error;
     }
     html_response(StatusCode::OK, account_html(&view, &cookie_settings(&headers)))
 }
@@ -245,7 +250,7 @@ impl MembersView {
                 self.members = members.into_iter().map(|m| Member { granted: short_time(&m.granted), ..m }).collect();
                 self.candidates = candidates;
             }
-            _ => self.load_error = Some("unerwartete Antwort von member.list".to_owned()),
+            _ => self.load_error = Some(crate::i18n::tc("accounts_msg.page.unexpected_members", &[])),
         }
     }
 }
@@ -276,14 +281,22 @@ async fn members(
     Query(query): Query<HashMap<String, String>>,
 ) -> Response {
     if !crate::auth::current().full_rights() {
-        return (StatusCode::FORBIDDEN, "Abgelehnt: Freigaben verwaltet nur der Autor.").into_response();
+        return (StatusCode::FORBIDDEN, crate::i18n::tc("accounts_msg.page.members_author_only", &[])).into_response();
     }
     let title = match state.store.works().await {
         Ok(works) => match works.into_iter().find(|(id, _, _)| *id == work) {
             Some((_, _, title)) => title,
-            None => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
+            None => {
+                return (StatusCode::NOT_FOUND, crate::i18n::tc("accounts_msg.page.unknown_work", &[])).into_response();
+            }
         },
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                crate::i18n::tc("accounts_msg.page.error", &[("detail", e.to_string().into())]),
+            )
+                .into_response();
+        }
     };
     let settings = cookie_settings(&headers);
     let (notice, error) = notices(|key| query.get(key).map(String::as_str));
@@ -291,8 +304,8 @@ async fn members(
         work,
         title,
         accounts_exist: crate::auth::accounts_exist(&state).await,
-        notice: notice.map(str::to_owned),
-        error: error.map(str::to_owned),
+        notice,
+        error,
         ..MembersView::default()
     };
     if view.accounts_exist {
@@ -388,8 +401,8 @@ async fn settings_page(
         work,
         accounts_exist: count > 0,
         allowed: who.full_rights(),
-        notice: notice.map(str::to_owned),
-        error: error.map(str::to_owned),
+        notice,
+        error,
         ..AccountsView::default()
     };
     if view.accounts_exist && view.allowed {
@@ -420,8 +433,12 @@ mod tests {
     fn only_codes_of_the_table_become_sentences() {
         let query: HashMap<&str, &str> =
             [("ok", "freigegeben"), ("fehler", "<script>alert(1)</script>")].into_iter().collect();
-        let (notice, error) = notices(|key| query.get(key).copied());
-        assert_eq!(notice, Some("Das Werk ist für das Konto freigegeben."), "ein bekannter Code wird sein Satz");
+        let (notice, error) = crate::i18n::sync_scope(crate::i18n::Lang::De, || notices(|key| query.get(key).copied()));
+        assert_eq!(
+            notice.as_deref(),
+            Some("Das Werk ist für das Konto freigegeben."),
+            "ein bekannter Code wird sein Satz"
+        );
         assert_eq!(error, None, "ein unbekannter Code ergibt nichts – kein Text aus der Adresse");
         let swapped: HashMap<&str, &str> = [("ok", "passwort_falsch"), ("fehler", "abgemeldet")].into_iter().collect();
         assert_eq!(

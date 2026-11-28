@@ -56,11 +56,12 @@ pub(crate) fn fetch_exceptions(state: &crate::AppState) -> Vec<String> {
     FETCH_EXCEPTIONS.lock().unwrap_or_else(|e| e.into_inner()).get(&state.data).cloned().unwrap_or_default()
 }
 
-const REFUSED_SCHEME: &str = "nur http- und https-Adressen werden abgerufen";
-const REFUSED_USERINFO: &str = "Adresse enthält Benutzerangaben";
-const REFUSED_HOST: &str = "Adresse ohne Rechner";
-const REFUSED_ADDRESS: &str = "Adresse im eigenen Netz (Loopback, privat oder Link-Local)";
-const REFUSED_NAME: &str = "Rechnername des eigenen Netzes (localhost, .local, .internal, .home.arpa oder ohne Punkt)";
+// Reasons of a refused address: catalog keys (`websearch_msg.fetch.*`), shown through `i18n::tc` in the note.
+const REFUSED_SCHEME: &str = "websearch_msg.fetch.scheme";
+const REFUSED_USERINFO: &str = "websearch_msg.fetch.userinfo";
+const REFUSED_HOST: &str = "websearch_msg.fetch.host";
+const REFUSED_ADDRESS: &str = "websearch_msg.fetch.address";
+const REFUSED_NAME: &str = "websearch_msg.fetch.name";
 
 fn private_v4(ip: Ipv4Addr) -> bool {
     let [a, b, ..] = ip.octets();
@@ -160,9 +161,9 @@ pub fn fetch_arguments(schema: &Value, url: &str) -> Result<Value, RagError> {
         return Ok(json!({ "url": url }));
     }
     let key = URL_KEYS.iter().find(|k| props.contains_key(**k)).copied().ok_or_else(|| {
-        RagError::Schema(format!(
-            "{FETCH_URL_TOOL} nennt im inputSchema keinen Parameter für die Adresse ({}).",
-            URL_KEYS.join(", ")
+        RagError::Schema(crate::i18n::tc(
+            "websearch_msg.fetch.no_url_param",
+            &[("tool", FETCH_URL_TOOL.into()), ("keys", URL_KEYS.join(", ").into())],
         ))
     })?;
     check_required(schema, FETCH_URL_TOOL, &[Some(key)])?;
@@ -190,17 +191,16 @@ pub fn parse_page(result: &Value, url: &str) -> Result<Fetched, RagError> {
         None => (content_text(result), None),
     };
     if raw.len() > PAGE_MAX_BYTES {
-        return Err(RagError::Failed(format!(
-            "Seite ist größer als {} MiB ({} KiB)",
-            PAGE_MAX_BYTES / (1024 * 1024),
-            raw.len() / 1024
+        return Err(RagError::Failed(crate::i18n::tc(
+            "websearch_msg.fetch.too_big",
+            &[("max", (PAGE_MAX_BYTES / (1024 * 1024)).into()), ("size", (raw.len() / 1024).into())],
         )));
     }
     let raw = raw.replace("\r\n", "\n");
     let (text, html_title) = if looks_like_html(&raw) { (html_to_text(&raw), html_title(&raw)) } else { (raw, None) };
     let text = text.trim();
     if text.is_empty() {
-        return Err(RagError::Failed(format!("{url}: die Seite enthält keinen Text")));
+        return Err(RagError::Failed(crate::i18n::tc("websearch_msg.fetch.no_text", &[("url", url.into())])));
     }
     let title = title.or(html_title).map(|t| clean_line(&t, 200)).unwrap_or_default();
     Ok(Fetched { title, text: text.chars().take(CHECK_CHARS).collect() })
@@ -468,7 +468,7 @@ mod tests {
             assert_eq!(fetch_allowed(url).is_ok(), *allowed, "{why}: {url} → {:?}", fetch_allowed(url));
         }
         assert_eq!(
-            fetch_allowed("http://10.0.0.5/").unwrap_err(),
+            crate::i18n::t(crate::i18n::Lang::De, fetch_allowed("http://10.0.0.5/").unwrap_err(), &[]),
             "Adresse im eigenen Netz (Loopback, privat oder Link-Local)",
             "der Grund ist ein deutscher Halbsatz für den Hinweis"
         );
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn pages_over_one_mebibyte_or_without_text_are_refused() {
         let big = json!({ "structuredContent": { "content": "x".repeat(PAGE_MAX_BYTES + 1) } });
-        let e = parse_page(&big, "https://a.example/").unwrap_err();
+        let e = crate::i18n::sync_scope(crate::i18n::Lang::De, || parse_page(&big, "https://a.example/")).unwrap_err();
         assert!(e.message().contains("größer als 1 MiB"), "Größe genannt: {e:?}");
         let empty = json!({ "structuredContent": { "content": "<html><body><script>x</script></body></html>" } });
         assert!(parse_page(&empty, "https://a.example/").is_err(), "ohne Text keine Seite");

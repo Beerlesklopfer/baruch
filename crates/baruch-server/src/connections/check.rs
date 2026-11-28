@@ -89,7 +89,10 @@ fn client() -> Result<reqwest::Client, String> {
 /// Error of reqwest as a German sentence with cause chain (without headers, so without key).
 fn http_error(e: &reqwest::Error, url: &str) -> String {
     if e.is_timeout() {
-        return format!("Keine Antwort von {url} innerhalb von {} s.", TIMEOUT.as_secs());
+        return crate::i18n::tc(
+            "connections_msg.check.timeout",
+            &[("url", url.into()), ("seconds", TIMEOUT.as_secs().into())],
+        );
     }
     let mut causes = Vec::new();
     let mut source = std::error::Error::source(e);
@@ -98,16 +101,14 @@ fn http_error(e: &reqwest::Error, url: &str) -> String {
         source = cause.source();
     }
     let why = if causes.is_empty() { e.to_string() } else { causes.join(": ") };
-    if e.is_connect() {
-        format!("Keine Verbindung zu {url}: {why}")
-    } else {
-        format!("Anfrage an {url} gescheitert: {why}")
-    }
+    let key =
+        if e.is_connect() { "connections_msg.check.no_connection" } else { "connections_msg.check.request_failed" };
+    crate::i18n::tc(key, &[("url", url.into()), ("detail", why.into())])
 }
 
 /// Read the response, at most [`MAX_BODY`] bytes.
 async fn body(mut response: reqwest::Response, url: &str) -> Result<Vec<u8>, String> {
-    let too_big = || format!("Antwort von {url} ist größer als 1 MiB; abgebrochen.");
+    let too_big = || crate::i18n::tc("connections_msg.check.too_big", &[("url", url.into())]);
     if response.content_length().is_some_and(|n| n > MAX_BODY as u64) {
         return Err(too_big());
     }
@@ -124,19 +125,22 @@ async fn body(mut response: reqwest::Response, url: &str) -> Result<Vec<u8>, Str
 /// Message for a redirect (Round 23): the check never follows it – the key would otherwise go to another
 /// address. The target (`Location`) is not named (it would come unchecked from the remote side).
 pub(super) fn redirected(target: &str, status: reqwest::StatusCode) -> String {
-    format!(
-        "{target} leitet weiter (HTTP {}); Baruch folgt Weiterleitungen nicht – bitte die endgültige Adresse eintragen.",
-        status.as_u16()
+    crate::i18n::tc(
+        "connections_msg.check.redirect",
+        &[("target", target.into()), ("status", status.as_u16().to_string().into())],
     )
 }
 
 pub(super) fn denied(status: reqwest::StatusCode, account: &str, has_secret: bool) -> String {
     let hint = if has_secret {
-        format!("Schlüssel baruch/{account} prüfen")
+        crate::i18n::tc("connections_msg.check.key_hint", &[("account", account.into())])
     } else {
-        format!("kein Schlüssel hinterlegt (baruch/{account})")
+        crate::i18n::tc("connections_msg.check.no_key", &[("account", account.into())])
     };
-    format!("Zugang verweigert (HTTP {}): {hint}.", status.as_u16())
+    crate::i18n::tc(
+        "connections_msg.check.denied",
+        &[("status", status.as_u16().to_string().into()), ("hint", hint.into())],
+    )
 }
 
 /// `<url>/v1/models`; if the address already ends in `/v1`, append only `/models`.
@@ -168,7 +172,10 @@ pub async fn eliezer(url: &str, secret: Option<&str>) -> Outcome {
         return Outcome::failed(redirected(&target, status));
     }
     if !status.is_success() {
-        return Outcome::failed(format!("{target} antwortet mit HTTP {}.", status.as_u16()));
+        return Outcome::failed(crate::i18n::tc(
+            "connections_msg.check.http_status",
+            &[("target", (&target).into()), ("status", status.as_u16().to_string().into())],
+        ));
     }
     let bytes = match body(response, &target).await {
         Ok(bytes) => bytes,
@@ -176,10 +183,12 @@ pub async fn eliezer(url: &str, secret: Option<&str>) -> Outcome {
     };
     let parsed: Value = match serde_json::from_slice(&bytes) {
         Ok(parsed) => parsed,
-        Err(_) => return Outcome::failed(format!("{target} liefert kein JSON.")),
+        Err(_) => {
+            return Outcome::failed(crate::i18n::tc("connections_msg.check.no_json", &[("target", (&target).into())]));
+        }
     };
     let Some(data) = parsed.get("data").and_then(Value::as_array) else {
-        return Outcome::failed(format!("{target} liefert keine Modellliste (Feld data fehlt)."));
+        return Outcome::failed(crate::i18n::tc("connections_msg.check.no_models", &[("target", (&target).into())]));
     };
     let models: Vec<String> =
         data.iter().filter_map(|m| m.get("id").and_then(Value::as_str)).map(str::to_owned).collect();
@@ -201,9 +210,9 @@ pub fn rpc_answer(content_type: &str, body: &[u8], id: i64) -> Result<Value, Str
 pub async fn multigpt(url: &str, secret: Option<&str>) -> Outcome {
     match tokio::time::timeout(TIMEOUT, multigpt_steps(url, secret)).await {
         Ok(outcome) => outcome,
-        Err(_) => Outcome::failed(format!(
-            "Zeitlimit: Keine vollständige Antwort von {url} innerhalb von {} s; Prüfung abgebrochen.",
-            TIMEOUT.as_secs()
+        Err(_) => Outcome::failed(crate::i18n::tc(
+            "connections_msg.check.total_timeout",
+            &[("url", url.into()), ("seconds", TIMEOUT.as_secs().into())],
         )),
     }
 }
@@ -232,26 +241,33 @@ async fn multigpt_session(mcp: &mut McpClient, server: Value, secret: Option<&st
     let names = listed.names();
     let mut notes = Vec::new();
     if listed.more {
-        notes.push(format!(
-            "tools/list hat mehr als {MAX_TOOL_PAGES} Seiten; gezeigt sind die Werkzeuge der ersten {MAX_TOOL_PAGES}."
-        ));
+        notes.push(crate::i18n::tc("connections_msg.check.tool_pages", &[("max", MAX_TOOL_PAGES.into())]));
     }
     let collections = if listed.find(COLLECTIONS_TOOL).is_some() {
         match mcp.call_tool(COLLECTIONS_TOOL, json!({})).await {
             Ok(result) => match tool_payload(&result) {
                 Some(payload) => parse_collections(&payload),
                 None => {
-                    notes.push(format!("{COLLECTIONS_TOOL}: Antwort nicht lesbar, keine Sammlungen."));
+                    notes.push(crate::i18n::tc(
+                        "connections_msg.check.collections_unreadable",
+                        &[("tool", COLLECTIONS_TOOL.into())],
+                    ));
                     Vec::new()
                 }
             },
             Err(e) => {
-                notes.push(format!("Sammlungen nicht lesbar: {}", e.message()));
+                notes.push(crate::i18n::tc(
+                    "connections_msg.check.collections_failed",
+                    &[("detail", e.message().into())],
+                ));
                 Vec::new()
             }
         }
     } else {
-        notes.push(format!("{COLLECTIONS_TOOL} fehlt; Sammlungen lassen sich von Hand eintragen."));
+        notes.push(crate::i18n::tc(
+            "connections_msg.check.collections_tool_missing",
+            &[("tool", COLLECTIONS_TOOL.into())],
+        ));
         Vec::new()
     };
     let name = server.get("name").and_then(Value::as_str).unwrap_or("").to_owned();
@@ -312,15 +328,18 @@ pub async fn pgvector(config: &Value, secret: Option<&str>) -> Outcome {
         Ok::<_, sqlx::Error>((version, vector))
     };
     match tokio::time::timeout(TIMEOUT, attempt).await {
-        Err(_) => Outcome::failed(format!("Keine Antwort von {address} innerhalb von {} s.", TIMEOUT.as_secs())),
+        Err(_) => Outcome::failed(crate::i18n::tc(
+            "connections_msg.check.timeout",
+            &[("url", (&address).into()), ("seconds", TIMEOUT.as_secs().into())],
+        )),
         Ok(Err(e)) => Outcome::failed(pg_error(&e, &address, secret.is_some())),
         Ok(Ok((version, Some(vector)))) => Outcome::ok(
-            format!("Verbindung steht, Erweiterung vector {vector}."),
+            crate::i18n::tc("connections_msg.check.pg_ok", &[("vector", (&vector).into())]),
             json!({ "server_version": version, "vector": vector }),
         ),
         Ok(Ok((version, None))) => Outcome {
             ok: false,
-            message: "Verbindung steht, aber die Erweiterung vector fehlt (CREATE EXTENSION vector).".into(),
+            message: crate::i18n::tc("connections_msg.check.pg_no_vector", &[]),
             details: json!({ "server_version": version, "vector": null }),
         },
     }
@@ -330,16 +349,28 @@ fn pg_error(e: &sqlx::Error, address: &str, has_secret: bool) -> String {
     match e {
         sqlx::Error::Database(db) if matches!(db.code().as_deref(), Some("28P01" | "28000")) => {
             let hint = if has_secret {
-                "Passwort baruch/pgvector prüfen"
+                crate::i18n::tc("connections_msg.check.pg_password_hint", &[])
             } else {
-                "kein Passwort hinterlegt (baruch/pgvector)"
+                crate::i18n::tc("connections_msg.check.pg_no_password", &[])
             };
-            format!("Anmeldung abgelehnt: {} ({hint}).", db.message())
+            crate::i18n::tc("connections_msg.check.pg_login", &[("detail", db.message().into()), ("hint", hint.into())])
         }
-        sqlx::Error::Database(db) => format!("Datenbank {address}: {}", db.message()),
-        sqlx::Error::Io(io) => format!("Keine Verbindung zu {address}: {io}"),
-        sqlx::Error::Tls(tls) => format!("TLS mit {address}: {tls}"),
-        other => format!("Verbindung zu {address}: {other}"),
+        sqlx::Error::Database(db) => crate::i18n::tc(
+            "connections_msg.check.pg_database",
+            &[("address", address.into()), ("detail", db.message().into())],
+        ),
+        sqlx::Error::Io(io) => crate::i18n::tc(
+            "connections_msg.check.pg_io",
+            &[("address", address.into()), ("detail", io.to_string().into())],
+        ),
+        sqlx::Error::Tls(tls) => crate::i18n::tc(
+            "connections_msg.check.pg_tls",
+            &[("address", address.into()), ("detail", tls.to_string().into())],
+        ),
+        other => crate::i18n::tc(
+            "connections_msg.check.pg_other",
+            &[("address", address.into()), ("detail", other.to_string().into())],
+        ),
     }
 }
 

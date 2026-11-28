@@ -45,30 +45,29 @@ struct PageQuery {
     fehler: Option<String>,
 }
 
-fn notice(code: Option<&str>) -> Option<&'static str> {
-    Some(match code? {
-        "gestartet" => "Der Abgleich läuft im Hintergrund; diese Seite zeigt nach dem Neuladen das Ergebnis.",
-        "laeuft" => "Es läuft schon ein Abgleich; bitte warten, bis er fertig ist.",
-        "hochladen_an" => "Hochladen eingeschaltet: Der nächste Abgleich lädt die Kapitel dieses Werks nach MultiGPT.",
-        "hochladen_aus" => "Hochladen ausgeschaltet: Der Abgleich lädt dieses Werk nicht mehr hoch.",
-        "sammlungen" => "Die Auswahl der Sammlungen ist gespeichert; der nächste Abgleich holt sie.",
-        "geladen" => "Die Sammlungen von MultiGPT sind geladen; bitte auswählen und übernehmen.",
+fn notice(code: Option<&str>) -> Option<String> {
+    let key = match code? {
+        "gestartet" => "sync_msg.page.started",
+        "laeuft" => "sync_msg.page.running",
+        "hochladen_an" => "sync_msg.page.upload_on",
+        "hochladen_aus" => "sync_msg.page.upload_off",
+        "sammlungen" => "sync_msg.page.collections",
+        "geladen" => "sync_msg.page.loaded",
         _ => return None,
-    })
+    };
+    Some(crate::i18n::tc(key, &[]))
 }
 
 fn error_text(code: Option<&str>, load_error: Option<String>) -> Option<String> {
     Some(match code? {
-        "bestaetigen" => "Bitte bestätigen, dass die aktuellen Fassungen dieses Werks nach MultiGPT gehen dürfen; \
-                          nichts geändert."
-            .to_owned(),
-        "werk" => "Dieses Werk gibt es nicht.".to_owned(),
-        "sammlung" => "Sammlung: 1 bis 200 Zeichen in einer Zeile, höchstens 100; nichts geändert.".to_owned(),
-        "laden" => format!(
-            "Sammlungen nicht geladen: {}",
-            load_error.unwrap_or_else(|| "MultiGPT antwortet nicht.".to_owned())
-        ),
-        _ => "Das ging nicht; bitte noch einmal versuchen.".to_owned(),
+        "bestaetigen" => crate::i18n::tc("sync_msg.page.confirm", &[]),
+        "werk" => crate::i18n::tc("sync_msg.page.no_work", &[]),
+        "sammlung" => crate::i18n::tc("sync_msg.page.collection", &[]),
+        "laden" => {
+            let detail = load_error.unwrap_or_else(|| crate::i18n::tc("sync_msg.page.no_answer", &[]));
+            crate::i18n::tc("sync_msg.page.not_loaded", &[("detail", detail.into())])
+        }
+        _ => crate::i18n::tc("sync_msg.page.failed", &[]),
     })
 }
 
@@ -77,7 +76,8 @@ fn work_of(text: Option<&str>) -> Option<WorkId> {
 }
 
 fn internal(e: impl std::fmt::Display) -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response()
+    (StatusCode::INTERNAL_SERVER_ERROR, crate::i18n::tc("sync_msg.page.error", &[("detail", e.to_string().into())]))
+        .into_response()
 }
 
 /// `GET /abgleich?work=W` – without network.

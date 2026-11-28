@@ -219,6 +219,11 @@ pub async fn import_file(state: &AppState, path: &Path) -> Result<ImportReport, 
 /// message names the existing work and [`TITLE_HINT`] (`REFUSED`). Also reads the images the text
 /// names ([`read_assets`]).
 pub async fn import_file_as(state: &AppState, path: &Path, title: Option<&str>) -> Result<ImportReport, RpcError> {
+    // Only the command line imports a file from a path; its messages stay German (Round 39a).
+    crate::i18n::scope(crate::i18n::Lang::De, import_file_as_german(state, path, title)).await
+}
+
+async fn import_file_as_german(state: &AppState, path: &Path, title: Option<&str>) -> Result<ImportReport, RpcError> {
     let owned: PathBuf = path.to_owned();
     let (source, file_name, assets, skipped) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let (source, file_name) = read_file(&owned)?;

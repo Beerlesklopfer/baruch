@@ -37,20 +37,21 @@ use crate::AppState;
 use crate::personas::{rows_and_lector_cached, style};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
-fn notice(query: &BTreeMap<String, String>) -> Option<&'static str> {
-    match query.get("ok").map(String::as_str) {
-        Some("farbe") => Some("Die Farbe ist gespeichert."),
-        Some("persona") => Some("Die Persona ist gespeichert."),
-        Some("lektor") => Some("Die Wahl des Lektors ist gespeichert."),
-        Some("prompt") => Some("Der Rollen-Prompt ist gespeichert."),
-        Some("vorgabe") => Some("Der Rollen-Prompt gilt wieder in der Vorgabe."),
-        Some("rag") => Some("Die Einstellung zu den Treffern der Bedeutungssuche ist gespeichert."),
-        Some("websuche") => Some("Die Einstellung zur Websuche von @belege ist gespeichert."),
-        Some("verbindung") => Some("Verbindung und Freigabe der Persona sind gespeichert."),
-        Some("bibel") => Some("Die Einstellung zu den Bibel-Belegen aus SWORD ist gespeichert."),
-        Some("chat") => Some("Der Umfang des Chats ist gespeichert."),
-        _ => None,
-    }
+fn notice(query: &BTreeMap<String, String>) -> Option<String> {
+    let key = match query.get("ok").map(String::as_str) {
+        Some("farbe") => "settings_msg.assistants.color",
+        Some("persona") => "settings_msg.assistants.persona",
+        Some("lektor") => "settings_msg.assistants.lector",
+        Some("prompt") => "settings_msg.assistants.prompt",
+        Some("vorgabe") => "settings_msg.assistants.prompt_default",
+        Some("rag") => "settings_msg.assistants.rag",
+        Some("websuche") => "settings_msg.assistants.websearch",
+        Some("verbindung") => "settings_msg.assistants.connection",
+        Some("bibel") => "settings_msg.assistants.bible",
+        Some("chat") => "settings_msg.assistants.chat",
+        _ => return None,
+    };
+    Some(crate::i18n::tc(key, &[]))
 }
 
 /// State of a model name compared with the list of the backend: `bekannt`, `alias` (with target) or
@@ -155,7 +156,11 @@ pub(super) async fn render(
         },
         Some(c) => match crate::models::cached_list_on(state, c).await {
             Some(list) => {
-                (Some(list.models), Some(format!("Liste aus dem Zwischenspeicher (Stand {}).", list.fetched)))
+                let stamp = list.fetched.to_string();
+                (
+                    Some(list.models),
+                    Some(crate::i18n::tc("settings_msg.assistants.cached_list", &[("stamp", stamp.into())])),
+                )
             }
             None => (None, None),
         },
@@ -246,7 +251,7 @@ pub(super) async fn set(state: &AppState, values: Json) -> Result<Json, RpcError
     if let Some(Some(c)) = &color
         && baruch_store::valid_color(c).is_none()
     {
-        return Err(RpcError::new(INVALID_PARAMS, "Farbe als #rrggbb angeben."));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("settings_msg.assistants.color_format", &[])));
     }
     let mut row = crate::personas::update(state, &update).await?;
     if let Some(color) = color {

@@ -59,36 +59,23 @@ use crate::numbering::Shown;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
 /// Notes on `ok=…` after a return.
-fn notice(query: &BTreeMap<String, String>) -> (Option<&'static str>, Option<String>) {
-    match query.get("ok").map(String::as_str) {
-        Some("werk") => (Some("Das Werk ist gespeichert."), None),
-        Some("schema") => (None, Some("Das Gliederungsschema ist übernommen.".to_owned())),
-        Some("buchangaben") => (Some("Die Buchangaben sind gespeichert."), None),
-        Some("umschlag") => (Some("Der Umschlag ist übernommen."), None),
-        Some("impressum") => {
-            (Some("Die Impressum-Vorlage ist in die Werkvorlage übernommen (neue Fassung der Vorlage)."), None)
-        }
-        Some("anordnung") => (Some("Die Umschlag-Anordnung ist gespeichert."), None),
-        Some("hochladen_an") => (
-            Some(
-                "Hochladen nach MultiGPT ist eingeschaltet; es geschieht beim nächsten Abgleich (Werkzeuge → Abgleichen).",
-            ),
-            None,
-        ),
-        Some("hochladen_aus") => (Some("Hochladen nach MultiGPT ist ausgeschaltet."), None),
+fn notice(query: &BTreeMap<String, String>) -> (Option<String>, Option<String>) {
+    let key = match query.get("ok").map(String::as_str) {
+        Some("werk") => "settings_msg.work.saved",
+        Some("schema") => return (None, Some(crate::i18n::tc("settings_msg.work.scheme", &[]))),
+        Some("buchangaben") => "settings_msg.work.book",
+        Some("umschlag") => "settings_msg.work.cover",
+        Some("impressum") => "settings_msg.work.imprint",
+        Some("anordnung") => "settings_msg.work.layout",
+        Some("hochladen_an") => "settings_msg.work.upload_on",
+        Some("hochladen_aus") => "settings_msg.work.upload_off",
         // Round 29c: block „Satz“.
-        Some("satz") => (Some("Die Satz-Einstellungen sind gespeichert."), None),
-        Some("satz_zurueck") => {
-            (Some("Die Satz-Einstellungen sind zurückgesetzt; es gilt wieder nur die Werkvorlage."), None)
-        }
-        Some("satz_vorlage") => (
-            Some(
-                "Der Kapitelanfang ist aus der Werkvorlage in die Satz-Einstellungen übernommen (neue Fassung der Vorlage).",
-            ),
-            None,
-        ),
-        _ => (None, None),
-    }
+        Some("satz") => "settings_msg.work.typeset",
+        Some("satz_zurueck") => "settings_msg.work.typeset_reset",
+        Some("satz_vorlage") => "settings_msg.work.typeset_template",
+        _ => return (None, None),
+    };
+    (Some(crate::i18n::tc(key, &[])), None)
 }
 
 pub(super) async fn render(
@@ -138,16 +125,19 @@ pub(super) async fn render(
         synced => tally.synced.as_deref().map(crate::sync::display_time),
     };
     let sources = sword_context(state, work, query).await?;
-    let saved = saved.or_else(|| match query.get("ok").map(String::as_str) {
-        Some("kommentare") => Some("Kommentare und Lexika des Werks sind gespeichert."),
-        Some("zeit") => Some("Die Predigtzeit ist gespeichert."),
-        Some("sprache") => Some("Die Werksprache ist gespeichert."),
-        Some("satzbild") => Some("Die Satzbild-Einstellungen sind gespeichert."),
-        Some("fassungen") => Some("Die Einstellung „Fassungen“ ist gespeichert."),
-        // 0.9.0: hide older revisions work-wide or show all again (src/revision_fold.rs).
-        Some("ausgeblendet") => Some("Ältere Fassungen sind ausgeblendet (nichts gelöscht)."),
-        Some("eingeblendet") => Some("Alle Fassungen werden wieder gezeigt."),
-        _ => None,
+    let saved = saved.or_else(|| {
+        let key = match query.get("ok").map(String::as_str) {
+            Some("kommentare") => "settings_msg.work.commentaries",
+            Some("zeit") => "settings_msg.work.timing",
+            Some("sprache") => "settings_msg.work.language",
+            Some("satzbild") => "settings_msg.work.sheet",
+            Some("fassungen") => "settings_msg.work.revisions",
+            // 0.9.0: hide older revisions work-wide or show all again (src/revision_fold.rs).
+            Some("ausgeblendet") => "settings_msg.work.folded",
+            Some("eingeblendet") => "settings_msg.work.unfolded",
+            _ => return None,
+        };
+        Some(crate::i18n::tc(key, &[]))
     });
     let timing = timing_context(state, work, query).await?;
     let language = language_context(state, work, query).await?;
@@ -185,13 +175,11 @@ async fn sword_context(
             .collect();
         for p in picked.iter().filter(|p| !modules.iter().any(|m| m.name.eq_ignore_ascii_case(p))) {
             out.push(context! { module => p.as_str(), description => "", notice => "", supported => false,
-            problem => Some("in keinem Modulordner gefunden"), checked => true, missing => true });
+            problem => Some(crate::i18n::tc("settings_msg.work.module_missing", &[])), checked => true, missing => true });
         }
         out
     };
-    let error = query.get("kommentarfehler").map(|_| {
-        "Die Auswahl ließ sich nicht speichern: Ein Modul fehlt oder ist nicht lesbar; nichts geändert.".to_owned()
-    });
+    let error = query.get("kommentarfehler").map(|_| crate::i18n::tc("settings_msg.work.commentaries_error", &[]));
     Ok(context! {
         commentaries => list(&found.commentaries, &chosen.commentaries),
         lexicons => list(&found.lexicons, &chosen.lexicons),
@@ -206,10 +194,7 @@ async fn timing_context(
     query: &BTreeMap<String, String>,
 ) -> Result<minijinja::Value, String> {
     let timing = crate::timing::work_timing(state, work).await.map_err(|e| e.message)?;
-    let error = query.get("zeitfehler").map(|_| {
-        "Die Predigtzeit ließ sich nicht speichern: Wörter je Minute 60 bis 250, Zielzeit 1 bis 240 Minuten (oder leer); \
-         nichts geändert."
-    });
+    let error = query.get("zeitfehler").map(|_| crate::i18n::tc("settings_msg.work.timing_error", &[]));
     Ok(context! {
         words_per_minute => timing.words_per_minute,
         target_minutes => timing.target_seconds.map(|s| s / 60),
@@ -265,8 +250,8 @@ async fn language_context(
     let language = state.store.work_language(work).await.map_err(|e| e.to_string())?;
     let error = query.get("sprachfehler").map(|value| match value.as_str() {
         // Round 38c, finding 2: the form named a work that does not exist.
-        "werk" => "Die Werksprache ließ sich nicht speichern: dieses Werk gibt es nicht; nichts geändert.",
-        _ => "Die Werksprache ließ sich nicht speichern: erlaubt sind Deutsch und Englisch; nichts geändert.",
+        "werk" => crate::i18n::tc("settings_msg.work.language_no_work", &[]),
+        _ => crate::i18n::tc("settings_msg.work.language_error", &[]),
     });
     Ok(context! { code => language.as_str(), error => error })
 }
@@ -309,9 +294,14 @@ async fn revisions_context(
     let (lo, hi) = baruch_core::revision_policy::MAX_CHANGE_PERCENT;
     let (min_lo, min_hi) = baruch_core::revision_policy::NEW_AFTER_MINUTES;
     let error = query.get("fassungenfehler").map(|_| {
-        format!(
-            "Die Einstellung „Fassungen“ ließ sich nicht speichern: größte Änderung {lo} bis {hi} Prozent, neue Fassung \
-             nach {min_lo} bis {min_hi} Minuten (0 = keine Zeitgrenze); nichts geändert."
+        crate::i18n::tc(
+            "settings_msg.work.revisions_error",
+            &[
+                ("lo", u32::from(lo).into()),
+                ("hi", u32::from(hi).into()),
+                ("min_lo", min_lo.into()),
+                ("min_hi", min_hi.into()),
+            ],
         )
     });
     Ok(context! {
@@ -324,7 +314,7 @@ async fn revisions_context(
         error => error,
         // 0.9.0: sections with the mark „ältere Fassungen ausblenden“ and the error after a rejected form.
         folds => state.store.work_revision_folds(work).await.map_err(|e| e.to_string())?.len(),
-        fold_error => query.get("ausblendenfehler").map(|_| "Ältere Fassungen ließen sich nicht ausblenden: Tag als Datum angeben; nichts geändert."),
+        fold_error => query.get("ausblendenfehler").map(|_| crate::i18n::tc("settings_msg.work.fold_error", &[])),
     })
 }
 
@@ -338,11 +328,9 @@ async fn sheet_context(
     let settings = state.store.sheet_settings(work).await.map_err(|e| e.to_string())?;
     let template = state.store.work_template(work).await.map_err(|e| e.to_string())?;
     let from_template = baruch_wysiwyg::sheet_style(&template);
-    let error = query.get("satzbildfehler").map(|_| {
-        "Die Satzbild-Einstellungen ließen sich nicht speichern: Schrift höchstens 200 Zeichen (Namen durch Kommas \
-         getrennt, ohne ; < > { }), Schriftgröße 6 bis 48 pt, Satzbreite 6 bis 60 cm (Einheit pt, mm, cm oder em), \
-         Farben als #rrggbb; nichts geändert."
-    });
+    let error = query
+        .get("satzbildfehler")
+        .map(|_| crate::i18n::tc("settings_msg.work.sheet_error", &[("chars", "; < > { }".into())]));
     Ok(context! {
         settings => minijinja::Value::from(minijinja::value::Serde(&settings)),
         template => minijinja::Value::from(minijinja::value::Serde(&from_template)),
@@ -391,7 +379,7 @@ pub(super) async fn sheet_act(
 
 /// `settings.get {page: "werk"}`.
 pub(super) async fn values(state: &AppState, work: Option<WorkId>) -> Result<Json, RpcError> {
-    let work = work.ok_or_else(|| RpcError::new(INVALID_PARAMS, "Es gibt kein Werk."))?;
+    let work = work.ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("settings_msg.work.no_work", &[])))?;
     let meta = state.store.work_meta(work).await?;
     let numbering = state.store.outline_numbering(work).await?;
     let timing = state.store.timing_settings(work).await?;
@@ -406,7 +394,7 @@ pub(super) async fn values(state: &AppState, work: Option<WorkId>) -> Result<Jso
 
 /// `settings.set {page: "werk", values}`: the same function as `work.update` (work from `work`).
 pub(super) async fn set(state: &AppState, work: Option<WorkId>, mut values: Json) -> Result<Json, RpcError> {
-    let work = work.ok_or_else(|| RpcError::new(INVALID_PARAMS, "Es gibt kein Werk."))?;
+    let work = work.ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("settings_msg.work.no_work", &[])))?;
     values["work"] = json!(work);
     crate::works::call(state, "work.update", values).await
 }

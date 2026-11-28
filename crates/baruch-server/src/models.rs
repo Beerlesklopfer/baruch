@@ -186,11 +186,8 @@ pub fn looks_local(url: &str) -> bool {
 /// Warning when a connection kept as local points to an address that is not recognisably local (book text would
 /// go out without a release); otherwise `None`.
 pub fn locality_warning(external: bool, url: &str) -> Option<String> {
-    (!external && !url.trim().is_empty() && !looks_local(url)).then(|| {
-        "Die Adresse liegt nicht erkennbar auf diesem Rechner oder im eigenen Netz, die Verbindung ist aber als lokal \
-         geführt: Buchtext geht ohne Freigabe je Persona dorthin. Liegt der Dienst außerhalb, „extern“ ankreuzen."
-            .to_owned()
-    })
+    (!external && !url.trim().is_empty() && !looks_local(url))
+        .then(|| crate::i18n::tc("system_msg.models.not_local", &[]))
 }
 
 /// Display „lokal“ or „extern“.
@@ -210,11 +207,12 @@ pub fn kind_title(kind: &str) -> &'static str {
 
 /// Address of the connection Eliezer (from the connection `eliezer`).
 async fn eliezer_url(state: &AppState) -> Result<String, LlmError> {
-    let row = state
-        .store
-        .connection_get(ConnectionKind::Eliezer)
-        .await
-        .map_err(|e| LlmError::NotConfigured(format!("Verbindung eliezer nicht lesbar: {e}")))?;
+    let row = state.store.connection_get(ConnectionKind::Eliezer).await.map_err(|e| {
+        LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.eliezer_unreadable",
+            &[("detail", e.to_string().into())],
+        ))
+    })?;
     Ok(row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned())
 }
 
@@ -229,14 +227,19 @@ pub async fn effective_url(state: &AppState, connection: &ModelConnection) -> St
 /// Resolve the target of a connection: address, key from the keyring (only if it is bound to the present
 /// target). Without an address or with a key for another target → `NotConfigured` (nothing sent).
 pub async fn resolve(state: &AppState, connection: &ModelConnection) -> Result<Target, LlmError> {
-    let kind = BackendKind::parse(&connection.kind)
-        .ok_or_else(|| LlmError::NotConfigured(format!("Unbekannte Art „{}“.", connection.kind)))?;
+    let kind = BackendKind::parse(&connection.kind).ok_or_else(|| {
+        LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.unknown_kind",
+            &[("kind", (&connection.kind).into())],
+        ))
+    })?;
     let (url, bound) = if connection.id == ELIEZER_CONNECTION {
-        let row = state
-            .store
-            .connection_get(ConnectionKind::Eliezer)
-            .await
-            .map_err(|e| LlmError::NotConfigured(format!("Verbindung eliezer nicht lesbar: {e}")))?;
+        let row = state.store.connection_get(ConnectionKind::Eliezer).await.map_err(|e| {
+            LlmError::NotConfigured(crate::i18n::tc(
+                "system_msg.models.eliezer_unreadable",
+                &[("detail", e.to_string().into())],
+            ))
+        })?;
         let url = row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned();
         (url, crate::connections::secret_bound(&row))
     } else {
@@ -245,19 +248,21 @@ pub async fn resolve(state: &AppState, connection: &ModelConnection) -> Result<T
         (url, bound)
     };
     if url.is_empty() {
-        return Err(LlmError::NotConfigured(format!(
-            "Keine Adresse für {} eingetragen (Einstellungen → Verbindungen).",
-            connection.name
+        return Err(LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.no_address",
+            &[("name", (&connection.name).into())],
         )));
     }
-    let secret = crate::connections::secrets::get(&state.secrets, &connection.account)
-        .await
-        .map_err(|e| LlmError::NotConfigured(format!("Schlüsselbund nicht lesbar ({e}); nichts gesendet.")))?;
+    let secret = crate::connections::secrets::get(&state.secrets, &connection.account).await.map_err(|e| {
+        LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.keyring_unreadable",
+            &[("detail", e.to_string().into())],
+        ))
+    })?;
     if secret.is_some() && !bound {
-        return Err(LlmError::NotConfigured(format!(
-            "Schlüssel der Verbindung {} gilt für ein anderes Ziel; nicht gesendet. Für die jetzige Adresse den \
-             Schlüssel neu eintragen (Einstellungen → Verbindungen).",
-            connection.name
+        return Err(LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.key_other_target",
+            &[("name", (&connection.name).into())],
         )));
     }
     Ok(Target { connection: connection.clone(), kind, endpoint: Endpoint::new(url, secret) })
@@ -329,25 +334,31 @@ pub async fn connection_of(state: &AppState, persona: &str) -> Result<(ModelConn
         match state.store.persona_backend(persona).await {
             Ok(b) => b,
             Err(baruch_store::StoreError::UnknownPersona(_)) => PersonaBackend::default(),
-            Err(e) => return Err(LlmError::NotConfigured(format!("Verbindung der Persona nicht lesbar: {e}"))),
+            Err(e) => {
+                return Err(LlmError::NotConfigured(crate::i18n::tc(
+                    "system_msg.models.persona_connection",
+                    &[("detail", e.to_string().into())],
+                )));
+            }
         }
     };
-    let connection = state
-        .store
-        .model_connection_get(backend.connection)
-        .await
-        .map_err(|e| LlmError::NotConfigured(format!("Modell-Verbindung nicht lesbar: {e}")))?;
+    let connection = state.store.model_connection_get(backend.connection).await.map_err(|e| {
+        LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.connection_unreadable",
+            &[("detail", e.to_string().into())],
+        ))
+    })?;
     Ok((connection, backend))
 }
 
 /// Sentence when an external connection is not released for the persona.
 pub fn not_allowed(connection: &ModelConnection, persona: &str) -> String {
-    let who = if persona.trim().is_empty() { "diesen Auftrag ohne Persona".to_owned() } else { persona.to_owned() };
-    format!(
-        "Die Verbindung „{}“ ist extern; für {who} ist sie nicht freigegeben (Einstellungen → Assistenten). Es \
-         wurde nichts gesendet.",
-        connection.name
-    )
+    let who = if persona.trim().is_empty() {
+        crate::i18n::tc("system_msg.models.no_persona", &[])
+    } else {
+        persona.to_owned()
+    };
+    crate::i18n::tc("system_msg.models.not_released", &[("name", (&connection.name).into()), ("who", who.into())])
 }
 
 /// Path of a job of the persona `persona`: its connection, resolved. If the connection is external and the
@@ -461,11 +472,12 @@ fn listing_of(cached: &Cached, live: bool, message: Option<String>) -> Listing {
 
 /// Model list of the connection Eliezer.
 pub async fn list(state: &AppState) -> Result<Listing, LlmError> {
-    let connection = state
-        .store
-        .model_connection_get(ELIEZER_CONNECTION)
-        .await
-        .map_err(|e| LlmError::NotConfigured(format!("Modell-Verbindung nicht lesbar: {e}")))?;
+    let connection = state.store.model_connection_get(ELIEZER_CONNECTION).await.map_err(|e| {
+        LlmError::NotConfigured(crate::i18n::tc(
+            "system_msg.models.connection_unreadable",
+            &[("detail", e.to_string().into())],
+        ))
+    })?;
     list_on(state, &connection).await
 }
 
@@ -490,9 +502,13 @@ pub async fn list_on(state: &AppState, connection: &ModelConnection) -> Result<L
             let e = with_account(e, &target);
             match lock(&CACHE).get(&key) {
                 Some(stale) => {
-                    let message = format!(
-                        "{} antwortet nicht ({e}); Liste aus dem abgelaufenen Zwischenspeicher (Stand {}).",
-                        connection.name, stale.fetched
+                    let message = crate::i18n::tc(
+                        "system_msg.models.stale_list",
+                        &[
+                            ("name", (&connection.name).into()),
+                            ("detail", e.to_string().into()),
+                            ("stamp", stale.fetched.to_string().into()),
+                        ],
                     );
                     Ok(listing_of(stale, false, Some(message)))
                 }
@@ -505,10 +521,11 @@ pub async fn list_on(state: &AppState, connection: &ModelConnection) -> Result<L
 /// Sentence for a deviating context length.
 fn context_warning(setting: u32, name: &str, reported: u32) -> Option<String> {
     (reported != setting).then(|| {
+        let args = [("setting", setting.into()), ("name", name.into()), ("reported", reported.into())];
         if reported < setting {
-            format!("Einstellung {setting}, {name} meldet {reported}; wirksam sind {reported} Tokens.")
+            crate::i18n::tc("system_msg.models.context_lower", &args)
         } else {
-            format!("Einstellung {setting}, {name} meldet {reported}; wirksam bleibt die Einstellung.")
+            crate::i18n::tc("system_msg.models.context_higher", &args)
         }
     })
 }
@@ -661,10 +678,10 @@ pub fn persona_summary(states: &[Value]) -> String {
         .collect();
     let mut parts = Vec::new();
     if !unknown.is_empty() {
-        parts.push(format!("Unbekannt bei Eliezer: {}.", unknown.join(", ")));
+        parts.push(crate::i18n::tc("system_msg.models.unknown_at_eliezer", &[("list", unknown.join(", ").into())]));
     }
     if !aliased.is_empty() {
-        parts.push(format!("Alias: {} (Baruch löst den alten Namen beim Senden auf).", aliased.join(", ")));
+        parts.push(crate::i18n::tc("system_msg.models.alias", &[("list", aliased.join(", ").into())]));
     }
     parts.join(" ")
 }
@@ -781,13 +798,12 @@ pub async fn describe(state: &AppState, connection: &ModelConnection) -> Value {
 
 fn id_param(params: &Value, name: &str) -> Result<i64, RpcError> {
     match params.get(name) {
-        Some(Value::Number(n)) => {
-            n.as_i64().ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("{name}: Zahl erwartet")))
-        }
-        Some(Value::String(s)) => {
-            s.trim().parse().map_err(|_| RpcError::new(INVALID_PARAMS, format!("{name}: Zahl erwartet")))
-        }
-        _ => Err(RpcError::new(INVALID_PARAMS, format!("{name} fehlt (id der Modell-Verbindung)"))),
+        Some(Value::Number(n)) => n.as_i64().ok_or_else(|| number_expected(name)),
+        Some(Value::String(s)) => s.trim().parse().map_err(|_| number_expected(name)),
+        _ => Err(RpcError::new(
+            INVALID_PARAMS,
+            crate::i18n::tc("system_msg.models.id_missing", &[("name", name.into())]),
+        )),
     }
 }
 
@@ -813,12 +829,14 @@ fn edit_param(
     let name = text("name").or_else(|| current.map(|c| c.name.clone())).unwrap_or_default();
     let kind = text("kind").or_else(|| current.map(|c| c.kind.clone())).unwrap_or_default();
     if BackendKind::parse(&kind).is_none() {
-        return Err(RpcError::new(INVALID_PARAMS, "kind: eliezer, openai oder ollama."));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.kind", &[])));
     }
     let url = match text("url") {
         Some(url) => crate::connections::config::check_url(&url).map_err(RpcError::from)?,
         None if eliezer => String::new(),
-        None => current.and_then(|c| c.url.clone()).ok_or_else(|| RpcError::new(INVALID_PARAMS, "url fehlt."))?,
+        None => current
+            .and_then(|c| c.url.clone())
+            .ok_or_else(|| RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.url_missing", &[])))?,
     };
     // Without a value: when creating by the address (not recognisably local → external); when changing „extern“ stays,
     // and a new address that is not recognisably local makes the connection external – a forgotten tick never opens
@@ -830,7 +848,7 @@ fn edit_param(
             Some(c) => c.external || (text("url").is_some() && auto(&url)),
             None => auto(&url),
         },
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "external: true oder false.")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.external", &[]))),
     };
     Ok(ModelConnectionEdit { name, kind: kind.to_lowercase(), url, external })
 }
@@ -878,10 +896,10 @@ pub async fn set_connection(state: &AppState, params: &Value) -> Result<ModelCon
 fn secret_text(params: &Value) -> Result<String, RpcError> {
     let secret = params.get("secret").and_then(Value::as_str).unwrap_or("").trim();
     if secret.is_empty() {
-        return Err(RpcError::new(INVALID_PARAMS, "secret: leer; nichts geändert."));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.secret_empty", &[])));
     }
     if secret.chars().count() > 4096 || secret.chars().any(char::is_control) {
-        return Err(RpcError::new(INVALID_PARAMS, "secret: höchstens 4096 Zeichen in einer Zeile."));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.secret_long", &[])));
     }
     Ok(secret.to_owned())
 }
@@ -894,9 +912,9 @@ pub async fn set_secret(state: &AppState, id: i64, secret: &str) -> Result<(), R
     }
     let connection = state.store.model_connection_get(id).await?;
     let _held = state.write_lock.lock().await;
-    crate::connections::secrets::set(&state.secrets, &connection.account, secret)
-        .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Schlüsselbund: {e}")))?;
+    crate::connections::secrets::set(&state.secrets, &connection.account, secret).await.map_err(|e| {
+        RpcError::new(INTERNAL, crate::i18n::tc("system_msg.models.keyring", &[("detail", e.to_string().into())]))
+    })?;
     state.store.model_connection_bind_secret(id, None).await?;
     Ok(())
 }
@@ -908,9 +926,9 @@ pub async fn delete_secret(state: &AppState, id: i64) -> Result<(), RpcError> {
     }
     let connection = state.store.model_connection_get(id).await?;
     let _held = state.write_lock.lock().await;
-    crate::connections::secrets::delete(&state.secrets, &connection.account)
-        .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Schlüsselbund: {e}")))?;
+    crate::connections::secrets::delete(&state.secrets, &connection.account).await.map_err(|e| {
+        RpcError::new(INTERNAL, crate::i18n::tc("system_msg.models.keyring", &[("detail", e.to_string().into())]))
+    })?;
     state.store.model_connection_bind_secret(id, None).await?;
     Ok(())
 }
@@ -965,11 +983,15 @@ pub async fn check_connection(state: &AppState, id: i64) -> Result<Value, RpcErr
 
 /// Round 23: deleting (connection, key) only with `confirm: true` – like `work.delete` and the forms with
 /// their mandatory checkbox. Otherwise -32602, and nothing is deleted.
+fn number_expected(name: &str) -> RpcError {
+    RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.number_expected", &[("name", name.into())]))
+}
+
 fn confirmed(params: &Value) -> Result<(), RpcError> {
     if params.get("confirm").and_then(Value::as_bool) == Some(true) {
         Ok(())
     } else {
-        Err(RpcError::new(INVALID_PARAMS, "confirm: true erwartet"))
+        Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.confirm", &[])))
     }
 }
 
@@ -978,7 +1000,7 @@ fn confirmed(params: &Value) -> Result<(), RpcError> {
 pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(RpcError::new(INVALID_PARAMS, "Parameter als Objekt erwartet"));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.params_object", &[])));
     }
     match method {
         "model.list" => {
@@ -1004,17 +1026,16 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
         "model.probe" => {
             let model = params.get("model").and_then(Value::as_str).map(str::trim).unwrap_or("");
             if model.is_empty() || model.chars().count() > 200 || model.chars().any(char::is_control) {
-                return Err(RpcError::new(INVALID_PARAMS, "model: Modellname (1–200 Zeichen, eine Zeile) erwartet."));
+                return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.model_name", &[])));
             }
             let connection = connection_param(state, &params).await?;
             Ok(probe_on(state, connection.id, model).await)
         }
         "model.context" => {
-            let persona = params
-                .get("persona")
-                .and_then(Value::as_str)
-                .filter(|p| !p.trim().is_empty())
-                .ok_or_else(|| RpcError::new(INVALID_PARAMS, "persona fehlt (z. B. „@lektor“)"))?;
+            let persona =
+                params.get("persona").and_then(Value::as_str).filter(|p| !p.trim().is_empty()).ok_or_else(|| {
+                    RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.models.persona_missing", &[]))
+                })?;
             let want = persona.trim().trim_start_matches('@');
             let row = state
                 .store
@@ -1086,7 +1107,7 @@ mod tests {
 
     #[test]
     fn the_effective_context_is_the_smaller_length_with_a_warning() {
-        let b = budget(65536, "Eliezer", Some(32768));
+        let b = crate::i18n::sync_scope(crate::i18n::Lang::De, || budget(65536, "Eliezer", Some(32768)));
         assert_eq!(b.tokens, 32768, "Minimum aus Einstellung und Meldung");
         assert!(
             b.warning.as_deref().is_some_and(|w| w.contains("Einstellung 65536, Eliezer meldet 32768")),

@@ -497,7 +497,7 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
         page.contains("method=\"post\"") && page.contains("action=\"/beenden\""),
         "als gewöhnliches Formular (ohne JavaScript bedienbar)"
     );
-    let done = client.post(process.at("/beenden")).send().await.unwrap();
+    let done = client.post(process.at("/beenden")).header("accept-language", "de").send().await.unwrap();
     assert_eq!(done.status(), 200, "das Formular vom eigenen Rechner wird angenommen");
     let done = done.text().await.unwrap();
     assert!(done.contains(baruch_server::shutdown::DONE_TEXT), "mit dem Satz, dass Baruch beendet ist");

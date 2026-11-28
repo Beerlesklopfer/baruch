@@ -28,7 +28,9 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
             let name = match params.get("name") {
                 Some(Value::String(name)) => name.clone(),
                 None | Some(Value::Null) => String::new(),
-                Some(_) => return Err(RpcError::new(INVALID_PARAMS, "name: Text erwartet")),
+                Some(_) => {
+                    return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("system_msg.rpc.instance_name", &[])));
+                }
             };
             // Check (trim, length, control characters) in the store; invalid → INVALID_PARAMS, nothing stored.
             let instance = state.store.set_instance_name(&name).await?;

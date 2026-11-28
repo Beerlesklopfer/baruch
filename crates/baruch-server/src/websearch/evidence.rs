@@ -132,20 +132,33 @@ async fn free_key(pool: &SqlitePool, url: &str, accessed: &str) -> Result<String
 /// Unknown, not `belegt` or already adopted → -32602, then nothing is created.
 pub async fn adopt(state: &AppState, id: i64) -> Result<Value, RpcError> {
     let pool = state.store.pool();
-    let db = |e: sqlx::Error| RpcError::new(crate::rpc::INTERNAL, format!("Speicher: {e}"));
+    let db = |e: sqlx::Error| {
+        RpcError::new(
+            crate::rpc::INTERNAL,
+            crate::i18n::tc("websearch_msg.evidence.store", &[("detail", e.to_string().into())]),
+        )
+    };
     let _held = state.write_lock.lock().await;
-    let found = get(pool, id).await.map_err(db)?.ok_or_else(|| invalid(format!("Beleg {id} gibt es nicht.")))?;
+    let found = get(pool, id)
+        .await
+        .map_err(db)?
+        .ok_or_else(|| invalid(crate::i18n::tc("websearch_msg.evidence.unknown", &[("id", id.into())])))?;
     if found.verdict != "belegt" {
-        return Err(invalid(format!(
-            "Beleg {id} ist {}; in die Bibliothek kommen nur Zitate, deren Wortlaut auf der abgerufenen Seite steht.",
-            if found.verdict == "nicht_belegt" { "nicht belegt" } else { "ohne Zitat" }
-        )));
+        let key = if found.verdict == "nicht_belegt" {
+            "websearch_msg.evidence.not_proven"
+        } else {
+            "websearch_msg.evidence.no_quote_verdict"
+        };
+        return Err(invalid(crate::i18n::tc(key, &[("id", id.into())])));
     }
     if let Some(title) = found.library_title {
-        return Err(invalid(format!("Beleg {id} ist schon übernommen (Titel {title}).")));
+        return Err(invalid(crate::i18n::tc(
+            "websearch_msg.evidence.adopted",
+            &[("id", id.into()), ("title", title.into())],
+        )));
     }
     if found.quote.trim().is_empty() {
-        return Err(invalid(format!("Beleg {id} hat kein Zitat.")));
+        return Err(invalid(crate::i18n::tc("websearch_msg.evidence.no_quote", &[("id", id.into())])));
     }
     let existing: Option<i64> =
         sqlx::query_scalar("SELECT id FROM library_title WHERE kind = 'web' AND url = ? ORDER BY id LIMIT 1")

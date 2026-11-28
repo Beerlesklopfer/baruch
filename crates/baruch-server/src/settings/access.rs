@@ -152,11 +152,12 @@ pub(super) async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, 
         }
         "revoke" => {
             if !form.confirm.as_deref().is_some_and(|c| matches!(c, "1" | "on")) {
-                let message = "Widerrufen bitte bestätigen (Kästchen ankreuzen).";
-                return super::error_page(&state, &headers, "mcp", work, message).await;
+                let message = crate::i18n::tc("settings_msg.access.revoke_confirm", &[]);
+                return super::error_page(&state, &headers, "mcp", work, &message).await;
             }
             let Some(id) = form.id.as_deref().and_then(|i| i.trim().parse::<i64>().ok()) else {
-                return super::error_page(&state, &headers, "mcp", work, "Welcher Token? (id fehlt)").await;
+                let message = crate::i18n::tc("settings_msg.access.which_token", &[]);
+                return super::error_page(&state, &headers, "mcp", work, &message).await;
             };
             match state.store.mcp_token_revoke(id).await {
                 Ok(_) => Redirect::to(&format!("/einstellungen/mcp?ok=widerrufen{}", super::work_suffix(work)))

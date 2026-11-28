@@ -276,7 +276,7 @@ async fn read_node_names_the_existing_numbers_after_a_deletion() {
     server.state.store.delete_revision(work, 2, 3, "Autor").await.unwrap();
     let text = refused(&server, None, "read_node", json!({ "work": slug, "node": 2, "rev": 3 })).await;
     assert!(
-        text.contains("Fassung 3 gibt es nicht; vorhanden: 1, 2, 4"),
+        text.contains("Revision 3 does not exist; available: 1, 2, 4"),
         "MCP nennt dieselbe Liste wie RPC, mit der Lücke: {text}"
     );
 }
@@ -305,11 +305,11 @@ async fn read_node_returns_the_current_text_all_revisions_and_rev_selects_one() 
     assert!(!first["text"].as_str().unwrap().contains("in Beziehungen"), "rev 1 ist der alte Text: {first}");
     let text = refused(&server, None, "read_node", json!({ "work": slug, "node": 2, "rev": 9 })).await;
     assert!(
-        text.contains("Fassung 9 gibt es nicht; vorhanden: 1, 2, 3"),
-        "deutscher Text für unbekannte Revision mit den vorhandenen Nummern: {text}"
+        text.contains("Revision 9 does not exist; available: 1, 2, 3"),
+        "englischer Text (MCP) für unbekannte Revision mit den vorhandenen Nummern: {text}"
     );
     let text = refused(&server, None, "read_node", json!({ "work": slug, "node": 99 })).await;
-    assert!(text.contains("unbekannter Abschnitt 99"), "deutscher Text für unbekannten Abschnitt: {text}");
+    assert!(text.contains("unknown section 99"), "englischer Text (MCP) für unbekannten Abschnitt: {text}");
 }
 
 #[tokio::test]
@@ -403,7 +403,7 @@ async fn a_proposal_with_a_persona_uses_its_handle_and_bad_proposals_are_refused
     assert!(text.contains("Unknown work"), "unbekanntes Werk: {text}");
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": work, "key": 99_999, "body": "x" })).await;
-    assert!(text.contains("gibt es nicht mehr"), "unbekannter Schlüssel: {text}");
+    assert!(text.contains("no longer exists"), "unbekannter Schlüssel (MCP englisch): {text}");
     let text =
         refused(&server, Some(&session), "propose_revision", json!({ "work": work, "key": signs, "body": "  \n" }))
             .await;
@@ -499,7 +499,7 @@ async fn add_post_writes_a_post_by_persona_or_client_and_checks_refs() {
         assert!(text.contains(why), "Verweis geprüft ({why}): {text}");
     }
     let text = refused(&server, Some(&session), "add_post", json!({ "work": work, "key": pious, "body": "   " })).await;
-    assert!(text.contains("Leerer Beitrag"), "leerer Beitrag: {text}");
+    assert!(text.contains("Empty post"), "leerer Beitrag (MCP englisch): {text}");
     let text = refused(
         &server,
         Some(&session),
@@ -741,7 +741,7 @@ async fn a_client_with_an_old_outline_writes_through_the_key_into_the_right_sect
     assert_eq!(summer_now["revisions"][1]["status"], "proposed", "der Vorschlag steht bei „Sommer“: {summer_now}");
     let gone =
         refused(&server, None, "propose_revision", json!({ "work": work, "key": 999_999, "body": "= X\n" })).await;
-    assert!(gone.contains("gibt es nicht mehr"), "unbekannter Schlüssel → klare Meldung: {gone}");
+    assert!(gone.contains("no longer exists"), "unbekannter Schlüssel → klare Meldung (MCP englisch): {gone}");
 }
 
 // ---- key is mandatory when writing (contract Round 5) ------------------------------------------

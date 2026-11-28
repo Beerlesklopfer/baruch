@@ -80,7 +80,11 @@ fn outside_render<'a>(
 
 #[tokio::test]
 async fn the_registry_has_eight_pages_in_order_and_takes_a_render_function_from_outside() {
-    let titles: Vec<(&str, &str, &str)> = registry().iter().map(|p| (p.slug, p.title, p.storage)).collect();
+    // Round 39a: titles and storage notes are catalog keys; the German texts are the wording of contract §3.
+    let german = |key: &str| baruch_server::i18n::t(baruch_server::i18n::Lang::De, key, &[]);
+    let titles: Vec<(String, String, String)> =
+        registry().iter().map(|p| (p.slug.to_owned(), german(p.title), german(p.storage))).collect();
+    let titles: Vec<(&str, &str, &str)> = titles.iter().map(|(a, b, c)| (a.as_str(), b.as_str(), c.as_str())).collect();
     assert_eq!(
         titles,
         [
@@ -138,11 +142,17 @@ async fn every_settings_page_has_exactly_one_frame_with_navigation_and_storage()
         }
         assert_eq!(html.matches("aria-current=\"page\"").count(), 1, "{slug}: genau eine Seite ist die gezeigte");
         assert!(
-            html.contains(&format!("data-settings-page=\"{slug}\" aria-current=\"page\">{}</a>", page.title)),
+            html.contains(&format!(
+                "data-settings-page=\"{slug}\" aria-current=\"page\">{}</a>",
+                baruch_server::i18n::t(baruch_server::i18n::Lang::De, page.title, &[])
+            )),
             "{slug}: die gezeigte Seite trägt aria-current"
         );
         assert!(
-            html.contains(&format!("<p class=\"settings-storage\">Gespeichert: {}</p>", page.storage)),
+            html.contains(&format!(
+                "<p class=\"settings-storage\">Gespeichert: {}</p>",
+                baruch_server::i18n::t(baruch_server::i18n::Lang::De, page.storage, &[])
+            )),
             "{slug}: sagt, wo der Wert liegt"
         );
         assert!(html.starts_with("<!doctype html>") || html.contains("<!doctype html>"), "{slug}: ganze Seite");
@@ -741,7 +751,8 @@ async fn a_backup_needs_confirmation_and_copies_the_data_folder_next_to_it() {
             blocked.push(dir);
         }
     }
-    let again = baruch_server::settings::backup(&server.state).await;
+    let again =
+        baruch_server::i18n::scope(baruch_server::i18n::Lang::De, baruch_server::settings::backup(&server.state)).await;
     let message = again.expect_err("Ziel gibt es schon → Fehler");
     assert!(message.contains("gibt es schon; nichts überschrieben"), "deutsche Meldung: {message}");
     for dir in &blocked {
@@ -762,7 +773,10 @@ async fn backups_stop_at_the_limit_instead_of_filling_the_disk() {
         std::fs::write(dir.join("merker"), "alt").unwrap();
     }
     let before = backups(&root);
-    let refused = baruch_server::settings::backup(&server.state).await.expect_err("Obergrenze erreicht");
+    let refused =
+        baruch_server::i18n::scope(baruch_server::i18n::Lang::De, baruch_server::settings::backup(&server.state))
+            .await
+            .expect_err("Obergrenze erreicht");
     assert!(refused.contains("höchstens 10") && refused.contains("Nichts angelegt"), "deutsche Meldung: {refused}");
     let rpc = server.rpc("settings.backup", json!({ "confirm": true })).await;
     assert!(rpc["error"]["message"].as_str().is_some_and(|m| m.contains("bitte alte entfernen")), "RPC: {rpc}");

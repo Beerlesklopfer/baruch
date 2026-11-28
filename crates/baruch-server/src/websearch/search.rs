@@ -66,9 +66,9 @@ pub fn search_arguments(schema: &Value, query: &str, limit: usize) -> Result<Val
     }
     let pick = |keys: &[&'static str]| keys.iter().find(|k| props.contains_key(**k)).copied();
     let query_key = pick(QUERY_KEYS).ok_or_else(|| {
-        RagError::Schema(format!(
-            "{WEB_SEARCH_TOOL} nennt im inputSchema keinen Parameter für die Anfrage ({}).",
-            QUERY_KEYS.join(", ")
+        RagError::Schema(crate::i18n::tc(
+            "websearch_msg.search.no_query_param",
+            &[("tool", WEB_SEARCH_TOOL.into()), ("keys", QUERY_KEYS.join(", ").into())],
         ))
     })?;
     let limit_key = pick(LIMIT_KEYS);
@@ -93,7 +93,10 @@ pub fn search_arguments(schema: &Value, query: &str, limit: usize) -> Result<Val
 pub(crate) fn check_required(schema: &Value, tool: &str, known: &[Option<&str>]) -> Result<(), RagError> {
     let required = schema.get("required").and_then(Value::as_array).cloned().unwrap_or_default();
     if let Some(unknown) = required.iter().filter_map(Value::as_str).find(|r| !known.contains(&Some(*r))) {
-        return Err(RagError::Schema(format!("{tool} verlangt den Parameter „{unknown}“, den Baruch nicht kennt.")));
+        return Err(RagError::Schema(crate::i18n::tc(
+            "websearch_msg.search.unknown_param",
+            &[("tool", tool.into()), ("name", unknown.into())],
+        )));
     }
     Ok(())
 }
@@ -185,8 +188,9 @@ pub fn parse_hits(result: &Value) -> Result<Vec<WebHit>, RagError> {
     }
     let text = content_text(result);
     if text.trim().is_empty() {
-        return Err(RagError::Schema(format!(
-            "{WEB_SEARCH_TOOL}: Antwort nicht lesbar (weder Trefferliste noch Text)."
+        return Err(RagError::Schema(crate::i18n::tc(
+            "websearch_msg.search.unreadable",
+            &[("tool", WEB_SEARCH_TOOL.into())],
         )));
     }
     Ok(hits_from_text(&text))
@@ -217,13 +221,14 @@ pub(crate) fn reason(e: &RagError) -> String {
 pub async fn research(state: &AppState, query: &str) -> Research {
     let mut out = Research { query: query_line(query), ..Research::default() };
     if out.query.is_empty() {
-        out.failure = Some("keine Suchanfrage (Frage und Abschnitt sind leer)".into());
+        out.failure = Some(crate::i18n::tc("websearch_msg.search.no_query", &[]));
         return out;
     }
     let sources = match state.store.sources_list().await {
         Ok(list) => list,
         Err(e) => {
-            out.notes.push(format!("Hinweis: bevorzugte Quellen nicht lesbar ({})", clean_line(&e.to_string(), 200)));
+            let detail = clean_line(&crate::store_text::store_error_text(crate::i18n::current(), &e), 200);
+            out.notes.push(crate::i18n::tc("websearch_msg.search.sources_unreadable", &[("detail", detail.into())]));
             Vec::new()
         }
     };
@@ -232,10 +237,9 @@ pub async fn research(state: &AppState, query: &str) -> Research {
         Ok(Ok(())) => {}
         Ok(Err(e)) => out.failure = Some(reason(&e)),
         Err(_) => {
-            out.failure = Some(format!(
-                "Zeitlimit von {} s für die ganze Websuche erreicht; {} Seite(n) bis dahin abgerufen",
-                TOTAL_TIMEOUT.as_secs(),
-                out.pages.len()
+            out.failure = Some(crate::i18n::tc(
+                "websearch_msg.search.timeout",
+                &[("seconds", TOTAL_TIMEOUT.as_secs().into()), ("pages", out.pages.len().into())],
             ));
         }
     }
@@ -265,12 +269,10 @@ async fn gather(
     exceptions: &[String],
     out: &mut Research,
 ) -> Result<(), RagError> {
-    let search_schema = session.schema(WEB_SEARCH_TOOL).ok_or_else(|| {
-        RagError::Schema(format!("MultiGPT bietet das Werkzeug {WEB_SEARCH_TOOL} nicht an (tools/list)."))
-    })?;
-    let fetch_schema = session.schema(FETCH_URL_TOOL).ok_or_else(|| {
-        RagError::Schema(format!("MultiGPT bietet das Werkzeug {FETCH_URL_TOOL} nicht an (tools/list)."))
-    })?;
+    let missing =
+        |tool: &str| RagError::Schema(crate::i18n::tc("websearch_msg.search.missing_tool", &[("tool", tool.into())]));
+    let search_schema = session.schema(WEB_SEARCH_TOOL).ok_or_else(|| missing(WEB_SEARCH_TOOL))?;
+    let fetch_schema = session.schema(FETCH_URL_TOOL).ok_or_else(|| missing(FETCH_URL_TOOL))?;
     let query = out.query.clone();
     let mut room = true;
     for host in hosts.iter().take(MAX_PREFERRED_CALLS) {
@@ -281,7 +283,10 @@ async fn gather(
         let args = search_arguments(&search_schema, &site, MAX_HITS)?;
         match session.call(WEB_SEARCH_TOOL, args, Some(SEARCH_LIMITS)).await.and_then(|r| parse_hits(&r)) {
             Ok(found) => room = add_hits(out, found, hosts),
-            Err(e) => out.notes.push(format!("Hinweis: Suche „site:{host}“ ausgefallen ({})", reason(&e))),
+            Err(e) => out.notes.push(crate::i18n::tc(
+                "websearch_msg.search.site_failed",
+                &[("host", host.as_str().into()), ("detail", reason(&e).into())],
+            )),
         }
     }
     if room {
@@ -290,7 +295,10 @@ async fn gather(
             Ok(found) => {
                 add_hits(out, found, hosts);
             }
-            Err(e) => out.notes.push(format!("Hinweis: allgemeine Suche ausgefallen ({})", reason(&e))),
+            Err(e) => {
+                out.notes
+                    .push(crate::i18n::tc("websearch_msg.search.general_failed", &[("detail", reason(&e).into())]));
+            }
         }
     }
     // Round 23: addresses that by their wording point into the own network do not go to `fetch_url`
@@ -301,7 +309,10 @@ async fn gather(
         match super::fetch::fetch_allowed_with(&hit.url, exceptions) {
             Ok(()) if wanted.len() < MAX_FETCHES => wanted.push(hit.clone()),
             Ok(()) => {}
-            Err(why) => out.notes.push(format!("Hinweis: {} nicht abgerufen ({why})", clean_line(&hit.url, 300))),
+            Err(why) => out.notes.push(crate::i18n::tc(
+                "websearch_msg.search.not_fetched",
+                &[("url", clean_line(&hit.url, 300).into()), ("detail", crate::i18n::tc(why, &[]).into())],
+            )),
         }
     }
     for hit in wanted {
@@ -325,7 +336,10 @@ async fn gather(
                     day,
                 });
             }
-            Err(e) => out.notes.push(format!("Hinweis: {} übersprungen ({})", clean_line(&hit.url, 300), reason(&e))),
+            Err(e) => out.notes.push(crate::i18n::tc(
+                "websearch_msg.search.skipped",
+                &[("url", clean_line(&hit.url, 300).into()), ("detail", reason(&e).into())],
+            )),
         }
     }
     Ok(())

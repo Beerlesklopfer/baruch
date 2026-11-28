@@ -46,7 +46,7 @@ pub(super) async fn render(
 ) -> Result<String, String> {
     let info = super::request();
     let s = &info.settings;
-    let notice = query.contains_key("ok").then_some("Gespeichert – gilt in diesem Browser.");
+    let notice = query.contains_key("ok").then(|| crate::i18n::tc("settings_msg.display.saved", &[]));
     let width = |w: Option<f32>| w.map(|w| format!("{w}\u{a0}%"));
     super::render_template(
         "settings/darstellung.html",
@@ -91,24 +91,24 @@ pub(crate) fn cookies_for(
         None => {}
         Some("system") => out.push(cookie("theme", None)),
         Some(v @ ("light" | "dark")) => out.push(cookie("theme", Some(v))),
-        Some(_) => return Err("Thema: „System“, „Hell“ oder „Dunkel“ wählen.".into()),
+        Some(_) => return Err(crate::i18n::tc("settings_msg.display.theme", &[])),
     }
     match editor {
         None => {}
         Some(v @ ("satz" | "quelltext")) => out.push(cookie("editor", Some(v))),
-        Some(_) => return Err("Editor: „Satzbild“ oder „Quelltext“ wählen.".into()),
+        Some(_) => return Err(crate::i18n::tc("settings_msg.display.editor", &[])),
     }
     match pv {
         None => {}
         // Open is the default: then no cookie is needed.
         Some("open") => out.push(cookie("pv", None)),
         Some("closed") => out.push(cookie("pv", Some("closed"))),
-        Some(_) => return Err("Vorschläge: „aufgeklappt“ oder „eingeklappt“ wählen.".into()),
+        Some(_) => return Err(crate::i18n::tc("settings_msg.display.proposals", &[])),
     }
     match accordion {
         None => {}
         Some(v @ ("chat" | "personas" | "revisions")) => out.push(cookie("accordion", Some(v))),
-        Some(_) => return Err("Bereich rechts: „Assistenten“, „Fassungen“ oder „Abschnitts-Chat“ wählen.".into()),
+        Some(_) => return Err(crate::i18n::tc("settings_msg.display.accordion", &[])),
     }
     if reset_widths {
         out.push(cookie("left", None));

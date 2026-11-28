@@ -198,7 +198,11 @@ async fn paragraphs_in_a_new_chapter_never_become_titles_and_bad_titles_are_refu
             )
             .await;
             assert_eq!(answer["result"]["isError"], true, "MCP-Vorschlag mit Titel „{title:?}“ abgelehnt: {answer}");
-            assert_eq!(answer["result"]["content"][0]["text"], start, "MCP mit derselben Meldung: {answer}");
+            let english = baruch_server::store_text::translate(baruch_server::i18n::Lang::En, start);
+            assert_eq!(
+                answer["result"]["content"][0]["text"], english,
+                "MCP mit derselben Meldung, englisch: {answer}"
+            );
         }
     }
     assert_eq!(

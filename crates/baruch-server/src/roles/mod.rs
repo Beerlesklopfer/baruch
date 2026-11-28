@@ -156,15 +156,18 @@ pub const LEKTOR_RPC: &[(&str, WorkFrom)] = &[
     ("finding.add", WorkFrom::Param),
 ];
 
-/// Message when a Lektor calls something outside his tables.
-const AUTHOR_ONLY: &str = "Das darf nur der Autor";
+/// Message when a Lektor calls something outside his tables (language of the request).
+fn author_only_text() -> String {
+    crate::i18n::tc("accounts_msg.roles.author_only", &[])
+}
 
-/// Message for a Lektor without a released work.
+/// Message for a Lektor without a released work (German wording of `accounts_msg.roles.no_work`).
 pub const NO_WORK: &str = "Noch kein Werk freigegeben.";
 
-/// Message for a work that is not released: the same as for an unknown one (`StoreError::UnknownWork`).
+/// Message for a work that is not released: the same as for an unknown one (`StoreError::UnknownWork`), in the
+/// language of the request.
 pub fn unknown_work(work: WorkId) -> String {
-    StoreError::UnknownWork(work).to_string()
+    crate::store_text::store_error_text(crate::i18n::current(), &StoreError::UnknownWork(work))
 }
 
 /// Message and code when a Lektor is not allowed the method `method` ([`FORBIDDEN`]).
@@ -260,7 +263,7 @@ pub async fn check_request_preferring(
         return Verdict::Allow;
     }
     if who.lektor().is_none() {
-        return Verdict::Deny("Anmeldung erforderlich.".to_owned());
+        return Verdict::Deny(crate::i18n::tc("accounts_msg.gate.login_required", &[]));
     }
     // axum answers HEAD with the GET handler; anything other than GET, HEAD and POST does not exist for Lektors.
     let verb = if method == Method::GET || method == Method::HEAD {
@@ -268,25 +271,25 @@ pub async fn check_request_preferring(
     } else if method == Method::POST {
         "POST"
     } else {
-        return Verdict::Deny(format!("{AUTHOR_ONLY}."));
+        return Verdict::Deny(author_only_text());
     };
     let hit = LEKTOR_ROUTES
         .iter()
         .filter(|(v, _, _)| *v == verb)
         .find_map(|(_, pattern, from)| match_route(pattern, path).map(|id| (id, *from)));
     let Some((id, from)) = hit else {
-        return Verdict::Deny(format!("{AUTHOR_ONLY}."));
+        return Verdict::Deny(author_only_text());
     };
     let granted = match granted_works(state, who).await {
         Ok(granted) => granted,
         Err(e) => {
             eprintln!("Rollen: Freigaben nicht lesbar: {e}");
-            return Verdict::Deny("Freigaben nicht lesbar.".to_owned());
+            return Verdict::Deny(crate::i18n::tc("accounts_msg.roles.grants_unreadable", &[]));
         }
     };
     // Every `work` of the address must be released – for every route, even if it needs no work itself.
     let Ok(in_query) = query_works(query) else {
-        return Verdict::Deny("Adresse nicht lesbar.".to_owned());
+        return Verdict::Deny(crate::i18n::tc("accounts_msg.roles.address_unreadable", &[]));
     };
     for value in &in_query {
         match value.parse::<WorkId>() {
@@ -300,10 +303,10 @@ pub async fn check_request_preferring(
         WorkFrom::Path => match id.map(str::parse::<WorkId>) {
             Some(Ok(work)) if granted.contains(&work) => Verdict::Allow,
             Some(Ok(work)) => Verdict::Deny(unknown_work(work)),
-            _ => Verdict::Deny("Werk-id (Zahl) erwartet".to_owned()),
+            _ => Verdict::Deny(crate::i18n::tc("accounts_msg.roles.work_id", &[])),
         },
         WorkFrom::Query if !in_query.is_empty() => Verdict::Allow,
-        WorkFrom::Query if verb != "GET" => Verdict::Deny(NO_WORK.to_owned()),
+        WorkFrom::Query if verb != "GET" => Verdict::Deny(crate::i18n::tc("accounts_msg.roles.no_work", &[])),
         WorkFrom::Query => match preferred.filter(|work| granted.contains(work)).or(granted.first().copied()) {
             // Never the default work of the instance: the same address with the work opened last if it is
             // released, otherwise with the smallest released one.
@@ -319,7 +322,7 @@ pub async fn check_request_preferring(
 /// `work` from RPC parameters, read the way the modules read it (`rpc::work_param`: number; `findings::rpc`: also
 /// digits as text): `Ok(None)` = missing, `Err` = neither a number nor digits.
 fn param_work(params: &Value) -> Result<Option<WorkId>, RpcError> {
-    let wrong = || RpcError::new(INVALID_PARAMS, "work: Werk-id (Zahl) erwartet");
+    let wrong = || RpcError::new(INVALID_PARAMS, crate::i18n::tc("accounts_msg.roles.work_param", &[]));
     match params.get("work") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -337,13 +340,13 @@ pub async fn check_rpc(state: &AppState, who: &Who, method: &str, params: &mut V
         return Ok(());
     }
     if who.lektor().is_none() {
-        return Err(RpcError::new(UNAUTHENTICATED, "Anmeldung erforderlich."));
+        return Err(RpcError::new(UNAUTHENTICATED, crate::i18n::tc("accounts_msg.gate.login_required", &[])));
     }
     let Some((_, from)) = LEKTOR_RPC.iter().find(|(name, _)| *name == method) else {
         return Err(author_only(method));
     };
     if !(params.is_null() || params.is_object()) {
-        return Err(RpcError::new(INVALID_PARAMS, "Parameter als Objekt erwartet"));
+        return Err(RpcError::new(INVALID_PARAMS, crate::i18n::tc("accounts_msg.roles.params_object", &[])));
     }
     let granted = granted_works(state, who).await?;
     match param_work(params)? {

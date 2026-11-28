@@ -338,7 +338,12 @@ async fn proposals_never_reject_never_double_and_the_human_decides_with_one_comm
     let lektor = baruch_store::IdeaOrigin::Persona { handle: "@lektor".into() };
     let before = commit_count(&dir);
     for change in [baruch_store::StatusChange::Rejected { reason: "nein".into() }, baruch_store::StatusChange::Open] {
-        let err = findings::rpc::propose(&server.state, work, id, &change, &lektor, "").await.unwrap_err();
+        let err = baruch_server::i18n::scope(
+            baruch_server::i18n::Lang::De,
+            findings::rpc::propose(&server.state, work, id, &change, &lektor, ""),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(err.code, -32602, "Assistenten verwerfen und öffnen nie: {err:?}");
         assert!(err.message.starts_with("Nur der Mensch kann"), "ehrliche Meldung: {}", err.message);
     }

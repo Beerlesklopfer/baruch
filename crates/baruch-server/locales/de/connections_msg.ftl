@@ -1,0 +1,223 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Messages of the connections and sources (src/connections/**): checks, field checks, keyring, page
+# „Verbindungen“ with its message codes, check details and form fields (Round 39a, task messages_2).
+
+# Checks of a connection (src/connections/check.rs, mod.rs).
+connections_msg.check.timeout = Keine Antwort von { $url } innerhalb von { $seconds } s.
+connections_msg.check.no_connection = Keine Verbindung zu { $url }: { $detail }
+connections_msg.check.request_failed = Anfrage an { $url } gescheitert: { $detail }
+connections_msg.check.too_big = Antwort von { $url } ist größer als 1 MiB; abgebrochen.
+connections_msg.check.redirect = { $target } leitet weiter (HTTP { $status }); Baruch folgt Weiterleitungen nicht – bitte die endgültige Adresse eintragen.
+connections_msg.check.key_hint = Schlüssel baruch/{ $account } prüfen
+connections_msg.check.no_key = kein Schlüssel hinterlegt (baruch/{ $account })
+connections_msg.check.denied = Zugang verweigert (HTTP { $status }): { $hint }.
+connections_msg.check.http_status = { $target } antwortet mit HTTP { $status }.
+connections_msg.check.no_json = { $target } liefert kein JSON.
+connections_msg.check.no_models = { $target } liefert keine Modellliste (Feld data fehlt).
+connections_msg.check.total_timeout = Zeitlimit: Keine vollständige Antwort von { $url } innerhalb von { $seconds } s; Prüfung abgebrochen.
+connections_msg.check.tool_pages = tools/list hat mehr als { $max } Seiten; gezeigt sind die Werkzeuge der ersten { $max }.
+connections_msg.check.collections_unreadable = { $tool }: Antwort nicht lesbar, keine Sammlungen.
+connections_msg.check.collections_failed = Sammlungen nicht lesbar: { $detail }
+connections_msg.check.collections_tool_missing = { $tool } fehlt; Sammlungen lassen sich von Hand eintragen.
+connections_msg.check.pg_ok = Verbindung steht, Erweiterung vector { $vector }.
+connections_msg.check.pg_no_vector = Verbindung steht, aber die Erweiterung vector fehlt (CREATE EXTENSION vector).
+connections_msg.check.pg_password_hint = Passwort baruch/pgvector prüfen
+connections_msg.check.pg_no_password = kein Passwort hinterlegt (baruch/pgvector)
+connections_msg.check.pg_login = Anmeldung abgelehnt: { $detail } ({ $hint }).
+connections_msg.check.pg_database = Datenbank { $address }: { $detail }
+connections_msg.check.pg_io = Keine Verbindung zu { $address }: { $detail }
+connections_msg.check.pg_tls = TLS mit { $address }: { $detail }
+connections_msg.check.pg_other = Verbindung zu { $address }: { $detail }
+connections_msg.check.withheld = Nicht geprüft: Das Geheimnis ist für { $bound } hinterlegt, die Adresse zeigt jetzt anderswohin. Baruch schickt es nicht an ein anderes Ziel. Für die neue Adresse das Geheimnis neu eintragen (oder die alte Adresse wieder einstellen).
+connections_msg.check.incomplete = Keine vollständige Antwort innerhalb von { $seconds } s; Prüfung abgebrochen.
+
+# Field checks and connection.* over /rpc (src/connections/config.rs, collections.rs, mod.rs, sources.rs).
+connections_msg.field.url = Adresse fehlt oder ist ungültig (eine Zeile, höchstens 2000 Zeichen).
+connections_msg.field.url_invalid = Adresse ist ungültig.
+connections_msg.field.url_scheme = Adresse muss mit http:// oder https:// beginnen.
+connections_msg.field.url_user = Adresse ohne Benutzer und Passwort (Geheimnisse gehören in den Schlüsselbund).
+connections_msg.field.url_host = Adresse ohne Rechnernamen.
+connections_msg.field.url_secret = Adresse ohne Schlüssel oder Token in der Abfrage (dafür gibt es den Schlüsselbund).
+connections_msg.field.text = { $name }: Text erwartet.
+connections_msg.field.host = Rechner: Name oder IP-Adresse ohne Leerzeichen, / oder @.
+connections_msg.field.port = Port: ganze Zahl von 1 bis 65535.
+connections_msg.field.short = { $name }: höchstens 63 Zeichen in einer Zeile.
+connections_msg.field.tls = TLS: disable, prefer, require oder verify-full.
+connections_msg.field.dir = Ordner: nicht leer, eine Zeile.
+connections_msg.field.table = Tabelle: Name aus Buchstaben, Ziffern und _ (nicht mit einer Ziffer beginnend, höchstens 63 Zeichen), wahlweise schema.tabelle.
+connections_msg.field.column = { $name }: Spaltenname aus Buchstaben, Ziffern und _ (nicht mit einer Ziffer beginnend, höchstens 63 Zeichen).
+connections_msg.field.column_optional = { $name }: Spaltenname aus Buchstaben, Ziffern und _ (nicht mit einer Ziffer beginnend, höchstens 63 Zeichen); leer = Spalte gibt es nicht.
+connections_msg.field.config_object = config: JSON-Objekt erwartet.
+connections_msg.field.secret_in_config = Geheimnisse gehören nicht in die Einstellungen, sondern in den Schlüsselbund (connection.set_secret).
+connections_msg.rpc.way = way: pgvector oder multigpt (nur diese Wege haben Sammlungen).
+connections_msg.rpc.way_missing = way fehlt (pgvector oder multigpt).
+connections_msg.rpc.collections = collections: Liste von Texten erwartet.
+connections_msg.rpc.keyring = Schlüsselbund: { $detail }
+connections_msg.rpc.kind = kind: eliezer, multigpt, pgvector oder lancedb.
+connections_msg.rpc.no_secret = LanceDB braucht kein Geheimnis.
+connections_msg.rpc.secret_empty = secret: leer; nichts geändert.
+connections_msg.rpc.secret_long = secret: höchstens 4096 Zeichen in einer Zeile.
+connections_msg.rpc.work_id = work: Werk-id (Zahl) erwartet.
+connections_msg.rpc.kind_missing = kind fehlt (eliezer, multigpt, pgvector oder lancedb).
+connections_msg.rpc.confirm = confirm: true fehlt; nichts geändert.
+connections_msg.rpc.ways = ways: Liste aus lancedb, pgvector, multigpt.
+connections_msg.rpc.params_object = Parameter als Objekt erwartet
+connections_msg.sources.title = title: 1 bis 200 Zeichen in einer Zeile.
+connections_msg.sources.url = url: http:// oder https:// mit Rechner, ohne Benutzer, höchstens 2000 Zeichen.
+connections_msg.sources.note = note: höchstens 4000 Zeichen.
+connections_msg.sources.confirm = confirm: true fehlt; nichts gelöscht.
+connections_msg.sources.usage = Die Websuche für @belege (Einstellungen → Assistenten, Vorgabe aus) fragt zuerst die ersten drei Quellen dieser Liste über „{ $site }“ ab, danach das allgemeine Web. Treffer, deren Rechner zu einer Quelle passt, sind als „bevorzugte Quelle“ gekennzeichnet.
+connections_msg.keyring.no_access = kein Zugriff auf den Schlüsselbund (gesperrt oder nicht erreichbar)
+connections_msg.keyring.failure = Fehler des Schlüsselbunds: { $detail }
+connections_msg.keyring.encoding = der hinterlegte Wert ist kein UTF-8-Text
+connections_msg.keyring.ambiguous = { $count } Einträge passen; bitte im Schlüsselbund aufräumen
+
+# What a connection is used for (page „Verbindungen“, the texts of connections::usage_stub).
+connections_msg.usage.eliezer = Personas nutzen Eliezer für ihre Antworten, Prüfungen und Vorschläge – immer nur eine Anfrage zur Zeit; das Modell je Persona steht unter Einstellungen → Assistenten. Dazu bettet Eliezer die Texte für die Bedeutungssuche ein (LanceDB und pgvector, eigene Warteschlange, höchstens 32 Texte je Anfrage); ohne Eliezer bleibt die Wortlaut-Suche.
+connections_msg.usage.multigpt = Suche über MultiGPT (search_documents) in den gewählten Sammlungen des Werks, Treffer mit Quellenangabe; read_document als Ausschnitt einer Fundstelle und als Volltext in der Dokumentansicht der Literatur (teilweise, ohne JavaScript); Hervorhebungen ohne Zitat werden gegen den Volltext geprüft.
+connections_msg.usage.pgvector = Bedeutungssuche direkt in pgvector (Kosinus-Abstand, nur lesend) in den gewählten Sammlungen des Werks; die Anfrage wird mit demselben Einbettungsmodell eingebettet wie die Daten.
+connections_msg.usage.lancedb = Haupt-RAG im Datenordner: Abschnitte (aktuelle Fassung), Einfälle, Hervorhebungen und die Autorenbibliothek, eingebettet über Eliezer; ohne Einbettungsmodell bleibt die Wortlaut-Suche (FTS).
+
+# Details of a check (page „Verbindungen“, connections::pages::detail_lines).
+connections_msg.detail.more = { $list } … und { $more } weitere
+connections_msg.detail.count = { $name } ({ $count } { $unit })
+connections_msg.detail.unit_documents = Dokumente
+connections_msg.detail.unit_sections = Abschnitte
+connections_msg.detail.collections = Sammlungen: { $list }
+connections_msg.detail.models = Modelle: { $list }
+connections_msg.detail.server = Server: { $name }
+connections_msg.detail.tools = Werkzeuge: { $list }
+connections_msg.detail.tool_pages = Werkzeugliste in { $pages } Seiten
+connections_msg.detail.vector = Erweiterung vector: { $vector }
+connections_msg.detail.vector_missing = fehlt
+connections_msg.detail.table = Tabelle: { $table }
+connections_msg.detail.table_columns = Tabelle: { $table } ({ $columns })
+connections_msg.detail.chunks = Abschnitte: { $count }
+connections_msg.detail.dimension = Dimension: { $count }
+connections_msg.detail.data_models = Einbettungsmodelle in den Daten: { $list }
+connections_msg.detail.dir = Ordner: { $dir }
+connections_msg.detail.dir_missing = Ordner: { $dir } (fehlt noch)
+connections_msg.detail.dir_readonly = Ordner: { $dir } (nicht beschreibbar)
+connections_msg.detail.dir_writable = Ordner: { $dir } (beschreibbar)
+connections_msg.detail.tables = Tabellen: { $list }
+connections_msg.detail.entries = Einträge: { $count }
+connections_msg.detail.index_dimension = Index: { $model }, Dimension { $dimension }
+connections_msg.detail.index = Index: { $model }
+connections_msg.detail.configured_model = Eingestelltes Modell: { $model }
+connections_msg.detail.embedder_ok = Einbettung: geht
+connections_msg.detail.embedder = Einbettung: { $detail }
+connections_msg.detail.contexts = Gemeldete Kontextlängen: { $list }
+connections_msg.detail.tokens = { $id }: { $count } Tokens
+
+# Input fields of a connection (label and hint, connections::pages::form_fields).
+connections_msg.form.url = Adresse
+connections_msg.form.url_hint = http:// oder https://, ohne Benutzer und Passwort
+connections_msg.form.host = Rechner (Host)
+connections_msg.form.host_hint = leer = nicht eingerichtet
+connections_msg.form.port = Port
+connections_msg.form.database = Datenbank
+connections_msg.form.database_hint = leer = wie der Benutzer
+connections_msg.form.user = Benutzer
+connections_msg.form.tls = TLS
+connections_msg.form.dir = Ordner
+connections_msg.form.dir_hint = relativ zum Datenordner oder absolut
+connections_msg.form.embedding_model = Einbettungsmodell
+connections_msg.form.embedding_model_hint = dasselbe Modell, mit dem die Daten eingebettet sind
+connections_msg.form.table = Tabelle
+connections_msg.form.table_hint = tabelle oder schema.tabelle, genau wie in der Datenbank
+connections_msg.form.text_column = Spalte Text
+connections_msg.form.vector_column = Spalte Vektor
+connections_msg.form.vector_column_hint = Typ vector (pgvector)
+connections_msg.form.collection_column = Spalte Sammlung
+connections_msg.form.document_column = Spalte Dokument
+connections_msg.form.section_column = Spalte Stelle
+connections_msg.form.title_column = Spalte Titel
+connections_msg.form.url_column = Spalte Adresse
+connections_msg.form.model_column = Spalte Modell
+connections_msg.form.optional_hint = leer = gibt es nicht
+connections_msg.form.model_column_hint = leer = gibt es nicht; sonst prüft Baruch das Modell je Sammlung
+connections_msg.form.query_prefix = Präfix der Anfrage
+connections_msg.form.query_prefix_pg_hint = wie die Daten eingebettet sind; für nomic-embed-text „search_query: “ (mit Leerzeichen am Ende); leer = kein Präfix
+connections_msg.form.query_prefix_hint = für nomic-embed-text „search_query: “ (mit Leerzeichen am Ende); leer = kein Präfix
+connections_msg.form.document_prefix = Präfix der Dokumente
+connections_msg.form.document_prefix_hint = für nomic-embed-text „search_document: “; leer = kein Präfix. Eine Änderung verlangt „Index neu aufbauen“
+connections_msg.form.other = Feld
+connections_msg.page.template = Vorlage { $name }: { $detail }
+
+# Message codes of the page „Verbindungen“ (?ok=, ?fehler=, ?modellfehler=).
+
+connections_msg.ok.gespeichert = Die Einstellungen sind gespeichert.
+connections_msg.ok.geheimnis = Das Geheimnis ist im Schlüsselbund hinterlegt.
+connections_msg.ok.gespeichert_geheimnis = Die Einstellungen sind gespeichert, das Geheimnis ist im Schlüsselbund hinterlegt.
+connections_msg.ok.geheimnis_entfernt = Das Geheimnis ist aus dem Schlüsselbund entfernt.
+connections_msg.ok.geprueft = Die Verbindung ist geprüft; das Ergebnis steht bei der Verbindung.
+connections_msg.ok.kurztest = Der Kurztest ist gelaufen; das Ergebnis steht bei Eliezer.
+connections_msg.ok.rag = Die RAG-Wege des Werks sind gespeichert.
+connections_msg.ok.sammlungen = Die Sammlungen des Werks sind gespeichert.
+connections_msg.ok.reindex = Der Index des Werks wird neu aufgebaut; den Stand zeigt „Status der Wege“.
+connections_msg.ok.angelegt = Die Quelle ist angelegt.
+connections_msg.ok.geaendert = Die Quelle ist geändert.
+connections_msg.ok.verschoben = Die Quelle ist verschoben.
+connections_msg.ok.geloescht = Die Quelle ist gelöscht.
+connections_msg.ok.bibel_ordner = Die Modulordner der Bibeln sind gespeichert.
+connections_msg.ok.bibel_vorgabe = Die Modulordner der Bibeln stehen wieder auf der Vorgabe.
+connections_msg.ok.bibel_gewaehlt = Die Bibel des Werks ist gewählt; die Stellenprüfung prüft jetzt den Wortlaut.
+connections_msg.ok.bibel_keine = Das Werk hat keine Bibel mehr; der Wortlaut bleibt ungeprüft.
+connections_msg.ok.bibel_schluessel = Der Schlüssel passt und ist im Schlüsselbund hinterlegt; das Modul ist lesbar.
+connections_msg.ok.bibel_schluessel_entfernt = Der Schlüssel ist aus dem Schlüsselbund entfernt.
+connections_msg.error.kind = Unbekannte Verbindung; nichts geändert.
+connections_msg.error.url = Die Adresse ist ungültig; nichts geändert.
+connections_msg.error.url_schema = Die Adresse muss mit http:// oder https:// beginnen; nichts geändert.
+connections_msg.error.url_benutzer = Die Adresse darf keinen Benutzer und kein Passwort enthalten – Geheimnisse gehören in den Schlüsselbund; nichts geändert.
+connections_msg.error.url_geheimnis = Die Adresse darf keinen Schlüssel und kein Token in der Abfrage tragen – dafür gibt es den Schlüsselbund; nichts geändert.
+connections_msg.error.geheimnis_feld = Geheimnisse gehören nicht in die Einstellungen, sondern in den Schlüsselbund; nichts geändert.
+connections_msg.error.host = Der Rechner (Host) ist ungültig: Name oder IP-Adresse ohne Leerzeichen; nichts geändert.
+connections_msg.error.port = Der Port muss eine ganze Zahl von 1 bis 65535 sein; nichts geändert.
+connections_msg.error.tls = TLS: disable, prefer, require oder verify-full; nichts geändert.
+connections_msg.error.feld = Ein Feld ist ungültig (zu lang oder mehrzeilig); nichts geändert.
+connections_msg.error.ordner = Der Ordner darf nicht leer sein; nichts geändert.
+connections_msg.error.modell = Das Einbettungsmodell darf nicht leer sein (höchstens 200 Zeichen); nichts geändert.
+connections_msg.error.praefix = Ein Aufgaben-Präfix darf höchstens 64 Zeichen lang sein und keine Steuerzeichen (auch keinen Zeilenumbruch) enthalten; nichts geändert.
+connections_msg.error.geheimnis_leer = Das Geheimnis ist leer; nichts geändert.
+connections_msg.error.geheimnis_ungueltig = Das Geheimnis ist zu lang oder mehrzeilig; nichts geändert.
+connections_msg.error.kein_geheimnis = LanceDB braucht kein Geheimnis.
+connections_msg.error.bestaetigen = Bitte bestätigen (Kästchen anhaken); nichts geändert.
+connections_msg.error.schluesselbund = Der Schlüsselbund ist nicht erreichbar oder lehnt ab; nichts geändert.
+connections_msg.error.gespeichert_ohne_geheimnis = Die Einstellungen sind gespeichert, das Geheimnis aber nicht: Der Schlüsselbund ist nicht erreichbar oder lehnt ab. Das bisherige Geheimnis bleibt und wird nicht an eine geänderte Adresse geschickt.
+connections_msg.error.werk = Unbekanntes Werk; nichts geändert.
+connections_msg.error.weg = Unbekannter RAG-Weg; nichts geändert.
+connections_msg.error.sammlung = Sammlung ungültig (1 bis 200 Zeichen, eine Zeile, höchstens 100); nichts geändert.
+connections_msg.error.reindex = Der Index ließ sich nicht neu aufbauen; den Grund nennt „Status der Wege“.
+connections_msg.error.tabelle = Die Tabelle muss ein Name aus Buchstaben, Ziffern und _ sein (wahlweise schema.tabelle); nichts geändert.
+connections_msg.error.spalte = Ein Spaltenname ist ungültig (Buchstaben, Ziffern und _, nicht mit einer Ziffer beginnend; nur Stelle, Titel, Adresse und Modell dürfen leer sein); nichts geändert.
+connections_msg.error.titel = Der Titel muss 1 bis 200 Zeichen in einer Zeile haben; nichts geändert.
+connections_msg.error.adresse = Die Adresse muss mit http:// oder https:// beginnen, einen Rechner nennen und darf keine Leerzeichen enthalten; nichts geändert.
+connections_msg.error.notiz = Die Notiz ist zu lang (höchstens 4000 Zeichen); nichts geändert.
+connections_msg.error.quelle = Diese Quelle gibt es nicht (mehr); bitte neu laden.
+connections_msg.error.position = Ungültige Stelle; nichts verschoben.
+connections_msg.error.methode = Unbekannte Aktion; nichts geändert.
+connections_msg.error.kurztest_modell = Für den Kurztest bitte ein Modell wählen (eine Zeile, höchstens 200 Zeichen); nichts gesendet.
+connections_msg.error.intern = Interner Fehler; nichts geändert. Bitte erneut versuchen.
+connections_msg.error.bibel_ordner = Modulordner: je Zeile ein absoluter Pfad (oder ~/…), höchstens 20 Ordner zu je 1000 Zeichen; nichts geändert.
+connections_msg.error.bibel_modul = Dieses Bibelmodul gibt es in keinem Modulordner, oder Baruch kann es nicht lesen; nichts geändert.
+connections_msg.error.bibel_schluessel_falsch = Der Schlüssel passt nicht zum Modul; nichts gespeichert.
+connections_msg.error.bibel_schluessel = Schlüssel: 1 bis 255 Zeichen in einer Zeile, nur für ein verschlüsseltes Modul aus den Modulordnern; nichts gespeichert.
+connections_msg.error.other = Das hat nicht geklappt (unbekannter Fehlercode).
+connections_msg.model_ok.modell_gespeichert = Die Modell-Verbindung ist gespeichert.
+connections_msg.model_ok.modell_angelegt = Die Modell-Verbindung ist angelegt.
+connections_msg.model_ok.modell_geloescht = Die Modell-Verbindung ist gelöscht; Personas, die sie nutzten, nutzen wieder Eliezer.
+connections_msg.model_ok.modell_schluessel = Der Schlüssel ist im Schlüsselbund hinterlegt und gilt für die jetzige Adresse.
+connections_msg.model_ok.modell_schluessel_entfernt = Der Schlüssel ist aus dem Schlüsselbund entfernt.
+connections_msg.model_ok.modell_geprueft = Die Modell-Verbindung ist geprüft; das Ergebnis steht bei ihr.
+connections_msg.model_ok.modell_kurztest = Der Kurztest ist gelaufen; das Ergebnis steht bei der Verbindung.
+connections_msg.model_error.name = Der Name fehlt, ist zu lang oder gibt es schon; nichts geändert.
+connections_msg.model_error.art = Unbekannte Art (Eliezer, OpenAI-kompatibel oder Ollama); nichts geändert.
+connections_msg.model_error.adresse = Die Adresse ist ungültig (http:// oder https://, ohne Benutzer und Schlüssel); nichts geändert.
+connections_msg.model_error.verbindung = Diese Modell-Verbindung gibt es nicht (mehr); bitte neu laden.
+connections_msg.model_error.eliezer = Die Verbindung Eliezer lässt sich nicht löschen und bleibt von der Art Eliezer.
+connections_msg.model_error.schluessel = Der Schlüssel ist leer, zu lang oder mehrzeilig; nichts geändert.
+connections_msg.model_error.schluesselbund = Der Schlüsselbund ist nicht erreichbar oder lehnt ab; nichts geändert.
+connections_msg.model_error.bestaetigen = Bitte bestätigen (Kästchen anhaken); nichts geändert.
+connections_msg.model_error.modell = Für den Kurztest bitte ein Modell angeben (eine Zeile, höchstens 200 Zeichen); nichts gesendet.
+connections_msg.model_error.aktion = Unbekannte Aktion; nichts geändert.
+connections_msg.model_error.other = Das hat nicht geklappt; nichts geändert.

@@ -41,7 +41,8 @@ pub async fn scope<F: std::future::Future>(hash: Option<String>, f: F) -> F::Out
 /// New token: 32 random bytes of the system as Base64url (43 characters).
 pub fn new_token() -> Result<String, String> {
     let mut bytes = [0u8; 32];
-    getrandom::getrandom(&mut bytes).map_err(|e| format!("Zufallszahlen des Systems: {e}"))?;
+    getrandom::getrandom(&mut bytes)
+        .map_err(|e| crate::i18n::tc("accounts_msg.login.random", &[("detail", e.to_string().into())]))?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
