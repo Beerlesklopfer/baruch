@@ -6363,6 +6363,39 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
 
 #### widgets
 
+- **Scope:** every user-visible string of the TypeScript widgets (`web/src/*.ts` except `i18n.ts`, 45 of 47 files
+  had texts) comes from the page catalog through `t("widget.<module>.<name>", { name: … })` imported from
+  `./i18n.js`; stem `widget` (`locales/{en,de}/widget.ftl`, 353 keys, grouped by module in file order). German is
+  the old wording byte for byte; English is the base catalog. Texts the widgets take from `data-*` attributes, the
+  server's HTML or RPC answers (labels of blocks, `decision_label`, `range_label`, server messages) stay as they are.
+- **Rules applied:** the second key segment is the module that uses the key (`widget.mindmap.*` only in
+  `mindmap.ts`); no `t()` at module level (the catalog is read lazily on the first call, so node tests can put a fake
+  `#baruch-i18n` element in place after the imports): tables keep keys and call `t()` where the text is shown
+  (`outline.ts` level names, drop hints and add labels, `mindmap.ts` link kinds, `scripture_check.ts` states,
+  `typeset_settings.ts` field labels via `labelOf`, `panes.ts` theme names); `ws_command.ts` `BUILTIN_REGISTERS`
+  gives its titles through getters. Plurals and optional parts are separate keys (`cover_editor.saved_one/_other`,
+  `print_check_one/_other`, `mindmap.delete_question`/`_children`, `created`/`created_cloud`, `now_before`/
+  `now_after`, `chat.typing_one`/`typing_many` with `chat.and`); leading and trailing spaces stay outside `t()`.
+  Text with `<…>` (Typst labels) goes in as an argument, because only `_html` keys may contain `<`. The two
+  dialogs built as markup strings (`search.ts` sidebar, `xref.ts` cross-reference dialog) escape the catalog texts
+  with a local `esc()`. Numbers: `cover_editor.ts` `mm()` uses `fmtNumber(value, 1)` (was a fixed decimal comma);
+  no widget formats dates itself (the times come formatted from the server). No widget looks at
+  `navigator.language`.
+- **Left as they are (not shown text, allow list with `# reason`):** route paths and anchors (`/werke/…`,
+  `/einstellungen…`, `/quelle?…`, `#beitrag-`), the handle `@alle`, the CSS class `nur-autor`, form/query values
+  (`keine`, `alle`, `fassungen`, `werk`) and the quotation mark sets of `quote_find.ts`. Book content stays in the
+  work language for Round 39b: the default draft watermark `ENTWURF` (`typeset_settings.ts`), the page suffix
+  `, S. …` of cross-references in the typeset view and the Typst snippets (`xref.ts`), the reference paragraph `– `
+  after a new quotation block (`wysiwyg.ts`). Placeholders inserted into a new footnote, quotation or term
+  (`Fußnote`, `Zitat`, `Begriff`) follow the interface language (`widget.wysiwyg.placeholder_*`) like the
+  prompts around them. Log lines (`console.error`) stay English.
+- **Tests:** `tests/round39a_widgets.rs`: the page catalog carries exactly the `widget.*` keys in the page language
+  (en and de); every `"widget.…"` literal in `web/src` exists and belongs to its module, no orphan; English without
+  German, German spot checks against the old wording; no language detection in the widgets; under Node `chat.js`,
+  `rpc.js`, `context_menu.js`, `ws_command.js` and `i18n.js` show English with the English catalog and the old German
+  with the German one, and the key without a catalog. Older node tests that assert German get the German catalog
+  (`i18n::widget_catalog_json(Lang::De)`) as a fake `#baruch-i18n` element before the probe runs.
+
 #### messages_1
 
 #### messages_2

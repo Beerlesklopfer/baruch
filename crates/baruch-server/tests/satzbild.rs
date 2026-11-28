@@ -203,12 +203,19 @@ fn the_widgets_check_titles_like_the_server_and_never_pull_a_paragraph_into_a_he
     // Round 7: the same messages as `baruch_store::check_title`; the server stays authoritative.
     for name in ["wysiwyg.js", "outline.js"] {
         let js = script(name);
-        for message in [
-            "Ein Gliederungspunkt braucht einen Titel.",
-            "Der Titel darf keinen Zeilenumbruch enthalten.",
-            "Der Titel ist zu lang (höchstens",
+        // Round 39a: the widgets name catalog keys; the German catalog text is the server's message.
+        let module = name.trim_end_matches(".js");
+        for (key, message) in [
+            ("title_empty", "Ein Gliederungspunkt braucht einen Titel."),
+            ("title_newline", "Der Titel darf keinen Zeilenumbruch enthalten."),
+            ("title_long", "Der Titel ist zu lang (höchstens"),
         ] {
-            assert!(js.contains(message), "{name} prüft vorab mit der Meldung des Servers: {message}");
+            let key = format!("widget.{module}.{key}");
+            let text = baruch_server::i18n::t(baruch_server::i18n::Lang::De, &key, &[]);
+            assert!(
+                js.contains(&format!("\"{key}\"")) && text.starts_with(message),
+                "{name} prüft vorab mit der Meldung des Servers: {message}"
+            );
         }
     }
     let js = script("wysiwyg.js");

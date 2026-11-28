@@ -14,6 +14,7 @@
 // Round 30c: at the end of every stream `baruch:chat-refresh` tells the chat to ask for new posts at once; the field
 // `basis` (review basis) goes along like every form field.
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 export type StreamEvent = { event: string; data: Record<string, unknown> };
@@ -47,8 +48,8 @@ const NUMERIC = new Set(["work", "key", "rev"]);
 /// Message on aborting: in the chat something is already saved, for single jobs nothing.
 export function cancelMessage(method: string): string {
   return method === "persona.chat"
-    ? "Abgebrochen. Dein Beitrag und schon fertige Antworten sind gespeichert; die laufende Antwort nicht."
-    : "Abgebrochen; es wurde nichts gespeichert.";
+    ? t("widget.assist.cancelled_chat")
+    : t("widget.assist.cancelled_nothing");
 }
 
 /// Notice through the toast (contract Round 15, §4); toast.ts shows it.
@@ -104,14 +105,14 @@ function pendingPost(form: HTMLFormElement): { box: HTMLElement; body: HTMLEleme
   author.className = "post-author";
   const status = document.createElement("span");
   status.className = "assist-status";
-  status.textContent = "wartet auf das Modell …";
+  status.textContent = t("widget.assist.waiting");
   author.append(status);
   const body = document.createElement("div");
   body.className = "post-body";
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "btn small assist-cancel";
-  cancel.textContent = "Abbrechen";
+  cancel.textContent = t("widget.assist.cancel");
   box.append(author, body, cancel);
   (chat ?? form.parentElement ?? document.body).append(box);
   return { box, body, status, cancel };
@@ -154,7 +155,7 @@ async function stream(form: HTMLFormElement, submitter: HTMLElement | null): Pro
       buffer = parsed.rest;
       for (const { event, data } of parsed.events) {
         if (event === "start") {
-          ui.status.textContent = `${String(data.persona ?? "")} schreibt …`;
+          ui.status.textContent = t("widget.assist.writing", { persona: String(data.persona ?? "") });
           if (typeof data.style === "string") ui.box.setAttribute("style", data.style);
           if (ui.body.textContent) ui.body.append(document.createElement("hr"));
           segment = document.createElement("span");
@@ -172,12 +173,12 @@ async function stream(form: HTMLFormElement, submitter: HTMLElement | null): Pro
           // Requested anew: discard what was shown of this persona so far – since Round 18b only the running piece
           // (earlier pieces are completely checked) – and name the reason.
           segment.textContent = "";
-          ui.status.textContent = `${String(data.persona ?? "")}: Antwort wird neu angefordert (${String(data.reason ?? "")}) …`;
+          ui.status.textContent = t("widget.assist.retry", { persona: String(data.persona ?? ""), reason: String(data.reason ?? "") });
         } else if (event === "compressed") {
-          toast(String(data.message ?? "Komprimiert."));
+          toast(String(data.message ?? t("widget.assist.compressed")));
           toasted = true;
         } else if (event === "error") {
-          errors.push(String(data.message ?? "Fehler"));
+          errors.push(String(data.message ?? t("widget.assist.error")));
         } else if (event === "done") {
           done = data;
         }
@@ -193,7 +194,7 @@ async function stream(form: HTMLFormElement, submitter: HTMLElement | null): Pro
   }
   const summary = done?.compressed;
   if (!toasted && summary !== null && typeof summary === "object") {
-    toast(String((summary as Record<string, unknown>).message ?? "Komprimiert."));
+    toast(String((summary as Record<string, unknown>).message ?? t("widget.assist.compressed")));
   }
   if (!done && controller.signal.aborted && method === "persona.chat") {
     // In the chat the own post (and every finished answer) is saved: redraw so that it stays.
@@ -210,7 +211,7 @@ async function stream(form: HTMLFormElement, submitter: HTMLElement | null): Pro
     document.dispatchEvent(new CustomEvent("baruch:navigate", { detail: { url } }));
   }
   ui.cancel.remove();
-  ui.status.textContent = controller.signal.aborted && method === "persona.chat" ? "abgebrochen" : "nicht gespeichert";
+  ui.status.textContent = controller.signal.aborted && method === "persona.chat" ? t("widget.assist.status_cancelled") : t("widget.assist.status_not_saved");
   const message = document.createElement("div");
   message.className = "assist-error";
   message.setAttribute("role", "alert");

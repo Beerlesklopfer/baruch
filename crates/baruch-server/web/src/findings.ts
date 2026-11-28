@@ -14,6 +14,7 @@
 //   the same forms (finding.decide with confirm); in the finding card of a chat post the box of the
 //   query itself carries `data-widget="findings"` so that the decision works without reloading there as well.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { mount, register } from "./widgets.js";
 
@@ -57,10 +58,10 @@ async function reload(root: HTMLElement, url: string, push: boolean): Promise<vo
   root.setAttribute("aria-busy", "true");
   try {
     const response = await fetch(url, { headers: { Accept: "text/html" } });
-    if (!response.ok) throw new Error(`Server antwortet ${response.status}`);
+    if (!response.ok) throw new Error(t("widget.findings.server_status", { status: response.status }));
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     const fresh = doc.querySelector<HTMLElement>("[data-findings-main]");
-    if (!fresh) throw new Error("Antwort ohne Befunde");
+    if (!fresh) throw new Error(t("widget.findings.no_findings"));
     main.innerHTML = fresh.innerHTML;
     mount(main);
     if (push) history.pushState({ findings: true }, "", url);

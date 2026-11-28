@@ -15,6 +15,7 @@
 // - Coordinates as in the server (contract 1.2): mm from the trim edge of the own face; faces in the whole cover
 //   back (b, b), spine (b + W, b), front (b + W + S, b).
 
+import { fmtNumber, t } from "./i18n.js";
 import { call, RpcError } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -102,7 +103,7 @@ function clamp(value: number, [low, high]: [number, number]): number {
 
 /// „12,5“ for labels.
 function mm(value: number): string {
-  return value.toFixed(1).replace(".", ",");
+  return fmtNumber(value, 1);
 }
 
 /// Extent of the frame on the face (mm): on the spine the text runs rotated, `width_mm` is vertical.
@@ -210,10 +211,10 @@ register("cover-editor", (root) => {
       frame.dataset.color = block.color;
       frame.classList.toggle("is-hidden", !block.visible);
       frame.classList.toggle("is-dirty", isDirty(kind));
-      const hidden = block.visible ? "" : ", verborgen";
+      const hidden = block.visible ? "" : `, ${t("widget.cover_editor.hidden")}`;
       frame.setAttribute(
         "aria-label",
-        `${labelOf(kind)}: x ${mm(block.x_mm)} mm, y ${mm(block.y_mm)} mm, Breite ${mm(block.width_mm)} mm${hidden}`,
+        t("widget.cover_editor.position", { label: labelOf(kind), x: mm(block.x_mm), y: mm(block.y_mm), width: mm(block.width_mm) }) + hidden,
       );
     }
     for (const name of NUMBER_FIELDS) {
@@ -276,14 +277,14 @@ register("cover-editor", (root) => {
   function undoLast(): void {
     const before = undo.pop();
     if (!before) {
-      say("Nichts rückgängig zu machen.");
+      say(t("widget.cover_editor.nothing_to_undo"));
       return;
     }
     blocks.set(before.kind, copy(before));
     place(before.kind);
     refreshButtons();
     schedulePreview();
-    say(`Rückgängig: ${labelOf(before.kind)}.`);
+    say(t("widget.cover_editor.undone", { label: labelOf(before.kind) }));
   }
 
   function select(kind: string | null): void {
@@ -299,11 +300,11 @@ register("cover-editor", (root) => {
   async function save(): Promise<void> {
     const changed = dirtyKinds();
     if (changed.length === 0) {
-      say("Nichts zu speichern.");
+      say(t("widget.cover_editor.nothing_to_save"));
       return;
     }
     if (saveButton) saveButton.disabled = true;
-    say("Speichert …");
+    say(t("widget.cover_editor.saving"));
     try {
       const answer = await call<{ layout?: Layout; mirror?: string }>("cover.layout_set", {
         work,
@@ -322,9 +323,9 @@ register("cover-editor", (root) => {
       }
       const warnings = answer?.layout?.warnings?.length ?? 0;
       say(
-        `Gespeichert (${changed.length} ${changed.length === 1 ? "Block" : "Blöcke"}).` +
-          (warnings > 0 ? ` Druckprüfung: ${warnings} Hinweis${warnings === 1 ? "" : "e"} – Seite neu laden zeigt sie.` : "") +
-          (answer?.mirror ? ` Spiegel: ${answer.mirror}` : ""),
+        (changed.length === 1 ? t("widget.cover_editor.saved_one") : t("widget.cover_editor.saved_other", { count: changed.length })) +
+          (warnings > 0 ? ` ${warnings === 1 ? t("widget.cover_editor.print_check_one") : t("widget.cover_editor.print_check_other", { count: warnings })}` : "") +
+          (answer?.mirror ? ` ${t("widget.cover_editor.mirror", { commit: answer.mirror })}` : ""),
       );
       if (image) image.src = `/werke/${work}/umschlag.svg?t=${Date.now()}`;
     } catch (error) {
@@ -334,7 +335,7 @@ register("cover-editor", (root) => {
   }
 
   async function reset(params: Record<string, unknown>, what: string): Promise<void> {
-    if (dirtyKinds().length > 0 && !confirm("Ungespeicherte Änderungen der Anordnung verwerfen?")) return;
+    if (dirtyKinds().length > 0 && !confirm(t("widget.cover_editor.discard"))) return;
     say(`${what} …`);
     try {
       await call("cover.layout_reset", { work, ...params });
@@ -452,7 +453,7 @@ register("cover-editor", (root) => {
         undo.push(start);
         refreshButtons();
         const block = blocks.get(kind)!;
-        say(`${labelOf(kind)}: x ${mm(block.x_mm)} mm, y ${mm(block.y_mm)} mm, Breite ${mm(block.width_mm)} mm.`);
+        say(`${t("widget.cover_editor.position", { label: labelOf(kind), x: mm(block.x_mm), y: mm(block.y_mm), width: mm(block.width_mm) })}.`);
       }
     };
     frame.addEventListener("pointerup", finish);
@@ -504,7 +505,7 @@ register("cover-editor", (root) => {
     event.preventDefault();
     change(kind, apply);
     const block = blocks.get(kind)!;
-    say(`${labelOf(kind)}: x ${mm(block.x_mm)} mm, y ${mm(block.y_mm)} mm, Breite ${mm(block.width_mm)} mm.`);
+    say(`${t("widget.cover_editor.position", { label: labelOf(kind), x: mm(block.x_mm), y: mm(block.y_mm), width: mm(block.width_mm) })}.`);
   });
 
   // ---- Fields of the sidebar --------------------------------------------------------------------
@@ -557,17 +558,17 @@ register("cover-editor", (root) => {
   toneButton?.addEventListener("click", (event) => {
     event.preventDefault();
     if (!selected) {
-      say("Erst einen Block wählen.");
+      say(t("widget.cover_editor.choose_block"));
       return;
     }
     const kind = selected;
     change(kind, (block) => (block.color = block.color === "light" ? "dark" : "light"));
-    say(`${labelOf(kind)}: Farbe ${blocks.get(kind)!.color === "dark" ? "dunkel" : "hell"}.`);
+    say(t(blocks.get(kind)!.color === "dark" ? "widget.cover_editor.color_dark" : "widget.cover_editor.color_light", { label: labelOf(kind) }));
   });
   root.querySelectorAll<HTMLButtonElement>("[data-cover-quick]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
-      void reset({ faces: ["front"], area: button.dataset.coverQuick }, `Schnellwahl ${button.textContent?.trim() ?? ""}`);
+      void reset({ faces: ["front"], area: button.dataset.coverQuick }, t("widget.cover_editor.quick", { name: button.textContent?.trim() ?? "" }));
     });
   });
   root.querySelector<HTMLButtonElement>("[data-cover-reset]")?.addEventListener("click", (event) => {
@@ -575,9 +576,9 @@ register("cover-editor", (root) => {
     const faces = Array.from(root.querySelectorAll<HTMLInputElement>("[data-cover-reset-form] input[name=faces]"))
       .filter((box) => box.checked)
       .map((box) => box.value);
-    const what = faces.length === 0 ? "die ganze Anordnung" : "die gewählten Flächen";
-    if (!confirm(`Anordnung zurücksetzen (${what})? Die Vorgaben gelten dann wieder.`)) return;
-    void reset(faces.length === 0 ? {} : { faces }, "Zurücksetzen");
+    const what = faces.length === 0 ? t("widget.cover_editor.reset_all") : t("widget.cover_editor.reset_faces");
+    if (!confirm(t("widget.cover_editor.reset_question", { what }))) return;
+    void reset(faces.length === 0 ? {} : { faces }, t("widget.cover_editor.reset"));
   });
   window.addEventListener("beforeunload", (event: BeforeUnloadEvent) => {
     if (dirtyKinds().length === 0) return;

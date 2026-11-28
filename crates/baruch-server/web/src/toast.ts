@@ -10,6 +10,7 @@
 //   INFO_MS. Escape closes the youngest notice if the focus lies in it.
 // - Texts only through textContent (never as HTML).
 
+import { t } from "./i18n.js";
 import { mount, register } from "./widgets.js";
 
 type Level = "warn" | "info";
@@ -53,7 +54,7 @@ function build(message: string, lvl: Level, summarized: string[]): HTMLElement {
     const details = document.createElement("details");
     details.className = "toast-details";
     const summary = document.createElement("summary");
-    summary.textContent = `Nur als Zusammenfassung gesehen (${summarized.length})`;
+    summary.textContent = t("widget.toast.summarized", { count: summarized.length });
     const list = document.createElement("ul");
     for (const part of summarized) {
       const item = document.createElement("li");
@@ -71,8 +72,8 @@ register("toast", (element) => {
   const close = document.createElement("button");
   close.type = "button";
   close.className = "toast-close";
-  close.setAttribute("aria-label", "Hinweis schließen");
-  close.title = "Schließen";
+  close.setAttribute("aria-label", t("widget.toast.close_label"));
+  close.title = t("widget.toast.close");
   close.textContent = "×";
   const remove = () => element.remove();
   close.addEventListener("click", remove);

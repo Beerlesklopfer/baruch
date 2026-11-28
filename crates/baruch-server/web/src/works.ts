@@ -12,6 +12,7 @@
 //   in the YAML header, Round 21b; ZIP: nothing) of the
 //   chosen file. The server stays authoritative; an empty field means "title from the file".
 
+import { t } from "./i18n.js";
 import { leaveEditor, register, store } from "./widgets.js";
 
 /// Title from the first `#set document(… title: "…" | […] …)` outside comments; otherwise `null`.
@@ -101,7 +102,7 @@ register("work-upload", (form) => {
       const found = /\.(md|markdown)$/i.test(chosen.name) ? markdownTitle(head) : documentTitle(head);
       title.value = found ?? "";
       title.dataset.filled = "1";
-      title.placeholder = found === null ? "aus dem Dateinamen" : "";
+      title.placeholder = found === null ? t("widget.works.from_file_name") : "";
     } catch {
       // Reading in the browser failed: the server takes the title from the file.
     }

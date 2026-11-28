@@ -753,7 +753,10 @@ async fn the_satzbild_building_blocks_escape_the_reference_and_check_the_key() {
     let _ = node;
     let dir = tempfile::tempdir().unwrap();
     let (_, source) = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "ws_command.js").expect("ws_command.js");
-    std::fs::write(dir.path().join("ws_command.mjs"), source).unwrap();
+    // Round 39a: ws_command.js imports its texts from i18n.js.
+    std::fs::write(dir.path().join("ws_command.mjs"), source.replace("\"./i18n.js\"", "\"./i18n.mjs\"")).unwrap();
+    let (_, i18n) = baruch_server::SCRIPTS.iter().find(|(name, _)| *name == "i18n.js").expect("i18n.js");
+    std::fs::write(dir.path().join("i18n.mjs"), i18n).unwrap();
     let probe = r##"
 import { scriptureFunction, scriptureSource, citeKey } from "./ws_command.mjs";
 process.stdout.write(JSON.stringify({

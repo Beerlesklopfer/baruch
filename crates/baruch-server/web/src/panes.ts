@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Widgets of the individual areas: column borders, theme, editor, outline, accordion (chat: chat.ts).
 
+import { t } from "./i18n.js";
 import { convertLineAt, convertText } from "./markdown.js";
 import { editorLocked, register, store, submitButton } from "./widgets.js";
 
@@ -53,11 +54,15 @@ register("splitter", (bar) => {
 register("theme", (button) => {
   const modes = ["auto", "light", "dark"] as const;
   type Mode = (typeof modes)[number];
-  const names: Record<Mode, string> = { auto: "System", light: "Hell", dark: "Dunkel" };
+  const names: Record<Mode, string> = {
+    auto: "widget.panes.theme_auto",
+    light: "widget.panes.theme_light",
+    dark: "widget.panes.theme_dark",
+  };
   const show = (mode: Mode) => {
     button.dataset.mode = mode;
     button.textContent = button.dataset[mode] ?? mode;
-    button.title = `Thema: ${names[mode]}`;
+    button.title = t("widget.panes.theme", { name: t(names[mode]) });
     if (mode === "auto") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = mode;
   };

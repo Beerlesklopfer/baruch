@@ -6,6 +6,7 @@
 //   columns open or close along (same height, easier to compare).
 // - „Übrige verwerfen“ asks once more before submitting (the checkbox stays the confirmation without JavaScript).
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 register("variants", (root) => {
@@ -19,7 +20,7 @@ register("variants", (root) => {
   }
   root.querySelectorAll<HTMLFormElement>("form.variant-reject").forEach((form) => {
     form.addEventListener("submit", (event) => {
-      const label = form.getAttribute("aria-label") ?? "Übrige Varianten verwerfen";
+      const label = form.getAttribute("aria-label") ?? t("widget.variants.reject_rest");
       if (!window.confirm(`${label}?`)) event.preventDefault();
     });
   });

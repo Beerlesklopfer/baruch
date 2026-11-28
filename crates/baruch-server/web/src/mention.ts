@@ -16,6 +16,7 @@
 // name („Le“ → „Lektor, “), which calls like @handle (server: `assist::chat::addressed`). The address entries of the
 // `<datalist>` (`data-address`, for the browser without JavaScript) do not count as personas here.
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 export interface Persona {
@@ -107,7 +108,7 @@ register("mention", (element) => {
   box.id = boxId;
   box.className = "mention-list";
   box.setAttribute("role", "listbox");
-  box.setAttribute("aria-label", "Personas");
+  box.setAttribute("aria-label", t("widget.mention.list_label"));
   box.hidden = true;
   input.insertAdjacentElement("afterend", box);
   input.setAttribute("role", "combobox");
@@ -153,12 +154,12 @@ register("mention", (element) => {
         if (form === "address") {
           // Address: „Lektor, …“ (calls like @lektor).
           name.textContent = `${p.name}, …`;
-          handle.textContent = ` wie ${p.handle}`;
+          handle.textContent = ` ${t("widget.mention.like", { handle: p.handle })}`;
           li.append(swatch, name, handle, role);
         } else {
           const also = document.createElement("span");
           also.className = "muted tiny mention-also";
-          also.textContent = p.handle === "@alle" ? "" : ` auch: „${p.name}, …“ am Satzanfang`;
+          also.textContent = p.handle === "@alle" ? "" : ` ${t("widget.mention.also", { name: p.name })}`;
           li.append(swatch, name, handle, also, role);
         }
         li.addEventListener("mousedown", (event) => {

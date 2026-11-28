@@ -8,6 +8,7 @@
 // visible text applies (innerText, fallback), otherwise the text field. Errors stay quiet: the display keeps the
 // last state.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 
@@ -80,7 +81,7 @@ register("timing", (element) => {
       if (overOut && target !== null) {
         const over = total > target;
         overOut.hidden = !over;
-        overOut.textContent = over ? `Zielzeit überschritten um ${clock(total - target)}` : "Zielzeit überschritten";
+        overOut.textContent = over ? t("widget.timing.over_by", { time: clock(total - target) }) : t("widget.timing.over");
       }
     } catch {
       // quiet: the last state stays

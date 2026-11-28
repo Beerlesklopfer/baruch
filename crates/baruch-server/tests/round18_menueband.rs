@@ -148,7 +148,12 @@ async fn the_ribbon_widget_sends_commands_inserts_snippets_and_says_honestly_wha
     assert!(js.contains("register(\"ribbon\""), "das Widget ist registriert");
     assert!(js.contains("sendWsCommand(root, cmd, arg)"), "im Satzbild nur über baruch:ws-command (ws_command.ts)");
     assert!(js.contains("data-ws-open"), "die Ansicht entscheidet: offenes Satzbild oder Quelltext");
-    assert!(js.contains("geht im Satzbild noch nicht"), "handled=false → ehrlicher Hinweis statt Stille");
+    assert!(
+        js.contains("\"widget.ribbon.not_in_sheet\"")
+            && baruch_server::i18n::t(baruch_server::i18n::Lang::De, "widget.ribbon.not_in_sheet", &[])
+                .contains("geht im Satzbild noch nicht"),
+        "handled=false → ehrlicher Hinweis statt Stille"
+    );
     assert!(js.contains("\"insertText\"") && js.contains("setRangeText"), "Einfügen im Quelltext an der Cursorstelle");
     assert!(js.contains("details[data-image-insert]"), "„Bild“ öffnet nur das Formular von satzbild-werk");
     assert!(!js.contains("wysiwyg.js"), "kein Import von wysiwyg.ts (Vertrag §4)");
@@ -486,7 +491,11 @@ async fn new_posts_are_marked_with_the_word_neu_not_only_by_colour() {
     let server = common::open().await;
     let (_, js) = server.get("/static/js/chat.js").await;
     assert!(js.contains("post-new-label"), "das Widget hängt ein eigenes Element an neue Beiträge");
-    assert!(js.contains("label.textContent = \"neu\""), "mit dem Wort „neu“ (Farbe allein reicht nicht)");
+    assert!(
+        js.contains("label.textContent = t(\"widget.chat.new_badge\")")
+            && baruch_server::i18n::t(baruch_server::i18n::Lang::De, "widget.chat.new_badge", &[]) == "neu",
+        "mit dem Wort „neu“ (Farbe allein reicht nicht)"
+    );
     let (_, css) = server.get("/static/app.css").await;
     assert!(css.contains(".post-new-label {"), "das Wort ist gestaltet");
 }

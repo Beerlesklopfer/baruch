@@ -14,6 +14,7 @@
 //   workspace page navigation to /suche.
 // - `baruch:find {text, at}` (jump.ts): select the place in the source text (wysiwyg.ts marks the typeset view).
 
+import { t } from "./i18n.js";
 import { byteToUtf16, locate } from "./jump.js";
 import { call } from "./rpc.js";
 import { keyAction, type Action, type KeyContext } from "./search_keys.js";
@@ -156,7 +157,7 @@ function markSheet(bar: Bar): void {
 /// Show the current hit (source text: selection; typeset view: marking).
 function show(bar: Bar): void {
   const n = bar.hits.length;
-  bar.count.textContent = n === 0 ? "Keine Treffer" : `${bar.index + 1} von ${n}`;
+  bar.count.textContent = n === 0 ? t("widget.search.no_hits") : t("widget.search.hit_of", { index: bar.index + 1, count: n });
   if (n === 0) {
     markSheet(bar);
     return;
@@ -204,7 +205,7 @@ async function runFind(bar: Bar): Promise<void> {
     bar.hits = result.hits;
     bar.index = Math.min(bar.index, Math.max(0, result.hits.length - 1));
     show(bar);
-    if (result.timed_out) toast("Die Suche brauchte länger als 2 s und wurde abgebrochen.");
+    if (result.timed_out) toast(t("widget.search.timed_out"));
   } catch (error) {
     bar.hits = [];
     bar.count.textContent = String((error as Error).message ?? error);
@@ -286,7 +287,7 @@ async function replaceInText(bar: Bar, one: boolean): Promise<void> {
     });
     const section = result.sections[0];
     if (!section || section.hits.length === 0) {
-      toast("Nichts zu ersetzen.");
+      toast(t("widget.search.nothing_to_replace"));
       return;
     }
     let text: string;
@@ -303,7 +304,7 @@ async function replaceInText(bar: Bar, one: boolean): Promise<void> {
     if (bar.selection) toggleSelection(bar, false);
     // Make it visible in the typeset view: switch to the source text (the text is still unsaved).
     if (sheetOpen(bar)) editorRoot(bar)?.querySelector<HTMLButtonElement>("[data-ws-mode=quelltext]")?.click();
-    toast(one ? "Ersetzt (noch nicht gespeichert)." : `${section.hits.length} Stellen ersetzt (noch nicht gespeichert).`);
+    toast(one ? t("widget.search.replaced_one") : t("widget.search.replaced_many", { count: section.hits.length }));
     await runFind(bar);
   } catch (error) {
     toast(String((error as Error).message ?? error));
@@ -317,7 +318,7 @@ function toggleSelection(bar: Bar, on?: boolean): void {
   if (want) {
     // The selection from opening the bar (the hits move the selection afterwards).
     if (!bar.marked) {
-      toast("Erst im Quelltext Text markieren, dann die Suche öffnen und „In Markierung“ einschalten.");
+      toast(t("widget.search.select_first"));
       return;
     }
     bar.selection = { ...bar.marked };
@@ -337,20 +338,28 @@ function toggle(bar: Bar, name: "case" | "word" | "re"): void {
 
 // ---- Work sidebar --------------------------------------------------------------------------------------------
 
+/// Catalog text inside markup that is built as a string (text and attribute values).
+function esc(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function sidebar(): HTMLElement {
   let panel = document.querySelector<HTMLElement>("[data-search-sidebar]");
   if (panel) return panel;
   panel = document.createElement("aside");
   panel.className = "search-sidebar";
   panel.dataset.searchSidebar = "";
-  panel.setAttribute("aria-label", "Im Werk suchen");
+  panel.setAttribute("aria-label", t("widget.search.work_title"));
+  const close = esc(t("widget.search.close"));
+  const find = esc(t("widget.search.find"));
+  const replace = esc(t("widget.search.replace"));
   panel.innerHTML =
-    '<div class="ss-head"><strong>Im Werk suchen</strong> <button type="button" class="btn" data-ss-close aria-label="Schließen">✕</button></div>' +
-    '<form class="ss-form" data-ss-form><input type="search" name="q" placeholder="Suchen" aria-label="Suchen" maxlength="500">' +
-    '<input type="text" name="replacement" placeholder="Ersetzen" aria-label="Ersetzen" maxlength="2000" data-ss-replacement hidden>' +
-    '<label class="small"><input type="checkbox" name="case" value="1"> Aa</label> <label class="small"><input type="checkbox" name="word" value="1"> Wort</label> ' +
-    '<label class="small"><input type="checkbox" name="re" value="1"> .*</label> <button type="submit" class="btn">Suchen</button> ' +
-    '<a class="small" data-ss-full href="/suche">Vorschau und Ersetzen …</a></form><p class="small muted" data-ss-summary></p><ul class="ss-tree" data-ss-tree></ul>';
+    `<div class="ss-head"><strong>${esc(t("widget.search.work_title"))}</strong> <button type="button" class="btn" data-ss-close aria-label="${close}">✕</button></div>` +
+    `<form class="ss-form" data-ss-form><input type="search" name="q" placeholder="${find}" aria-label="${find}" maxlength="500">` +
+    `<input type="text" name="replacement" placeholder="${replace}" aria-label="${replace}" maxlength="2000" data-ss-replacement hidden>` +
+    `<label class="small"><input type="checkbox" name="case" value="1"> Aa</label> <label class="small"><input type="checkbox" name="word" value="1"> ${esc(t("widget.search.word"))}</label> ` +
+    `<label class="small"><input type="checkbox" name="re" value="1"> .*</label> <button type="submit" class="btn">${find}</button> ` +
+    `<a class="small" data-ss-full href="/suche">${esc(t("widget.search.preview_replace"))}</a></form><p class="small muted" data-ss-summary></p><ul class="ss-tree" data-ss-tree></ul>`;
   document.body.append(panel);
   panel.querySelector("[data-ss-close]")?.addEventListener("click", () => panel?.remove());
   panel.addEventListener("keydown", (event) => {
@@ -396,7 +405,9 @@ async function workSearch(panel: HTMLElement): Promise<void> {
       re: !!data.get("re"),
       range: "work",
     });
-    summary.textContent = `${result.total} Treffer · ${result.range_label}${result.timed_out ? " (abgebrochen nach 2 s)" : ""}`;
+    summary.textContent =
+      t("widget.search.total", { count: result.total, range: result.range_label }) +
+      (result.timed_out ? ` ${t("widget.search.cut_off")}` : "");
     tree.replaceChildren();
     let group: HTMLUListElement | null = null;
     let last = -1;

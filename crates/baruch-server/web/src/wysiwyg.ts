@@ -74,6 +74,7 @@
 // `{t: "index_mark", mark}`; the server writes them canonically. Setting, changing and removing come as the command
 // `index_mark` (ws_command.ts) from the context menu or ribbon (context_menu.ts); no import between the two.
 
+import { t } from "./i18n.js";
 import { markdownHeading } from "./markdown.js";
 import { call } from "./rpc.js";
 import { editToolbar, register, store, submitButton } from "./widgets.js";
@@ -204,10 +205,10 @@ const MAX_TITLE_CHARS = 200;
 /// Message if a title violates the rules of the server, otherwise `null`.
 function titleProblem(title: string): string | null {
   const trimmed = title.trim();
-  if (trimmed === "") return "Ein Gliederungspunkt braucht einen Titel.";
-  if (/[\n\r\v\f\u0085\u2028\u2029]/.test(trimmed)) return "Der Titel darf keinen Zeilenumbruch enthalten.";
+  if (trimmed === "") return t("widget.wysiwyg.title_empty");
+  if (/[\n\r\v\f\u0085\u2028\u2029]/.test(trimmed)) return t("widget.wysiwyg.title_newline");
   const count = [...trimmed].length;
-  if (count > MAX_TITLE_CHARS) return `Der Titel ist zu lang (höchstens ${MAX_TITLE_CHARS} Zeichen, hier ${count}).`;
+  if (count > MAX_TITLE_CHARS) return t("widget.wysiwyg.title_long", { max: MAX_TITLE_CHARS, count });
   return null;
 }
 
@@ -909,11 +910,11 @@ function setFormat(state: State, value: string): void {
   const selection = document.getSelection();
   const block = topBlock(state.sheet, selection?.anchorNode ?? null);
   if (block && (block.dataset.kind === "part" || block.dataset.kind === "unnumbered")) {
-    notify("Teile und Punkte ohne Nummer ändert die Gliederung oder der Quelltext, nicht das Absatzformat.");
+    notify(t("widget.wysiwyg.format_part"));
     return;
   }
   if (!block || (block.dataset.kind !== "paragraph" && block.dataset.kind !== "heading")) {
-    notify("Das Absatzformat lässt sich nur für Absätze und Überschriften wählen.");
+    notify(t("widget.wysiwyg.format_only"));
     return;
   }
   if (value === "paragraph") {
@@ -1136,7 +1137,7 @@ function runIndexMark(state: State, arg?: string): void {
   try {
     command = JSON.parse(arg ?? "{}") as IndexMarkCommand;
   } catch {
-    notify("Registermarke: unlesbarer Auftrag.");
+    notify(t("widget.wysiwyg.mark_unreadable"));
     return;
   }
   const mark = cleanMark(command.mark ?? { register: "", term: "" });
@@ -1144,7 +1145,7 @@ function runIndexMark(state: State, arg?: string): void {
     const target = state.sheet.querySelector<HTMLElement>(".ws-index-mark[data-ctx-target]");
     state.sheet.querySelectorAll("[data-ctx-target]").forEach((el) => el.removeAttribute("data-ctx-target"));
     if (!target || target.closest(".pv")) {
-      notify("Die Registermarke steht nicht mehr im Satzbild.");
+      notify(t("widget.wysiwyg.mark_gone"));
       return;
     }
     if (command.op === "edit") {
@@ -1170,21 +1171,21 @@ function runIndexMark(state: State, arg?: string): void {
   const range = sheetRange(state);
   const top = range ? topBlock(state.sheet, range.startContainer) : null;
   if (!range || !top) {
-    notify("Bitte zuerst ein Wort im Satzbild markieren.");
+    notify(t("widget.wysiwyg.select_word"));
     return;
   }
   const at = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement;
   if (isTitleKind(top.dataset.kind) || top.dataset.kind === "island") {
-    notify("In einer Überschriftszeile oder Typst-Insel steht keine Registermarke; bitte ein Wort im Fließtext wählen.");
+    notify(t("widget.wysiwyg.mark_heading"));
     return;
   }
   if (at?.closest(".ws-island, .ws-index-mark, .ws-ref, .ws-label, .ws-linebreak")) {
-    notify("Hier lässt sich keine Registermarke setzen; bitte ein Wort im Fließtext wählen.");
+    notify(t("widget.wysiwyg.mark_here"));
     return;
   }
   const end = wordEnd(range);
   if (sameMarkBehind(end, mark)) {
-    notify("Dieses Wort trägt diese Registermarke schon; nichts geändert.");
+    notify(t("widget.wysiwyg.mark_duplicate"));
     return;
   }
   const element = document.createElement("span");
@@ -1222,7 +1223,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
     case "cite":
     case "link": {
       if (!range || !inlineTarget) {
-        notify("Bitte zuerst den Cursor in einen Absatz setzen.");
+        notify(t("widget.wysiwyg.cursor_first"));
         return;
       }
       if (cmd === "scripture") {
@@ -1235,11 +1236,11 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
           choice = {};
         }
         const fn = typeof choice.fn === "string" ? choice.fn : "";
-        const text = typeof choice.text === "string" ? choice.text : (window.prompt("Bibelstelle (z. B. Joh 3,16):") ?? "");
+        const text = typeof choice.text === "string" ? choice.text : (window.prompt(t("widget.wysiwyg.prompt_scripture")) ?? "");
         if (text.trim() === "") return;
         const raw = scriptureSource(fn, text);
         if (!raw) {
-          notify("Diese Bibelstelle lässt sich so nicht einfügen (höchstens 200 Zeichen, Funktion der Vorlage nötig).");
+          notify(t("widget.wysiwyg.scripture_refused"));
           return;
         }
         range.deleteContents();
@@ -1247,15 +1248,15 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         island.className = "ws-island";
         island.contentEditable = "false";
         island.dataset.raw = raw;
-        island.title = "Typst-Insel";
+        island.title = t("widget.wysiwyg.island");
         island.textContent = raw;
         range.insertNode(island);
         placeCaret(island, false);
       } else if (cmd === "cite") {
         // Round 19b: literature reference `@schlüssel` like a reference from the source text (button.ws-ref).
-        const key = citeKey(arg ?? window.prompt("Schlüssel des Literaturverweises (z. B. mueller2020):") ?? "");
+        const key = citeKey(arg ?? window.prompt(t("widget.wysiwyg.prompt_cite")) ?? "");
         if (!key) {
-          if (arg !== undefined) notify("Ungültiger Schlüssel (Buchstaben, Ziffern, _ - : .).");
+          if (arg !== undefined) notify(t("widget.wysiwyg.cite_invalid"));
           return;
         }
         range.deleteContents();
@@ -1265,7 +1266,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         ref.contentEditable = "false";
         ref.tabIndex = -1;
         ref.dataset.target = key;
-        ref.title = `Verweis auf <${key}> (nur im Quelltext änderbar)`;
+        ref.title = t("widget.wysiwyg.ref_title", { target: `<${key}>` });
         ref.textContent = `@${key}`;
         range.insertNode(ref);
         placeCaret(ref, false);
@@ -1275,7 +1276,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         brk.className = "ws-linebreak";
         brk.contentEditable = "false";
         brk.dataset.linebreak = "1";
-        brk.title = "erzwungener Zeilenumbruch (\\)";
+        brk.title = t("widget.wysiwyg.linebreak");
         brk.append("↵", document.createElement("br"));
         range.insertNode(brk);
         placeCaret(brk, false);
@@ -1292,7 +1293,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         xref.className = "ws-xref";
         xref.dataset.key = String(choice.key);
         xref.dataset.page = choice.page === true ? "1" : "0";
-        xref.title = `Querverweis auf k${choice.key} (Strg+Klick: springen)`;
+        xref.title = t("widget.wysiwyg.xref_title", { key: `k${choice.key}` });
         wrapInline(range, xref, choice.text);
         if (choice.page === true) {
           const suffix = document.createElement("span");
@@ -1302,12 +1303,12 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
           xref.append(suffix);
         }
       } else if (cmd === "link") {
-        const url = (arg ?? window.prompt("Adresse des Links (z. B. https://…):") ?? "").trim();
+        const url = (arg ?? window.prompt(t("widget.wysiwyg.prompt_link")) ?? "").trim();
         if (!url) return;
         const link = document.createElement("a");
         link.className = "ws-link";
         link.dataset.url = url;
-        link.title = `Link: ${url}`;
+        link.title = t("widget.wysiwyg.link_title", { url });
         wrapInline(range, link, url);
       } else if (cmd === "quote" && range.collapsed && top) {
         // Round 23a (finding of the user): without a selection a quotation block is created as a block of its own
@@ -1318,7 +1319,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
         const body = document.createElement("div");
         body.className = "ws-body";
         const paragraph = newBlock("paragraph");
-        paragraph.textContent = arg ?? "Zitat";
+        paragraph.textContent = arg ?? t("widget.wysiwyg.placeholder_quote");
         body.append(paragraph);
         box.append(body);
         const reference = newBlock("paragraph");
@@ -1330,7 +1331,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
       } else {
         const element = document.createElement(cmd === "footnote" ? "span" : "q");
         element.className = cmd === "footnote" ? "ws-footnote" : "ws-quote";
-        wrapInline(range, element, arg ?? (cmd === "footnote" ? "Fußnote" : "Zitat"));
+        wrapInline(range, element, arg ?? (cmd === "footnote" ? t("widget.wysiwyg.placeholder_footnote") : t("widget.wysiwyg.placeholder_quote")));
       }
       done();
       return;
@@ -1339,13 +1340,13 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
     case "enum":
     case "terms": {
       if (!top || (top.dataset.kind !== "paragraph" && top.dataset.kind !== "list" && top.dataset.kind !== "enum")) {
-        notify("Liste, Aufzählung und Begriffsliste entstehen aus einem Absatz (Cursor hineinsetzen).");
+        notify(t("widget.wysiwyg.list_from_paragraph"));
         return;
       }
       if (top.dataset.kind !== "paragraph") {
         // List ↔ numbered list: only the kind and the list element change, the items stay.
         if (cmd === "terms") {
-          notify("Eine Liste wird keine Begriffsliste; bitte einen Absatz wählen.");
+          notify(t("widget.wysiwyg.list_not_terms"));
           return;
         }
         const old = top.querySelector<HTMLElement>(":scope > ul, :scope > ol");
@@ -1366,7 +1367,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
       if (cmd === "terms") {
         const dl = document.createElement("dl");
         const dt = document.createElement("dt");
-        dt.textContent = arg ?? "Begriff";
+        dt.textContent = arg ?? t("widget.wysiwyg.placeholder_term");
         const dd = document.createElement("dd");
         dd.append(...content);
         dl.append(dt, dd);
@@ -1388,7 +1389,7 @@ function runCommand(state: State, cmd: WsCommandName, arg?: string): void {
     case "scene":
     case "work": {
       if (top && (top.dataset.kind === "scene" || top.dataset.kind === "work")) {
-        notify("Hier steht schon eine Szene bzw. ein Arbeitsauftrag.");
+        notify(t("widget.wysiwyg.scene_exists"));
         return;
       }
       const box = newBlock(cmd);
@@ -1445,18 +1446,18 @@ function editIsland(state: State, island: HTMLElement): void {
   editor.contentEditable = "false";
   const area = document.createElement("textarea");
   area.value = raw;
-  area.setAttribute("aria-label", "Quelltext der Typst-Insel");
+  area.setAttribute("aria-label", t("widget.wysiwyg.island_source"));
   area.rows = Math.min(12, Math.max(2, raw.split("\n").length + 1));
   const buttons = document.createElement("span");
   buttons.className = "ws-island-buttons";
   const ok = document.createElement("button");
   ok.type = "button";
   ok.className = "btn small";
-  ok.textContent = "Übernehmen";
+  ok.textContent = t("widget.wysiwyg.apply");
   const cancel = document.createElement("button");
   cancel.type = "button";
   cancel.className = "btn small";
-  cancel.textContent = "Abbrechen";
+  cancel.textContent = t("widget.wysiwyg.cancel");
   buttons.append(ok, cancel);
   editor.append(area, buttons);
   island.replaceChildren(editor);
@@ -1685,7 +1686,7 @@ register("wysiwyg", (root) => {
     const target = ref.dataset.target ?? "";
     const label = Array.from(sheet.querySelectorAll<HTMLElement>(".ws-label")).find((l) => l.dataset.v === target);
     if (label) label.scrollIntoView({ block: "center" });
-    else notify(`Verweis auf <${target}> – das Ziel steht nicht in diesem Abschnitt; ändern nur im Quelltext.`);
+    else notify(t("widget.wysiwyg.ref_elsewhere", { target: `<${target}>` }));
   });
 
   sheet.addEventListener("beforeinput", (event) => {

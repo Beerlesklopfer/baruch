@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // JSON-RPC 2.0 against the Baruch core (`POST /rpc`).
 
+import { t } from "./i18n.js";
+
+
+
+
 export class RpcError extends Error {
   constructor(public code: number, message: string) {
     super(message);
@@ -15,7 +20,7 @@ export async function call<T>(method: string, params: Record<string, unknown> = 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
   });
-  if (!response.ok) throw new RpcError(response.status, `Server antwortet ${response.status}`);
+  if (!response.ok) throw new RpcError(response.status, t("widget.rpc.server_status", { status: response.status }));
   const answer = await response.json();
   if (answer.error) throw new RpcError(answer.error.code, answer.error.message);
   return answer.result as T;
@@ -55,13 +60,13 @@ export interface SaveAnswer {
 export function savedMessage(answer: SaveAnswer): string | null {
   switch (answer.saved) {
     case "amended":
-      return `Gespeichert: fortgeschrieben (Stand ${answer.amend_seq ?? "?"}).`;
+      return t("widget.rpc.saved_amended", { seq: answer.amend_seq ?? "?" });
     case "new":
       return answer.reason_label
-        ? `Gespeichert: neue Fassung ${answer.rev ?? "?"} (${answer.reason_label}).`
-        : `Gespeichert: neue Fassung ${answer.rev ?? "?"}.`;
+        ? t("widget.rpc.saved_new_reason", { rev: answer.rev ?? "?", reason: answer.reason_label })
+        : t("widget.rpc.saved_new", { rev: answer.rev ?? "?" });
     case "unchanged":
-      return "Nichts zu speichern: Der Text ist unverändert.";
+      return t("widget.rpc.unchanged");
     default:
       return null;
   }

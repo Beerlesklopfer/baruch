@@ -20,6 +20,7 @@
 // - Section: quoting names it through the fixed key `key` (`data-key` of the document view),
 //   never through the position; the position `node` in addresses is display only.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { mount, register } from "./widgets.js";
 
@@ -393,15 +394,16 @@ register("source", (root) => {
   menu.hidden = true;
   const kinds = form?.querySelector<HTMLSelectElement>("select[name=kind]");
   const kind = document.createElement("select");
-  kind.setAttribute("aria-label", "Art der Hervorhebung");
-  kind.innerHTML = kinds?.innerHTML ?? '<option value="core">Kernaussage</option>';
+  kind.setAttribute("aria-label", t("widget.literature.kind_label"));
+  if (kinds) kind.innerHTML = kinds.innerHTML;
+  else kind.append(new Option(t("widget.literature.kind_core"), "core"));
   kind.value = "core";
   menu.append(kind);
   const entries: Array<[string, string]> = [
-    ["highlight", "Hervorheben"],
-    ["cite", "Zitieren"],
-    ["persona", "An Persona geben"],
-    ["similar", "Ähnliches suchen"],
+    ["highlight", t("widget.literature.highlight")],
+    ["cite", t("widget.literature.cite")],
+    ["persona", t("widget.literature.persona")],
+    ["similar", t("widget.literature.similar")],
   ];
   for (const [action, label] of entries) {
     const button = document.createElement("button");
@@ -445,7 +447,7 @@ register("source", (root) => {
       case "cite": {
         // Without a section no quotation (formerly section 0); check before creating the highlight.
         if (key === undefined) {
-          toast("Abschnitt fehlt: Die Dokumentansicht aus einem Abschnitt heraus öffnen.");
+          toast(t("widget.literature.no_section_cite"));
           break;
         }
         const id = await add(picked, "quote");
@@ -456,16 +458,16 @@ register("source", (root) => {
       case "persona": {
         // Without a section no answer in the section chat; the server says the same on the notice page.
         if (key === undefined) {
-          toast("Abschnitt wählen: Die Literatur aus einem Abschnitt heraus öffnen, dann den Text an die Persona geben.");
+          toast(t("widget.literature.no_section_persona"));
           break;
         }
         const field = (name: string): string => {
           const element = form?.elements.namedItem(name);
           return element instanceof HTMLInputElement || element instanceof HTMLSelectElement ? element.value : "";
         };
-        const label = root.dataset.sourceLabel ?? "Literatur";
+        const label = root.dataset.sourceLabel ?? t("widget.literature.source");
         const source = picked.locator ? `${label}, ${picked.locator}` : label;
-        toast("Die Persona antwortet …");
+        toast(t("widget.literature.answering"));
         await call("literature.to_persona", {
           work,
           key,

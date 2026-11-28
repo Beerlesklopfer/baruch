@@ -13,6 +13,7 @@
 // - Round 31c: group „Register und Glossar“ (glossary page, checkboxes `index_register` per index, columns, first
 //   mention) is read by `formToSettings` just like the server.
 
+import { t } from "./i18n.js";
 import { register } from "./widgets.js";
 
 /// Pause after the last input before the preview is typeset.
@@ -28,22 +29,28 @@ export interface FormResult {
   errors: FieldError[];
 }
 
+/// Catalog keys of the field names in messages.
 const LABELS: Record<string, string> = {
-  chapter_start: "Kapitelanfang",
-  part_page: "Teil-Seite",
-  page_format: "Seitenformat",
-  margins: "Ränder",
-  paragraph: "Absatz",
-  justify: "Blocksatz",
-  hyphenate: "Silbentrennung",
-  page_numbers: "Seitenzahlen",
-  running_head: "Kolumnentitel",
-  footnotes: "Fußnoten",
-  widows_orphans: "Schusterjungen/Hurenkinder",
-  xref_with_page: "Verweis mit Seitenzahl",
-  glossary_page: "Glossarseite",
-  glossary_first_mention: "Erste Erwähnung im Glossar auszeichnen",
+  chapter_start: "widget.typeset_settings.label_chapter_start",
+  part_page: "widget.typeset_settings.label_part_page",
+  page_format: "widget.typeset_settings.label_page_format",
+  margins: "widget.typeset_settings.label_margins",
+  paragraph: "widget.typeset_settings.label_paragraph",
+  justify: "widget.typeset_settings.label_justify",
+  hyphenate: "widget.typeset_settings.label_hyphenate",
+  page_numbers: "widget.typeset_settings.label_page_numbers",
+  running_head: "widget.typeset_settings.label_running_head",
+  footnotes: "widget.typeset_settings.label_footnotes",
+  widows_orphans: "widget.typeset_settings.label_widows_orphans",
+  xref_with_page: "widget.typeset_settings.label_xref_with_page",
+  glossary_page: "widget.typeset_settings.label_glossary_page",
+  glossary_first_mention: "widget.typeset_settings.label_glossary_first_mention",
 };
+
+/// Name of a field for messages; unknown fields by their name.
+function labelOf(field: string): string {
+  return field in LABELS ? t(LABELS[field]) : field;
+}
 
 /// Round 31c: columns of the index pages with an empty field (like `DEFAULT_INDEX_COLUMNS` in the server).
 export const DEFAULT_INDEX_COLUMNS = 2;
@@ -86,21 +93,21 @@ export function formToSettings(pairs: [string, string][]): FormResult {
     const raw = get(name);
     if (raw === "") return undefined;
     if (!(CHOICES[name] ?? []).includes(raw)) {
-      errors.push({ field, message: `${LABELS[field] ?? field}: unbekannte Wahl „${raw}“` });
+      errors.push({ field, message: t("widget.typeset_settings.unknown_choice", { label: labelOf(field), value: raw }) });
       return undefined;
     }
     return raw;
   };
   const num = (name: string, field: string): number | undefined => {
     const value = numberOf(get(name));
-    if (value !== undefined && Number.isNaN(value)) errors.push({ field, message: `${field}: keine Zahl` });
+    if (value !== undefined && Number.isNaN(value)) errors.push({ field, message: t("widget.typeset_settings.not_a_number", { field }) });
     return value;
   };
   const onOff = (name: string): boolean | undefined => {
     const raw = get(name);
     if (raw === "") return undefined;
     if (raw === "on" || raw === "off") return raw === "on";
-    errors.push({ field: name, message: `${LABELS[name] ?? name}: unbekannte Wahl „${raw}“` });
+    errors.push({ field: name, message: t("widget.typeset_settings.unknown_choice", { label: labelOf(name), value: raw }) });
     return undefined;
   };
 
@@ -116,7 +123,7 @@ export function formToSettings(pairs: [string, string][]): FormResult {
       height_mm: num("page_height_mm", "page_format.height_mm") ?? NaN,
     };
     if (get("page_width_mm") === "" || get("page_height_mm") === "") {
-      errors.push({ field: "page_format", message: "Seitenformat: Breite und Höhe angeben" });
+      errors.push({ field: "page_format", message: t("widget.typeset_settings.page_format_both") });
     }
   } else {
     const fixed = choice("page_format", "page_format");
@@ -136,7 +143,7 @@ export function formToSettings(pairs: [string, string][]): FormResult {
       binding_mm: binding ?? 0,
     };
   } else if (given > 0 || binding !== undefined) {
-    errors.push({ field: "margins", message: "Ränder: alle vier Ränder angeben oder alle leer" });
+    errors.push({ field: "margins", message: t("widget.typeset_settings.margins_all") });
   }
   const font = get("font");
   if (font) s.font = font;
@@ -183,7 +190,7 @@ export function formToSettings(pairs: [string, string][]): FormResult {
     let placement = "diagonal";
     if (placementRaw !== "") {
       if (DRAFT_PLACEMENTS.includes(placementRaw)) placement = placementRaw;
-      else errors.push({ field: "draft", message: `Entwurf: unbekannte Wahl „${placementRaw}“` });
+      else errors.push({ field: "draft", message: t("widget.typeset_settings.draft_unknown", { value: placementRaw }) });
     }
     const draft: Record<string, unknown> = { text: get("draft_text") || "ENTWURF" };
     const note = get("draft_note");
@@ -267,7 +274,7 @@ async function rpcAbortable<T>(method: string, params: Record<string, unknown>, 
     body: JSON.stringify({ jsonrpc: "2.0", id: nextId++, method, params }),
     signal,
   });
-  if (!response.ok) throw new Error(`Server antwortet ${response.status}`);
+  if (!response.ok) throw new Error(t("widget.typeset_settings.server_status", { status: response.status }));
   const answer = await response.json();
   if (answer.error) throw new Error(String(answer.error.message));
   return answer.result as T;
@@ -282,9 +289,9 @@ function paragraph(text: string, className: string): HTMLParagraphElement {
 
 function showPreview(box: HTMLElement, answer: PreviewAnswer): void {
   const parts: Node[] = [];
-  let info = `Vorschau mit Mustertext: ${answer.pages} Seiten`;
-  if (answer.errors) info += `, ${answer.errors} Fehler`;
-  if (answer.warnings) info += `, ${answer.warnings} Warnungen`;
+  let info = t("widget.typeset_settings.preview_pages", { count: answer.pages });
+  if (answer.errors) info += `, ${t("widget.typeset_settings.preview_errors", { count: answer.errors })}`;
+  if (answer.warnings) info += `, ${t("widget.typeset_settings.preview_warnings", { count: answer.warnings })}`;
   const head = paragraph(`${info}.`, "small");
   head.dataset.typesetPreviewInfo = "";
   parts.push(head);
@@ -295,7 +302,7 @@ function showPreview(box: HTMLElement, answer: PreviewAnswer): void {
   answer.urls.forEach((url, i) => {
     const img = document.createElement("img");
     img.src = url;
-    img.alt = `Vorschau Seite ${i + 1}`;
+    img.alt = t("widget.typeset_settings.preview_page", { page: i + 1 });
     img.loading = "lazy";
     pages.append(img);
   });

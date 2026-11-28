@@ -159,8 +159,13 @@ fn node(module: &str, expr: &str) -> Value {
     for (name, source) in baruch_server::SCRIPTS {
         std::fs::write(dir.path().join(name.replace(".js", ".mjs")), source.replace(".js\"", ".mjs\"")).unwrap();
     }
-    let script =
-        format!("import * as m from './{}';\nconsole.log(JSON.stringify({expr}));\n", module.replace(".js", ".mjs"));
+    // Round 39a: the widgets read their texts from #baruch-i18n; the probes assert the German wording.
+    let catalog =
+        serde_json::to_string(&baruch_server::i18n::widget_catalog_json(baruch_server::i18n::Lang::De)).unwrap();
+    let script = format!(
+        "import * as m from './{}';\nglobalThis.document ??= {{ getElementById: (id) => (id === 'baruch-i18n' ? {{ textContent: {catalog} }} : null) }};\nconsole.log(JSON.stringify({expr}));\n",
+        module.replace(".js", ".mjs")
+    );
     std::fs::write(dir.path().join("probe.mjs"), script).unwrap();
     let out = Command::new("node").arg("probe.mjs").current_dir(dir.path()).output().expect("node läuft (wie für tsc)");
     assert!(out.status.success(), "node: {}", String::from_utf8_lossy(&out.stderr));

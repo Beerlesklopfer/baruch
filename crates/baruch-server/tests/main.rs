@@ -180,6 +180,7 @@ mod round38_doku;
 mod round38_sprache;
 mod round38c_prompts;
 mod round39a_i18n;
+mod round39a_widgets;
 mod round4;
 mod round5;
 mod round5_fixes;

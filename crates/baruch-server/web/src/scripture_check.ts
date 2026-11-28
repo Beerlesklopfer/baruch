@@ -13,6 +13,7 @@
 //   a quotation not found unambiguously stays unmarked and is counted in the footer. Every input in the typeset view
 //   deletes the marking (the places could have shifted).
 
+import { t } from "./i18n.js";
 import { placeQuotes } from "./quote_find.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
@@ -52,11 +53,11 @@ interface CheckedRef {
 }
 
 const STATE_LABEL: Record<string, string> = {
-  stimmt: "stimmt",
-  weicht_ab: "weicht ab",
-  ohne_zitat: "ohne Zitat",
-  ungeprueft: "ungeprüft",
-  fehler: "nicht prüfbar",
+  stimmt: "widget.scripture_check.state_matches",
+  weicht_ab: "widget.scripture_check.state_differs",
+  ohne_zitat: "widget.scripture_check.state_no_quote",
+  ungeprueft: "widget.scripture_check.state_unchecked",
+  fehler: "widget.scripture_check.state_error",
 };
 
 /// `wording_code` → state (like `bibles::mark_state` on the server).
@@ -182,50 +183,50 @@ register("scripture-check", (root) => {
   const panel = element("div", undefined, "scripture-check-panel");
   panel.hidden = true;
   panel.setAttribute("role", "dialog");
-  panel.setAttribute("aria-label", "Ergebnis der Zitatprüfung");
+  panel.setAttribute("aria-label", t("widget.scripture_check.panel_label"));
   root.append(panel);
 
   const show = (result: Marks, painted: number, missed: number): void => {
     panel.replaceChildren();
     const head = element("p", undefined, "small");
     const c = result.counts;
-    head.textContent = `${c.stimmt} stimmt · ${c.weicht_ab} weicht ab · ${c.andere} andere`;
+    head.textContent = t("widget.scripture_check.counts", { matches: c.stimmt, differs: c.weicht_ab, others: c.andere });
     panel.append(head);
     const bible = result.bible;
     if (bible && bible.module && !bible.problem) {
-      panel.append(element("p", `Geprüft von Baruch mit ${bible.module} (Versifikation ${bible.versification ?? "?"})`, "muted tiny"));
+      panel.append(element("p", t("widget.scripture_check.checked_with", { module: bible.module, versification: bible.versification ?? "?" }), "muted tiny"));
     } else if (bible && bible.problem) {
-      panel.append(element("p", `Bibel nicht lesbar: ${bible.problem}`, "notice tiny"));
+      panel.append(element("p", t("widget.scripture_check.bible_unreadable", { problem: bible.problem }), "notice tiny"));
     } else {
-      panel.append(element("p", "Das Werk hat keine Bibel: Der Wortlaut bleibt ungeprüft.", "notice tiny"));
+      panel.append(element("p", t("widget.scripture_check.no_bible"), "notice tiny"));
     }
     const notice = result.notice ?? bible?.license;
-    if (notice) panel.append(element("p", `Lizenz (laut conf): ${notice}`, "muted tiny"));
+    if (notice) panel.append(element("p", t("widget.scripture_check.license", { notice }), "muted tiny"));
     if (result.module_note) panel.append(element("p", result.module_note, "notice tiny check-module-note"));
     const list = element("ul");
     for (const mark of result.marks) {
       const item = element("li");
-      const state = element("span", STATE_LABEL[mark.state] ?? mark.state, "check-state");
+      const state = element("span", mark.state in STATE_LABEL ? t(STATE_LABEL[mark.state]) : mark.state, "check-state");
       state.dataset.state = mark.state;
       item.append(element("strong", mark.ref), document.createTextNode(" "), state);
-      if (mark.quote) item.append(element("div", `„${mark.quote}“`, "small"));
+      if (mark.quote) item.append(element("div", t("widget.scripture_check.quoted", { quote: mark.quote }), "small"));
       if (mark.diff_line) item.append(element("div", mark.diff_line, "tiny"));
-      if (mark.module_ref) item.append(element("div", `gelesen: ${mark.module_ref}`, "muted tiny"));
+      if (mark.module_ref) item.append(element("div", t("widget.scripture_check.read_as", { ref: mark.module_ref }), "muted tiny"));
       if (mark.state === "fehler" || mark.state === "ohne_zitat" || mark.module_spacing) {
         item.append(element("div", mark.label, "muted tiny"));
       }
       list.append(item);
     }
-    if (result.marks.length === 0) list.append(element("li", "Keine Bibelstelle gefunden.", "muted"));
+    if (result.marks.length === 0) list.append(element("li", t("widget.scripture_check.none_found"), "muted"));
     panel.append(list);
     const foot = element("p", undefined, "tiny");
-    const page = element("a", "Als Seite öffnen");
+    const page = element("a", t("widget.scripture_check.open_page"));
     page.href = link.href;
     foot.append(page);
-    if (!highlightApi()) foot.append(document.createTextNode(" · Markierung im Satzbild braucht einen neueren Browser."));
+    if (!highlightApi()) foot.append(document.createTextNode(` · ${t("widget.scripture_check.old_browser")}`));
     else {
-      if (painted > 0) foot.append(document.createTextNode(` · ${painted} Zitat(e) im Satzbild markiert`));
-      if (missed > 0) foot.append(document.createTextNode(` · ${missed} Zitat(e) im Satzbild nicht eindeutig gefunden (nur in der Liste)`));
+      if (painted > 0) foot.append(document.createTextNode(` · ${t("widget.scripture_check.painted", { count: painted })}`));
+      if (missed > 0) foot.append(document.createTextNode(` · ${t("widget.scripture_check.missed", { count: missed })}`));
     }
     panel.append(foot);
     panel.hidden = false;
@@ -264,7 +265,7 @@ register("scripture-check", (root) => {
       const { painted, missed } = sheet ? paint(sheet, result.marks) : { painted: 0, missed: 0 };
       show(result, painted, missed);
     } catch (error) {
-      panel.replaceChildren(element("p", `Prüfung nicht möglich: ${String((error as Error).message ?? error)}`, "notice small"));
+      panel.replaceChildren(element("p", t("widget.scripture_check.failed", { error: String((error as Error).message ?? error) }), "notice small"));
       panel.hidden = false;
     } finally {
       link.removeAttribute("aria-busy");

@@ -546,7 +546,16 @@ fn run_widget(scenario: &Value) -> Option<Value> {
         std::fs::write(js.join(name), text).unwrap();
     }
     let harness = dir.path().join("harness.mjs");
-    std::fs::write(&harness, HARNESS).unwrap();
+    // Round 39a: the widget reads its texts from #baruch-i18n; the scenario asserts the German wording.
+    let catalog =
+        serde_json::to_string(&baruch_server::i18n::widget_catalog_json(baruch_server::i18n::Lang::De)).unwrap();
+    let by_id = "document.getElementById = (id) => document.querySelector(\"#\" + id);";
+    let harness_text = HARNESS.replacen(
+        by_id,
+        &format!("{by_id}\n{{ const byId = document.getElementById; document.getElementById = (id) => (id === \"baruch-i18n\" ? {{ textContent: {catalog} }} : byId(id)); }}"),
+        1,
+    );
+    std::fs::write(&harness, harness_text).unwrap();
     let file = dir.path().join("scenario.json");
     std::fs::write(&file, scenario.to_string()).unwrap();
     let output = std::process::Command::new("node")

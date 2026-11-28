@@ -17,6 +17,7 @@
 //
 // wysiwyg.ts stays untouched: it speaks only through the events from ws_command.ts and `baruch:serialize-text`.
 
+import { t } from "./i18n.js";
 import { call } from "./rpc.js";
 import { register } from "./widgets.js";
 import { WS_CARET, type WsCaretDetail } from "./ws_command.js";
@@ -89,11 +90,11 @@ register("sheet-tools", (details) => {
   if (!editor || !form || !place || !body) return;
   const cursor = document.createElement("option");
   cursor.value = CURSOR;
-  cursor.textContent = "an der Cursorstelle";
+  cursor.textContent = t("widget.sheet.at_cursor");
   place.prepend(cursor);
   place.value = CURSOR;
   const note = form.querySelector<HTMLElement>("[data-image-note]");
-  if (note) note.textContent = "Als eigener Block an der gewählten Stelle; ungespeicherte Änderungen gehen mit.";
+  if (note) note.textContent = t("widget.sheet.image_note");
 
   // Remember the place as long as the cursor is still in the typeset view or text field (before the focus change).
   let remembered: Promise<Caret | null> | null = null;
@@ -114,7 +115,7 @@ register("sheet-tools", (details) => {
       if (caret) {
         const option = document.createElement("option");
         option.value = `offset:${Math.max(0, Math.floor(caret.offset))}`;
-        option.textContent = "an der Cursorstelle";
+        option.textContent = t("widget.sheet.at_cursor");
         place.append(option);
         place.value = option.value;
         body.value = caret.body;
