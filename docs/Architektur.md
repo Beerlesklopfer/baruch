@@ -6597,3 +6597,27 @@ byte for byte): `settings_msg`, `connections_msg`, `accounts_msg`, `system_msg`,
 - **Not converted by design** (contract §5): command line (`auth/cli.rs`, `--allow-host` parsing in `guard.rs`,
   `connections::secrets::describe`/`--secrets`), mocks, log lines, `expect()` texts, Word comment and proposal texts
   written into the work (`docx_import::apply`), message codes in addresses (`?ok=`, `?fehler=`).
+
+### Integration (Round 39a)
+
+- **Merge:** the six branches `team/r39a-templates_1`, `-templates_2`, `-templates_3`, `-widgets`, `-messages_1`,
+  `-messages_2` (each based on S1 `3828d0c`) merged with `--no-ff` in task order. Conflicts only in
+  `tests/main.rs` (one `mod` line per task, kept all), `scripts/i18n-literal-allow.txt` (three-way set merge: a base
+  line stays only when no branch removed it, every added reason line is kept) and one helper of
+  `tests/round35_oberflaeche.rs` (templates pinned the page render to German, messages_2 the `konten_ui::apply`
+  call; both kept). The allow list holds 55 entries after the merge (with comments 90 lines), all with a reason: identifiers, route
+  values and quotation characters; no untranslated text of a template or widget is left.
+- **Fix after the merge:** `tests/round39a_templates_2.rs` looked for raw keys in the whole page; since the widget
+  catalog is in every page head, `widget.ideas.source` contains the key `ideas.source`. The check now strips the
+  catalog element first.
+- **Page walk (`tests/round39a_pages.rs`):** every GET route of `common::registered_routes` (the eight settings
+  pages for `/einstellungen/{seite}`), filled with a plain-ASCII work, an image and an idea, fetched with
+  `Accept-Language: en` and `de`. No server error; no raw catalog key in the visible text or the text attributes of
+  any page; on an English page no `ä ö ü ß „ ‚` outside `KNOWN_GERMAN`. `NOT_PAGES` lists the routes that are no
+  page of their own (downloads, typeset outputs, reader frames, routes that need an open request), each with its
+  reason. `KNOWN_GERMAN` lists what stays German this round, each with its source: user data of a new data folder
+  (sample work, stored personas, sample Bibles), book-output names quoted on purpose (`Werk gelöscht`,
+  `Überschrift 1–3`), labels from other crates (`baruch-typst` numbering schemes, typesetting fields and cover
+  labels, `baruch-store` `FindingStatus::label`, `baruch-epub` reader profiles), `src/rag/**` (not converted by
+  messages_2) and the mind-map SVG (shared with the picture export). Removing an entry is the test for its fix.
+  German without umlauts or German quotes (scheme names such as „Aus der Werkvorlage“) is not seen by this check.

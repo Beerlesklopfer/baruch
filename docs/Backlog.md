@@ -130,6 +130,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R38 | **Part 1 done 2026-11-27, delivered in part** (≈ 162 min from `3fa5806` with review, follow-up `478be2a` and PM close; S1 `4315b01`, integration `511527f`; only a, b, c started, none finished its whole scope – see "Open after Round 38"; rest in R38b and R38c). Plan as it was: A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
 | R38b | **Closed 2026-11-28** (≈ 250 min from `174c996` to the integration `36a9e2d`, of which 111 for the contract; review with two low findings, no follow-up; PM close exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt); eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
 | R38c | **Integrated 2026-11-28** (≈ 115 min from `0dc0e09` to the integration commit; S1 `4136ba2`; six developers in two waves, three of them reported before their test runs had finished, so the integrator committed their finished working trees; full run exit 0, 3597 passed, 0 failed, 2 ignored, 218 results "ok"; details under "Round 38c – integrated"). Plan as it was: Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models; the low review findings of Round 38 | skills_plan · mcp_austausch_wysiwyg · rpc_doku · architektur_1 · architektur_2 · modell_texte (two waves) | 120 |
+| R39a | **Integrated 2026-11-28** (S1 `3828d0c`, six developers in two waves: templates_1/2/3, widgets, messages_1/2; merged with `--no-ff`, conflicts only in `tests/main.rs`, the allow list and one test helper; integrator added the page walk `round39a_pages`; details under "Round 39a – integrated"). User interface English (base) and German: Fluent catalogs, `t()` in templates, widgets and server messages, language switch without JavaScript, store messages via `store_text.rs` | templates_1 · templates_2 · templates_3 · widgets · messages_1 · messages_2 | – |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1734,6 +1735,64 @@ Contract "Developer docs and model texts in English, rest": base `0dc0e09`, S1 `
     migration 0055 prevents it; unchanged by contract).
   - Free subtitles in two Architektur headings ("## Chat: retry, delete, …", "## Round 29: Typesetting in the
     settings") – the contract listed only their prefixes.
+
+## Round 39a – integrated (2026-11-28)
+
+Contract "User interface German and English, scaffold and texts": base `8e9823b`, S1 `3828d0c`, six branches
+`team/r39a-<id>` merged with `--no-ff` in task order (templates_1 `3747f12`, templates_2 `57927ec`, templates_3
+`d9caf7a`, widgets `5c06751`, messages_1 `71ea442`, messages_2 `4fb462c`). No migration (store highest 0055,
+library 0108), one new route `POST /einstellungen/sprache` (S1), no RPC method, no MCP tool, no stub added.
+
+- **Delivered:** 98 templates, 47 widgets and the user-facing messages of the owned server modules take their
+  texts from 38 area files per language (5,252 keys, same keys in en and de; German verbatim). Store messages map
+  to `store_msg.*` in `store_text.rs` (exhaustive match; `/rpc` in the request language, `/mcp` English).
+  `scripts/i18n-literal-allow.txt` keeps 55 entries, each with a reason (identifiers, form values, route paths,
+  quotation characters).
+- **Integrator:** resolved the conflicts (`tests/main.rs`, allow list by three-way set merge, one helper in
+  `tests/round35_oberflaeche.rs`); `tests/round39a_templates_2.rs` strips the widget catalog before looking for raw
+  keys; new `tests/round39a_pages.rs` walks every GET page in en and de (see `docs/Architektur.md`, "Integration
+  (Round 39a)").
+- **Open – still German on English pages** (each entry of `KNOWN_GERMAN` in `tests/round39a_pages.rs` is one of
+  these; removing the entry is the test of its fix):
+  - labels from other crates, nobody owned them this round: `baruch-typst` `scheme.rs` (numbering scheme names,
+    sample line, pattern check „Für „Eigenes Muster“ fehlt das Muster …“), `typeset/model.rs` (typesetting field
+    groups, labels and choices), `cover_layout.rs` (cover faces and block labels, block lines with German decimal
+    comma „x 14,0 mm“); `baruch-store` `FindingStatus::label`, `CoverBlockKind`/`CoverFace::label`,
+    `RevisionReason::label`; `baruch-epub` `readers.rs` (reader profile names and notes); `baruch-scripture`
+    messages; docx reader warnings. Suggestion: return keys or enums from these crates and translate in the server
+    (Round 39b or a follow-up).
+  - server modules not converted by messages_2 (none half-done): `connections/multigpt.rs`,
+    `connections/pgvector.rs`, `rag/**`, `import.rs`, `archive.rs`, `markdown_import/**`,
+    `pdf_import/{mod,pdf,epub,remote,typst_out,draft}.rs`, `docx_import/draft.rs`; display values
+    `models::locality` („lokal“/„extern“, also a `data-locality` code) and `models::kind_title`.
+  - store texts without a pattern fall back to the German `e.to_string()`: dynamic texts of `ideas.rs`,
+    `idea_links.rs`, `glossary.rs`, `outline.rs` (`Heading` problems), `cover_blocks.rs`, `exchange_apply.rs`, the
+    `baruch-typst` checks inside `Typeset`, the ISBN check of `book.rs`, field labels inside `store_msg.book.field_*`.
+  - messages_1 kept German on purpose (model facts, comparisons, shared with commit texts or picture export):
+    `bibles.rs` wording-check labels, `state_label`, `MISMATCH_PREFIX`, `module_note`, `CIPHER_KEY_WRONG`;
+    `cover_layout::block_line`; the mind-map SVG tooltips and „Wolke – leer …“ (`idea_map/bild/mindmap.rs`);
+    `band::TABS` labels (unused for rendering).
+  - messages_2 kept German on purpose because older tests compare against them: `LOGIN_FAILED`/`LOGIN_BLOCKED`,
+    `roles::NO_WORK`, `shutdown::DONE_TEXT`, `about::THIRD_PARTY_PLACES`, `connections::usage_stub` (the pages show
+    the catalog text); mirror-folder messages in `lib.rs`.
+  - dates handed to templates from Rust (e.g. „geändert { $edited }“) are passed through unformatted in places; the
+    call sites of `ui_minutes`/`ui_day` are not complete.
+- **Limit of the page walk:** it finds German by umlauts and German quotes only. German without them stays unseen:
+  the visual check showed „Numbers: Dezimal (DIN 1421)“ and „Now: Aus der Werkvorlage“ (scheme names of
+  `baruch-typst`, same group as above) and the author name „Autor“ (`mirror::HUMAN_NAME`, stored with every
+  revision of the human; display translation open). Wording to review: the English settings pages say "Versions"
+  where the work page says "Revisions" (`settings.display.accordion_revisions`, `settings.work.revisions_title`).
+- **Open – Round 39b (work language):** book outputs (PDF/Typst, EPUB, Word export, cover print, exchange file
+  contents, mirror commit texts, FreeMind/XMind export), the default watermark `ENTWURF`, the page suffix `, S. …`
+  and Typst snippets in `xref.ts`/`wysiwyg.ts`, the `– ` reference paragraph after a new quotation block, the words
+  read back from @schrift/@belege.
+- **Notes:** every page is about 25–30 KB larger (widget catalog in the head); page-size and text-absence checks
+  must leave the catalog element out. The persona option „alle – RFC …“ keeps the handle `alle` in English (it is
+  the `@alle` command). Contract deviations accepted: templates_3 changed two Rust unit tests and the
+  `baruch-library` test (German `t()` for `fragments/library.html`); templates_1 changed the expected strings of a
+  unit test in `src/band.rs`; widgets kept 17 allow entries that are identifiers, not names.
+- **Worktrees** `.claude/worktrees/wf_b51eb61c-fd2-{27..32}` and the branches `team/r39a-*` are kept for the PM
+  close.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 

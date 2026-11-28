@@ -1556,3 +1556,24 @@ Since Round 38c the whole file is English.
   texts: for `de` every behaviour is as before Round 38.
 - **Exchange schema:** tests that validate current output use `docs/schema/baruch-werk-1-u10.xsd`; the older
   schemas are frozen (`crates/baruch-exchange/tests/xsd.rs`).
+
+## Round 39a – User interface in two languages
+
+- **Catalogs and keys:** how to localise a text is in `docs/Bedienung.md`, "Localising a text (Round 39a)"; the
+  scaffold in `docs/Architektur.md`, "Round 39a". Never `|safe` on `t()`; markup only through `_html` keys.
+- **Tests and the language:** the harness `common::router` pins requests without a language to German, so older
+  tests keep their German assertions. A template rendered outside a request (unit test, direct call of a page
+  function) is English: wrap it in `i18n::sync_scope(Lang::De, …)` or `i18n::scope(Lang::De, …)`. A real server
+  process in a test gets `Accept-Language: de` explicitly. MCP tests assert the English text.
+- **Widget catalog in every page:** `<script id="baruch-i18n">` carries every `widget.*` key with its text in the
+  page language (about 25–30 KB). Checks for raw keys, for absent words or for page size cut that element out
+  first (`widget.ideas.source` contains the key `ideas.source`). Node harnesses of widgets inject the German
+  catalog (`i18n::widget_catalog_json(Lang::De)`) when they assert German text.
+- **Template pitfalls:** a loop variable named `t` hides `t()` inside the loop; a plain key's text is escaped, so
+  `/` appears as `&#x2f;` in raw HTML (keys whose text needs a literal slash for an older assertion were made
+  `_html` keys without markup).
+- **Merging catalog branches:** conflicts in `scripts/i18n-literal-allow.txt` are resolved as a three-way set merge
+  against the S1 commit (a base line stays only if no branch removed it, added reason lines are kept);
+  `round39a_i18n` then proves it (every finding listed, no stale entry).
+- **What is still German:** `tests/round39a_pages.rs` walks every GET page in en and de; its `KNOWN_GERMAN` names
+  every German piece left on English pages with its source. Fixing one means removing its entry.

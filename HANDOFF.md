@@ -1,4 +1,4 @@
-# Übergabe (Stand 2026-11-28, Round 38c "Developer docs and model texts in English, rest" **integrated** (nine developer documents English as a whole, model task texts English, four low findings of Round 38 done; integration on `development`, PM close pending); Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
+# Übergabe (Stand 2026-11-28, Round 39a "User interface German and English" **integrated** (catalogs en/de, templates, widgets and server messages through `t()`, language switch without JavaScript; integration on `development`, PM close pending); Round 38c "Developer docs and model texts in English, rest" **integrated** (nine developer documents English as a whole, model task texts English, four low findings of Round 38 done; integration on `development`, PM close pending); Round 38b "Comments in English, rest" **closed** (all comments under `crates`, `scripts`, `site/tools` English, 801 files; allow list narrow; integration `36a9e2d`, PM close with a full run); Round 38 "English for agents and developers" **part 1 closed, delivered in part** (work language, English MCP/RPC protocol texts, three English documents, comments of 86 server files; integration `511527f`, follow-up `478be2a`, PM close with a full run; the rest is planned as Rounds 38b and 38c); Runde 37 „Hilfe auf der Webseite“ **abgeschlossen** (Hilfe mit 94 Bildern, Betrieb und Ersteinrichtung auf der Webseite; Integration `ef9a9f0`, PM-Abschluss mit vollem Lauf); Runde 36 „Reste“ **abgeschlossen** (Typst-Kommandozeile, sqlx 0.9.1, Reste; Integration `f2bb112`, PM-Abschluss mit vollem Lauf); Runde 35 „Konten und Rollen“ **abgeschlossen** (Integration `bae1816`, Nachbesserung `40d6591`, PM-Abschluss mit vollem Lauf); davor: Runde 34 „Mindmap wie XMind“ und Runde 32 „Lektorat I – Word und Beenden“ abgeschlossen; lokal zeigen `main`, `origin/main` und der Tag `v0.9.0` auf `35140b5`; nächste Version nach dem Backlog 0.9.1)
 
 > From Round 38 on, new entries are written in English; older entries stay German.
 
@@ -6,6 +6,36 @@ Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch übe
 
 ## Stand
 - Oberfläche: Server mit Browser-Oberfläche (Vorbild David, siehe `docs/Plan.md`), alles ohne JavaScript bedienbar.
+- **Round 39a "User interface German and English" integrated** (2026-11-28, integrator, on `development`; base
+  `8e9823b`, S1 `3828d0c`; branches `team/r39a-templates_1` `3747f12`, `-templates_2` `57927ec`, `-templates_3`
+  `d9caf7a`, `-widgets` `5c06751`, `-messages_1` `71ea442`, `-messages_2` `4fb462c` merged with `--no-ff` in task
+  order; then the integration commit; not pushed). Version unchanged 0.9.0, CHANGELOG under „Unveröffentlicht“. No
+  migration, one route of S1 (`POST /einstellungen/sprache`), no RPC method, no MCP tool, no stub added.
+  **Delivered:** the interface speaks English (base) and German (verbatim old wording): 38 area files per language,
+  5,252 keys; switch in the menu „Baruch ▾“ and under Settings → Display, plain forms; cookie `baruch_lang` plus
+  setting per instance or account; MCP English; store messages through `store_text.rs`.
+  **Integrator:** conflicts in `tests/main.rs`, the allow list (three-way set merge, 55 entries left, all with a
+  reason) and one helper of `round35_oberflaeche`; `round39a_templates_2` strips the widget catalog before its
+  raw-key check; new `tests/round39a_pages.rs` walks every GET page in en and de (no raw key anywhere, German on
+  English pages only from the listed `KNOWN_GERMAN` sources).
+  **Checks:** full run in the main folder after `cargo clean -p` of all 16 workspace crates: the first run found two
+  failures caused by the integration (`round38_doku` expected Round 38 as the newest CHANGELOG section; the page walk
+  saw process-wide MCP client names of other tests), both fixed; the repeated run: exit 0, 218 results "ok",
+  **3669 passed**, 0 failed, 2 ignored (server bundle 1677; pgvector tests ran). fmt, clippy `-D warnings`,
+  `ci-selftest.sh`, `check-comments-only.py --umlaute crates scripts site/tools`, `check-doc-language.py` green;
+  `grep -rn "STUB:" crates` 5 as before. Visual check with an own throwaway server (`--listen 127.0.0.1:0`,
+  `--secrets memory`, connections to `127.0.0.1:9`, invented English work): `.claude/sicht/r39a/` (work page,
+  editor, outline, settings „Darstellung“ with the switch, the dialog „New work“, each in en and de, work page en
+  dark; not in the repository). The form switch without JavaScript answered 303 with `baruch_lang=de`, and a later
+  request with `Accept-Language: en` got `<html lang="de">` (stored setting persists). Seen on English pages:
+  „Numbers: Dezimal (DIN 1421)“, „Now: Aus der Werkvorlage“ (scheme names of `baruch-typst`) and the author name
+  „Autor“ (stored `mirror::HUMAN_NAME`) – German without umlauts, which the page walk cannot see.
+  **Open (details in `docs/Backlog.md`, "Round 39a – integrated"):** German labels from other crates
+  (`baruch-typst` numbering/typesetting/cover, `baruch-store` finding states, `baruch-epub` reader profiles),
+  server modules not converted by messages_2 (`multigpt.rs`, `pgvector.rs`, `rag/**`, `import.rs`, `archive.rs`,
+  `markdown_import`, most of `pdf_import`, `docx_import/draft.rs`), store texts without a pattern; book outputs in
+  the work language are Round 39b. Worktrees `.claude/worktrees/wf_b51eb61c-fd2-{27..32}` and the branches
+  `team/r39a-*` are kept for the PM close.
 - **Round 38c "Developer docs and model texts in English, rest" integrated** (2026-11-28, integrator, on
   `development`; base `0dc0e09`, S1 `4136ba2`; branches `team/r38c-skills_plan` `8f54ca2`,
   `-mcp_austausch_wysiwyg` `8a9d1f0`, `-rpc_doku` `9de3bf1`, `-architektur_1` `b3ca87f`, `-architektur_2`

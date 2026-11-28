@@ -57,6 +57,13 @@ outputs follow the work, not the interface). To move a visible text into the cat
    no unknown and no orphaned key, markup only in `_html` keys, the literal finder against the allow list) and the
    full run. Existing tests stay German: the test harness (`common::router`) sends `Accept-Language: de` when a
    request names no language; `common::with_lang` asks for another one.
+5. Pitfalls found in Round 39a: a template loop variable named `t` hides the function `t()` inside the loop (rename
+   it); a plain key's text is auto-escaped, so `/`, `"` and `'` appear as `&#x2f;`, `&quot;`, `&#x27;` in the raw
+   HTML (assertions on raw HTML use the escaped form); a template rendered outside a request (unit tests, direct
+   calls) is English – wrap it in `i18n::sync_scope(Lang::De, …)`/`i18n::scope` when the assertion reads German; the
+   widget catalog in the page head carries every `widget.*` key and text, so a check for raw keys or absent words
+   strips `<script id="baruch-i18n">` first. `tests/round39a_pages.rs` walks every GET page of the router in en and
+   de (raw keys, German letters on English pages outside its list of known exceptions).
 
 ## Where is what
 
@@ -926,7 +933,10 @@ Per help page, what is deliberately missing there. Interfaces in detail: `docs/R
   „Wie der Browser“); both are plain forms to `POST /einstellungen/sprache` and work without JavaScript. The choice
   is kept in the cookie `baruch_lang` and as a setting: without accounts for the instance, with accounts per account
   (Lektors too); on the sign-in page it is only the cookie. Order: the own setting, the cookie, the browser,
-  English. MCP always answers in English; the work language (book outputs) is set per work.
+  English. MCP always answers in English; the work language (book outputs) is set per work. Still German on English
+  pages after Round 39a: labels that come from other parts of Baruch (numbering schemes and typesetting fields,
+  cover faces and blocks, finding states, EPUB reader profiles), the messages of the semantic index and of some
+  import paths, and of course the user's own data (sample work, personas, Bibles).
 - **Work language (Round 38):** block „Werksprache“ on the page
   `/einstellungen/werk` (`id="sprache"`, directly before the time keeper `id="zeit"`): a `<select name="language">`
   with „Deutsch“ (`de`) and „Englisch“ (`en`) and the button „Speichern“; a plain form, usable without JavaScript.

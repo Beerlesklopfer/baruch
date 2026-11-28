@@ -129,10 +129,24 @@ async fn the_pages_of_works_ideas_findings_cover_images_and_exports_speak_englis
         assert!(!en.contains(c.de), "{}: the German wording {:?} must not appear in English: {en}", c.uri, c.de);
         assert!(en.contains(c.en), "{}: the English text {:?} replaces it: {en}", c.uri, c.en);
         assert!(!de.contains(c.en), "{}: the English text {:?} must not appear in German", c.uri, c.en);
+        // The widget catalog in the head carries `widget.<stem>.…` keys on purpose (`widget.ideas.source`).
+        let (en, de) = (without_catalog(&en), without_catalog(&de));
         for key in &keys {
             assert!(!en.contains(key.as_str()), "{}: raw key {key} in the English page (missing text?)", c.uri);
             assert!(!de.contains(key.as_str()), "{}: raw key {key} in the German page (missing text?)", c.uri);
         }
+    }
+}
+
+/// The page without the widget catalog `<script id="baruch-i18n">…</script>` (integrator R39a: its keys
+/// `widget.ideas.…` contain the keys of the ideas stem as a substring).
+fn without_catalog(html: &str) -> String {
+    match html.find("<script type=\"application/json\" id=\"baruch-i18n\">") {
+        Some(start) => {
+            let end = start + html[start..].find("</script>").expect("the catalog element is closed");
+            format!("{}{}", &html[..start], &html[end..])
+        }
+        None => html.to_owned(),
     }
 }
 

@@ -8,6 +8,29 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+### User interface in English and German (Round 39a)
+
+- **Two languages:** the user interface speaks English and German. Without a choice Baruch follows the browser
+  (`Accept-Language`), otherwise English. The choice is made in the menu „Baruch ▾“ (English / Deutsch) or under
+  Settings → Display (also „like the browser“); both are plain forms without JavaScript (`POST
+  /einstellungen/sprache`). It is kept in the cookie `baruch_lang` and as a setting of the instance or, with
+  accounts, of the account (Lektors too). MCP answers in English; the work language (book outputs) stays a
+  separate setting per work.
+- **Catalogs:** `crates/baruch-server/locales/{en,de}/*.ftl` (Fluent), 38 area files per language: templates
+  (98 pages and fragments), the 47 widgets (catalog in the page head, `web/src/i18n.ts`), the messages of the
+  server (notices, form errors, error pages, `/rpc` refusals) and the store messages (`store_text.rs`; `/rpc` in
+  the request language, `/mcp` in English). German keeps its wording character for character.
+- **Formatting:** dates (`ui_minutes`, `ui_day`) and numbers (`i18n::number`, `fmtNumber`) follow the interface
+  language.
+- **Still German on English pages:** labels from other crates (numbering schemes, typesetting fields, cover
+  labels, finding states, EPUB reader profiles), the semantic index (`rag/**`), some import paths and connection
+  messages (`multigpt.rs`, `pgvector.rs`, `import.rs`, `archive.rs`, `markdown_import`, `pdf_import`), store texts
+  without a pattern; book outputs follow the work language only in Round 39b.
+- **Checks:** `round39a_i18n` (catalogs, placeables, markup, unknown and orphaned keys, literal finder over
+  templates and widgets against `scripts/i18n-literal-allow.txt`, resolution and switch), one test per task, and
+  `round39a_pages` (every GET page in en and de: no raw key, no German letters on English pages outside a listed
+  set of known exceptions). Every page is about 25–30 KB larger because of the widget catalog.
+
 ### English as the primary language (Round 38)
 
 - **Rules for agents:** `AGENTS.md` is English, every rule unchanged in substance. Only the language rule is new:
