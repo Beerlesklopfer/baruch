@@ -6844,3 +6844,73 @@ profiles through `epub_preview::reader_name` (interface language). `tests/round3
 completeness check (every German page has an English page). Still German: the date of the draft line (`28.11.2026`,
 `typeset::draft_today`) and new cross references written by the WYSIWYG serialisation (`baruch-wysiwyg` `emit.rs`
 uses `xref_snippet`, `Inline::Xref` carries no language).
+
+## Round 39c – reste_1
+
+Written by the task named in the heading (Round 39c): the still-German server modules of priority 4 (Round 39b) go
+through the interface catalogs, and the draft date follows the work language.
+
+**Catalogs.** New area files `locales/{en,de}/rag_msg.ftl` (`src/rag/**`: states of the paths, embedder, local index,
+check of LanceDB, nearness of ideas, RPC `rag.*`), `archive_msg.ftl` (`src/archive.rs`: the four refusals of
+`ArchiveError` and their reasons) and `markdown_msg.ftl` (`src/import.rs` and `src/markdown_import/**`: refusals,
+skipped images, notes of the report, export into a folder, the report of the command line). New sections at the end of
+`connections_msg.ftl` (`connections_msg.mcp.*` for `src/connections/multigpt.rs`, `connections_msg.pg.*` for
+`src/connections/pgvector.rs`; the timeouts and login errors reuse `connections_msg.check.*`) and of `ideas_msg.ftl`
+(`ideas_msg.mindmap.*` for `src/idea_map/bild/mindmap.rs`). The German catalog keeps the wording from before
+verbatim, with one exception: the refusal of an index folder inside the Git mirror names the real mirror path instead
+of `<Datenordner>/works` (catalog values carry no `<` outside `_html` keys).
+
+**Sentences that were constants.** `rag::BUSY`, `NOT_CHOSEN`, `NOT_ASKED`, `NO_COLLECTION`, `NEVER_CHECKED`,
+`NO_EMBEDDER_OWN_DATA`, `rag::embed::NO_EMBEDDER`/`EXTERNAL_REFUSED`, `rag::neighbors::NO_EMBEDDER`/`NOT_INDEXED` and
+`rag::index::PREFIX_CHANGED` are functions now (`rag::too_busy()`, `not_chosen()`, `not_asked()`, `no_collection()`,
+`never_checked()`, `no_embedder_own_data()`, `no_embedder()`, `embed::external_refused()`,
+`neighbors::no_embedder()`/`not_indexed()`, `index::prefix_changed()`), each giving the text in the language of the
+caller. The start of the service (`rag::catch_up`) runs outside a request; it records only the catalog key
+(`NO_EMBEDDER_OWN_DATA_KEY`, `Runtime::set_unbound(&'static str)`) and `Runtime::unbound()` translates it when the
+status is read. The status recognises its own sentence about stuck jobs by `stale_text` (no German word any more).
+`import::TITLE_HINT` stays the German constant (the page of the PDF/EPUB import, `pdf_import/pages.rs`, recognises it
+in a message); `import::title_hint()` gives it in the interface language and is what the refusal of a taken title
+appends.
+
+**Scope (which language applies).** Inside a request every message comes from `i18n::tc` and thus from the language
+of the request. The modules spawn no blocking task of their own with a message; the existing `spawn_blocking` calls of
+`import.rs` and `markdown_import` already use `i18n::carry`. Paths outside a request use `i18n::current()`, which is
+English there:
+
+- the background worker of the local index (`rag::index::worker`, on the runtime of `baruch-lancedb`) runs every job
+  and every deferred reset in `i18n::scope(Runtime::lang())`: the interface language of the last request that enqueued
+  a job or wished a reset (`Runtime::note_lang`, via `i18n::request_lang`); before any request (the start of the
+  service, `catch_up`) that is English. Its problems (`Runtime::problem`) are shown as written;
+- the reconciliation with MultiGPT in the background (`crate::sync`) and a stored check result
+  (`connection_record_check`) keep the language they were written in (a check run from a page: that of the request);
+- direct calls without a request (unit tests, helper code, MCP is English anyway).
+
+The command line imports are the exception, as since Round 39a: `import::import_file_as` (Typst) and, new,
+`markdown_import::cli_import` and `import::export_to_dir` (`export --out`) run in `i18n::scope(Lang::De, …)`, because `main.rs` prints its own lines in German and
+the report must not mix languages (`docx_import` and `exchange::import` do the same). So no quoted CLI output in
+`site/content/{de,en}/betrieb.md` changes.
+
+**What stays German on purpose.** Indexed content of the local index (`rag::index::idea_text` labels „Stichworte: “,
+„Zitat: “, „Quelle: “, „Bibel: “, the substitute titles „Einfall N“, „Quelle N“ and „Notiz:“): it enters the row and
+content hashes, a language switch would re-embed every index. The fixed probe text `rag::PROBE_TEXT` (only sent to
+the embedding model). Book content written by the Markdown conversion (`markdown_import::convert`: the chapter title
+„Ohne Titel“ and the labels „Bild: …“ of images that are not taken over; a new work is German by default) and the
+mirror note „Import aus <datei>“. The answers of the MultiGPT stand-in `connections::multigpt::mock` (they imitate the
+remote side). Log lines on stderr (`eprintln!`) of `src/rag/**` are English now.
+
+**Mind map.** `idea_map::bild::mindmap::render` draws the head of the cloud („Cloud – empty …“ / „Wolke – leer …“),
+the hint „fits branch …“ and the `aria-label` „Mind map: <title>“ in the language of the request, for the page
+fragment and the `.svg`/`.pdf` export alike. `tests/round39a_pages.rs` lists no German exception for `src/rag/**` and
+the mind map any more (KNOWN_GERMAN 21 → 17 entries).
+
+**Draft date.** `typeset::draft_today_in(lang: baruch_core::WorkLanguage) -> String`: German `%-d.%-m.%Y`
+(„10.11.2026“, byte-equal to the former `draft_today`), English ISO 8601 `%Y-%m-%d` („2026-11-10“, no words, so no
+key in `book.ftl`). `draft_today()` stays and returns the German form. `draft_rule_for_in` (book PDF and preview via
+`prepare_with`, cover PDF, preview of the typesetting settings), `epub::epub_draft_in` (EPUB) and the cue notes
+(`pdf::notes`) pass the work language.
+
+**Tests.** `tests/round39c_reste_1.rs`: one message per converted module in both interface languages (cookie
+`baruch_lang`), the German CLI report of the Markdown import, the cloud of the mind map, the draft date of an English
+and a German work (rule of the watermark, EPUB note). Existing tests that compared German sentences through constants
+(`round12_lancedb.rs`, `round19_index.rs`) read them in German through `i18n::sync_scope(Lang::De, …)`; the unit tests
+of `archive.rs` and the TLS warning of `pgvector.rs` run in the German scope.

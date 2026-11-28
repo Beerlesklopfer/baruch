@@ -49,6 +49,7 @@ use sqlx::{Connection, Postgres, Transaction};
 use super::check::Outcome;
 use super::config;
 use crate::AppState;
+use crate::i18n::tc;
 
 /// Time limit for the connection and for every statement (`statement_timeout`).
 pub const TIMEOUT: Duration = Duration::from_secs(10);
@@ -96,13 +97,13 @@ impl Mapping {
         let field = |name: &str| config.get(name).and_then(Value::as_str).unwrap_or("").trim().to_owned();
         let table = field("table");
         let (schema, name) = config::split_table(&table)
-            .ok_or_else(|| format!("Tabelle „{table}“ ist kein gültiger Name (tabelle oder schema.tabelle)."))?;
+            .ok_or_else(|| tc("connections_msg.pg.table_name", &[("table", table.as_str().into())]))?;
         let required = |name: &str| {
             let column = field(name);
             if config::is_identifier(&column) {
                 Ok(column)
             } else {
-                Err(format!("{name}: „{column}“ ist kein gültiger Spaltenname."))
+                Err(tc("connections_msg.pg.column_name", &[("field", name.into()), ("column", column.into())]))
             }
         };
         let optional = |name: &str| {
@@ -110,12 +111,12 @@ impl Mapping {
             match column.as_str() {
                 "" => Ok(None),
                 c if config::is_identifier(c) => Ok(Some(column)),
-                _ => Err(format!("{name}: „{column}“ ist kein gültiger Spaltenname.")),
+                _ => Err(tc("connections_msg.pg.column_name", &[("field", name.into()), ("column", column.into())])),
             }
         };
         let embedding_model = field("embedding_model");
         if embedding_model.is_empty() {
-            return Err("Kein Einbettungsmodell eingetragen (embedding_model).".into());
+            return Err(tc("connections_msg.pg.no_model", &[]));
         }
         Ok(Mapping {
             schema: schema.map(str::to_owned),
@@ -165,16 +166,16 @@ impl Mapping {
 }
 
 /// German label of a role for messages.
-fn role_label(role: &str) -> &'static str {
+fn role_label(role: &str) -> String {
     match role {
-        "text" => "Text",
-        "vector" => "Vektor",
-        "collection" => "Sammlung",
-        "document" => "Dokument",
-        "section" => "Stelle",
-        "title" => "Titel",
-        "url" => "Adresse",
-        _ => "Modell",
+        "text" => tc("connections_msg.pg.role_text", &[]),
+        "vector" => tc("connections_msg.pg.role_vector", &[]),
+        "collection" => tc("connections_msg.pg.role_collection", &[]),
+        "document" => tc("connections_msg.pg.role_document", &[]),
+        "section" => tc("connections_msg.pg.role_section", &[]),
+        "title" => tc("connections_msg.pg.role_title", &[]),
+        "url" => tc("connections_msg.pg.role_url", &[]),
+        _ => tc("connections_msg.pg.role_model", &[]),
     }
 }
 
@@ -198,23 +199,9 @@ pub fn tls_warning(config: &Value, has_secret: bool) -> Option<String> {
     let config = config::effective(ConnectionKind::Pgvector, config);
     match config.get("tls").and_then(Value::as_str).unwrap_or("prefer").trim() {
         "verify-full" => None,
-        "require" => Some(
-            "Hinweis: TLS steht auf „require“ – die Verbindung ist verschlüsselt, das Zertifikat des Servers prüft \
-             Baruch dabei aber nicht. Wer sich im Netz als Server ausgibt, könnte Anmeldung, Anfragen und Treffer, \
-             je nach Anmeldeverfahren auch das Passwort, mitlesen. Sicher ist nur „verify-full“."
-                .to_owned(),
-        ),
-        "disable" => Some(
-            "Achtung: TLS steht auf „disable“ – Anmeldung, Anfragen und Treffer gehen unverschlüsselt über das Netz, \
-             je nach Anmeldeverfahren des Servers auch das Passwort. Besser „verify-full“ einstellen."
-                .to_owned(),
-        ),
-        _ => Some(
-            "Achtung: TLS steht auf „prefer“ – bietet der Server kein TLS an, verbindet Baruch unverschlüsselt und \
-             ohne Prüfung des Zertifikats; Anmeldung, Anfragen und Treffer, je nach Anmeldeverfahren auch das \
-             Passwort, gingen dann offen über das Netz. Besser „verify-full“ einstellen."
-                .to_owned(),
-        ),
+        "require" => Some(tc("connections_msg.pg.tls_require", &[])),
+        "disable" => Some(tc("connections_msg.pg.tls_disable", &[])),
+        _ => Some(tc("connections_msg.pg.tls_prefer", &[])),
     }
 }
 
@@ -303,21 +290,23 @@ pub fn connect_options(config: &Value, secret: Option<&str>) -> Option<(PgConnec
     Some((options, format!("{host}:{port}")))
 }
 
-/// Error of the login as a German sentence (without password).
+/// Error of the login as a sentence in the interface language (without password; the texts of the check in
+/// `connections_msg.check.pg_*`).
 fn connect_message(e: &sqlx::Error, address: &str, has_secret: bool) -> String {
+    let at = |key: &str, detail: String| tc(key, &[("address", address.into()), ("detail", detail.into())]);
     match e {
         sqlx::Error::Database(db) if matches!(db.code().as_deref(), Some("28P01" | "28000")) => {
             let hint = if has_secret {
-                "Passwort baruch/pgvector prüfen"
+                tc("connections_msg.check.pg_password_hint", &[])
             } else {
-                "kein Passwort hinterlegt (baruch/pgvector)"
+                tc("connections_msg.check.pg_no_password", &[])
             };
-            format!("Anmeldung abgelehnt: {} ({hint}).", db.message())
+            tc("connections_msg.check.pg_login", &[("detail", db.message().into()), ("hint", hint.into())])
         }
-        sqlx::Error::Database(db) => format!("Datenbank {address}: {}", db.message()),
-        sqlx::Error::Io(io) => format!("Keine Verbindung zu {address}: {io}"),
-        sqlx::Error::Tls(tls) => format!("TLS mit {address}: {tls}"),
-        other => format!("Verbindung zu {address}: {other}"),
+        sqlx::Error::Database(db) => at("connections_msg.check.pg_database", db.message().to_owned()),
+        sqlx::Error::Io(io) => at("connections_msg.check.pg_io", io.to_string()),
+        sqlx::Error::Tls(tls) => at("connections_msg.check.pg_tls", tls.to_string()),
+        other => at("connections_msg.check.pg_other", other.to_string()),
     }
 }
 
@@ -327,9 +316,9 @@ fn rag_error(e: &sqlx::Error, address: &str, has_secret: bool) -> RagError {
     match e {
         sqlx::Error::Database(db) => match db.code().as_deref() {
             Some("28P01" | "28000" | "42501") => RagError::Denied(message),
-            Some("57014") => RagError::Timeout(format!(
-                "pgvector {address}: Abfrage länger als {} s, abgebrochen (statement_timeout).",
-                TIMEOUT.as_secs()
+            Some("57014") => RagError::Timeout(tc(
+                "connections_msg.pg.statement_timeout",
+                &[("address", address.into()), ("seconds", TIMEOUT.as_secs().to_string().into())],
             )),
             Some("42P01" | "42703") => RagError::Schema(message),
             _ => RagError::Failed(message),
@@ -356,25 +345,33 @@ pub async fn resolve(conn: &mut PgConnection, mapping: &Mapping) -> Result<Resul
     .fetch_all(&mut *conn)
     .await?;
     let Some(schema) = rows.first().map(|(schema, _, _)| schema.clone()) else {
-        let place =
-            mapping.schema.as_deref().map_or("im Suchpfad des Benutzers".to_owned(), |s| format!("im Schema {s}"));
-        return Ok(Err(format!(
-            "Tabelle „{}“ gibt es {place} nicht (oder der Benutzer darf sie nicht lesen).",
-            mapping.table
-        )));
+        let table = mapping.table.as_str();
+        return Ok(Err(match mapping.schema.as_deref() {
+            None => tc("connections_msg.pg.no_table_search_path", &[("table", table.into())]),
+            Some(schema) => {
+                tc("connections_msg.pg.no_table_schema", &[("table", table.into()), ("schema", schema.into())])
+            }
+        }));
     };
     let columns: Vec<(&str, &str)> =
         rows.iter().filter(|(s, _, _)| *s == schema).map(|(_, name, udt)| (name.as_str(), udt.as_str())).collect();
     for (role, column) in mapping.columns() {
         let Some((_, udt)) = columns.iter().find(|(name, _)| *name == column) else {
-            return Ok(Err(format!(
-                "Spalte „{column}“ ({}) fehlt in Tabelle {schema}.{}.",
-                role_label(role),
-                mapping.table
+            return Ok(Err(tc(
+                "connections_msg.pg.no_column",
+                &[
+                    ("column", column.into()),
+                    ("role", role_label(role).into()),
+                    ("schema", schema.as_str().into()),
+                    ("table", mapping.table.as_str().into()),
+                ],
             )));
         };
         if role == "vector" && *udt != "vector" {
-            return Ok(Err(format!("Spalte „{column}“ hat den Typ {udt}, nicht vector (pgvector).")));
+            return Ok(Err(tc(
+                "connections_msg.pg.column_type",
+                &[("column", column.into()), ("type", (*udt).into())],
+            )));
         }
     }
     let resolved = Resolved { schema, dimension: None };
@@ -451,11 +448,13 @@ fn failed(message: impl Into<String>, details: Value) -> Outcome {
 /// dimension, models}`. `ok` = connected ∧ `vector` present ∧ table/columns fit ∧ dimension known.
 pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     let Some((options, address)) = connect_options(config, secret) else {
-        return failed("Kein Rechner (Host) eingetragen.", json!({}));
+        return failed(tc("connections_msg.pg.no_host_check", &[]), json!({}));
     };
     let mapping = match Mapping::from_config(config) {
         Ok(mapping) => mapping,
-        Err(message) => return failed(format!("Zuordnung ungültig: {message}"), json!({})),
+        Err(message) => {
+            return failed(tc("connections_msg.pg.mapping_invalid", &[("detail", message.into())]), json!({}));
+        }
     };
     let attempt = async {
         let mut conn = PgConnection::connect_with(&options).await?;
@@ -477,14 +476,18 @@ pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     };
     let (version, vector, table) = match tokio::time::timeout(TIMEOUT, attempt).await {
         Err(_) => {
-            return failed(format!("Keine Antwort von {address} innerhalb von {} s.", TIMEOUT.as_secs()), json!({}));
+            let seconds = TIMEOUT.as_secs().to_string();
+            return failed(
+                tc("connections_msg.check.timeout", &[("url", address.as_str().into()), ("seconds", seconds.into())]),
+                json!({}),
+            );
         }
         Ok(Err(e)) => return failed(connect_message(&e, &address, secret.is_some()), json!({})),
         Ok(Ok(result)) => result,
     };
     let Some(vector) = vector else {
         return failed(
-            "Verbindung steht, aber die Erweiterung vector fehlt (CREATE EXTENSION vector).",
+            tc("connections_msg.check.pg_no_vector", &[]),
             json!({ "server_version": version, "vector": null }),
         );
     };
@@ -496,13 +499,16 @@ pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     let info = match table {
         Some(Ok(Ok(info))) => info,
         Some(Ok(Err(message))) => {
-            return failed(format!("Verbindung steht (vector {vector}), aber: {message}"), Value::Object(details));
+            let text = tc("connections_msg.pg.but", &[("vector", vector.as_str().into()), ("detail", message.into())]);
+            return failed(text, Value::Object(details));
         }
         Some(Err(e)) => {
             let why = rag_error(&e, &address, secret.is_some());
-            return failed(format!("Verbindung steht (vector {vector}), aber: {why}"), Value::Object(details));
+            let detail = why.to_string();
+            let text = tc("connections_msg.pg.but", &[("vector", vector.as_str().into()), ("detail", detail.into())]);
+            return failed(text, Value::Object(details));
         }
-        None => unreachable!("mit vector wird die Tabelle geprüft"),
+        None => unreachable!("with vector the table is checked"),
     };
     details.insert("table".into(), json!(format!("{}.{}", info.resolved.schema, mapping.table)));
     details.insert(
@@ -514,31 +520,35 @@ pub async fn check(config: &Value, secret: Option<&str>) -> Outcome {
     details.insert("models".into(), json!(info.models));
     let Some(dimension) = info.resolved.dimension else {
         return failed(
-            format!(
-                "Verbindung steht (vector {vector}), aber die Vektorspalte „{}“ hat keine feste Dimension und noch keine Daten.",
-                mapping.vector
+            tc(
+                "connections_msg.pg.no_dimension_check",
+                &[("vector", vector.as_str().into()), ("column", mapping.vector.as_str().into())],
             ),
             Value::Object(details),
         );
     };
     let count = info.collections.len();
-    let word = if count == 1 { "Sammlung" } else { "Sammlungen" };
     let warning = tls_warning(config, secret.is_some());
-    let mut message = format!(
-        "Verbindung steht, Erweiterung vector {vector}: {count} {word}, {} Abschnitte, Dimension {dimension}",
-        info.chunks
+    let mut message = tc(
+        "connections_msg.pg.ready",
+        &[
+            ("vector", vector.as_str().into()),
+            ("count", count.into()),
+            ("chunks", info.chunks.to_string().into()),
+            ("dimension", dimension.to_string().into()),
+        ],
     );
     if info.models.is_empty() {
-        message.push_str(&format!("; eingestellt ist das Modell {}.", mapping.embedding_model));
+        message.push_str(&tc("connections_msg.pg.model_set", &[("model", mapping.embedding_model.as_str().into())]));
     } else {
-        message.push_str(&format!("; Modelle in den Daten: {}.", info.models.join(", ")));
+        message.push_str(&tc("connections_msg.pg.models_found", &[("models", info.models.join(", ").into())]));
         let strangers: Vec<&str> =
             info.models.iter().map(String::as_str).filter(|m| !same_model(m, &mapping.embedding_model)).collect();
         if !strangers.is_empty() {
-            message.push_str(&format!(
-                " Achtung: Eingestellt ist {}; Sammlungen mit {} lehnt die Suche ab (anderes Modell).",
-                mapping.embedding_model,
-                strangers.join(", ")
+            message.push(' ');
+            message.push_str(&tc(
+                "connections_msg.pg.strangers",
+                &[("model", mapping.embedding_model.as_str().into()), ("strangers", strangers.join(", ").into())],
             ));
         }
     }
@@ -575,15 +585,14 @@ impl PgvectorWay {
 
     async fn run(&self, query: &Query) -> Result<Vec<Hit>, RagError> {
         if query.collections.is_empty() {
-            return Err(RagError::NotConfigured("Keine Sammlung gewählt (Einstellungen → Verbindungen).".into()));
+            return Err(RagError::NotConfigured(tc("connections_msg.mcp.no_collection", &[])));
         }
         let mapping = &self.mapping;
         let mut conn = match tokio::time::timeout(TIMEOUT, PgConnection::connect_with(&self.options)).await {
             Err(_) => {
-                return Err(RagError::Timeout(format!(
-                    "Keine Antwort von {} innerhalb von {} s.",
-                    self.address,
-                    TIMEOUT.as_secs()
+                return Err(RagError::Timeout(tc(
+                    "connections_msg.check.timeout",
+                    &[("url", self.address.as_str().into()), ("seconds", TIMEOUT.as_secs().to_string().into())],
                 )));
             }
             Ok(Err(e)) => return Err(self.db_error(&e)),
@@ -598,7 +607,9 @@ impl PgvectorWay {
         let mut tx = begin_read_only(conn, TIMEOUT).await.map_err(|e| self.db_error(&e))?;
         let resolved = match resolve(&mut tx, mapping).await.map_err(|e| self.db_error(&e))? {
             Ok(resolved) => resolved,
-            Err(message) => return Err(RagError::Schema(format!("pgvector: {message}"))),
+            Err(message) => {
+                return Err(RagError::Schema(tc("connections_msg.pg.prefixed", &[("detail", message.into())])));
+            }
         };
         let from = resolved.table_sql(mapping);
         let collection = quoted(&mapping.collection);
@@ -620,40 +631,42 @@ impl PgvectorWay {
             let strangers: Vec<&str> =
                 found.iter().map(String::as_str).filter(|m| !same_model(m, &mapping.embedding_model)).collect();
             if !strangers.is_empty() {
-                return Err(RagError::ModelMismatch(format!(
-                    "pgvector: Die gewählten Sammlungen sind mit {} eingebettet, eingestellt ist {}; Treffer wären wertlos.",
-                    strangers.join(", "),
-                    mapping.embedding_model
+                return Err(RagError::ModelMismatch(tc(
+                    "connections_msg.pg.foreign_model",
+                    &[("models", strangers.join(", ").into()), ("model", mapping.embedding_model.as_str().into())],
                 )));
             }
         }
         let Some(dimension) = resolved.dimension else {
-            return Err(RagError::Schema(format!(
-                "pgvector: Die Vektorspalte „{}“ hat keine feste Dimension und noch keine Daten.",
-                mapping.vector
+            return Err(RagError::Schema(tc(
+                "connections_msg.pg.no_dimension",
+                &[("column", mapping.vector.as_str().into())],
             )));
         };
         let text = self.prefixes.query_text(&query.text);
         let embeddings = self.embedder.embed(std::slice::from_ref(&text)).await?;
         if !same_model(&embeddings.model, &mapping.embedding_model) {
-            return Err(RagError::ModelMismatch(format!(
-                "pgvector: Die Anfrage wurde mit {} eingebettet, die Daten mit {}; Treffer wären wertlos.",
-                embeddings.model, mapping.embedding_model
+            return Err(RagError::ModelMismatch(tc(
+                "connections_msg.pg.query_model",
+                &[("query", embeddings.model.as_str().into()), ("model", mapping.embedding_model.as_str().into())],
             )));
         }
         let vector = match embeddings.vectors.as_slice() {
             [vector] => vector,
-            _ => return Err(RagError::Failed("pgvector: Der Einbetter lieferte nicht genau einen Vektor.".into())),
+            _ => return Err(RagError::Failed(tc("connections_msg.pg.not_one_vector", &[]))),
         };
         if vector.len() != dimension || embeddings.dimension != dimension {
-            return Err(RagError::ModelMismatch(format!(
-                "pgvector: Die Anfrage hat {} Dimensionen, die Spalte „{}“ {dimension}; anderes Einbettungsmodell?",
-                vector.len(),
-                mapping.vector
+            return Err(RagError::ModelMismatch(tc(
+                "connections_msg.pg.query_dimension",
+                &[
+                    ("got", vector.len().to_string().into()),
+                    ("column", mapping.vector.as_str().into()),
+                    ("dimension", dimension.to_string().into()),
+                ],
             )));
         }
-        let literal = vector_literal(vector)
-            .ok_or_else(|| RagError::Failed("pgvector: Der Einbetter lieferte keine endlichen Zahlen.".into()))?;
+        let literal =
+            vector_literal(vector).ok_or_else(|| RagError::Failed(tc("connections_msg.pg.not_finite", &[])))?;
         // Round 19b: every field already shortened in SQL (like the text) so that a foreign table with huge values
         // bursts neither memory nor response.
         let optional = |column: &Option<String>, max: i64| {
@@ -729,11 +742,10 @@ pub fn way_from_config(
 ) -> Result<Box<dyn SearchWay>, RagError> {
     let config = config::effective(ConnectionKind::Pgvector, config);
     let Some((options, address)) = connect_options(&config, secret) else {
-        return Err(RagError::NotConfigured(
-            "pgvector: Kein Rechner eingetragen (Einstellungen → Verbindungen).".into(),
-        ));
+        return Err(RagError::NotConfigured(tc("connections_msg.pg.no_host", &[])));
     };
-    let mapping = Mapping::from_config(&config).map_err(|m| RagError::Schema(format!("pgvector: {m}")))?;
+    let mapping = Mapping::from_config(&config)
+        .map_err(|m| RagError::Schema(tc("connections_msg.pg.prefixed", &[("detail", m.into())])))?;
     let embedder = embedders.for_model(&mapping.embedding_model);
     let prefixes = config::embed_prefixes(ConnectionKind::Pgvector, &config);
     Ok(Box::new(PgvectorWay { options, address, secret: secret.map(str::to_owned), mapping, embedder, prefixes }))
@@ -747,22 +759,16 @@ pub async fn open_way(state: &AppState, embedders: Arc<dyn EmbedderFactory>) -> 
         .store
         .connection_get(ConnectionKind::Pgvector)
         .await
-        .map_err(|e| RagError::Failed(format!("Einstellungen von pgvector: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("connections_msg.pg.settings", &[("detail", e.to_string().into())])))?;
     let effective = config::effective(ConnectionKind::Pgvector, &row.config);
     if connect_options(&effective, None).is_none() {
-        return Err(RagError::NotConfigured(
-            "pgvector: Kein Rechner eingetragen (Einstellungen → Verbindungen).".into(),
-        ));
+        return Err(RagError::NotConfigured(tc("connections_msg.pg.no_host", &[])));
     }
     let secret = super::secrets::get(&state.secrets, "pgvector")
         .await
-        .map_err(|e| RagError::Failed(format!("Schlüsselbund: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("connections_msg.mcp.keyring", &[("detail", e.to_string().into())])))?;
     if secret.is_some() && !super::secret_bound(&row) {
-        return Err(RagError::NotConfigured(
-            "pgvector: Das Passwort baruch/pgvector ist für ein anderes Ziel hinterlegt; Baruch schickt es nicht an \
-             die jetzige Adresse. Für sie das Passwort neu eintragen (Einstellungen → Verbindungen)."
-                .into(),
-        ));
+        return Err(RagError::NotConfigured(tc("connections_msg.pg.foreign_password", &[])));
     }
     way_from_config(&effective, secret.as_deref(), embedders)
 }
@@ -823,6 +829,11 @@ mod tests {
 
     #[test]
     fn the_tls_warning_needs_a_password_and_a_weak_mode() {
+        // Round 39c: the warning follows the interface language; the checks read the German catalog.
+        crate::i18n::sync_scope(crate::i18n::Lang::De, tls_warning_in_german);
+    }
+
+    fn tls_warning_in_german() {
         // Contract R19b: note only with password and prefer/disable (also prefer as the default without the field).
         assert!(tls_warning(&json!({ "tls": "prefer" }), true).is_some_and(|w| w.contains("„prefer“")), "prefer");
         assert!(tls_warning(&json!({ "tls": "disable" }), true).is_some_and(|w| w.contains("„disable“")), "disable");

@@ -29,6 +29,7 @@ use std::path::{Component, Path, PathBuf};
 use baruch_store::{ImportAsset, MAX_ASSET_BYTES, Store, StoreError, WorkId};
 use serde::Serialize;
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::{AppState, mirror};
 
@@ -73,8 +74,14 @@ pub struct SkippedAsset {
     pub reason: String,
 }
 
-/// Hint of the CLI when the title is already taken.
+/// Hint of the CLI when the title is already taken, in the German wording (the command line runs in German; the
+/// page of the PDF/EPUB import recognises it in a message). [`title_hint`] gives it in the interface language.
 pub const TITLE_HINT: &str = "Mit --title \"…\" einen anderen Titel wählen.";
+
+/// [`TITLE_HINT`] in the interface language (Round 39c).
+pub fn title_hint() -> String {
+    tc("markdown_msg.typst.title_hint", &[])
+}
 
 /// Import source text. Write lock as for accepting and saving, so that the commit contains exactly
 /// the new state. Already imported or title taken → `REFUSED`, no heading →
@@ -95,10 +102,13 @@ pub async fn import_upload(
 ) -> Result<ImportReport, RpcError> {
     let file_name = file_name.rsplit(['/', '\\']).next().unwrap_or("").trim();
     if !is_typst_name(file_name) {
-        return Err(RpcError::new(INVALID_PARAMS, "Nur Typst-Dateien (.typ) lassen sich importieren."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("markdown_msg.typst.only_typ", &[])));
     }
     if source.len() as u64 > MAX_SOURCE_BYTES {
-        return Err(RpcError::new(INVALID_PARAMS, format!("{file_name} ist größer als 16 MiB")));
+        return Err(RpcError::new(
+            INVALID_PARAMS,
+            tc("markdown_msg.file.too_large", &[("file", file_name.to_string().into())]),
+        ));
     }
     Ok(import_source(state, source, file_name, title, Vec::new(), Vec::new(), Vec::new()).await?)
 }
@@ -132,17 +142,13 @@ async fn import_source(
     if exported {
         warnings.push(ImportWarning {
             code: "import-back-matter-cut".into(),
-            message: "Das erzeugte Buchende eines Exports (Register- und Glossarseiten ab „// Baruch: Register und \
-                      Glossar“) ist abgeschnitten; es entsteht beim Export aus den Satz-Einstellungen neu."
-                .into(),
+            message: tc("markdown_msg.typst.back_matter_cut", &[]),
             line: Some(baruch_typst::line_at(original, source.len())),
         });
     } else if baruch_typst::index::has_back_matter_mark(source) {
         warnings.push(ImportWarning {
             code: "import-back-matter-kept".into(),
-            message: "Die Zeile „// Baruch: Register und Glossar“ steht im Text, aber ohne das erzeugte Buchende \
-                      dahinter; nichts abgeschnitten."
-                .into(),
+            message: tc("markdown_msg.typst.back_matter_kept", &[]),
             line: None,
         });
     }
@@ -154,9 +160,7 @@ async fn import_source(
     if unprojected != source {
         warnings.push(ImportWarning {
             code: "import-projection-removed".into(),
-            message: "Zusätze der Projektion eines Exports (automatische Bibelstellen-Marken, Auszeichnung der ersten \
-                      Erwähnung) sind entfernt; sie entstehen beim Export aus den Einstellungen neu."
-                .into(),
+            message: tc("markdown_msg.typst.projection_removed", &[]),
             line: None,
         });
     }
@@ -174,9 +178,7 @@ async fn import_source(
     if state.store.work_typeset(imported.work).await.ok().flatten().is_some() {
         warnings.push(ImportWarning {
             code: "import-typeset-adopted".into(),
-            message: "Der Regelblock „// Baruch: Satz“ ist in die Satz-Einstellungen des Werks übernommen \
-                      (Einstellungen → Werk → Satz), nicht in die Werkvorlage."
-                .into(),
+            message: tc("markdown_msg.typst.typeset_adopted", &[]),
             line: None,
         });
     } else if let Ok(template) = state.store.work_template(imported.work).await
@@ -184,10 +186,7 @@ async fn import_source(
     {
         warnings.push(ImportWarning {
             code: "import-typeset-kept".into(),
-            message:
-                "Der Regelblock „// Baruch: Satz“ ließ sich nicht genau in Satz-Einstellungen zurücklesen (von Hand \
-                      geändert?) und steht weiter in der Werkvorlage."
-                    .into(),
+            message: tc("markdown_msg.typst.typeset_kept", &[]),
             line: None,
         });
     }
@@ -231,7 +230,15 @@ async fn import_file_as_german(state: &AppState, path: &Path, title: Option<&str
         Ok::<_, RpcError>((source, file_name, assets, skipped))
     }))
     .await
-    .map_err(|e| RpcError::new(INTERNAL, format!("Lesen von {} abgebrochen: {e}", path.display())))??;
+    .map_err(|e| {
+        RpcError::new(
+            INTERNAL,
+            tc(
+                "markdown_msg.typst.read_aborted",
+                &[("path", path.display().to_string().into()), ("detail", e.to_string().into())],
+            ),
+        )
+    })??;
     import_source(state, &source, &file_name, title, assets, skipped, Vec::new()).await.map_err(map_title_error)
 }
 
@@ -253,7 +260,7 @@ pub async fn import_generated(
 /// (`REFUSED`); everything else like `From<StoreError>` (no heading → `INVALID_PARAMS`).
 fn map_title_error(e: StoreError) -> RpcError {
     match e {
-        StoreError::DuplicateTitle { .. } => RpcError::new(REFUSED, format!("{e} {TITLE_HINT}")),
+        StoreError::DuplicateTitle { .. } => RpcError::new(REFUSED, format!("{e} {}", title_hint())),
         e => e.into(),
     }
 }
@@ -262,22 +269,33 @@ fn map_title_error(e: StoreError) -> RpcError {
 /// `spawn_blocking`.
 fn read_file(path: &Path) -> Result<(String, String), RpcError> {
     let shown = path.display();
-    let unreadable = |e: std::io::Error| RpcError::new(INVALID_PARAMS, format!("{shown} lässt sich nicht lesen: {e}"));
+    let unreadable = |e: std::io::Error| {
+        RpcError::new(
+            INVALID_PARAMS,
+            tc("markdown_msg.file.unreadable", &[("file", shown.to_string().into()), ("detail", e.to_string().into())]),
+        )
+    };
     if !std::fs::metadata(path).map_err(unreadable)?.is_file() {
-        return Err(RpcError::new(INVALID_PARAMS, format!("{shown} ist keine Datei")));
+        return Err(RpcError::new(
+            INVALID_PARAMS,
+            tc("markdown_msg.file.not_file", &[("file", shown.to_string().into())]),
+        ));
     }
     let file = std::fs::File::open(path).map_err(unreadable)?;
     let mut bytes = Vec::new();
     file.take(MAX_SOURCE_BYTES + 1).read_to_end(&mut bytes).map_err(unreadable)?;
     if bytes.len() as u64 > MAX_SOURCE_BYTES {
-        return Err(RpcError::new(INVALID_PARAMS, format!("{shown} ist größer als 16 MiB")));
+        return Err(RpcError::new(
+            INVALID_PARAMS,
+            tc("markdown_msg.file.too_large", &[("file", shown.to_string().into())]),
+        ));
     }
-    let source =
-        String::from_utf8(bytes).map_err(|_| RpcError::new(INVALID_PARAMS, format!("{shown} ist kein UTF-8-Text")))?;
-    let file_name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("{shown}: Dateiname fehlt oder ist kein UTF-8")))?;
+    let source = String::from_utf8(bytes).map_err(|_| {
+        RpcError::new(INVALID_PARAMS, tc("markdown_msg.file.not_utf8", &[("file", shown.to_string().into())]))
+    })?;
+    let file_name = path.file_name().and_then(|n| n.to_str()).ok_or_else(|| {
+        RpcError::new(INVALID_PARAMS, tc("markdown_msg.file.no_name", &[("file", shown.to_string().into())]))
+    })?;
     Ok((source, file_name.to_owned()))
 }
 
@@ -304,7 +322,7 @@ pub(crate) fn read_assets_in(folder: &Path, source: &str) -> (Vec<ImportAsset>, 
     let root = match std::fs::canonicalize(folder) {
         Ok(root) => root,
         Err(e) => {
-            let reason = format!("Ordner der Quelldatei nicht lesbar ({e})");
+            let reason = tc("markdown_msg.asset.folder", &[("detail", e.to_string().into())]);
             skipped.extend(paths.into_iter().map(|path| SkippedAsset { path, reason: reason.clone() }));
             return (assets, skipped);
         }
@@ -319,15 +337,16 @@ pub(crate) fn read_assets_in(folder: &Path, source: &str) -> (Vec<ImportAsset>, 
     (assets, skipped)
 }
 
-/// Read one image file below `root`; errors as a reason (German).
+/// Read one image file below `root`; errors as a reason (interface language).
 fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u8>), String> {
     let relative = path.trim().trim_start_matches('/');
     if relative.is_empty() || relative.contains('\\') || relative.contains("://") {
-        return Err("kein Dateipfad".to_owned());
+        return Err(tc("markdown_msg.asset.not_path", &[]));
     }
-    let real = std::fs::canonicalize(root.join(relative)).map_err(|e| format!("nicht gefunden ({e})"))?;
+    let real = std::fs::canonicalize(root.join(relative))
+        .map_err(|e| tc("markdown_msg.asset.not_found", &[("detail", e.to_string().into())]))?;
     if !real.starts_with(root) {
-        return Err("liegt außerhalb des Ordners der Quelldatei".to_owned());
+        return Err(tc("markdown_msg.asset.outside", &[]));
     }
     // Before reading, the path rule of the store (`..`, control characters …): otherwise the import would read the
     // file, and the store would refuse the path and discard the whole import including the text. `./bilder/a.png`,
@@ -336,24 +355,25 @@ fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u
     if let Err(e) = baruch_store::check_asset_path(path) {
         return Err(e.to_string());
     }
-    let meta = std::fs::metadata(&real).map_err(|e| format!("nicht lesbar ({e})"))?;
+    let unreadable = |e: std::io::Error| tc("markdown_msg.asset.unreadable", &[("detail", e.to_string().into())]);
+    let meta = std::fs::metadata(&real).map_err(unreadable)?;
     if !meta.is_file() {
-        return Err("keine Datei".to_owned());
+        return Err(tc("markdown_msg.asset.not_file", &[]));
     }
     if meta.len() > MAX_ASSET_BYTES as u64 {
-        return Err("größer als 8 MiB".to_owned());
+        return Err(tc("markdown_msg.asset.too_large", &[]));
     }
     if *total + meta.len() > MAX_IMPORT_ASSET_BYTES {
-        return Err("die Bilder dieser Datei sind zusammen größer als 64 MiB".to_owned());
+        return Err(tc("markdown_msg.asset.total", &[]));
     }
-    let file = std::fs::File::open(&real).map_err(|e| format!("nicht lesbar ({e})"))?;
+    let file = std::fs::File::open(&real).map_err(unreadable)?;
     let mut bytes = Vec::new();
-    file.take(MAX_ASSET_BYTES as u64 + 1).read_to_end(&mut bytes).map_err(|e| format!("nicht lesbar ({e})"))?;
+    file.take(MAX_ASSET_BYTES as u64 + 1).read_to_end(&mut bytes).map_err(unreadable)?;
     if bytes.len() > MAX_ASSET_BYTES {
-        return Err("größer als 8 MiB".to_owned());
+        return Err(tc("markdown_msg.asset.too_large", &[]));
     }
     if baruch_store::detect_mime(&bytes).is_none() {
-        return Err("kein unterstütztes Bild (PNG, JPEG, GIF, WebP, SVG)".to_owned());
+        return Err(tc("markdown_msg.asset.not_image", &[]));
     }
     *total += bytes.len() as u64;
     let file_name = real.file_name().and_then(|n| n.to_str()).unwrap_or("bild").to_owned();
@@ -365,13 +385,13 @@ fn read_asset(root: &Path, path: &str, total: &mut u64) -> Result<(String, Vec<u
 /// `total` up only on success.
 pub(crate) fn check_image(bytes: &[u8], total: &mut u64) -> Result<(), String> {
     if bytes.len() > MAX_ASSET_BYTES {
-        return Err("größer als 8 MiB".to_owned());
+        return Err(tc("markdown_msg.asset.too_large", &[]));
     }
     if *total + bytes.len() as u64 > MAX_IMPORT_ASSET_BYTES {
-        return Err("die Bilder dieser Datei sind zusammen größer als 64 MiB".to_owned());
+        return Err(tc("markdown_msg.asset.total", &[]));
     }
     if baruch_store::detect_mime(bytes).is_none() {
-        return Err("kein unterstütztes Bild (PNG, JPEG, GIF, WebP, SVG)".to_owned());
+        return Err(tc("markdown_msg.asset.not_image", &[]));
     }
     *total += bytes.len() as u64;
     Ok(())
@@ -387,7 +407,14 @@ fn plain_relative(path: &str) -> bool {
 /// [`Store::export_typst`], and every file from [`Store::export_assets`] at its path. Only relative
 /// paths without `..`; missing folders are created. If a target file already exists, nothing is
 /// written (error). Result: the files written.
+///
+/// Only the command line calls it (`export --out`); like the imports of the command line it runs in German (Round 39a,
+/// 39c), because `main.rs` prints its own lines in German.
 pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Vec<PathBuf>, String> {
+    crate::i18n::scope(crate::i18n::Lang::De, export_to_dir_in_scope(store, work, out)).await
+}
+
+async fn export_to_dir_in_scope(store: &Store, work: WorkId, out: &Path) -> Result<Vec<PathBuf>, String> {
     let meta = store.work_meta(work).await.map_err(|e| e.to_string())?;
     let typst = store.export_typst(work).await.map_err(|e| e.to_string())?;
     let assets = store.export_assets(work).await.map_err(|e| e.to_string())?;
@@ -400,19 +427,19 @@ pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Ve
     let mut files: Vec<(String, Vec<u8>)> = vec![(typ_name, typst.into_bytes())];
     for file in assets {
         if !plain_relative(&file.path) {
-            return Err(format!("Bildpfad {} ist kein relativer Pfad ohne ..; nichts geschrieben", file.path));
+            return Err(tc("markdown_msg.export.asset_path", &[("path", file.path.as_str().into())]));
         }
         // Normal form of the components (`bilder//a.png` = `bilder/a.png`), so that duplicates and collisions show up.
         let path = components(&file.path).join("/");
         if files.iter().any(|(p, _)| *p == path) {
-            return Err(format!("{} käme zweimal vor; nichts geschrieben", file.path));
+            return Err(tc("markdown_msg.export.twice", &[("path", file.path.as_str().into())]));
         }
         files.push((path, file.bytes));
     }
     let out = out.to_owned();
     tokio::task::spawn_blocking(crate::i18n::carry(move || write_all(&out, &files)))
         .await
-        .map_err(|e| format!("Schreiben abgebrochen: {e}"))?
+        .map_err(|e| tc("markdown_msg.export.aborted", &[("detail", e.to_string().into())]))?
 }
 
 /// Names of a relative path (only `Component::Normal`).
@@ -433,20 +460,19 @@ fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> 
     match std::fs::symlink_metadata(out) {
         Ok(meta) if meta.file_type().is_symlink() => {
             if !std::fs::metadata(out).is_ok_and(|m| m.is_dir()) {
-                return Err(format!("{} ist kein Ordner; nichts geschrieben", out.display()));
+                return Err(at_path("markdown_msg.export.not_folder", out));
             }
         }
-        Ok(meta) if !meta.is_dir() => return Err(format!("{} ist kein Ordner; nichts geschrieben", out.display())),
+        Ok(meta) if !meta.is_dir() => return Err(at_path("markdown_msg.export.not_folder", out)),
         _ => {}
     }
     let paths: Vec<Vec<String>> = files.iter().map(|(p, _)| components(p)).collect();
     for (i, a) in paths.iter().enumerate() {
         for (j, b) in paths.iter().enumerate() {
             if i != j && b.len() > a.len() && b.starts_with(a) {
-                return Err(format!(
-                    "{} wäre zugleich Datei und Ordner (für {}); nichts geschrieben",
-                    a.join("/"),
-                    b.join("/")
+                return Err(tc(
+                    "markdown_msg.export.file_and_folder",
+                    &[("path", a.join("/").into()), ("other", b.join("/").into())],
                 ));
             }
         }
@@ -458,16 +484,15 @@ fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> 
             let last = k + 1 == parts.len();
             match std::fs::symlink_metadata(&at) {
                 Err(_) => break, // missing: is created, nothing can exist below it
-                Ok(_) if last => return Err(format!("{} gibt es schon; nichts überschrieben", at.display())),
+                Ok(_) if last => return Err(at_path("markdown_msg.export.exists", &at)),
                 Ok(meta) if meta.file_type().is_symlink() => {
-                    return Err(format!(
-                        "{} ist eine Verknüpfung; Bilder könnten außerhalb von {} landen; nichts geschrieben",
-                        at.display(),
-                        out.display()
+                    return Err(tc(
+                        "markdown_msg.export.link",
+                        &[("path", at.display().to_string().into()), ("out", out.display().to_string().into())],
                     ));
                 }
                 Ok(meta) if !meta.is_dir() => {
-                    return Err(format!("{} ist eine Datei, kein Ordner; nichts geschrieben", at.display()));
+                    return Err(at_path("markdown_msg.export.is_file", &at));
                 }
                 Ok(_) => {}
             }
@@ -476,30 +501,41 @@ fn check_targets(out: &Path, files: &[(String, Vec<u8>)]) -> Result<(), String> 
     Ok(())
 }
 
+/// Message of the export with a path (`{ $path }`).
+fn at_path(key: &str, path: &Path) -> String {
+    tc(key, &[("path", path.display().to_string().into())])
+}
+
+/// Message of the export with a path and the error of the operating system.
+fn io_at(key: &str, path: &Path, e: &std::io::Error) -> String {
+    tc(key, &[("path", path.display().to_string().into()), ("detail", e.to_string().into())])
+}
+
 /// Write all files; check everything first ([`check_targets`]), then overwrite nothing and locate every folder
 /// below `out` once more after creating it (`canonicalize`). Blocks.
 fn write_all(out: &Path, files: &[(String, Vec<u8>)]) -> Result<Vec<PathBuf>, String> {
     check_targets(out, files)?;
-    std::fs::create_dir_all(out).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", out.display()))?;
-    let root = std::fs::canonicalize(out).map_err(|e| format!("{} lässt sich nicht lesen: {e}", out.display()))?;
+    std::fs::create_dir_all(out).map_err(|e| io_at("markdown_msg.export.create", out, &e))?;
+    let root = std::fs::canonicalize(out).map_err(|e| io_at("markdown_msg.export.read", out, &e))?;
     let mut written = Vec::with_capacity(files.len());
     for (path, bytes) in files {
         let target = out.join(path);
         if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("{} lässt sich nicht anlegen: {e}", parent.display()))?;
-            let real = std::fs::canonicalize(parent)
-                .map_err(|e| format!("{} lässt sich nicht lesen: {e}", parent.display()))?;
+            std::fs::create_dir_all(parent).map_err(|e| io_at("markdown_msg.export.create", parent, &e))?;
+            let real = std::fs::canonicalize(parent).map_err(|e| io_at("markdown_msg.export.read", parent, &e))?;
             if !real.starts_with(&root) {
-                return Err(format!("{} liegt außerhalb von {}; abgebrochen", parent.display(), out.display()));
+                return Err(tc(
+                    "markdown_msg.export.outside",
+                    &[("path", parent.display().to_string().into()), ("out", out.display().to_string().into())],
+                ));
             }
         }
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(&target)
-            .map_err(|e| format!("{} lässt sich nicht schreiben: {e}", target.display()))?;
-        file.write_all(bytes).map_err(|e| format!("{} lässt sich nicht schreiben: {e}", target.display()))?;
+            .map_err(|e| io_at("markdown_msg.export.write", &target, &e))?;
+        file.write_all(bytes).map_err(|e| io_at("markdown_msg.export.write", &target, &e))?;
         written.push(target);
     }
     Ok(written)

@@ -45,6 +45,8 @@ use baruch_rag::{
 use baruch_store::{ConnectionKind, IdeaFilter, IdeaScope, Store, StoreError, WorkId};
 use serde_json::{Value, json};
 
+use crate::i18n::tc;
+
 /// Maximum number of attempts per job.
 pub const MAX_ATTEMPTS: usize = 3;
 /// Pause before the second and the third attempt.
@@ -118,7 +120,11 @@ pub struct Runtime {
     store: Mutex<Store>,
     embedders: Mutex<Option<Arc<dyn EmbedderFactory>>>,
     /// Why no embedder is connected (own data folder without a stored connection Eliezer).
-    unbound: Mutex<Option<String>>,
+    unbound: Mutex<Option<&'static str>>,
+    /// Interface language of the last request that enqueued a job or wished a reset (Round 39c): the background
+    /// task writes its problems in it, so the status page shows them in the language of the person who works.
+    /// Before any request (start of the service) English.
+    lang: Mutex<crate::i18n::Lang>,
     queue: Mutex<Queue>,
     index: tokio::sync::Mutex<Option<Index>>,
     /// Keeps the background task and „Neu aufbauen“ apart.
@@ -146,6 +152,7 @@ impl Runtime {
             store: Mutex::new(store),
             embedders: Mutex::new(None),
             unbound: Mutex::new(None),
+            lang: Mutex::new(crate::i18n::Lang::default()),
             queue: Mutex::new(Queue::default()),
             index: tokio::sync::Mutex::new(None),
             writing: tokio::sync::Mutex::new(()),
@@ -174,13 +181,14 @@ impl Runtime {
         *lock(&self.unbound) = None;
     }
 
-    /// Reason why no embedder was connected at start (`None` = none recorded).
+    /// Reason why no embedder was connected at start (`None` = none recorded), in the language of the caller.
     pub(crate) fn unbound(&self) -> Option<String> {
-        lock(&self.unbound).clone()
+        lock(&self.unbound).map(|key| tc(key, &[]))
     }
 
-    pub(crate) fn set_unbound(&self, reason: impl Into<String>) {
-        *lock(&self.unbound) = Some(reason.into());
+    /// Records the catalog key of the reason (the start runs outside a request; the text follows the reader).
+    pub(crate) fn set_unbound(&self, key: &'static str) {
+        *lock(&self.unbound) = Some(key);
     }
 
     /// Embedders or the honest substitute without a backend.
@@ -226,7 +234,20 @@ impl Runtime {
         self.push(jobs, false);
     }
 
+    /// Remember the language of the running request for the background task (outside a request nothing changes).
+    fn note_lang(&self) {
+        if let Some(lang) = crate::i18n::request_lang() {
+            *lock(&self.lang) = lang;
+        }
+    }
+
+    /// Language the background task writes its messages in.
+    fn lang(&self) -> crate::i18n::Lang {
+        *lock(&self.lang)
+    }
+
     fn push(self: &Arc<Self>, jobs: &[Job], reclaim: bool) {
+        self.note_lang();
         if self.embedders().is_none() {
             return;
         }
@@ -260,6 +281,7 @@ impl Runtime {
     /// Record a reset wish (whole index or one work), let the running job abort and start the
     /// background task if it is idle. Does not wait.
     pub(crate) fn wish_reset(self: &Arc<Self>, whole: bool, work: WorkId) {
+        self.note_lang();
         let start = {
             let mut q = lock(&self.queue);
             let wish = q.reset.get_or_insert_with(ResetWish::default);
@@ -374,7 +396,7 @@ async fn apply_reset(rt: &Arc<Runtime>) {
     };
     let result = {
         let _held = rt.writing.lock().await;
-        reset_index(rt, wish.whole, &wish.works).await
+        crate::i18n::scope(rt.lang(), reset_index(rt, wish.whole, &wish.works)).await
     };
     {
         let mut q = lock(&rt.queue);
@@ -383,7 +405,7 @@ async fn apply_reset(rt: &Arc<Runtime>) {
         q.reset = newer;
         rt.abort.store(q.reset.is_some(), Ordering::SeqCst);
         if let Err(e) = &result {
-            eprintln!("RAG (LanceDB): Neuaufbau gescheitert: {e}");
+            eprintln!("RAG (LanceDB): rebuild failed: {e}");
             q.problem = Some(e.clone());
         }
     }
@@ -428,9 +450,10 @@ async fn worker(rt: Arc<Runtime>) {
                 let _held = rt.writing.lock().await;
                 // Own task: a panic in the job becomes an error and does not stop the queue.
                 let owned = rt.clone();
-                tokio::spawn(async move { process(&owned, job).await })
-                    .await
-                    .unwrap_or_else(|e| Err(RagError::Failed(format!("Auftrag abgebrochen: {e}"))))
+                let lang = rt.lang();
+                tokio::spawn(crate::i18n::scope(lang, async move { process(&owned, job).await })).await.unwrap_or_else(
+                    |e| Err(RagError::Failed(tc("rag_msg.index.job_aborted", &[("detail", e.to_string().into())]))),
+                )
             };
             if rt.reset_wished() {
                 // Rebuilding takes precedence; the job is enqueued again afterwards (a duplicate only once).
@@ -535,16 +558,12 @@ pub fn resolve_dir(data: &Path, dir: &str) -> Result<PathBuf, RagError> {
     let base = normalize(&std::path::absolute(data).unwrap_or_else(|_| data.to_owned()));
     let path = normalize(&if Path::new(dir).is_absolute() { PathBuf::from(dir) } else { base.join(dir) });
     if path == base {
-        return Err(RagError::Failed(
-            "Der Ordner des Index darf nicht der Datenordner selbst sein (Einstellungen → Verbindungen → LanceDB)."
-                .into(),
-        ));
+        return Err(RagError::Failed(tc("rag_msg.index.data_folder", &[])));
     }
     if path.starts_with(base.join("works")) {
-        return Err(RagError::Failed(format!(
-            "Der Ordner des Index {} liegt im Git-Spiegel (<Datenordner>/works); bitte einen anderen wählen \
-             (Einstellungen → Verbindungen → LanceDB).",
-            path.display()
+        return Err(RagError::Failed(tc(
+            "rag_msg.index.in_mirror",
+            &[("dir", path.display().to_string().into()), ("mirror", base.join("works").display().to_string().into())],
         )));
     }
     Ok(path)
@@ -555,7 +574,7 @@ pub async fn config(store: &Store, data: &Path) -> Result<LanceConfig, RagError>
     let row = store
         .connection_get(ConnectionKind::Lancedb)
         .await
-        .map_err(|e| RagError::Failed(format!("Verbindung lancedb nicht lesbar: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("rag_msg.index.connection", &[("detail", e.to_string().into())])))?;
     let field = |name: &str| row.config.get(name).and_then(Value::as_str).unwrap_or("").trim().to_owned();
     let configured = Some(field("embedding_model")).filter(|m| !m.is_empty()).unwrap_or_else(|| DEFAULT_MODEL.into());
     Ok(LanceConfig {
@@ -566,33 +585,36 @@ pub async fn config(store: &Store, data: &Path) -> Result<LanceConfig, RagError>
     })
 }
 
-/// Sentence: the document prefix of the index does not match the configured one.
-pub const PREFIX_CHANGED: &str = "Aufgaben-Präfix geändert; Index neu aufbauen.";
+/// Sentence: the document prefix of the index does not match the configured one (interface language).
+pub fn prefix_changed() -> String {
+    tc("rag_msg.index.prefix_changed", &[])
+}
 
 /// Do model and document prefix match the index? Otherwise the honest sentence. An empty index matches
 /// everything; an index without a recorded prefix (before Round 19) counts as "without prefix".
 pub fn mismatch(meta: &IndexMeta, cfg: &LanceConfig) -> Option<RagError> {
     let built = meta.requested.as_deref()?;
     if built != cfg.model {
-        return Some(RagError::ModelMismatch(format!(
-            "Der Index ist mit dem Einbettungsmodell {built} aufgebaut, eingestellt ist {}. Baruch mischt keine \
-             Vektoren verschiedener Modelle; „Index neu aufbauen“ (Einstellungen → Verbindungen) baut ihn mit dem \
-             neuen Modell auf.",
-            cfg.configured
+        return Some(RagError::ModelMismatch(tc(
+            "rag_msg.index.model_changed",
+            &[("built", built.into()), ("configured", cfg.configured.as_str().into())],
         )));
     }
     let prefix = meta.document_prefix.as_deref().unwrap_or("");
     (prefix != cfg.prefixes.document).then(|| {
-        RagError::ModelMismatch(format!(
-            "{PREFIX_CHANGED} Der Index ist mit dem Dokument-Präfix „{prefix}“ eingebettet, eingestellt ist „{}“; \
-             Baruch mischt keine Vektoren (Einstellungen → Verbindungen → LanceDB, „Index neu aufbauen“).",
-            cfg.prefixes.document
+        RagError::ModelMismatch(tc(
+            "rag_msg.index.prefix_detail",
+            &[
+                ("changed", prefix_changed().into()),
+                ("built", prefix.into()),
+                ("configured", cfg.prefixes.document.as_str().into()),
+            ],
         ))
     })
 }
 
 fn store_failed(e: StoreError) -> RagError {
-    RagError::Failed(format!("Speicher: {e}"))
+    RagError::Failed(tc("rag_msg.index.store", &[("detail", e.to_string().into())]))
 }
 
 /// One job.
@@ -680,7 +702,9 @@ pub fn desired_sections(work: WorkId, loaded: &Work) -> Vec<Entry> {
     out
 }
 
-/// Text of an idea for embedding (empty = nothing).
+/// Text of an idea for embedding (empty = nothing). The labels („Stichworte: “, „Zitat: “ …) and the substitute
+/// titles „Einfall N“, „Quelle N“ and „Notiz:“ below are indexed content, not interface text: they enter the row and
+/// content hashes, so a language switch would re-embed every index. They stay German (Round 39c, reste_1).
 fn idea_text(idea: &baruch_store::Idea) -> String {
     let mut parts = Vec::new();
     if !idea.words.is_empty() {
@@ -734,7 +758,9 @@ pub async fn desired_ideas(store: &Store, scope: IdeaScope) -> Result<Vec<Entry>
 pub async fn desired_shared(store: &Store) -> Result<Vec<Entry>, RagError> {
     let mut out = desired_ideas(store, IdeaScope::NoWork).await?;
     let pool = store.pool();
-    let titles = baruch_library::list_titles(pool).await.map_err(|e| RagError::Failed(format!("Bibliothek: {e}")))?;
+    let titles = baruch_library::list_titles(pool)
+        .await
+        .map_err(|e| RagError::Failed(tc("rag_msg.index.library", &[("detail", e.to_string().into())])))?;
     let mut names = HashMap::new();
     for entry in &titles {
         let t = &entry.title;
@@ -781,7 +807,7 @@ pub async fn desired_shared(store: &Store) -> Result<Vec<Entry>, RagError> {
     }
     let highlights = baruch_library::list_highlights(pool, None)
         .await
-        .map_err(|e| RagError::Failed(format!("Hervorhebungen: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("rag_msg.index.highlights", &[("detail", e.to_string().into())])))?;
     for h in highlights {
         // Highlights rejected by the human do not belong into the search (as in the wording search).
         if h.status == baruch_library::HighlightStatus::Rejected {
@@ -885,10 +911,9 @@ pub async fn sync(
             let answer = answer?;
             outcome.embedded = true;
             if answer.vectors.len() != batch.len() {
-                return Err(RagError::Failed(format!(
-                    "Einbettung lieferte {} statt {} Vektoren.",
-                    answer.vectors.len(),
-                    batch.len()
+                return Err(RagError::Failed(tc(
+                    "rag_msg.index.vector_count",
+                    &[("got", answer.vectors.len().to_string().into()), ("want", batch.len().to_string().into())],
                 )));
             }
             match meta.dimension {
@@ -901,10 +926,9 @@ pub async fn sync(
                     index.set_meta(&meta)?;
                 }
                 Some(d) if d != answer.dimension => {
-                    return Err(RagError::ModelMismatch(format!(
-                        "Das Einbettungsmodell liefert {} Dimensionen, der Index hat {d}; nichts gemischt. „Index neu \
-                         aufbauen“ hilft.",
-                        answer.dimension
+                    return Err(RagError::ModelMismatch(tc(
+                        "rag_msg.index.dimension_mixed",
+                        &[("got", answer.dimension.to_string().into()), ("index", d.to_string().into())],
                     )));
                 }
                 Some(_) => {}
@@ -969,9 +993,13 @@ impl LanceWay {
         // Query with the query prefix (empty = byte-identical as before).
         let answer = embedder.embed(&[cfg.prefixes.query_text(&query.text)]).await?;
         if let Some(d) = meta.dimension.filter(|d| *d != answer.dimension) {
-            return Err(RagError::ModelMismatch(format!(
-                "Das Einbettungsmodell {} liefert {} Dimensionen, der Index hat {d}; „Index neu aufbauen“ hilft.",
-                cfg.configured, answer.dimension
+            return Err(RagError::ModelMismatch(tc(
+                "rag_msg.index.dimension_query",
+                &[
+                    ("model", cfg.configured.as_str().into()),
+                    ("got", answer.dimension.to_string().into()),
+                    ("index", d.to_string().into()),
+                ],
             )));
         }
         let vector = answer.vectors.into_iter().next().unwrap_or_default();
@@ -1046,7 +1074,10 @@ mod tests {
         assert!(mismatch(&meta, &cfg("nomic-embed-text")).is_none(), "Alias = gleiches Modell");
         let e = mismatch(&meta, &cfg("bge-m3")).expect("anderes Modell");
         assert_eq!(e.code(), "model_mismatch", "Code");
-        assert!(e.message().contains("bge-m3") && e.message().contains("neu aufbauen"), "Satz: {e}");
+        assert!(
+            e.message().contains("bge-m3") && e.message().contains("Rebuild index"),
+            "sentence (English outside a request): {e}"
+        );
         assert!(mismatch(&IndexMeta::default(), &cfg("bge-m3")).is_none(), "leerer Index passt zu jedem Modell");
 
         // Round 19b: another document prefix mixes as little as another model.
@@ -1054,7 +1085,7 @@ mod tests {
         prefixed.prefixes.document = "search_document: ".into();
         let e = mismatch(&meta, &prefixed).expect("Index ohne Präfix, eingestellt mit Präfix");
         assert_eq!(e.code(), "model_mismatch", "Präfixwechsel = ModelMismatch");
-        assert!(e.message().starts_with(PREFIX_CHANGED), "Satz des Vertrags vorn: {e}");
+        assert!(e.message().starts_with(&prefix_changed()), "Satz des Vertrags vorn: {e}");
         let built = IndexMeta { document_prefix: Some("search_document: ".into()), ..meta.clone() };
         assert!(mismatch(&built, &prefixed).is_none(), "gleiches Präfix passt");
         let empty = IndexMeta { document_prefix: Some(String::new()), ..meta.clone() };

@@ -273,7 +273,8 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     let way3 = pgvector::open_way(&server.state, four).await.unwrap();
     let dims = way3.search(&query("Möwen", &["leuchtturm"])).await;
     assert!(
-        matches!(&dims, Err(RagError::ModelMismatch(m)) if m.contains("4 Dimensionen")),
+        // A direct call has no request: the message is English (Round 39c).
+        matches!(&dims, Err(RagError::ModelMismatch(m)) if m.contains("4 dimensions")),
         "vier statt drei Dimensionen: ModelMismatch – liefe die Abfrage, meldete PostgreSQL „different vector dimensions“ (Failed): {dims:?}"
     );
 
@@ -282,8 +283,10 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
 
     // Wrong mapping in the search: honest schema error.
     configure(&server, mapped(&pg, json!({ "document_column": "dokument" }))).await;
-    let broken =
-        pgvector::open_way(&server.state, factory()).await.unwrap().search(&query("Möwen", &["leuchtturm"])).await;
+    let broken = baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        pgvector::open_way(&server.state, factory()).await.unwrap().search(&query("Möwen", &["leuchtturm"])).await
+    })
+    .await;
     assert!(
         matches!(&broken, Err(RagError::Schema(m)) if m.contains("„dokument“")),
         "fehlende Spalte bei der Suche: {broken:?}"
@@ -292,8 +295,10 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
     // Wrong password: Denied, without naming the password.
     configure(&server, mapped(&pg, json!({}))).await;
     server.state.secrets.set("pgvector", "falsch-und-geheim").unwrap();
-    let denied =
-        pgvector::open_way(&server.state, factory()).await.unwrap().search(&query("Möwen", &["leuchtturm"])).await;
+    let denied = baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        pgvector::open_way(&server.state, factory()).await.unwrap().search(&query("Möwen", &["leuchtturm"])).await
+    })
+    .await;
     match denied {
         Err(RagError::Denied(m)) => {
             assert!(m.contains("Anmeldung abgelehnt") && !m.contains("falsch-und-geheim"), "Meldung ohne Passwort: {m}")
@@ -306,14 +311,15 @@ async fn pgvector_against_an_own_server_checks_searches_and_stays_read_only() {
 async fn without_host_or_with_a_secret_for_another_target_the_way_stays_off() {
     let server = open_with(MemorySecrets::default()).await;
     let off = pgvector::open_way(&server.state, factory()).await;
-    assert!(matches!(&off, Err(RagError::NotConfigured(m)) if m.contains("Kein Rechner")), "ohne Rechner aus");
+    // Direct calls have no request: the reasons are English (Round 39c).
+    assert!(matches!(&off, Err(RagError::NotConfigured(m)) if m.contains("No computer")), "ohne Rechner aus");
 
     configure(&server, json!({ "host": "127.0.0.1", "port": 5999, "tls": "disable" })).await;
     assert!(pgvector::open_way(&server.state, factory()).await.is_ok(), "mit Rechner und passendem Passwort offen");
     ok(&server, "connection.set", json!({ "kind": "pgvector", "config": { "host": "db.anderswo.example" } })).await;
     let withheld = pgvector::open_way(&server.state, factory()).await;
     assert!(
-        matches!(&withheld, Err(RagError::NotConfigured(m)) if m.contains("anderes Ziel")),
+        matches!(&withheld, Err(RagError::NotConfigured(m)) if m.contains("another target")),
         "das Passwort gilt dem alten Rechner: nicht senden, Weg aus"
     );
 }
@@ -328,7 +334,8 @@ async fn a_closed_port_is_unreachable_not_a_panic() {
     let way = pgvector::open_way(&server.state, factory()).await.unwrap();
     let result = way.search(&query("Möwen", &["leuchtturm"])).await;
     assert!(
-        matches!(&result, Err(RagError::Unreachable(m)) if m.contains("Keine Verbindung")),
+        // A direct call has no request: the message is English (Round 39c).
+        matches!(&result, Err(RagError::Unreachable(m)) if m.contains("No connection")),
         "geschlossener Port: {result:?}"
     );
 }

@@ -201,7 +201,8 @@ fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     if options.cloud.is_empty() {
         options.cloud = map.root.children.iter().filter(|c| c.kind == TreeKind::Idea).map(|c| c.id.clone()).collect();
     }
-    mindmap::render(map, &options)
+    // The German wording of the hints is what these tests check (the interface language of a request).
+    baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || mindmap::render(map, &options))
 }
 
 fn fragment(map: &MindMap) -> String {
@@ -513,7 +514,8 @@ fn free_main_topics_are_main_branches_not_cloud_cards() {
     assert_eq!(node_of(&els, "i:96").1.attr("data-parent"), "i:95", "sein Unterknoten wird im Baum gezeichnet");
     assert!(node_of(&els, "i:97").1.has_class("mm-cloud-item"), "nur der genannte Einfall liegt in der Wolke");
     assert_eq!(els[0].attr("data-cloud-count"), "5", "der Zähler ohne Filter kommt aus den Daten, nicht aus dem Bild");
-    assert!(svg.contains("5 in der Wolke"), "und steht so im Bild");
+    // A direct render has no request: the cloud head is English (Round 39c, ideas_msg.mindmap.cloud_count).
+    assert!(svg.contains("5 in the cloud"), "und steht so im Bild");
 }
 
 #[test]
@@ -554,6 +556,7 @@ fn ideas_without_a_place_lie_in_the_cloud_with_counter_and_near_hint() {
     let cloud =
         els.iter().find(|e| e.name == "g" && e.has_class("mm-cloud")).expect("die Wolke ist ein eigener Bereich");
     assert_eq!(cloud.attr("data-count"), "2", "auch am Bereich");
+    // The helper renders in the German scope (the wording from before Round 39c).
     assert!(svg.contains("2 in der Wolke"), "der Zähler steht lesbar im Bild");
     let area = els.iter().find(|e| e.has_class("mm-cloud-area")).expect("Ablagefläche der Wolke");
     let (ax, ay, aw, ah) = (area.number("x"), area.number("y"), area.number("width"), area.number("height"));

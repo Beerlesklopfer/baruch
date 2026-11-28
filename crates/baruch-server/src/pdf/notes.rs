@@ -720,7 +720,7 @@ async fn generate(state: &AppState, work: WorkId, options: &NotesOptions) -> Res
     let stored = crate::typeset::stored_draft(state, work).await.map_err(|e| Failed::Other(e.into()))?;
     if let Some(draft) = crate::typeset::effective_draft(stored.as_ref(), options.draft) {
         // Round 39b: default text and „Stand“ line in the work language (German as `draft_rule_for`).
-        let date = draft.date.then(crate::typeset::draft_today);
+        let date = draft.date.then(|| crate::typeset::draft_today_in(notes.lang));
         main.insert_str(0, &baruch_typst::typeset::draft_rule_in(&draft, date.as_deref(), notes.lang));
     }
     let pdf = super::generate(work, PdfKind::Notes, Source { main, files: Vec::new() }, options.limit).await?;

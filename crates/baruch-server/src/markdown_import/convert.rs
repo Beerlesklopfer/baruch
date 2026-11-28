@@ -21,7 +21,13 @@ use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, LinkType, Options, Parser, Tag};
 
+use crate::i18n::tc;
 use crate::import::ImportWarning;
+
+/// Title of a chapter without a title of its own. It becomes text of the new work (book content, not interface text),
+/// and so do the labels „Bild: …“ of images that are not taken over; they stay German like the default work language
+/// of a new work (Round 39c, reste_1). The notes ([`ImportWarning`]) follow the interface language.
+const UNTITLED: &str = "Ohne Titel";
 
 /// Maximum number of notes of one conversion; above that a collective note `md-warnings-truncated`.
 pub const MAX_WARNINGS: usize = 200;
@@ -90,15 +96,9 @@ pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
     let blocks = w.blocks(body.iter().copied(), false);
     if !blocks.is_empty() && !starts_with_heading {
         let chapter = title.clone().unwrap_or_else(|| fallback_title.trim().to_owned());
-        let chapter = if chapter.is_empty() { "Ohne Titel".to_owned() } else { chapter };
+        let chapter = if chapter.is_empty() { UNTITLED.to_owned() } else { chapter };
         let at = body.first().map_or(0, |n| n.range().start);
-        w.warn(
-            "md-preamble-heading",
-            format!(
-                "Text vor der ersten Überschrift steht jetzt im Kapitel „{chapter}“ (in Baruch wäre er sonst die Werkvorlage)."
-            ),
-            at,
-        );
+        w.warn("md-preamble-heading", tc("markdown_msg.md.preamble", &[("chapter", chapter.as_str().into())]), at);
         out.push_str(baruch_typst::heading_line(1, &chapter, None).trim_end());
         out.push_str("\n\n");
     }
@@ -108,7 +108,7 @@ pub fn to_typst(markdown: &str, fallback_title: &str) -> Converted {
     }
     let unused: Vec<String> = w.footnotes.keys().filter(|l| !w.used_footnotes.contains_key(*l)).cloned().collect();
     for label in unused {
-        w.warn("md-footnote-unused", format!("Fußnote „[^{label}]“ wird nirgends verwendet und fehlt im Text."), 0);
+        w.warn("md-footnote-unused", tc("markdown_msg.md.footnote_unused", &[("label", label.into())]), 0);
     }
     w.finish_warnings();
     Converted { typst: out, warnings: w.warnings, title }
@@ -372,7 +372,7 @@ impl Writer {
         if self.dropped > 0 {
             self.warnings.push(ImportWarning {
                 code: "md-warnings-truncated".into(),
-                message: format!("… und {} weitere Hinweise derselben Art (nicht einzeln aufgeführt).", self.dropped),
+                message: tc("markdown_msg.md.truncated", &[("count", self.dropped.into())]),
                 line: None,
             });
         }
@@ -404,10 +404,7 @@ impl Writer {
         if !others.is_empty() {
             self.warn(
                 "md-front-matter",
-                format!(
-                    "Angaben im YAML-Kopf nicht übernommen: {} (nur title und author werden #set document).",
-                    others.join(", ")
-                ),
+                tc("markdown_msg.md.front_matter", &[("keys", others.join(", ").into())]),
                 offset,
             );
         }
@@ -443,7 +440,7 @@ impl Writer {
             Node::Leaf { event: Event::Rule, .. } => return Some("#line(length: 100%)".into()),
             Node::Leaf { event: Event::Html(html), range } => return Some(self.html_block(html, range.start)),
             Node::Leaf { range, .. } => {
-                self.warn("md-unknown", "Unbekannte Markdown-Form nicht übernommen.".into(), range.start);
+                self.warn("md-unknown", tc("markdown_msg.md.unknown", &[]), range.start);
                 return None;
             }
             Node::Elem { tag, range, children } => (tag, range, children),
@@ -454,7 +451,7 @@ impl Writer {
                 if id.is_some() || !classes.is_empty() || !attrs.is_empty() {
                     self.warn(
                         "md-heading-attributes",
-                        "Kennung/Klassen der Überschrift ({#…}) nicht übernommen.".into(),
+                        tc("markdown_msg.md.heading_attributes", &[("syntax", "{#…}".into())]),
                         range.start,
                     );
                 }
@@ -462,14 +459,14 @@ impl Writer {
                 if formatted {
                     self.warn(
                         "md-heading-format",
-                        format!("Auszeichnung in der Überschrift „{title}“ entfällt (Titel als Text)."),
+                        tc("markdown_msg.md.heading_format", &[("title", title.as_str().into())]),
                         range.start,
                     );
                 }
                 if nested {
                     self.warn(
                         "md-heading-nested",
-                        format!("Überschrift „{title}“ in Zitat oder Liste ist fett gesetzt, keine Gliederung."),
+                        tc("markdown_msg.md.heading_nested", &[("title", title.as_str().into())]),
                         range.start,
                     );
                     return Some(format!("#strong[{}]", escape(&title)));
@@ -478,16 +475,20 @@ impl Writer {
                 if depth > 3 {
                     self.warn(
                         "md-heading-level",
-                        format!(
-                            "Überschrift der Ebene {depth} („{title}“) auf Ebene 3 begrenzt (Baruch kennt Kapitel, \
-                             Abschnitt, Unterabschnitt)."
+                        tc(
+                            "markdown_msg.md.heading_level",
+                            &[("depth", depth.to_string().into()), ("title", title.as_str().into())],
                         ),
                         range.start,
                     );
                 }
                 let title = if title.trim().is_empty() {
-                    self.warn("md-heading-empty", "Leere Überschrift heißt „Ohne Titel“.".into(), range.start);
-                    "Ohne Titel".to_owned()
+                    self.warn(
+                        "md-heading-empty",
+                        tc("markdown_msg.md.heading_empty", &[("title", UNTITLED.into())]),
+                        range.start,
+                    );
+                    UNTITLED.to_owned()
                 } else {
                     title
                 };
@@ -495,7 +496,7 @@ impl Writer {
             }
             Tag::BlockQuote(kind) => {
                 if kind.is_some() {
-                    self.warn("md-quote-kind", "Art des Hinweisblocks (> [!…]) nicht übernommen.".into(), range.start);
+                    self.warn("md-quote-kind", tc("markdown_msg.md.quote_kind", &[]), range.start);
                 }
                 let inner = self.blocks(children, true).join("\n\n");
                 (!inner.trim().is_empty()).then(|| format!("#quote(block: true)[\n{inner}\n]"))
@@ -516,7 +517,7 @@ impl Writer {
             Tag::Table(aligns) => Some(self.table(aligns, children)),
             Tag::FootnoteDefinition(_) | Tag::MetadataBlock(_) => None,
             _ => {
-                self.warn("md-unknown", "Unbekannte Markdown-Form; ihr Text bleibt als Absatz.".into(), range.start);
+                self.warn("md-unknown", tc("markdown_msg.md.unknown_block", &[]), range.start);
                 Some(self.paragraph(&children.iter().collect::<Vec<_>>()))
             }
         }
@@ -531,7 +532,7 @@ impl Writer {
                 Node::Leaf { event: Event::FootnoteReference(label), .. } => {
                     self.warn(
                         "md-heading-footnote",
-                        format!("Fußnote „[^{label}]“ in einer Überschrift entfällt (Titel bleiben einzeilig)."),
+                        tc("markdown_msg.md.heading_footnote", &[("label", label.as_ref().into())]),
                         offset,
                     );
                 }
@@ -603,7 +604,7 @@ impl Writer {
                     out.expr(&image);
                 }
                 _ => {
-                    self.warn("md-unknown", "Unbekannte Auszeichnung entfällt, ihr Text bleibt.".into(), range.start);
+                    self.warn("md-unknown", tc("markdown_msg.md.unknown_inline", &[]), range.start);
                     let inner = self.inlines(children);
                     out.text(&inner);
                 }
@@ -613,18 +614,14 @@ impl Writer {
 
     fn footnote(&mut self, label: &str, offset: usize, out: &mut Inline) {
         if self.in_definition {
-            self.warn(
-                "md-footnote-nested",
-                format!("Fußnote „[^{label}]“ in einer Fußnote bleibt als Text stehen."),
-                offset,
-            );
+            self.warn("md-footnote-nested", tc("markdown_msg.md.footnote_nested", &[("label", label.into())]), offset);
             out.text(&escape(&format!("[^{label}]")));
             return;
         }
         let Some(content) = self.footnotes.get(label).cloned() else {
             self.warn(
                 "md-footnote-missing",
-                format!("Fußnote „[^{label}]“ hat keine Definition; bleibt als Text."),
+                tc("markdown_msg.md.footnote_missing", &[("label", label.into())]),
                 offset,
             );
             out.text(&escape(&format!("[^{label}]")));
@@ -635,7 +632,7 @@ impl Writer {
         if *uses == 2 {
             self.warn(
                 "md-footnote-repeated",
-                format!("Fußnote „[^{label}]“ wird mehrfach verwendet; jede Stelle bekommt eine eigene Fußnote."),
+                tc("markdown_msg.md.footnote_repeated", &[("label", label.into())]),
                 offset,
             );
         }
@@ -647,10 +644,10 @@ impl Writer {
         if matches!(tag.as_str(), "<br>" | "<br/>" | "<br />") {
             out.text("\\ ");
         } else if tag.starts_with("<!--") {
-            self.warn("md-html-comment", "HTML-Kommentar im Text entfällt.".into(), offset);
+            self.warn("md-html-comment", tc("markdown_msg.md.html_comment", &[]), offset);
         } else {
             let shown: String = html.trim().chars().take(40).collect();
-            self.warn("md-html", format!("HTML-Auszeichnung „{shown}“ entfällt, der Text bleibt."), offset);
+            self.warn("md-html", tc("markdown_msg.md.html", &[("shown", shown.into())]), offset);
         }
     }
 
@@ -659,11 +656,7 @@ impl Writer {
         let trimmed = html.trim();
         if !(trimmed.starts_with("<!--") && trimmed.ends_with("-->")) {
             let shown: String = trimmed.chars().take(40).collect();
-            self.warn(
-                "md-html-block",
-                format!("HTML-Block „{shown}“ steht nur als Kommentar im Typst-Text (wird nicht gesetzt)."),
-                offset,
-            );
+            self.warn("md-html-block", tc("markdown_msg.md.html_block", &[("shown", shown.into())]), offset);
         }
         trimmed.lines().map(|l| format!("// {l}").trim_end().to_owned()).collect::<Vec<_>>().join("\n")
     }
@@ -682,13 +675,7 @@ impl Writer {
                 if word.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '-')) {
                     word.to_owned()
                 } else {
-                    self.warn(
-                        "md-code-lang",
-                        format!(
-                            "Sprachangabe „{word}“ des Codeblocks nicht übernommen (nur Buchstaben, Ziffern, _+-)."
-                        ),
-                        offset,
-                    );
+                    self.warn("md-code-lang", tc("markdown_msg.md.code_lang", &[("word", word.into())]), offset);
                     String::new()
                 }
             }
@@ -741,10 +728,7 @@ impl Writer {
                     if n == 1 {
                         self.warn(
                             "md-definition-multiple",
-                            format!(
-                                "Begriff mit mehreren Erklärungen: jede Erklärung wird ein eigener Eintrag „{}“.",
-                                t.replace("\\:", ":")
-                            ),
+                            tc("markdown_msg.md.definition_multiple", &[("term", t.replace("\\:", ":").into())]),
                             at,
                         );
                     }
@@ -829,14 +813,18 @@ impl Writer {
             Some(url) => out.expr(&format!("#link({})[{text}]", lit(&url))),
             None => {
                 let why = if dest.starts_with('#') {
-                    "Sprung innerhalb des Dokuments"
+                    tc("markdown_msg.md.link_anchor", &[])
                 } else if dest.contains(':') {
-                    "Adresse mit unbekanntem Schema"
+                    tc("markdown_msg.md.link_scheme", &[])
                 } else {
-                    "Verweis auf eine andere Datei"
+                    tc("markdown_msg.md.link_file", &[])
                 };
                 let shown: String = dest.chars().take(60).collect();
-                self.warn("md-link-local", format!("Link „{shown}“ ({why}) entfällt, der Text bleibt."), offset);
+                self.warn(
+                    "md-link-local",
+                    tc("markdown_msg.md.link_local", &[("shown", shown.into()), ("why", why.into())]),
+                    offset,
+                );
                 out.text(&text);
             }
         }
@@ -848,25 +836,21 @@ impl Writer {
         let alt = plain_leaves(children).split_whitespace().collect::<Vec<_>>().join(" ");
         let dest = dest.trim();
         if dest.starts_with("data:") {
-            self.warn(
-                "md-image-data",
-                "Eingebettetes Bild (data:) nicht übernommen; nur der Alternativtext bleibt.".into(),
-                offset,
-            );
+            self.warn("md-image-data", tc("markdown_msg.md.image_data", &[]), offset);
             return escape(&format!("[Bild: {alt}]"));
         }
         if dest.contains("://") {
             let shown: String = dest.chars().take(60).collect();
             self.warn(
                 "md-image-remote",
-                format!("Bild aus dem Netz „{shown}“ wird nicht geladen; an seiner Stelle steht ein Link."),
+                tc("markdown_msg.md.image_remote", &[("shown", shown.as_str().into())]),
                 offset,
             );
             let label = escape(&format!("Bild: {}", if alt.is_empty() { dest } else { &alt }));
             return format!("#link({})[{label}]", lit(dest));
         }
         let path = percent_decode(dest).unwrap_or_else(|| {
-            self.warn("md-image-path", format!("Bildpfad „{dest}“ mit ungültiger %-Folge bleibt, wie er ist."), offset);
+            self.warn("md-image-path", tc("markdown_msg.md.image_path", &[("path", dest.into())]), offset);
             dest.to_owned()
         });
         let alt_arg = if alt.is_empty() { String::new() } else { format!(", alt: {}", lit(&alt)) };
@@ -878,7 +862,7 @@ impl Writer {
                 if !caption.is_empty() {
                     self.warn(
                         "md-image-title",
-                        format!("Titel „{caption}“ eines Bilds im Fließtext entfällt."),
+                        tc("markdown_msg.md.image_title", &[("caption", caption.into())]),
                         offset,
                     );
                 }

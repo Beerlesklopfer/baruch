@@ -17,21 +17,23 @@ use serde_json::Value;
 use tokio::sync::{OnceCell, Semaphore};
 
 use crate::connections::SecretStore;
+use crate::i18n::tc;
 
 /// One embedding request at a time at Eliezer, for the whole process (separate from the
 /// queue of the chat calls in [`crate::models`]).
 static EMBED_QUEUE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
 
-/// Sentence shown when no embedder is connected.
-pub const NO_EMBEDDER: &str = "Kein Einbettungsmodell angebunden (Baruch läuft ohne Einbettungen, z. B. in Tests oder \
-                               Hilfsbefehlen); die Wortlaut-Suche (FTS) geht weiter.";
+/// Sentence shown when no embedder is connected (interface language, Round 39c).
+pub fn no_embedder() -> String {
+    tc("rag_msg.no_embedder", &[])
+}
 
 /// Checks the number of texts of a request.
 fn check_batch(texts: &[String]) -> Result<(), RagError> {
     if texts.is_empty() || texts.len() > MAX_EMBED_BATCH {
-        return Err(RagError::Invalid(format!(
-            "Einbettung: 1 bis {MAX_EMBED_BATCH} Texte je Anfrage, nicht {}.",
-            texts.len()
+        return Err(RagError::Invalid(tc(
+            "rag_msg.embed.batch",
+            &[("max", MAX_EMBED_BATCH.to_string().into()), ("count", texts.len().to_string().into())],
         )));
     }
     Ok(())
@@ -41,9 +43,9 @@ fn check_batch(texts: &[String]) -> Result<(), RagError> {
 /// embedding model" (the wording search remains).
 pub fn rag_error(e: LlmError) -> RagError {
     match e {
-        LlmError::NotConfigured(_) | LlmError::Unreachable(_) | LlmError::UnknownModel(_) => RagError::NoEmbedder(
-            format!("Kein Einbettungsmodell erreichbar: {e}. Die Wortlaut-Suche (FTS) geht weiter."),
-        ),
+        LlmError::NotConfigured(_) | LlmError::Unreachable(_) | LlmError::UnknownModel(_) => {
+            RagError::NoEmbedder(tc("rag_msg.embed.unreachable", &[("detail", e.to_string().into())]))
+        }
         LlmError::Denied(_) => RagError::Denied(e.to_string()),
         LlmError::Timeout(_) => RagError::Timeout(e.to_string()),
         LlmError::Busy(_) | LlmError::Cancelled | LlmError::Failed(_) => RagError::Failed(e.to_string()),
@@ -52,36 +54,32 @@ pub fn rag_error(e: LlmError) -> RagError {
 
 /// Sentence shown when the connection Eliezer is marked as external: embedding sends book text without a persona,
 /// that is without a release – therefore not at all.
-pub const EXTERNAL_REFUSED: &str = "Die Verbindung Eliezer ist als extern markiert; zum Einbetten geht kein Buchtext \
-hinaus (Einbetten hat keine Persona und damit keine Freigabe). Nichts gesendet. Für die Bedeutungssuche Eliezer als \
-lokal führen (Einstellungen → Verbindungen) oder RAG ausschalten";
+pub fn external_refused() -> String {
+    tc("rag_msg.embed.external", &[])
+}
 
 /// Address and key from the connection `eliezer` (pattern `models::endpoint`). If Eliezer is marked as
-/// external, nothing goes out ([`EXTERNAL_REFUSED`]) – the same lock as for chat and lector without a release.
+/// external, nothing goes out ([`external_refused`]) – the same lock as for chat and lector without a release.
 async fn endpoint(store: &Store, secrets: &Arc<dyn SecretStore>) -> Result<Endpoint, LlmError> {
     let model_connection = store.model_connection_get(baruch_store::ELIEZER_CONNECTION).await.map_err(|e| {
-        LlmError::NotConfigured(format!("Modell-Verbindung Eliezer nicht lesbar: {e}; nichts gesendet"))
+        LlmError::NotConfigured(tc("rag_msg.embed.model_connection", &[("detail", e.to_string().into())]))
     })?;
     if model_connection.external {
-        return Err(LlmError::NotConfigured(EXTERNAL_REFUSED.into()));
+        return Err(LlmError::NotConfigured(external_refused()));
     }
     let row = store
         .connection_get(ConnectionKind::Eliezer)
         .await
-        .map_err(|e| LlmError::NotConfigured(format!("Verbindung eliezer nicht lesbar: {e}")))?;
+        .map_err(|e| LlmError::NotConfigured(tc("rag_msg.embed.connection", &[("detail", e.to_string().into())])))?;
     let url = row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned();
     if url.is_empty() {
-        return Err(LlmError::NotConfigured(
-            "Keine Adresse für Eliezer eingetragen (Einstellungen → Verbindungen)".into(),
-        ));
+        return Err(LlmError::NotConfigured(tc("rag_msg.embed.no_address", &[])));
     }
     let secret = crate::connections::secrets::get(secrets, "eliezer")
         .await
-        .map_err(|e| LlmError::NotConfigured(format!("Schlüsselbund nicht lesbar ({e}); nichts gesendet")))?;
+        .map_err(|e| LlmError::NotConfigured(tc("rag_msg.embed.keyring", &[("detail", e.to_string().into())])))?;
     if secret.is_some() && !crate::connections::secret_bound(&row) {
-        return Err(LlmError::NotConfigured(
-            "Schlüssel gilt für ein anderes Ziel; nicht gesendet (Einstellungen → Verbindungen)".into(),
-        ));
+        return Err(LlmError::NotConfigured(tc("rag_msg.embed.foreign_key", &[])));
     }
     Ok(Endpoint::new(url, secret))
 }
@@ -126,14 +124,14 @@ impl Embedder for EliezerEmbedder {
             check_batch(texts)?;
             let endpoint = endpoint(&self.store, &self.secrets).await.map_err(rag_error)?;
             let _turn =
-                EMBED_QUEUE.acquire().await.map_err(|_| RagError::Failed("Warteschlange geschlossen.".into()))?;
+                EMBED_QUEUE.acquire().await.map_err(|_| RagError::Failed(tc("rag_msg.embed.queue_closed", &[])))?;
             let reply = baruch_llm::embeddings(&endpoint, &self.model, texts).await.map_err(rag_error)?;
             Ok(Embeddings { model: reply.model, dimension: reply.dimension, vectors: reply.vectors })
         })
     }
 }
 
-/// No embedder connected: every request reports [`NO_EMBEDDER`].
+/// No embedder connected: every request reports [`no_embedder`].
 pub struct NoEmbedders;
 
 struct NoEmbedder(String);
@@ -150,7 +148,7 @@ impl Embedder for NoEmbedder {
     }
 
     fn embed<'a>(&'a self, _texts: &'a [String]) -> BoxFuture<'a, Result<Embeddings, RagError>> {
-        Box::pin(async { Err(RagError::NoEmbedder(NO_EMBEDDER.to_owned())) })
+        Box::pin(async { Err(RagError::NoEmbedder(no_embedder())) })
     }
 }
 

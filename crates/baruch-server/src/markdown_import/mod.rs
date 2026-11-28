@@ -26,6 +26,7 @@ use baruch_store::ImportAsset;
 
 use crate::AppState;
 use crate::archive::{self, ArchiveError};
+use crate::i18n::tc;
 use crate::import::{self, ImportReport, ImportWarning, MAX_SOURCE_BYTES, SkippedAsset};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
@@ -64,20 +65,15 @@ pub async fn import_text(
 ) -> Result<ImportReport, RpcError> {
     let file_name = file_name.rsplit(['/', '\\']).next().unwrap_or("").trim();
     if !is_markdown_name(file_name) {
-        return Err(invalid("Nur Markdown-Dateien (.md, .markdown) lassen sich so importieren."));
+        return Err(invalid(tc("markdown_msg.import.only_markdown", &[])));
     }
     if source.len() as u64 > MAX_SOURCE_BYTES {
-        return Err(invalid(format!("{file_name} ist größer als 16 MiB")));
+        return Err(invalid(tc("markdown_msg.file.too_large", &[("file", file_name.into())])));
     }
     let converted = convert::to_typst(source, &stem(file_name));
     let skipped = baruch_typst::images::image_paths(&converted.typst)
         .into_iter()
-        .map(|path| SkippedAsset {
-            path,
-            reason:
-                "nicht mitgeschickt (nur die Markdown-Datei kam an; Ordner oder ZIP hochladen, um Bilder mitzunehmen)"
-                    .to_owned(),
-        })
+        .map(|path| SkippedAsset { path, reason: tc("markdown_msg.import.not_sent", &[]) })
         .collect();
     import::import_generated(state, &converted.typst, file_name, title, Vec::new(), skipped, converted.warnings).await
 }
@@ -101,7 +97,10 @@ impl Bundle {
     pub fn from_files(files: Vec<(String, Vec<u8>)>) -> Result<Bundle, ArchiveError> {
         let limits = archive::IMPORT_LIMITS;
         if files.len() > limits.max_entries {
-            return Err(ArchiveError::TooLarge(format!("mehr als {} Dateien", limits.max_entries)));
+            return Err(ArchiveError::TooLarge(tc(
+                "markdown_msg.import.too_many_files",
+                &[("max", limits.max_entries.to_string().into())],
+            )));
         }
         let mut seen = HashSet::new();
         let mut total: u64 = 0;
@@ -110,15 +109,15 @@ impl Bundle {
             if !seen.insert(path.to_lowercase()) {
                 return Err(ArchiveError::Unsafe {
                     path: path.clone(),
-                    reason: "doppelter Name (auch Groß-/Kleinschreibung zählt gleich)".into(),
+                    reason: tc("markdown_msg.import.duplicate", &[]),
                 });
             }
             if bytes.len() as u64 > limits.max_entry_bytes {
-                return Err(ArchiveError::TooLarge(format!("„{path}“ ist größer als 16 MiB")));
+                return Err(ArchiveError::TooLarge(tc("markdown_msg.import.file_too_large", &[("path", path.into())])));
             }
             total += bytes.len() as u64;
             if total > limits.max_total_bytes {
-                return Err(ArchiveError::TooLarge("alle Dateien zusammen größer als 80 MiB".into()));
+                return Err(ArchiveError::TooLarge(tc("markdown_msg.import.total_too_large", &[])));
             }
         }
         Ok(Bundle { files })
@@ -133,7 +132,7 @@ impl Bundle {
             .filter(|p| import::is_typst_name(base(p)) || is_markdown_name(base(p)))
             .collect();
         match sources.as_slice() {
-            [] => return Err("Keine Haupt-Datei (.typ, .md oder .markdown) gefunden.".into()),
+            [] => return Err(tc("markdown_msg.import.no_main", &[])),
             [one] => return Ok(one),
             _ => {}
         }
@@ -149,12 +148,8 @@ impl Bundle {
             [one] => Ok(one),
             _ => {
                 let shown: Vec<&str> = sources.iter().copied().take(10).collect();
-                Err(format!(
-                    "Mehrere mögliche Haupt-Dateien ({}{}); genau eine .typ/.md-Datei oder eine index.md bzw. main.typ \
-                     auf oberster Ebene erwartet.",
-                    shown.join(", "),
-                    if sources.len() > shown.len() { ", …" } else { "" }
-                ))
+                let more = if sources.len() > shown.len() { ", …" } else { "" };
+                Err(tc("markdown_msg.import.several_main", &[("files", format!("{}{more}", shown.join(", ")).into())]))
             }
         }
     }
@@ -167,24 +162,25 @@ fn base(path: &str) -> &str {
 
 /// Check the path of an uploaded file (rules as in [`archive::read_zip`]).
 fn check_upload_path(path: &str) -> Result<(), ArchiveError> {
-    let bad = |reason: &str| ArchiveError::Unsafe { path: path.escape_debug().to_string(), reason: reason.into() };
+    // The reasons are those of the archive reader (`archive_msg.reason.*`), plus the empty part of a folder path.
+    let bad = |reason: String| ArchiveError::Unsafe { path: path.escape_debug().to_string(), reason };
     if path.is_empty() || path.ends_with('/') {
-        return Err(bad("leerer Name"));
+        return Err(bad(tc("archive_msg.reason.empty_name", &[])));
     }
     if path.chars().any(char::is_control) {
-        return Err(bad("Steuerzeichen im Namen"));
+        return Err(bad(tc("archive_msg.reason.control", &[])));
     }
     if path.starts_with('/') {
-        return Err(bad("absoluter Pfad"));
+        return Err(bad(tc("archive_msg.reason.absolute", &[])));
     }
     if path.contains('\\') {
-        return Err(bad("Backslash im Namen (Pfade trennt „/“)"));
+        return Err(bad(tc("archive_msg.reason.backslash", &[])));
     }
     if path.len() >= 2 && path.as_bytes()[1] == b':' && path.as_bytes()[0].is_ascii_alphabetic() {
-        return Err(bad("Laufwerksangabe im Namen"));
+        return Err(bad(tc("archive_msg.reason.drive", &[])));
     }
     if path.split('/').any(|part| part == ".." || part == "." || part.is_empty()) {
-        return Err(bad("„..“, „.“ oder leerer Teil im Pfad"));
+        return Err(bad(tc("markdown_msg.import.bad_part", &[])));
     }
     Ok(())
 }
@@ -200,9 +196,10 @@ pub async fn import_bundle(
     let main = bundle.main_file().map_err(invalid)?.to_owned();
     let bytes = bundle.files.iter().find(|(p, _)| *p == main).map(|(_, b)| b.clone()).unwrap_or_default();
     if bytes.len() as u64 > MAX_SOURCE_BYTES {
-        return Err(invalid(format!("{main} ist größer als 16 MiB")));
+        return Err(invalid(tc("markdown_msg.file.too_large", &[("file", main.as_str().into())])));
     }
-    let text = String::from_utf8(bytes).map_err(|_| invalid(format!("{main} ist kein UTF-8-Text")))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|_| invalid(tc("markdown_msg.file.not_utf8", &[("file", main.as_str().into())])))?;
     let main_base = base(&main).to_owned();
     // index.md/main.typ/README.md say nothing about the work: title and name then come from the archive or folder.
     let generic = matches!(main_base.to_lowercase().as_str(), "index.md" | "main.typ" | "readme.md");
@@ -241,11 +238,16 @@ pub async fn import_bundle(
         let shown: Vec<&str> = unused.iter().copied().take(10).collect();
         warnings.push(ImportWarning {
             code: "archive-unused".into(),
-            message: format!(
-                "{} Datei(en) nicht übernommen, weil die Haupt-Datei „{main}“ sie nicht nennt: {}{}",
-                unused.len(),
-                shown.join(", "),
-                if unused.len() > shown.len() { ", …" } else { "" }
+            message: tc(
+                "markdown_msg.import.unused",
+                &[
+                    ("count", unused.len().to_string().into()),
+                    ("main", main.as_str().into()),
+                    (
+                        "files",
+                        format!("{}{}", shown.join(", "), if unused.len() > shown.len() { ", …" } else { "" }).into(),
+                    ),
+                ],
             ),
             line: None,
         });
@@ -263,21 +265,22 @@ fn bundle_asset(
     total: &mut u64,
 ) -> Result<Found, (Option<String>, String)> {
     if path.contains("://") {
-        return Err((None, "kein Dateipfad (Adresse)".into()));
+        return Err((None, tc("markdown_msg.import.address", &[])));
     }
     baruch_store::check_asset_path(path).map_err(|e| (None, e.to_string()))?;
-    let normal = baruch_store::normalize_asset_path(path).ok_or((None, "kein Dateiname".to_owned()))?;
+    let normal =
+        baruch_store::normalize_asset_path(path).ok_or_else(|| (None, tc("markdown_msg.import.no_file_name", &[])))?;
     let key = if folder.is_empty() { normal } else { format!("{folder}/{normal}") };
     let Some(bytes) = files.get(&key) else {
-        return Err((None, "nicht gefunden (nicht im Archiv bzw. Ordner)".into()));
+        return Err((None, tc("markdown_msg.import.not_in_bundle", &[])));
     };
     import::check_image(bytes, total).map_err(|reason| (Some(key.clone()), reason))?;
     let file_name = base(&key).to_owned();
     Ok((key, file_name, (*bytes).clone()))
 }
 
-/// Read the archive (ZIP bytes) and create it as a new work; errors of the archive → `INVALID_PARAMS` with a German
-/// reason.
+/// Read the archive (ZIP bytes) and create it as a new work; errors of the archive → `INVALID_PARAMS` with a reason
+/// in the interface language.
 pub async fn import_archive(
     state: &AppState,
     bytes: &[u8],
@@ -291,27 +294,44 @@ pub async fn import_archive(
 /// `import DATEI.md|DATEI.markdown|DATEI.zip [--title …]`: `Ok(text)` → standard output (exit 0), `Err(text)` →
 /// standard error (exit 1). Markdown reads the images relative to the folder of the file (like the Typst import: not
 /// out of it, no link to the outside), a ZIP from the archive. The notes are in the report (`Hinweis (<code>): …`).
+/// Like the other imports of the command line (Round 39a) it runs in the German interface language: `main.rs` prints
+/// its own lines in German, and the report must not mix languages.
 pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> Result<String, String> {
+    crate::i18n::scope(crate::i18n::Lang::De, cli_import_in_scope(state, file, title)).await
+}
+
+async fn cli_import_in_scope(state: &AppState, file: &Path, title: Option<&str>) -> Result<String, String> {
     let shown = file.display().to_string();
-    let name =
-        file.file_name().and_then(|n| n.to_str()).ok_or(format!("{shown}: Dateiname fehlt oder ist kein UTF-8"))?;
-    let meta = std::fs::metadata(file).map_err(|e| format!("{shown} lässt sich nicht lesen: {e}"))?;
+    let name = file
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| tc("markdown_msg.file.no_name", &[("file", shown.as_str().into())]))?;
+    let unreadable = |e: std::io::Error| {
+        tc("markdown_msg.file.unreadable", &[("file", shown.as_str().into()), ("detail", e.to_string().into())])
+    };
+    let meta = std::fs::metadata(file).map_err(unreadable)?;
     if !meta.is_file() {
-        return Err(format!("{shown} ist keine Datei"));
+        return Err(tc("markdown_msg.file.not_file", &[("file", shown.as_str().into())]));
     }
     let limit = if is_archive_name(name) { archive::IMPORT_LIMITS.max_total_bytes } else { MAX_SOURCE_BYTES };
     if meta.len() > limit {
-        return Err(format!("{shown} ist größer als {} MiB", limit / (1024 * 1024)));
+        return Err(tc(
+            "markdown_msg.file.too_large_mib",
+            &[("file", shown.as_str().into()), ("mib", (limit / (1024 * 1024)).to_string().into())],
+        ));
     }
     let owned = file.to_owned();
     let bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || std::fs::read(owned)))
         .await
-        .map_err(|e| format!("Lesen von {shown} abgebrochen: {e}"))?
-        .map_err(|e| format!("{shown} lässt sich nicht lesen: {e}"))?;
+        .map_err(|e| {
+            tc("markdown_msg.typst.read_aborted", &[("path", shown.as_str().into()), ("detail", e.to_string().into())])
+        })?
+        .map_err(unreadable)?;
     let result = if is_archive_name(name) {
         import_archive(state, &bytes, name, title).await
     } else {
-        let text = String::from_utf8(bytes).map_err(|_| format!("{shown} ist kein UTF-8-Text"))?;
+        let text = String::from_utf8(bytes)
+            .map_err(|_| tc("markdown_msg.file.not_utf8", &[("file", shown.as_str().into())]))?;
         let converted = convert::to_typst(&text, &stem(name));
         let folder = file.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new(".")).to_owned();
         let typst = converted.typst.clone();
@@ -321,31 +341,45 @@ pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> R
                 .map_err(|e| e.to_string())?;
         import::import_generated(state, &converted.typst, name, title, assets, skipped, converted.warnings).await
     };
-    let report = result.map_err(|e| format!("Import von {shown}: {}", e.message))?;
+    let report = result.map_err(|e| {
+        tc("markdown_msg.import.failed", &[("file", shown.as_str().into()), ("detail", e.message.into())])
+    })?;
     Ok(report_text(&report))
 }
 
-/// Report for the command line (German, one item per line).
+/// Report for the command line (interface language, one item per line; [`cli_import`] runs it in German).
 pub fn report_text(report: &ImportReport) -> String {
     let mut lines = vec![
-        format!("Werk: {} (id {})", report.title, report.work),
-        format!("Ordnername: {}", report.slug),
-        format!("Abschnitte: {}", report.nodes),
-        format!("Bilder: {}", report.assets.len()),
+        tc(
+            "markdown_msg.report.work",
+            &[("title", report.title.as_str().into()), ("id", report.work.to_string().into())],
+        ),
+        tc("markdown_msg.report.folder", &[("slug", report.slug.as_str().into())]),
+        tc("markdown_msg.report.sections", &[("count", report.nodes.to_string().into())]),
+        tc("markdown_msg.report.images", &[("count", report.assets.len().to_string().into())]),
     ];
     for skipped in &report.skipped {
-        lines.push(format!("Bild übersprungen: {} ({})", skipped.path, skipped.reason));
+        lines.push(tc(
+            "markdown_msg.report.skipped",
+            &[("path", skipped.path.as_str().into()), ("reason", skipped.reason.as_str().into())],
+        ));
     }
     for warning in &report.warnings {
+        let (code, message) = (warning.code.as_str(), warning.message.as_str());
         match warning.line {
-            Some(line) => lines.push(format!("Hinweis ({}, Zeile {line}): {}", warning.code, warning.message)),
-            None => lines.push(format!("Hinweis ({}): {}", warning.code, warning.message)),
+            Some(line) => lines.push(tc(
+                "markdown_msg.report.note_line",
+                &[("code", code.into()), ("line", line.to_string().into()), ("message", message.into())],
+            )),
+            None => lines.push(tc("markdown_msg.report.note", &[("code", code.into()), ("message", message.into())])),
         }
     }
     match (&report.commit, &report.mirror) {
-        (Some(commit), _) => lines.push(format!("Commit: {commit}")),
-        (None, Some(error)) => lines.push(format!("Git-Spiegel nicht geschrieben (das Werk ist angelegt): {error}")),
-        (None, None) => lines.push("Commit: keiner".to_owned()),
+        (Some(commit), _) => lines.push(tc("markdown_msg.report.commit", &[("commit", commit.as_str().into())])),
+        (None, Some(error)) => {
+            lines.push(tc("markdown_msg.report.mirror_failed", &[("error", error.as_str().into())]));
+        }
+        (None, None) => lines.push(tc("markdown_msg.report.no_commit", &[])),
     }
     lines.join("\n")
 }

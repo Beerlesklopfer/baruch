@@ -62,6 +62,7 @@ use serde_json::{Map, Value, json};
 
 use super::check::{MCP_PROTOCOL, denied, scrub_value};
 use crate::AppState;
+use crate::i18n::tc;
 
 /// Time limit per call for the search.
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(15);
@@ -182,9 +183,9 @@ pub(crate) fn find_answer(content_type: &str, body: &[u8], id: i64) -> Option<Re
         Ok(text) => text,
         // `error_len() == None`: only an incomplete character at the end, the beginning is valid.
         Err(e) if e.error_len().is_none() && is_event_stream(content_type) => {
-            std::str::from_utf8(&body[..e.valid_up_to()]).expect("bis valid_up_to gültig")
+            std::str::from_utf8(&body[..e.valid_up_to()]).expect("valid up to valid_up_to")
         }
-        Err(_) => return Some(Err(RagError::Schema("Antwort ist kein UTF-8-Text.".to_owned()))),
+        Err(_) => return Some(Err(RagError::Schema(tc("connections_msg.mcp.not_utf8", &[])))),
     };
     let mut candidates: Vec<Value> = Vec::new();
     if is_event_stream(content_type) {
@@ -205,21 +206,25 @@ pub(crate) fn find_answer(content_type: &str, body: &[u8], id: i64) -> Option<Re
         match serde_json::from_str::<Value>(text) {
             Ok(Value::Array(batch)) => candidates.extend(batch),
             Ok(value) => candidates.push(value),
-            Err(_) => return Some(Err(RagError::Schema("Antwort ist weder JSON noch text/event-stream.".to_owned()))),
+            Err(_) => return Some(Err(RagError::Schema(tc("connections_msg.mcp.not_json", &[])))),
         }
     }
     let answer = candidates.into_iter().find(|v| v.get("id").and_then(Value::as_i64) == Some(id))?;
     if let Some(error) = answer.get("error") {
-        let message = error.get("message").and_then(Value::as_str).unwrap_or("ohne Meldung");
-        return Some(Err(RagError::Failed(format!("Fehler der Gegenstelle: {message}"))));
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .map_or_else(|| tc("connections_msg.mcp.no_message", &[]), str::to_owned);
+        return Some(Err(RagError::Failed(tc("connections_msg.mcp.remote_error", &[("message", message.into())]))));
     }
-    Some(answer.get("result").cloned().ok_or_else(|| RagError::Schema("Antwort ohne result".to_owned())))
+    Some(answer.get("result").cloned().ok_or_else(|| RagError::Schema(tc("connections_msg.mcp.no_result", &[]))))
 }
 
 /// Like [`find_answer`], but “not found” is an error.
 pub(crate) fn rpc_answer(content_type: &str, body: &[u8], id: i64) -> Result<Value, RagError> {
-    find_answer(content_type, body, id)
-        .unwrap_or_else(|| Err(RagError::Schema(format!("keine JSON-RPC-Antwort mit id {id} gefunden"))))
+    find_answer(content_type, body, id).unwrap_or_else(|| {
+        Err(RagError::Schema(tc("connections_msg.mcp.no_answer_id", &[("id", id.to_string().into())])))
+    })
 }
 
 fn mib(bytes: usize) -> usize {
@@ -337,10 +342,9 @@ impl McpClient {
         let limit = self.limits.timeout;
         let outcome = match tokio::time::timeout(limit, self.exchange(message, id)).await {
             Ok(outcome) => outcome,
-            Err(_) => Err(RagError::Timeout(format!(
-                "Keine vollständige Antwort von {} innerhalb von {} s.",
-                self.url,
-                limit.as_secs()
+            Err(_) => Err(RagError::Timeout(tc(
+                "connections_msg.mcp.incomplete",
+                &[("url", self.url.as_str().into()), ("seconds", limit.as_secs().to_string().into())],
             ))),
         };
         outcome.map_err(|e| self.scrub(e))
@@ -348,10 +352,9 @@ impl McpClient {
 
     fn http_error(&self, e: &reqwest::Error) -> RagError {
         if e.is_timeout() {
-            return RagError::Timeout(format!(
-                "Keine Antwort von {} innerhalb von {} s.",
-                self.url,
-                self.limits.timeout.as_secs()
+            return RagError::Timeout(tc(
+                "connections_msg.check.timeout",
+                &[("url", self.url.as_str().into()), ("seconds", self.limits.timeout.as_secs().to_string().into())],
             ));
         }
         let mut causes = Vec::new();
@@ -362,17 +365,22 @@ impl McpClient {
         }
         let why = if causes.is_empty() { e.to_string() } else { causes.join(": ") };
         if e.is_connect() {
-            RagError::Unreachable(format!("Keine Verbindung zu {}: {why}", self.url))
+            RagError::Unreachable(tc(
+                "connections_msg.check.no_connection",
+                &[("url", self.url.as_str().into()), ("detail", why.into())],
+            ))
         } else {
-            RagError::Unreachable(format!("Anfrage an {} gescheitert: {why}", self.url))
+            RagError::Unreachable(tc(
+                "connections_msg.check.request_failed",
+                &[("url", self.url.as_str().into()), ("detail", why.into())],
+            ))
         }
     }
 
     fn too_big(&self) -> RagError {
-        RagError::Failed(format!(
-            "Antwort von {} ist größer als {} MiB; abgebrochen.",
-            self.url,
-            mib(self.limits.max_body)
+        RagError::Failed(tc(
+            "connections_msg.mcp.too_big",
+            &[("url", self.url.as_str().into()), ("mib", mib(self.limits.max_body).to_string().into())],
         ))
     }
 
@@ -403,15 +411,16 @@ impl McpClient {
             return Err(RagError::Denied(denied(status, "multigpt", self.secret.is_some())));
         }
         if status.is_redirection() {
-            return Err(RagError::Failed(format!(
-                "{} leitet weiter (HTTP {}); Baruch folgt Weiterleitungen nicht, damit das Token nicht an eine \
-                 andere Adresse geht. Die Zieladresse unter Einstellungen → Verbindungen eintragen.",
-                self.url,
-                status.as_u16()
+            return Err(RagError::Failed(tc(
+                "connections_msg.mcp.redirect",
+                &[("url", self.url.as_str().into()), ("status", status.as_u16().to_string().into())],
             )));
         }
         if !status.is_success() {
-            return Err(RagError::Failed(format!("{} antwortet mit HTTP {}.", self.url, status.as_u16())));
+            return Err(RagError::Failed(tc(
+                "connections_msg.mcp.http_status",
+                &[("url", self.url.as_str().into()), ("status", status.as_u16().to_string().into())],
+            )));
         }
         if let Some(session) = response.headers().get("mcp-session-id").and_then(|v| v.to_str().ok()) {
             self.session = Some(session.to_owned());
@@ -471,8 +480,11 @@ impl McpClient {
             .map_err(prefixed(name))?;
         if result.get("isError") == Some(&Value::Bool(true)) {
             let text = clean_line(&content_text(&result), 300);
-            let text = if text.is_empty() { "ohne Meldung".to_owned() } else { text };
-            return Err(self.scrub(RagError::Failed(format!("{name} meldet einen Fehler: {text}"))));
+            let text = if text.is_empty() { tc("connections_msg.mcp.no_message", &[]) } else { text };
+            return Err(self.scrub(RagError::Failed(tc(
+                "connections_msg.mcp.tool_error",
+                &[("tool", name.into()), ("text", text.into())],
+            ))));
         }
         Ok(result)
     }
@@ -599,9 +611,8 @@ pub fn rank_score(rank: usize) -> f64 {
 /// hits without a collection of their own (one call per collection). No list or no readable hit in a
 /// non-empty list → [`RagError::Schema`].
 pub fn parse_hits(payload: &Value, collection: Option<&str>) -> Result<Vec<Hit>, RagError> {
-    let list = list_in(payload, HIT_LIST_KEYS, 1).ok_or_else(|| {
-        RagError::Schema(format!("{SEARCH_TOOL}: keine Trefferliste in der Antwort (results, hits, documents …)."))
-    })?;
+    let list = list_in(payload, HIT_LIST_KEYS, 1)
+        .ok_or_else(|| RagError::Schema(tc("connections_msg.mcp.no_hit_list", &[("tool", SEARCH_TOOL.into())])))?;
     let mut hits = Vec::new();
     for (index, item) in list.iter().enumerate() {
         let rank = index + 1;
@@ -656,9 +667,9 @@ pub fn parse_hits(payload: &Value, collection: Option<&str>) -> Result<Vec<Hit>,
         });
     }
     if hits.is_empty() && !list.is_empty() {
-        return Err(RagError::Schema(format!(
-            "{SEARCH_TOOL}: {} Treffer ohne Dokument und Titel; Format nicht lesbar.",
-            list.len()
+        return Err(RagError::Schema(tc(
+            "connections_msg.mcp.hits_unreadable",
+            &[("tool", SEARCH_TOOL.into()), ("count", list.len().into())],
         )));
     }
     Ok(hits)
@@ -734,16 +745,15 @@ pub fn search_arguments(
         ("query", "collections", Some("limit"))
     } else {
         let query_key = pick(QUERY_KEYS).ok_or_else(|| {
-            RagError::Schema(format!(
-                "{SEARCH_TOOL} nennt im inputSchema keinen Parameter für die Anfrage ({}).",
-                QUERY_KEYS.join(", ")
+            RagError::Schema(tc(
+                "connections_msg.mcp.no_query_param",
+                &[("tool", SEARCH_TOOL.into()), ("keys", QUERY_KEYS.join(", ").into())],
             ))
         })?;
         let collection_key = pick(COLLECTION_KEYS).ok_or_else(|| {
-            RagError::Schema(format!(
-                "{SEARCH_TOOL} nennt im inputSchema keinen Parameter für Sammlungen ({}); ohne ihn suchte \
-                 MultiGPT in allen Sammlungen, darum fragt Baruch nicht.",
-                COLLECTION_KEYS.join(", ")
+            RagError::Schema(tc(
+                "connections_msg.mcp.no_collection_param",
+                &[("tool", SEARCH_TOOL.into()), ("keys", COLLECTION_KEYS.join(", ").into())],
             ))
         })?;
         (query_key, collection_key, pick(LIMIT_KEYS))
@@ -755,8 +765,9 @@ pub fn search_arguments(
         .unwrap_or_default();
     if let Some(unknown) = required.iter().find(|r| ![query_key, collection_key].contains(r) && Some(**r) != limit_key)
     {
-        return Err(RagError::Schema(format!(
-            "{SEARCH_TOOL} verlangt den Parameter „{unknown}“, den Baruch nicht kennt."
+        return Err(RagError::Schema(tc(
+            "connections_msg.mcp.unknown_param",
+            &[("tool", SEARCH_TOOL.into()), ("name", (*unknown).into())],
         )));
     }
     let mut base = Map::new();
@@ -942,22 +953,16 @@ async fn settings(state: &AppState) -> Result<(String, Option<String>), RagError
         .store
         .connection_get(ConnectionKind::Multigpt)
         .await
-        .map_err(|e| RagError::Failed(format!("Einstellungen der Verbindung MultiGPT: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("connections_msg.mcp.settings", &[("detail", e.to_string().into())])))?;
     let url = row.config.get("url").and_then(Value::as_str).unwrap_or("").trim().to_owned();
     if url.is_empty() {
-        return Err(RagError::NotConfigured(
-            "Keine Adresse für MultiGPT eingetragen (Einstellungen → Verbindungen).".into(),
-        ));
+        return Err(RagError::NotConfigured(tc("connections_msg.mcp.no_address", &[])));
     }
     let secret = super::secrets::get(&state.secrets, "multigpt")
         .await
-        .map_err(|e| RagError::Failed(format!("Schlüsselbund: {e}")))?;
+        .map_err(|e| RagError::Failed(tc("connections_msg.mcp.keyring", &[("detail", e.to_string().into())])))?;
     if secret.is_some() && !super::secret_bound(&row) {
-        return Err(RagError::NotConfigured(
-            "Das Token baruch/multigpt ist für eine andere Adresse hinterlegt; Baruch schickt es nicht an die \
-             jetzige. Für die neue Adresse das Token neu eintragen (Einstellungen → Verbindungen)."
-                .into(),
-        ));
+        return Err(RagError::NotConfigured(tc("connections_msg.mcp.foreign_token", &[])));
     }
     Ok((url, secret))
 }
@@ -1095,7 +1100,7 @@ impl Session {
     async fn call_once(&mut self, tool: &str, arguments: Value, limits: Limits) -> Result<Value, RagError> {
         let Some(client) = self.client.as_mut() else {
             self.broken = true;
-            return Err(RagError::Failed("Sitzung zu MultiGPT ist schon beendet.".into()));
+            return Err(RagError::Failed(tc("connections_msg.mcp.session_closed", &[])));
         };
         let previous = client.limits;
         client.set_limits(limits);
@@ -1111,9 +1116,9 @@ impl Session {
         };
         if result.get("isError") == Some(&Value::Bool(true)) {
             let text = clean_line(&content_text(&result), 300);
-            let text = if text.is_empty() { "ohne Meldung".to_owned() } else { text };
+            let text = if text.is_empty() { tc("connections_msg.mcp.no_message", &[]) } else { text };
             return Err(scrub_error(
-                RagError::Failed(format!("{tool} meldet einen Fehler: {text}")),
+                RagError::Failed(tc("connections_msg.mcp.tool_error", &[("tool", tool.into()), ("text", text.into())])),
                 self.secret.as_deref(),
             ));
         }
@@ -1268,7 +1273,7 @@ fn page_answer(result: &Value) -> Result<PageAnswer, RagError> {
         return Ok(PageAnswer { text: content_text(result).replace("\r\n", "\n"), total: None, more: None });
     };
     let Some(map) = payload.as_object() else {
-        return Err(RagError::Schema(format!("{READ_TOOL}: Antwort ist eine Liste, kein Dokument.")));
+        return Err(RagError::Schema(tc("connections_msg.mcp.list_not_document", &[("tool", READ_TOOL.into())])));
     };
     let mut places = vec![map];
     for nested in ["document", "result", "data"] {
@@ -1280,7 +1285,10 @@ fn page_answer(result: &Value) -> Result<PageAnswer, RagError> {
         .iter()
         .find_map(|place| CONTENT_KEYS.iter().find_map(|k| place.get(*k).and_then(Value::as_str)))
         .ok_or_else(|| {
-            RagError::Schema(format!("{READ_TOOL}: kein Text in der Antwort ({}).", CONTENT_KEYS.join(", ")))
+            RagError::Schema(tc(
+                "connections_msg.mcp.no_text_keys",
+                &[("tool", READ_TOOL.into()), ("keys", CONTENT_KEYS.join(", ").into())],
+            ))
         })?;
     let total = places.iter().find_map(|place| {
         PAGE_COUNT_KEYS.iter().find_map(|k| place.get(*k).and_then(Value::as_u64)).map(|n| n as usize)
@@ -1304,7 +1312,10 @@ pub fn local_part(document: &str, text: &str, part: usize) -> Result<(FullTextPa
     let parts = split_parts(text, PART_CHARS);
     let count = parts.len();
     if part == 0 || part > count {
-        return Err(RagError::Invalid(format!("Teil {part} gibt es nicht; das Dokument hat {count} Teile.")));
+        return Err(RagError::Invalid(tc(
+            "connections_msg.mcp.no_part",
+            &[("part", part.to_string().into()), ("count", count.to_string().into())],
+        )));
     }
     let offset = parts[..part - 1].iter().map(|p| p.chars().count()).sum();
     let chosen = parts.into_iter().nth(part - 1).unwrap_or_default();
@@ -1355,8 +1366,12 @@ pub(crate) async fn read_all_pages(
     limits: Option<Limits>,
     max_bytes: usize,
 ) -> Result<String, RagError> {
-    let too_big =
-        || RagError::Failed(format!("{READ_TOOL}: Volltext ist größer als {} MiB; abgebrochen.", mib(max_bytes)));
+    let too_big = || {
+        RagError::Failed(tc(
+            "connections_msg.mcp.fulltext_too_big",
+            &[("tool", READ_TOOL.into()), ("mib", mib(max_bytes).to_string().into())],
+        ))
+    };
     let Some(key) = page else {
         let text = read_page_with(session, args, None, limits).await?.text;
         return if text.len() > max_bytes { Err(too_big()) } else { Ok(text) };
@@ -1371,8 +1386,9 @@ pub(crate) async fn read_all_pages(
     while more {
         let number = pages.len() + 1;
         if number > MAX_FULLTEXT_PAGES {
-            return Err(RagError::Failed(format!(
-                "{READ_TOOL}: mehr als {MAX_FULLTEXT_PAGES} Seiten; Volltext abgebrochen."
+            return Err(RagError::Failed(tc(
+                "connections_msg.mcp.too_many_pages",
+                &[("tool", READ_TOOL.into()), ("max", MAX_FULLTEXT_PAGES.to_string().into())],
             )));
         }
         let answer = read_page_with(session, args, Some((key, number)), limits).await?;
@@ -1444,7 +1460,7 @@ impl MultigptWay {
 
     async fn run(&self, query: &Query) -> Result<Vec<Hit>, RagError> {
         if query.collections.is_empty() {
-            return Err(RagError::NotConfigured("Keine Sammlung gewählt (Einstellungen → Verbindungen).".into()));
+            return Err(RagError::NotConfigured(tc("connections_msg.mcp.no_collection", &[])));
         }
         let started = Instant::now();
         let mut session = self.session().await?;
@@ -1455,16 +1471,14 @@ impl MultigptWay {
 
     async fn search_in(&self, session: &mut Session, query: &Query, started: Instant) -> Result<Vec<Hit>, RagError> {
         let schema = session.schema(SEARCH_TOOL).ok_or_else(|| {
-            RagError::Schema(format!("MultiGPT bietet das Werkzeug {SEARCH_TOOL} nicht an (tools/list)."))
+            RagError::Schema(tc("connections_msg.mcp.tool_missing_list", &[("tool", SEARCH_TOOL.into())]))
         })?;
         let calls = search_arguments(&schema, &query.text, &query.collections, query.limit)?;
         let mut hits = Vec::new();
         for (arguments, collection) in calls {
             let result = session.call(SEARCH_TOOL, arguments, None).await?;
             let payload = tool_payload(&result).ok_or_else(|| {
-                RagError::Schema(format!(
-                    "{SEARCH_TOOL}: Antwort nicht lesbar (weder structuredContent noch JSON in content)."
-                ))
+                RagError::Schema(tc("connections_msg.mcp.answer_unreadable", &[("tool", SEARCH_TOOL.into())]))
             })?;
             let mut found = parse_hits(&payload, collection.as_deref())?;
             if query.collections.len() == 1 {
@@ -1556,14 +1570,15 @@ impl MultigptWay {
     pub async fn excerpt(&self, document: &str, section: Option<&str>) -> Result<String, RagError> {
         let mut session = self.session().await?;
         let outcome = async {
-            let schema = session
-                .schema(READ_TOOL)
-                .ok_or_else(|| RagError::Schema(format!("MultiGPT bietet das Werkzeug {READ_TOOL} nicht an.")))?;
+            let schema = session.schema(READ_TOOL).ok_or_else(|| {
+                RagError::Schema(tc("connections_msg.mcp.tool_missing", &[("tool", READ_TOOL.into())]))
+            })?;
             let args = document_arguments(&schema, document, section).ok_or_else(|| {
-                RagError::Schema(format!("{READ_TOOL} nennt im inputSchema keinen Parameter für das Dokument."))
+                RagError::Schema(tc("connections_msg.mcp.no_document_param", &[("tool", READ_TOOL.into())]))
             })?;
             let result = session.call(READ_TOOL, args, None).await?;
-            excerpt_of(&result).ok_or_else(|| RagError::Schema(format!("{READ_TOOL}: kein Text in der Antwort.")))
+            excerpt_of(&result)
+                .ok_or_else(|| RagError::Schema(tc("connections_msg.mcp.no_text", &[("tool", READ_TOOL.into())])))
         }
         .await;
         session.release().await;
@@ -1575,11 +1590,11 @@ impl MultigptWay {
     fn read_setup(session: &Session, document: &str) -> Result<(Value, Option<&'static str>), RagError> {
         let schema = session
             .schema(READ_TOOL)
-            .ok_or_else(|| RagError::Schema(format!("MultiGPT bietet das Werkzeug {READ_TOOL} nicht an.")))?;
+            .ok_or_else(|| RagError::Schema(tc("connections_msg.mcp.tool_missing", &[("tool", READ_TOOL.into())])))?;
         let args = document_arguments(&schema, document, None).ok_or_else(|| {
-            RagError::Schema(format!(
-                "{READ_TOOL} nennt im inputSchema keinen Parameter für das Dokument ({}).",
-                DOCUMENT_KEYS.join(", ")
+            RagError::Schema(tc(
+                "connections_msg.mcp.no_document_param_keys",
+                &[("tool", READ_TOOL.into()), ("keys", DOCUMENT_KEYS.join(", ").into())],
             ))
         })?;
         let page = page_key(&schema);
@@ -1588,8 +1603,9 @@ impl MultigptWay {
         if let Some(unknown) =
             required.iter().filter_map(Value::as_str).find(|r| !known.contains(r) && Some(*r) != page)
         {
-            return Err(RagError::Schema(format!(
-                "{READ_TOOL} verlangt den Parameter „{unknown}“, den Baruch nicht kennt."
+            return Err(RagError::Schema(tc(
+                "connections_msg.mcp.unknown_param",
+                &[("tool", READ_TOOL.into()), ("name", unknown.into())],
             )));
         }
         Ok((args, page))
@@ -1622,7 +1638,10 @@ impl MultigptWay {
         if let Some(total) = answer.total
             && part > total
         {
-            return Err(RagError::Invalid(format!("Teil {part} gibt es nicht; das Dokument hat {total} Seiten.")));
+            return Err(RagError::Invalid(tc(
+                "connections_msg.mcp.no_page",
+                &[("part", part.to_string().into()), ("count", total.into())],
+            )));
         }
         let more = answer.more.unwrap_or_else(|| answer.total.is_some_and(|total| part < total));
         let found = FullTextPart {
@@ -1675,7 +1694,7 @@ impl MultigptWay {
     /// the position of the part in the full text.
     pub async fn read_part_with_info(&self, document: &str, part: usize) -> Result<PartReading, RagError> {
         if part == 0 {
-            return Err(RagError::Invalid("part: Teile zählen ab 1.".into()));
+            return Err(RagError::Invalid(tc("connections_msg.mcp.part_from_one", &[])));
         }
         let mut session = self.session().await?;
         let outcome = match self.read_part_in(&mut session, document, part).await {

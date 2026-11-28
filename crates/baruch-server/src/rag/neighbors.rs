@@ -15,13 +15,22 @@ use baruch_store::{IdeaId, WorkId};
 
 use super::index::{config, mismatch};
 use crate::AppState;
+use crate::i18n::tc;
 
-/// Sentence: no embedder connected.
-pub const NO_EMBEDDER: &str = "Keine Einbettung angebunden (Einstellungen → Verbindungen); Nähe nur über gleiche \
-                               Schlagwörter.";
+/// Sentence: no embedder connected (interface language, Round 39c).
+pub fn no_embedder() -> String {
+    tc("rag_msg.near.no_embedder", &[])
+}
+
 /// Sentence: index without vectors of the ideas of this work.
-pub const NOT_INDEXED: &str = "Im Index liegen noch keine Einbettungen der Einfälle dieses Werks; Nähe nur über \
-                               gleiche Schlagwörter.";
+pub fn not_indexed() -> String {
+    tc("rag_msg.near.not_indexed", &[])
+}
+
+/// Sentence: nearness not available, with the reason.
+fn unavailable(detail: &str) -> IdeaVectors {
+    IdeaVectors::Unavailable(tc("rag_msg.near.unavailable", &[("detail", detail.into())]))
+}
 
 /// Vectors of the ideas of a work from the index.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,31 +47,31 @@ pub enum IdeaVectors {
 pub async fn idea_vectors(state: &AppState, work: WorkId) -> IdeaVectors {
     let rt = super::runtime(state);
     if rt.embedders().is_none() {
-        return IdeaVectors::NoEmbedder(NO_EMBEDDER.to_owned());
+        return IdeaVectors::NoEmbedder(no_embedder());
     }
     let store = rt.store();
     let cfg = match config(&store, &state.data).await {
         Ok(cfg) => cfg,
-        Err(e) => return IdeaVectors::Unavailable(format!("Nähe aus dem Index nicht verfügbar: {}", e.message())),
+        Err(e) => return unavailable(e.message()),
     };
     if !cfg.dir.is_dir() {
-        return IdeaVectors::NoEmbedder(NOT_INDEXED.to_owned());
+        return IdeaVectors::NoEmbedder(not_indexed());
     }
     let index = match rt.index(&cfg.dir).await {
         Ok(index) => index,
-        Err(e) => return IdeaVectors::Unavailable(format!("Nähe aus dem Index nicht verfügbar: {}", e.message())),
+        Err(e) => return unavailable(e.message()),
     };
     match index.meta() {
         Ok(meta) => {
             if let Some(e) = mismatch(&meta, &cfg) {
-                return IdeaVectors::Unavailable(format!("Nähe aus dem Index nicht verfügbar: {}", e.message()));
+                return unavailable(e.message());
             }
         }
-        Err(e) => return IdeaVectors::Unavailable(format!("Nähe aus dem Index nicht verfügbar: {}", e.message())),
+        Err(e) => return unavailable(e.message()),
     }
     let stored = match index.stored(Scope::Work(work)).await {
         Ok(stored) => stored,
-        Err(e) => return IdeaVectors::Unavailable(format!("Nähe aus dem Index nicht verfügbar: {}", e.message())),
+        Err(e) => return unavailable(e.message()),
     };
     let vectors: HashMap<IdeaId, Vec<f32>> = stored
         .into_iter()
@@ -72,7 +81,7 @@ pub async fn idea_vectors(state: &AppState, work: WorkId) -> IdeaVectors {
         })
         .collect();
     if vectors.is_empty() {
-        return IdeaVectors::NoEmbedder(NOT_INDEXED.to_owned());
+        return IdeaVectors::NoEmbedder(not_indexed());
     }
     IdeaVectors::Ready(vectors)
 }

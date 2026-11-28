@@ -198,7 +198,8 @@ async fn the_token_never_goes_to_another_address() {
     assert!(second.requests().is_empty(), "Prüfen schickt nichts an die neue Adresse");
     let refused = open_way(&server.state).await.err().expect("kein Weg mit fremdem Token");
     assert_eq!(refused.code(), "not_configured", "Weg aus, nicht ausgefallen: {refused}");
-    assert!(refused.message().contains("andere Adresse"), "ehrlicher Grund: {refused}");
+    // A direct call has no request: the reason is English (Round 39c, i18n::current outside a request).
+    assert!(refused.message().contains("another address"), "ehrlicher Grund: {refused}");
     assert!(second.requests().is_empty(), "auch die Suche fragt die neue Adresse nicht");
 }
 
@@ -306,7 +307,8 @@ async fn unreadable_answers_errors_timeouts_and_redirects_are_honest() {
         .search(&query(&["Leuchtturm"], 5))
         .await
         .unwrap_err();
-    assert!(e.message().contains("leitet weiter") && e.message().contains("307"), "Weiterleitung benannt: {e}");
+    // A direct call has no request: the message is English (Round 39c).
+    assert!(e.message().contains("redirects") && e.message().contains("307"), "Weiterleitung benannt: {e}");
     assert!(target.requests().is_empty(), "der Weiterleitung wird nicht gefolgt – das Token geht nicht ans Ziel");
     assert!(!e.message().contains(TOKEN), "kein Token in der Meldung");
 
@@ -445,7 +447,8 @@ async fn mcp_rag_tools_answer_honestly_over_loopback_and_with_a_token() {
         assert_ne!(answer["result"]["isError"], true, "Suche beantwortet: {answer}");
         let text = answer["result"]["content"][0]["text"].as_str().unwrap();
         assert!(
-            text.contains("\"state\":\"failed\"") && text.contains("Kein Einbettungsmodell"),
+            // MCP answers in English (Round 39a); the reason comes from the catalog since Round 39c.
+            text.contains("\"state\":\"failed\"") && text.contains("No embedding model"),
             "ehrlicher Zustand: {text}"
         );
         let (_, answer) = mcp(&server, token, call("rag_status", json!({}))).await;

@@ -221,3 +221,90 @@ connections_msg.model_error.bestaetigen = Please confirm (tick the box); nothing
 connections_msg.model_error.modell = Please give a model for the quick test (one line, at most 200 characters); nothing sent.
 connections_msg.model_error.aktion = Unknown action; nothing changed.
 connections_msg.model_error.other = That did not work; nothing changed.
+
+# MultiGPT as a RAG path and pgvector (src/connections/multigpt.rs, src/connections/pgvector.rs; Round 39c, task
+# reste_1). The check messages above (check.timeout, check.no_connection, check.pg_*) are shared with them.
+connections_msg.mcp.not_utf8 = Answer is not UTF-8 text.
+connections_msg.mcp.not_json = Answer is neither JSON nor text/event-stream.
+connections_msg.mcp.no_message = without a message
+connections_msg.mcp.remote_error = Error of the remote side: { $message }
+connections_msg.mcp.no_result = Answer without result
+connections_msg.mcp.no_answer_id = no JSON-RPC answer with id { $id } found
+connections_msg.mcp.incomplete = No complete answer from { $url } within { $seconds } s.
+connections_msg.mcp.too_big = Answer from { $url } is larger than { $mib } MiB; aborted.
+connections_msg.mcp.redirect = { $url } redirects (HTTP { $status }); Baruch does not follow redirects so that the token does not go to another address. Enter the target address under Settings → Connections.
+connections_msg.mcp.http_status = { $url } answers with HTTP { $status }.
+connections_msg.mcp.tool_error = { $tool } reports an error: { $text }
+connections_msg.mcp.no_hit_list = { $tool }: no hit list in the answer (results, hits, documents …).
+connections_msg.mcp.hits_unreadable =
+    { $tool }: { $count ->
+        [one] { $count } hit
+       *[other] { $count } hits
+    } without document and title; format not readable.
+connections_msg.mcp.no_query_param = { $tool } names no parameter for the query in its inputSchema ({ $keys }).
+connections_msg.mcp.no_collection_param = { $tool } names no parameter for collections in its inputSchema ({ $keys }); without it MultiGPT would search all collections, so Baruch does not ask.
+connections_msg.mcp.unknown_param = { $tool } requires the parameter “{ $name }”, which Baruch does not know.
+connections_msg.mcp.settings = Settings of the connection MultiGPT: { $detail }
+connections_msg.mcp.no_address = No address entered for MultiGPT (Settings → Connections).
+connections_msg.mcp.keyring = Keyring: { $detail }
+connections_msg.mcp.foreign_token = The token baruch/multigpt is stored for another address; Baruch does not send it to the present one. Enter the token again for the new address (Settings → Connections).
+connections_msg.mcp.session_closed = The session to MultiGPT is already closed.
+connections_msg.mcp.list_not_document = { $tool }: answer is a list, not a document.
+connections_msg.mcp.no_text_keys = { $tool }: no text in the answer ({ $keys }).
+connections_msg.mcp.no_text = { $tool }: no text in the answer.
+connections_msg.mcp.no_part = Part { $part } does not exist; the document has { $count } parts.
+connections_msg.mcp.no_page =
+    Part { $part } does not exist; the document has { $count ->
+        [one] { $count } page
+       *[other] { $count } pages
+    }.
+connections_msg.mcp.part_from_one = part: parts count from 1.
+connections_msg.mcp.fulltext_too_big = { $tool }: full text is larger than { $mib } MiB; aborted.
+connections_msg.mcp.too_many_pages = { $tool }: more than { $max } pages; full text aborted.
+connections_msg.mcp.no_collection = No collection chosen (Settings → Connections).
+connections_msg.mcp.tool_missing_list = MultiGPT does not offer the tool { $tool } (tools/list).
+connections_msg.mcp.tool_missing = MultiGPT does not offer the tool { $tool }.
+connections_msg.mcp.answer_unreadable = { $tool }: answer not readable (neither structuredContent nor JSON in content).
+connections_msg.mcp.no_document_param = { $tool } names no parameter for the document in its inputSchema.
+connections_msg.mcp.no_document_param_keys = { $tool } names no parameter for the document in its inputSchema ({ $keys }).
+connections_msg.pg.table_name = Table “{ $table }” is not a valid name (table or schema.table).
+connections_msg.pg.column_name = { $field }: “{ $column }” is not a valid column name.
+connections_msg.pg.no_model = No embedding model entered (embedding_model).
+connections_msg.pg.role_text = Text
+connections_msg.pg.role_vector = Vector
+connections_msg.pg.role_collection = Collection
+connections_msg.pg.role_document = Document
+connections_msg.pg.role_section = Place
+connections_msg.pg.role_title = Title
+connections_msg.pg.role_url = Address
+connections_msg.pg.role_model = Model
+connections_msg.pg.tls_require = Note: TLS is set to “require” – the connection is encrypted, but Baruch does not check the certificate of the server. Whoever poses as the server in the network could read sign-in, queries and hits, depending on the sign-in method also the password. Only “verify-full” is safe.
+connections_msg.pg.tls_disable = Warning: TLS is set to “disable” – sign-in, queries and hits travel unencrypted over the network, depending on the sign-in method of the server also the password. Better set “verify-full”.
+connections_msg.pg.tls_prefer = Warning: TLS is set to “prefer” – if the server offers no TLS, Baruch connects unencrypted and without checking the certificate; sign-in, queries and hits, depending on the sign-in method also the password, would then travel openly over the network. Better set “verify-full”.
+connections_msg.pg.statement_timeout = pgvector { $address }: query longer than { $seconds } s, aborted (statement_timeout).
+connections_msg.pg.no_table_search_path = Table “{ $table }” does not exist in the search path of the user (or the user may not read it).
+connections_msg.pg.no_table_schema = Table “{ $table }” does not exist in the schema { $schema } (or the user may not read it).
+connections_msg.pg.no_column = Column “{ $column }” ({ $role }) is missing in table { $schema }.{ $table }.
+connections_msg.pg.column_type = Column “{ $column }” has the type { $type }, not vector (pgvector).
+connections_msg.pg.no_host_check = No computer (host) entered.
+connections_msg.pg.mapping_invalid = Mapping invalid: { $detail }
+connections_msg.pg.but = Connection stands (vector { $vector }), but: { $detail }
+connections_msg.pg.no_dimension_check = Connection stands (vector { $vector }), but the vector column “{ $column }” has no fixed dimension and no data yet.
+connections_msg.pg.ready =
+    Connection stands, extension vector { $vector }: { $count ->
+        [one] { $count } collection
+       *[other] { $count } collections
+    }, { $chunks } chunks, dimension { $dimension }
+connections_msg.pg.model_set = ; the configured model is { $model }.
+connections_msg.pg.models_found = ; models in the data: { $models }.
+connections_msg.pg.strangers = Warning: configured is { $model }; the search refuses collections with { $strangers } (another model).
+connections_msg.pg.prefixed = pgvector: { $detail }
+connections_msg.pg.foreign_model = pgvector: The chosen collections are embedded with { $models }, configured is { $model }; hits would be worthless.
+connections_msg.pg.no_dimension = pgvector: The vector column “{ $column }” has no fixed dimension and no data yet.
+connections_msg.pg.query_model = pgvector: The query was embedded with { $query }, the data with { $model }; hits would be worthless.
+connections_msg.pg.not_one_vector = pgvector: The embedder did not deliver exactly one vector.
+connections_msg.pg.query_dimension = pgvector: The query has { $got } dimensions, the column “{ $column }” { $dimension }; another embedding model?
+connections_msg.pg.not_finite = pgvector: The embedder delivered no finite numbers.
+connections_msg.pg.no_host = pgvector: No computer entered (Settings → Connections).
+connections_msg.pg.settings = Settings of pgvector: { $detail }
+connections_msg.pg.foreign_password = pgvector: The password baruch/pgvector is stored for another target; Baruch does not send it to the present address. Enter the password again for it (Settings → Connections).

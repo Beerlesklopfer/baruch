@@ -27,6 +27,8 @@ use std::io::{Cursor, Read};
 
 use zip::{CompressionMethod, ZipArchive};
 
+use crate::i18n::tc;
+
 /// Limits when reading an archive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArchiveLimits {
@@ -70,10 +72,12 @@ pub enum ArchiveError {
 impl std::fmt::Display for ArchiveError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ArchiveError::NotZip(reason) => write!(f, "kein ZIP-Archiv: {reason}"),
-            ArchiveError::Unsafe { path, reason } => write!(f, "unsicherer Eintrag „{path}“ im Archiv: {reason}"),
-            ArchiveError::TooLarge(reason) => write!(f, "Archiv zu groß: {reason}"),
-            ArchiveError::Corrupt(reason) => write!(f, "Archiv beschädigt: {reason}"),
+            ArchiveError::NotZip(reason) => f.write_str(&tc("archive_msg.not_zip", &[("reason", reason.into())])),
+            ArchiveError::Unsafe { path, reason } => {
+                f.write_str(&tc("archive_msg.unsafe", &[("path", path.into()), ("reason", reason.into())]))
+            }
+            ArchiveError::TooLarge(reason) => f.write_str(&tc("archive_msg.too_large", &[("reason", reason.into())])),
+            ArchiveError::Corrupt(reason) => f.write_str(&tc("archive_msg.corrupt", &[("reason", reason.into())])),
         }
     }
 }
@@ -94,13 +98,13 @@ fn unsafe_entry(path: &str, reason: impl Into<String>) -> ArchiveError {
 fn central_names(bytes: &[u8], start: u64, max: usize) -> Result<Vec<Vec<u8>>, ArchiveError> {
     let mut names = Vec::new();
     let mut at =
-        usize::try_from(start).map_err(|_| ArchiveError::Corrupt("Zentralverzeichnis außerhalb der Datei".into()))?;
+        usize::try_from(start).map_err(|_| ArchiveError::Corrupt(tc("archive_msg.reason.directory_outside", &[])))?;
     while bytes.len() >= at + 46 && bytes[at..at + 4] == [0x50, 0x4b, 0x01, 0x02] {
         let u16_at = |offset: usize| usize::from(u16::from_le_bytes([bytes[at + offset], bytes[at + offset + 1]]));
         let (name_len, extra_len, comment_len) = (u16_at(28), u16_at(30), u16_at(32));
         let end = at + 46 + name_len;
         if end > bytes.len() {
-            return Err(ArchiveError::Corrupt("Zentralverzeichnis abgeschnitten".into()));
+            return Err(ArchiveError::Corrupt(tc("archive_msg.reason.directory_cut", &[])));
         }
         names.push(bytes[at + 46..end].to_vec());
         if names.len() > max {
@@ -123,22 +127,22 @@ fn central_start(bytes: &[u8]) -> Option<u64> {
 /// Check the path of an entry (without the folder slash at the end).
 fn check_path(path: &str) -> Result<(), ArchiveError> {
     if path.is_empty() {
-        return Err(unsafe_entry(path, "leerer Name"));
+        return Err(unsafe_entry(path, tc("archive_msg.reason.empty_name", &[])));
     }
     if path.chars().any(char::is_control) {
-        return Err(unsafe_entry(&path.escape_debug().to_string(), "Steuerzeichen im Namen"));
+        return Err(unsafe_entry(&path.escape_debug().to_string(), tc("archive_msg.reason.control", &[])));
     }
     if path.starts_with('/') {
-        return Err(unsafe_entry(path, "absoluter Pfad"));
+        return Err(unsafe_entry(path, tc("archive_msg.reason.absolute", &[])));
     }
     if path.contains('\\') {
-        return Err(unsafe_entry(path, "Backslash im Namen (Pfade trennt „/“)"));
+        return Err(unsafe_entry(path, tc("archive_msg.reason.backslash", &[])));
     }
     if path.len() >= 2 && path.as_bytes()[1] == b':' && path.as_bytes()[0].is_ascii_alphabetic() {
-        return Err(unsafe_entry(path, "Laufwerksangabe im Namen"));
+        return Err(unsafe_entry(path, tc("archive_msg.reason.drive", &[])));
     }
     if path.split('/').any(|part| part == "..") {
-        return Err(unsafe_entry(path, "„..“ im Pfad (führte aus dem Archiv heraus)"));
+        return Err(unsafe_entry(path, tc("archive_msg.reason.parent", &[])));
     }
     Ok(())
 }
@@ -146,12 +150,15 @@ fn check_path(path: &str) -> Result<(), ArchiveError> {
 /// Read and check a ZIP archive (rules in the module doc). Returns the regular files in the order of the archive.
 pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry>, ArchiveError> {
     if !bytes.starts_with(b"PK\x03\x04") && !bytes.starts_with(b"PK\x05\x06") {
-        return Err(ArchiveError::NotZip("der Anfang „PK“ eines ZIP-Archivs fehlt".into()));
+        return Err(ArchiveError::NotZip(tc("archive_msg.reason.no_pk", &[])));
     }
     let mut zip = ZipArchive::new(Cursor::new(bytes))
-        .map_err(|e| ArchiveError::Corrupt(format!("Inhaltsverzeichnis nicht lesbar ({e})")))?;
+        .map_err(|e| ArchiveError::Corrupt(tc("archive_msg.reason.toc", &[("detail", e.to_string().into())])))?;
     if zip.len() > limits.max_entries {
-        return Err(ArchiveError::TooLarge(format!("mehr als {} Einträge", limits.max_entries)));
+        return Err(ArchiveError::TooLarge(tc(
+            "archive_msg.reason.entries",
+            &[("max", limits.max_entries.to_string().into())],
+        )));
     }
     if zip.is_empty() {
         return Ok(Vec::new());
@@ -162,23 +169,25 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
     let listed_start = (0..zip.len())
         .filter_map(|i| zip.by_index_raw(i).ok().map(|f| f.central_header_start()))
         .min()
-        .ok_or_else(|| ArchiveError::Corrupt("Zentralverzeichnis nicht lesbar".into()))?;
+        .ok_or_else(|| ArchiveError::Corrupt(tc("archive_msg.reason.directory_unreadable", &[])))?;
     let start = central_start(bytes).map_or(listed_start, |eocd| eocd.min(listed_start));
     let names = central_names(bytes, start, limits.max_entries)?;
     if names.len() > limits.max_entries {
-        return Err(ArchiveError::TooLarge(format!("mehr als {} Einträge", limits.max_entries)));
+        return Err(ArchiveError::TooLarge(tc(
+            "archive_msg.reason.entries",
+            &[("max", limits.max_entries.to_string().into())],
+        )));
     }
     let mut seen = HashSet::new();
     for name in &names {
         if !seen.insert(name.as_slice()) {
-            return Err(unsafe_entry(&String::from_utf8_lossy(name), "Name kommt doppelt vor"));
+            return Err(unsafe_entry(&String::from_utf8_lossy(name), tc("archive_msg.reason.duplicate", &[])));
         }
     }
     if names.len() != zip.len() {
-        return Err(ArchiveError::Corrupt(format!(
-            "Zentralverzeichnis nennt {} Einträge, lesbar sind {}",
-            names.len(),
-            zip.len()
+        return Err(ArchiveError::Corrupt(tc(
+            "archive_msg.reason.directory_count",
+            &[("listed", names.len().into()), ("readable", zip.len().into())],
         )));
     }
 
@@ -186,11 +195,15 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
     let mut files: Vec<(usize, String, u64)> = Vec::new();
     let mut folded = HashSet::new();
     for index in 0..zip.len() {
-        let file = zip
-            .by_index_raw(index)
-            .map_err(|e| ArchiveError::Corrupt(format!("Eintrag {index} nicht lesbar ({e})")))?;
-        let raw = std::str::from_utf8(file.name_raw())
-            .map_err(|_| unsafe_entry(&String::from_utf8_lossy(file.name_raw()), "Name ist kein UTF-8"))?;
+        let file = zip.by_index_raw(index).map_err(|e| {
+            ArchiveError::Corrupt(tc(
+                "archive_msg.reason.entry_unreadable",
+                &[("index", index.to_string().into()), ("detail", e.to_string().into())],
+            ))
+        })?;
+        let raw = std::str::from_utf8(file.name_raw()).map_err(|_| {
+            unsafe_entry(&String::from_utf8_lossy(file.name_raw()), tc("archive_msg.reason.not_utf8", &[]))
+        })?;
         let kind = file.unix_mode().map(|mode| mode & S_IFMT).unwrap_or(0);
         let is_dir = raw.ends_with('/') || kind == S_IFDIR;
         let path = raw.strip_suffix('/').unwrap_or(raw);
@@ -199,22 +212,23 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
             continue;
         }
         if kind == S_IFLNK {
-            return Err(unsafe_entry(path, "Verknüpfung (Symlink)"));
+            return Err(unsafe_entry(path, tc("archive_msg.reason.symlink", &[])));
         }
         if kind != 0 && kind != S_IFREG {
-            return Err(unsafe_entry(path, "keine reguläre Datei (Gerät, FIFO oder Socket)"));
+            return Err(unsafe_entry(path, tc("archive_msg.reason.special", &[])));
         }
         if file.encrypted() {
-            return Err(unsafe_entry(path, "verschlüsselt"));
+            return Err(unsafe_entry(path, tc("archive_msg.reason.encrypted", &[])));
         }
         let method = file.compression();
         if !matches!(method, CompressionMethod::Stored | CompressionMethod::Deflated) {
-            return Err(ArchiveError::Corrupt(format!(
-                "„{path}“: Kompression {method:?} nicht unterstützt (nur STORED oder DEFLATE)"
+            return Err(ArchiveError::Corrupt(tc(
+                "archive_msg.reason.method",
+                &[("path", path.into()), ("method", format!("{method:?}").into())],
             )));
         }
         if !folded.insert(path.to_lowercase()) {
-            return Err(unsafe_entry(path, "Name kommt doppelt vor (Groß-/Kleinschreibung zählt nicht)"));
+            return Err(unsafe_entry(path, tc("archive_msg.reason.duplicate_case", &[])));
         }
         files.push((index, path.to_owned(), file.compressed_size()));
     }
@@ -224,30 +238,36 @@ pub fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry
     let mut total: u64 = 0;
     for (index, path, packed) in files {
         let room = limits.max_entry_bytes.min(limits.max_total_bytes - total);
-        let mut file =
-            zip.by_index(index).map_err(|e| ArchiveError::Corrupt(format!("„{path}“ nicht lesbar ({e})")))?;
+        let mut file = zip.by_index(index).map_err(|e| {
+            ArchiveError::Corrupt(tc(
+                "archive_msg.reason.file_unreadable",
+                &[("path", path.as_str().into()), ("detail", e.to_string().into())],
+            ))
+        })?;
         let mut data = Vec::new();
-        (&mut file)
-            .take(room + 1)
-            .read_to_end(&mut data)
-            .map_err(|e| ArchiveError::Corrupt(format!("„{path}“ lässt sich nicht entpacken ({e})")))?;
+        (&mut file).take(room + 1).read_to_end(&mut data).map_err(|e| {
+            ArchiveError::Corrupt(tc(
+                "archive_msg.reason.unpack",
+                &[("path", path.as_str().into()), ("detail", e.to_string().into())],
+            ))
+        })?;
         let size = data.len() as u64;
         if size > limits.max_entry_bytes {
-            return Err(ArchiveError::TooLarge(format!(
-                "„{path}“ ist entpackt größer als {} Bytes",
-                limits.max_entry_bytes
+            return Err(ArchiveError::TooLarge(tc(
+                "archive_msg.reason.entry_size",
+                &[("path", path.as_str().into()), ("max", limits.max_entry_bytes.to_string().into())],
             )));
         }
         if size > room {
-            return Err(ArchiveError::TooLarge(format!(
-                "die Einträge sind entpackt zusammen größer als {} Bytes",
-                limits.max_total_bytes
+            return Err(ArchiveError::TooLarge(tc(
+                "archive_msg.reason.total_size",
+                &[("max", limits.max_total_bytes.to_string().into())],
             )));
         }
         if size > RATIO_FREE_BYTES && size > packed.max(1).saturating_mul(limits.max_ratio) {
-            return Err(ArchiveError::TooLarge(format!(
-                "„{path}“ wächst beim Entpacken auf mehr als das {}-fache (Zip-Bombe?)",
-                limits.max_ratio
+            return Err(ArchiveError::TooLarge(tc(
+                "archive_msg.reason.ratio",
+                &[("path", path.as_str().into()), ("ratio", limits.max_ratio.to_string().into())],
             )));
         }
         total += size;
@@ -280,6 +300,11 @@ mod tests {
         (name.to_owned(), bytes.to_vec())
     }
 
+    /// The reader in the German interface language: the checks below read the German reasons (Round 39c).
+    fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<ArchiveEntry>, ArchiveError> {
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || super::read_zip(bytes, limits))
+    }
+
     #[test]
     fn regular_files_come_back_in_archive_order_and_folders_are_skipped() {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -309,7 +334,10 @@ mod tests {
     fn something_that_is_not_a_zip_is_refused_as_not_zip() {
         let error = read_zip(b"%PDF-1.7 erfunden", &IMPORT_LIMITS).unwrap_err();
         assert!(matches!(error, ArchiveError::NotZip(_)), "ein PDF ist kein ZIP und wird so benannt: {error:?}");
-        assert!(error.to_string().contains("kein ZIP-Archiv"), "deutsche Meldung: {error}");
+        let german = crate::i18n::sync_scope(crate::i18n::Lang::De, || error.to_string());
+        assert!(german.contains("kein ZIP-Archiv"), "German message in the German interface: {german}");
+        let english = crate::i18n::sync_scope(crate::i18n::Lang::En, || error.to_string());
+        assert!(english.starts_with("not a ZIP archive: "), "English frame in the English interface: {english}");
     }
 
     #[test]

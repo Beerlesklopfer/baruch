@@ -76,11 +76,8 @@ const KNOWN_GERMAN: &[(&str, &str)] = &[
         "über EPUB): ",
         "reader warnings of baruch-epub check.rs (`reader_warnings`, crate messages with the profile name)",
     ),
-    // Server modules left open by messages_2 / excluded by messages_1 (reports R39a).
-    ("Kein Einbettungsmodell angebunden", "src/rag/**: not converted (messages_2 open)"),
-    ("Für dieses Werk nicht gewählt", "src/rag/mod.rs: not converted (messages_2 open)"),
-    ("Keine Einbettung angebunden", "src/rag/neighbors.rs: not converted (messages_2 open)"),
-    ("Wolke – leer", "src/idea_map/bild/mindmap.rs: SVG shared with the picture export (messages_1 excluded)"),
+    // Server modules left open by messages_2 / excluded by messages_1 (reports R39a): src/rag/** and
+    // src/idea_map/bild/mindmap.rs go through the catalogs since Round 39c (reste_1), no entry left.
 ];
 
 fn result(answer: &Value) -> &Value {
