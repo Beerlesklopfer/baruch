@@ -42,9 +42,12 @@ mod style;
 
 use serde::{Deserialize, Serialize};
 
-pub use align::{Hunk, HunkKind, align, hunk_html_with};
-pub use emit::emit;
-pub use html::{diff_html, diff_html_with, index_mark_label, render_html, render_html_with};
+pub use align::{Hunk, HunkKind, align, hunk_html_in, hunk_html_with};
+pub use baruch_core::WorkLanguage;
+pub use emit::{emit, emit_in};
+pub use html::{
+    diff_html, diff_html_in, diff_html_with, index_mark_label, render_html, render_html_in, render_html_with,
+};
 pub use parse::parse;
 pub use scan::{image_path, image_paths};
 pub use style::{BoxStyle, SheetStyle, sheet_css, sheet_style, sheet_style_over, template_font};
@@ -272,7 +275,14 @@ pub enum WysiwygError {
 /// - If two pieces do not follow each other as in the original (inserted, deleted, rearranged), there is
 ///   at least one empty line in between, so that nothing merges into one paragraph.
 pub fn serialize(original: &Doc, edits: &[Edit]) -> Result<String, WysiwygError> {
-    serialize_indented(original, edits, "", false)
+    serialize_in(original, edits, WorkLanguage::De)
+}
+
+/// Like [`serialize`] in the work language `lang` (Round 39b): newly generated blocks are written with
+/// [`emit_in`], so the page number addition of a cross reference carries the page abbreviation of the work
+/// language (`p.` in an English work). Untouched blocks stay verbatim.
+pub fn serialize_in(original: &Doc, edits: &[Edit], lang: WorkLanguage) -> Result<String, WysiwygError> {
+    serialize_indented(original, edits, "", false, lang)
 }
 
 /// [`serialize`] for a body with indentation `indent`: newly generated pieces get it before every
@@ -284,6 +294,7 @@ fn serialize_indented(
     edits: &[Edit],
     indent: &str,
     indent_first: bool,
+    lang: WorkLanguage,
 ) -> Result<String, WysiwygError> {
     let mut used = vec![false; original.blocks.len()];
     let mut take = |index: usize| take_block(original, &mut used, index);
@@ -334,7 +345,7 @@ fn serialize_indented(
                 if let Some(first) = inner_doc.blocks.first_mut() {
                     first.raw.insert_str(0, first_indent);
                 }
-                let text = serialize_indented(&inner_doc, body, parse::body_indent(inner), own_line)?;
+                let text = serialize_indented(&inner_doc, body, parse::body_indent(inner), own_line, lang)?;
                 let piece = format!("{head}{lead}{}{}{tail}", text.trim_end(), &inner[end..]);
                 (Some(*index), piece)
             }
@@ -346,7 +357,7 @@ fn serialize_indented(
                 if matches!(block, BlockKind::Part { .. }) && !matches!(old.kind, BlockKind::Part { .. }) {
                     return Err(WysiwygError::NewPart);
                 }
-                let mut text = emit(block);
+                let mut text = emit_in(block, lang);
                 if text.trim().is_empty() {
                     continue;
                 }
@@ -359,19 +370,19 @@ fn serialize_indented(
                     // Only the line up to the first break is the heading (Round 7); label and
                     // comment of the original line hang on it, the rest becomes a paragraph after it.
                     let (head, rest) = emit::split_heading(inlines);
-                    text = emit::heading_text(*level, &head);
+                    text = emit::heading_text(*level, &head, lang);
                     text.push_str(&heading_suffix(&old.raw, &head));
                     text.push_str(&heading_label_line(&old.raw, old_label.as_deref(), label.as_deref()));
                     if let Some(rest) = rest {
                         text.push_str("\n\n");
-                        text.push_str(&emit(&BlockKind::Paragraph { inlines: rest }));
+                        text.push_str(&emit_in(&BlockKind::Paragraph { inlines: rest }, lang));
                     }
                 }
                 let text = indent_piece(&text, indent, indent_first || !out.is_empty());
                 (Some(*index), text + separator(&old.raw))
             }
             Edit::Block { replaces: None, block } => {
-                let text = emit(block);
+                let text = emit_in(block, lang);
                 if text.trim().is_empty() {
                     continue;
                 }

@@ -917,8 +917,8 @@ impl InlineParser<'_> {
 
     /// Round 30a: cross-reference `#link(<kN>)[Text]` or with page number addition
     /// `#link(<kN>)[Text, S.~#context counter(page).at(<kN>).first()]` (form from
-    /// `baruch_typst::xref::xref_snippet`, the same key in the addition). Another label, no content block or an
-    /// empty link text → island (`None`).
+    /// `baruch_typst::xref::xref_snippet_in`, the same key in the addition; `p.` instead of `S.` in an English
+    /// work). Another label, no content block or an empty link text → island (`None`).
     fn xref(&self, expr: &str, args_end: usize, label: &str) -> Result<Option<Inline>, Unmappable> {
         let Some(key) = baruch_typst::xref::parse_key_label(label) else { return Ok(None) };
         let rest = &expr[args_end..];
@@ -929,10 +929,15 @@ impl InlineParser<'_> {
             return Err(Unmappable);
         }
         let inner = &expr[args_end + 1..expr.len() - 1];
-        let suffix = baruch_typst::xref::xref_snippet(key, "", true);
-        // Addition = what `xref_snippet` writes with page number after the (empty) link text, without the closing `]`.
-        let suffix = &suffix[format!("#link(<{label}>)[").len()..suffix.len() - 1];
-        let (inner, page) = match inner.strip_suffix(suffix) {
+        // Addition = what `xref_snippet_in` writes with page number after the (empty) link text, without the closing
+        // `]`; in every work language (Round 39b: `, S.~…` German, `, p.~…` English), like
+        // `baruch_typst::xref::find_xrefs`.
+        let prefix = format!("#link(<{label}>)[").len();
+        let shorter = baruch_core::WorkLanguage::ALL.into_iter().find_map(|lang| {
+            let snippet = baruch_typst::xref::xref_snippet_in(key, "", true, lang);
+            inner.strip_suffix(&snippet[prefix..snippet.len() - 1])
+        });
+        let (inner, page) = match shorter {
             Some(shorter) => (shorter, true),
             None => (inner, false),
         };

@@ -16,33 +16,41 @@
 use crate::parse::MAX_LIST_DEPTH;
 use crate::scan::is_label_char;
 use crate::{Block, BlockKind, Inline, Term};
+use baruch_core::WorkLanguage;
 
 /// Canonical Typst of a block, without line end. An island yields `""` (it is never newly
-/// generated); in a body (`#szene[…]`) an island stands with its `raw`.
+/// generated); in a body (`#szene[…]`) an island stands with its `raw`. Same as [`emit_in`] for a German work.
 pub fn emit(kind: &BlockKind) -> String {
+    emit_in(kind, WorkLanguage::De)
+}
+
+/// Like [`emit`] in the work language `lang`: the page number addition of a cross reference uses the page
+/// abbreviation of the book catalog (`S.` in German, `p.` in English, Round 39b).
+pub fn emit_in(kind: &BlockKind, lang: WorkLanguage) -> String {
+    let base = Ctx { lang, ..Ctx::default() };
     match kind {
         BlockKind::Heading { level, inlines, label } => {
             // Round 7 („Absatz wird Titel“): the heading ends at the first line break; what
             // stands after it is a paragraph of its own and never part of the heading line.
             let (head, rest) = split_heading(inlines);
-            let mut line = heading_text(*level, &head);
+            let mut line = heading_text(*level, &head, lang);
             if let Some(label) = label {
                 line.push_str(&label_line(label));
             }
             if let Some(rest) = rest {
                 line.push_str("\n\n");
-                line.push_str(&emit(&BlockKind::Paragraph { inlines: rest }));
+                line.push_str(&emit_in(&BlockKind::Paragraph { inlines: rest }, lang));
             }
             line
         }
-        BlockKind::Paragraph { inlines } => seq(inlines, &Ctx::default(), true),
+        BlockKind::Paragraph { inlines } => seq(inlines, &base, true),
         BlockKind::List { ordered, items, depths } => {
             let marker = if *ordered { "+" } else { "-" };
             let levels = list_depths(items.len(), depths);
             items
                 .iter()
                 .zip(&levels)
-                .map(|(item, &d)| format!("{}{marker} {}", spaces(d), seq(item, &item_ctx(d), true)))
+                .map(|(item, &d)| format!("{}{marker} {}", spaces(d), seq(item, &item_ctx(d, lang), true)))
                 .collect::<Vec<_>>()
                 .join("\n")
         }
@@ -58,7 +66,7 @@ pub fn emit(kind: &BlockKind) -> String {
                 }
                 let number = counters[d];
                 counters[d] = number.saturating_add(1);
-                lines.push(format!("{}{number}. {}", spaces(d), seq(item, &item_ctx(d), true)));
+                lines.push(format!("{}{number}. {}", spaces(d), seq(item, &item_ctx(d, lang), true)));
             }
             lines.join("\n")
         }
@@ -66,8 +74,8 @@ pub fn emit(kind: &BlockKind) -> String {
             .iter()
             .map(|Term { term, desc }| {
                 // The term is one line; every colon in it is escaped (it would end the term).
-                let term_ctx = Ctx { heading: true, term: true, after: Some(':'), ..Ctx::default() };
-                let desc = seq(desc, &item_ctx(0), true);
+                let term_ctx = Ctx { heading: true, term: true, after: Some(':'), ..base.clone() };
+                let desc = seq(desc, &item_ctx(0, lang), true);
                 let sep = if desc.is_empty() { "" } else { " " };
                 format!("/ {}:{sep}{desc}", seq(term, &term_ctx, true))
             })
@@ -81,13 +89,13 @@ pub fn emit(kind: &BlockKind) -> String {
             if let Some(attribution) = attribution {
                 args.push(format!(
                     "attribution: [{}]",
-                    seq(attribution, &Ctx { after: Some(']'), ..Ctx::default() }, false)
+                    seq(attribution, &Ctx { after: Some(']'), ..base.clone() }, false)
                 ));
             }
-            format!("#quote({}){}", args.join(", "), content(body, false))
+            format!("#quote({}){}", args.join(", "), content(body, false, lang))
         }
-        BlockKind::Scene { args, body } => format!("#szene{}{}", arguments(args.as_deref()), content(body, true)),
-        BlockKind::Work { args, body } => format!("#arbeit{}{}", arguments(args.as_deref()), content(body, true)),
+        BlockKind::Scene { args, body } => format!("#szene{}{}", arguments(args.as_deref()), content(body, true, lang)),
+        BlockKind::Work { args, body } => format!("#arbeit{}{}", arguments(args.as_deref()), content(body, true, lang)),
         BlockKind::Part { title } => baruch_typst::part_line(title).trim_end_matches('\n').to_owned(),
         BlockKind::Unnumbered { level, title } => {
             baruch_typst::unnumbered_line(*level, title).trim_end_matches('\n').to_owned()
@@ -106,8 +114,8 @@ fn spaces(depth: usize) -> &'static str {
 
 /// Context for the text of a list item of the level `depth`: continuation lines indented one level deeper than
 /// its marker.
-fn item_ctx(depth: usize) -> Ctx {
-    Ctx { indent: spaces(depth + 1), ..Ctx::default() }
+fn item_ctx(depth: usize, lang: WorkLanguage) -> Ctx {
+    Ctx { indent: spaces(depth + 1), lang, ..Ctx::default() }
 }
 
 /// Depth per item, made valid: the first item at the top, every further one at most one level deeper than the
@@ -123,8 +131,8 @@ fn list_depths(count: usize, depths: &[u8]) -> Vec<usize> {
 }
 
 /// Heading line without label and without line end: `=` × level, space, title.
-pub(crate) fn heading_text(level: u8, inlines: &[Inline]) -> String {
-    let ctx = Ctx { heading: true, ..Ctx::default() };
+pub(crate) fn heading_text(level: u8, inlines: &[Inline], lang: WorkLanguage) -> String {
+    let ctx = Ctx { heading: true, lang, ..Ctx::default() };
     format!("{} {}", "=".repeat(usize::from(level.clamp(1, 6))), seq(inlines, &ctx, false))
 }
 
@@ -285,12 +293,12 @@ fn arguments(args: Option<&str>) -> String {
 
 /// Body of a block as a content block: a single single-line paragraph as `[…]`, otherwise
 /// multi-line with empty lines between the blocks.
-fn content(body: &[Block], multiline: bool) -> String {
+fn content(body: &[Block], multiline: bool, lang: WorkLanguage) -> String {
     let parts: Vec<String> = body
         .iter()
         .map(|block| match block.kind {
             BlockKind::Island => block.raw.trim().to_owned(),
-            ref kind => emit(kind),
+            ref kind => emit_in(kind, lang),
         })
         .filter(|part| !part.is_empty())
         .collect();
@@ -319,12 +327,14 @@ struct Ctx {
     after: Option<char>,
     /// Term of a term list (Round 18b): `:` is escaped, also in footnotes and links in it.
     term: bool,
+    /// Work language: page abbreviation of a cross reference's page number addition (Round 39b).
+    lang: WorkLanguage,
 }
 
 impl Ctx {
     /// New content block `[…]` (footnote, quote, link, `#emph[…]`): indentation and term stay.
     fn fresh(&self) -> Ctx {
-        Ctx { indent: self.indent, after: Some(']'), term: self.term, ..Ctx::default() }
+        Ctx { indent: self.indent, after: Some(']'), term: self.term, lang: self.lang, ..Ctx::default() }
     }
 }
 
@@ -449,9 +459,10 @@ fn seq(inlines: &[Inline], ctx: &Ctx, line_start: bool) -> String {
                 after_hash = true;
             }
             Inline::Xref { key, c, page } => {
-                // Round 30a: form from `baruch_typst::xref::xref_snippet` (with page number addition), `parse` reads
-                // it back.
-                out.push_str(&baruch_typst::xref::xref_snippet(*key, &seq(c, &ctx.fresh(), false), *page));
+                // Round 30a: form from `baruch_typst::xref::xref_snippet_in` (with page number addition in the work
+                // language, Round 39b), `parse` reads it back in every work language.
+                let link_text = seq(c, &ctx.fresh(), false);
+                out.push_str(&baruch_typst::xref::xref_snippet_in(*key, &link_text, *page, ctx.lang));
                 after_hash = true;
             }
             Inline::Ref { target, supplement } => {

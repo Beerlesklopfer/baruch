@@ -672,6 +672,8 @@ struct ProposalContext<'a> {
     colors: &'a [PersonaColor],
     image_alts: &'a HashMap<String, String>,
     folded: &'a [(i64, u32)],
+    /// Work language: page abbreviation of cross references in the typeset view (Round 39b).
+    lang: baruch_core::WorkLanguage,
 }
 
 impl ProposalContext<'_> {
@@ -972,7 +974,7 @@ fn proposals_of(
                             baruch_wysiwyg::HunkKind::Removed => "removed",
                         },
                         satz: satz.then(|| {
-                            baruch_wysiwyg::hunk_html_with(base_body, &revision.body, hunk, &|p| ctx.image(p))
+                            baruch_wysiwyg::hunk_html_in(base_body, &revision.body, hunk, &|p| ctx.image(p), ctx.lang)
                         }),
                         // Without whitespace at the end: the empty line behind a block belongs to its `raw` and
                         // otherwise stood as an empty "−" line at the end of the piece (backlog Round 8, Round 18c).
@@ -1045,7 +1047,7 @@ fn ready_sheet(body: &str, ctx: &ProposalContext<'_>) -> Option<String> {
         return None;
     }
     let doc = baruch_wysiwyg::parse(body);
-    Some(baruch_wysiwyg::render_html_with(&doc, &|p| ctx.image(p)))
+    Some(baruch_wysiwyg::render_html_in(&doc, &|p| ctx.image(p), ctx.lang))
 }
 
 /// A revision in the small tree view (indented by `based_on`).
@@ -1460,6 +1462,7 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
         colors,
         image_alts: &library.image_alts,
         folded: &settings.folded,
+        lang: shelf.works.iter().find(|w| w.id == shelf.id).map_or_else(Default::default, |w| w.language),
     };
     // Round 8: in the editor the pieces at their place in the shown revision, plus their finished
     // typeset view (only if the typeset view is the default, otherwise it would stay unused).

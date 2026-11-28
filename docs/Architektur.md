@@ -6670,6 +6670,16 @@ languages: `find_xrefs` (`, S.~` and `, p.~`), `strip_back_matter`, the chat foo
 `view::values`, `work_lang`); `xref.ts` (`workLangOf`, `pageAbbr`, `snippet(…, lang)`) and `wysiwyg.ts` (`workLang`)
 write `p.` and the em dash `— ` before the source of a new quotation for English works, otherwise as before.
 
+**Typeset view (follow-up to Round 39b).** `baruch-wysiwyg` has `emit_in`, `serialize_in`, `render_html_in`,
+`diff_html_in` and `hunk_html_in` with a `WorkLanguage` (the old functions are the German case). `emit` carries the
+language in its context, so a cross reference with page number written from the typeset view gets
+`xref_snippet_in(…, lang)` (`, p.~` in an English work) also in footnotes, list items, quotes and headings; the HTML
+addition `span.ws-xref-page` shows the catalog word `book.xref.page_abbr`. `parse` recognises the addition in every work
+language (like `find_xrefs`), so an English `, p.~` from `xref.ts` is a page addition and not link text. The server
+passes the work language in `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff` and in the editor page
+(`ProposalContext.lang`: ready typeset view and proposal pieces). Tests: `baruch-wysiwyg/tests/xref.rs` (English part)
+and `round39b_ausgaben.rs` (`the_typeset_view_of_an_english_work_…`).
+
 **Golden fixtures.** `crates/{baruch-typst,baruch-epub,baruch-render,baruch-docx,baruch-server}/tests/data/round39b/`
 were generated with the unchanged S1 code; `round39b_golden.rs` (crates) and `round39b_ausgaben.rs` (server) compare
 byte-equal. `BARUCH_BLESS_R39B` exists only for that first commit.

@@ -10,8 +10,9 @@
 
 use std::ops::Range;
 
-use crate::html::{escape, render_block};
+use crate::html::{Env, escape, render_block};
 use crate::{Block, ImageRef, parse};
+use baruch_core::WorkLanguage;
 
 /// Kind of a hunk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -200,6 +201,19 @@ fn split_changed(found: Hunk, a: &[&str], b: &[&str]) -> Vec<Hunk> {
 /// `div.ws-ins` (like [`crate::diff_html_with`], without `data-b`, images in islands through `image`), all
 /// in `div.ws-diff-doc` with `data-kind`. Invalid ranges are shortened to the block count.
 pub fn hunk_html_with(base: &str, proposal: &str, hunk: &Hunk, image: &dyn Fn(&str) -> Option<ImageRef>) -> String {
+    hunk_html_in(base, proposal, hunk, image, WorkLanguage::De)
+}
+
+/// Like [`hunk_html_with`] in the work language `lang`, cross references as with [`crate::render_html_in`]
+/// (Round 39b).
+pub fn hunk_html_in(
+    base: &str,
+    proposal: &str,
+    hunk: &Hunk,
+    image: &dyn Fn(&str) -> Option<ImageRef>,
+    lang: WorkLanguage,
+) -> String {
+    let env = Env { images: image, lang };
     let old = parse(base).blocks;
     let new = parse(proposal).blocks;
     let clip = |range: &Range<usize>, len: usize| range.start.min(len)..range.end.min(len);
@@ -211,12 +225,12 @@ pub fn hunk_html_with(base: &str, proposal: &str, hunk: &Hunk, image: &dyn Fn(&s
     let mut out = format!("<div class=\"ws-diff-doc\" data-kind=\"{}\">", escape(kind));
     for block in &old[clip(&hunk.base, old.len())] {
         out.push_str("<div class=\"ws-del\">");
-        render_block(&mut out, block, None, image);
+        render_block(&mut out, block, None, env);
         out.push_str("</div>");
     }
     for block in &new[clip(&hunk.proposal, new.len())] {
         out.push_str("<div class=\"ws-ins\">");
-        render_block(&mut out, block, None, image);
+        render_block(&mut out, block, None, env);
         out.push_str("</div>");
     }
     out.push_str("</div>");

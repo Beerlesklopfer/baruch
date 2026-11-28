@@ -217,14 +217,19 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params_value: Va
             let p: ParseParams = params(params_value)?;
             let doc = baruch_wysiwyg::parse(&p.body);
             let alts = image_alts(state, work).await?;
-            let html = baruch_wysiwyg::render_html_with(&doc, &|path| Some(image_ref_in(work, path, &alts)));
+            // Round 39b: the page number addition of a cross reference in the work language.
+            let lang = state.store.work_language(work).await?;
+            let html = baruch_wysiwyg::render_html_in(&doc, &|path| Some(image_ref_in(work, path, &alts)), lang);
             Ok(json!({ "blocks": doc.blocks, "html": html }))
         }
         "wysiwyg.serialize" => {
             let p: SerializeParams = params(params_value)?;
             let doc = baruch_wysiwyg::parse(&p.body);
-            let body =
-                baruch_wysiwyg::serialize(&doc, &p.edits).map_err(|e| RpcError::new(INVALID_PARAMS, e.to_string()))?;
+            // Round 39b: a newly written cross reference with page number gets the abbreviation of the work language
+            // (`p.` in an English work), not always the German `S.`.
+            let lang = state.store.work_language(work).await?;
+            let body = baruch_wysiwyg::serialize_in(&doc, &p.edits, lang)
+                .map_err(|e| RpcError::new(INVALID_PARAMS, e.to_string()))?;
             Ok(json!({ "body": body }))
         }
         "wysiwyg.style" => {
@@ -257,8 +262,9 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params_value: Va
             };
             let base_body = node.revision(base).map_or("", |r| r.body.as_str());
             let alts = image_alts(state, work).await?;
-            let html =
-                baruch_wysiwyg::diff_html_with(base_body, &shown.body, &|path| Some(image_ref_in(work, path, &alts)));
+            let lang = state.store.work_language(work).await?;
+            let images = |path: &str| Some(image_ref_in(work, path, &alts));
+            let html = baruch_wysiwyg::diff_html_in(base_body, &shown.body, &images, lang);
             Ok(json!({ "html": html, "base": base }))
         }
         _ => Err(RpcError::new(crate::rpc::METHOD_NOT_FOUND, format!("unknown method {method}"))),

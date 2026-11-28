@@ -6,6 +6,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+baruch-core = { path = "../baruch-core" }
 baruch-typst = { path = "../baruch-typst" }
 serde = { version = "1", features = ["derive"] }
 thiserror = "2"

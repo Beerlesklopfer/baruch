@@ -784,6 +784,7 @@ dependencies = [
 name = "baruch-wysiwyg"
 version = "0.9.0"
 dependencies = [
+ "baruch-core",
  "baruch-typst",
  "fastrand",
  "serde",

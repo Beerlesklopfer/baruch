@@ -711,14 +711,18 @@ revisions (see `docs/Architektur.md`, "Cross-references (Round 30a)").
 
 - **Form in the text** (`baruch_typst::xref::xref_snippet`): `#link(<k103>)[die Einleitung]`; with a page number
   `#link(<k103>)[die Einleitung, S.~#context counter(page).at(<k103>).first()]`. No `@k103`: headings without a
-  number cannot be referenced with `@` in Typst.
+  number cannot be referenced with `@` in Typst. In an English work the addition reads `, p.~#context …`
+  (`xref_snippet_in`, Round 39b).
 - **Block model:** `parse` recognises both forms as `Inline::Xref {key, c, page}` (JSON `{"t": "xref", "key": 103,
   "c": [...], "page": true}`). Only a canonical label `k` + digits without a leading zero and exactly this
   page-number addition with the same key are recognised. An empty link text, another label or another addition stay
   islands (`#link(<hafen>)[…]` as before). `emit` writes the form of `xref_snippet`; `emit`/`parse` make a
-  round trip (property test `tests/xref.rs`, seed `WS_SEED`, cases `WS_CASES`).
+  round trip (property test `tests/xref.rs`, seed `WS_SEED`, cases `WS_CASES`). Round 39b: `parse` reads the
+  addition in every work language (`, S.~` and `, p.~`); `emit_in`/`serialize_in` write it in the work language
+  (the server passes it in `wysiwyg.serialize`), `emit`/`serialize` stay the German case.
 - **Typeset view:** `render_html` sets a `span.ws-xref` with `data-key` and `data-page`, in it the editable
-  link text, with a page number a non-editable `span.ws-xref-page` („, S. …“).
+  link text, with a page number a non-editable `span.ws-xref-page` („, S. …“; `render_html_in` with the page
+  abbreviation of the work language, „, p. …“ in an English work).
   - `wysiwyg.ts` reads the block back without the addition.
   - The command `xref` (`ws_command.ts`, `arg` = JSON `{key, text, page}`) inserts it at the cursor position.
   - Ctrl+click jumps to the target, a click shows „Öffnen | Bearbeiten“ (`xref.ts`).

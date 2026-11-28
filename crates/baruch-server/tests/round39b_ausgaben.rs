@@ -408,3 +408,51 @@ async fn the_epub_check_page_names_the_readers_in_the_interface_language() {
     let (_, _, german) = page("de").await;
     assert!(german.contains("> Kindle (über EPUB)"), "German pages keep the crate names of baruch-epub");
 }
+
+// ---- Cross references in the typeset view (Round 39b follow-up) ----------------------------------------------------
+
+#[tokio::test]
+async fn the_typeset_view_of_an_english_work_writes_and_shows_english_page_additions() {
+    let server = common::open().await;
+    let store = &server.state.store;
+    let work = english_work(&server).await;
+    let key = store.load_work(work).await.unwrap().nodes.iter().find(|n| n.title == "The Roof").expect("chapter").key;
+    let suffix = format!(", p.~#context counter(page).at(<k{key}>).first()");
+    let state = &server.state;
+    let call = |method: &'static str, params: serde_json::Value| async move {
+        baruch_server::wysiwyg::call(state, work, method, params).await.expect("the method answers")
+    };
+
+    // Saving from the typeset view: the widget sends the xref as a block without language (wysiwyg.ts), the server
+    // writes it in the work language. Before the fix an English book printed "S. 12".
+    let edits = serde_json::json!([{ "replaces": null, "block": { "kind": "paragraph", "inlines": [
+        { "t": "text", "v": "See " },
+        { "t": "xref", "key": key, "c": [{ "t": "text", "v": "the roof" }], "page": true },
+        { "t": "text", "v": "." }
+    ] } }]);
+    let saved = call("wysiwyg.serialize", serde_json::json!({ "body": "", "edits": edits })).await;
+    let body = saved["body"].as_str().expect("a body");
+    assert_eq!(body, format!("See #link(<k{key}>)[the roof{suffix}].\n\n"), "English page addition is written");
+
+    // Reading back: the English addition (also as xref.ts writes it in the source editor) is a page addition, and the
+    // typeset view shows the English abbreviation.
+    let parsed = call("wysiwyg.parse", serde_json::json!({ "body": body })).await;
+    let inline = &parsed["blocks"][0]["inlines"][1];
+    assert_eq!(inline["t"], "xref", "the English form reads as a cross reference: {parsed}");
+    assert_eq!(inline["page"], true, "with page addition, not as part of the link text: {parsed}");
+    assert_eq!(inline["c"], serde_json::json!([{ "t": "text", "v": "the roof" }]), "link text without addition");
+    let html = parsed["html"].as_str().unwrap();
+    assert!(html.contains(">, p.\u{a0}…</span>") && !html.contains("S.\u{a0}"), "English abbreviation shown: {html}");
+
+    // German works must not change: the same blocks are written with S. in a German work.
+    let german = store.import_typst(&source("Das Gartenhaus"), "gartenhaus.typ", "Erika").await.unwrap().work;
+    let saved = baruch_server::wysiwyg::call(
+        &server.state,
+        german,
+        "wysiwyg.serialize",
+        serde_json::json!({ "body": "", "edits": edits }),
+    )
+    .await
+    .unwrap();
+    assert!(saved["body"].as_str().unwrap().contains(", S.~#context"), "German works keep S.: {saved}");
+}

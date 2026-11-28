@@ -1840,9 +1840,8 @@ method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
 - **Contract wording to fix in later contracts:** the server integration test target is `--test server` (not
   `main`); Hugo 0.168 rejects `languageName` (deprecated), the config uses `label`.
 - **Open – still German in an English work** (planned for the rest round after 0.9.1 unless noted):
-  - `baruch-wysiwyg` `emit.rs`/`parse.rs` use `xref_snippet` (`, S.~`): a new cross reference written by the WYSIWYG
-    serialisation gets `S.` in an English work, and an English `, p.~` suffix is parsed as link text (round-trips
-    verbatim). Needs a language on `Inline::Xref` or a work-language parameter for `serialize`.
+  - ~~`baruch-wysiwyg` `emit.rs`/`parse.rs` use `xref_snippet` (`, S.~`)~~ – fixed in the Round 39b follow-up:
+    `serialize_in`/`emit_in`/`render_html_in` take the work language, `parse` reads `, S.~` and `, p.~`.
   - the date of the draft line (`typeset::draft_today`, `28.11.2026`) in every work language.
   - mirror commit texts, idea-map exports (`idea_map/files/**`), register titles stored as user data, exchange-format
     names, comment lines of generated Typst/CSS, web-check `Quellen:`/failure lines, `baruch_scripture` messages

@@ -4,9 +4,16 @@
 //! the widget can return an island in an edited body verbatim).
 
 use crate::{Block, BlockKind, Doc, ImageRef, Inline, Term, image_paths, parse};
+use baruch_core::WorkLanguage;
 
-/// Callback for images: path from the source text (`image("…")`) → address and alternative text.
-type Images<'a> = &'a dyn Fn(&str) -> Option<ImageRef>;
+/// What rendering needs besides the blocks: the callback for images (path from the source text (`image("…")`) →
+/// address and alternative text) and the work language (Round 39b: page abbreviation of a cross reference's page
+/// number addition, `S.` in German, `p.` in English).
+#[derive(Clone, Copy)]
+pub(crate) struct Env<'a> {
+    pub(crate) images: &'a dyn Fn(&str) -> Option<ImageRef>,
+    pub(crate) lang: WorkLanguage,
+}
 
 /// HTML of a text: per block `<div class="ws-block" data-b="i" data-kind="…">` (heading with
 /// `data-level`, list with `data-ordered`, quote with `data-block`; Round 14: part as
@@ -28,9 +35,16 @@ pub fn render_html(doc: &Doc) -> String {
 /// All attributes are escaped; the raw text is only in `data-raw`, the island stays
 /// byte-identical on saving (`keep`).
 pub fn render_html_with(doc: &Doc, images: &dyn Fn(&str) -> Option<ImageRef>) -> String {
+    render_html_in(doc, images, WorkLanguage::De)
+}
+
+/// Like [`render_html_with`] in the work language `lang` (Round 39b): the page number addition of a cross reference
+/// shows the page abbreviation of the work language (`, p. …` in an English work).
+pub fn render_html_in(doc: &Doc, images: &dyn Fn(&str) -> Option<ImageRef>, lang: WorkLanguage) -> String {
+    let env = Env { images, lang };
     let mut out = String::new();
     for (index, block) in doc.blocks.iter().enumerate() {
-        render_block(&mut out, block, Some(index), images);
+        render_block(&mut out, block, Some(index), env);
     }
     out
 }
@@ -59,8 +73,8 @@ const ISLAND_TITLE: &str = "Typst-Insel: Doppelklick öffnet den Quelltext an Or
 
 /// Images for all image paths in `raw` (Round 18b: every `image(` call, not only the first) for which the
 /// callback delivers one: path and image each.
-fn images_of(raw: &str, images: Images) -> Vec<(String, ImageRef)> {
-    image_paths(raw).into_iter().filter_map(|path| images(&path).map(|image| (path, image))).collect()
+fn images_of(raw: &str, env: Env) -> Vec<(String, ImageRef)> {
+    image_paths(raw).into_iter().filter_map(|path| (env.images)(&path).map(|image| (path, image))).collect()
 }
 
 /// `<img>` or the message „Bild fehlt“ for every image.
@@ -104,9 +118,9 @@ fn caption_of(raw: &str) -> Option<String> {
     None
 }
 
-pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>, images: Images) {
+pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>, env: Env) {
     if block.kind == BlockKind::Island {
-        let found = images_of(&block.raw, images);
+        let found = images_of(&block.raw, env);
         if !found.is_empty() {
             render_figure(out, block, index, &found);
             return;
@@ -124,7 +138,7 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
     match &block.kind {
         BlockKind::Heading { level, inlines, label } => {
             out.push_str(&format!(" data-level=\"{level}\" role=\"heading\" aria-level=\"{level}\">"));
-            render_inlines(out, inlines, images);
+            render_inlines(out, inlines, env);
             if let Some(label) = label {
                 // Label on the line after the heading: displayed, unchanged on editing.
                 out.push_str(&format!(
@@ -149,34 +163,34 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
         }
         BlockKind::Paragraph { inlines } => {
             out.push('>');
-            render_inlines(out, inlines, images);
+            render_inlines(out, inlines, env);
         }
         BlockKind::List { ordered, items, depths } => {
             out.push_str(&format!(" data-ordered=\"{ordered}\">"));
             let tag = if *ordered { "ol" } else { "ul" };
-            render_items(out, tag, "", items, depths, images);
+            render_items(out, tag, "", items, depths, env);
         }
         BlockKind::Enum { start, items, depths } => {
             out.push_str(&format!(" data-start=\"{start}\">"));
-            render_items(out, "ol", &format!(" start=\"{start}\""), items, depths, images);
+            render_items(out, "ol", &format!(" start=\"{start}\""), items, depths, env);
         }
         BlockKind::Terms { items } => {
             out.push_str("><dl>");
             for Term { term, desc } in items {
                 out.push_str("<dt>");
-                render_inlines(out, term, images);
+                render_inlines(out, term, env);
                 out.push_str("</dt><dd>");
-                render_inlines(out, desc, images);
+                render_inlines(out, desc, env);
                 out.push_str("</dd>");
             }
             out.push_str("</dl>");
         }
         BlockKind::Quote { block: is_block, attribution, body } => {
             out.push_str(&format!(" data-block=\"{is_block}\">"));
-            render_body(out, body, images);
+            render_body(out, body, env);
             if let Some(attribution) = attribution {
                 out.push_str("<div class=\"ws-attribution\">");
-                render_inlines(out, attribution, images);
+                render_inlines(out, attribution, env);
                 out.push_str("</div>");
             }
         }
@@ -189,7 +203,7 @@ pub(crate) fn render_block(out: &mut String, block: &Block, index: Option<usize>
                     escape(args)
                 ));
             }
-            render_body(out, body, images);
+            render_body(out, body, env);
         }
         BlockKind::Island => {
             let blank = if block.raw.trim().is_empty() { " data-blank=\"1\"" } else { "" };
@@ -253,7 +267,7 @@ fn render_figure(out: &mut String, block: &Block, index: Option<usize>, found: &
 
 /// List items as `<ul>`/`<ol>` (Round 18b: nested items as a list in the `<li>` of the item before,
 /// with the same marker). `attrs` stands only on the outer list (`start` of an enumeration).
-fn render_items(out: &mut String, tag: &str, attrs: &str, items: &[Vec<Inline>], depths: &[u8], images: Images) {
+fn render_items(out: &mut String, tag: &str, attrs: &str, items: &[Vec<Inline>], depths: &[u8], env: Env) {
     out.push_str(&format!("<{tag}{attrs}>"));
     let mut open = 0usize;
     for (k, item) in items.iter().enumerate() {
@@ -270,7 +284,7 @@ fn render_items(out: &mut String, tag: &str, attrs: &str, items: &[Vec<Inline>],
         }
         open = depth;
         out.push_str("<li>");
-        render_inlines(out, item, images);
+        render_inlines(out, item, env);
     }
     if !items.is_empty() {
         out.push_str("</li>");
@@ -281,15 +295,15 @@ fn render_items(out: &mut String, tag: &str, attrs: &str, items: &[Vec<Inline>],
     out.push_str(&format!("</{tag}>"));
 }
 
-fn render_body(out: &mut String, body: &[Block], images: Images) {
+fn render_body(out: &mut String, body: &[Block], env: Env) {
     out.push_str("<div class=\"ws-body\">");
     for block in body {
-        render_block(out, block, None, images);
+        render_block(out, block, None, env);
     }
     out.push_str("</div>");
 }
 
-fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
+fn render_inlines(out: &mut String, inlines: &[Inline], env: Env) {
     for (k, inline) in inlines.iter().enumerate() {
         // Round 21b: Typst swallows the line end after a forced break (`\`); in the typeset view the next line
         // would otherwise stand indented by a space. The element stays (the widget reads it back as `soft`).
@@ -308,16 +322,16 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                 }
             }
             Inline::Soft => out.push_str("<span class=\"ws-soft\"> </span>"),
-            Inline::Emph { c } => wrap(out, "<em>", c, "</em>", images),
-            Inline::Strong { c } => wrap(out, "<strong>", c, "</strong>", images),
-            Inline::Footnote { c } => wrap(out, "<span class=\"ws-footnote\">", c, "</span>", images),
-            Inline::Quote { c } => wrap(out, "<q class=\"ws-quote\">", c, "</q>", images),
+            Inline::Emph { c } => wrap(out, "<em>", c, "</em>", env),
+            Inline::Strong { c } => wrap(out, "<strong>", c, "</strong>", env),
+            Inline::Footnote { c } => wrap(out, "<span class=\"ws-footnote\">", c, "</span>", env),
+            Inline::Quote { c } => wrap(out, "<q class=\"ws-quote\">", c, "</q>", env),
             Inline::Label { v } => out.push_str(&format!(
                 "<span class=\"ws-label\" contenteditable=\"false\" data-v=\"{0}\">&lt;{0}&gt;</span>",
                 escape(v)
             )),
             Inline::Island { raw } => {
-                let found = images_of(raw, images);
+                let found = images_of(raw, env);
                 if found.is_empty() {
                     out.push_str(&format!(
                         "<span class=\"ws-island\" contenteditable=\"false\" title=\"Typst-Insel\" data-raw=\"{0}\">{0}</span>",
@@ -347,7 +361,7 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                             "<a class=\"ws-link\" data-url=\"{0}\"{href} title=\"Link: {0}\">",
                             escape(url)
                         ));
-                        render_inlines(out, c, images);
+                        render_inlines(out, c, env);
                         out.push_str("</a>");
                     }
                     None => out.push_str(&format!(
@@ -365,9 +379,14 @@ fn render_inlines(out: &mut String, inlines: &[Inline], images: Images) {
                     if *page { "1" } else { "0" },
                     baruch_typst::xref::key_label(*key)
                 ));
-                render_inlines(out, c, images);
+                render_inlines(out, c, env);
                 if *page {
-                    out.push_str("<span class=\"ws-xref-page\" contenteditable=\"false\">, S.\u{a0}…</span>");
+                    // Round 39b: page abbreviation of the work language, like `book.xref.page_abbr` in the book.
+                    let abbr = baruch_core::book_text::book_t(env.lang, "book.xref.page_abbr", &[]);
+                    out.push_str(&format!(
+                        "<span class=\"ws-xref-page\" contenteditable=\"false\">, {}\u{a0}…</span>",
+                        escape(&abbr)
+                    ));
                 }
                 out.push_str("</span>");
             }
@@ -441,9 +460,9 @@ fn render_index_mark(out: &mut String, mark: &baruch_typst::index::IndexMark) {
     out.push_str(&format!(" data-raw=\"{}\"></span>", escape(&baruch_typst::index::mark_source(mark))));
 }
 
-fn wrap(out: &mut String, open: &str, inlines: &[Inline], close: &str, images: Images) {
+fn wrap(out: &mut String, open: &str, inlines: &[Inline], close: &str, env: Env) {
     out.push_str(open);
-    render_inlines(out, inlines, images);
+    render_inlines(out, inlines, env);
     out.push_str(close);
 }
 
@@ -483,6 +502,17 @@ pub fn diff_html(base: &str, proposal: &str) -> String {
 
 /// Like [`diff_html`], images in islands as with [`render_html_with`].
 pub fn diff_html_with(base: &str, proposal: &str, images: &dyn Fn(&str) -> Option<ImageRef>) -> String {
+    diff_html_in(base, proposal, images, WorkLanguage::De)
+}
+
+/// Like [`diff_html_with`] in the work language `lang`, cross references as with [`render_html_in`].
+pub fn diff_html_in(
+    base: &str,
+    proposal: &str,
+    images: &dyn Fn(&str) -> Option<ImageRef>,
+    lang: WorkLanguage,
+) -> String {
+    let env = Env { images, lang };
     let old = parse(base).blocks;
     let new = parse(proposal).blocks;
     let key = |b: &Block| b.raw.trim_end().to_owned();
@@ -530,7 +560,7 @@ pub fn diff_html_with(base: &str, proposal: &str, images: &dyn Fn(&str) -> Optio
             Step::Ins(j) => ("ws-ins", &new[j]),
         };
         out.push_str(&format!("<div class=\"{class}\">"));
-        render_block(&mut out, block, None, images);
+        render_block(&mut out, block, None, env);
         out.push_str("</div>");
     }
     out.push_str("</div>");
