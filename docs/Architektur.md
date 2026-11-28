@@ -1,994 +1,994 @@
-# Aufbau von Baruch
+# Structure of Baruch
 
-Cargo-Workspace unter `crates/`. Die Oberfläche liefert `baruch-server` (axum + minijinja) als HTML,
-der Kern ist über JSON-RPC erreichbar. Plan und Stufen: `docs/Plan.md`.
+Cargo workspace under `crates/`. The user interface is delivered by `baruch-server` (axum + minijinja) as HTML,
+the core is reachable through JSON-RPC. Plan and stages: `docs/Plan.md`.
 
 ## Crates
 
-| Crate | Aufgabe |
+| Crate | Task |
 |---|---|
-| `baruch-core` | Typen (Werk, Abschnitt, Revision, Persona, Beitrag mit `id` und `created`), Zugriff auf Revisionen über die Nummer, Umschalten (`Node::set_current`), Lektor-Wahl (`LectorChoice { Auto, Fixed(handle) }`, Vorgabe fest `@lektor`, `Work::lector_choice`, `LectorChoice::pick`), Zeilen-Diff, Beispieldaten |
-| `baruch-llm` | Modell-Backend Eliezer (Runde 10), rein (keine DB, kein Schlüsselbund; reqwest 0.12 mit rustls, `stream`; tokio; futures-util): `Endpoint {base_url, secret}` (`Debug` ohne Schlüssel), `models`/`models_with` (`GET /v1/models`), `chat_stream`/`chat_stream_with` (`POST /v1/chat/completions` mit `stream: true`, `stream_options.include_usage`, SSE-Parser `sse::Parser`), `Limits`, `LlmError` (acht Arten wie `assist::ModelFailure`), `Queue` (eine Anfrage zur Zeit, höchstens 8 Wartende, `QueueStatus`), `alias`/`ALIASES`, `mock::MockEliezer` (Nachbau für Tests); Runde 12: `embed.rs` (`embeddings`/`embeddings_with`, `POST /v1/embeddings`, Antwort nach `data[].index` geordnet; `embedding_alias` `nomic-embed-text` → `text-embedding-nomic-embed-text-v1.5`, getrennt von den Chat-Aliassen; `Endpoint::embeddings_url`), der Nachbau beantwortet Einbettungen deterministisch (`mock_vector`, 512 Dimensionen, `set_embedding_models`/`_dimension`/`_delay`, `fail_embeddings`, `embed_max_active`) |
-| `baruch-rag` | Gemeinsame Schnittstelle der RAG-Wege (Runde 12, Vertrag Anhang A, wörtlich): `Way`, `SearchRequest`, `Query`, `Hit` (`identity` = Dokument + Stelle), `MergedHit`, `WayState`/`WayReport`, `Answer`, `IndexInfo`, `Status`, `RagError` (neun Arten, `is_off`), Ports `SearchWay`, `Embedder`, `EmbedderFactory` (ohne `async-trait`, `BoxFuture`), `clean_snippet`, Grenzen `MAX_LIMIT` 50, `MAX_QUERY_CHARS` 1000, `MAX_SNIPPET_CHARS` 600, `MAX_EMBED_BATCH` 32, `RRF_K` 60. Rein (serde, serde_json) |
-| `baruch-lancedb` | Lokaler Vektorindex (Runde 12) über die Crate `lancedb` 0.41 (Apache-2.0; Arrow 58 nur über deren Re-Exporte, ohne Cloud-Speicher, `remote` und eingebaute Einbetter; zum Bauen braucht `lance` `protoc`), Tabelle `chunks` je Ordner, `baruch-index.json` (Modell, Dimension, Aufbau), flache Kosinus-Suche, eigene kleine Tokio-Laufzeit (`runtime()`), Stücke (`chunk`: Absätze, kurze zusammen, lange an Satzenden geteilt, SHA-256). Rein: keine SQLite, kein Netz |
-| `baruch-scripture` | Bibelstellen (Runde 10), rein (std + serde): 66 Bücher mit Schlachter-Namen und Abkürzungen (`books`, `find_book`), Verszahlen je Kapitel aus `data/versification.tsv` (nur Zahlen), `parse` (Angaben), `scan` (Fließtext), `Passage`, `RefStatus`, `Found`, `VerseText`/`Wording`/`NoBible` (keine Bibel gewählt: „ungeprüft“), `SOURCE`; seit 2026-11-06 `versification` (German, KJV; `data/versification-kjv.tsv`) und `wording` (Zitate finden, normalisiert vergleichen, Wort-Diff, getrennte Ziffern zusammensetzen); seit Runde 17a alle 18 Zählungen von `sword-modules` (nur dessen Daten, `default-features = false`) und `versification::mapping` (Abbildung über `data/versification-map.tsv`) |
-| `baruch-sword` | SWORD-Bibelmodule lesen (2026-11-06): Modulordner durchsuchen (`scan`, conf-Angaben samt Lizenzvermerk), `open` → `Bible` (`verse`, `passage`, `search`), Klartext aus OSIS/ThML/GBF (`text`), Test-Module (`fixture`); Format-Leser `sword-modules` 0.1.0 (CC0-1.0), nur German/KJV, siehe „SWORD-Bibeln“ |
-| `baruch-typst` | Zerlegen einer Typst-Datei in Werkvorlage und Überschriften (`parse`) und zurück (`join`), Nummerierung aus der Vorlage (`heading_numbering`), Gliederungsschemata (`scheme`), Bildpfade (`images::image_paths`; berechnete Bilder der Vorlage `images::computed_images`, Runde 11), Umschlag und Titelei (`cover`, Runde 11: `frame_parts`, `wrap_source`, `isbn13`, `ean13_svg`, `spine_mm`), Verketten mit Bytebereichen (`join_with_offsets`) und Zeile wie Typst (`line_at`); Runde 14: Teil und „ohne Nummer“ als Markierung (`marker`: `part_line`, `unnumbered_line`, `relevel_line`, `set_numbered_line`, `part_page_rule`, `PART_LABEL`, `UNNUMBERED_LABEL`; `Heading.level` 0 = Teil, `Heading.numbered`); Markdown-Überschriften (`markdown`: `markdown_headings`, `markdown_heading_line`, Nutzer 2026-11-07, gleicher Scanner wie `parse`), rein, ohne DB |
-| `baruch-wysiwyg` | Satzbild-Editor, rein, ohne DB und Dateisystem: Abschnittstext ↔ Blöcke (`parse`, `serialize`, `emit`; unberührte Blöcke wörtlich, Rundreise byte-gleich; eine Überschrift endet am ersten Zeilenumbruch, `split_heading`), Typst-Inseln, HTML für Satzbild und Diff (`render_html`, `diff_html`), mit Bildern in Inseln (`render_html_with`, `diff_html_with`, `image_path`, `ImageRef`), Darstellung aus der Werkvorlage (`sheet_style`, `sheet_css`, nur Regeln der obersten Ebene), Ausrichtung von Vorschlägen an Blöcken (`src/align.rs`: `align(base, proposal) -> Vec<Hunk>` über die längste gemeinsame Teilfolge der obersten Blöcke, `Hunk {kind: Changed\|Inserted\|Removed, base, proposal}`, `hunk_html_with`); Runde 14: Blockarten `part` und `unnumbered` für die Markierungen (nur oberste Ebene, erkannt über `baruch_typst::parse`); hängt nur an `baruch-typst` (`heading_line`, `part_line`, `unnumbered_line`) |
-| `baruch-docx` | Word-Dateien (Runde 32), rein, ohne DB und Netz (`zip` 9 nur `deflate`, `quick-xml` 0.42, `baruch-typst`, `baruch-wysiwyg`): gemeinsames Modell (`model.rs`: `DocxDocument`, `Block`, `Inline`, `Change`, `Comment`, `DocxImage`), `DocxError`, `Limits`, festgelegte OOXML-Namen (`ooxml.rs`), Beispiel (`sample.rs`); Leser `read` → `resolve`/`proposal_view` → `to_typst`; Schreiber `from_typst` → `diff::track_changes` → `write`. Nahtstelle beider Seiten: `tests/roundtrip.rs` |
-| `baruch-render` | Typst-Satz (Runde 8), rein, ohne DB und Netz: bettet `typst` 0.15.1 ein (`typst-svg`, `typst-layout` für `PagedDocument`, `typst-kit` nur mit `embedded-fonts` und `scan-fonts`; keine Pakete). `Source {main, files}`, `stand(&Source)` (SHA-256 über Text und nach Pfad sortierte Dateien = Cache-Schlüssel), `compile(&Source) -> Rendered {stand, pages: Vec<SVG>, headings: [HeadingPos {line, page}], diagnostics: [Diagnostic {severity, message, hints, line, column, file}]}` (blockierend, scheitert nie). Die Welt kennt nur `/main.typ` und die Dateien in Normalform; Paket-Ids → Fehler „offline“; Schriften einmal je Prozess (eingebettete, dann System); bekannte Meldungen auf Deutsch; nach jedem Lauf `comemo::evict(2)`. Runde 11: `compile_pdf(&Source) -> Pdf` (`typst-pdf` 0.15.1, Apache-2.0; dieselbe Welt, gleiche Seitenzahl), Druckprüfung `Rendered.print`/`Pdf.print` (`PrintWarning`, `MIN_DPI` = 300), `sha256_hex` |
-| `baruch-store` | SQLite als Quelle (sqlx, Laufzeit-API, Migrationen 0001–0099): Laden, Übernehmen, Umschalten, Verwerfen, Speichern (auf einer Basis), Ändern, Löschen, Vorschlag, Beitrag, Typst-Import – je eine Transaktion (`BEGIN IMMEDIATE`); Revisionsbaum (`src/tree.rs`); Titelregeln (`check_title`); Bilder (`src/assets.rs`, 0009, `normalize_asset_path`); Personas mit Farben, Rolle, Modell, Kontext (`src/personas.rs`, 0010; `PersonaRow`, `PersonaEdit`, `persona_list`, `update_persona`); Verbindungen, RAG-Wege, bevorzugte Quellen (`src/connections.rs`, 0013); Einfälle (`src/ideas.rs`, 0011); Beiträge verwalten (`src/posts.rs`: `PostInfo`, `post_get`/`post_delete`/`post_move`/`post_to_idea`, Umwandlung in einer Transaktion über `ideas::create_in`; `StoreError::UnknownPost`; keine Migration); Schnappschuss für Git, Typst-Export, Export-Karte (`src/export_map.rs`: `ExportMap {typst, sections: [ExportSection {key, seq, start, end, first_line}]}`, `typst` byte-gleich mit `export_typst`, beide aus `snapshot::export_parts`; `section_at_line`); Titelprüfung nur für geänderte Titel (`check_chunk_titles(chunks, old_title)`); Runde 11: Buchangaben und Umschlag (`src/book.rs`, 0017), Anträge zu Bildern (`src/asset_requests.rs`, 0018), `asset_search`, `save_persona`; Runde 12: Sammlungen je Werk und Weg (`src/rag_collections.rs`, 0031: `work_collections`, `set_work_collections`), RAG-Belege je Persona (`src/persona_rag.rs`, 0032: `persona_rag`, `set_persona_rag`) |
-| `baruch-gitmirror` | Git-Spiegel mit gix (reines Rust, ohne Netzwerk): Schnappschuss-Commit mit Autor, Committer, Trailern; kein Commit ohne Änderung, außer mit `allow_empty` (Protokoll); keine Schreibzugriffe durch symbolische Verknüpfungen |
-| `baruch-library` | Autorenbibliothek (`SearchHit::node_key` = fester Schlüssel des Abschnitts): Titel, Zitate, Hervorhebungen (`src/highlights.rs`, 0103), FTS5-Index `search_fts` über Revisionen, Beiträge, Titel, Zitate und Hervorhebungen, der geänderten und gelöschten Revisionen (0104) sowie gelöschten und verschobenen Beiträgen (0105) folgt (Migrationen 0101–0199) |
-| `baruch-server` | HTTP-Server: Seiten, Fragmente, Widgets, Literatur als Popup (`/literatur`, `/quelle`), Einfälle (`/einfaelle`), Kopfzeile mit Menüs (`menu.rs`), Einstellungen als Popup (`/einstellungen/<seite>`, `settings/`), Verbindungen und Quellen (`connections/`), Satz (`/werke/{id}/satz`), Personas mit Modellaufruf (`assist/`, `models.rs`), Stellenprüfung (`scripture.rs`), MCP-Tokens (`mcp/tokens.rs`), Bedeutungssuche (`rag/`, `search_hooks.rs`, `connections/{pgvector,multigpt}.rs`, Runde 12), `POST /rpc`, `POST /act`, `POST /literatur/act`, `POST /beitraege/act`, `POST /assistenten/act`, `POST /assistenten/stream`, `POST /mcp` |
+| `baruch-core` | Types (work, section, revision, persona, post with `id` and `created`), access to revisions by number, switching (`Node::set_current`), lector choice (`LectorChoice { Auto, Fixed(handle) }`, default fixed `@lektor`, `Work::lector_choice`, `LectorChoice::pick`), line diff, sample data |
+| `baruch-llm` | Model backend Eliezer (Round 10), pure (no DB, no keyring; reqwest 0.12 with rustls, `stream`; tokio; futures-util): `Endpoint {base_url, secret}` (`Debug` without the key), `models`/`models_with` (`GET /v1/models`), `chat_stream`/`chat_stream_with` (`POST /v1/chat/completions` with `stream: true`, `stream_options.include_usage`, SSE parser `sse::Parser`), `Limits`, `LlmError` (eight kinds like `assist::ModelFailure`), `Queue` (one request at a time, at most 8 waiting, `QueueStatus`), `alias`/`ALIASES`, `mock::MockEliezer` (mock for tests); Round 12: `embed.rs` (`embeddings`/`embeddings_with`, `POST /v1/embeddings`, answer ordered by `data[].index`; `embedding_alias` `nomic-embed-text` → `text-embedding-nomic-embed-text-v1.5`, separate from the chat aliases; `Endpoint::embeddings_url`), the mock answers embeddings deterministically (`mock_vector`, 512 dimensions, `set_embedding_models`/`_dimension`/`_delay`, `fail_embeddings`, `embed_max_active`) |
+| `baruch-rag` | Common interface of the RAG ways (Round 12, contract appendix A, literally): `Way`, `SearchRequest`, `Query`, `Hit` (`identity` = document + place), `MergedHit`, `WayState`/`WayReport`, `Answer`, `IndexInfo`, `Status`, `RagError` (nine kinds, `is_off`), ports `SearchWay`, `Embedder`, `EmbedderFactory` (without `async-trait`, `BoxFuture`), `clean_snippet`, limits `MAX_LIMIT` 50, `MAX_QUERY_CHARS` 1000, `MAX_SNIPPET_CHARS` 600, `MAX_EMBED_BATCH` 32, `RRF_K` 60. Pure (serde, serde_json) |
+| `baruch-lancedb` | Local vector index (Round 12) through the crate `lancedb` 0.41 (Apache-2.0; Arrow 58 only through its re-exports, without cloud storage, `remote` and built-in embedders; building `lance` needs `protoc`), table `chunks` per folder, `baruch-index.json` (model, dimension, build), flat cosine search, its own small Tokio runtime (`runtime()`), chunks (`chunk`: paragraphs, short ones together, long ones split at sentence ends, SHA-256). Pure: no SQLite, no network |
+| `baruch-scripture` | Bible references (Round 10), pure (std + serde): 66 books with Schlachter names and abbreviations (`books`, `find_book`), verse counts per chapter from `data/versification.tsv` (numbers only), `parse` (references), `scan` (running text), `Passage`, `RefStatus`, `Found`, `VerseText`/`Wording`/`NoBible` (no Bible chosen: „ungeprüft“), `SOURCE`; since 2026-11-06 `versification` (German, KJV; `data/versification-kjv.tsv`) and `wording` (find quotations, compare normalised, word diff, join separated digits); since Round 17a all 18 versifications of `sword-modules` (only its data, `default-features = false`) and `versification::mapping` (mapping through `data/versification-map.tsv`) |
+| `baruch-sword` | Reading SWORD Bible modules (2026-11-06): searching module folders (`scan`, conf entries including the licence note), `open` → `Bible` (`verse`, `passage`, `search`), plain text from OSIS/ThML/GBF (`text`), test modules (`fixture`); format reader `sword-modules` 0.1.0 (CC0-1.0), only German/KJV, see "SWORD Bibles" |
+| `baruch-typst` | Splitting a Typst file into work template and headings (`parse`) and back (`join`), numbering from the template (`heading_numbering`), outline schemes (`scheme`), image paths (`images::image_paths`; computed images of the template `images::computed_images`, Round 11), cover and front matter (`cover`, Round 11: `frame_parts`, `wrap_source`, `isbn13`, `ean13_svg`, `spine_mm`), concatenation with byte ranges (`join_with_offsets`) and line as in Typst (`line_at`); Round 14: part and „ohne Nummer“ as a marker (`marker`: `part_line`, `unnumbered_line`, `relevel_line`, `set_numbered_line`, `part_page_rule`, `PART_LABEL`, `UNNUMBERED_LABEL`; `Heading.level` 0 = part, `Heading.numbered`); Markdown headings (`markdown`: `markdown_headings`, `markdown_heading_line`, user 2026-11-07, same scanner as `parse`), pure, without DB |
+| `baruch-wysiwyg` | Typeset view editor, pure, without DB and file system: section text ↔ blocks (`parse`, `serialize`, `emit`; untouched blocks literally, round trip byte-identical; a heading ends at the first line break, `split_heading`), Typst islands, HTML for typeset view and diff (`render_html`, `diff_html`), with images in islands (`render_html_with`, `diff_html_with`, `image_path`, `ImageRef`), presentation from the work template (`sheet_style`, `sheet_css`, only top-level rules), alignment of proposals to blocks (`src/align.rs`: `align(base, proposal) -> Vec<Hunk>` over the longest common subsequence of the top-level blocks, `Hunk {kind: Changed\|Inserted\|Removed, base, proposal}`, `hunk_html_with`); Round 14: block kinds `part` and `unnumbered` for the markers (top level only, recognised through `baruch_typst::parse`); depends only on `baruch-typst` (`heading_line`, `part_line`, `unnumbered_line`) |
+| `baruch-docx` | Word files (Round 32), pure, without DB and network (`zip` 9 only `deflate`, `quick-xml` 0.42, `baruch-typst`, `baruch-wysiwyg`): common model (`model.rs`: `DocxDocument`, `Block`, `Inline`, `Change`, `Comment`, `DocxImage`), `DocxError`, `Limits`, fixed OOXML names (`ooxml.rs`), sample (`sample.rs`); reader `read` → `resolve`/`proposal_view` → `to_typst`; writer `from_typst` → `diff::track_changes` → `write`. Seam of both sides: `tests/roundtrip.rs` |
+| `baruch-render` | Typst typesetting (Round 8), pure, without DB and network: embeds `typst` 0.15.1 (`typst-svg`, `typst-layout` for `PagedDocument`, `typst-kit` only with `embedded-fonts` and `scan-fonts`; no packages). `Source {main, files}`, `stand(&Source)` (SHA-256 over text and files sorted by path = cache key), `compile(&Source) -> Rendered {stand, pages: Vec<SVG>, headings: [HeadingPos {line, page}], diagnostics: [Diagnostic {severity, message, hints, line, column, file}]}` (blocking, never fails). The world knows only `/main.typ` and the files in normal form; package ids → error „offline“; fonts once per process (embedded, then system); known messages in German; after each run `comemo::evict(2)`. Round 11: `compile_pdf(&Source) -> Pdf` (`typst-pdf` 0.15.1, Apache-2.0; the same world, the same page count), print check `Rendered.print`/`Pdf.print` (`PrintWarning`, `MIN_DPI` = 300), `sha256_hex` |
+| `baruch-store` | SQLite as the source (sqlx, runtime API, migrations 0001–0099): loading, accepting, switching, discarding, saving (on a base), changing, deleting, proposal, post, Typst import – one transaction each (`BEGIN IMMEDIATE`); revision tree (`src/tree.rs`); title rules (`check_title`); images (`src/assets.rs`, 0009, `normalize_asset_path`); personas with colours, role, model, context (`src/personas.rs`, 0010; `PersonaRow`, `PersonaEdit`, `persona_list`, `update_persona`); connections, RAG ways, preferred sources (`src/connections.rs`, 0013); ideas (`src/ideas.rs`, 0011); managing posts (`src/posts.rs`: `PostInfo`, `post_get`/`post_delete`/`post_move`/`post_to_idea`, conversion in one transaction through `ideas::create_in`; `StoreError::UnknownPost`; no migration); snapshot for Git, Typst export, export map (`src/export_map.rs`: `ExportMap {typst, sections: [ExportSection {key, seq, start, end, first_line}]}`, `typst` byte-identical with `export_typst`, both from `snapshot::export_parts`; `section_at_line`); title check only for changed titles (`check_chunk_titles(chunks, old_title)`); Round 11: book data and cover (`src/book.rs`, 0017), requests for images (`src/asset_requests.rs`, 0018), `asset_search`, `save_persona`; Round 12: collections per work and way (`src/rag_collections.rs`, 0031: `work_collections`, `set_work_collections`), RAG evidence per persona (`src/persona_rag.rs`, 0032: `persona_rag`, `set_persona_rag`) |
+| `baruch-gitmirror` | Git mirror with gix (pure Rust, without network): snapshot commit with author, committer, trailers; no commit without a change, except with `allow_empty` (log); no writes through symbolic links |
+| `baruch-library` | Author library (`SearchHit::node_key` = fixed key of the section): titles, quotations, highlights (`src/highlights.rs`, 0103), FTS5 index `search_fts` over revisions, posts, titles, quotations and highlights, which follows changed and deleted revisions (0104) as well as deleted and moved posts (0105) (migrations 0101–0199) |
+| `baruch-server` | HTTP server: pages, fragments, widgets, literature as a popup (`/literatur`, `/quelle`), ideas (`/einfaelle`), header with menus (`menu.rs`), settings as a popup (`/einstellungen/<seite>`, `settings/`), connections and sources (`connections/`), typesetting (`/werke/{id}/satz`), personas with model call (`assist/`, `models.rs`), reference check (`scripture.rs`), MCP tokens (`mcp/tokens.rs`), semantic search (`rag/`, `search_hooks.rs`, `connections/{pgvector,multigpt}.rs`, Round 12), `POST /rpc`, `POST /act`, `POST /literatur/act`, `POST /beitraege/act`, `POST /assistenten/act`, `POST /assistenten/stream`, `POST /mcp` |
 
 ## Server (`crates/baruch-server/src`)
 
-- `lib.rs`: `AppState` (Store, Datenordner, Vorgabewerk, Spiegel je Werk, Schreibsperre, Vorlagen,
-  Geheimnisse, seit Runde 10 `model: Arc<dyn assist::ModelPort>`), Routen, `/act`. `AppState::open` und
-  `open_with_secrets` nehmen `assist::NoModel`, `open_with(data, secrets, model)` ein eigenes Backend; `serve`
-  setzt `assist::eliezer::EliezerPort` ein. Start in fester Reihenfolge: `Store::open` → `baruch_library::migrate` → `seed_if_empty`
-  → Spiegel **aller** Werke öffnen und auf den DB-Stand nachführen (Fehler nur auf stderr).
-  `AppState::mirror(work)` öffnet einen Spiegel beim ersten Gebrauch und merkt ihn sich; nach einem
-  Fehler wird er beim nächsten Mal neu geöffnet. `mirror_dir` prüft den Ordnernamen
-  (`^[a-z0-9]+(-[a-z0-9]+)*$`, höchstens 48 Zeichen) und lehnt `works/` bzw. `works/<slug>` als
-  symbolische Verknüpfung ab.
-- `localtime.rs` (Nutzer 2026-11-07): Zeitpunkte der Oberfläche in **Ortszeit** der Maschine (`chrono::Local`, unter
-  Unix `TZ` bzw. `/etc/localtime`, Sommerzeit je Zeitpunkt). Gespeichert wird weiter UTC
-  (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`, `models::iso_now`, Unix-Sekunden), RPC-Felder bleiben UTC; umgerechnet
-  wird erst beim Aufbau der Seite bzw. eines reinen Anzeigetexts (Fassungen, Einfälle, Bilder, Werke, Verbindungs-
-  prüfung, Abgleich, Prüfzeit von Hervorhebungen, MCP-Clients und Tokens, Abrufdatum der Websuche in Belegen und
-  Quellenzeile, „lokale Kopie vom …“, Ordnername im Papierkorb). Jede Funktion gibt es als `…_in(…, &zone)`; Tests
-  rechnen mit `FixedOffset` und prüfen `Local` in einem Kindprozess mit `TZ=Europe/Berlin` (keine Umgebungsvariable im
-  gemeinsamen Testprozess). Unlesbare Stempel bleiben, wie sie sind.
-- `import.rs`: Typst-Datei als neues Werk für die CLI `baruch-server import [--title …]` (`import_typst`,
-  `import_file`, `import_file_as`) und das Hochladen (`import_upload`, nur `.typ`, höchstens 16 MiB): unter der
-  Schreibsperre `Store::import_typst_titled`, danach Commit „Import aus <datei>“ im neuen Spiegel.
-- `works.rs`: Werkverwaltung (siehe „Werke verwalten“): RPC `work.list/meta/create/import/update/delete`
-  (aus `rpc::call` vor der Wahl des Vorgabewerks), Seiten `/werke…` mit eigener Vorlagen-Umgebung
-  (`works.html`, `work_new.html`, `work_edit.html`, `work_delete.html`, `fragments/work_new.html`), Formulare
-  `POST /werke/import` (multipart, `DefaultBodyLimit` nur dort 16 MiB + 64 KiB) und `POST /werke/act`, Archiv
-  gelöschter Spiegel (`move_to_trash`). `works::RPC_BODY_LIMIT` (= 2 × 16 MiB + 64 KiB) ist die Grenze für
-  `POST /rpc`: `work.import` trägt den Text als JSON-String, und die Maskierung kann ihn verdoppeln; bis 16 MiB
-  Text nimmt `work.import` an (darüber -32602), eine größere Anfrage lehnt axum vorher mit 413 ab. Nicht über MCP. Die Seite `/` wählt das Werk aus `?work=`, sonst aus dem Cookie
-  `baruch_work` (wenn es das Werk gibt), sonst `AppState::default_work()`, und setzt den Cookie bei jeder Antwort.
-- `rpc.rs`: JSON-RPC-Methoden (`docs/RPC.md`); `/act` ruft dieselben Methoden für Formulare ohne JavaScript
-  (beim Löschen prüft `/act` das Kästchen `confirm` selbst und reicht `confirm: true` weiter).
-  Umschalten, Ändern und Löschen von Fassungen (`revision.set_current`/`update`/`delete`) gibt es nur hier, nicht
-  über MCP. `library_view` liefert neben der Literatur (für das Popup) den Revisionsbaum des Werks
-  (`Store::revision_tree`) für Editor und Baumansicht.
-- `posts.rs` (Runde 8): Beiträge verwalten: RPC `post.delete/move/to_idea` (`handles`/`call`, aus `rpc::call`
-  nach der Werkwahl), gemeinsamer Ablauf `act` für RPC, Formular und MCP (Schreibsperre → `post_get` →
-  Eigentumsprüfung → Änderung → `mirror::record_post`, genau ein Commit), `writes()` mit `POST /beitraege/act`
-  hinter `guard::same_origin`. `mirror::describe_post`/`record_post` (Autor wie bei Einfällen).
-- `pdf.rs`, `cover.rs`, `asset_requests.rs` (Runde 11): Buch als PDF, Umschlag/Titelei/Buchangaben, Anträge
-  zu Bildern – siehe „Bilder, Umschlag und PDF“.
-- `typeset.rs` (Runde 8): Typst-Vorschau: `prepare` (Export-Karte, Bilder, Rahmen aus `cover::frame`, Stand) → `compile`
-  (Zwischenspeicher-Treffer, sonst statische `Semaphore` mit einem Platz, `spawn_blocking`,
-  `tokio::time::timeout(COMPILE_TIMEOUT = 60 s)`; die Sperre wandert in den blockierenden Lauf, ein abgelaufener
-  Lauf rechnet zu Ende und füllt den Zwischenspeicher). Zwischenspeicher statisch
-  (`OnceLock<Mutex<VecDeque<Arc<Compiled>>>>`, nach `stand`, höchstens `CACHE_SIZE = 8`) – kein Feld in
-  `AppState`. Meldungen: Zeile → `ExportMap::section_at_line` → `key`, `section`, `section_line`. Kapitel =
-  oberster Gliederungspunkt über dem Abschnitt (unter einem Teil das Kapitel darin), Seite eines Abschnitts =
-  Seite seiner Überschrift (Typst-Introspektion). RPC `preview.typst`, Seiten `/werke/{id}/satz` (eigene
-  minijinja-Umgebung, `templates/typeset.html`, `static/typeset.css`) und `/werke/{id}/satz/{stand}/{n}.svg`
-  (nur aktueller Stand, `nosniff`, CSP `sandbox`). MCP `mcp/typst.rs` (`typst_check`, über `typeset_at`).
-- `mcp.rs` mit `mcp/tools.rs`, `mcp/ideas.rs`, `mcp/typst.rs`, `mcp/outline.rs` (Gliederung: anlegen, Anträge) und `mcp/session.rs`: MCP-Server (Protokoll 2025-06-18, nur
-  JSON). Werkzeuge lesen über `Store`/`baruch_library::search` und schreiben nur Vorschläge
-  (`Store::add_proposal`) und Beiträge (`Store::add_post`; verschieben, löschen, umwandeln nur eigene über
-  `posts::act` – Eigentum über den Handle des Clients, seit Runde 23 mit Token eindeutig und ohne Token gegen Token-Namen
-  abgegrenzt (`lokal-`, siehe „Runde 23 – Härtung“); die Beiträge des Menschen trifft keine), dazu Einfälle mit vollem CRUD (`mcp/ideas.rs`,
-  ändern keinen Buchtext, siehe „Einfälle“); einen Import gibt es über MCP nicht.
-  Sitzungen (`Mcp-Session-Id` → clientInfo) prozessweit, höchstens 256. Fehler über
-  `rpc::RpcError::from`. Beschreibung: `docs/MCP.md`.
-- `literature.rs`: Literatur-Popup (`GET /literatur`), Dokumentansicht einer Quelle (`GET /quelle`),
-  Formulare ohne JavaScript (`POST /literatur/act`) und die RPC-Methoden `literature.render` und
-  `highlight.*`; eigene Vorlagen-Umgebung, siehe „Literatur“.
-  Seit Runde 13 mit `literature/fulltext.rs`: Volltext über MultiGPT (`GET /quelle/multigpt`, RPC `source.read`,
-  `source.adopt`, `highlight.check`), offline die lokale Kopie aus dem Abgleich (`local_copy` →
+- `lib.rs`: `AppState` (store, data folder, default work, mirror per work, write lock, templates,
+  secrets, since Round 10 `model: Arc<dyn assist::ModelPort>`), routes, `/act`. `AppState::open` and
+  `open_with_secrets` take `assist::NoModel`, `open_with(data, secrets, model)` an own backend; `serve`
+  installs `assist::eliezer::EliezerPort`. Start in fixed order: `Store::open` → `baruch_library::migrate` → `seed_if_empty`
+  → open the mirrors of **all** works and bring them up to the DB state (errors only on stderr).
+  `AppState::mirror(work)` opens a mirror on first use and remembers it; after an
+  error it is opened again the next time. `mirror_dir` checks the folder name
+  (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 48 characters) and refuses `works/` or `works/<slug>` as a
+  symbolic link.
+- `localtime.rs` (user 2026-11-07): times of the user interface in the machine's **local time** (`chrono::Local`, under
+  Unix `TZ` or `/etc/localtime`, daylight saving time per instant). Storage stays UTC
+  (`strftime('%Y-%m-%dT%H:%M:%fZ','now')`, `models::iso_now`, Unix seconds), RPC fields stay UTC; conversion
+  happens only when the page or a pure display text is built (revisions, ideas, images, works, connection
+  check, sync, check time of highlights, MCP clients and tokens, retrieval date of the web search in evidence and
+  source line, „lokale Kopie vom …“, folder name in the trash). Every function exists as `…_in(…, &zone)`; tests
+  compute with `FixedOffset` and check `Local` in a child process with `TZ=Europe/Berlin` (no environment variable in
+  the shared test process). Unreadable stamps stay as they are.
+- `import.rs`: Typst file as a new work for the CLI `baruch-server import [--title …]` (`import_typst`,
+  `import_file`, `import_file_as`) and the upload (`import_upload`, only `.typ`, at most 16 MiB): under the
+  write lock `Store::import_typst_titled`, afterwards the commit „Import aus <datei>“ in the new mirror.
+- `works.rs`: work management (see "Managing works"): RPC `work.list/meta/create/import/update/delete`
+  (from `rpc::call` before the default work is chosen), pages `/werke…` with their own template environment
+  (`works.html`, `work_new.html`, `work_edit.html`, `work_delete.html`, `fragments/work_new.html`), forms
+  `POST /werke/import` (multipart, `DefaultBodyLimit` only there 16 MiB + 64 KiB) and `POST /werke/act`, archive
+  of deleted mirrors (`move_to_trash`). `works::RPC_BODY_LIMIT` (= 2 × 16 MiB + 64 KiB) is the limit for
+  `POST /rpc`: `work.import` carries the text as a JSON string, and escaping can double it; `work.import` accepts up
+  to 16 MiB of text (above that -32602), axum refuses a larger request beforehand with 413. Not through MCP. The page `/` chooses the work from `?work=`, otherwise from the cookie
+  `baruch_work` (if the work exists), otherwise `AppState::default_work()`, and sets the cookie with every answer.
+- `rpc.rs`: JSON-RPC methods (`docs/RPC.md`); `/act` calls the same methods for forms without JavaScript
+  (when deleting, `/act` checks the box `confirm` itself and passes on `confirm: true`).
+  Switching, changing and deleting revisions (`revision.set_current`/`update`/`delete`) exist only here, not
+  through MCP. `library_view` delivers, next to the literature (for the popup), the revision tree of the work
+  (`Store::revision_tree`) for the editor and the tree view.
+- `posts.rs` (Round 8): managing posts: RPC `post.delete/move/to_idea` (`handles`/`call`, from `rpc::call`
+  after the work is chosen), common procedure `act` for RPC, form and MCP (write lock → `post_get` →
+  ownership check → change → `mirror::record_post`, exactly one commit), `writes()` with `POST /beitraege/act`
+  behind `guard::same_origin`. `mirror::describe_post`/`record_post` (author as with ideas).
+- `pdf.rs`, `cover.rs`, `asset_requests.rs` (Round 11): book as PDF, cover/front matter/book data, requests
+  for images – see "Images, cover and PDF".
+- `typeset.rs` (Round 8): Typst preview: `prepare` (export map, images, frame from `cover::frame`, stand) → `compile`
+  (cache hit, otherwise a static `Semaphore` with one slot, `spawn_blocking`,
+  `tokio::time::timeout(COMPILE_TIMEOUT = 60 s)`; the permit moves into the blocking run, an expired
+  run computes to the end and fills the cache). Cache static
+  (`OnceLock<Mutex<VecDeque<Arc<Compiled>>>>`, by `stand`, at most `CACHE_SIZE = 8`) – no field in
+  `AppState`. Messages: line → `ExportMap::section_at_line` → `key`, `section`, `section_line`. Chapter =
+  top-level outline item above the section (under a part the chapter inside it), page of a section =
+  page of its heading (Typst introspection). RPC `preview.typst`, pages `/werke/{id}/satz` (own
+  minijinja environment, `templates/typeset.html`, `static/typeset.css`) and `/werke/{id}/satz/{stand}/{n}.svg`
+  (only the current stand, `nosniff`, CSP `sandbox`). MCP `mcp/typst.rs` (`typst_check`, through `typeset_at`).
+- `mcp.rs` with `mcp/tools.rs`, `mcp/ideas.rs`, `mcp/typst.rs`, `mcp/outline.rs` (outline: creating, requests) and `mcp/session.rs`: MCP server (protocol 2025-06-18, JSON
+  only). Tools read through `Store`/`baruch_library::search` and write only proposals
+  (`Store::add_proposal`) and posts (`Store::add_post`; moving, deleting, converting only their own through
+  `posts::act` – ownership through the handle of the client, since Round 23 unique with a token and, without a token, kept
+  apart from token names (`lokal-`, see "Round 23 – Hardening"); none of them hits the human's posts), plus ideas with full CRUD (`mcp/ideas.rs`,
+  they change no book text, see "Ideas"); there is no import through MCP.
+  Sessions (`Mcp-Session-Id` → clientInfo) process-wide, at most 256. Errors through
+  `rpc::RpcError::from`. Description: `docs/MCP.md`.
+- `literature.rs`: literature popup (`GET /literatur`), document view of a source (`GET /quelle`),
+  forms without JavaScript (`POST /literatur/act`) and the RPC methods `literature.render` and
+  `highlight.*`; own template environment, see "Literature".
+  Since Round 13 with `literature/fulltext.rs`: full text through MultiGPT (`GET /quelle/multigpt`, RPC `source.read`,
+  `source.adopt`, `highlight.check`), offline the local copy from the sync (`local_copy` →
   `sync::local_document`); MCP `source_read` in `mcp/sources.rs`.
-- `websearch/` (Runde 13): Websuche für `@belege` über MultiGPT (`web_search`, `fetch_url`), Prüfung der Zitate
-  im Code, Belege (`web_evidence`, Migration 0034), Belegseite `/websuche/belege`, `POST /websuche/act`, RPC
-  `websearch.*`; Dispatch in `rpc.rs` vor `crate::rag::handles`; kein MCP-Werkzeug. Siehe „Websuche“.
-- `sync/` (Runde 13): Abgleich Baruch ↔ MultiGPT (RPC `sync.*`, Seite `/abgleich`, `POST /abgleich/act`,
-  Migration 0033), Art `remote` im lokalen Index; Dispatch in `rpc.rs` direkt nach `websearch`; kein
-  MCP-Werkzeug. Siehe „Abgleich“.
-- Gemeinsame MultiGPT-Sitzung (Runde 13): Suche, Volltext, Websuche und Abgleich nutzen dieselbe
-  `connections::multigpt::Session` mit prozessweitem Vorrat (siehe „MultiGPT“); der HTTP-Client einer Sitzung
-  hat eine Obergrenze von 30 s (der Abgleich erlaubt 30 s je Aufruf), das Zeitlimit je Aufruf setzen die
-  `Limits` des Aufrufs. `Session::call` gibt auch Daten nur ohne Token zurück.
-- `wysiwyg.rs`: RPC `wysiwyg.parse/serialize/style/diff` (`handles`/`call`, aus `rpc::call`), nur lesend, ohne
-  Schreibsperre, nicht unter `/act` und nicht über MCP; Schlüssel über `rpc::resolve_keys`. Das Widget
-  `web/src/wysiwyg.ts` (Satzbild im Editor-Formular, Widget auf `div.wysiwyg` um Werkzeugleiste, Blatt und Statuszeile) und `static/wysiwyg.css`
-  (Variablen `--ws-*` mit Vorgaben) gehören dazu. Gespeichert wird über das Editor-Formular: Vor dem Absenden
-  löst `outline.ts` `baruch:before-save` aus, `wysiwyg.ts` füllt das Textfeld aus `wysiwyg.serialize`.
-  Beschreibung: `docs/WYSIWYG.md`. `wysiwyg.parse` und `wysiwyg.diff` zeigen Inseln mit Bild als Bild
-  (`div.ws-figure` bzw. `span.ws-inline-image`; `wysiwyg::image_ref`: `src = /werke/{work}/bilder/pfad?p=…`,
-  `alt` aus `Store::asset_list` über `wysiwyg::image_alts`, Schlüssel in Normalform
-  `baruch_store::normalize_asset_path`, also mit oder ohne `/` und `./`).
-- `numbering.rs`: Gliederungsschemata: RPC `numbering.*`, Seite `/werke/{id}/nummerierung` (eigene
-  Template-Umgebung `base.html` + `work_numbering.html`, Stil `static/numbering.css`), Formular
+- `websearch/` (Round 13): web search for `@belege` through MultiGPT (`web_search`, `fetch_url`), check of the quotations
+  in code, evidence (`web_evidence`, migration 0034), evidence page `/websuche/belege`, `POST /websuche/act`, RPC
+  `websearch.*`; dispatch in `rpc.rs` before `crate::rag::handles`; no MCP tool. See "Web search".
+- `sync/` (Round 13): sync Baruch ↔ MultiGPT (RPC `sync.*`, page `/abgleich`, `POST /abgleich/act`,
+  migration 0033), kind `remote` in the local index; dispatch in `rpc.rs` directly after `websearch`; no
+  MCP tool. See "Sync".
+- Shared MultiGPT session (Round 13): search, full text, web search and sync use the same
+  `connections::multigpt::Session` with a process-wide pool (see "MultiGPT"); the HTTP client of a session
+  has an upper limit of 30 s (the sync allows 30 s per call), the time limit per call is set by the
+  `Limits` of the call. `Session::call` also returns data only without the token.
+- `wysiwyg.rs`: RPC `wysiwyg.parse/serialize/style/diff` (`handles`/`call`, from `rpc::call`), read-only, without
+  write lock, not under `/act` and not through MCP; keys through `rpc::resolve_keys`. The widget
+  `web/src/wysiwyg.ts` (typeset view in the editor form, widget on `div.wysiwyg` around toolbar, sheet and status line) and `static/wysiwyg.css`
+  (variables `--ws-*` with defaults) belong to it. Saving goes through the editor form: before submitting,
+  `outline.ts` fires `baruch:before-save`, `wysiwyg.ts` fills the text field from `wysiwyg.serialize`.
+  Description: `docs/WYSIWYG.md`. `wysiwyg.parse` and `wysiwyg.diff` show islands with an image as an image
+  (`div.ws-figure` or `span.ws-inline-image`; `wysiwyg::image_ref`: `src = /werke/{work}/bilder/pfad?p=…`,
+  `alt` from `Store::asset_list` through `wysiwyg::image_alts`, keys in normal form
+  `baruch_store::normalize_asset_path`, i.e. with or without `/` and `./`).
+- `numbering.rs`: outline schemes: RPC `numbering.*`, page `/werke/{id}/nummerierung` (own
+  template environment `base.html` + `work_numbering.html`, style `static/numbering.css`), form
   `POST /werke/nummerierung/act`.
-- `assets.rs`: Bilder: RPC `asset.*`, Seiten `/werke/{id}/bilder…`, Formulare `POST /werke/bilder/hochladen`
-  und `POST /werke/bilder/act` (siehe „Bilder“).
-- `personas.rs`: Personas: RPC `persona.list`/`persona.set_color`/`persona.update` (vor der Wahl des Werks,
-  Personas sind global), `GET /einstellungen/personas` → 303 `/einstellungen/assistenten` (die Seite zeichnet
-  `settings/assistants.rs`), Formular `POST /einstellungen/personas/act` (hinter `guard::same_origin`), `tints(color)` (Hintergrund hell
-  als Mischung mit `#ffffff`, dunkel mit `#1f2328`, in 5-%-Schritten weiter zur Fläche, bis `--text`,
-  `--muted` und `--primary` des Themas (`LIGHT_FOREGROUNDS`/`DARK_FOREGROUNDS`, Test gegen `app.css`)
-  mindestens 4,5 : 1 erreichen), `contrast_ratio` (WCAG 2.x) und `style(color)` =
-  `--pc-light:…;--pc-dark:…;--pc-line:…;--pc-line-dark:…` für das `style`-Attribut; die Linien erreichen
-  mindestens `MIN_LINE_CONTRAST` = 3 : 1 gegen `LIGHT_SURFACES` (`LIGHT_PANEL` und das Blatt des dunklen
-  Themas `DARK_SHEET`, auf dem ebenfalls `--pc-line` gilt) bzw. `DARK_PANEL` (WCAG 1.4.11, `Tints.line`,
-  `Tints.line_dark`). Stil `static/proposals.css`: Klasse `.pc`
-  setzt `--pc-bg` je Thema mit denselben Selektoren wie `app.css` (`prefers-color-scheme`, `data-theme`).
-- `ideas.rs`: Einfälle: RPC `idea.*` (vor der Wahl des Werks), Seiten `/einfaelle`, `/einfaelle/{id}`,
-  Formular `POST /einfaelle/act` (siehe „Einfälle (Migration 0011)“). `href()` prüft auch im Release
-  (`is_safe_href`: `"` `<` `>` `'` Leerzeichen, Steuerzeichen → Rückfall `/einfaelle`).
-- `menu.rs`, `settings/`, `connections/`: Kopfzeile, Einstellungen, Verbindungen und Quellen (Runde 9), siehe
-  „Menü und Einstellungen (Runde 9)“.
-- `mirror.rs`: Commit-Auftrag aus einer Änderung (Betreff, Rumpf, Autor, Trailer, `allow_empty`) und Commit;
-  Protokoll für Umschalten, Ändern und Löschen siehe „Revisionsbaum“; Einfälle (`describe_idea`,
-  `record_idea`, Spiegel `<data>/einfaelle/` für Einfälle ohne Werk).
-- `guard.rs`: Schutz der schreibenden Routen gegen fremde Webseiten (CSRF).
-- `view.rs`: Ansichtsmodelle, Einstellungen aus Cookies, Zeichnen von Seite und Bereichen. Kontext der
-  Vorlagen: `work` = `{id, slug, title, author}`, `works` = `[{id, slug, title, selected}]` (Werkwahl),
-  `lq_q` = `&lq=…` oder leer (hängt die Suche an Links), `pick_q` = `&pick=…` oder leer, `rev` mit `number`
-  (Nummer), `position`/`total` („‹ n/m ›“), `is_current`, `current`, `prev`/`next` (Nummern), `revtree` =
-  `{section, chapter}` (Baumansicht), `proposals` (offene Vorschläge des Abschnitts als Varianten im
-  Lesefluss, `fragments/proposals.html`), `preview` = `[{node, lines, proposals}]` (Vorschau je Abschnitt,
-  Vorschläge mit Zeilen-Diff), `rev.author_style`, `personas[].style`, `node.posts[].style`,
-  `revtree…[].style` (CSS-Variablen der Persona-Farbe). **Runde 8:** `Location.key` und
-  `Resolved.key`/`missing_key` (Auflösung: Schlüssel vor `node`, unbekannt → `node` bzw. Vorgabe mit Hinweis),
-  `node_url(work, key, rev, preview, pick_q, lq_q)` baut die kanonische Adresse `/?work=W&key=K…`,
-  `post_targets` (Ziele für „Verschieben…“), Kontext `node.post_count`, `node.missing_key`, Beiträge mit `id`,
-  `created`. `Settings.editor` (`satz`|`quelltext`, Cookie `baruch_editor`, Vorgabe `satz`) entscheidet schon im
-  Server-HTML über den Umschalter; bei „satz“ steht das Satzbild fertig im Blatt (`data-ws-ready`). Vorschläge:
-  `proposals_of(node, shown, ctx, satz)` richtet jeden offenen Vorschlag mit `baruch_wysiwyg::align` an der
-  **gezeigten** Fassung aus → `InlineView {key, rev, count, proposals, entries: [FlowEntry {b, raw, lines,
-  hunks: [HunkView]}]}` (Kontext `proposals`, im Editor) bzw. `PreviewSection {node, flow}` (Kontext `preview`). `Settings::folded` (Cookie `baruch_folded`,
-  '.'-getrennte `<key>-<rev>`, höchstens 200, nur `[0-9.-]`, sonst verworfen) faltet Vorschläge; der gezeigte
-  Vorschlag steht immer offen (`pv-shown`). Reihenfolge: Stelle der Persona in `Store::persona_colors`
-  (`position`, `id`), dann Nummer; Autoren ohne Persona-Eintrag am Ende mit `FALLBACK_COLOR`. Basis des Diffs:
-  `based_on`, sonst die aktuelle Fassung. Satzbild-Diff über `baruch_wysiwyg::diff_html_with` mit
-  `wysiwyg::image_ref` und `LibraryView::image_alts` (Nachschlagen in Normalform); `LibraryView` trägt dazu
-  `persona_colors` und `image_alts`. `Location::resolve` sucht die Fassung über ihre Nummer; `pick` gilt nur
-  für die Vorschau.
-- `templates/`: `workspace.html` und `fragments/{tree,editor,edit_toolbar,revisions,revtree,assistants,library,
-  proposals,idea_capture}.html`; für `literature.rs` außerdem `literature.html`, `source.html` und
-  `fragments/highlights.html`. **Editor in Bereichen (Wunsch 2026-11-06):** `#pane-editor` scrollt nicht
-  (`overflow: hidden`, Flex-Spalte) und trägt `div.editor-head` (Kopf: Titel, Fassungsanzeige, „‹ n/m ›“,
-  „aktuell: Fassung k“), im Editor `div.wysiwyg[data-widget=wysiwyg]` mit Werkzeugleiste
-  (`fragments/edit_toolbar.html`, `div.ws-bar[data-edit-toolbar]`, ohne JavaScript `hidden`; seit
-  Runde 18a das Menüband mit den Formaten der Werkvorlage, `span.ribbon-formats[data-widget=ribbon]`), Blatt `div.editor-body` (`flex: 1 1 0;
-  min-height: 0; overflow: auto` – scrollt allein; darin `form#editor-form.editor-form` mit Satzbild
-  `div.ws-wrap[data-ws-wrap]` (ohne JavaScript `hidden`) und Textfeld, dahinter `section.pv-flow`) und
-  Statuszeile `div.editor-status` (Hinweise, `[data-ws-hint]`, „Speichern“ mit `form="editor-form"`); in der
-  Vorschau Kopf, `div.editor-body` mit `div.sheet-wrap` und Statuszeile. Ursache des früher zu niedrigen
-  Blatts: `#pane-editor` scrollte als Ganzes, alle Kinder hatten `flex-shrink: 0` (`proposals.css`), Fassungs-
-  knöpfe und -liste standen mit im Editor; war die Höhe verbraucht, blieb dem Formular (`flex: 1`) kein freier
-  Platz, es fiel auf `min-height: 12em`, und das Satzbild bekam nach Leiste und Hinweisen nur wenige Zeilen.
-  Das Widget `wysiwyg` sucht das Formular in seinem Bereich (`root.querySelector`), den Speichern-Knopf über
-  `widgets.ts` `submitButton` (`form.elements`, auch mit `form=`). Fassungsliste, „Diese Fassung verwenden“,
-  „Fassung ändern“ und „Löschen“ stehen in `fragments/revisions.html`, dem Akkordeon-Abschnitt
-  `details.acc[data-section=revisions]` in `assistants.html` (zwischen Assistenten und Chat; Abzeichen
-  `rev.total` und `rev.open_proposals`; Cookie `baruch_accordion=revisions`, `Settings::accordion`); es kommt
-  mit der rechten Spalte aus `ui.render` neu. Zoom-Zonen (`web/src/zoom.ts`): jedes `[data-zoom-zone]`
-  (`tree`, `assistants`, `revisions`, `head`, `toolbar`, `sheet`, `status`) plus `dialog[open]` und `main`;
-  die innerste gewinnt, Stufe je Name im Cookie `baruch_zoom`, ein `MutationObserver` setzt sie auf neu
-  gezeichnete Zonen. Offene Vorschläge stehen in
-  `fragments/proposals.html` (Runde 8: an ihrer Stelle; im Editor `section.pv-flow[data-widget=proposals]`
-  nach dem Editor-Formular mit der gezeigten Fassung blockweise als `pre.pv-src[data-b]` und dazwischen je
-  Stück ein `details.pv[data-pv="<key>-<rev>"][data-pv-at][data-pv-gap][data-pv-kind]`; in der Vorschau
-  `div.pv-section` mit den Zeilen und den Stücken dazwischen; je Vorschlag EIN Formular `pv-accept-…` bzw.
-  `pv-reject-…` außerhalb der Stücke, die Knöpfe zeigen mit `form=` darauf). Mit JavaScript setzt `wysiwyg.ts`
-  (`placeProposals`) jedes Stück als `contenteditable=false`-Geschwister an den Block `[data-b]` des Satzbilds
-  und verbirgt `pv-flow`; `editsOf`/`blocksIn`/`markSelection` übergehen `.pv`. Je Stück `div.pv-satz.ws-sheet` (Satzbild-Diff vom Server) und
-  `pre.pv-quelltext.diff` (Zeilen-Diff). Welcher sichtbar ist, entscheidet nur CSS:
-  `#pane-editor:has(.wysiwyg[data-ws-open])` zeigt den Satzbild-Diff, sonst (auch ohne JavaScript) den
-  Zeilen-Diff. Widget `web/src/proposals.ts`: `toggle` (Einfangphase) → Cookie `baruch_folded`,
-  `[data-pv-all]` „Alle ein-/aufklappen“ (ohne JavaScript `hidden`). Die Vorschlag-Karte und das Widget
-  `wysiwyg-diff` sind entfernt (Runde 7); die RPC-Methode `wysiwyg.diff` bleibt.
-  Nur bei offenem Satzbild trägt der Bereich `data-ws-open` (setzt `wysiwyg.ts`); das Satzbild füllt dann
-  das Blatt (`static/wysiwyg.css`), im Quelltext das Textfeld.
-- `web/src/*.ts`: Widgets (`data-widget`), von `build.rs` übersetzt und unter `/static/js/` ausgeliefert.
-- Markdown-Überschriften (Nutzer 2026-11-07): Der Server wendet `baruch_typst::markdown_headings` auf Eingaben
-  des Menschen an – `outline.save`/`outline.check` und die Rückfrage `confirm_page` (`outline.rs`),
-  `revision.save` und beim Übernehmen `revision.accept` (`rpc.rs::accept_markdown_headings`: Vorschlag bleibt,
-  danach `outline_save` mit `split`); `####`–`######` → `===` (begrenzt). Vorschläge (`add_proposal`, MCP) und
-  die Werkvorlage laufen nicht durch die Regel. Live: `web/src/markdown.ts` (gleiche Fälle, vorsichtiger
-  Zeilen-Scanner) im Widget `editor` (`panes.ts`: Enter, Verlassen) und im Satzbild (`wysiwyg.ts`:
-  `convertMarkdownHeading` beim Enter und vor `sync`). Tests: `baruch-typst/src/markdown.rs` (Tabelle),
+- `assets.rs`: images: RPC `asset.*`, pages `/werke/{id}/bilder…`, forms `POST /werke/bilder/hochladen`
+  and `POST /werke/bilder/act` (see "Images").
+- `personas.rs`: personas: RPC `persona.list`/`persona.set_color`/`persona.update` (before the work is chosen,
+  personas are global), `GET /einstellungen/personas` → 303 `/einstellungen/assistenten` (the page is drawn by
+  `settings/assistants.rs`), form `POST /einstellungen/personas/act` (behind `guard::same_origin`), `tints(color)` (background light
+  as a mix with `#ffffff`, dark with `#1f2328`, in 5 % steps further towards the surface until `--text`,
+  `--muted` and `--primary` of the theme (`LIGHT_FOREGROUNDS`/`DARK_FOREGROUNDS`, test against `app.css`)
+  reach at least 4.5 : 1), `contrast_ratio` (WCAG 2.x) and `style(color)` =
+  `--pc-light:…;--pc-dark:…;--pc-line:…;--pc-line-dark:…` for the `style` attribute; the lines reach
+  at least `MIN_LINE_CONTRAST` = 3 : 1 against `LIGHT_SURFACES` (`LIGHT_PANEL` and the sheet of the dark
+  theme `DARK_SHEET`, on which `--pc-line` applies too) or `DARK_PANEL` (WCAG 1.4.11, `Tints.line`,
+  `Tints.line_dark`). Style `static/proposals.css`: class `.pc`
+  sets `--pc-bg` per theme with the same selectors as `app.css` (`prefers-color-scheme`, `data-theme`).
+- `ideas.rs`: ideas: RPC `idea.*` (before the work is chosen), pages `/einfaelle`, `/einfaelle/{id}`,
+  form `POST /einfaelle/act` (see "Ideas (migration 0011)"). `href()` also checks in release builds
+  (`is_safe_href`: `"` `<` `>` `'` space, control characters → fallback `/einfaelle`).
+- `menu.rs`, `settings/`, `connections/`: header, settings, connections and sources (Round 9), see
+  "Menu and settings (Round 9)".
+- `mirror.rs`: commit order from a change (subject, body, author, trailers, `allow_empty`) and commit;
+  log for switching, changing and deleting see "Revision tree"; ideas (`describe_idea`,
+  `record_idea`, mirror `<data>/einfaelle/` for ideas without a work).
+- `guard.rs`: protection of the writing routes against foreign web pages (CSRF).
+- `view.rs`: view models, settings from cookies, drawing of page and panes. Context of the
+  templates: `work` = `{id, slug, title, author}`, `works` = `[{id, slug, title, selected}]` (work choice),
+  `lq_q` = `&lq=…` or empty (appends the search to links), `pick_q` = `&pick=…` or empty, `rev` with `number`
+  (number), `position`/`total` („‹ n/m ›“), `is_current`, `current`, `prev`/`next` (numbers), `revtree` =
+  `{section, chapter}` (tree view), `proposals` (open proposals of the section as variants in the
+  reading flow, `fragments/proposals.html`), `preview` = `[{node, lines, proposals}]` (preview per section,
+  proposals with line diff), `rev.author_style`, `personas[].style`, `node.posts[].style`,
+  `revtree…[].style` (CSS variables of the persona colour). **Round 8:** `Location.key` and
+  `Resolved.key`/`missing_key` (resolution: key before `node`, unknown → `node` or default with a hint),
+  `node_url(work, key, rev, preview, pick_q, lq_q)` builds the canonical address `/?work=W&key=K…`,
+  `post_targets` (targets for „Verschieben…“), context `node.post_count`, `node.missing_key`, posts with `id`,
+  `created`. `Settings.editor` (`satz`|`quelltext`, cookie `baruch_editor`, default `satz`) already decides in the
+  server HTML about the toggle; with „satz“ the typeset view stands ready in the sheet (`data-ws-ready`). Proposals:
+  `proposals_of(node, shown, ctx, satz)` aligns every open proposal with `baruch_wysiwyg::align` to the
+  **shown** revision → `InlineView {key, rev, count, proposals, entries: [FlowEntry {b, raw, lines,
+  hunks: [HunkView]}]}` (context `proposals`, in the editor) or `PreviewSection {node, flow}` (context `preview`). `Settings::folded` (cookie `baruch_folded`,
+  '.'-separated `<key>-<rev>`, at most 200, only `[0-9.-]`, otherwise discarded) folds proposals; the shown
+  proposal is always open (`pv-shown`). Order: position of the persona in `Store::persona_colors`
+  (`position`, `id`), then number; authors without a persona entry at the end with `FALLBACK_COLOR`. Base of the diff:
+  `based_on`, otherwise the current revision. Typeset view diff through `baruch_wysiwyg::diff_html_with` with
+  `wysiwyg::image_ref` and `LibraryView::image_alts` (lookup in normal form); for this `LibraryView` carries
+  `persona_colors` and `image_alts`. `Location::resolve` looks up the revision by its number; `pick` applies only
+  to the preview.
+- `templates/`: `workspace.html` and `fragments/{tree,editor,edit_toolbar,revisions,revtree,assistants,library,
+  proposals,idea_capture}.html`; for `literature.rs` also `literature.html`, `source.html` and
+  `fragments/highlights.html`. **Editor in panes (request 2026-11-06):** `#pane-editor` does not scroll
+  (`overflow: hidden`, flex column) and carries `div.editor-head` (head: title, revision display, „‹ n/m ›“,
+  „aktuell: Fassung k“), in the editor `div.wysiwyg[data-widget=wysiwyg]` with toolbar
+  (`fragments/edit_toolbar.html`, `div.ws-bar[data-edit-toolbar]`, `hidden` without JavaScript; since
+  Round 18a the ribbon with the formats of the work template, `span.ribbon-formats[data-widget=ribbon]`), sheet `div.editor-body` (`flex: 1 1 0;
+  min-height: 0; overflow: auto` – scrolls on its own; inside it `form#editor-form.editor-form` with typeset view
+  `div.ws-wrap[data-ws-wrap]` (`hidden` without JavaScript) and text field, behind it `section.pv-flow`) and
+  status line `div.editor-status` (hints, `[data-ws-hint]`, „Speichern“ with `form="editor-form"`); in the
+  preview head, `div.editor-body` with `div.sheet-wrap` and status line. Cause of the formerly too low
+  sheet: `#pane-editor` scrolled as a whole, all children had `flex-shrink: 0` (`proposals.css`), revision
+  buttons and list stood in the editor too; once the height was used up, the form (`flex: 1`) had no free
+  space left, it fell back to `min-height: 12em`, and the typeset view got only a few lines after bar and hints.
+  The widget `wysiwyg` looks for the form in its pane (`root.querySelector`), for the save button through
+  `widgets.ts` `submitButton` (`form.elements`, also with `form=`). Revision list, „Diese Fassung verwenden“,
+  „Fassung ändern“ and „Löschen“ stand in `fragments/revisions.html`, the accordion section
+  `details.acc[data-section=revisions]` in `assistants.html` (between assistants and chat; badges
+  `rev.total` and `rev.open_proposals`; cookie `baruch_accordion=revisions`, `Settings::accordion`); it comes
+  anew with the right column from `ui.render`. Zoom zones (`web/src/zoom.ts`): every `[data-zoom-zone]`
+  (`tree`, `assistants`, `revisions`, `head`, `toolbar`, `sheet`, `status`) plus `dialog[open]` and `main`;
+  the innermost wins, level per name in the cookie `baruch_zoom`, a `MutationObserver` applies it to newly
+  drawn zones. Open proposals stand in
+  `fragments/proposals.html` (Round 8: in their place; in the editor `section.pv-flow[data-widget=proposals]`
+  after the editor form with the shown revision block by block as `pre.pv-src[data-b]` and in between, per
+  hunk, a `details.pv[data-pv="<key>-<rev>"][data-pv-at][data-pv-gap][data-pv-kind]`; in the preview
+  `div.pv-section` with the lines and the hunks in between; per proposal ONE form `pv-accept-…` or
+  `pv-reject-…` outside the hunks, the buttons point to it with `form=`). With JavaScript `wysiwyg.ts`
+  (`placeProposals`) places every hunk as a `contenteditable=false` sibling at the block `[data-b]` of the typeset view
+  and hides `pv-flow`; `editsOf`/`blocksIn`/`markSelection` skip `.pv`. Per hunk `div.pv-satz.ws-sheet` (typeset view diff from the server) and
+  `pre.pv-quelltext.diff` (line diff). Which one is visible is decided by CSS alone:
+  `#pane-editor:has(.wysiwyg[data-ws-open])` shows the typeset view diff, otherwise (also without JavaScript) the
+  line diff. Widget `web/src/proposals.ts`: `toggle` (capture phase) → cookie `baruch_folded`,
+  `[data-pv-all]` „Alle ein-/aufklappen“ (`hidden` without JavaScript). The proposal card and the widget
+  `wysiwyg-diff` are removed (Round 7); the RPC method `wysiwyg.diff` stays.
+  Only with an open typeset view does the pane carry `data-ws-open` (set by `wysiwyg.ts`); the typeset view then fills
+  the sheet (`static/wysiwyg.css`), in source mode the text field does.
+- `web/src/*.ts`: widgets (`data-widget`), compiled by `build.rs` and delivered under `/static/js/`.
+- Markdown headings (user 2026-11-07): the server applies `baruch_typst::markdown_headings` to the input
+  of the human – `outline.save`/`outline.check` and the confirmation `confirm_page` (`outline.rs`),
+  `revision.save` and when accepting `revision.accept` (`rpc.rs::accept_markdown_headings`: the proposal stays,
+  afterwards `outline_save` with `split`); `####`–`######` → `===` (capped). Proposals (`add_proposal`, MCP) and
+  the work template do not run through the rule. Live: `web/src/markdown.ts` (same cases, cautious
+  line scanner) in the widget `editor` (`panes.ts`: Enter, leaving) and in the typeset view (`wysiwyg.ts`:
+  `convertMarkdownHeading` on Enter and before `sync`). Tests: `baruch-typst/src/markdown.rs` (table),
   `baruch-server/tests/markdown_headings.rs`.
-  `chat.ts` (Runde 8): Widget `chat` (Rollen, „neu seit dem letzten Besuch“ über LocalStorage
-  `baruch_chat_seen` = `{"<work>-<key>": "<größtes created>"}`, jeder Zugriff in try/catch).
+  `chat.ts` (Round 8): widget `chat` (roles, „neu seit dem letzten Besuch“ through LocalStorage
+  `baruch_chat_seen` = `{"<work>-<key>": "<largest created>"}`, every access in try/catch).
 
-## Daten
+## Data
 
 ```
-<data>/baruch.sqlite          Quelle (WAL)
-<data>/works/<slug>/          Git-Spiegel je Werk, nur lesen
-    main.typ                  Werkvorlage (falls importiert), dann #include der Abschnitte in Baumreihenfolge
-    vorlage.typ               nur mit Werkvorlage: die Vorlage selbst
-    abschnitte/NNN-titel.typ  aktuelle Revision je Abschnitt; mit Werkvorlage davor #import "../vorlage.typ": *
-    bilder/<name>             aktuelles Bild als SVG-Text (encoding svg)
-    bilder/<name>.b64         aktuelles Bild als Base64 in Zeilen zu 76 Zeichen (encoding base64)
-    einfaelle.md              Einfälle des Werks (nur, wenn es nicht gelöschte gibt; Migration 0011)
-<data>/einfaelle/             Git-Spiegel der Einfälle ohne Werk (nur einfaelle.md), kein Symlink
+<data>/baruch.sqlite          source (WAL)
+<data>/works/<slug>/          Git mirror per work, read only
+    main.typ                  work template (if imported), then #include of the sections in tree order
+    vorlage.typ               only with a work template: the template itself
+    abschnitte/NNN-titel.typ  current revision per section; with a work template preceded by #import "../vorlage.typ": *
+    bilder/<name>             current image as SVG text (encoding svg)
+    bilder/<name>.b64         current image as Base64 in lines of 76 characters (encoding base64)
+    einfaelle.md              ideas of the work (only if there are undeleted ones; migration 0011)
+<data>/einfaelle/             Git mirror of the ideas without a work (only einfaelle.md), no symlink
 ```
 
-Migration `0010_persona_color.sql` (Runde 7): `persona.color` = `NULL` (Vorgabe aus
-`baruch_store::PERSONA_PALETTE` nach Reihenfolge `position`, `id`) oder `#rrggbb` klein (CHECK mit `GLOB`).
-Keine Datenänderung. `Store::persona_colors` liefert `PersonaColor {handle, name, color, chosen}`,
-`Store::set_persona_color(handle, Some|None)` setzt bzw. setzt zurück (eine Transaktion `BEGIN IMMEDIATE`,
-Handle auch ohne `@`); unbekannt → `StoreError::UnknownPersona`, ungültig → `StoreError::Color` (beide
--32602). `baruch_core::Persona` bleibt unverändert; kein Commit im Git-Spiegel (Personas sind kein Buchtext).
-Test `crates/baruch-store/tests/migration_0010.rs` auf einer nachgebauten Datenbank im Stand development
-(0001–0009, 0101–0105, mit Bild, Vorschlag, Beitrag, Bibliothek). Migration `0011_ideas.sql`: Tabellen
-`idea`, `idea_word`, `idea_fts` (siehe „Einfälle (Migration 0011)“). Beide zusammen prüft
-`crates/baruch-server/tests/round7.rs` über einen vollen Serverstart. Migration `0013_connections.sql`
-(Runde 9): Tabellen `connection`, `work_rag`, `preferred_source` (siehe „Verbindungen und Quellen“), Test
-`crates/baruch-store/tests/migration_0013.rs`. Migration `0014_connection_secret_target.sql`: nur die Spalte
-`connection.secret_target` (Bindung des Geheimnisses an sein Ziel, NULL = jetziges Ziel), Test
+Migration `0010_persona_color.sql` (Round 7): `persona.color` = `NULL` (default from
+`baruch_store::PERSONA_PALETTE` in the order `position`, `id`) or `#rrggbb` lower case (CHECK with `GLOB`).
+No data change. `Store::persona_colors` delivers `PersonaColor {handle, name, color, chosen}`,
+`Store::set_persona_color(handle, Some|None)` sets or resets (one transaction `BEGIN IMMEDIATE`,
+handle also without `@`); unknown → `StoreError::UnknownPersona`, invalid → `StoreError::Color` (both
+-32602). `baruch_core::Persona` stays unchanged; no commit in the Git mirror (personas are not book text).
+Test `crates/baruch-store/tests/migration_0010.rs` on a rebuilt database in the state of development
+(0001–0009, 0101–0105, with image, proposal, post, library). Migration `0011_ideas.sql`: tables
+`idea`, `idea_word`, `idea_fts` (see "Ideas (migration 0011)"). Both together are checked by
+`crates/baruch-server/tests/round7.rs` through a full server start. Migration `0013_connections.sql`
+(Round 9): tables `connection`, `work_rag`, `preferred_source` (see "Connections and sources"), test
+`crates/baruch-store/tests/migration_0013.rs`. Migration `0014_connection_secret_target.sql`: only the column
+`connection.secret_target` (binding of the secret to its target, NULL = current target), test
 `crates/baruch-store/tests/migration_0014.rs`.
 
-`<data>` ist `--data`, sonst `BARUCH_DATA`, sonst `baruch_store::default_data_dir()` =
-`dirs::data_local_dir()/baruch` (Linux `$XDG_DATA_HOME` bzw. `~/.local/share`, macOS
-`~/Library/Application Support`, Windows `%LOCALAPPDATA%` – Local statt Roaming, weil servergespeicherte
-Profile WAL und Spiegel sonst bei jeder An- und Abmeldung kopieren).
+`<data>` is `--data`, otherwise `BARUCH_DATA`, otherwise `baruch_store::default_data_dir()` =
+`dirs::data_local_dir()/baruch` (Linux `$XDG_DATA_HOME` or `~/.local/share`, macOS
+`~/Library/Application Support`, Windows `%LOCALAPPDATA%` – Local instead of Roaming, because server-stored
+profiles would otherwise copy WAL and mirror at every logon and logoff).
 
-Ohne Werkvorlage beginnt `main.typ` mit `// Baruch: <Titel>`, und es gibt weder `vorlage.typ` noch
-`#import`-Zeilen. Der Spiegel ist eine Projektion (`snapshot.rs`): `main.typ` behält die Vorlage am Anfang,
-damit Set- und Show-Regeln für alles Eingebundene gelten; die `#import`-Zeile macht `#let`-Funktionen der
-Vorlage in den Abschnittsdateien verfügbar. Die Revisionen in SQLite und `export_typst` bleiben ohne diese
-Zeile. Ob sich `main.typ` mit `typst compile` setzen lässt, ist noch nicht geprüft (typst fehlt auf dem
-Entwicklungsrechner).
+Without a work template `main.typ` begins with `// Baruch: <Titel>`, and there is neither `vorlage.typ` nor
+`#import` lines. The mirror is a projection (`snapshot.rs`): `main.typ` keeps the template at the beginning,
+so that set and show rules apply to everything included; the `#import` line makes `#let` functions of the
+template available in the section files. The revisions in SQLite and `export_typst` stay without this
+line. Whether `main.typ` can be typeset with `typst compile` has not been checked yet (typst is missing on the
+development machine).
 
-Ordnernamen (`slug`): Kleinbuchstaben und Ziffern, Umlaute umgeschrieben, sonst `-`; höchstens 40 Zeichen,
-an der letzten Wortgrenze gekürzt (ein einzelnes längeres Wort hart), leer → `werk`, Kollision `-2`, `-3` ….
-Vorhandene slugs in der Datenbank werden nicht umgeschrieben. Abschnittsdateien heißen nach demselben
-`slug`; ändert sich die Kürzung, benennt der nächste Spiegel-Commit die Datei um.
+Folder names (`slug`): lower-case letters and digits, umlauts transcribed, otherwise `-`; at most 40 characters,
+shortened at the last word boundary (a single longer word hard), empty → `werk`, collision `-2`, `-3` ….
+Existing slugs in the database are not rewritten. Section files are named after the same
+`slug`; if the shortening changes, the next mirror commit renames the file.
 
-Das Beispielwerk („Beispielwerk: Leise Abhängigkeit (Auszug)“, `baruch-core/src/sample.rs`) wird nur in eine wirklich
-neue Datenbank gesät; vorhandene Werke behalten Titel und slug. Seine Teile tragen keinen Text (`""`, wie
-`outline.add` bei Teilen), die übrigen Knoten ohne eigene Fassung nur ihre Überschrift.
+The sample work („Beispielwerk: Leise Abhängigkeit (Auszug)“, `baruch-core/src/sample.rs`) is seeded only into a really
+new database; existing works keep title and slug. Its parts carry no text (`""`, like
+`outline.add` for parts), the other nodes without a revision of their own only their heading.
 
-Neue Ordnernamen meiden auch die slugs gelöschter Werke (`work_retired`, siehe „Werk-ids und Saat“).
+New folder names also avoid the slugs of deleted works (`work_retired`, see "Work ids and seed").
 
-## Typst-Import
+## Typst import
 
-`baruch-typst::parse` zerlegt eine Datei: Werkvorlage = alles vor der ersten Überschrift; Überschrift =
-Zeile ab Spalte 0 mit 1–3 `=` und Leerzeichen/Tab, die im Markup der obersten Ebene beginnt; Text je
-Überschrift = von ihrer Zeile bis vor die nächste. `join(template, bodies)` ergibt die Datei Byte für Byte
-zurück. Ein Kommentar hinter der Überschrift (`//`, `/*`; nicht in Raw, nicht `https://`) gehört nicht zum
-Titel.
+`baruch-typst::parse` splits a file: work template = everything before the first heading; heading =
+line from column 0 with 1–3 `=` and space/tab that begins in top-level markup; text per
+heading = from its line up to before the next one. `join(template, bodies)` gives back the file byte for
+byte. A comment behind the heading (`//`, `/*`; not in raw, not `https://`) does not belong to the
+title.
 
-Der Scanner verfolgt zeilenübergreifend: Raw-Blöcke (```` ``` ```` am Zeilenanfang), Inline-Raw über
-Zeilen, Blockkommentare (geschachtelt), Strings im Code (auch mehrzeilig) und einen Klammerstapel ab einem
-`#`-Ausdruck: `#name(` und `#name[` öffnen, nach `)`/`]` eines Aufrufs darf ein weiterer `[…]` folgen;
-nach `#let`, `#set`, `#show`, `#import`, `#if` … ist der Rest der Zeile Code (dort öffnet jedes `(`, `[`,
-`{`). In Inhaltsblöcken zählen eckige Klammern mit, im Fließtext der obersten Ebene nicht (dort ist `[`
-Text). Nur wenn nichts offen ist, kann eine Zeile eine Überschrift sein. Im Markup gilt `"…"` nur als
-String, wenn er in derselben Zeile schließt.
+The scanner keeps track across lines: raw blocks (```` ``` ```` at the line start), inline raw across
+lines, block comments (nested), strings in code (also multi-line) and a bracket stack from a
+`#` expression: `#name(` and `#name[` open, after `)`/`]` of a call another `[…]` may follow;
+after `#let`, `#set`, `#show`, `#import`, `#if` … the rest of the line is code (there every `(`, `[`,
+`{` opens). In content blocks square brackets count, in top-level running text they do not (there `[` is
+text). Only when nothing is open can a line be a heading. In markup `"…"` only counts as a
+string if it closes on the same line.
 
-Titel/Autor aus dem ersten `#set document(title: "…" | […], author: "…" | ("…", …))` außerhalb von
-Kommentaren und Raw (`blank_comments` ersetzt sie vorher durch Leerzeichen, Positionen bleiben). Grenzen:
-eingerückte Überschriften und jedes `#heading(...)` außer den beiden Markierungen (Runde 14, unten) zählen
-nicht (vor der ersten Überschrift also Teil der Werkvorlage); `] else [` am Anfang einer Folgezeile gilt als Fließtext. Ein UTF-8-BOM am Dateianfang
-gehört zur Werkvorlage, eine Überschrift direkt dahinter zählt.
+Title/author from the first `#set document(title: "…" | […], author: "…" | ("…", …))` outside of
+comments and raw (`blank_comments` replaces them with spaces beforehand, positions stay). Limits:
+indented headings and every `#heading(...)` except the two markers (Round 14, below) do not count
+(before the first heading they are thus part of the work template); `] else [` at the start of a following line counts as running text. A UTF-8 BOM at the start of the file
+belongs to the work template, a heading directly behind it counts.
 
-`Store::import_typst` (eine Transaktion): CRLF → LF, SHA-256 der Quelle (`work.source_sha256`, eindeutig;
-schon da → `AlreadyImported`), Werk (Art `book`, `template`, `source_name`), Knoten mit `seq` in
-Dateireihenfolge, `=` → `chapter`, `==`/`===` → `section` (Elternteil = nächste vorige Überschrift mit
-kleinerer Ebene), Teil-Markierung → `part` (Runde 14), Nummern über `load::numbers` mit der
-Nummerierung der Werkvorlage (wie beim Laden; Vorgabe „1“, „1.2“, „1.2.1“), Markierung „ohne Nummer“ →
-`node.numbered = 0`; je Knoten Revision 1 vom Menschen, `current`, Notiz
+`Store::import_typst` (one transaction): CRLF → LF, SHA-256 of the source (`work.source_sha256`, unique;
+already there → `AlreadyImported`), work (kind `book`, `template`, `source_name`), nodes with `seq` in
+file order, `=` → `chapter`, `==`/`===` → `section` (parent = nearest preceding heading with a
+smaller level), part marker → `part` (Round 14), numbers through `load::numbers` with the
+numbering of the work template (as when loading; default „1“, „1.2“, „1.2.1“), marker „ohne Nummer“ →
+`node.numbered = 0`; per node revision 1 by the human, `current`, note
 „Import aus <datei>“ (`Store::import_typst_noted`). Migration `0002_work_template.sql`.
-`Store::export_typst` setzt Vorlage und aktuelle Texte wieder zusammen.
+`Store::export_typst` puts template and current texts together again.
 
-Im Server liest `import::import_file` die Datei: `std::fs::metadata` prüft vor dem Öffnen, dass es eine
-reguläre Datei ist (FIFO, Gerät, Ordner → „… ist keine Datei“), Lesen in `tokio::task::spawn_blocking`,
-höchstens 16 MiB, UTF-8. Aufrufer ist nur die CLI (`baruch-server import`); MCP hat kein Import-Werkzeug.
+In the server `import::import_file` reads the file: `std::fs::metadata` checks before opening that it is a
+regular file (FIFO, device, folder → „… ist keine Datei“), reading in `tokio::task::spawn_blocking`,
+at most 16 MiB, UTF-8. The only caller is the CLI (`baruch-server import`); MCP has no import tool.
 
-**Rückweg eines Exports (Runde 21b).** Was nur der Export aus Einstellungen schreibt, kommt beim Import an seinen Platz
-zurück; jeder Eingriff ist eine `ImportWarning` im Bericht (`import::import_source`):
-- *Regelblock „// Baruch: Satz“* (`store/import.rs::split_typeset`): Reicht der Block ab der letzten Zeile
-  `RULES_MARK` bis ans Ende der Werkvorlage und liest `baruch_typst::typeset::settings_from_rules` ihn zurück, landen die
-  Einstellungen in `work_typeset` (`typeset::write` in derselben Transaktion) und der Block nicht in der Vorlage
-  (`import-typeset-adopted`). Bedingung ist, dass `rules` aus dem Ergebnis **genau** denselben Block macht (nie raten;
-  Seitenzahlen × Kolumnentitel werden durchprobiert, 9 × 4). Sonst bleibt er Vorlage (`import-typeset-kept`). Grenzen:
-  Die R31-Felder und `xref_with_page` stehen nicht im Block; der Bundsteg kommt als Teil des Innenrands zurück (über
-  80 mm der Rest als Bundsteg) – gleicher Satz, andere Felder.
-- *Show-Regeln „// Baruch: Überschriften ohne Nummer“* (`split_fallback`): jede Zeile `#show heading.where(level: N,
-  body: [T]): set heading(numbering: none)` am Ende der Vorlage → `node.numbered = 0` für die Überschriften mit Ebene N
-  und wörtlichem Titel T (Gegenstück zu `snapshot::fallback_rules`); eine Zeile anderer Form lässt alles in der Vorlage.
-  Damit übersteht „Nummer aus“ mit eigenem Label den Weg (vorher kam der Abschnitt nummeriert zurück). Unter „Ohne
-  Nummern“ (`numbering.is_off()`) schreibt `snapshot::project` seit 21b ebenfalls die Show-Regel für `numbered = 0`
-  (die Textform bleibt `=`, im Satz ändert die Regel nichts) – so geht der Merker auch dort nicht mehr verloren.
-- *Buchende* (`baruch_typst::index::strip_back_matter`): nur, wenn auf die Zeile `BACK_MATTER_MARK` unmittelbar die
-  Hilfsfunktionen folgen, die allein `back_matter` schreibt (`index/back.rs::HELPERS`); dann `import-back-matter-cut`
-  mit Zeile. Eine Kennzeile von Hand schneidet nichts ab (`has_back_matter_mark` → `import-back-matter-kept`).
-- *Projektion*: mit Buchende `strip_projection` (Bibelstellen-Marken mit `sort`, verlinkte erste Erwähnung), immer
-  `strip_first_mentions`: Die erste Erwähnung ohne Glossarseite schreibt `index/project.rs` seit 21b als
-  `/*baruch-erste-erwaehnung*/#emph[Wort]` (Kommentar = unsichtbarer Vermerk, `FIRST_MENTION_MARK`); vorher war sie von
-  einer Hervorhebung von Hand nicht zu unterscheiden und blieb nach Export → Import als `#emph` im Text.
-  `import-projection-removed`, wenn etwas herausfiel.
+**Way back of an export (Round 21b).** What only the export writes from settings comes back to its place on import;
+every intervention is an `ImportWarning` in the report (`import::import_source`):
+- *Rule block „// Baruch: Satz“* (`store/import.rs::split_typeset`): if the block from the last line
+  `RULES_MARK` reaches to the end of the work template and `baruch_typst::typeset::settings_from_rules` reads it back, the
+  settings land in `work_typeset` (`typeset::write` in the same transaction) and the block does not land in the template
+  (`import-typeset-adopted`). The condition is that `rules` makes **exactly** the same block from the result (never guess;
+  page numbers × running heads are tried out, 9 × 4). Otherwise it stays template (`import-typeset-kept`). Limits:
+  the R31 fields and `xref_with_page` are not in the block; the gutter comes back as part of the inner margin (above
+  80 mm the rest as gutter) – same typesetting, different fields.
+- *Show rules „// Baruch: Überschriften ohne Nummer“* (`split_fallback`): every line `#show heading.where(level: N,
+  body: [T]): set heading(numbering: none)` at the end of the template → `node.numbered = 0` for the headings with level N
+  and literal title T (counterpart of `snapshot::fallback_rules`); a line of a different form leaves everything in the template.
+  So „Nummer aus“ with an own label survives the way (before, the section came back numbered). Under „Ohne
+  Nummern“ (`numbering.is_off()`) `snapshot::project` since 21b also writes the show rule for `numbered = 0`
+  (the text form stays `=`, in typesetting the rule changes nothing) – so the flag is no longer lost there either.
+- *Back matter* (`baruch_typst::index::strip_back_matter`): only if the line `BACK_MATTER_MARK` is immediately followed by the
+  helper functions that only `back_matter` writes (`index/back.rs::HELPERS`); then `import-back-matter-cut`
+  with line. A marker line written by hand cuts off nothing (`has_back_matter_mark` → `import-back-matter-kept`).
+- *Projection*: with back matter `strip_projection` (Bible reference marks with `sort`, linked first mention), always
+  `strip_first_mentions`: since 21b `index/project.rs` writes the first mention without a glossary page as
+  `/*baruch-erste-erwaehnung*/#emph[Wort]` (comment = invisible note, `FIRST_MENTION_MARK`); before, it could not be told apart
+  from a highlight by hand and stayed in the text as `#emph` after export → import.
+  `import-projection-removed` if something fell out.
 
-**Grenzen der Nummerierung (geprüft in 21b, nicht behoben):**
-- *Funktionen der Werkvorlage* mit `p.at(i) ± k`, `slice()` oder Inhalt als Ergebnis wertet Baruch nicht je Ebene aus
-  (`Numbering::from_template` bleibt bei der Näherung). Grund: Das bräuchte eine Typst-Auswertung je Überschrift (oder
-  einen eigenen Ausdrucksauswerter) im Store, der heute ohne Typst auskommt; der Satz selbst stimmt immer (Typst rechnet),
-  nur die Nummern in Baum und Gliederung können abweichen. In Runde 23 nicht umgesetzt, bleibt offen (in R24 nicht umgesetzt, Backlog „offen nach R24“; Backlog
-  „Nach Runde 23 offen“). Vorschlag (Nummern aus dem Satz übernehmen:
-  `Rendered.headings` trägt Seite und Zeile, die Nummer ließe sich dort mit `counter(heading).display()` abfragen).
-- *Teile mit `numbered = 0`* (nur aus Runde 14 vor `bba23db` möglich): wirkungslos – Teile zählen nie
-  (`load::numbers`), die Projektion und die Show-Regeln nehmen Teile aus (`heading_rows` mit `kind <> 'part'`), und der
-  Export schreibt die Teil-Markierung unabhängig vom Merker; ein Re-Import setzt ihn aus der Textform neu. Keine
-  Migration nötig; Zurückstellen bleibt über RPC `outline.set_numbered`.
-- *Titel mit Code an einem gleichlautenden nummerierten Knoten* (z. B. zweimal `= #emph[Ruhe]`, einmal „Nummer aus“):
-  keine Markierung möglich (Code im Titel), und eine Show-Regel `heading.where(body: […])` träfe beide. Seit Runde 22
-  gilt dafür eine Regel über die Sprungmarke (`#show <kN>: set heading(numbering: none)`) in einem eigenen Block; der
-  Re-Import liest sie zurück (Einzelheiten unter „Spiegel setzen“ bzw. `snapshot::split_label_fallback`).
+**Limits of the numbering (checked in 21b, not fixed):**
+- *Functions of the work template* with `p.at(i) ± k`, `slice()` or content as the result are not evaluated per level by Baruch
+  (`Numbering::from_template` stays with the approximation). Reason: that would need a Typst evaluation per heading (or
+  an own expression evaluator) in the store, which today does without Typst; the typesetting itself is always right (Typst computes),
+  only the numbers in tree and outline can differ. Not done in Round 23, stays open (not done in R24, backlog „offen nach R24“; backlog
+  „Nach Runde 23 offen“). Proposal (take the numbers over from the typesetting:
+  `Rendered.headings` carries page and line, the number could be queried there with `counter(heading).display()`).
+- *Parts with `numbered = 0`* (only possible from Round 14 before `bba23db`): without effect – parts never count
+  (`load::numbers`), the projection and the show rules leave out parts (`heading_rows` with `kind <> 'part'`), and the
+  export writes the part marker independently of the flag; a re-import sets it anew from the text form. No
+  migration needed; resetting stays possible through RPC `outline.set_numbered`.
+- *Title with code at an identically named numbered node* (e.g. twice `= #emph[Ruhe]`, once „Nummer aus“):
+  no marker possible (code in the title), and a show rule `heading.where(body: […])` would hit both. Since Round 22
+  a rule over the label (`#show <kN>: set heading(numbering: none)`) in its own block applies to this; the
+  re-import reads it back (details in "Round 22 – Revisions and mirror", the item on setting the mirror, and `snapshot::split_label_fallback`).
 
-### Teile im Typst-Text (Runde 14)
+### Parts in the Typst text (Round 14)
 
-Ein Teil und ein Punkt „ohne Nummer“ stehen im Typst-Text als kanonische Markierung (`baruch_typst::marker`),
-je eine Zeile ab Spalte 0:
+A part and an item „ohne Nummer“ stand in the Typst text as a canonical marker (`baruch_typst::marker`),
+one line each from column 0:
 
 ```typst
 #heading(level: 1, numbering: none)[Erster Teil] <baruch-part>
 #heading(level: 2, numbering: none)[Zwischenruf] <baruch-unnumbered> // Kommentar erlaubt
 ```
 
-- **Warum so:** Typst setzt beide ohne Definition in der Werkvorlage; `numbering: none` stößt den
-  Überschriftenzähler nicht an (Typst zählt nur Überschriften mit Nummerierung), Kapitel laufen also über
-  Teile fort wie in Baruch; die Labels machen die Zeile eindeutig als Baruch-Markierung. Ein frei
-  geschriebenes `#heading(...)` (andere Abstände, anderes Label, Einzug, Ziffer ≠ 1 beim Teil, in Raw,
-  Kommentar, Inhaltsblock oder String) bleibt wie bisher Text bzw. Werkvorlage.
-- **Titel `T`:** maskiert wie `escape_title`, zusätzlich ein `\` vor einem führenden `=`, `-`, `+`, `/` und
-  vor dem Punkt eines führenden `Ziffern.` (im Inhaltsblock begänne sonst eine Struktur); `T` enthält kein
-  unmaskiertes `[`/`]`, keinen Kommentar und kein offenes Inline-Raw. `unescape_title(T)` ist der Titel.
-- **`parse`:** Teil → `Heading { level: 0, numbered: true }`, „ohne Nummer“ → `Heading { level: N,
-  numbered: false }`; eine Markierung vor der ersten `=` beendet die Werkvorlage; `join` bleibt byte-gleich.
-- **Bauen:** `part_line`, `unnumbered_line`; `heading_line(0, …)` ergibt die Teil-Markierung, eine
-  Markierung „ohne Nummer“ bleibt beim Umbenennen eine (Kommentar bleibt); `relevel_line` ändert nur die
-  Ebene, `set_numbered_line` stellt die erste Überschriftszeile zwischen `=`-Zeile und Markierung um (für die
-  Projektion im Export, R14c).
-- **Import/Export:** Der Import macht aus der Teil-Markierung einen Teil (oberste Ebene, die folgenden
-  Kapitel darunter) und aus „ohne Nummer“ `numbered = 0`; der Text bleibt wörtlich, Export ist byte-gleich
-  (auch mit Werkvorlage), der Spiegel hat je Teil eine Abschnittsdatei. Der Import selbst wandelt nie um.
-- **Umwandlung alter Teiltexte** (Nutzerfrage 8, entschieden 2026-11-07, `baruch-store/src/legacy_parts.rs`):
-  Startschritt statt Migration – die neue Zeile braucht `baruch_typst` (Maskierung, Gegenprobe mit `parse`), jede
-  Umwandlung ist eine Fassung mit Spiegel-Commit (den kennt nur der Server), und der Schritt ist gegen eine
-  nachgebaute alte Datenbank testbar. `AppState::open_with` ruft nach `mirror::sync_all`
-  `mirror::convert_legacy_parts` → `Store::convert_legacy_parts(HUMAN_NAME)`: eine Transaktion, Merker
-  `store_meta.parts_marked_r14` (die Saat einer neuen Datenbank setzt ihn gleich mit). Je Teil zählt die aktuelle
-  Fassung (`legacy_parts::classify`): leer oder genau eine `=`-Zeile ohne Label/Kommentar mit dem Titel des Teils
-  oder einem Titel, der mit „Teil“ beginnt → neue aktuelle Fassung `heading_line(0, Titel, None) + "\n"` (Autor
-  der Mensch, Notiz `CONVERSION_NOTE` „Umwandlung Runde 14 (Nutzerentscheidung)“, `based_on` = alte Fassung, die
-  `superseded` erhalten bleibt); schon markiert oder ohne Fassung → nichts; sonst bleibt der Text und nur die
-  Knoten-id kommt in `PartConversion.kept` (stderr: Anzahl und ids, kein Wortlaut). Je Werk mit Umwandlungen ein
-  Commit „Umwandlung Runde 14 (Nutzerentscheidung): n Teile auf die Teil-Markierung umgestellt“ (`allow_empty`,
-  Trailer `Baruch-Action: parts-converted`, `Baruch-Origin`, `Baruch-Node` je Teil). Test:
+- **Why so:** Typst sets both without a definition in the work template; `numbering: none` does not advance the
+  heading counter (Typst counts only headings with numbering), so chapters run on across
+  parts as in Baruch; the labels make the line unambiguous as a Baruch marker. A freely
+  written `#heading(...)` (other spacing, other label, indentation, digit ≠ 1 for the part, in raw,
+  comment, content block or string) stays text or work template as before.
+- **Title `T`:** escaped like `escape_title`, additionally a `\` before a leading `=`, `-`, `+`, `/` and
+  before the dot of a leading `digits.` (otherwise a structure would begin in the content block); `T` contains no
+  unescaped `[`/`]`, no comment and no open inline raw. `unescape_title(T)` is the title.
+- **`parse`:** part → `Heading { level: 0, numbered: true }`, „ohne Nummer“ → `Heading { level: N,
+  numbered: false }`; a marker before the first `=` ends the work template; `join` stays byte-identical.
+- **Building:** `part_line`, `unnumbered_line`; `heading_line(0, …)` gives the part marker, a
+  marker „ohne Nummer“ stays one when renaming (the comment stays); `relevel_line` changes only the
+  level, `set_numbered_line` switches the first heading line between `=` line and marker (for the
+  projection in the export, R14c).
+- **Import/export:** the import makes a part out of the part marker (top level, the following
+  chapters below it) and `numbered = 0` out of „ohne Nummer“; the text stays literal, the export is byte-identical
+  (also with a work template), the mirror has one section file per part. The import itself never converts.
+- **Conversion of old part texts** (user question 8, decided 2026-11-07, `baruch-store/src/legacy_parts.rs`):
+  a start step instead of a migration – the new line needs `baruch_typst` (escaping, cross-check with `parse`), every
+  conversion is a revision with a mirror commit (which only the server knows), and the step is testable against a
+  rebuilt old database. `AppState::open_with` calls, after `mirror::sync_all`,
+  `mirror::convert_legacy_parts` → `Store::convert_legacy_parts(HUMAN_NAME)`: one transaction, flag
+  `store_meta.parts_marked_r14` (the seed of a new database sets it right away). Per part the current
+  revision counts (`legacy_parts::classify`): empty or exactly one `=` line without label/comment with the title of the part
+  or a title that begins with „Teil“ → new current revision `heading_line(0, Titel, None) + "\n"` (author
+  the human, note `CONVERSION_NOTE` „Umwandlung Runde 14 (Nutzerentscheidung)“, `based_on` = old revision, which
+  is kept as `superseded`); already marked or without a revision → nothing; otherwise the text stays and only the
+  node id goes into `PartConversion.kept` (stderr: count and ids, no wording). Per work with conversions one
+  commit „Umwandlung Runde 14 (Nutzerentscheidung): n Teile auf die Teil-Markierung umgestellt“ (`allow_empty`,
+  trailer `Baruch-Action: parts-converted`, `Baruch-Origin`, `Baruch-Node` per part). Test:
   `baruch-server/tests/round14_conversion.rs`.
-- **Satz:** `typeset::prepare` setzt hinter Werkvorlage und Rahmen die Regel `part_page_rule(labels)` (eine
-  Zeile, `#show <baruch-part>: …`; Nummern aus `Node.number` der Teile, `typeset::part_labels`): jeder Teil
-  allein auf einer eigenen rechten Seite (`pagebreak(to: "odd")`, danach weicher Umbruch), gezählt mit dem
-  eigenen Zähler `baruch-part`. Die Regel nutzt nur `it.body`, Überschrift-Regeln der Vorlage wirken darum
-  nicht doppelt; sie steht hinter der Vorlage und greift so zuerst. Satz-Ansicht, `work.pdf`,
-  `/werke/{id}/pdf` und `export --pdf` nutzen dasselbe `prepare`. Ohne Teil-Markierung ist die Quelle
-  byte-gleich. Belegt in `baruch-render/tests/parts.rs` (Typst prüft Zähler und Labels selbst per
-  `#context assert…`, mit Gegenprobe).
-- **Satzbild:** Blockarten `part` (`title`) und `unnumbered` (`level`, `title`), siehe `docs/WYSIWYG.md`.
+- **Typesetting:** `typeset::prepare` puts the rule `part_page_rule(labels)` behind work template and frame (one
+  line, `#show <baruch-part>: …`; numbers from `Node.number` of the parts, `typeset::part_labels`): every part
+  alone on its own right-hand page (`pagebreak(to: "odd")`, then a weak break), counted with the
+  own counter `baruch-part`. The rule uses only `it.body`, so heading rules of the template do not act
+  twice; it stands behind the template and thus takes effect first. Typeset page, `work.pdf`,
+  `/werke/{id}/pdf` and `export --pdf` use the same `prepare`. Without a part marker the source is
+  byte-identical. Shown in `baruch-render/tests/parts.rs` (Typst checks counters and labels itself via
+  `#context assert…`, with a cross-check).
+- **Typeset view:** block kinds `part` (`title`) and `unnumbered` (`level`, `title`), see `docs/WYSIWYG.md`.
 
-## Werke verwalten
+## Managing works
 
-Migration `0005_works.sql` (Vertrag Runde 4) und `baruch-store/src/works.rs`:
+Migration `0005_works.sql` (contract Round 4) and `baruch-store/src/works.rs`:
 
-- **Eindeutige Titel:** `work.title_key` = `baruch_store::title_key(title)` (getrimmt, Folgen von Unicode-Leerraum
-  → ein Leerzeichen, `to_lowercase`), eindeutig über den Teilindex `work_title_key` (`WHERE title_key IS NOT
-  NULL`). Die Migration legt die Spalte nur an; `Store::open` trägt nach `MIGRATOR.run` und vor der Saat in Rust
-  nach (`works::ensure_title_keys`, `BEGIN IMMEDIATE`, wiederholbar): Werke ohne oder mit veraltetem Schlüssel
-  bekommen ihn. Haben zwei Werke denselben Schlüssel, ändert sich nur der Titel (slug, Spiegelordner, Knoten,
-  Texte bleiben): Trifft ein gesätes Werk (ohne `source_name`) auf ein importiertes, behält das importierte mit
-  der kleinsten id seinen Titel und das gesäte bekommt `baruch_core::sample::work().title`, sofern frei; sonst und
-  in allen anderen Fällen bekommt das Werk mit der größeren id „<Titel> (2)“, „ (3)“ … (kleinste freie Zahl).
-  Alle Einfügewege (Saat, Import, Anlegen) und `update_work` setzen den Schlüssel; ein vergebener →
-  `StoreError::DuplicateTitle` (-32000), ein leerer Titel → `EmptyTitle` (-32602). Beim Import kommt die Prüfung
-  der Prüfsumme (`AlreadyImported`) vor der des Titels. Ohne Werkvorlage steht der Titel im Spiegel nur in der
-  Kommentarzeile von `main.typ`; eine Umbenennung ändert also höchstens diese Zeile.
-- **Metadaten:** `subtitle`, `audience` (Zielgruppe), `bible` (Bibelübersetzung), `updated` (letzte Änderung von
-  Metadaten oder Vorlage). `WorkSummary.updated` ist das Maximum aus `work.updated`, `revision.created` und
+- **Unique titles:** `work.title_key` = `baruch_store::title_key(title)` (trimmed, runs of Unicode white space
+  → one space, `to_lowercase`), unique through the partial index `work_title_key` (`WHERE title_key IS NOT
+  NULL`). The migration only creates the column; `Store::open` fills it in Rust after `MIGRATOR.run` and before the seed
+  (`works::ensure_title_keys`, `BEGIN IMMEDIATE`, repeatable): works without a key or with an outdated one
+  get it. If two works have the same key, only the title changes (slug, mirror folder, nodes,
+  texts stay): if a seeded work (without `source_name`) meets an imported one, the imported one with
+  the smallest id keeps its title and the seeded one gets `baruch_core::sample::work().title`, if free; otherwise and
+  in all other cases the work with the larger id gets „<Titel> (2)“, „ (3)“ … (smallest free number).
+  All insert paths (seed, import, creating) and `update_work` set the key; a taken one →
+  `StoreError::DuplicateTitle` (-32000), an empty title → `EmptyTitle` (-32602). On import the check
+  of the checksum (`AlreadyImported`) comes before the one of the title. Without a work template the title stands in the mirror only in the
+  comment line of `main.typ`; a renaming thus changes at most this line.
+- **Metadata:** `subtitle`, `audience` (target group), `bible` (Bible translation), `updated` (last change of
+  metadata or template). `WorkSummary.updated` is the maximum of `work.updated`, `revision.created` and
   `revision.edited`.
-- **Fassungen der Werkvorlage:** Tabelle `work_template_revision (work_id, number, body, author_name, note,
-  created)`, Nummern ab 1, nur angehängt. Die Migration legt für jedes Werk Fassung 1 aus `work.template` an
-  (Notiz „Stand vor Migration 0005“); Saat, Import und Anlegen schreiben Fassung 1 selbst. `work.template` bleibt
-  die aktuelle Fassung (= höchste Nummer); Schnappschuss und Export lesen weiter nur `work.template`.
-  `update_work` legt nur bei anderem Text (CRLF → LF) eine neue Fassung an und lehnt eine Vorlage mit Überschrift
-  ab (`baruch_typst::parse` fände sie, die Rundreise Export → Import wäre sonst nicht mehr dieselbe Gliederung).
-- **Anlegen** (`create_work`): Grundgerüst `Preset::Book` (Kapitel „Erstes Kapitel“, Vorlage mit
-  `#set document` und `#set heading(numbering: "1.1")`) oder `Preset::Sermon` („Einleitung“, „Hauptteil“,
-  „Schluss“, Vorlage mit `#set document`); Titel und Autor im Typst-String maskiert (`\`, `"`).
-- **Löschen ganzer Werke** (`delete_work`, eine Transaktion): `title_key(confirm_title)` muss passen, sonst
-  `Refused`. Der Trigger `revision_no_delete_current` (0004) bleibt unverändert und schützt weiter lebende
-  Abschnitte: Das Löschen setzt zuerst alle aktuellen Fassungen des Werks auf `superseded` (erlaubter Übergang
-  laut `revision_status_transition`), dann löscht es Revisionen (der Index-Trigger aus `baruch-library` 0104
-  nimmt sie aus `search_fts`), `post_ref`, `post` (der Trigger `post_fts_delete` aus 0105 nimmt die Beiträge
-  aus dem Index), `node`, `work_template_revision` und `work`. Dieselbe Reihenfolge (erst `superseded`, dann
-  löschen) nutzen `outline_delete` und das Zusammenführen für einzelne Knoten; zwei kleine Hilfsfunktionen in
-  `works.rs` und `outline.rs`, bewusst getrennt. Der Server
-  (`works.rs`) holt vorher Spiegel und Schnappschuss, schreibt danach den leeren Protokoll-Commit „Werk gelöscht:
-  <Titel>“ (`allow_empty`, Trailer `Baruch-Action: work-deleted`) und verschiebt den Ordner nach
-  `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/` (Kollision `-2`, `-3`; `.geloescht` und Ziel keine
-  symbolischen Verknüpfungen). `.geloescht` ist kein gültiger slug, `sync_all` berührt das Archiv also nie.
-  Danach ist `AppState::default_work` (= `Store::default_work`, kleinste id) das nächste Werk; ohne Werke leitet
-  `/` auf `/werke`. Sind alle Werke gelöscht, sät auch ein Neustart nicht neu (siehe „Werk-ids und Saat“).
-  `delete_work` trägt id, slug und Titel in `work_retired` ein. `move_to_trash` (Server) verschiebt nur einen
-  vorhandenen Ordner (sonst `Ok(None)`), prüft den slug wie `mirror_dir` und lehnt `works/`, den Spiegel und
-  `.geloescht` als symbolische Verknüpfung ab.
+- **Revisions of the work template:** table `work_template_revision (work_id, number, body, author_name, note,
+  created)`, numbers from 1, append only. The migration creates revision 1 from `work.template` for every work
+  (note „Stand vor Migration 0005“); seed, import and creating write revision 1 themselves. `work.template` stays
+  the current revision (= highest number); snapshot and export still read only `work.template`.
+  `update_work` creates a new revision only for a different text (CRLF → LF) and refuses a template with a heading
+  (`baruch_typst::parse` would find it, the round trip export → import would otherwise no longer be the same outline).
+- **Creating** (`create_work`): skeleton `Preset::Book` (chapter „Erstes Kapitel“, template with
+  `#set document` and `#set heading(numbering: "1.1")`) or `Preset::Sermon` („Einleitung“, „Hauptteil“,
+  „Schluss“, template with `#set document`); title and author escaped in the Typst string (`\`, `"`).
+- **Deleting whole works** (`delete_work`, one transaction): `title_key(confirm_title)` must match, otherwise
+  `Refused`. The trigger `revision_no_delete_current` (0004) stays unchanged and keeps protecting living
+  sections: deleting first sets all current revisions of the work to `superseded` (an allowed transition
+  according to `revision_status_transition`), then it deletes revisions (the index trigger from `baruch-library` 0104
+  takes them out of `search_fts`), `post_ref`, `post` (the trigger `post_fts_delete` from 0105 takes the posts
+  out of the index), `node`, `work_template_revision` and `work`. The same order (first `superseded`, then
+  delete) is used by `outline_delete` and the merging of single nodes; two small helper functions in
+  `works.rs` and `outline.rs`, deliberately separate. The server
+  (`works.rs`) fetches mirror and snapshot beforehand, afterwards writes the empty log commit „Werk gelöscht:
+  <Titel>“ (`allow_empty`, trailer `Baruch-Action: work-deleted`) and moves the folder to
+  `<data>/works/.geloescht/<slug>-<JJJJ-MM-TT>/` (collision `-2`, `-3`; `.geloescht` and target no
+  symbolic links). `.geloescht` is not a valid slug, so `sync_all` never touches the archive.
+  Afterwards `AppState::default_work` (= `Store::default_work`, smallest id) is the next work; without works
+  `/` redirects to `/werke`. If all works are deleted, a restart does not seed again either (see "Work ids and seed").
+  `delete_work` enters id, slug and title in `work_retired`. `move_to_trash` (server) moves only an
+  existing folder (otherwise `Ok(None)`), checks the slug like `mirror_dir` and refuses `works/`, the mirror and
+  `.geloescht` as a symbolic link.
 
-### Werk-ids und Saat (Migration 0007)
+### Work ids and seed (migration 0007)
 
-Migration `0007_work_ids.sql` (Vertrag Runde 5):
+Migration `0007_work_ids.sql` (contract Round 5):
 
-- **ids nie wiederverwenden:** `work` wird mit `id INTEGER PRIMARY KEY AUTOINCREMENT` neu gebaut, mit allen
-  Spalten aus 0001, 0002, 0005 und 0006 in derselben Reihenfolge, gleichen CHECKs und Vorgaben; die Indizes
-  `work_source_sha256` und `work_title_key` werden neu angelegt. SQLite merkt sich die größte je vergebene id
-  in `sqlite_sequence`; nach dem Löschen von Werk 2 bekommt das nächste Werk 3. (Ids, die schon vor 0007
-  gelöscht und nie die größte waren, kennt die Datenbank nicht mehr.)
-- **Weg:** sqlx-sqlite 0.8.6 führt jede Migration in einer eigenen Transaktion aus, auch mit
-  `-- no-transaction` (das Feld `no_tx` wird dort nicht gelesen; Beleg: `sqlx-sqlite-0.8.6/src/migrate.rs`,
-  `apply`, und der Test `sqlx_runs_even_a_no_transaction_migration_inside_a_transaction`). `PRAGMA
-  foreign_keys=OFF` wäre darin wirkungslos, ein eigenes `BEGIN IMMEDIATE` scheitert. Darum läuft der Neubau in
-  der Transaktion von sqlx mit `PRAGMA defer_foreign_keys=ON`: Zeilen nach `work_new` kopieren, `work`
-  löschen (die Verweise aus `node` und `work_template_revision` zählen als offene Verstöße), `work` neu
-  anlegen und füllen (die Verstöße sind wieder abgezählt), `work_new` löschen. Die neue Tabelle heißt gleich
-  `work`, ein `RENAME` entfällt. Vor dem Ende prüft eine Wache (`fk_guard` mit `CHECK (n = 0)` über
-  `pragma_foreign_key_check`), dass kein Fremdschlüssel verletzt ist; sonst scheitert die Migration, und nichts
-  wird übernommen, auch kein Eintrag in `_sqlx_migrations`.
-- **`store_meta(key, value)`:** Merkzettel des Stores. `seeded = 1` setzt 0007 für eine Datenbank, die schon
-  Werke oder Personas hatte; sonst setzt ihn die Saat (`seed_if_empty`) in derselben Transaktion wie das
-  Beispielwerk. Ohne `seeded` wird gesät, mit nie wieder: Nach dem Löschen aller Werke (auch nach einem
-  Neustart) bleibt die Datenbank leer, und `/` leitet auf `/werke`.
-- **`work_retired(id, slug, title, deleted)`:** gelöschte Werke. `free_slug` (Import, Anlegen, Saat) meidet
-  auch diese slugs: Ein neues Werk mit dem Titel eines gelöschten heißt `<slug>-2`. Die slugs bleiben dauerhaft
-  reserviert, weil die Datenbank den Archivordner unter `works/.geloescht/` nicht kennt (PM-Entscheidung Runde 5).
-- Geprobt in `baruch-store/tests/migration_0007.rs` auf einer nachgebauten Datenbank im Stand vor Runde 5
-  (Store 0001–0006, Bibliothek 0101–0105, Beispielwerk und ein erfundenes Buch mit 87 Gliederungspunkten).
+- **Never reuse ids:** `work` is rebuilt with `id INTEGER PRIMARY KEY AUTOINCREMENT`, with all
+  columns from 0001, 0002, 0005 and 0006 in the same order, the same CHECKs and defaults; the indexes
+  `work_source_sha256` and `work_title_key` are created anew. SQLite remembers the largest id ever given
+  in `sqlite_sequence`; after deleting work 2 the next work gets 3. (Ids that were already deleted before 0007
+  and were never the largest are no longer known to the database.)
+- **Way:** sqlx-sqlite 0.8.6 runs every migration in its own transaction, also with
+  `-- no-transaction` (the field `no_tx` is not read there; evidence: `sqlx-sqlite-0.8.6/src/migrate.rs`,
+  `apply`, and the test `sqlx_runs_even_a_no_transaction_migration_inside_a_transaction`). `PRAGMA
+  foreign_keys=OFF` would have no effect inside it, an own `BEGIN IMMEDIATE` fails. That is why the rebuild runs in
+  the transaction of sqlx with `PRAGMA defer_foreign_keys=ON`: copy rows to `work_new`, delete `work`
+  (the references from `node` and `work_template_revision` count as open violations), create `work` anew
+  and fill it (the violations are counted off again), delete `work_new`. The new table is named `work`
+  right away, a `RENAME` is not needed. Before the end a guard (`fk_guard` with `CHECK (n = 0)` over
+  `pragma_foreign_key_check`) checks that no foreign key is violated; otherwise the migration fails, and nothing
+  is taken over, not even an entry in `_sqlx_migrations`.
+- **`store_meta(key, value)`:** notepad of the store. 0007 sets `seeded = 1` for a database that already had
+  works or personas; otherwise the seed (`seed_if_empty`) sets it in the same transaction as the
+  sample work. Without `seeded` it seeds, with it never again: after deleting all works (also after a
+  restart) the database stays empty, and `/` redirects to `/werke`.
+- **`work_retired(id, slug, title, deleted)`:** deleted works. `free_slug` (import, creating, seed) also avoids
+  these slugs: a new work with the title of a deleted one is named `<slug>-2`. The slugs stay reserved permanently,
+  because the database does not know the archive folder under `works/.geloescht/` (PM decision Round 5).
+- Rehearsed in `baruch-store/tests/migration_0007.rs` on a rebuilt database in the state before Round 5
+  (store 0001–0006, library 0101–0105, sample work and an invented book with 87 outline items).
 
-## Revisionsbaum
+## Revision tree
 
-Migration `0004_revision_tree.sql` (ersetzt die Regeln „nur anhängen“ aus 0001 und die Statusregel aus 0003):
+Migration `0004_revision_tree.sql` (replaces the rules „nur anhängen“ from 0001 and the status rule from 0003):
 
-- **Elternteil:** `revision.based_on` ist NULL (Wurzel) oder die Nummer einer kleineren Revision desselben
-  Abschnitts (Trigger `revision_parent_insert`/`_update`, „Elternteil der Revision fehlt“). Beim Umstieg trägt
-  Regel R nach: für `number > 1` ohne Basis die höchste frühere Fassung mit Status `current`/`superseded`.
-  Neue Fassungen bekommen immer ein Elternteil: Speichern die gezeigte bzw. aktuelle, Vorschläge die aktuelle.
-- **Markierung:** je Abschnitt genau eine `current` (Teilindex `revision_one_current`; mindestens eine prüft der
-  Store). Statuswechsel (Trigger `revision_status_transition`): → `current` aus `proposed`, `rejected`,
-  `superseded`; `current` → `superseded`; `proposed` → `rejected`; sonst „Unzulässiger Statuswechsel der
-  Revision“. Umschalten ändert keinen Text.
-- **Herkunft** (`node_id`, `number`, `author_kind`, `author_name`, `model`, `created`) ist unveränderlich
-  (`revision_origin_immutable`); Text und Notiz darf der Mensch ändern, `edited` hält den Zeitpunkt fest.
-- **Löschen:** die aktuelle Fassung nie (`revision_no_delete_current`); `revision_reparent` hängt die Kinder an
-  das Elternteil der gelöschten Fassung.
-- **Nummern:** `node.last_rev` ist die höchste je vergebene Nummer (`revision_number_bump`); eine Nummer
-  `<= last_rev` lehnt `revision_number_fresh` ab („Revisionsnummern werden nicht wiederverwendet“). Nummern
-  sind also eindeutig und steigend, nach dem Löschen mit Lücken; `load.rs` prüft genau das, `write.rs` nimmt
-  `last_rev + 1`. Kern, RPC, Ansicht und Formulare sprechen Fassungen nur über die Nummer an.
-- **Volltextindex:** `baruch-library` 0104 ersetzt bei geändertem Text den Eintrag und entfernt ihn beim Löschen.
-- **Unbekannte Nummer:** `StoreError::UnknownRevision { node, rev, existing }` nennt alle vorhandenen Nummern
-  („Fassung 3 gibt es nicht; vorhanden: 1, 2, 4“), nicht einen Bereich, der nach dem Löschen nicht stimmt.
-- **Gleichzeitigkeit:** Jede Änderung ist eine `BEGIN IMMEDIATE`-Transaktion, im Server zusätzlich unter
-  `AppState::write_lock`; parallele Umschalt-, Änderungs- und Löschaufrufe ergeben genau eine `current`, keine
-  verlorene Änderung und je Erfolg genau einen Commit (Tests `baruch-store/tests/concurrency.rs`,
+- **Parent:** `revision.based_on` is NULL (root) or the number of a smaller revision of the same
+  section (triggers `revision_parent_insert`/`_update`, „Elternteil der Revision fehlt“). On the switch-over
+  rule R fills in: for `number > 1` without a base the highest earlier revision with status `current`/`superseded`.
+  New revisions always get a parent: saving the shown or current one, proposals the current one.
+- **Marker:** exactly one `current` per section (partial index `revision_one_current`; at least one is checked by the
+  store). Status changes (trigger `revision_status_transition`): → `current` from `proposed`, `rejected`,
+  `superseded`; `current` → `superseded`; `proposed` → `rejected`; otherwise „Unzulässiger Statuswechsel der
+  Revision“. Switching changes no text.
+- **Origin** (`node_id`, `number`, `author_kind`, `author_name`, `model`, `created`) is immutable
+  (`revision_origin_immutable`); text and note may be changed by the human, `edited` records the time.
+- **Deleting:** never the current revision (`revision_no_delete_current`); `revision_reparent` hangs the children on
+  the parent of the deleted revision.
+- **Numbers:** `node.last_rev` is the highest number ever given (`revision_number_bump`); a number
+  `<= last_rev` is refused by `revision_number_fresh` („Revisionsnummern werden nicht wiederverwendet“). Numbers
+  are thus unique and ascending, with gaps after deleting; `load.rs` checks exactly that, `write.rs` takes
+  `last_rev + 1`. Core, RPC, view and forms address revisions only by number.
+- **Full-text index:** `baruch-library` 0104 replaces the entry when the text changes and removes it on deletion.
+- **Unknown number:** `StoreError::UnknownRevision { node, rev, existing }` names all existing numbers
+  („Fassung 3 gibt es nicht; vorhanden: 1, 2, 4“), not a range that is wrong after deleting.
+- **Concurrency:** every change is a `BEGIN IMMEDIATE` transaction, in the server additionally under
+  `AppState::write_lock`; parallel switch, change and delete calls result in exactly one `current`, no
+  lost change and exactly one commit per success (tests `baruch-store/tests/concurrency.rs`,
   `baruch-server/tests/concurrency.rs`).
-- **Verweise** in Beiträgen (`post_ref`) bleiben unberührt; ein Verweis auf eine gelöschte Fassung zeigt die
-  aktuelle.
+- **References** in posts (`post_ref`) stay untouched; a reference to a deleted revision shows the
+  current one.
 
-Store-API (`src/tree.rs`): `switch_to(work, node, rev, only_proposal, human) -> Switch` schaltet in einer
-Transaktion um (mit `only_proposal` nur Vorschläge, sonst jede nicht aktuelle Fassung; schon aktuell →
-`Refused`; Vorschlag → `Accepted`, sonst `Switched`) und lässt die Gliederung der Überschriftszeile der
-Fassung folgen (siehe „Gliederung“, „Umschalten bringt die Ebene mit“). `Switch { change, outline }` ist aus
-`lib.rs` re-exportiert; `set_current` und `accept` sind Hüllen (`switch_to(.., false|true, "Autor")`, nur
-`change`). Dazu `save_human_on` (Basis wählbar; `save_human` = Basis aktuelle Fassung), `update_revision` und
-`delete_revision` (nur Mensch; `Change.before` = Stand vorher, `Change.reparented` = umgehängte Kinder),
-`revision_tree` (alle Abschnitte nach seq, Fassungen nach Nummer, ohne Text).
+Store API (`src/tree.rs`): `switch_to(work, node, rev, only_proposal, human) -> Switch` switches in one
+transaction (with `only_proposal` only proposals, otherwise every non-current revision; already current →
+`Refused`; proposal → `Accepted`, otherwise `Switched`) and lets the outline follow the heading line of the
+revision (see "Outline", "Switching brings the level along"). `Switch { change, outline }` is re-exported from
+`lib.rs`; `set_current` and `accept` are wrappers (`switch_to(.., false|true, "Autor")`, only
+`change`). In addition `save_human_on` (base selectable; `save_human` = base current revision), `update_revision` and
+`delete_revision` (human only; `Change.before` = state before, `Change.reparented` = re-hung children),
+`revision_tree` (all sections by seq, revisions by number, without text).
 
-Protokoll im Spiegel (`mirror.rs`), Betreff `„<Nummer> <Titel>: …“`:
+Log in the mirror (`mirror.rs`), subject `„<Nummer> <Titel>: …“`:
 
-| Änderung | Betreff | Autor / Committer | Rumpf | `allow_empty` |
+| Change | Subject | Author / committer | Body | `allow_empty` |
 |---|---|---|---|---|
-| Übernehmen | `Vorschlag n übernommen` | Persona bzw. Mensch / Mensch | – | nein |
-| Speichern | `Revision n gespeichert` | Mensch / Mensch | – | nein |
-| Umschalten | `auf Fassung n umgeschaltet` (mit anderer Ebene: `… · Ebene a → b`) | Autor der Fassung / Mensch | mit anderer Ebene: mitgestufte Punkte mit neuen Fassungen, Umnummerierung | ja |
-| Ändern | `Fassung n geändert` | Mensch / Mensch | Zeilen-Diff, Notiz vorher/nachher | ja |
-| Löschen | `Fassung n gelöscht` | Mensch / Mensch | ganzer Text, Autor, Status, Elternteil, Notiz, „Umgehängt: …“ | ja |
+| Accepting | `Vorschlag n übernommen` | persona or human / human | – | no |
+| Saving | `Revision n gespeichert` | human / human | – | no |
+| Switching | `auf Fassung n umgeschaltet` (with another level: `… · Ebene a → b`) | author of the revision / human | with another level: items re-levelled along with their new revisions, renumbering | yes |
+| Changing | `Fassung n geändert` | human / human | line diff, note before/after | yes |
+| Deleting | `Fassung n gelöscht` | human / human | whole text, author, status, parent, note, „Umgehängt: …“ | yes |
 
-Trailer: `Persona`/`Model` nur bei einem Assistenten als Autor, immer `Baruch-Node` und `Baruch-Revision`,
-bei Umschalten, Ändern und Löschen dazu `Baruch-Action: switched|updated|deleted`. Umschalten committet auch
-bei gleichem Text, damit jede Umschaltung genau einen Commit ergibt. Die Dateien bleiben der Schnappschuss
-von `Store::mirror_snapshot`: Ändern einer nicht aktuellen und Löschen einer Fassung sind leere Commits.
+Trailers: `Persona`/`Model` only with an assistant as author, always `Baruch-Node` and `Baruch-Revision`,
+with switching, changing and deleting in addition `Baruch-Action: switched|updated|deleted`. Switching commits even
+with the same text, so that every switch results in exactly one commit. The files stay the snapshot
+of `Store::mirror_snapshot`: changing a non-current revision and deleting a revision are empty commits.
 
-Umschalten und Übernehmen spiegelt `mirror::record_switch` (genau ein Commit, auch wenn Unterpunkte
-mitgestuft werden); bringt die Fassung eine andere Ebene mit, trägt der Commit immer `Baruch-Action: switched`,
-auch beim Übernehmen eines Vorschlags.
+Switching and accepting are mirrored by `mirror::record_switch` (exactly one commit, even when sub-items
+are re-levelled along); if the revision brings another level along, the commit always carries `Baruch-Action: switched`,
+also when accepting a proposal.
 
-## Gliederung
+## Outline
 
 Migration `0006_outline.sql` (baruch-store):
 
-- `node.numbered` (0/1, Vorgabe 1): zählt der Knoten bei der Nummerierung mit? Beim Umstieg 0 für Knoten mit
-  leerer Nummer (Vorwort des Beispielwerks); der Trigger `node_numbered_default` setzt 0 für jeden neu
-  eingefügten Knoten mit leerer Nummer (Saat). Der Store legt neue Knoten mit vorläufiger Nummer an.
-- `work.numbering`: eigenes Muster in der Mustersprache (`baruch_typst::scheme`), `''` = keine Nummern,
-  `NULL` = aus der Werkvorlage – gelesen nur beim Schema `custom`; bei anderen Schemata bleibt es stehen
-  (Zurückschalten stellt es wieder her).
-- `work.numbering_scheme` (Migration 0008): `template` (Vorgabe) | `decimal` | `decimal_dot` |
+- `node.numbered` (0/1, default 1): does the node count in the numbering? On the switch-over 0 for nodes with
+  an empty number (foreword of the sample work); the trigger `node_numbered_default` sets 0 for every newly
+  inserted node with an empty number (seed). The store creates new nodes with a provisional number.
+- `work.numbering`: own pattern in the pattern language (`baruch_typst::scheme`), `''` = no numbers,
+  `NULL` = from the work template – read only with the scheme `custom`; with other schemes it stays in place
+  (switching back restores it).
+- `work.numbering_scheme` (migration 0008): `template` (default) | `decimal` | `decimal_dot` |
   `alphanumeric` | `chapter_roman` | `chapter_arabic` | `parts_chapters` | `chapter_words` | `legal` |
-  `sermon` | `book` (seit 0040) | `none` | `custom` (CHECK). Beim Umstieg: `numbering` NULL → `template`, `''` → `none`, sonst
-  `custom`; keine andere Zeile oder Spalte ändert sich (Test `tests/migration_0008.rs` auf einer
-  nachgebauten Datenbank im Stand 0001–0007 + 0101–0105).
-- **Migration 0040 (Schema „Buch“, `0040_numbering_scheme_book.sql`):** Der CHECK lässt `book` zu. SQLite ändert
-  keinen CHECK; `work` wird nach dem offiziellen Verfahren umgebaut: `work_new` mit allen Spalten aus 0001,
-  0002, 0005–0008 (gleiche Reihenfolge, AUTOINCREMENT, CHECK auf `kind`), Zeilen kopieren, `DROP TABLE work`,
-  `ALTER TABLE work_new RENAME TO work`, die Indizes `work_source_sha256` und `work_title_key` neu (UNIQUE(slug)
-  kommt mit der Tabelle); `sqlite_sequence` behält den größten je vergebenen Wert (auch eines gelöschten Werks).
-  An `work` hängen sonst keine Trigger, Views oder FTS-Bezüge (Beleg im Test). Weil viele Tabellen mit
-  ON DELETE CASCADE bzw. SET NULL auf `work(id)` verweisen (`outline_request`, `asset_request`, `work_book`,
+  `sermon` | `book` (since 0040) | `none` | `custom` (CHECK). On the switch-over: `numbering` NULL → `template`, `''` → `none`, otherwise
+  `custom`; no other row or column changes (test `tests/migration_0008.rs` on a
+  rebuilt database in the state 0001–0007 + 0101–0105).
+- **Migration 0040 (scheme „Buch“, `0040_numbering_scheme_book.sql`):** the CHECK admits `book`. SQLite changes
+  no CHECK; `work` is rebuilt by the official procedure: `work_new` with all columns from 0001,
+  0002, 0005–0008 (same order, AUTOINCREMENT, CHECK on `kind`), copy rows, `DROP TABLE work`,
+  `ALTER TABLE work_new RENAME TO work`, the indexes `work_source_sha256` and `work_title_key` anew (UNIQUE(slug)
+  comes with the table); `sqlite_sequence` keeps the largest value ever given (also of a deleted work).
+  Otherwise no triggers, views or FTS references hang on `work` (evidence in the test). Because many tables
+  refer to `work(id)` with ON DELETE CASCADE or SET NULL (`outline_request`, `asset_request`, `work_book`,
   `work_rag`, `work_rag_collection`, `work_bible`, `sync_work`, `work_sword_source`, `chat_thread`, `work_timing`;
-  `idea` SET NULL), muss `DROP TABLE` ohne Fremdschlüssel laufen – mit ihnen löschte das implizite DELETE diese
-  Zeilen, und `defer_foreign_keys` (Weg von 0007) verhindert Aktionen nicht. sqlx 0.8.6 führt jede Migration in
-  einer Transaktion aus, in der `PRAGMA foreign_keys` wirkungslos ist; darum läuft `MIGRATOR` über
-  `baruch_store::migrate`: Für jede Version aus `FOREIGN_KEYS_OFF` (bisher nur 40) erst alle älteren Migrationen
-  normal, dann diese eine auf einer eigenen Verbindung mit `PRAGMA foreign_keys = OFF` (vor der Transaktion),
-  danach wieder `ON` (sonst wird die Verbindung geschlossen), zuletzt der Rest. Die Migration prüft selbst, dass
-  die Fremdschlüssel aus sind (sonst Abbruch ohne Änderung), und am Ende `pragma_foreign_key_check` (ein Verstoß
-  rollt alles zurück). Test `tests/migration_0040.rs`: Datenbank im Stand 0039 + 0101–0106 mit Zeilen in jeder
-  Tabelle, die auf `work` verweist; jede Zeile, jedes andere Schemaobjekt und jeder Verweis (samt Aktion) bleibt,
-  `foreign_key_check` leer, `integrity_check` ok, alle Schemata samt `book` speicherbar, Unbekanntes abgelehnt.
-- **Maskierungen:** `node.title` wird aufgelöst (verschachteltes `replace()`: erst `\\` → `char(1)`, dann
-  `\X` → `X` für `' " # * _ $ @ < > [ ] ` ~ = - / + .`, dann `char(1)` → `\`), genau wie
-  `baruch_typst::unescape_title`. Revisionstexte bleiben unverändert: Die Überschriftszeile im Text bleibt
-  wörtlich, `Node.title`, Anzeige, slug und Commit-Betreffe nutzen den aufgelösten Titel. Neue
-  Überschriftszeilen maskiert `baruch_typst::escape_title` (Backslash und `# * _ $ @ < > [ ] ` ~`, `/` vor `/`
-  oder `*`); `heading_line` behält Label und Kommentar der vorigen Zeile. `Heading` aus `parse` trägt beide
-  Titel (`title` aufgelöst, `raw_title` wörtlich).
+  `idea` SET NULL), `DROP TABLE` must run without foreign keys – with them the implicit DELETE would delete these
+  rows, and `defer_foreign_keys` (the way of 0007) does not prevent actions. sqlx 0.8.6 runs every migration in
+  a transaction in which `PRAGMA foreign_keys` has no effect; that is why `MIGRATOR` runs through
+  `baruch_store::migrate`: for every version from `FOREIGN_KEYS_OFF` (so far only 40) first all older migrations
+  normally, then this one on its own connection with `PRAGMA foreign_keys = OFF` (before the transaction),
+  afterwards `ON` again (otherwise the connection is closed), finally the rest. The migration checks itself that
+  the foreign keys are off (otherwise abort without change), and at the end `pragma_foreign_key_check` (a violation
+  rolls everything back). Test `tests/migration_0040.rs`: database in the state 0039 + 0101–0106 with rows in every
+  table that refers to `work`; every row, every other schema object and every reference (including its action) stays,
+  `foreign_key_check` empty, `integrity_check` ok, all schemes including `book` storable, unknown ones refused.
+- **Escapes:** `node.title` is unescaped (nested `replace()`: first `\\` → `char(1)`, then
+  `\X` → `X` for `' " # * _ $ @ < > [ ] ` ~ = - / + .`, then `char(1)` → `\`), exactly like
+  `baruch_typst::unescape_title`. Revision texts stay unchanged: the heading line in the text stays
+  literal, `Node.title`, display, slug and commit subjects use the unescaped title. New
+  heading lines are escaped by `baruch_typst::escape_title` (backslash and `# * _ $ @ < > [ ] ` ~`, `/` before `/`
+  or `*`); `heading_line` keeps label and comment of the previous line. `Heading` from `parse` carries both
+  titles (`title` unescaped, `raw_title` literal).
 
-**Ebenen und Gültigkeit** (`baruch-store/src/outline.rs`): Teil 0 (nur oberste Ebene, seit Runde 14 mit der
-Teil-Markierung als Überschriftszeile, in jedem Werk anlegbar, nie umstufbar), Kapitel 1, Abschnitt 2,
-Unterabschnitt 3 (Abschnitt unter Abschnitt). Die Gliederung ist die Ebenenfolge in Baumreihenfolge, das
-Elternteil wie beim Import der nächste Vorgänger mit kleinerer Ebene. Gültig: jede Ebene höchstens eine tiefer
-als die vorige (der erste Nicht-Teil also ein Kapitel), keine tiefer als 3, nie in den eigenen Teilbaum.
-Verschieben behält die Ebene (Runde 5): `before`/`after` nur neben ein Ziel derselben Ebene (`after` hinter
-dessen Unterpunkte), `into` nur unter ein Ziel genau eine Ebene höher (letzter Unterpunkt); sonst `Refused`
+**Levels and validity** (`baruch-store/src/outline.rs`): part 0 (top level only, since Round 14 with the
+part marker as its heading line, can be created in every work, can never be re-levelled), chapter 1, section 2,
+subsection 3 (section under section). The outline is the sequence of levels in tree order, the
+parent, as on import, the nearest predecessor with a smaller level. Valid: every level at most one deeper
+than the previous one (so the first non-part is a chapter), none deeper than 3, never into its own subtree.
+Moving keeps the level (Round 5): `before`/`after` only next to a target of the same level (`after` behind
+its sub-items), `into` only under a target exactly one level higher (last sub-item); otherwise `Refused`
 „Verschieben behält die Ebene (Kapitel bleibt Kapitel); erst umstufen (← / →).“ (`outline::MOVE_KEEPS_LEVEL`,
-dasselbe Urteil in `judge()` von `outline.ts`). Unterpunkte wandern unverändert mit.
-Ungültig → `StoreError::Refused` (-32000), nichts geändert.
+the same verdict in `judge()` of `outline.ts`). Sub-items move along unchanged.
+Invalid → `StoreError::Refused` (-32000), nothing changed.
 
-**Teile (Runde 14, R14b):** Keine Schemaänderung – ein Teil bleibt `node.kind = 'part'`, Ebene 0, `parent_seq`
-NULL; seine Kapitel sind wie immer die folgenden Punkte bis zum nächsten Teil (`parents`). Text eines neuen
-Teils (Revision 1) ist `heading_line(0, Titel, None) + "\n"` = Teil-Markierung
-(`baruch_typst::part_line`, Schnittstelle A in `baruch-typst/src/marker.rs`) und Leerzeile, Autor wie bei
-jedem Anlegen der Mensch, die Persona oder `@mcp:<client>`. `add_many` erlaubt Ebene 0 vor/hinter einem Teil
-oder Kapitel (auch als ersten Punkt neben einem Kapitel und mitten im Block; nicht `into`, nicht neben einem
-Abschnitt); die Sperre „nur ohne Werkvorlage“ ist entfallen, `add` (RPC ohne `level`, Einfälle) läuft über
-`add_many`. `OutlineAdded.adopted` = Schlüssel der vorhandenen Kapitel, deren Elternteil danach ein neuer
-Teil ist; ihre Texte und Nummern bleiben (`load::numbers` zählt Kapitel über Teile hinweg). Umbenennen
-(`apply`, `rewrite_part`): Markierung am Anfang → nur ihre Zeile neu (`heading_line(0, …, Some(alt))`, der
-Kommentar bleibt), leerer Text → Markierung, sonst (selbst geschriebener Text; Altbestand „= Teil …“ wandelt seit
-2026-11-07 der Startschritt um, siehe „Teile im Typst-Text“) bleibt der Text und
-`Applied.kept_parts` lässt das Detail es sagen. Speichern (`save_part`), `check_part`, Vorschläge
-(`check_proposal_heading`), `revision.save`/`update` (`check_current_heading`) und Umschalten
-(`follow_switched`) gleichen nur Teile **mit** Markierung ab (`part_problem`: genau eine Markierung am Anfang,
-keine weitere Überschrift; Speichern und Vorschlag verlangen sie auch, wenn die aktuelle Fassung eine trägt);
-`sync_heading` übernimmt den Titel aus der Markierung (`heading_level` liefert für Teile Ebene 0). Eine
-Teil-Markierung als erste Überschrift eines Kapitels (Speichern, Umschalten) → abgelehnt (`TO_PART`).
-Ebenenwechsel ohne neuen Titel über `baruch_typst::relevel_line` (eine Markierung „ohne Nummer“ bleibt
-Markierung); beim Teilen zählt ein Stück mit Markierung „ohne Nummer“ ohne Nummer (`Analysis.numbered`).
+**Parts (Round 14, R14b):** no schema change – a part stays `node.kind = 'part'`, level 0, `parent_seq`
+NULL; its chapters are, as always, the following items up to the next part (`parents`). The text of a new
+part (revision 1) is `heading_line(0, Titel, None) + "\n"` = part marker
+(`baruch_typst::part_line`, interface A in `baruch-typst/src/marker.rs`) and an empty line, author as with
+every creation the human, the persona or `@mcp:<client>`. `add_many` allows level 0 before/behind a part
+or chapter (also as the first item next to a chapter and in the middle of the block; not `into`, not next to a
+section); the restriction „nur ohne Werkvorlage“ is gone, `add` (RPC without `level`, ideas) runs through
+`add_many`. `OutlineAdded.adopted` = keys of the existing chapters whose parent is afterwards a new
+part; their texts and numbers stay (`load::numbers` counts chapters across parts). Renaming
+(`apply`, `rewrite_part`): marker at the beginning → only its line anew (`heading_line(0, …, Some(alt))`, the
+comment stays), empty text → marker, otherwise (self-written text; old stock „= Teil …“ has been converted by the
+start step since 2026-11-07, see "Parts in the Typst text") the text stays and
+`Applied.kept_parts` lets the detail say so. Saving (`save_part`), `check_part`, proposals
+(`check_proposal_heading`), `revision.save`/`update` (`check_current_heading`) and switching
+(`follow_switched`) only reconcile parts **with** a marker (`part_problem`: exactly one marker at the beginning,
+no further heading; saving and proposal also demand it when the current revision carries one);
+`sync_heading` takes the title from the marker (`heading_level` delivers level 0 for parts). A
+part marker as the first heading of a chapter (saving, switching) → refused (`TO_PART`).
+Level changes without a new title through `baruch_typst::relevel_line` (a marker „ohne Nummer“ stays a
+marker); when splitting, a piece with the marker „ohne Nummer“ counts as without a number (`Analysis.numbered`).
 
-**seq-Neuvergabe:** Jede Änderung (`outline_move`, `outline_set_level`, `outline_rename`, `outline_add`,
-`outline_delete`, `outline_save` mit Teilen/Zusammenführen) läuft in einer Transaktion: Gliederung in
-Baumreihenfolge lesen (Tiefensuche, Geschwister nach `position`), als Liste umstellen und prüfen, dann
-`seq`, `parent_seq`, `position`, `kind` neu schreiben – zweistufig (`seq = -seq - 1`, dann die neuen Werte)
-wegen `UNIQUE(work_id, seq)`. `post_ref.node_seq` wird ebenso zweistufig umgeschrieben, Verweise auf
-gelöschte Knoten entfallen. `node.number` wird mitgeschrieben. Danach bekommt jeder Knoten mit Text, dessen
-Ebene oder Titel sich geändert hat, eine neue Fassung des Menschen (aktuell, Elternteil = bisherige aktuelle),
-die sich nur in der Überschriftszeile unterscheidet. `seq` bleibt 0-basiert, lückenlos und gleich der Stelle
-in Baumreihenfolge; `load.rs` prüft das weiter.
+**Reassigning seq:** every change (`outline_move`, `outline_set_level`, `outline_rename`, `outline_add`,
+`outline_delete`, `outline_save` with splitting/merging) runs in one transaction: read the outline in
+tree order (depth-first, siblings by `position`), rearrange and check it as a list, then
+write `seq`, `parent_seq`, `position`, `kind` anew – in two stages (`seq = -seq - 1`, then the new values)
+because of `UNIQUE(work_id, seq)`. `post_ref.node_seq` is rewritten in two stages as well, references to
+deleted nodes are dropped. `node.number` is written along. Afterwards every node with text whose
+level or title changed gets a new revision of the human (current, parent = previous current one),
+which differs only in the heading line. `seq` stays 0-based, without gaps and equal to the position
+in tree order; `load.rs` keeps checking that.
 
-**Fester Schlüssel:** Weil `seq` sich bei jeder Änderung ändert, trägt `baruch_core::Node` zusätzlich `key`
-(= `node.id`, keine Migration nötig). `Store::node_seq(work, key)` liefert die Stelle jetzt (gelöscht →
-`StoreError::GoneNode`). Im Server übersetzt `rpc::resolve_keys` `key` → `node` und `target_key` → `target`
-unter `AppState::write_lock` (RPC, `/act`, `/gliederung/act`); der Schlüssel geht vor der Stelle. Alle
-Formulare (`tree.html`, `outline*.html`, `editor.html`, `assistants.html`) und `outline.ts` schicken ihn mit.
-Seit Runde 5 ist er beim Schreiben über MCP (`propose_revision`, `add_post` samt `refs`) und beim Zitieren
-(`highlight.cite`, `/literatur/act` mit `cite`) **Pflicht**: `node` wird dort abgelehnt (MCP und RPC -32602),
-ohne `key` ebenso (Formular: 422 „Abschnitt fehlt.“). Die Auflösung läuft unter der Schreibsperre (MCP in
-`mcp/tools.rs`, Zitieren in `literature::cite`). Links `/?node=` bleiben reine Anzeige.
+**Fixed key:** because `seq` changes with every change, `baruch_core::Node` additionally carries `key`
+(= `node.id`, no migration needed). `Store::node_seq(work, key)` delivers the current position (deleted →
+`StoreError::GoneNode`). In the server `rpc::resolve_keys` translates `key` → `node` and `target_key` → `target`
+under `AppState::write_lock` (RPC, `/act`, `/gliederung/act`); the key takes precedence over the position. All
+forms (`tree.html`, `outline*.html`, `editor.html`, `assistants.html`) and `outline.ts` send it along.
+Since Round 5 it is **mandatory** when writing through MCP (`propose_revision`, `add_post` including `refs`) and when citing
+(`highlight.cite`, `/literatur/act` with `cite`): `node` is refused there (MCP and RPC -32602),
+likewise without `key` (form: 422 „Abschnitt fehlt.“). The resolution runs under the write lock (MCP in
+`mcp/tools.rs`, citing in `literature::cite`). Links `/?node=` stay pure display.
 
-**Löschen ganzer Knoten:** In derselben Transaktion erst die aktuelle Fassung `current → superseded` (laut
-0004 erlaubt), dann Revisionen, Verweise der Beiträge, Beiträge und den Knoten löschen. So bleibt der Trigger
-`revision_no_delete_current` für lebende Abschnitte wirksam. Zusammenführen hängt den Text an den vorigen
-Punkt (neue Fassung dort), verschiebt die Beiträge dorthin (Stellen hinter die vorhandenen) und löscht den
-Knoten ebenso.
+**Deleting whole nodes:** in the same transaction first the current revision `current → superseded` (allowed
+according to 0004), then delete revisions, references of the posts, posts and the node. So the trigger
+`revision_no_delete_current` stays effective for living sections. Merging appends the text to the previous
+item (new revision there), moves the posts there (positions behind the existing ones) and deletes the
+node the same way.
 
-**Nummerierung** (`load.rs`, beim Laden berechnet, `load::work_numbering`): Schema `work.numbering_scheme`
-→ `baruch_typst::scheme::Numbering` (`Numbering::of_scheme`; `custom` liest `work.numbering`, `template`
-`baruch_typst::heading_numbering(template)`, sonst „1.1“). `heading_numbering` liest nur Regeln der obersten
-Ebene (Scanner der Gliederung, `#` mit leerem Klammerstapel), die **letzte** mit `numbering`, und gibt die
-Mustersprache zurück: String wörtlich, `none` → `""`, eine Funktion (direkt oder über den letzten
-`#let`-Namen davor) wird je Ebene 1–6 symbolisch ausgewertet (`scheme::read_function`: Tiefenbedingungen
-`X.pos().len() OP k`, `let p = n.pos()`, Text, `numbering("P", ..n)`, `numbering("P", p.at(i))`,
-`* 2`, `+`); nicht auswertbar → wie bisher das erste `numbering("MUSTER"` der Funktion. `load::numbers`
-zählt Teile eigen (`Numbering::part`), Kapitel über Teile hinweg fortlaufend, Unterzähler je Elternteil
-und gibt die Zählerstände `[kapitel, abschnitt, …]` an `Numbering::heading` (dazu die Zahl der nummerierten
-Kapitel für „Schluss“ der Predigt); Knoten mit `numbered = 0` zählen nicht und haben keine Nummer.
-`Store::set_numbering_scheme` (eine Transaktion, `OutlineAction::Numbering`, unverändert → `Refused`,
-unbekanntes Schema/ungültiges Muster → `StoreError::Numbering`) schreibt `node.number` neu;
-`Store::set_numbering` bleibt (None → `template`, `""` → `none`, sonst `custom`). `Store::numbering_preview`
-und `Store::numbering_rule` lesen nur. `NumberingInfo` trägt zusätzlich `scheme`, `scheme_label`, `custom`.
+**Numbering** (`load.rs`, computed when loading, `load::work_numbering`): scheme `work.numbering_scheme`
+→ `baruch_typst::scheme::Numbering` (`Numbering::of_scheme`; `custom` reads `work.numbering`, `template`
+`baruch_typst::heading_numbering(template)`, otherwise „1.1“). `heading_numbering` reads only top-level
+rules (scanner of the outline, `#` with an empty bracket stack), the **last** one with `numbering`, and returns the
+pattern language: string literally, `none` → `""`, a function (directly or through the last
+`#let` name before it) is evaluated symbolically per level 1–6 (`scheme::read_function`: depth conditions
+`X.pos().len() OP k`, `let p = n.pos()`, text, `numbering("P", ..n)`, `numbering("P", p.at(i))`,
+`* 2`, `+`); not evaluable → as before the first `numbering("MUSTER"` of the function. `load::numbers`
+counts parts separately (`Numbering::part`), chapters continuously across parts, sub-counters per parent,
+and passes the counter states `[kapitel, abschnitt, …]` to `Numbering::heading` (plus the number of numbered
+chapters for „Schluss“ of the sermon); nodes with `numbered = 0` do not count and have no number.
+`Store::set_numbering_scheme` (one transaction, `OutlineAction::Numbering`, unchanged → `Refused`,
+unknown scheme/invalid pattern → `StoreError::Numbering`) rewrites `node.number`;
+`Store::set_numbering` stays (None → `template`, `""` → `none`, otherwise `custom`). `Store::numbering_preview`
+and `Store::numbering_rule` only read. `NumberingInfo` additionally carries `scheme`, `scheme_label`, `custom`.
 
-Beispielwerk: „I, 1, 2, 2.1, 2.2, II, 3, 3.1, 4, 4.1“, Vorwort ohne Nummer; `baruch_typst::format_number` wendet ein Muster nach den Typst-Regeln an (Zählzeichen `1 a A i I *`, Präfix, Trenner, Suffix, das letzte Zählzeichen wiederholt sich für tiefere Ebenen).
+Sample work: „I, 1, 2, 2.1, 2.2, II, 3, 3.1, 4, 4.1“, foreword without a number; `baruch_typst::format_number` applies a pattern according to the Typst rules (counting symbols `1 a A i I *`, prefix, separator, suffix, the last counting symbol repeats for deeper levels).
 
-**Export und Spiegel mit Gliederungsschema** (`snapshot.rs`): Die Vorlage für `export_typst` und `main.typ`
-kommt aus `baruch_typst::scheme::export_template(template, scheme, numbering)`: bei `template` unverändert
-(byte-gleich wie vor Runde 6), sonst Vorlage + (Zeilenende, falls nötig) + `// Baruch: Gliederungsschema
-„<Name>“` + `Numbering::heading_rule()` (eine Zeile `#set heading(numbering: …)`). Ohne Vorlage steht die
-Regel in `main.typ` hinter `// Baruch: <Titel>`. Knoten mit `numbered = 0` setzt der Export seit Runde 14
-nicht mehr über Show-Regeln ab, sondern projiziert ihre erste Überschriftszeile auf die Markierung
-`<baruch-unnumbered>` (siehe „Kapitel ohne Nummer in Typst“ weiter unten, `snapshot::project`, auch bei „aus der
-Werkvorlage“); nur wo das nicht geht (eigenes Label, Titel mit Code wie `#emph[…]`) bleibt
-`// Baruch: Überschriften ohne Nummer` mit je einer Zeile
-`#show heading.where(level: L, body: [Titel]): set heading(numbering: none)` als Rückfall
-(`snapshot::fallback_rules`). Die Texte in SQLite bleiben unverändert. `vorlage.typ` bleibt die gespeicherte
-Vorlage. Für die musterbasierten Schemata (`decimal`, `decimal_dot`, `chapter_roman`, `chapter_arabic`, `alphanumeric`,
-`custom`) liest `heading_numbering` aus dem Export wieder dieselben Nummern (Re-Import ergibt dieselbe
-Gliederung); die Regeln der Schemata mit Wörtern sind Typst-Funktionen (`"§ " + str(p.at(0))`,
-Ordnungswörter-Array, `context` + `counter(heading).final()` für „Schluss“), die Baruch beim Re-Import nur
-näherungsweise liest. Die erzeugten Regeln prüft seit Runde 14 Typst selbst
-(`baruch-render/tests/schemes.rs`, siehe „Prüfung gegen Typst“ unten).
+**Export and mirror with an outline scheme** (`snapshot.rs`): the template for `export_typst` and `main.typ`
+comes from `baruch_typst::scheme::export_template(template, scheme, numbering)`: with `template` unchanged
+(byte-identical as before Round 6), otherwise template + (line end, if needed) + `// Baruch: Gliederungsschema
+„<Name>“` + `Numbering::heading_rule()` (one line `#set heading(numbering: …)`). Without a template the
+rule stands in `main.typ` behind `// Baruch: <Titel>`. Since Round 14 the export no longer sets off nodes with `numbered = 0`
+through show rules, but projects their first heading line onto the marker
+`<baruch-unnumbered>` (see "Chapters without a number in Typst" further below, `snapshot::project`, also with „aus der
+Werkvorlage“); only where that is not possible (own label, title with code like `#emph[…]`) does
+`// Baruch: Überschriften ohne Nummer` with one line each
+`#show heading.where(level: L, body: [Titel]): set heading(numbering: none)` stay as a fallback
+(`snapshot::fallback_rules`). The texts in SQLite stay unchanged. `vorlage.typ` stays the stored
+template. For the pattern-based schemes (`decimal`, `decimal_dot`, `chapter_roman`, `chapter_arabic`, `alphanumeric`,
+`custom`) `heading_numbering` reads the same numbers back from the export (re-import gives the same
+outline); the rules of the schemes with words are Typst functions (`"§ " + str(p.at(0))`,
+ordinal-word array, `context` + `counter(heading).final()` for „Schluss“), which Baruch reads only
+approximately on re-import. Since Round 14 the generated rules are checked by Typst itself
+(`baruch-render/tests/schemes.rs`, see "Check against Typst" below).
 
-**Überschriften im Text:** `outline_check` (nur lesen) und `outline_save` zerlegen den Text mit
-`baruch_typst::parse`: eine Überschrift → speichern und Titel/Ebene angleichen (Unterpunkte wandern mit),
-weitere → mit Bestätigung neue Punkte dahinter (Revision 1 des Menschen mit ihrem Stück), keine → mit
-Bestätigung an den vorigen Punkt anhängen; Text vor der ersten Überschrift → `Refused`. Teile speichern ohne
-Gliederungslogik. `outline::check_current_heading` läuft nach `Store::save_human`, `Store::save_human_on` und
-`Store::update_revision` der aktuellen Fassung in derselben Transaktion: Trägt der Text nicht genau eine
-Überschrift der Ebene des Punkts am Anfang → `StoreError::Heading` (-32000, zurückgerollt); sonst übernimmt
-`outline::sync_heading` den Titel. `Store::add_proposal` prüft vorher ebenso (`check_proposal_heading`), also
-auch MCP und `highlight.cite`. Ebene, Teilen und Zusammenführen gibt es auf diesen Wegen nicht.
+**Headings in the text:** `outline_check` (read only) and `outline_save` split the text with
+`baruch_typst::parse`: one heading → save and align title/level (sub-items move along),
+more → with confirmation new items behind it (revision 1 of the human with its piece), none → with
+confirmation append to the previous item; text before the first heading → `Refused`. Parts are saved without
+outline logic. `outline::check_current_heading` runs after `Store::save_human`, `Store::save_human_on` and
+`Store::update_revision` of the current revision in the same transaction: if the text does not carry exactly one
+heading of the item's level at the beginning → `StoreError::Heading` (-32000, rolled back); otherwise
+`outline::sync_heading` takes over the title. `Store::add_proposal` checks the same beforehand (`check_proposal_heading`), so
+also MCP and `highlight.cite`. Level, splitting and merging do not exist on these paths.
 
-**Umschalten bringt die Ebene mit** (Runde 5, Nutzerentscheidung 2026-11-05 „Nein“: eine Fassung wird beim
-Umschalten nie umgeschrieben): `Store::switch_to` ruft statt `check_current_heading`
-`outline::follow_switched`. Gleiche Ebene → nur `sync_heading` (Titel), `outline: None`. Andere Ebene → Punkt
-bekommt Ebene und Titel der Fassung (`text_done`, sein Text bleibt), alle Unterpunkte wandern um dieselbe
-Differenz (käme einer tiefer als 3, `StoreError::Heading` statt Kappen – Kappen machte ein Kind zum
-Geschwister, und Zurückschalten stellte es nicht wieder her), dann `apply` wie bei `outline_set_level`: neue Fassungen
-des Menschen nur für die tatsächlich umgestuften Unterpunkte, nur die Überschriftszeile geändert;
-`OutlineChange { action: Level, detail: "„T“ Ebene a → b" bzw. "„Alt“ → „Neu“ umbenannt, Ebene a → b" }`.
-Abgelehnt (`StoreError::Heading`, -32000, alles zurückgerollt, auch das Umschalten): keine Überschrift, weitere
-Überschriften, Text davor (Hinweis auf „Speichern“ im Editor), eine an der Stelle ungültige Ebenenfolge.
-Teile haben keine Überschriftszeile und schalten ohne Gliederungsabgleich um. Teilen und Zusammenführen gibt es
-nur über `outline_*`; Gliederung und Überschriftszeilen bleiben gleich, Export und Import ergeben dieselbe
-Gliederung.
+**Switching brings the level along** (Round 5, user decision 2026-11-05 „Nein“: a revision is never rewritten
+when switching): `Store::switch_to` calls `outline::follow_switched` instead of `check_current_heading`.
+Same level → only `sync_heading` (title), `outline: None`. Different level → the item
+gets level and title of the revision (`text_done`, its text stays), all sub-items move by the same
+difference (if one would come deeper than 3, `StoreError::Heading` instead of capping – capping would make a child a
+sibling, and switching back would not restore it), then `apply` as with `outline_set_level`: new revisions
+of the human only for the sub-items actually re-levelled, only the heading line changed;
+`OutlineChange { action: Level, detail: "„T“ Ebene a → b" or "„Alt“ → „Neu“ umbenannt, Ebene a → b" }`.
+Refused (`StoreError::Heading`, -32000, everything rolled back, also the switching): no heading, further
+headings, text before it (hint to „Speichern“ in the editor), a sequence of levels invalid at that position.
+Parts have no heading line and switch without outline reconciliation. Splitting and merging exist
+only through `outline_*`; outline and heading lines stay the same, export and import give the same
+outline.
 
-**Titelregeln (Runde 7):** `baruch_store::check_title` (in `src/outline.rs`, mit `MAX_TITLE_CHARS = 200`):
-Rand-Leerraum (`char::is_whitespace`) weg; leer, ein Zeichen mit `baruch_typst::is_newline` oder mehr als 200
-Zeichen (`chars`) → `StoreError::Title(<Meldung>)` → RPC -32602, MCP `isError`, Formular 422. Angewandt in
-`rename`, `add`, `save` (erster und jeder geteilte Titel, vor jedem Schreiben), `check` (`valid: false`,
-`message`), `check_current_heading` (`revision.save`, `revision.update` der aktuellen), `check_proposal_heading`
-(`add_proposal`: MCP `propose_revision`, `highlight.cite`) und `follow_switched` (Umschalten/Übernehmen), immer
-in der Transaktion des Aufrufers (Ablehnung = Rückrollen). `clean_title` (Zeilenumbruch → Leerzeichen) gibt es
-nicht mehr. Import und Export prüfen keine Titel (byte-gleich); vorhandene leere Titel bleiben lesbar.
+**Title rules (Round 7):** `baruch_store::check_title` (in `src/outline.rs`, with `MAX_TITLE_CHARS = 200`):
+edge white space (`char::is_whitespace`) removed; empty, a character with `baruch_typst::is_newline` or more than 200
+characters (`chars`) → `StoreError::Title(<Meldung>)` → RPC -32602, MCP `isError`, form 422. Applied in
+`rename`, `add`, `save` (first and every split title, before each write), `check` (`valid: false`,
+`message`), `check_current_heading` (`revision.save`, `revision.update` of the current one), `check_proposal_heading`
+(`add_proposal`: MCP `propose_revision`, `highlight.cite`) and `follow_switched` (switching/accepting), always
+in the transaction of the caller (refusal = rollback). `clean_title` (line break → space) no longer
+exists. Import and export check no titles (byte-identical); existing empty titles stay readable.
 
-**Satzbild und Titel:** `baruch_wysiwyg::emit`/`serialize` beenden eine Überschrift am ersten Zeilenumbruch der
-obersten Ebene (`emit::split_heading`); der Rest wird ein Absatz dahinter. So liefern nur echte
-Überschriftszeilen Titel. Ursache des Fehlers „Absatz wird Titel“ (Runde 7): `emit` machte aus `Inline::Soft`
-in Überschriften ein Leerzeichen, also eine einzige Zeile `== Titel Absatztext …`, die `outline.save` als Titel
-übernahm (Test `crates/baruch-server/tests/round7_titles.rs`). Der Abgleich im Store (`sync_heading`,
-`follow_switched`, `rewrite_heading`) nahm schon nur echte Überschriftszeilen.
+**Typeset view and titles:** `baruch_wysiwyg::emit`/`serialize` end a heading at the first top-level line break
+(`emit::split_heading`); the rest becomes a paragraph behind it. So only real
+heading lines deliver titles. Cause of the bug „Absatz wird Titel“ (Round 7): `emit` turned `Inline::Soft`
+in headings into a space, i.e. a single line `== Titel Absatztext …`, which `outline.save` took over as the title
+(test `crates/baruch-server/tests/round7_titles.rs`). The reconciliation in the store (`sync_heading`,
+`follow_switched`, `rewrite_heading`) already took only real heading lines.
 
-**Schema-Name im Kopf:** `NumberingInfo.label` = Name des Schemas, dessen Muster dem wirksamen entspricht
-(`baruch_typst::scheme::Scheme::matching(pattern)`, nur Schemata mit fester Mustersprache, nie Vorlage/Eigenes/
-Ohne), sonst das Muster, ohne Nummern „keine“, bei Schemata mit Wörtern deren Name. `fragments/tree.html` zeigt
-„Nummern: {{ numbering.label }}“, das Muster nur im `title`.
+**Scheme name in the head:** `NumberingInfo.label` = name of the scheme whose pattern matches the effective one
+(`baruch_typst::scheme::Scheme::matching(pattern)`, only schemes with a fixed pattern language, never template/own/
+none), otherwise the pattern, without numbers „keine“, with schemes with words their name. `fragments/tree.html` shows
+„Nummern: {{ numbering.label }}“, the pattern only in the `title`.
 
-**Server** (`baruch-server/src/outline.rs`): RPC `outline.*`, Seiten `/gliederung` und `/gliederung/bearbeiten`
-mit eigener Template-Umgebung (`outline.html`, `outline_edit.html`, `outline_confirm.html`), Formulare an
-`POST /gliederung/act` (hinter `guard::same_origin`). Schreibende Methoden unter der Schreibsperre, danach
-`mirror::record_outline`: genau ein Commit „Gliederung: …“ (`allow_empty`), Autor und Committer der Mensch,
-Trailer `Baruch-Action: outline-*` und `Baruch-Node`, Rumpf mit neuen Fassungen, Umnummerierung und vollem
-Text gelöschter Punkte. Linke Spalte (`fragments/tree.html`), die einzige Gliederung der Oberfläche: Kopf mit Nummerierungsformular
-(`form[data-outline-numbering]` an `/gliederung/act`, Feld `numbering` = `vorlage` | `keine` | Muster); je
-Eintrag Formulare ↑ ↓ ← → (Knöpfe in der Zeile über das Attribut `form`), Knopf „⋯“ (`js-only`) und die
-Rückfall-Links „bearbeiten“/„Bearbeiten“ (`nojs-only`, mit JavaScript per CSS ausgeblendet: `.js .nojs-only`);
-ein verborgenes Kontextmenü `[data-outline-menu]`. Einträge (`a[data-nav]`) zeigen immer auf den Editor, nie
-auf `view=preview`. Widget `outline` (`web/src/outline.ts`): Ziehen und Ablegen, Alt+Umschalt+Pfeile (außer in
-Eingabefeldern), Kontextmenü (Rechtsklick, Umschalt+F10, Kontextmenü-Taste) mit Umbenennen an Ort und Stelle
-(Doppelklick auf den gewählten Eintrag oder F2; Enter → `outline.rename`, Esc bricht ab), Anlegen mit
-Eingabefeld (`outline.add`), Umstufen, Löschen (`confirm()` → `outline.delete {confirm: true}`, Entf). Jede
-schreibende Aktion: `leaveEditor()` → RPC → `baruch:navigate {url, asked: true}`. Vor dem Speichern im Editor
-löst es `baruch:before-save {wait}` am Formular aus, wartet auf `detail.wait`, liest dann das Formular und fragt
-`outline.check` mit `confirm()`. `view.rs` gibt `node.key` und die Nummerierung (`rpc::LibraryView::numbering`)
-in den Kontext, dazu die Zahl offener Anträge (`LibraryView::outline_requests`, Hinweis im Kopf des Baums).
+**Server** (`baruch-server/src/outline.rs`): RPC `outline.*`, pages `/gliederung` and `/gliederung/bearbeiten`
+with their own template environment (`outline.html`, `outline_edit.html`, `outline_confirm.html`), forms to
+`POST /gliederung/act` (behind `guard::same_origin`). Writing methods under the write lock, afterwards
+`mirror::record_outline`: exactly one commit „Gliederung: …“ (`allow_empty`), author and committer the human,
+trailers `Baruch-Action: outline-*` and `Baruch-Node`, body with new revisions, renumbering and the full
+text of deleted items. Left column (`fragments/tree.html`), the only outline of the user interface: head with numbering form
+(`form[data-outline-numbering]` to `/gliederung/act`, field `numbering` = `vorlage` | `keine` | pattern); per
+entry forms ↑ ↓ ← → (buttons in the row through the attribute `form`), button „⋯“ (`js-only`) and the
+fallback links „bearbeiten“/„Bearbeiten“ (`nojs-only`, hidden by CSS with JavaScript: `.js .nojs-only`);
+a hidden context menu `[data-outline-menu]`. Entries (`a[data-nav]`) always point to the editor, never
+to `view=preview`. Widget `outline` (`web/src/outline.ts`): drag and drop, Alt+Shift+arrows (except in
+input fields), context menu (right click, Shift+F10, context menu key) with renaming in place
+(double click on the chosen entry or F2; Enter → `outline.rename`, Esc cancels), creating with
+an input field (`outline.add`), re-levelling, deleting (`confirm()` → `outline.delete {confirm: true}`, Del). Every
+writing action: `leaveEditor()` → RPC → `baruch:navigate {url, asked: true}`. Before saving in the editor
+it fires `baruch:before-save {wait}` at the form, waits for `detail.wait`, then reads the form and asks
+`outline.check` with `confirm()`. `view.rs` puts `node.key` and the numbering (`rpc::LibraryView::numbering`)
+into the context, plus the number of open requests (`LibraryView::outline_requests`, hint in the head of the tree).
 
-### Nummerierung je Ebene (Runde 14)
+### Numbering per level (Round 14)
 
-**Eine Quelle:** `baruch_typst::scheme::Numbering` rechnet die Nummern für Baum, Gliederung, Editorkopf und
-Vorschau (`Numbering::heading`/`part` über `store/load.rs::numbers`), schreibt die Regel für Export und Satz
-(`heading_rule` über `export_template`) und liest sie beim Re-Import wieder (`Numbering::from_template`;
-`of_scheme(Scheme::Template, _, t)` = `from_template(t)` oder „1.1“). `from_template` sucht wie
-`heading_numbering` die letzte `#set heading(numbering: …)` der obersten Ebene (private Hilfen aus `lib.rs`:
-`blank_comments`, `top_level_hashes`, `Cursor::arguments_at`, `expression_end`) und unterscheidet:
+**One source:** `baruch_typst::scheme::Numbering` computes the numbers for tree, outline, editor head and
+preview (`Numbering::heading`/`part` through `store/load.rs::numbers`), writes the rule for export and typesetting
+(`heading_rule` through `export_template`) and reads it again on re-import (`Numbering::from_template`;
+`of_scheme(Scheme::Template, _, t)` = `from_template(t)` or „1.1“). Like
+`heading_numbering`, `from_template` looks for the last top-level `#set heading(numbering: …)` (private helpers from `lib.rs`:
+`blank_comments`, `top_level_hashes`, `Cursor::arguments_at`, `expression_end`) and distinguishes:
 
-- String → wörtliches Typst-Muster (`Pattern::literal`: jedes Zählzeichen einzeln wie `NumberingPattern` in
-  Typst 0.15, kein verdoppelter Buchstabe, `;`/`|` Text); `none` → aus;
-- Ausdruck gleich `rule_value()` von „Teile und Kapitel“, „Kapitel ausgeschrieben“, „Juristisch“, „Predigt“ oder „Buch“
-  → genau dieses Schema (mit seiner Teile-Zählung; „Buch“ setzt dieselben Kapitelnummern wie „Predigt“, hat aber
-  absichtlich eine andere Regel – `Kind::Book`, `p.first()` statt `p.at(0)` –, damit es samt Wort-Teilen
-  zurückkommt);
-- auswertbare Funktion → `Kind::Function { node, approx }`: der Leser (`Reader`) baut einen Baum aus
-  `Node::If` (Tiefenbedingung mit `==, !=, <, <=, >, >=`) und `Node::Value` (Verkettung von `Term::Text`,
-  `Term::Hier` = `numbering(P, ..p)`, `Term::Num` = `numbering(P, p.at(i))` bzw. `first()`/`last()` mal k,
-  `Term::Str` = `str(p.at(i))`; `k` höchstens 16, auch als Produkt – sonst gilt die Funktion als nicht lesbar,
-denn die Auswertung wiederholt wirklich und eine riesige Zahl aus einer fremden Vorlage brächte den Prozess
-beim Import und bei jedem Laden zum Abbruch); ausgewertet wird je Pfad mit `format_number` (= Typst). Auswertbar heißt:
-  ganz gelesen, jedes Muster mit Zählzeichen, auf jeder Ebene 1–6 jede Stelle vorhanden (sonst bräche Typst
-  ab). `approx` = bisherige Näherung `heading_numbering` – `spec()` liefert sie, damit Anzeige und
-  Gliederungskopf (`store/outline.rs`) unverändert bleiben; `heading_rule()` schreibt die Funktion als Kette
-  je Ebene zurück;
-- sonst die Näherung wie bisher (`lenient(heading_numbering)`).
+- string → literal Typst pattern (`Pattern::literal`: every counting symbol separately like `NumberingPattern` in
+  Typst 0.15, no doubled letter, `;`/`|` text); `none` → off;
+- expression equal to `rule_value()` of „Teile und Kapitel“, „Kapitel ausgeschrieben“, „Juristisch“, „Predigt“ or „Buch“
+  → exactly this scheme (with its part counting; „Buch“ sets the same chapter numbers as „Predigt“, but
+  deliberately has a different rule – `Kind::Book`, `p.first()` instead of `p.at(0)` – so that it comes back
+  together with its word parts);
+- evaluable function → `Kind::Function { node, approx }`: the reader (`Reader`) builds a tree from
+  `Node::If` (depth condition with `==, !=, <, <=, >, >=`) and `Node::Value` (concatenation of `Term::Text`,
+  `Term::Hier` = `numbering(P, ..p)`, `Term::Num` = `numbering(P, p.at(i))` or `first()`/`last()` times k,
+  `Term::Str` = `str(p.at(i))`; `k` at most 16, also as a product – otherwise the function counts as unreadable,
+because the evaluation really repeats, and a huge number from a foreign template would bring the process down
+on import and on every load); evaluation runs per path with `format_number` (= Typst). Evaluable means:
+  read completely, every pattern with counting symbols, on every level 1–6 every position present (otherwise Typst would
+  abort). `approx` = the previous approximation `heading_numbering` – `spec()` delivers it, so that display and
+  outline head (`store/outline.rs`) stay unchanged; `heading_rule()` writes the function back as a chain
+  per level;
+- otherwise the approximation as before (`lenient(heading_numbering)`).
 
-`read_function`/`shown` für `heading_numbering` sind unverändert in ihrem Ergebnis (neue Terme wie `str()` und
-`last()` gelten dort als nicht lesbar, wie vorher).
+`read_function`/`shown` for `heading_numbering` are unchanged in their result (new terms like `str()` and
+`last()` count as unreadable there, as before).
 
-**Kapitel ohne Nummer in Typst** (`store/snapshot.rs::project`): Ist die wirksame Nummerierung nicht aus, wird
-die erste Überschriftszeile jedes Nicht-Teil-Knotens, dessen `node.numbered` nicht zur Textform
-(`Heading.numbered`) passt, mit `baruch_typst::set_numbered_line` umgestellt – in `export_parts` (Export,
-Export-Karte, Satz, PDF) und `files` (Spiegel). Nur wo das nicht geht (eigenes Label; Titel mit Code, also
-unmaskiertem `#` außerhalb von Inline-Raw wie `#emph[…]` – ein Backslash vor den Klammern des Aufrufs machte
-daraus Raw-Text) bleibt die Show-Regel
-`heading.where(level, body)` als Rückfall hinter der Vorlage (auch bei „aus der Werkvorlage“), außer ein
-nummerierter Knoten trägt dieselbe Überschrift. `counted_headings` nimmt dieselbe Projektion: es zählen die
-Überschriften der Ebene 1 mit nummerierter Textform ohne Show-Regel. Die Texte in SQLite bleiben unverändert;
-ein frisch importiertes Werk (Import setzt `numbered` aus der Textform, R14a) bleibt byte-gleich. Der Trigger
-`node_numbered_default` aus Migration 0006 (leere Nummer beim Einfügen → `numbered = 0`, für die Saat des
-Vorworts) gilt beim Import nicht mehr: `import.rs` setzt `numbered` danach ausdrücklich aus der Textform, sonst
-kämen Ebenen ohne angezeigte Nummer (Predigt: Abschnitte „“) als „ohne Nummer“ zurück und der Export
-projizierte sie (Integration Runde 14, Test `round14_numbering`, `round14`). Auch Werke „aus der Werkvorlage“
-ohne Nummerierungsregel werden projiziert (die wirksame Nummerierung ist dann die Vorgabe „1.1“): Im Satz
-ändert das nichts, aber Export → Import behält so „ohne Nummer“ (Entscheidung des Integrators; das
-Beispielwerk exportiert sein Vorwort darum als Markierung).
+**Chapters without a number in Typst** (`store/snapshot.rs::project`): if the effective numbering is not off,
+the first heading line of every non-part node whose `node.numbered` does not match the text form
+(`Heading.numbered`) is switched with `baruch_typst::set_numbered_line` – in `export_parts` (export,
+export map, typesetting, PDF) and `files` (mirror). Only where that is not possible (own label; title with code, i.e.
+an unescaped `#` outside inline raw like `#emph[…]` – a backslash before the brackets of the call would turn it
+into raw text) does the show rule
+`heading.where(level, body)` stay as a fallback behind the template (also with „aus der Werkvorlage“), unless a
+numbered node carries the same heading. `counted_headings` takes the same projection: the
+headings of level 1 with a numbered text form without a show rule count. The texts in SQLite stay unchanged;
+a freshly imported work (import sets `numbered` from the text form, R14a) stays byte-identical. The trigger
+`node_numbered_default` from migration 0006 (empty number on insert → `numbered = 0`, for seeding the
+foreword) no longer applies on import: `import.rs` afterwards sets `numbered` explicitly from the text form, otherwise
+levels without a displayed number (sermon: sections „“) would come back as „ohne Nummer“ and the export would
+project them (integration Round 14, test `round14_numbering`, `round14`). Works „aus der Werkvorlage“
+without a numbering rule are projected too (the effective numbering is then the default „1.1“): in typesetting
+this changes nothing, but export → import thus keeps „ohne Nummer“ (decision of the integrator; that is why the
+sample work exports its foreword as a marker).
 
-**Prüfung gegen Typst:** `baruch-render/tests/schemes.rs` setzt alle dreizehn Schemata (dazu eigene Muster mit
-Liste, Tiefe und verdoppeltem Buchstaben) mit Teil-Markierungen und Markierungen „ohne Nummer“; nach jeder
-nummerierten Überschrift steht `#baruch-check("…")` mit der Nummer aus `Numbering::heading`, das im Kontext
-`numbering(heading.numbering, ..counter(heading).get())` vergleicht (`assert.eq`; liefert die Funktion Inhalt
-wie bei „Predigt“ und „Buch“ mit `context`, vergleicht es die gesetzte Breite). Grenzen: Baruch kennt die Zählzeichen
-`1 a A i I *`; andere Typst-Zählzeichen (z. B. `α`, `一`) sind für Baruch Text.
+**Check against Typst:** `baruch-render/tests/schemes.rs` typesets all thirteen schemes (plus own patterns with
+list, depth and doubled letter) with part markers and markers „ohne Nummer“; after every
+numbered heading stands `#baruch-check("…")` with the number from `Numbering::heading`, which compares in context
+`numbering(heading.numbering, ..counter(heading).get())` (`assert.eq`; if the function delivers content
+as with „Predigt“ and „Buch“ with `context`, it compares the typeset width). Limits: Baruch knows the counting symbols
+`1 a A i I *`; other Typst counting symbols (e.g. `α`, `一`) are text for Baruch.
 
-### Gliederung über MCP und Anträge (Migration 0012)
+### Outline through MCP and requests (migration 0012)
 
-Wunsch 2026-11-06: Assistenten dürfen anlegen, alles andere nur beantragen.
+Request 2026-11-06: assistants may create, everything else only request.
 
-- **Anlegen:** `Store::outline_add_many(work, target?, place, &[NewPoint], &Author)` – ein Block in einer
-  Transaktion über dieselbe `apply` wie alle Gliederungsänderungen; `apply` nimmt dafür den Autor
-  (`baruch_core::Author`) der Revision 1 neuer Punkte statt des Namens des Menschen. Bestehende Fassungen
-  schreibt nur ein menschlicher Autor um (sonst interner Fehler; Anlegen schreibt keine um). Ergebnis
-  `OutlineAdded {change, points: [AddedPoint {node, key, level, title}], adopted: [key]}` (Runde 14: auch Teile,
-  `adopted` siehe „Teile“ oben). MCP `outline_add`
-  (`mcp/outline.rs`) spiegelt mit `mirror::record_outline_by(…, OutlineBy::Direct(origin))`: Autor die Persona
-  bzw. der Client, Committer der Mensch, Trailer `Baruch-Origin`, `Persona`.
-- **Anträge:** Tabelle `outline_request` (`0012_outline_request.sql`: `work_id` mit `ON DELETE CASCADE`, `op`,
-  `params` JSON `{op, expected}`, Herkunft, `note`, `created`, `decided`, `decision` confirmed/rejected/stale,
-  `decided_by`, `message`). `Store::outline_request` löst die Schlüssel auf, prüft im Sicherungspunkt
-  (`sqlx::Connection::begin` auf der Transaktion = SAVEPOINT, danach zurückgerollt), ob die Änderung jetzt
-  ginge, und speichert Antrag und Stand (`Expected`). `Store::outline_request_decide` prüft erst den Stand
-  (`staleness`), führt dann die Gliederungsfunktion im Sicherungspunkt aus; eine fachliche Ablehnung wird
-  `stale` mit Meldung, sonst `confirmed`. Der Server spiegelt mit `OutlineBy::Confirmed(request)` (Mensch als
-  Autor/Bestätiger, Trailer `Baruch-Origin`, `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`);
-  Ablehnen und `stale` schreiben keinen Commit (außer beim Antrag `add`, siehe unten).
-- **Vorschau (Runde 14):** `Store::outline_request_preview(work, id)` öffnet eine Transaktion
-  (`BEGIN IMMEDIATE`), prüft „offen“ (sonst `Refused`) und `staleness` (sonst `Heading("Veraltet: …")` –
-  `Refused` trägt nur feste Texte, eine neue Fehlerart verlangte `rpc.rs`), liest `outline::point_states`
-  (Schlüssel, Ebene, Nummer, Titel, numbered), führt `run` im Sicherungspunkt aus, liest erneut und rollt beides
-  zurück. `preview_points` vergleicht nach Schlüssel: `Moved` für den verschobenen Punkt samt Unterpunkten,
-  sonst `Renamed`/`Level`/`Numbered`/`Same`, gelöschte Punkte als `Deleted` hinter ihrem alten Vorgänger. Der
-  Server (`outline::add_preview`) setzt `preview` bzw. `preview_error` in die Antragsform; RPC
-  `outline.requests`, MCP `outline_requests` (je `preview: true`) und die Seite `/gliederung` (`<details>` je
-  offenem Antrag) nutzen es.
-- **Zustimmung zu einem neuen Teil (Nutzerfrage 12, Migration 0035):** MCP `outline_add` ruft
-  `Store::outline_add_by_assistant(work, target?, place, points, origin, model, note)`: `add_many` im
-  Sicherungspunkt; ist `adopted` leer, gilt es (`AssistantAdd::Added`), sonst Zurückrollen und Antrag
-  `OutlineOp::Add {key, place, points, model}` mit `Expected.adopted` (`AssistantAdd::Requested`). `run` führt ihn
-  beim Zustimmen mit dem Antragsteller als Autor von Revision 1 aus; liefert `add_many` andere `adopted` als beim
-  Antrag, wird er `stale` (Vorschau: `preview_error`). Vorschau-Marken `Added`/`Adopted`. 0035 legt
-  `outline_request` mit `op … 'add'` neu an (SQLite ändert CHECK nicht), übernimmt alle Zeilen samt id und die
-  AUTOINCREMENT-Zählung; Test `migration_0035.rs`. Ablehnen bzw. `stale` eines Antrags `add` spiegelt
-  `mirror::record_request_decision` (leerer Commit, `Baruch-Action: outline-request`, `Baruch-Decision`).
-  Oberfläche: `base.html` trägt die Marke `<!--baruch-consent-->`; die Schicht `consent::inject` (über allen
-  Routen) liest HTML-Antworten, fragt nur bei vorhandener Marke `Store::outline_requests_needing_consent` ab und
-  setzt `templates/consent.html` ein (Hinweisleiste mit Link, `<dialog data-widget="consent">` mit Vorschau und
-  Formularen an `/gliederung/act`); so braucht keine der vielen Template-Umgebungen eigene Daten. Das Widget
-  `web/src/consent.ts` öffnet den Dialog modal und entscheidet über RPC `outline.request_decide`.
-- **Ohne Nummer:** `Store::outline_set_numbered` setzt `node.numbered` und schreibt alle Nummern neu
-  (`OutlineAction::Numbered`, Trailer `outline-numbered`); RPC `outline.set_numbered`, Knopf auf `/gliederung`,
-  über MCP als Antrag `set_numbered`. Einen Teil ohne Nummer lehnt sie ab (`Refused`, auch im Probelauf eines
-  Antrags): Die Teil-Markierung trägt kein Nummer-Merkmal, `parse` liefert Teile immer nummeriert, Export →
-  Import zählte ihn also wieder und verschöbe die folgenden Teilnummern. Zurück auf „mit Nummer“ geht.
+- **Creating:** `Store::outline_add_many(work, target?, place, &[NewPoint], &Author)` – one block in one
+  transaction through the same `apply` as all outline changes; for this `apply` takes the author
+  (`baruch_core::Author`) of revision 1 of new items instead of the human's name. Existing revisions
+  are rewritten only by a human author (otherwise an internal error; creating rewrites none). Result
+  `OutlineAdded {change, points: [AddedPoint {node, key, level, title}], adopted: [key]}` (Round 14: also parts,
+  `adopted` see "Parts" above). MCP `outline_add`
+  (`mcp/outline.rs`) mirrors with `mirror::record_outline_by(…, OutlineBy::Direct(origin))`: author the persona
+  or the client, committer the human, trailers `Baruch-Origin`, `Persona`.
+- **Requests:** table `outline_request` (`0012_outline_request.sql`: `work_id` with `ON DELETE CASCADE`, `op`,
+  `params` JSON `{op, expected}`, origin, `note`, `created`, `decided`, `decision` confirmed/rejected/stale,
+  `decided_by`, `message`). `Store::outline_request` resolves the keys, checks in a savepoint
+  (`sqlx::Connection::begin` on the transaction = SAVEPOINT, rolled back afterwards) whether the change would work
+  now, and stores request and state (`Expected`). `Store::outline_request_decide` first checks the state
+  (`staleness`), then runs the outline function in a savepoint; a refusal on the merits becomes
+  `stale` with a message, otherwise `confirmed`. The server mirrors with `OutlineBy::Confirmed(request)` (human as
+  author/confirmer, trailers `Baruch-Origin`, `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`);
+  rejecting and `stale` write no commit (except for the request `add`, see below).
+- **Preview (Round 14):** `Store::outline_request_preview(work, id)` opens a transaction
+  (`BEGIN IMMEDIATE`), checks „offen“ (otherwise `Refused`) and `staleness` (otherwise `Heading("Veraltet: …")` –
+  `Refused` carries only fixed texts, a new error kind would have needed `rpc.rs`), reads `outline::point_states`
+  (key, level, number, title, numbered), runs `run` in a savepoint, reads again and rolls both
+  back. `preview_points` compares by key: `Moved` for the moved item including its sub-items,
+  otherwise `Renamed`/`Level`/`Numbered`/`Same`, deleted items as `Deleted` behind their old predecessor. The
+  server (`outline::add_preview`) puts `preview` or `preview_error` into the request form; RPC
+  `outline.requests`, MCP `outline_requests` (each `preview: true`) and the page `/gliederung` (`<details>` per
+  open request) use it.
+- **Consent to a new part (user question 12, migration 0035):** MCP `outline_add` calls
+  `Store::outline_add_by_assistant(work, target?, place, points, origin, model, note)`: `add_many` in a
+  savepoint; if `adopted` is empty, it stands (`AssistantAdd::Added`), otherwise roll back and request
+  `OutlineOp::Add {key, place, points, model}` with `Expected.adopted` (`AssistantAdd::Requested`). `run` executes it
+  on consent with the requester as the author of revision 1; if `add_many` delivers other `adopted` than at the time of the
+  request, it becomes `stale` (preview: `preview_error`). Preview marks `Added`/`Adopted`. 0035 creates
+  `outline_request` anew with `op … 'add'` (SQLite does not change a CHECK), takes over all rows including id and the
+  AUTOINCREMENT count; test `migration_0035.rs`. Rejecting or `stale` of a request `add` is mirrored by
+  `mirror::record_request_decision` (empty commit, `Baruch-Action: outline-request`, `Baruch-Decision`).
+  User interface: `base.html` carries the mark `<!--baruch-consent-->`; the layer `consent::inject` (over all
+  routes) reads HTML answers, queries `Store::outline_requests_needing_consent` only when the mark is present and
+  inserts `templates/consent.html` (notice bar with link, `<dialog data-widget="consent">` with preview and
+  forms to `/gliederung/act`); so none of the many template environments needs its own data. The widget
+  `web/src/consent.ts` opens the dialog modally and decides through RPC `outline.request_decide`.
+- **Without a number:** `Store::outline_set_numbered` sets `node.numbered` and rewrites all numbers
+  (`OutlineAction::Numbered`, trailer `outline-numbered`); RPC `outline.set_numbered`, button on `/gliederung`,
+  through MCP as the request `set_numbered`. It refuses a part without a number (`Refused`, also in the trial run of a
+  request): the part marker carries no number flag, `parse` always delivers parts numbered, so export →
+  import would count it again and shift the following part numbers. Going back to „mit Nummer“ works.
 
-## Bilder (Migration 0009)
+## Images (migration 0009)
 
-- **Tabellen:** `asset` (Name je Werk eindeutig, `last_rev`), `asset_path` (Pfad aus Vorlage/Text →
-  Bild, Schlüssel `(work_id, path)`), `asset_revision` (Fassungen). Der Inhalt ist immer **TEXT**
-  (`CHECK (typeof(content) = 'text')`): Base64 (Standardalphabet, mit `=`, ohne Zeilenumbrüche,
-  `encoding = 'base64'`) oder SVG-Text (`'svg'`, nur bei `image/svg+xml`). `bytes` und `sha256` gelten für
-  die entschlüsselten Bytes. Grenze `baruch_store::MAX_ASSET_BYTES` = 8 MiB je Fassung.
-- **Fassungen wie Abschnitte:** genau eine `current` je Bild (Teilindex `asset_one_current`), Umschalten
-  `superseded ↔ current`; Trigger halten Herkunft (`asset_id`, `number`, `author_name`, `created`) und
-  Inhalt (`mime`, `encoding`, `content`, `bytes`, `sha256`) unveränderlich, verbieten das Löschen der
-  aktuellen Fassung, hängen Kinder einer gelöschten an deren Elternteil und vergeben keine Nummer
-  zweimal (`asset.last_rev`). Ändern nur Bildunterschrift, Alternativtext und Notiz (setzt `edited`).
-- **Typ** aus den ersten Bytes (`baruch_store::detect_mime`): PNG, JPEG, GIF, WebP, SVG (UTF-8, `<svg`
-  nach optionalem BOM, Prolog, Kommentaren, DOCTYPE). Name: `^[a-z0-9]([a-z0-9._-]{0,78}[a-z0-9])?$` mit
-  zum Typ passender Endung (`valid_asset_name`, `asset_name_from_file`).
+- **Tables:** `asset` (name unique per work, `last_rev`), `asset_path` (path from template/text →
+  image, key `(work_id, path)`), `asset_revision` (revisions). The content is always **TEXT**
+  (`CHECK (typeof(content) = 'text')`): Base64 (standard alphabet, with `=`, without line breaks,
+  `encoding = 'base64'`) or SVG text (`'svg'`, only with `image/svg+xml`). `bytes` and `sha256` apply to
+  the decoded bytes. Limit `baruch_store::MAX_ASSET_BYTES` = 8 MiB per revision.
+- **Revisions like sections:** exactly one `current` per image (partial index `asset_one_current`), switching
+  `superseded ↔ current`; triggers keep origin (`asset_id`, `number`, `author_name`, `created`) and
+  content (`mime`, `encoding`, `content`, `bytes`, `sha256`) immutable, forbid deleting the
+  current revision, hang the children of a deleted one on its parent and never give a number
+  twice (`asset.last_rev`). Changing only caption, alternative text and note (sets `edited`).
+- **Type** from the first bytes (`baruch_store::detect_mime`): PNG, JPEG, GIF, WebP, SVG (UTF-8, `<svg`
+  after an optional BOM, prolog, comments, DOCTYPE). Name: `^[a-z0-9]([a-z0-9._-]{0,78}[a-z0-9])?$` with
+  an extension matching the type (`valid_asset_name`, `asset_name_from_file`).
 - **Store** (`crates/baruch-store/src/assets.rs`): `asset_list`, `asset_revisions`, `asset_data`,
-  `asset_by_path` (lesen); `add_asset`, `replace_asset`, `set_current_asset`, `update_asset_revision`,
-  `delete_asset_revision`, `delete_asset`, `set_asset_paths` (je eine Transaktion `BEGIN IMMEDIATE`, Ergebnis
-  `AssetChange` für den Spiegel); `export_assets`; `import_typst_with_assets` (Werk und Bilder in **einer**
-  Transaktion, gleiche Datei unter zwei Pfaden = ein Bild). Fehler `StoreError::UnknownAsset` und
-  `StoreError::Asset` (zu groß, Typ, Name, Pfad, Base64) → `INVALID_PARAMS`; doppelter Name und „unverändert“
-  → `Refused`. Werk löschen entfernt vorher alle Bildzeilen.
-- **Spiegel:** `snapshot::files` hängt `assets::mirror_files` an (`bilder/<name>` bzw.
-  `bilder/<name>.b64`, 76er-Zeilen). `mirror::describe_asset`/`record_asset`: ein Commit je Änderung,
-  Betreff „Bild <name>: hinzugefügt / Fassung n ersetzt / auf Fassung n umgeschaltet / Fassung n geändert /
-  Fassung n gelöscht / gelöscht“, Trailer `Baruch-Asset`, `Baruch-Revision`, `Baruch-Action: asset-added|
-  asset-replaced|asset-switched|asset-updated|asset-deleted|asset-removed`. Umschalten, Ändern und Löschen
-  auch als leerer Protokoll-Commit; Ändern mit vorher/nachher, Löschen mit Metadaten und dem gelöschten
-  Inhalt (Base64 in 76er-Zeilen, SVG wörtlich).
-- **Bildpfade im Text:** `baruch_typst::images::image_paths` (String-Literal als erstes Argument jedes
-  `image(`-Aufrufs: `#image(` im Markup, `image(` nach `(`, `,`, `:`, `=`, `{`, `;`; nicht in Kommentaren
-  und Raw; berechnete Pfade nicht).
-- **Normalform der Pfade (Runde 7):** `baruch_store::normalize_asset_path(path) -> Option<String>` entfernt ein
-  führendes `/` und `./`-Teile und fasst leere Teile zusammen; `..` oder leer → `None`. `check_asset_path`
-  erlaubt damit `./` und `//` (nur `..`, Adressen, `\` und Steuerzeichen bleiben verboten), gespeichert wird der
-  Pfad wie im Text. Verglichen wird überall in Normalform: `asset_by_path` (Seite `/werke/{id}/bilder/pfad?p=`),
-  die Prüfung „Pfad gehört schon zu Bild …“ beim Anlegen, `export_assets` (also `export --out`),
-  `wysiwyg::image_alts`/`image_ref`, der Satzbild-Diff der Vorschläge (`view.rs`) und der Import von der
-  Kommandozeile (`read_asset`).
-- **Satzbild:** `render_html_with` zeigt eine Insel mit Bild als `div.ws-block.ws-figure` (`data-kind="island"`,
-  `data-image="1"`, `<img loading="eager">`, `span.ws-caption`) bzw. `span.ws-island.ws-inline-image`, ohne
-  sichtbaren Rohtext (nur `data-raw`); ausgeliefert nur über die vorhandene Route (`nosniff`, CSP `sandbox`).
-- **Import** (`crates/baruch-server/src/import.rs`, nur `import_file_as`): liest die Bilder in
-  `spawn_blocking` relativ zum kanonischen Ordner der Quelldatei; `ImportReport.assets`/`.skipped`.
-  `export_to_dir` schreibt `export --out` (nur relative Pfade ohne `..`, nichts überschreiben).
-- **Server** (`crates/baruch-server/src/assets.rs`): RPC `asset.*`, Seiten und Formulare, eigene
-  Template-Umgebung (`base.html`, `assets.html`, `asset.html`), Stil `static/assets.css`,
-  `UPLOAD_LIMIT` = 8 MiB + 64 KiB. Ausgelieferte Bilder tragen `X-Content-Type-Options: nosniff` und
+  `asset_by_path` (reading); `add_asset`, `replace_asset`, `set_current_asset`, `update_asset_revision`,
+  `delete_asset_revision`, `delete_asset`, `set_asset_paths` (one transaction `BEGIN IMMEDIATE` each, result
+  `AssetChange` for the mirror); `export_assets`; `import_typst_with_assets` (work and images in **one**
+  transaction, the same file under two paths = one image). Errors `StoreError::UnknownAsset` and
+  `StoreError::Asset` (too large, type, name, path, Base64) → `INVALID_PARAMS`; duplicate name and „unverändert“
+  → `Refused`. Deleting a work removes all image rows beforehand.
+- **Mirror:** `snapshot::files` appends `assets::mirror_files` (`bilder/<name>` or
+  `bilder/<name>.b64`, lines of 76). `mirror::describe_asset`/`record_asset`: one commit per change,
+  subject „Bild <name>: hinzugefügt / Fassung n ersetzt / auf Fassung n umgeschaltet / Fassung n geändert /
+  Fassung n gelöscht / gelöscht“, trailers `Baruch-Asset`, `Baruch-Revision`, `Baruch-Action: asset-added|
+  asset-replaced|asset-switched|asset-updated|asset-deleted|asset-removed`. Switching, changing and deleting
+  also as an empty log commit; changing with before/after, deleting with metadata and the deleted
+  content (Base64 in lines of 76, SVG literally).
+- **Image paths in the text:** `baruch_typst::images::image_paths` (string literal as the first argument of every
+  `image(` call: `#image(` in markup, `image(` after `(`, `,`, `:`, `=`, `{`, `;`; not in comments
+  and raw; computed paths not).
+- **Normal form of the paths (Round 7):** `baruch_store::normalize_asset_path(path) -> Option<String>` removes a
+  leading `/` and `./` parts and merges empty parts; `..` or empty → `None`. `check_asset_path`
+  thus allows `./` and `//` (only `..`, addresses, `\` and control characters stay forbidden), the path is stored
+  as in the text. Comparison happens everywhere in normal form: `asset_by_path` (page `/werke/{id}/bilder/pfad?p=`),
+  the check „Pfad gehört schon zu Bild …“ when creating, `export_assets` (thus `export --out`),
+  `wysiwyg::image_alts`/`image_ref`, the typeset view diff of the proposals (`view.rs`) and the import from the
+  command line (`read_asset`).
+- **Typeset view:** `render_html_with` shows an island with an image as `div.ws-block.ws-figure` (`data-kind="island"`,
+  `data-image="1"`, `<img loading="eager">`, `span.ws-caption`) or `span.ws-island.ws-inline-image`, without
+  visible raw text (only `data-raw`); delivered only through the existing route (`nosniff`, CSP `sandbox`).
+- **Import** (`crates/baruch-server/src/import.rs`, only `import_file_as`): reads the images in
+  `spawn_blocking` relative to the canonical folder of the source file; `ImportReport.assets`/`.skipped`.
+  `export_to_dir` writes `export --out` (only relative paths without `..`, overwrite nothing).
+- **Server** (`crates/baruch-server/src/assets.rs`): RPC `asset.*`, pages and forms, own
+  template environment (`base.html`, `assets.html`, `asset.html`), style `static/assets.css`,
+  `UPLOAD_LIMIT` = 8 MiB + 64 KiB. Delivered images carry `X-Content-Type-Options: nosniff` and
   `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`.
-- **Typwechsel und Altbestand (Runde 21c, ohne Migration):** `Store::replace_asset_renaming(…, rename)` (alte
-  `replace_asset` = ohne `rename`) benennt bei anderem Format in derselben Transaktion um (`UPDATE asset SET name`,
-  Vorgabe-Endung des Formats, vergeben → `free_name`), offene Anträge ziehen `asset_name` mit; Pfade hängen an der id
-  und bleiben. `Store::asset_path_conflicts` gruppiert `asset_path` nach Normalform und meldet Gruppen mit mehr als
-  einem Bild (`PathConflict {normal, paths: [PathOwner {path, asset}]}`); `Store::resolve_asset_path` hängt alle
-  Schreibweisen per `UPDATE asset_path SET asset_id` an das gewählte Bild (ein `AssetChange::Updated`). Damit Typst den
-  alten Pfad mit neuer Endung setzen kann, ergänzt `baruch_render` beim Satz `format: "<Format>"` in jedem
-  `image("<Pfad>"…)`, dessen Datei nicht zur Endung passt (Erkennung an den ersten Bytes, ohne neue Zeile).
+- **Type change and old stock (Round 21c, without migration):** `Store::replace_asset_renaming(…, rename)` (the old
+  `replace_asset` = without `rename`) renames in the same transaction when the format differs (`UPDATE asset SET name`,
+  default extension of the format, taken → `free_name`), open requests carry `asset_name` along; paths hang on the id
+  and stay. `Store::asset_path_conflicts` groups `asset_path` by normal form and reports groups with more than
+  one image (`PathConflict {normal, paths: [PathOwner {path, asset}]}`); `Store::resolve_asset_path` hangs all
+  spellings onto the chosen image via `UPDATE asset_path SET asset_id` (one `AssetChange::Updated`). So that Typst can typeset the
+  old path with a new extension, `baruch_render` adds `format: "<Format>"` when typesetting in every
+  `image("<Pfad>"…)` whose file does not match the extension (detection by the first bytes, without a new line).
 
-## Bilder, Umschlag und PDF (Runde 11, Migrationen 0017 und 0018)
+## Images, cover and PDF (Round 11, migrations 0017 and 0018)
 
-- **Buchangaben (0017, `baruch-store/src/book.rs`):** Tabelle `work_book` (eine Zeile je Werk, keine Zeile =
-  Vorgaben): `cover_asset_id`, `author_photo_asset_id` (Trigger `work_book_same_work_insert/update`: nur Bilder
-  desselben Werks; Bild gelöscht → `NULL`), `title_area` (`top|middle|bottom`), `front_matter` (Titelei),
-  `cover_pages` (Vorder-/Rückseite im Satz, Vorgabe an), Verlag … Kurzbiografie als Text, `paper_mm` (0, 1],
-  `bleed_mm` [0, 10]; Werk gelöscht → Zeile weg. Untertitel, Autor und Bibelübersetzung bleiben in `work`.
-  `BookMeta`, `BookEdit`, `book_meta`, `set_book_meta` (Grenzen: einzeilig 200 Zeichen, Klappentext 4000,
-  Kurzbiografie 2000, Widmung/Rechtehinweis/Bildnachweis 1000; Jahr leer oder vier Ziffern; ISBN-13 mit
-  Prüfziffer, verglichen über die Ziffern → `Refused`), `work_cover`, `set_work_cover`.
-- **Anträge zu Bildern (0018, `baruch-store/src/asset_requests.rs`):** Tabelle `asset_request` nach dem Muster
-  `outline_request`: `op` ∈ `replace|set_cover|delete`, `asset_name` (bei `set_cover` leer = Umschlag entfernen),
+- **Book data (0017, `baruch-store/src/book.rs`):** table `work_book` (one row per work, no row =
+  defaults): `cover_asset_id`, `author_photo_asset_id` (triggers `work_book_same_work_insert/update`: only images
+  of the same work; image deleted → `NULL`), `title_area` (`top|middle|bottom`), `front_matter` (front matter),
+  `cover_pages` (front/back side in typesetting, default on), publisher … short biography as text, `paper_mm` (0, 1],
+  `bleed_mm` [0, 10]; work deleted → row gone. Subtitle, author and Bible translation stay in `work`.
+  `BookMeta`, `BookEdit`, `book_meta`, `set_book_meta` (limits: single-line 200 characters, blurb 4000,
+  short biography 2000, dedication/rights notice/image credits 1000; year empty or four digits; ISBN-13 with
+  check digit, compared by the digits → `Refused`), `work_cover`, `set_work_cover`.
+- **Requests for images (0018, `baruch-store/src/asset_requests.rs`):** table `asset_request` after the pattern of
+  `outline_request`: `op` ∈ `replace|set_cover|delete`, `asset_name` (with `set_cover` empty = remove cover),
   `params` (JSON: replace `{mime, encoding, content, caption?, alt?, expected_sha256}`, delete `{rev?,
-  expected_sha256}`, set_cover `{expected_cover}`), Herkunft nur `persona`/`mcp`, Index `(work_id, decided)`.
-  `asset_request` prüft schon beim Antrag (unbekanntes Bild, Inhalt, Bildtyp, unverändert, gleicher offener
-  Antrag), `asset_requests`, `open_asset_requests`, `asset_request_decide` (einmal; `Decision` aus
-  `requests.rs`). Ausführen tut der Server.
-- **Rahmen (`baruch-typst/src/cover.rs`, rein):** `frame_parts(info, opts) -> FrameParts {front, back,
-  added_cover_pages}` – Umschlag-Vorderseite (vollflächig, `margin: 0`, Titel im Bereich oben/Mitte/unten), leere
-  Innenseite mit `counter(page).update(0)` (Parität und Seitenzahlen wie ohne Umschlag; `COVER_PAGES` = 3 mit Rückseite),
-  Titelei (Schmutztitel, Seite 2, Haupttitel, Impressum, Widmung), Rückseite (Klappentext, Kurzbiografie/Foto,
-  ISBN mit EAN-13); ohne `heading` und `outline`, ohne sichtbare Seitenzahl. `wrap_source` setzt den Umschlag
-  für die Druckerei auf eine Seite (Rückseite | Rücken, Text gedreht | Vorderseite, mit Beschnitt). Nutzertexte
-  nur als Typst-String-Literale (`typst_string`, maskiert `\ " \n`), nie als Markup. Virtuelle Dateien unter
-  `.baruch/` (`VIRTUAL_DIR`; Bild, Foto, Strichcode `.baruch/isbn.svg`), Marke `FRAME_MARK`.
+  expected_sha256}`, set_cover `{expected_cover}`), origin only `persona`/`mcp`, index `(work_id, decided)`.
+  `asset_request` already checks on the request (unknown image, content, image type, unchanged, same open
+  request), `asset_requests`, `open_asset_requests`, `asset_request_decide` (once; `Decision` from
+  `requests.rs`). Executing is done by the server.
+- **Frame (`baruch-typst/src/cover.rs`, pure):** `frame_parts(info, opts) -> FrameParts {front, back,
+  added_cover_pages}` – cover front (full bleed, `margin: 0`, title in the area top/middle/bottom), empty
+  inside page with `counter(page).update(0)` (parity and page numbers as without a cover; `COVER_PAGES` = 3 with back side),
+  front matter (half title, page 2, main title, imprint, dedication), back side (blurb, short biography/photo,
+  ISBN with EAN-13); without `heading` and `outline`, without a visible page number. `wrap_source` sets the cover
+  for the printer on one page (back | spine, text rotated | front, with bleed). User texts
+  only as Typst string literals (`typst_string`, escapes `\ " \n`), never as markup. Virtual files under
+  `.baruch/` (`VIRTUAL_DIR`; image, photo, barcode `.baruch/isbn.svg`), mark `FRAME_MARK`.
 - **Server `cover.rs`:** RPC `work.set_cover`, `work.meta.get`, `work.meta.set`, `work.cover_pdf`; `frame(state,
-  work, source, map)` fügt `front` vor den ersten Abschnitt (ohne Abschnitte ans Ende) und `back` ans Ende und
-  verschiebt Bytebereiche und erste Zeilen aller Abschnitte (Meldungen bleiben ihrem Abschnitt zugeordnet); ohne
-  Umschlag(-seiten) und Titelei byte-gleich zurück (gleicher Stand, gleicher Zwischenspeicher). `cover_name`,
-  `cover_info` (`{name, caption, alt, url, thumb}`), `assets_panel` (Block `id="umschlag"`), `cover_source`/
-  `build_wrap` (Seitengröße aus der ersten Buchseite, Rücken = (Seiten − `COVER_PAGES` im Satz) × `paper_mm`).
-  Seiten `/werke/{id}/umschlag`, `…/umschlag.svg` (CSP `sandbox`), `…/umschlag.pdf`; Formulare
-  `/werke/umschlag/act`, `/werke/buchangaben/act`. Vorlagen `cover.html`, `fragments/cover_panel.html`, Stil
-  `static/cover.css`; Einstellungen → Werk rendert die Gruppen über `cover::settings_blocks`
-  (`WorkRetry::Book`). Spiegel: eigene Commits unter `write_lock` – „Buchangaben geändert: <Felder>“
+  work, source, map)` inserts `front` before the first section (without sections at the end) and `back` at the end and
+  shifts byte ranges and first lines of all sections (messages stay assigned to their section); without
+  cover (pages) and front matter it returns byte-identically (same stand, same cache). `cover_name`,
+  `cover_info` (`{name, caption, alt, url, thumb}`), `assets_panel` (block `id="umschlag"`), `cover_source`/
+  `build_wrap` (page size from the first book page, spine = (pages − `COVER_PAGES` in typesetting) × `paper_mm`).
+  Pages `/werke/{id}/umschlag`, `…/umschlag.svg` (CSP `sandbox`), `…/umschlag.pdf`; forms
+  `/werke/umschlag/act`, `/werke/buchangaben/act`. Templates `cover.html`, `fragments/cover_panel.html`, style
+  `static/cover.css`; Settings → Work renders the groups through `cover::settings_blocks`
+  (`WorkRetry::Book`). Mirror: own commits under `write_lock` – „Buchangaben geändert: <Felder>“
   (`Baruch-Action: book-meta`), „Umschlag: <name> gesetzt“ (`cover-set`), „Umschlag entfernt“ (`cover-removed`),
-  Rumpf vorher → nachher. Der Umschlag als `cover-image` im EPUB steht seit Runde 20a in `epub.rs`; seit Runde 21c
-  ist es die gerasterte Vorderseite: `cover::front_cover_source` (Format aus `book_page_mm` der Werkvorlage, Anordnung
-  über `resolve_fonts`) → `baruch_typst::cover::front_source_with_rules` (eine Seite im Endformat ohne Beschnitt:
-  Hintergrund wie im Umschlag, Blöcke der Vorderseite bzw. ohne Anordnung `front_body`) → `epub::front_cover_png`
-  (`baruch_render::render_png`, höchstens 1600 × 2560, Zwischenspeicher je Stand, `spawn_blocking`).
-- **Satz und PDF:** `typeset::prepare` = `export_map` + `export_assets` → `cover::frame` → Stand. Satz-Ansicht,
-  `work.pdf`, `/werke/{id}/pdf` und `export --pdf` nutzen dasselbe `prepare`, also gleiche Seitenzahl.
-  `pdf.rs`: `PDF_TIMEOUT` = 120 s, `PdfKind {Book, Cover}`, `PdfOut`, `source_to_pdf` (je Werk höchstens eine
-  Erzeugung – prozessweite Menge belegter Werke, `claim` –, dann die Sperre `typeset::RUNS` wie die Vorschau,
-  `spawn_blocking`; Satzfehler, „läuft schon“, Zeit → `REFUSED`, nie halbe Bytes), `book_pdf`, `write_pdf_file`
-  (CLI, `create_new`). Das Umschlag-PDF (`cover::to_pdf`) geht über `source_to_pdf(work, PdfKind::Cover, …)`.
-  Die Satz-Seite hat `#druckpruefung` (fehlende Bilder `typeset::missing_images`, `PrintWarning`s).
-- **Anträge (`asset_requests.rs`):** RPC `asset.request_list`/`asset.request_decide`, Formular
-  `POST /werke/bilder/antraege/act`, `GET /werke/{id}/bilder/antraege/{nr}/datei`, `panel` (Block
-  `id="antraege"`, `fragments/asset_requests.html`). Bestätigen: Ersetzen/Löschen über den Store unter
-  `write_lock` und `mirror::record_asset_by(…, AssetBy::Confirmed)`; Umschlag über
-  `rpc::call("work.set_cover")` (nimmt die Sperre selbst) und Protokoll-Commit „Bildantrag n bestätigt“
-  (`asset-request-confirmed`). Veraltet (`expected_sha256` bzw. `expected_cover` passt nicht) → `stale` mit Grund.
-- **Spiegel (`mirror.rs`):** `AssetBy {Human, Direct(origin), Confirmed(request)}`, `record_asset_by` (Direct:
-  Autor Persona bzw. `@mcp:<client>`, Trailer `Baruch-Origin`, `Persona`; Confirmed: Autor der Bestätiger,
-  Trailer `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`).
-- **MCP (`mcp/assets.rs`):** `asset_add` (sofort), `asset_replace`, `asset_set_cover`, `asset_delete` (nur
-  Anträge), `asset_requests`. `/mcp` hat seit Runde 23 die eigene Grenze `MCP_BODY_LIMIT` (12 MiB; ein Bild mit 8 MiB passt als Base64), nicht mehr `works::RPC_BODY_LIMIT` wie `/rpc`.
-- **Bilder-Seite (`assets.rs`):** Suche `?q=` (`Store::asset_search`: Name, Bildunterschrift, Alternativtext der
-  aktuellen Fassung, in Rust mit `to_lowercase` + `contains`, `%`/`_` wörtlich), Vorschaubilder
-  `…/vorschau?b=` über die Crate `image` 0.25 (MIT OR Apache-2.0, nur png/jpeg/gif/webp; `spawn_blocking`,
-  Grenzen 20 000 px je Seite und 512 MiB; ETag; SVG unverändert mit CSP `sandbox`), Spalte Umschlag, Blöcke
-  `cover::assets_panel` (oben) und `asset_requests::panel` (unten), `POST /werke/bilder/einfuegen` (neue Fassung
-  des Menschen mit `#figure(image(…))`, fehlender Pfad `bilder/<name>`, ein Commit).
-- **Editor:** `view.rs` liefert `chapter_image`, `missing_images`, `image_choices`; `wysiwyg::image_ref_in`
-  setzt `ImageRef.missing` („Bild fehlt“ im Satzbild). Die `ImageView` (Bilder kurz + berechnete Bilder der
-  Vorlage) reist unter dem reservierten Schlüssel `wysiwyg::IMAGE_VIEW_KEY` (`"\u{1}baruch-image-view"`) in
-  der Tabelle `LibraryView.image_alts` mit. `LibraryView.cover` (aus `cover::cover_info`) zeigt das kleine
-  Umschlagbild im Kopf der Gliederung (`fragments/tree.html`).
-- **Personas:** `Store::save_persona(handle, name, edit, color, prompt)` schreibt alles eines Tabs in einer
-  Transaktion (der Name ist ein eigenes Argument, kein Feld von `PersonaEdit`); `POST /einstellungen/personas/act`
-  kennt `action=save`, `action=reset_color` und `action=reset_prompt` (`confirm=1`); abgelehnte Eingaben über `personas::retry`
+  body before → after. The cover as `cover-image` in the EPUB has been in `epub.rs` since Round 20a; since Round 21c
+  it is the rasterised front: `cover::front_cover_source` (format from `book_page_mm` of the work template, layout
+  through `resolve_fonts`) → `baruch_typst::cover::front_source_with_rules` (one page in the final format without bleed:
+  background as in the cover, blocks of the front or, without a layout, `front_body`) → `epub::front_cover_png`
+  (`baruch_render::render_png`, at most 1600 × 2560, cache per stand, `spawn_blocking`).
+- **Typesetting and PDF:** `typeset::prepare` = `export_map` + `export_assets` → `cover::frame` → stand. Typeset page,
+  `work.pdf`, `/werke/{id}/pdf` and `export --pdf` use the same `prepare`, thus the same page count.
+  `pdf.rs`: `PDF_TIMEOUT` = 120 s, `PdfKind {Book, Cover}`, `PdfOut`, `source_to_pdf` (at most one
+  generation per work – a process-wide set of busy works, `claim` –, then the lock `typeset::RUNS` like the preview,
+  `spawn_blocking`; typesetting error, „läuft schon“, time → `REFUSED`, never half bytes), `book_pdf`, `write_pdf_file`
+  (CLI, `create_new`). The cover PDF (`cover::to_pdf`) goes through `source_to_pdf(work, PdfKind::Cover, …)`.
+  The typeset page has `#druckpruefung` (missing images `typeset::missing_images`, `PrintWarning`s).
+- **Requests (`asset_requests.rs`):** RPC `asset.request_list`/`asset.request_decide`, form
+  `POST /werke/bilder/antraege/act`, `GET /werke/{id}/bilder/antraege/{nr}/datei`, `panel` (block
+  `id="antraege"`, `fragments/asset_requests.html`). Confirming: replacing/deleting through the store under
+  `write_lock` and `mirror::record_asset_by(…, AssetBy::Confirmed)`; cover through
+  `rpc::call("work.set_cover")` (takes the lock itself) and the log commit „Bildantrag n bestätigt“
+  (`asset-request-confirmed`). Outdated (`expected_sha256` or `expected_cover` does not match) → `stale` with a reason.
+- **Mirror (`mirror.rs`):** `AssetBy {Human, Direct(origin), Confirmed(request)}`, `record_asset_by` (Direct:
+  author persona or `@mcp:<client>`, trailers `Baruch-Origin`, `Persona`; Confirmed: author the confirmer,
+  trailers `Baruch-Request`, `Baruch-Requested-By`, `Baruch-Confirmed-By`).
+- **MCP (`mcp/assets.rs`):** `asset_add` (immediately), `asset_replace`, `asset_set_cover`, `asset_delete` (only
+  requests), `asset_requests`. Since Round 23 `/mcp` has its own limit `MCP_BODY_LIMIT` (12 MiB; an image with 8 MiB fits as Base64), no longer `works::RPC_BODY_LIMIT` like `/rpc`.
+- **Images page (`assets.rs`):** search `?q=` (`Store::asset_search`: name, caption, alternative text of the
+  current revision, in Rust with `to_lowercase` + `contains`, `%`/`_` literally), thumbnails
+  `…/vorschau?b=` through the crate `image` 0.25 (MIT OR Apache-2.0, only png/jpeg/gif/webp; `spawn_blocking`,
+  limits 20 000 px per side and 512 MiB; ETag; SVG unchanged with CSP `sandbox`), column cover, blocks
+  `cover::assets_panel` (top) and `asset_requests::panel` (bottom), `POST /werke/bilder/einfuegen` (new revision
+  of the human with `#figure(image(…))`, missing path `bilder/<name>`, one commit).
+- **Editor:** `view.rs` delivers `chapter_image`, `missing_images`, `image_choices`; `wysiwyg::image_ref_in`
+  sets `ImageRef.missing` („Bild fehlt“ in the typeset view). The `ImageView` (images in short + computed images of the
+  template) travels under the reserved key `wysiwyg::IMAGE_VIEW_KEY` (`"\u{1}baruch-image-view"`) in
+  the table `LibraryView.image_alts`. `LibraryView.cover` (from `cover::cover_info`) shows the small
+  cover image in the head of the outline (`fragments/tree.html`).
+- **Personas:** `Store::save_persona(handle, name, edit, color, prompt)` writes everything of one tab in one
+  transaction (the name is an argument of its own, not a field of `PersonaEdit`); `POST /einstellungen/personas/act`
+  knows `action=save`, `action=reset_color` and `action=reset_prompt` (`confirm=1`); refused input through `personas::retry`
   (`task_local`). Widgets `web/src/persona_tabs.ts` (ARIA `tablist`/`tab`/`tabpanel`, `history.replaceState`)
-  und `web/src/mention.ts` (Vervollständigung „@…“, `combobox`/`listbox`).
+  and `web/src/mention.ts` (completion „@…“, `combobox`/`listbox`).
 - **Tests:** `baruch-render/tests/{pdf,print}.rs`, `baruch-typst/tests/{cover,images}.rs`,
   `baruch-store/tests/{book,asset_requests,migration_0017,migration_0018}.rs`, `baruch-server/tests/round11_{pdf,
-  mcp_assets,cover,images,personas}.rs` und Ende-zu-Ende `round11.rs`.
+  mcp_assets,cover,images,personas}.rs` and end-to-end `round11.rs`.
 
-## Einfälle (Migration 0011)
+## Ideas (migration 0011)
 
-- **Tabellen** (`crates/baruch-store/migrations/0011_ideas.sql`, nur neue Tabellen):
-  - `idea`: `work_id` (`REFERENCES work(id) ON DELETE SET NULL`, NULL = ohne Werk), `node_id` (Bezug =
+- **Tables** (`crates/baruch-store/migrations/0011_ideas.sql`, only new tables):
+  - `idea`: `work_id` (`REFERENCES work(id) ON DELETE SET NULL`, NULL = without a work), `node_id` (reference =
     `Node::key`, `ON DELETE SET NULL`), `note`, `quote`, `source`, `bible`, `origin_kind`
-    (`human`/`persona`/`mcp`) und `origin_name` (Name bzw. `@handle` bzw. `@mcp:<client>`), `status`
+    (`human`/`persona`/`mcp`) and `origin_name` (name or `@handle` or `@mcp:<client>`), `status`
     (`open`/`done`), `done_as` (`outline`/`post`/`persona`/`note`), `done_ref`, `created`, `updated`, `deleted`
-    (NULL = vorhanden, sonst Zeitpunkt). `CHECK ((status = 'done') = (done_as IS NOT NULL))`.
-    `AUTOINCREMENT`: ids werden nie wiederverwendet.
-  - `idea_word`: Schlagwörter je Einfall mit `position`, `word` und `word_key` (klein, Leerraum zu einem
-    Leerzeichen; `UNIQUE (idea_id, word_key)` fasst Doppel zusammen), `ON DELETE CASCADE`.
-  - `idea_fts` (FTS5, `unicode61 remove_diacritics 2`, Spalten `words, note, quote, source, bible`, rowid =
-    `idea.id`): gepflegt in Rust in derselben Transaktion (`ideas::reindex`), gelöschte stehen nicht darin.
-- **Werk löschen** (`Store::delete_work`, unverändert): Die Fremdschlüssel setzen `work_id` und `node_id` auf
-  NULL – die Einfälle bleiben als Einfälle ohne Werk. Ebenso verliert ein Einfall beim Löschen oder
-  Zusammenführen seines Abschnitts nur den Bezug. Den Spiegel `<data>/einfaelle/` führt erst die nächste
-  Aktion an einem Einfall ohne Werk nach (Backlog „Nach Runde 7 offen“).
-- **Store** (`crates/baruch-store/src/ideas.rs`): `idea_create`, `idea_get` (auch gelöschte), `idea_list`
-  (`IdeaFilter`: `scope` All/NoWork/Work, `word`, `status`, `deleted` = nur gelöschte, `limit` 100/höchstens
-  500, `offset`; neueste zuerst), `idea_words` (Wolke, ohne Wortfilter, häufigste zuerst), `idea_search`
-  (fertiger FTS5-Ausdruck, Ausschnitt maskiert mit `<mark>`; kaputter Ausdruck → `StoreError::Idea`),
-  `idea_update` (`IdeaEdit`, `None` = unverändert; neues Werk ohne `key` → Bezug entfällt; `status: Open`
-  setzt die Verarbeitung zurück, `Done` bei einem offenen markiert „von Hand erledigt“ = `done_as: note`),
-  `idea_delete`/`idea_restore` (nur `deleted`), `idea_mark_done`, `idea_mirror_file`. Jeder Schreibvorgang ist
-  eine Transaktion `BEGIN IMMEDIATE`. Fehler: `StoreError::UnknownIdea(id)`, `StoreError::Idea(<Meldung>)`
-  (Grenzen, Bezug außerhalb des Werks, gelöscht), `UnknownWork`. Der Bezug (`key`) muss zum Werk gehören.
-- **Spiegel**: `snapshot::files` hängt `ideas::mirror_files` an (nach den Bildern): `einfaelle.md` nur, wenn
-  das Werk mindestens einen nicht gelöschten Einfall hat – Werke ohne Einfälle spiegeln und exportieren
-  byte-gleich wie vorher. `Idea::entry_markdown` schreibt einen Eintrag:
+    (NULL = present, otherwise the time). `CHECK ((status = 'done') = (done_as IS NOT NULL))`.
+    `AUTOINCREMENT`: ids are never reused.
+  - `idea_word`: keywords per idea with `position`, `word` and `word_key` (lower case, white space reduced to one
+    space; `UNIQUE (idea_id, word_key)` merges duplicates), `ON DELETE CASCADE`.
+  - `idea_fts` (FTS5, `unicode61 remove_diacritics 2`, columns `words, note, quote, source, bible`, rowid =
+    `idea.id`): maintained in Rust in the same transaction (`ideas::reindex`), deleted ones are not in it.
+- **Deleting a work** (`Store::delete_work`, unchanged): the foreign keys set `work_id` and `node_id` to
+  NULL – the ideas stay as ideas without a work. Likewise an idea only loses its reference when its section is deleted or
+  merged. The mirror `<data>/einfaelle/` is brought up to date only by the next
+  action on an idea without a work (backlog „Nach Runde 7 offen“).
+- **Store** (`crates/baruch-store/src/ideas.rs`): `idea_create`, `idea_get` (also deleted ones), `idea_list`
+  (`IdeaFilter`: `scope` All/NoWork/Work, `word`, `status`, `deleted` = only deleted ones, `limit` 100/at most
+  500, `offset`; newest first), `idea_words` (cloud, without word filter, most frequent first), `idea_search`
+  (finished FTS5 expression, snippet escaped with `<mark>`; broken expression → `StoreError::Idea`),
+  `idea_update` (`IdeaEdit`, `None` = unchanged; new work without `key` → the reference is dropped; `status: Open`
+  resets the processing, `Done` on an open one marks „von Hand erledigt“ = `done_as: note`),
+  `idea_delete`/`idea_restore` (only `deleted`), `idea_mark_done`, `idea_mirror_file`. Every write is
+  a transaction `BEGIN IMMEDIATE`. Errors: `StoreError::UnknownIdea(id)`, `StoreError::Idea(<Meldung>)`
+  (limits, reference outside the work, deleted), `UnknownWork`. The reference (`key`) must belong to the work.
+- **Mirror**: `snapshot::files` appends `ideas::mirror_files` (after the images): `einfaelle.md` only if
+  the work has at least one undeleted idea – works without ideas mirror and export
+  byte-identically as before. `Idea::entry_markdown` writes an entry:
 
   ```
-  # Einfälle – <Werktitel>            bzw.  # Einfälle ohne Werk
+  # Einfälle – <Werktitel>            or  # Einfälle ohne Werk
 
-  ## Einfall <id> · offen             bzw.  · verarbeitet (<done_as>)
+  ## Einfall <id> · offen             or  · verarbeitet (<done_as>)
 
   - Schlagwörter: Laube, Rosen
   - Gedanke: erste Zeile
@@ -1000,2046 +1000,2046 @@ Wunsch 2026-11-06: Assistenten dürfen anlegen, alles andere nur beantragen.
   - Herkunft: Mensch|Persona|MCP <name> · <created>
   ```
 
-  Neueste zuerst, leere Felder fehlen, Werte stehen wörtlich (keine Umwandlung, keine Maskierung).
-- **Server**: `crates/baruch-server/src/ideas.rs` (RPC `idea.*`, Seiten `/einfaelle`, `/einfaelle/{id}`,
-  `POST /einfaelle/act`, eigene Template-Umgebung mit `ideas.html`, `idea.html`), `src/mcp/ideas.rs`
-  (MCP-Werkzeuge), `mirror::describe_idea`/`mirror::record_idea`, Vorlage `fragments/idea_capture.html`
-  (Dialog in `workspace.html`, in `view::environment`), Stil `static/ideas.css`, Widget `web/src/ideas.ts`.
-  Die RPC-Methoden werden in `rpc::call` direkt nach `work.*` beantwortet (vor `work_param`), weil sie auch
-  ohne Werk gehen.
-- **Commits** (`mirror::record_idea`, unter `state.write_lock`): genau einer je Aktion und betroffenem Spiegel
-  (Umziehen zwischen Werken bzw. von/zu „ohne Werk“: je einer im alten und im neuen). Betreff
+  Newest first, empty fields are missing, values stand literally (no conversion, no escaping).
+- **Server**: `crates/baruch-server/src/ideas.rs` (RPC `idea.*`, pages `/einfaelle`, `/einfaelle/{id}`,
+  `POST /einfaelle/act`, own template environment with `ideas.html`, `idea.html`), `src/mcp/ideas.rs`
+  (MCP tools), `mirror::describe_idea`/`mirror::record_idea`, template `fragments/idea_capture.html`
+  (dialog in `workspace.html`, in `view::environment`), style `static/ideas.css`, widget `web/src/ideas.ts`.
+  The RPC methods are answered in `rpc::call` directly after `work.*` (before `work_param`), because they also
+  work without a work.
+- **Commits** (`mirror::record_idea`, under `state.write_lock`): exactly one per action and affected mirror
+  (moving between works or from/to „ohne Werk“: one each in the old and in the new). Subject
   „Einfall <id>: angelegt|geändert|gelöscht|wiederhergestellt|verarbeitet als <Gliederungspunkt|Chat-Beitrag|
-  Notiz>“, Trailer `Baruch-Idea: <id>`, `Baruch-Action: idea-create|idea-update|idea-delete|idea-restore|
-  idea-process`, `Baruch-Origin: human|persona|mcp`, bei Persona/MCP zusätzlich `Persona: <handle>`. Autor ist,
-  wer handelt (Persona „<Name> (<handle>)“, MCP-Client „MCP-Client (@mcp:<name>)“, jeweils
-  `<handle>@persona.baruch.invalid`), Committer immer der Mensch; `allow_empty`. Rumpf: vorher/nachher der
-  geänderten Felder, beim Löschen der ganze Eintrag. Ohne Werk: eigenes Git-Repo `<data>/einfaelle/`
-  (`Mirror::open_or_init`, `<data>/einfaelle` darf keine symbolische Verknüpfung sein) mit nur
-  `einfaelle.md` (fehlt, wenn es keine Einfälle ohne Werk gibt). Verarbeiten zum Gliederungspunkt ergibt
-  zusätzlich den Gliederungs-Commit (`mirror::record_outline`, `Baruch-Action: outline-add`). Seit Runde 14
-  entstehen Punkt und „verarbeitet“ in **einer** Transaktion (`Store::idea_to_outline`: `outline::add`, dann
-  `ideas::mark_done_in` mit `done_ref` „key <key>“; Einfall aus einem anderen Werk → `Idea`); scheitert ein
-  Schritt, ist nichts geändert, und der Server schreibt keinen Commit (Test mit einem SQLite-Trigger auf
+  Notiz>“, trailers `Baruch-Idea: <id>`, `Baruch-Action: idea-create|idea-update|idea-delete|idea-restore|
+  idea-process`, `Baruch-Origin: human|persona|mcp`, with persona/MCP additionally `Persona: <handle>`. The author is
+  whoever acts (persona „<Name> (<handle>)“, MCP client „MCP-Client (@mcp:<name>)“, each
+  `<handle>@persona.baruch.invalid`), the committer always the human; `allow_empty`. Body: before/after of the
+  changed fields, on deletion the whole entry. Without a work: own Git repository `<data>/einfaelle/`
+  (`Mirror::open_or_init`, `<data>/einfaelle` must not be a symbolic link) with only
+  `einfaelle.md` (missing if there are no ideas without a work). Processing into an outline item additionally
+  results in the outline commit (`mirror::record_outline`, `Baruch-Action: outline-add`). Since Round 14
+  item and „verarbeitet“ come about in **one** transaction (`Store::idea_to_outline`: `outline::add`, then
+  `ideas::mark_done_in` with `done_ref` „key <key>“; idea from another work → `Idea`); if a
+  step fails, nothing is changed, and the server writes no commit (test with an SQLite trigger on
   `UPDATE idea`).
-- **Schutz**: `POST /einfaelle/act` liegt in `writes()` hinter `guard::same_origin` (fremde Seiten → 403);
-  der Rücksprung `back` nimmt nur eigene Adressen (`/…`, nicht `//…`).
-- Auftrag an eine Persona (Runde 10, `ideas.rs` `process_persona`): Modellaufruf über `crate::assist` vor der
-  Schreibsperre, danach unter der Sperre `idea_mark_done(…, Persona, "key K, Beitrag ID")` und Spiegel-Commit
-  `idea-process`. Der Lektor kennt die Einfälle als Gedächtnis über `assist::context`.
+- **Protection**: `POST /einfaelle/act` lies in `writes()` behind `guard::same_origin` (foreign pages → 403);
+  the return address `back` takes only own addresses (`/…`, not `//…`).
+- Task for a persona (Round 10, `ideas.rs` `process_persona`): model call through `crate::assist` before the
+  write lock, afterwards under the lock `idea_mark_done(…, Persona, "key K, Beitrag ID")` and mirror commit
+  `idea-process`. The lector knows the ideas as memory through `assist::context`.
 
 
-## Menü und Einstellungen (Runde 9)
+## Menu and settings (Round 9)
 
-### Kopfzeile und Menüs (`menu.rs`)
+### Header and menus (`menu.rs`)
 
-Seit Runde 33 ist die Kopfzeile das **Menüband** (Abschnitt „Runde 33 – Menüband“ weiter unten); die Menüs Werk ▾,
-Ansicht ▾ und Werkzeuge ▾ der Runde 9 gibt es nicht mehr. Geblieben ist aus Runde 9:
+Since Round 33 the header is the **ribbon** (section "Round 33 – Ribbon" further below); the menus „Werk ▾“,
+„Ansicht ▾“ and „Werkzeuge ▾“ of Round 9 no longer exist. What remains from Round 9:
 
-- Der Kopf wohnt in `templates/base.html` als `{% block topbar %}`; jede Template-Umgebung bettet
-  `base.html` schon ein, kein Modul braucht eine neue Registrierung. Seiten liefern `{% block page_title %}` (Text in
-  `.work-title`), `{% block page_actions %}` (Gruppen der Seite im Reiter Start) und seit Runde 33 `band_tab`,
+- The head lives in `templates/base.html` as `{% block topbar %}`; every template environment already embeds
+  `base.html`, no module needs a new registration. Pages deliver `{% block page_title %}` (text in
+  `.work-title`), `{% block page_actions %}` (groups of the page in the tab Start) and since Round 33 `band_tab`,
   `band_einfuegen`, `band_pruefen`, `band_buch`, `band_ansicht`.
-- Daten des Kopfs in dieser Rangfolge: (1) `topbar` (nur die Arbeitsseite, `crate::menu::workspace_topbar`
-  in `view::values`: Werk, `key`, `rev`, Ansicht, `lq_q`, Werkwahl, Abzeichen), (2) `work.id`, wenn `work`
-  eine Abbildung ist, (3) `settings.work` (Cookie `baruch_work`). Adressen baut die Vorlage selbst (nur
-  Ziffern aus den Daten; minijinja maskiert `/` in Werten). Erzeugte Links nie mit `node=`, immer `key=`.
-- Auf der Arbeitsseite tragen „Neues Werk / Importieren…“, der Umschalter Editor/Vorschau, „Literatur“ und „Einfall
-  festhalten“ `data-work-import-open`, `data-view-toggle`, `data-literature-open` bzw. `data-idea-open`
-  (je Seite höchstens einmal; `works.ts`, `literature.ts`, `ideas.ts` unverändert). Auf
-  anderen Seiten fehlt der jeweilige Dialog, die Links führen dort einfach auf ihre Seite. „Einstellungen“
-  (`data-settings-open`, Alt+,) steht im Menü Baruch ▾ und ist der erste solche Link der Seite.
-- `base.html` endet nach `{% block body %}` mit der Hülle des Einstellungs-Dialogs
-  `<dialog class="settings-dialog" id="settings" data-widget="settings">` (Inhalt lädt `settings.ts`);
-  sie steht hinter allen Dialogen der Seiten.
+- Data of the head in this order of precedence: (1) `topbar` (only the work page, `crate::menu::workspace_topbar`
+  in `view::values`: work, `key`, `rev`, view, `lq_q`, work choice, badges), (2) `work.id`, if `work`
+  is a mapping, (3) `settings.work` (cookie `baruch_work`). Addresses are built by the template itself (only
+  digits from the data; minijinja escapes `/` in values). Generated links never with `node=`, always `key=`.
+- On the work page „Neues Werk / Importieren…“, the toggle editor/preview, „Literatur“ and „Einfall
+  festhalten“ carry `data-work-import-open`, `data-view-toggle`, `data-literature-open` and `data-idea-open`
+  (at most once per page; `works.ts`, `literature.ts`, `ideas.ts` unchanged). On
+  other pages the respective dialog is missing, the links there simply lead to their page. „Einstellungen“
+  (`data-settings-open`, Alt+,) stands in the menu „Baruch ▾“ and is the first such link of the page.
+- `base.html` ends after `{% block body %}` with the shell of the settings dialog
+  `<dialog class="settings-dialog" id="settings" data-widget="settings">` (content loaded by `settings.ts`);
+  it stands behind all dialogs of the pages.
 - `src/menu.rs`: `handles`, `call` (`menu.badges`), `Badges`, `badges(state, work)`, `open_proposals(work)`,
-  `workspace_topbar(work, shelf, at, library)`, `fill_badges`/`fill_page` (Runde 23a).
-- `web/src/menu.ts` (Widget `menubar`): Tastatur am Menü Baruch ▾, Klick daneben, `aria-expanded` am
-  `<summary>`, Abzeichen im ganzen Band über `menu.badges` (beim Laden außerhalb der Arbeitsseite, beim Öffnen des
-  Menüs, nach Formularen und `baruch:navigate`). Das Werk nimmt es aus `data-work` am Kopf (`header.band`).
-- Thema-Widget bleibt in `web/src/panes.ts` (keine `theme.ts`): zeigt nur ein Zeichen, Name im `title`, und
-  liest das Cookie `baruch_theme` neu bei `baruch:settings-changed`; der Knopf steht im Reiter Ansicht.
-- Stil: Menü in `static/menu.css` (Liste `position: absolute`, Tastenkürzel über `data-shortcut` als `::after`, damit
-  der Text des Eintrags gleich bleibt), Band in `static/band.css`.
-- Tests: `tests/round9_menu.rs` (alle Seiten über den Router: genau ein Band, ein Menü, frühere Adressen,
-  Dialog-Hülle, Abzeichen mit Antrag über MCP `outline_rename` und Vorschlägen über `propose_revision`, Skripte) und
+  `workspace_topbar(work, shelf, at, library)`, `fill_badges`/`fill_page` (Round 23a).
+- `web/src/menu.ts` (widget `menubar`): keyboard at the menu „Baruch ▾“, click beside it, `aria-expanded` at the
+  `<summary>`, badges in the whole ribbon through `menu.badges` (on load outside the work page, on opening the
+  menu, after forms and `baruch:navigate`). It takes the work from `data-work` at the head (`header.band`).
+- The theme widget stays in `web/src/panes.ts` (no `theme.ts`): shows only one character, name in the `title`, and
+  reads the cookie `baruch_theme` anew on `baruch:settings-changed`; the button stands in the tab View.
+- Style: menu in `static/menu.css` (list `position: absolute`, keyboard shortcuts through `data-shortcut` as `::after`, so that
+  the text of the entry stays the same), ribbon in `static/band.css`.
+- Tests: `tests/round9_menu.rs` (all pages through the router: exactly one ribbon, one menu, earlier addresses,
+  dialog shell, badges with a request through MCP `outline_rename` and proposals through `propose_revision`, scripts) and
   `tests/round33_menueband.rs`.
 
-### Einstellungen (`settings/`)
+### Settings (`settings/`)
 
-- `src/settings/mod.rs`: Registrierung `registry()` (sieben `SettingsPage {slug, title, storage, render}` in
-  fester Reihenfolge), Vertragstyp `PageRender = for<'a> fn(&'a AppState, Option<WorkId>, &'a BTreeMap<String,
-  String>) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>>`; jede Seite liefert nur
-  `<section class="settings-page" data-settings-page-body="<slug>">…`. `frame()` löst das Werk auf (Abfrage
-  `work` > Cookie `baruch_work`, wenn es das Werk gibt > Vorgabewerk > keins; ein genanntes unbekanntes Werk →
-  404 bzw. -32602), zeichnet `templates/settings/frame.html` (Navigation mit `data-settings-page`,
-  `aria-current`, „Gespeichert: …“) und reicht alle übrigen Abfragepaare außer `fragment` an die Seite.
-  `?fragment=1` liefert nur den Rahmen (`Cache-Control: no-store`), sonst `templates/settings.html`
-  (extends `base.html`, Blöcke `page_title`/`page_actions`).
-- Anfrage-Angaben (Cookies, `Host`, Meldung eines abgelehnten Formulars) kennt die Vertragssignatur nicht; sie
-  liegen während des Zeichnens in einem `tokio::task_local` (`settings::request()`, ohne Rahmen Vorgaben).
-- Seiten: `display.rs` (Darstellung, Formular `POST /einstellungen/darstellung/act`, Cookies im Format von
-  `widgets.ts` `store`), `work.rs` (Werk: rendert `{% block content %}` aus `work_edit.html` und
-  `work_numbering.html` mit `render_captured` + `State::render_block`, Kontext aus
-  `works::edit_context` bzw. `numbering::page_context` – dieselben Funktionen bauen `/werke/{id}/bearbeiten`
-  und `/werke/{id}/nummerierung`), `assistants.rs` (Assistenten, Formulare an
-  `POST /einstellungen/personas/act` in `personas.rs`), `access.rs` (MCP-Zugang, `mcp::session::clients()`),
-  `data.rs` (Daten, `backup()` unter `write_lock`: `create_dir` als Sperre gegen Überschreiben, `VACUUM INTO`,
-  rekursive Kopie ohne `baruch.sqlite`/`-wal`/`-shm`, Verknüpfungen übersprungen und gemeldet; Zeit aus SQLite
-  `strftime(…, 'localtime')`; vorher Obergrenze `MAX_BACKUPS` = 10 Sicherungen `<Name>.sicherung-*` und freier
-  Platz über `rustix::fs::statvfs` (Unix): Datenordnergröße + `RESERVE_BYTES` = 512 MiB, sonst Ablehnung ohne
-  anzulegen). Abgelehnte Werk-Formulare mit `back` (`POST /werke/act`, `/werke/nummerierung/act`) zeichnen über
-  `settings::work_retry_page` die Seite „Werk“ mit `RequestInfo::work_retry` (Eingabe + Meldung), damit das
-  Popup einen Rahmen übernehmen kann. Verbindungen und Quellen: `crate::connections::render_connections` bzw. `render_sources` (unten).
-- Eigene Template-Umgebung in `settings/mod.rs` (Autoescape `.html`) mit `base.html`, `settings.html`,
-  `settings/*.html`, `work_edit.html`, `work_numbering.html`. `templates/personas.html` entfällt.
-- `back` (Runde 9): `POST /werke/act` (update) und `POST /werke/nummerierung/act` nehmen ein verstecktes Feld
-  `back`; nur `/einstellungen/werk` mit einer Abfrage aus `[A-Za-z0-9=&_%.-]` gilt (`works::settings_back`),
-  dann 303 dorthin mit `&ok=werk` bzw. `&ok=schema`; sonst wie bisher. Fehlerseiten behalten `back`.
-- `view::Settings.pv` (`open` | `closed`, Cookie `baruch_pv`): bei `closed` hängt `from_cookie_header` den
-  Merker `view::FOLD_ALL` = `(0, 0)` an `folded` (Schlüssel 0 gibt es nicht); `proposals_of` klappt damit alle
-  Vorschläge ein außer dem gezeigten – derselbe Weg wie `baruch_folded`.
-- Store (`baruch-store/src/personas.rs`): `PersonaRow` (alle Felder + Farbe), `PersonaEdit` (mit `check()`:
-  Rolle/Modell getrimmt 1–200 Zeichen, Kontext 1–10 000 000), `Store::persona_list`, `Store::update_persona`
-  (`BEGIN IMMEDIATE`, unbekannt → `UnknownPersona`, Grenzen → `Refused` als zweite Wache; die Server-Schicht
-  prüft vorher und meldet -32602). Keine Migration.
-- `mcp/session.rs`: `SeenClient {name, version, handle, first_seen, last_seen}` (Unix-Sekunden), `clients()`
-  (je Handle ein Eintrag, zuletzt gesehen zuerst, höchstens `MAX_SESSIONS`); `start()` setzt beide Zeiten
-  (bei bekanntem Handle bleibt `first_seen`), `client(id)` setzt `last_seen`.
-- Widget `web/src/settings.ts` (`data-widget="settings"` am `<dialog id="settings">` aus `base.html`):
-  `[data-settings-open]` und Alt+, öffnen (`showModal`) und laden den Rahmen (`fragment=1`) in
-  `[data-settings-content]`; `a[data-settings-page]` wechselt die Seite; POST-Formulare per `fetch`
-  (urlencoded, Weiterleitung folgen), aus der Antwort wird `[data-settings-frame]` übernommen (auch bei 422);
-  GET-Formulare auf `/einstellungen/…` laden im Dialog. Nach Erfolg `baruch:settings-changed` mit
-  `detail.page`; das Thema setzt es sofort (`dataset.theme`). Stil `static/settings.css`.
-- Tests: `baruch-server/tests/round9_settings.rs` (15), `baruch-server/tests/personas.rs` (angepasst:
-  Seite Assistenten, Weiterleitung), `baruch-store/tests/round9_personas.rs` (4), Unit-Tests in
+- `src/settings/mod.rs`: registration `registry()` (seven `SettingsPage {slug, title, storage, render}` in
+  fixed order), contract type `PageRender = for<'a> fn(&'a AppState, Option<WorkId>, &'a BTreeMap<String,
+  String>) -> Pin<Box<dyn Future<Output = Result<String, String>> + Send + 'a>>`; every page delivers only
+  `<section class="settings-page" data-settings-page-body="<slug>">…`. `frame()` resolves the work (query
+  `work` > cookie `baruch_work`, if the work exists > default work > none; a named unknown work →
+  404 or -32602), draws `templates/settings/frame.html` (navigation with `data-settings-page`,
+  `aria-current`, „Gespeichert: …“) and passes all other query pairs except `fragment` to the page.
+  `?fragment=1` delivers only the frame (`Cache-Control: no-store`), otherwise `templates/settings.html`
+  (extends `base.html`, blocks `page_title`/`page_actions`).
+- Request data (cookies, `Host`, message of a refused form) are unknown to the contract signature; they
+  lie in a `tokio::task_local` during drawing (`settings::request()`, defaults without a frame).
+- Pages: `display.rs` (display, form `POST /einstellungen/darstellung/act`, cookies in the format of
+  `widgets.ts` `store`), `work.rs` (work: renders `{% block content %}` from `work_edit.html` and
+  `work_numbering.html` with `render_captured` + `State::render_block`, context from
+  `works::edit_context` or `numbering::page_context` – the same functions build `/werke/{id}/bearbeiten`
+  and `/werke/{id}/nummerierung`), `assistants.rs` (assistants, forms to
+  `POST /einstellungen/personas/act` in `personas.rs`), `access.rs` (MCP access, `mcp::session::clients()`),
+  `data.rs` (data, `backup()` under `write_lock`: `create_dir` as a lock against overwriting, `VACUUM INTO`,
+  recursive copy without `baruch.sqlite`/`-wal`/`-shm`, links skipped and reported; time from SQLite
+  `strftime(…, 'localtime')`; beforehand an upper limit `MAX_BACKUPS` = 10 backups `<Name>.sicherung-*` and free
+  space through `rustix::fs::statvfs` (Unix): data folder size + `RESERVE_BYTES` = 512 MiB, otherwise refusal without
+  creating anything). Refused work forms with `back` (`POST /werke/act`, `/werke/nummerierung/act`) draw through
+  `settings::work_retry_page` the page „Werk“ with `RequestInfo::work_retry` (input + message), so that the
+  popup can take over a frame. Connections and sources: `crate::connections::render_connections` or `render_sources` (below).
+- Own template environment in `settings/mod.rs` (autoescape `.html`) with `base.html`, `settings.html`,
+  `settings/*.html`, `work_edit.html`, `work_numbering.html`. `templates/personas.html` is gone.
+- `back` (Round 9): `POST /werke/act` (update) and `POST /werke/nummerierung/act` take a hidden field
+  `back`; only `/einstellungen/werk` with a query from `[A-Za-z0-9=&_%.-]` counts (`works::settings_back`),
+  then 303 there with `&ok=werk` or `&ok=schema`; otherwise as before. Error pages keep `back`.
+- `view::Settings.pv` (`open` | `closed`, cookie `baruch_pv`): with `closed` `from_cookie_header` appends the
+  flag `view::FOLD_ALL` = `(0, 0)` to `folded` (key 0 does not exist); `proposals_of` thereby folds all
+  proposals except the shown one – the same way as `baruch_folded`.
+- Store (`baruch-store/src/personas.rs`): `PersonaRow` (all fields + colour), `PersonaEdit` (with `check()`:
+  role/model trimmed 1–200 characters, context 1–10 000 000), `Store::persona_list`, `Store::update_persona`
+  (`BEGIN IMMEDIATE`, unknown → `UnknownPersona`, limits → `Refused` as a second guard; the server layer
+  checks beforehand and reports -32602). No migration.
+- `mcp/session.rs`: `SeenClient {name, version, handle, first_seen, last_seen}` (Unix seconds), `clients()`
+  (one entry per handle, last seen first, at most `MAX_SESSIONS`); `start()` sets both times
+  (with a known handle `first_seen` stays), `client(id)` sets `last_seen`.
+- Widget `web/src/settings.ts` (`data-widget="settings"` at the `<dialog id="settings">` from `base.html`):
+  `[data-settings-open]` and Alt+, open (`showModal`) and load the frame (`fragment=1`) into
+  `[data-settings-content]`; `a[data-settings-page]` changes the page; POST forms via `fetch`
+  (urlencoded, follow redirects), `[data-settings-frame]` is taken over from the answer (also with 422);
+  GET forms on `/einstellungen/…` load in the dialog. After success `baruch:settings-changed` with
+  `detail.page`; it sets the theme immediately (`dataset.theme`). Style `static/settings.css`.
+- Tests: `baruch-server/tests/round9_settings.rs` (15), `baruch-server/tests/personas.rs` (adapted:
+  page assistants, redirect), `baruch-store/tests/round9_personas.rs` (4), unit tests in
   `settings/{mod,display,access,data}.rs`, `mcp/session.rs`, `view.rs`.
 
-### Verbindungen und Quellen (`connections/`, Migration 0013)
+### Connections and sources (`connections/`, migration 0013)
 
-- Migration `crates/baruch-store/migrations/0013_connections.sql`: Tabellen `connection` (kind, config als
-  JSON-Objekt, nie Geheimnisse; letzte Prüfung `checked`/`check_ok`/`check_message`/`check_details`),
-  `work_rag` (je Werk die Wege als JSON-Liste, `ON DELETE CASCADE`), `preferred_source` (Lesezeichen,
-  `position` 1..n lückenlos) und Index `preferred_source_order`. Fehlende Zeile = Vorgabe.
+- Migration `crates/baruch-store/migrations/0013_connections.sql`: tables `connection` (kind, config as a
+  JSON object, never secrets; last check `checked`/`check_ok`/`check_message`/`check_details`),
+  `work_rag` (per work the ways as a JSON list, `ON DELETE CASCADE`), `preferred_source` (bookmarks,
+  `position` 1..n without gaps) and index `preferred_source_order`. Missing row = default.
 - Store `crates/baruch-store/src/connections.rs`: `ConnectionKind` (`as_str`/`FromStr`, `default_config`),
   `ConnectionRow`, `ConnectionCheck`, `RagWay`, `PreferredSource`, `NewSource`, `SourceEdit`;
-  `Store::connection_get/connection_list/connection_set` (geänderte Einstellungen leeren die alte Prüfung),
+  `Store::connection_get/connection_list/connection_set` (changed settings clear the old check),
   `connection_record_check`, `work_rag`/`set_work_rag`, `sources_list/source_create/source_update/
-  source_move/source_delete` (Reihenfolge in derselben Transaktion lückenlos). Ablehnungen über
-  `StoreError::Refused`, keine neue Variante; `connection_bind_secret` (0014). Tests `tests/{connections,migration_0013,migration_0014}.rs`.
+  source_move/source_delete` (order without gaps in the same transaction). Refusals through
+  `StoreError::Refused`, no new variant; `connection_bind_secret` (0014). Tests `tests/{connections,migration_0013,migration_0014}.rs`.
 - Server `crates/baruch-server/src/connections/`:
-  - `secrets.rs`: Trait `SecretStore` (`get`/`set`/`delete` je Konto, Dienst fest `baruch`),
-    `KeyringSecrets` (Crate `keyring` 3, Linux Secret Service über D-Bus; findet auch Einträge, die Python
-    `keyring` ohne `target` angelegt hat), `MemorySecrets` (Tests, Wegwerf-Server), `system_secrets()`,
-    `secrets_mode` (`serve`: `--secrets keyring|memory` bzw. `BARUCH_SECRETS`, Vorgabe Schlüsselbund nur mit dem
-    Vorgabe-Datenordner, sonst Speicher – die Einträge hängen nur an Dienst und Konto, nicht am Datenordner);
-    der Server ruft die blockierenden Methoden nur über `secrets::get/set/delete` in `spawn_blocking` auf.
-  - Bindung des Geheimnisses an das Ziel (Migration 0014, `connection.secret_target`, `Store::connection_bind_secret`):
-    `config::target` (Ursprung der Adresse bzw. Rechner/Port/TLS); `set_config` merkt sich bei Zieländerung und
-    hinterlegtem (oder unlesbarem) Geheimnis das alte Ziel, `set_secret`/`delete_secret` setzen NULL (= jetziges
-    Ziel), alles unter `write_lock`; `run_check` sendet nur bei `secret_bound`, sonst `ok: false` mit
-    `details.secret_withheld` ohne die Gegenstelle zu fragen. Die Suchwege (Runde 12: `pgvector::open_way`,
-    `multigpt::open_way`, `rag::embed::EliezerEmbedders`) nehmen dieselbe Prüfung.
-  - `config.rs`: erlaubte Felder je Art, Prüfung der Adressen und Felder, Ablehnung von Geheimnis-Feldern.
-  - `check.rs`: Prüfen (reqwest 0.12 mit rustls, sqlx-Postgres über die Laufzeit-API); `scrub` ersetzt ein
-    zurückgespiegeltes Geheimnis durch `***`, bevor etwas gespeichert oder gezeigt wird.
-  - `pages.rs`: `render_connections`/`render_sources` (Vertragssignatur `PageRender`, eigene minijinja-Umgebung
-    mit `templates/settings/{verbindungen,quellen}.html`) und die beiden Formular-Handler.
+  - `secrets.rs`: trait `SecretStore` (`get`/`set`/`delete` per account, service fixed `baruch`),
+    `KeyringSecrets` (crate `keyring` 3, Linux Secret Service over D-Bus; also finds entries that Python
+    `keyring` created without `target`), `MemorySecrets` (tests, throwaway server), `system_secrets()`,
+    `secrets_mode` (`serve`: `--secrets keyring|memory` or `BARUCH_SECRETS`, default keyring only with the
+    default data folder, otherwise memory – the entries hang only on service and account, not on the data folder);
+    the server calls the blocking methods only through `secrets::get/set/delete` in `spawn_blocking`.
+  - Binding of the secret to the target (migration 0014, `connection.secret_target`, `Store::connection_bind_secret`):
+    `config::target` (origin of the address or host/port/TLS); `set_config` remembers the old target when the target changes and
+    a secret is stored (or unreadable), `set_secret`/`delete_secret` set NULL (= current
+    target), all under `write_lock`; `run_check` sends only with `secret_bound`, otherwise `ok: false` with
+    `details.secret_withheld` without asking the other side. The search ways (Round 12: `pgvector::open_way`,
+    `multigpt::open_way`, `rag::embed::EliezerEmbedders`) take the same check.
+  - `config.rs`: allowed fields per kind, check of the addresses and fields, refusal of secret fields.
+  - `check.rs`: checking (reqwest 0.12 with rustls, sqlx Postgres through the runtime API); `scrub` replaces a
+    mirrored-back secret with `***` before anything is stored or shown.
+  - `pages.rs`: `render_connections`/`render_sources` (contract signature `PageRender`, own minijinja environment
+    with `templates/settings/{verbindungen,quellen}.html`) and the two form handlers.
   - `sources.rs` (RPC `sources.*`), `mcp.rs` (`sources_list`), `mod.rs` (RPC `connection.*`, `writes()`).
-- `AppState::secrets` (`Arc<dyn SecretStore>`); `AppState::open` nimmt `MemorySecrets`, `serve` nimmt
-  `AppState::open_with_secrets(&data, …)` mit dem Schlüsselbund bzw. `MemorySecrets` nach `secrets_mode`. Kein Test erzeugt `KeyringSecrets`.
-- Neue Crates nur in `crates/baruch-server/Cargo.toml`: `keyring` 3 (`sync-secret-service`, `crypto-rust`),
-  `reqwest` 0.12 (ohne Vorgaben; `json`, `rustls-tls`, `rustls-tls-native-roots`), sqlx zusätzlich
-  `postgres` und `tls-rustls-ring-native-roots` (Systemzertifikate, auch eine Haus-CA im Intranet), tokio
-  zusätzlich `time`. Lizenzen der rund 100 neuen Crates: MIT/Apache-2.0/ISC/Zlib, `ring` Apache-2.0 AND ISC,
-  `webpki-roots` CDLA-Permissive-2.0 – mit AGPL-3.0 verträglich.
-- Tests `crates/baruch-server/tests/round9_connections.rs`: Seiten direkt über die Render-Funktionen, Formulare
-  (303, `same_origin`), RPC, Prüfen gegen eigene Test-Server auf `127.0.0.1:0` (Eliezer mit Bearer-Prüfung,
-  MCP als JSON und als offen bleibender Ereignisstrom, Zeitlimit, Größengrenze, geschlossener Port, eine
-  nachgebaute PostgreSQL-Gegenstelle mit abgelehntem Passwort), mit `/usr/lib/postgresql/*/bin` ein eigener
-  Wegwerf-Cluster unter `CARGO_TARGET_TMPDIR` (scram-sha-256, nur 127.0.0.1, ohne Unix-Socket, `pg_ctl -m
-  immediate stop`), sonst „ÜBERSPRUNGEN“ auf stderr; ein eindeutiges Test-Geheimnis steht in keiner Seite,
-  Antwort, Meldung, Weiterleitung, Tabelle und keinem Prüfergebnis.
-- Außerhalb der Vertragsdateien, nötig für grüne Tests: `tests/migration_0012.rs` nimmt die Tabellen von 0013
-  aus der Liste „neu“ aus (Store::open führt alle Migrationen aus); `tests/mcp_ideas.rs` erwartet hinter
-  `read_asset` jetzt `sources_list`, die Einfälle eine Stelle später.
+- `AppState::secrets` (`Arc<dyn SecretStore>`); `AppState::open` takes `MemorySecrets`, `serve` takes
+  `AppState::open_with_secrets(&data, …)` with the keyring or `MemorySecrets` according to `secrets_mode`. No test creates `KeyringSecrets`.
+- New crates only in `crates/baruch-server/Cargo.toml`: `keyring` 3 (`sync-secret-service`, `crypto-rust`),
+  `reqwest` 0.12 (without defaults; `json`, `rustls-tls`, `rustls-tls-native-roots`), sqlx additionally
+  `postgres` and `tls-rustls-ring-native-roots` (system certificates, also an in-house CA in the intranet), tokio
+  additionally `time`. Licences of the roughly 100 new crates: MIT/Apache-2.0/ISC/Zlib, `ring` Apache-2.0 AND ISC,
+  `webpki-roots` CDLA-Permissive-2.0 – compatible with AGPL-3.0.
+- Tests `crates/baruch-server/tests/round9_connections.rs`: pages directly through the render functions, forms
+  (303, `same_origin`), RPC, checking against own test servers on `127.0.0.1:0` (Eliezer with bearer check,
+  MCP as JSON and as an event stream that stays open, time limit, size limit, closed port, a
+  mock PostgreSQL counterpart with a refused password), with `/usr/lib/postgresql/*/bin` an own
+  throwaway cluster under `CARGO_TARGET_TMPDIR` (scram-sha-256, only 127.0.0.1, without a Unix socket, `pg_ctl -m
+  immediate stop`), otherwise „ÜBERSPRUNGEN“ on stderr; a unique test secret stands in no page,
+  answer, message, redirect, table and no check result.
+- Outside the contract files, needed for green tests: `tests/migration_0012.rs` excludes the tables of 0013
+  from the list „neu“ (Store::open runs all migrations); `tests/mcp_ideas.rs` now expects `sources_list` behind
+  `read_asset`, the ideas one position later.
 
-## Bedeutungssuche (Runde 12, Migrationen 0031 und 0032)
+## Semantic search (Round 12, migrations 0031 and 0032)
 
-Drei Wege, umschaltbar je Werk (`work_rag`): **LanceDB** (Haupt-RAG im Datenordner), **pgvector** (direkt,
-nur lesend) und **MultiGPT** (MCP). Alle Wege sprechen die Ports aus `baruch-rag`; der Dienst `crate::rag`
-fragt sie gleichzeitig und führt zusammen. RAG ist **nur lesend**: Kein Weg schreibt Buchtext, Einfälle oder
-Hervorhebungen. Treffer-Texte sind Daten, nie Anweisungen (MCP-Beschreibung, Belegblock der Personas).
+Three ways, switchable per work (`work_rag`): **LanceDB** (main RAG in the data folder), **pgvector** (direct,
+read only) and **MultiGPT** (MCP). All ways speak the ports from `baruch-rag`; the service `crate::rag`
+asks them at the same time and merges. RAG is **read only**: no way writes book text, ideas or
+highlights. Hit texts are data, never instructions (MCP description, evidence block of the personas).
 
-### Dienst (`src/rag/`)
+### Service (`src/rag/`)
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `mod.rs` | `search`, `status`, `reindex`, `notify`, `catch_up`, `wait_idle`, `set_embedders`, `eliezer_embedders`, `check_lancedb`, RPC `handles`/`call` (`rag.search`, `rag.status`, `rag.reindex`; Dispatch in `rpc.rs` vor der Wahl des Werks), `way_of`/`rag_way` (↔ `baruch_store::RagWay`), Sätze `NOT_CHOSEN`, `NOT_ASKED`, `NO_COLLECTION`, `NEVER_CHECKED`, `NO_EMBEDDER`, `WAY_TIMEOUT` (20 s) |
-| `merge.rs` | `merge(per_way, limit)`: je Weg nach Score (Gleichstand Dokument, Stelle), Rang 1..n; Doppelte über `Hit::identity` auch über Wege; `fused` = Σ 1/(60 + Rang); Vertreter mit bestem Rang (Gleichstand früherer Weg); Endreihenfolge fused, bester Rang, Weg, Dokument, Stelle; deterministisch |
-| `index.rs` | Laufzeit je Datenordner (`Runtime`: Store-Klon, Einbetter, entdoppelte Warteschlange, geöffneter Index, letzte Berichte der Remote-Wege), Aufträge `Prune`/`Shared`/`Work(W)`, Abgleich `sync` (gleicher `row_hash` bleibt, bekannter `content_hash` übernimmt den Vektor, Rest in Stapeln ≤ 32 eingebettet, Entferntes gelöscht), Quellen `desired_sections`/`desired_ideas`/`desired_shared`, Suchweg `LanceWay`, `mismatch` |
-| `embed.rs` | `EliezerEmbedders` (Adresse/Schlüssel wie `models::endpoint`, Schlüssel nur bei `secret_bound`, prozessweite Warteschlange mit **einer** Einbettungsanfrage zur Zeit, getrennt von den Chats), `NoEmbedders`, `Cached` (je Suche: gleicher Text je Modell einmal – LanceDB und pgvector teilen die Einbettung der Anfrage) |
-| `check.rs` | `check_lancedb` → `{kind: "lancedb", ok, message, details, at}` über `connection_record_check`; `run_check` in `connections/mod.rs` gibt LanceDB dorthin ab |
-| `hooks.rs` | Sammlungen des Werks (`Store::work_collections`), `open_pgvector` → `connections::pgvector::open_way`, `open_multigpt` → `connections::multigpt::open_way` |
+| `mod.rs` | `search`, `status`, `reindex`, `notify`, `catch_up`, `wait_idle`, `set_embedders`, `eliezer_embedders`, `check_lancedb`, RPC `handles`/`call` (`rag.search`, `rag.status`, `rag.reindex`; dispatch in `rpc.rs` before the work is chosen), `way_of`/`rag_way` (↔ `baruch_store::RagWay`), sentences `NOT_CHOSEN`, `NOT_ASKED`, `NO_COLLECTION`, `NEVER_CHECKED`, `NO_EMBEDDER`, `WAY_TIMEOUT` (20 s) |
+| `merge.rs` | `merge(per_way, limit)`: per way by score (tie document, place), rank 1..n; duplicates through `Hit::identity` also across ways; `fused` = Σ 1/(60 + rank); representative with the best rank (tie: earlier way); final order fused, best rank, way, document, place; deterministic |
+| `index.rs` | runtime per data folder (`Runtime`: store clone, embedder, de-duplicated queue, opened index, last reports of the remote ways), jobs `Prune`/`Shared`/`Work(W)`, reconciliation `sync` (same `row_hash` stays, known `content_hash` takes over the vector, the rest embedded in batches ≤ 32, removed ones deleted), sources `desired_sections`/`desired_ideas`/`desired_shared`, search way `LanceWay`, `mismatch` |
+| `embed.rs` | `EliezerEmbedders` (address/key like `models::endpoint`, key only with `secret_bound`, process-wide queue with **one** embedding request at a time, separate from the chats), `NoEmbedders`, `Cached` (per search: the same text once per model – LanceDB and pgvector share the embedding of the query) |
+| `check.rs` | `check_lancedb` → `{kind: "lancedb", ok, message, details, at}` through `connection_record_check`; `run_check` in `connections/mod.rs` hands LanceDB over to it |
+| `hooks.rs` | collections of the work (`Store::work_collections`), `open_pgvector` → `connections::pgvector::open_way`, `open_multigpt` → `connections::multigpt::open_way` |
 
-- **Laufzeit ohne Änderung an `AppState`:** prozessweite Tabelle Datenordner → `Runtime`. `notify` legt keine an
-  und blockiert nie. Ohne `catch_up` bzw. `set_embedders` gibt es keinen Einbetter (Tests, Hilfsbefehle – nie
-  Netz); `serve` ruft `rag::catch_up` nach dem Öffnen (Eliezer als Einbetter, `Prune`, `Shared` und alle Werke
-  einreihen).
-- **Wer meldet Änderungen:** `mirror.rs` (`record`, `record_switch`, `record_outline_by`, `record_idea`,
-  `record_post`, `sync_work`), `works.rs` nach `work.delete` (`notify(Some(work))`), `literature.rs` nach jeder
-  Änderung an einer Hervorhebung über `search_hooks::changed` (`notify(None)` für den gemeinsamen Bereich und
-  `notify(Some(work))`). Bibliothekstitel frischt die Suche höchstens alle 30 s auf.
-- **Fehler:** wiederholbar bis 3 Versuche (Pausen 0,3 s / 1,2 s), dann liegengeblieben (`Runtime::stale`, im
-  Status `index.stale`); Modell bzw. Dokument-Präfix passt nicht → kein Versuch, kein Mischen, Problem im Status,
-  bis `rag.reindex`. Seit Runde 19a holt nur eine echte Änderung (`notify` → `Runtime::enqueue`), ein Auftrag,
-  der tatsächlich wieder eingebettet hat (`Outcome.embedded`), oder der Neuaufbau Liegengebliebenes zurück. Die
-  Suche reiht über `refresh_shared` → `enqueue_quiet` nur `Prune` (billig: erst zählen) und höchstens alle 30 s
-  `Shared` ein und überspringt dabei liegengebliebene Aufträge; ein gelungener Auftrag ohne Einbettung löscht das
-  Problem nur, wenn nichts mehr liegt (sonst zeigte der Status zwischendurch „kein Problem“). `Job::Work` eines
-  unbekannten (gelöschten) Werks löscht dessen Zeilen und reiht `Shared` gleich danach ein (`Outcome.follow`):
-  Die Einfälle des Werks sind jetzt „ohne Werk“.
-- **Neuaufbau ohne Warten (Runde 19a):** `reindex_report` nimmt die Schreibsperre nur mit `try_lock`; hält der
-  Worker sie, vermerkt `Runtime::wish_reset` den Wunsch (ganzer Index bzw. Werke) und setzt `abort`. Der Worker
-  prüft `abort` zwischen zwei Stapeln, während einer Einbettung (`embed_or_abort`, alle 50 ms) und in den Pausen
-  zwischen Versuchen, verwirft das Ergebnis des abgebrochenen Auftrags, führt den Wunsch unter der Sperre aus
-  (`reset_index`) und reiht neu ein. Der unterbrochene Auftrag selbst kommt vorn wieder in die Warteschlange
-  (doppelt nur einmal): `reset_index` liefert für einzelne Werke nur deren Aufträge und `Shared`, der laufende
-  Auftrag eines anderen Werks oder `Prune` bliebe sonst halb abgeglichen und ohne Vermerk liegen. RPC-Antwort mit `deferred`; `reindex` (Haken `search_hooks::rag_reindex`)
-  liefert weiter nur `pending`.
-- **Bereichs-replace (Runde 19a):** `Index::replace(scope, remove, rows, dimension)` löscht nur
-  `id IN (…) AND <Bereich>` und lehnt Zeilen außerhalb des Bereichs ab (`RagError::Invalid`); `sync` übergibt den
-  Bereich des Auftrags. So kann eine neu vergebene Kennung (`node.key`) in einem anderen Werk keine fremden
-  Zeilen mehr löschen. Wechselt ein Einfall das Werk, räumt der Abgleich jedes Bereichs seinen Teil.
-- **Aufgaben-Präfixe (Runde 19b, LanceDB mit 19a):** `LanceConfig.prefixes` aus
-  `connections::config::embed_prefixes(Lancedb, …)`; `sync` bettet `document_text(text)` ein (gespeichert und
-  gehasht bleibt der Text selbst), `LanceWay` die Anfrage als `query_text(query)`. `IndexMeta.document_prefix`
-  (beim ersten Stapel gesetzt; fehlt = leer); `mismatch` meldet ein anderes Dokument-Präfix als
-  `ModelMismatch` („Aufgaben-Präfix geändert; Index neu aufbauen.“), `reset_index` baut dann den ganzen Index neu.
-- **Start ohne Anfrage an die Vorgabe-Adresse (Runde 19a):** `catch_up` setzt keinen Einbetter, wenn der
-  Datenordner nicht der Vorgabe-Ordner ist (`baruch_store::default_data_dir`, kanonisch verglichen) und die
-  Verbindung `eliezer` nie gespeichert wurde (`ConnectionRow.updated` leer); `Runtime::unbound` hält den Satz
-  `NO_EMBEDDER_OWN_DATA` für den Status. `reindex_report` bindet Eliezer an, sobald die Verbindung gespeichert ist.
-  Ein vorher gesetzter Einbetter (`set_embedders`, Tests) bleibt wie bisher.
-- **`weak` (Runde 19a):** `rag::answer_json` setzt je Treffer `weak = baruch_rag::is_weak(hit.score)` (RPC
-  `rag.search`, MCP `rag_search`); `Answer` selbst (eingefroren in `baruch-rag`) bleibt unverändert.
-- **Suche:** Eingabe prüfen (Anfrage 1..=1000 Zeichen, `limit` 1..=50), Wege des Werks ∩ `ways` der Anfrage, je
-  Weg ein Plan (aus: nicht gewählt / nicht gefragt / keine Sammlung / `NotConfigured` beim Öffnen), alle
-  gleichzeitig mit 20 s Schutz je Weg, `merge`. `Answer.ways` nennt immer alle drei Wege. Remote-Wege nur mit
-  einem von `MAX_REMOTE_SEARCHES` (4) Plätzen (`remote_slot`, Semaphore); ohne Platz nach 20 s ausgefallen mit
-  `BUSY`, LanceDB läuft weiter, der letzte gemeldete Zustand des Wegs bleibt stehen.
-- **Gemeinsamer Bereich** (`desired_shared`): abgelehnte Hervorhebungen (`HighlightStatus::Rejected`) kommen
-  nicht in den Index – wie bei der Wortlaut-Suche.
-- **Status ohne Netz:** LanceDB aus dem Index; Remote-Wege aus Einstellung, gewählten Sammlungen und der letzten
-  Suche dieses Prozesses (falls neuer als die letzte Prüfung) bzw. der letzten Prüfung; nie geprüft → „aus“ mit
+- **Runtime without a change to `AppState`:** process-wide table data folder → `Runtime`. `notify` creates none
+  and never blocks. Without `catch_up` or `set_embedders` there is no embedder (tests, helper commands – never
+  network); `serve` calls `rag::catch_up` after opening (Eliezer as embedder, enqueue `Prune`, `Shared` and all
+  works).
+- **Who reports changes:** `mirror.rs` (`record`, `record_switch`, `record_outline_by`, `record_idea`,
+  `record_post`, `sync_work`), `works.rs` after `work.delete` (`notify(Some(work))`), `literature.rs` after every
+  change to a highlight through `search_hooks::changed` (`notify(None)` for the shared area and
+  `notify(Some(work))`). The search refreshes library titles at most every 30 s.
+- **Errors:** repeatable up to 3 attempts (pauses 0.3 s / 1.2 s), then stalled (`Runtime::stale`, in the
+  status `index.stale`); model or document prefix does not match → no attempt, no mixing, problem in the status,
+  until `rag.reindex`. Since Round 19a only a real change (`notify` → `Runtime::enqueue`), a job
+  that actually embedded again (`Outcome.embedded`), or the rebuild brings stalled work back. The
+  search enqueues through `refresh_shared` → `enqueue_quiet` only `Prune` (cheap: count first) and at most every 30 s
+  `Shared`, skipping stalled jobs; a successful job without embedding clears the
+  problem only if nothing is left (otherwise the status would show „kein Problem“ in between). `Job::Work` of an
+  unknown (deleted) work deletes its rows and enqueues `Shared` right afterwards (`Outcome.follow`):
+  the ideas of the work are now „ohne Werk“.
+- **Rebuild without waiting (Round 19a):** `reindex_report` takes the write lock only with `try_lock`; if the
+  worker holds it, `Runtime::wish_reset` records the wish (whole index or works) and sets `abort`. The worker
+  checks `abort` between two batches, during an embedding (`embed_or_abort`, every 50 ms) and in the pauses
+  between attempts, discards the result of the aborted job, carries out the wish under the lock
+  (`reset_index`) and re-enqueues. The interrupted job itself goes back to the front of the queue
+  (duplicates only once): `reset_index` delivers for single works only their jobs and `Shared`; otherwise the running
+  job of another work or `Prune` would stay half reconciled and without a note. RPC answer with `deferred`; `reindex` (hook `search_hooks::rag_reindex`)
+  still delivers only `pending`.
+- **Scoped replace (Round 19a):** `Index::replace(scope, remove, rows, dimension)` deletes only
+  `id IN (…) AND <Bereich>` and refuses rows outside the scope (`RagError::Invalid`); `sync` passes the
+  scope of the job. So a newly given identifier (`node.key`) in another work can no longer delete foreign
+  rows. If an idea changes its work, the reconciliation of each scope clears its part.
+- **Task prefixes (Round 19b, LanceDB with 19a):** `LanceConfig.prefixes` from
+  `connections::config::embed_prefixes(Lancedb, …)`; `sync` embeds `document_text(text)` (the text itself stays what is stored and
+  hashed), `LanceWay` the query as `query_text(query)`. `IndexMeta.document_prefix`
+  (set with the first batch; missing = empty); `mismatch` reports a different document prefix as
+  `ModelMismatch` („Aufgaben-Präfix geändert; Index neu aufbauen.“), `reset_index` then rebuilds the whole index.
+- **Start without a request to the default address (Round 19a):** `catch_up` sets no embedder if the
+  data folder is not the default folder (`baruch_store::default_data_dir`, compared canonically) and the
+  connection `eliezer` was never saved (`ConnectionRow.updated` empty); `Runtime::unbound` keeps the sentence
+  `NO_EMBEDDER_OWN_DATA` for the status. `reindex_report` binds Eliezer as soon as the connection is saved.
+  An embedder set beforehand (`set_embedders`, tests) stays as before.
+- **`weak` (Round 19a):** `rag::answer_json` sets `weak = baruch_rag::is_weak(hit.score)` per hit (RPC
+  `rag.search`, MCP `rag_search`); `Answer` itself (frozen in `baruch-rag`) stays unchanged.
+- **Search:** check the input (query 1..=1000 characters, `limit` 1..=50), ways of the work ∩ `ways` of the query, per
+  way a plan (off: not chosen / not asked / no collection / `NotConfigured` on opening), all
+  at the same time with a 20 s guard per way, `merge`. `Answer.ways` always names all three ways. Remote ways only with
+  one of `MAX_REMOTE_SEARCHES` (4) slots (`remote_slot`, semaphore); without a slot failed after 20 s with
+  `BUSY`, LanceDB keeps running, the last reported state of the way stays in place.
+- **Shared area** (`desired_shared`): rejected highlights (`HighlightStatus::Rejected`) do not go
+  into the index – as with the wording search.
+- **Status without network:** LanceDB from the index; remote ways from the setting, the chosen collections and the last
+  search of this process (if newer than the last check) or the last check; never checked → „aus“ with
   „noch nicht geprüft (Verbindung prüfen)“.
-- **Index-Ordner:** Verbindung LanceDB `dir` (Vorgabe `lancedb`, relativ zum Datenordner, nie der Datenordner
-  selbst, nie unter `works/`); eine Tabelle `chunks` (`id`, `work`, `kind`, `document`, `section`, `title`,
-  `text`, `meta`, `content_hash`, `row_hash`, `vector`), ein Modell je Index.
-- **Haken der Oberfläche** (`search_hooks.rs`): `rag_search`, `rag_status`, `rag_reindex`, `changed` – Literatur,
-  Einfälle und die Einstellungsseite rufen nur diese; Personas und MCP rufen `assist::hooks::rag_search`/`rag_status`.
-  Beide leiten an `crate::rag` weiter.
+- **Index folder:** connection LanceDB `dir` (default `lancedb`, relative to the data folder, never the data folder
+  itself, never under `works/`); one table `chunks` (`id`, `work`, `kind`, `document`, `section`, `title`,
+  `text`, `meta`, `content_hash`, `row_hash`, `vector`), one model per index.
+- **Hooks of the user interface** (`search_hooks.rs`): `rag_search`, `rag_status`, `rag_reindex`, `changed` – literature,
+  ideas and the settings page call only these; personas and MCP call `assist::hooks::rag_search`/`rag_status`.
+  Both forward to `crate::rag`.
 
 ### pgvector (`connections/pgvector.rs`)
 
-- `check(config, secret)` für „Verbindung prüfen“ und `open_way(state, embedders)` als `SearchWay`. Eine
-  Verbindung je Suche (sqlx-Laufzeit-API, `PgConnectOptions::new_without_pgpass`, TLS wie eingestellt), alles in
-  `BEGIN TRANSACTION READ ONLY` mit `statement_timeout` 10 s (`begin_read_only`), Verbindung höchstens 10 s.
-- Zuordnung (`Mapping::from_config`, `config::effective` mit Vorgaben; `PG_MAPPING`, `is_identifier`,
-  `split_table`) → vor jeder Abfrage gegen `information_schema.columns` bestätigt (Schema aus dem Suchpfad bzw.
-  `schema.tabelle`, Vektorspalte vom Typ `vector`, Dimension aus `atttypmod`, sonst `vector_dims` der ersten
-  Zeile). Bezeichner nur geprüft und in doppelten Anführungszeichen; Vektor, Sammlungen (`= ANY($2)`) und Grenze
-  sind gebundene Parameter.
-- Suche: Modelle der gewählten Sammlungen (mit `model_column`) → Einbettung über
-  `EmbedderFactory::for_model(embedding_model)` → Modell (`same_model`, locker: Alias) und Dimension geprüft →
-  sonst `ModelMismatch` ohne Ähnlichkeitsabfrage → `ORDER BY "vec" <=> $1::vector LIMIT $3`, Score 1 − Abstand.
-  Fehler: Anmeldung/Rechte → `Denied`, `57014` → `Timeout`, Netz → `Unreachable`, Tabelle/Spalte → `Schema`.
-- Runde 19b (Härtung): jedes Feld aus der fremden Tabelle in SQL per `left(…, n)` gekürzt (Konstanten
+- `check(config, secret)` for „Verbindung prüfen“ and `open_way(state, embedders)` as a `SearchWay`. One
+  connection per search (sqlx runtime API, `PgConnectOptions::new_without_pgpass`, TLS as configured), everything in
+  `BEGIN TRANSACTION READ ONLY` with `statement_timeout` 10 s (`begin_read_only`), connection at most 10 s.
+- Mapping (`Mapping::from_config`, `config::effective` with defaults; `PG_MAPPING`, `is_identifier`,
+  `split_table`) → confirmed against `information_schema.columns` before every query (schema from the search path or
+  `schema.tabelle`, vector column of type `vector`, dimension from `atttypmod`, otherwise `vector_dims` of the first
+  row). Identifiers only checked and in double quotes; vector, collections (`= ANY($2)`) and limit
+  are bound parameters.
+- Search: models of the chosen collections (with `model_column`) → embedding through
+  `EmbedderFactory::for_model(embedding_model)` → model (`same_model`, lenient: alias) and dimension checked →
+  otherwise `ModelMismatch` without a similarity query → `ORDER BY "vec" <=> $1::vector LIMIT $3`, score 1 − distance.
+  Errors: login/rights → `Denied`, `57014` → `Timeout`, network → `Unreachable`, table/column → `Schema`.
+- Round 19b (hardening): every field from the foreign table shortened in SQL via `left(…, n)` (constants
   `MAX_DOCUMENT_CHARS` 500, `MAX_SECTION_CHARS` 200, `MAX_TITLE_CHARS` 300, `MAX_URL_CHARS` 2000,
-  `MAX_COLLECTION_CHARS` 200, `MAX_MODEL_CHARS` 200, Text `SNIPPET_SOURCE_CHARS` 2000); die Sammlungsliste der
-  Prüfung zählt je vollem Namen in einer Unterabfrage (höchstens 1000) und kürzt außen. Die Suche wählt eine
-  Sammlung über den vollen **oder** den gekürzten Namen (`= ANY($n) OR left(…) = ANY($n)`). `quoted` verdoppelt
-  Anführungszeichen (statt eines bloßen `debug_assert!`): das Schema aus `information_schema` ist ungeprüft und kann
-  jedes Zeichen enthalten; `to_regclass` bekommt dieselbe gequotete Form. `tls_warning(config, has_secret)` für
-  Prüfung (`message`, `details.tls_warning`) und Seite. Die Anfrage wird mit `config::embed_prefixes(Pgvector,
-  …).query_text` eingebettet (S1-Funktion); die Felder `query_prefix`/`document_prefix` kennt `config::fields`,
-  geprüft mit `baruch_rag::check_prefix` (nicht beschnitten).
-- `connections/collections.rs`: RPC `connection.collections_get/set`, `available_of` (gemeinsame Form
-  `details.collections = [{name, count}]` von pgvector und MultiGPT).
-- Formular der Verbindungen nimmt die Felder als `Form<Vec<(String, String)>>` (wiederholtes `collection`).
+  `MAX_COLLECTION_CHARS` 200, `MAX_MODEL_CHARS` 200, text `SNIPPET_SOURCE_CHARS` 2000); the collection list of the
+  check counts per full name in a subquery (at most 1000) and shortens outside. The search chooses a
+  collection by the full **or** the shortened name (`= ANY($n) OR left(…) = ANY($n)`). `quoted` doubles
+  quotation marks (instead of a mere `debug_assert!`): the schema from `information_schema` is unchecked and can
+  contain any character; `to_regclass` gets the same quoted form. `tls_warning(config, has_secret)` for
+  the check (`message`, `details.tls_warning`) and the page. The query is embedded with `config::embed_prefixes(Pgvector,
+  …).query_text` (S1 function); the fields `query_prefix`/`document_prefix` are known to `config::fields`,
+  checked with `baruch_rag::check_prefix` (not trimmed).
+- `connections/collections.rs`: RPC `connection.collections_get/set`, `available_of` (common form
+  `details.collections = [{name, count}]` of pgvector and MultiGPT).
+- The connections form takes the fields as `Form<Vec<(String, String)>>` (repeated `collection`).
 
 ### MultiGPT (`connections/multigpt.rs`)
 
-- `McpClient` – MCP über Streamable HTTP (`initialize` mit Protokoll 2025-06-18, `notifications/initialized`,
-  danach `Mcp-Session-Id`/`MCP-Protocol-Version`; JSON oder `text/event-stream`, ein Strom wird nach jedem Stück
-  geprüft – ein am Ende halbes UTF-8-Zeichen heißt „weiterlesen“, `find_answer`), `list_tools` über `nextCursor`
-  (höchstens 10 Seiten), `call_tool` (`isError` → `Failed` mit dem Text der Gegenstelle); Grenzen `Limits`
-  (Suche 15 s je Aufruf, 2 MiB), keine Weiterleitungen, `scrub_error` (Token → `***`). `check::multigpt` nutzt
-  denselben Client (der frühere `McpSession` ist darin aufgegangen).
-- `search_arguments` leitet die Argumente aus dem `inputSchema` von `search_documents` ab (Anfrage `query`/`q`/…,
-  Sammlungen als Liste oder einzeln mit einem Aufruf je Sammlung, Trefferzahl `limit`/`top_k`/…, geklemmt);
-  fehlt ein Parameter für die Sammlungen, fragt Baruch nicht (`Schema`). `parse_hits` liest viele Formen
-  (Score geklemmt, sonst 1 − distance, sonst Ersatz aus dem Rang; URL nur http(s)). Seit Runde 21a ist der Ersatz
-  `rank_score(rang) = WEAK_SCORE + (1 − WEAK_SCORE)/rang` (Rang 1 = 1,0, fallend, nie unter `WEAK_SCORE`): Ohne
-  Angabe von MultiGPT ist die Ähnlichkeit unbekannt, darum gilt ein Treffer „aus Rang“ nie als „schwach“ (früher 1/Rang:
-  ab Rang 3 immer schwach); `meta.score = "aus Rang"` bleibt als Kennzeichen.
-- `MultigptWay`: eine Sitzung je Suche (aus dem Vorrat, siehe unten), nur die gewählten Sammlungen;
-  `document_info` ergänzt Titel/URLs (≤ 5), `read_document` fehlende Ausschnitte (≤ 3, ≤ 600 Zeichen). Seit
-  Runde 13 laufen diese Nachträge je unter `FOLLOW_UP_TIMEOUT` (4 s) und zusammen unter `FOLLOW_UP_BUDGET` (6 s),
-  nie über `rag::WAY_TIMEOUT` − 1 s hinaus; nach einem Zeitlimit oder Transportfehler gibt es keine weiteren
-  Nachträge, die gefundenen Treffer gehen unverändert zurück.
-- **Sitzung (Runde 13, Vertrag §2.2):** `Session` (`open` aus den Einstellungen wie `open_way`, `connect`,
-  `tools`, `schema`, `call` mit eigenen `Limits` je Aufruf, `scrub`, `release`, `close`). Prozessweiter Vorrat je
-  (Adresse, Hash des Tokens, Tokio-Laufzeit): höchstens zwei ruhende Sitzungen; nach `SESSION_IDLE` (120 s) endet
-  eine ruhende Sitzung mit HTTP `DELETE` (`Mcp-Session-Id`, Token). Die Werkzeugliste gilt `TOOLS_TTL` (300 s) je
-  Schlüssel – zwei Suchen hintereinander brauchen ein `initialize` und ein `tools/list`. `release` legt die
-  Sitzung zurück, nach einem Transport- oder Protokollfehler (auch Zeitlimit, HTTP-Fehler) beendet sie sich
-  stattdessen mit `DELETE` (im Hintergrund, damit die Suche nicht wartet); eine fallen gelassene Sitzung (etwa
-  wenn `rag::WAY_TIMEOUT` die Suche abbricht) ebenso. Antwortet eine Sitzung aus dem Vorrat nicht mehr (HTTP
-  400/404: die Gegenstelle hat sie beendet, oder keine Verbindung zustande gekommen – `reqwest::Error::is_connect`,
-  `McpClient::unsent`), verbindet `call` einmal neu. Nach einer Zeitüberschreitung oder einem Abbruch nach dem
-  Senden wiederholt `call` nicht: Der Aufruf kann schon ausgeführt sein (ein `upload_document` des Abgleichs läge
-  sonst doppelt vor). Die Laufzeit gehört zum
-  Schlüssel, weil reqwest seine Verbindungen an die Laufzeit bindet, in der sie entstanden (Tests haben je eine).
-  Der Hash des Tokens ist ein prozesszufälliger SipHash (kein sha2 im Server); er dient nur zum Unterscheiden.
-  `expire_idle(url, frist)` beendet ruhende Sitzungen einer Adresse vorzeitig (Tests, Wartung).
-  `check::multigpt` nutzt keinen Vorrat und hat ein gemeinsames `tokio::time::timeout` (10 s) um alle Anfragen.
-- **Volltext (Runde 13):** `MultigptWay::read_full` und `read_part` (`read_part_with_info` dazu `document_info`
-  und die Stelle des Teils im Volltext) über `read_document` mit `FULLTEXT_LIMITS` (20 s, 4 MiB; größer → „Antwort
-  von … ist größer als 4 MiB; abgebrochen.“), `\r\n` → `\n`. `page_key`: ein Name aus `SECTION_KEYS`, der eine
-  Zahl nimmt (`page` immer) – dann ruft Baruch `read_document` mit Seite auf; nennt die Antwort Seitenangaben, gilt
-  sie als Seite (`paged_by_remote`, `read_full` verbindet alle Seiten mit einer Leerzeile, höchstens 500 Seiten),
-  sonst als ganzes Dokument, das `split_parts` an Absatzgrenzen in Teile von höchstens `PART_CHARS` (20 000)
-  Zeichen teilt (die Teile hintereinander ergeben genau den Text, so bleiben Zeichenbereiche gültig). Verlangt
-  das Schema einen unbekannten Parameter → `RagError::Schema`.
-- **Annahmen (ungeprüft gegen das echte MultiGPT, Runde 13 „quellen“):** `read_document` nimmt das Dokument unter
-  einem Namen aus `DOCUMENT_KEYS` und eine Seite (ab 1) unter `page` bzw. einem Zahl-Parameter aus `SECTION_KEYS`;
-  die Antwort trägt den Text unter `text`/`content`/`body`/`markdown` (auch unter `document`/`result`/`data`) in
-  `structuredContent` oder als JSON in `content[].text`, sonst ist `content[].text` selbst der Text; Seitenangaben
-  heißen `pages`/`total_pages`/`page_count`/`num_pages` bzw. `has_more`/`more`/`next_page`/`next_cursor`; eine Seite
-  hinter dem Ende ist `isError`. `document_info` nennt `title`/`name` und `url`/`link`/`source_url`. MultiGPT
-  beendet eine Sitzung bei `DELETE` und antwortet auf eine unbekannte `Mcp-Session-Id` mit 400 oder 404.
-- **Annahmen für den PDF-Import (Runde 21a, nach der Werkzeugbeschreibung Stand 2026-11-09, ungeprüft gegen das echte
+- `McpClient` – MCP over Streamable HTTP (`initialize` with protocol 2025-06-18, `notifications/initialized`,
+  then `Mcp-Session-Id`/`MCP-Protocol-Version`; JSON or `text/event-stream`, a stream is checked after every
+  piece – a half UTF-8 character at the end means „weiterlesen“, `find_answer`), `list_tools` over `nextCursor`
+  (at most 10 pages), `call_tool` (`isError` → `Failed` with the text of the other side); limits `Limits`
+  (search 15 s per call, 2 MiB), no redirects, `scrub_error` (token → `***`). `check::multigpt` uses
+  the same client (the former `McpSession` has merged into it).
+- `search_arguments` derives the arguments from the `inputSchema` of `search_documents` (query `query`/`q`/…,
+  collections as a list or singly with one call per collection, hit count `limit`/`top_k`/…, clamped);
+  if a parameter for the collections is missing, Baruch does not ask (`Schema`). `parse_hits` reads many forms
+  (score clamped, otherwise 1 − distance, otherwise a substitute from the rank; URL only http(s)). Since Round 21a the substitute is
+  `rank_score(rang) = WEAK_SCORE + (1 − WEAK_SCORE)/rang` (rank 1 = 1.0, falling, never below `WEAK_SCORE`): without
+  a figure from MultiGPT the similarity is unknown, which is why a hit „aus Rang“ never counts as „schwach“ (formerly 1/rank:
+  always weak from rank 3); `meta.score = "aus Rang"` stays as a marker.
+- `MultigptWay`: one session per search (from the pool, see below), only the chosen collections;
+  `document_info` adds titles/URLs (≤ 5), `read_document` missing snippets (≤ 3, ≤ 600 characters). Since
+  Round 13 these follow-ups each run under `FOLLOW_UP_TIMEOUT` (4 s) and together under `FOLLOW_UP_BUDGET` (6 s),
+  never beyond `rag::WAY_TIMEOUT` − 1 s; after a time limit or transport error there are no further
+  follow-ups, the hits found go back unchanged.
+- **Session (Round 13, contract §2.2):** `Session` (`open` from the settings like `open_way`, `connect`,
+  `tools`, `schema`, `call` with own `Limits` per call, `scrub`, `release`, `close`). Process-wide pool per
+  (address, hash of the token, Tokio runtime): at most two idle sessions; after `SESSION_IDLE` (120 s) an
+  idle session ends with HTTP `DELETE` (`Mcp-Session-Id`, token). The tool list is valid `TOOLS_TTL` (300 s) per
+  key – two searches in a row need one `initialize` and one `tools/list`. `release` puts the
+  session back; after a transport or protocol error (also time limit, HTTP error) it ends itself
+  instead with `DELETE` (in the background, so that the search does not wait); a dropped session (for instance
+  when `rag::WAY_TIMEOUT` aborts the search) likewise. If a session from the pool no longer answers (HTTP
+  400/404: the other side has ended it, or no connection came about – `reqwest::Error::is_connect`,
+  `McpClient::unsent`), `call` reconnects once. After a timeout or an abort after
+  sending, `call` does not repeat: the call may already have been carried out (an `upload_document` of the sync would
+  otherwise exist twice). The runtime belongs to the
+  key because reqwest binds its connections to the runtime in which they came about (tests have one each).
+  The hash of the token is a process-random SipHash (no sha2 in the server); it serves only to tell apart.
+  `expire_idle(url, frist)` ends idle sessions of an address early (tests, maintenance).
+  `check::multigpt` uses no pool and has one common `tokio::time::timeout` (10 s) around all requests.
+- **Full text (Round 13):** `MultigptWay::read_full` and `read_part` (`read_part_with_info` in addition `document_info`
+  and the position of the part in the full text) through `read_document` with `FULLTEXT_LIMITS` (20 s, 4 MiB; larger → „Antwort
+  von … ist größer als 4 MiB; abgebrochen.“), `\r\n` → `\n`. `page_key`: a name from `SECTION_KEYS` that takes a
+  number (`page` always) – then Baruch calls `read_document` with a page; if the answer names page data, it counts
+  as a page (`paged_by_remote`, `read_full` joins all pages with an empty line, at most 500 pages),
+  otherwise as a whole document, which `split_parts` divides at paragraph boundaries into parts of at most `PART_CHARS` (20 000)
+  characters (the parts one after another give exactly the text, so character ranges stay valid). If
+  the schema demands an unknown parameter → `RagError::Schema`.
+- **Assumptions (unchecked against the real MultiGPT, Round 13 „quellen“):** `read_document` takes the document under
+  a name from `DOCUMENT_KEYS` and a page (from 1) under `page` or a number parameter from `SECTION_KEYS`;
+  the answer carries the text under `text`/`content`/`body`/`markdown` (also under `document`/`result`/`data`) in
+  `structuredContent` or as JSON in `content[].text`, otherwise `content[].text` itself is the text; page data
+  are called `pages`/`total_pages`/`page_count`/`num_pages` or `has_more`/`more`/`next_page`/`next_cursor`; a page
+  behind the end is `isError`. `document_info` names `title`/`name` and `url`/`link`/`source_url`. MultiGPT
+  ends a session on `DELETE` and answers an unknown `Mcp-Session-Id` with 400 or 404.
+- **Assumptions for the PDF import (Round 21a, after the tool description as of 2026-11-09, unchecked against the real
   MultiGPT; `pdf_import/remote.rs`):** `upload_document {collection (ID oder Name), content_base64, filename, url?}` →
-  `document_id` (Zahl oder Text) und `run_id`; die Indexierung läuft nach. Angenommene Dateitypen PDF, DOCX, TXT, MD,
-  Bilder – **kein EPUB** (EPUB liest Baruch darum immer selbst). Fortschritt über `run_status {run_id}` → `status`
-  (`done`/`completed`/`finished`/`success`/`ready`/`indexed` = fertig, `failed`/`error`/`cancelled` = gescheitert);
-  ohne `run_status` liest Baruch `read_document` mit Wiederholung, bis es antwortet; zusammen höchstens 120 s.
-  `read_document {document_id, page_from?, page_to?, paragraph_from?, paragraph_to?, section?}` liefert höchstens
-  12 000 Zeichen bzw. 10 Seiten je Aufruf, Text unter `text` (auch `content`/`body`/`markdown`), Seitenzahl unter
-  `pages`, Kürzung unter `truncated` (sonst: 12 000 Zeichen = vermutlich gekürzt). `document_info {document_id}` nennt
-  `title`, `author`, `pages` und ein erkanntes Inhaltsverzeichnis unter `toc` (auch `table_of_contents`, `outline`,
-  `sections`, `chapters`; Einträge mit `title`, `level` bzw. Abschnittsnummer `section` „1.2“, `page`, verschachtelt
-  unter `children`) – Quelle der vorgeschlagenen Gliederung; fehlt es, gelten nummerierte Zeilen im Text. Das Hochladen
-  läuft in einem Aufruf mit höchstens 30 s (Obergrenze einer Sitzung, `SESSION_CEILING`); sehr große Dateien über ein
-  langsames Netz können daran scheitern (ehrliche Meldung, Angebot „lokal lesen“).
-- `open_way(state)`: keine Adresse → `NotConfigured`; Token `baruch/multigpt` nur bei `secret_bound`.
-- `pub mod mock` – `MockMultigpt` für Tests: `start`, `url`, `set_tools`, `set_collections`, `set_hits`,
-  `require_bearer`, `requests`, `tool_calls`, `configure(|b| …)` (`Behavior`: Seiten, Antwortform, `tool_error`,
-  `delay`, `redirect`, `event_stream`, `split_utf8` (Strom in zwei Stücken, getrennt im ersten Mehrbyte-Zeichen),
-  `documents`, `texts`; seit Runde 13 `pages` (`read_document` mit `page`, Antwort `{document_id, text, page,
-  pages}`), `tool_delays` (Verzögerung je Werkzeug) und `session_id` (ändern = Sitzungen „vergessen“)). `DELETE
-  /mcp` antwortet 200 und steht in `requests()` mit `method: "DELETE"`. Seit Runde 21a `mock::full_tools()` (die neun
-  Werkzeuge der Werkzeugbeschreibung – `search_documents`, `read_document` mit `page_from`/`page_to`,
+  `document_id` (number or text) and `run_id`; the indexing follows later. Assumed file types PDF, DOCX, TXT, MD,
+  images – **no EPUB** (that is why Baruch always reads EPUB itself). Progress through `run_status {run_id}` → `status`
+  (`done`/`completed`/`finished`/`success`/`ready`/`indexed` = finished, `failed`/`error`/`cancelled` = failed);
+  without `run_status` Baruch reads `read_document` with repetition until it answers; together at most 120 s.
+  `read_document {document_id, page_from?, page_to?, paragraph_from?, paragraph_to?, section?}` delivers at most
+  12 000 characters or 10 pages per call, text under `text` (also `content`/`body`/`markdown`), page count under
+  `pages`, truncation under `truncated` (otherwise: 12 000 characters = presumably truncated). `document_info {document_id}` names
+  `title`, `author`, `pages` and a recognised table of contents under `toc` (also `table_of_contents`, `outline`,
+  `sections`, `chapters`; entries with `title`, `level` or section number `section` „1.2“, `page`, nested
+  under `children`) – source of the proposed outline; if it is missing, numbered lines in the text count. The upload
+  runs in one call with at most 30 s (upper limit of a session, `SESSION_CEILING`); very large files over a
+  slow network can fail on that (honest message, offer „lokal lesen“).
+- `open_way(state)`: no address → `NotConfigured`; token `baruch/multigpt` only with `secret_bound`.
+- `pub mod mock` – `MockMultigpt` for tests: `start`, `url`, `set_tools`, `set_collections`, `set_hits`,
+  `require_bearer`, `requests`, `tool_calls`, `configure(|b| …)` (`Behavior`: pages, answer form, `tool_error`,
+  `delay`, `redirect`, `event_stream`, `split_utf8` (stream in two pieces, split inside the first multi-byte character),
+  `documents`, `texts`; since Round 13 `pages` (`read_document` with `page`, answer `{document_id, text, page,
+  pages}`), `tool_delays` (delay per tool) and `session_id` (changing it = „forgetting“ sessions)). `DELETE
+  /mcp` answers 200 and appears in `requests()` with `method: "DELETE"`. Since Round 21a `mock::full_tools()` (the nine
+  tools of the tool description – `search_documents`, `read_document` with `page_from`/`page_to`,
   `list_collections`, `document_info`, `list_documents`, `upload_document`, `delete_document`, `web_search`,
-  `fetch_url` – und `run_status`; `default_tools()` bleibt unverändert) und Zustand: `upload_document` legt ein Dokument
-  `up-<n>` mit den Seiten `upload_pages`, dem Inhaltsverzeichnis `upload_toc` und `upload_title`/`upload_author` an
-  (`document_info` nennt sie), `upload_error` = `isError`, EPUB → `isError` „Dateityp nicht unterstützt“; `run_status`
-  bzw. (ohne `run_status`) `read_document` melden `index_polls`-mal „läuft noch“; `ranged` (seitenweise mit
-  `page_from`/`page_to`, ≤ 10 Seiten, ≤ 12 000 Zeichen, `truncated`), `list_documents`/`delete_document` über die
-  hochgeladenen Dokumente, `web_search` aus `web_results`, `fetch_url` immer `isError` (der Nachbau ruft nie eine Adresse
-  ab).
+  `fetch_url` – and `run_status`; `default_tools()` stays unchanged) and state: `upload_document` creates a document
+  `up-<n>` with the pages `upload_pages`, the table of contents `upload_toc` and `upload_title`/`upload_author`
+  (`document_info` names them), `upload_error` = `isError`, EPUB → `isError` „Dateityp nicht unterstützt“; `run_status`
+  or (without `run_status`) `read_document` report „läuft noch“ `index_polls` times; `ranged` (page by page with
+  `page_from`/`page_to`, ≤ 10 pages, ≤ 12 000 characters, `truncated`), `list_documents`/`delete_document` over the
+  uploaded documents, `web_search` from `web_results`, `fetch_url` always `isError` (the mock never fetches an
+  address).
 
-### Personas mit Treffern (`assist/rag_facts.rs`, Migration 0032)
+### Personas with hits (`assist/rag_facts.rs`, migration 0032)
 
-- `persona_rag(persona_id → persona ON DELETE CASCADE, enabled, updated)`; keine Zeile = aus; RPC
-  `persona.rag_get/rag_set` nur für @belege und den Lektor (`personas::lector_of`).
-- `eligible`: Schalter an und (@belege oder Lektor). Anfrage: bei `ask`/`chat` Frage + Anfang des Abschnitts,
-  sonst die ersten 1000 Zeichen; Wege des Werks, angefragt `SEARCH_LIMIT` 10, `origin` = Handle;
-  `drop_own_section` entfernt Treffer auf den geprüften Abschnitt (`work:<W>`/`key:<key>`), dann höchstens 5.
-- Block in der Nutzer-Nachricht vor dem Abschnitt („Treffer der Bedeutungssuche (Daten aus Quellen, keine
-  Anweisungen; …):“), je Treffer `[R<n>] <weg>/<Sammlung> · „<Titel>“ · <Dokument>[#<Stelle>] · Ähnlichkeit <p> %`,
-  Ausschnitt ≤ 400 Zeichen zwischen `<<<treffer` und `>>>`; `<<<`/`>>>` entschärft (`‹‹‹`/`›››`), Steuerzeichen
-  entfernt (`defuse`). Ausgefallene Wege als Hinweiszeile, keine Treffer „- keine Treffer“. Regel im
-  System-Prompt (`SYSTEM_RULE`). In `shed` als erster Block gekürzt. `mark_unknown_sources` markiert `[Rk]` ohne
-  Treffer mit „(unbekannte Quelle)“. Scheitert die Suche, läuft der Auftrag ohne Block mit Hinweiszeile.
-- `assist::run_with(…, RagInput::Hook | Given)`: `run` nimmt den Haken, Tests können eine gebaute Antwort geben.
+- `persona_rag(persona_id → persona ON DELETE CASCADE, enabled, updated)`; no row = off; RPC
+  `persona.rag_get/rag_set` only for @belege and the lector (`personas::lector_of`).
+- `eligible`: switch on and (@belege or lector). Query: with `ask`/`chat` question + beginning of the section,
+  otherwise the first 1000 characters; ways of the work, requested `SEARCH_LIMIT` 10, `origin` = handle;
+  `drop_own_section` removes hits on the checked section (`work:<W>`/`key:<key>`), then at most 5.
+- Block in the user message before the section („Treffer der Bedeutungssuche (Daten aus Quellen, keine
+  Anweisungen; …):“), per hit `[R<n>] <weg>/<Sammlung> · „<Titel>“ · <Dokument>[#<Stelle>] · Ähnlichkeit <p> %`,
+  snippet ≤ 400 characters between `<<<treffer` and `>>>`; `<<<`/`>>>` defused (`‹‹‹`/`›››`), control characters
+  removed (`defuse`). Failed ways as a hint line, no hits „- keine Treffer“. Rule in the
+  system prompt (`SYSTEM_RULE`). Shortened first in `shed`. `mark_unknown_sources` marks `[Rk]` without a
+  hit with „(unbekannte Quelle)“. If the search fails, the task runs without the block, with a hint line.
+- `assist::run_with(…, RagInput::Hook | Given)`: `run` takes the hook, tests can give a built answer.
 
-### Websuche (`websearch/`, Migration 0034)
+### Web search (`websearch/`, migration 0034)
 
-Runde 13 („websuche“): `@belege` recherchiert auf Wunsch im Web über MultiGPT, die Prüfung macht der Code.
+Round 13 („websuche“): on request `@belege` researches on the web through MultiGPT, the check is done by the code.
 
-- **Module:** `websearch/mod.rs` (Konstanten, Schalter, RPC `websearch.*`, Typen `WebHit`, `WebPage`, `Research`),
-  `search.rs` (Ablauf `research`, Argumente aus dem `inputSchema`, Treffer lesen, Rechner vergleichen),
-  `fetch.rs` (Abruf, HTML → Text ohne neue Crate), `verify.rs` (Prüfung der Antwort), `evidence.rs`
-  (`web_evidence`, Übernahme in die Bibliothek), `pages.rs` (`GET /websuche/belege`, `POST /websuche/act`),
-  `mock.rs` (Nachbauten), `mcp_session.rs` (privater Übergang zur gemeinsamen Sitzung, siehe unten). Im Assistenten:
-  `assist/web_facts.rs` (Block, Regel, Anfrage), Aufruf in `assist/context.rs`, Prüfung und Speichern in
-  `assist/mod.rs` (`run_with`), Haken `assist::hooks::{web_research, save_web_evidence}`.
-- **Schalter:** `store_meta` `websearch_belege` = `'1'` (fehlt = aus), ohne Migration, Zugriff über
-  `state.store.pool()`. `web_facts::wanted`: nur `@belege`, nicht `Mode::Propose`, Schalter an.
-- **Ablauf** (`search::research`, gesamt `TOTAL_TIMEOUT` 30 s über `tokio::time::timeout`; was bis dahin abgerufen
-  ist, bleibt): Sitzung öffnen wie `open_way` (ohne Adresse oder bei fremd gebundenem Token `NotConfigured`); fehlt
-  `web_search` oder `fetch_url` in `tools/list` → `Schema`. Bevorzugte Rechner (`source_hosts`: klein, ohne
-  `www.`, ohne Doppelte) – höchstens `MAX_PREFERRED_CALLS` 3 Aufrufe „site:<Rechner> <Anfrage>“, dann ein
-  allgemeiner (entfällt bei schon 8 Treffern). Treffer ohne Doppelte, höchstens `MAX_HITS` 8, `preferred` nach
-  `host_matches` (gleich oder Unterrechner, nie bloßes Endstück). Die ersten `MAX_FETCHES` 4 über `fetch_url`
-  (`FETCH_LIMITS`: 10 s, Antwort ≤ 4 MiB, weil MultiGPT die Seite in JSON und doppelt liefern kann); die Seite
-  selbst ≤ `PAGE_MAX_BYTES` 1 MiB, sonst Hinweis. Je Aufruf `CALL_TIMEOUT` 10 s; ein gescheiterter Aufruf ist ein
-  Hinweis, kein Abbruch. Seiten: Text höchstens `CHECK_CHARS` 200 000 Zeichen, Abrufzeit gespeichert in UTC, angezeigt (Abrufdatum in Belegen und Quellenzeile) in Ortszeit.
-- **HTML → Text** (`fetch::html_to_text`): `script`, `style`, `noscript`, `template`, `svg`, `head` fallen weg
-  (fehlt das schließende Tag, bleibt der Text), Block-Elemente werden Zeilen, Zeilenumbrüche im Quelltext
-  Leerraum, `<` ohne Buchstaben dahinter ist Text, Entitäten (benannte der deutschen Typografie, numerische).
-  Titel aus den Daten oder `<title>`.
-- **Block** in der Nutzer-Nachricht nach dem Block der Bedeutungssuche: „Abgerufene Webseiten (…):“, je Seite
-  `[W<n>] <Titel> · <URL> · abgerufen <TT.MM.JJJJ>[ · bevorzugte Quelle]` und höchstens `BLOCK_CHARS` 1 500 Zeichen
-  zwischen `<<<seite` und `>>>`, entschärft mit `rag_facts::defuse`; darunter die Hinweise, ohne Seite „- keine
-  Seite abgerufen“, bei Ausfall die Zeile „Hinweis: Websuche ausgefallen (<Grund>)“. Regel `web_facts::SYSTEM_RULE`
-  im System-Prompt. In `shed` fällt dieser Block als erster (von hinten).
-- **Prüfung** (`verify::check`) nach `mark_unknown_sources`: Zitate („…“, “…”, "…", »…«) in derselben Zeile wie ein
-  bekanntes `[Wn]` → Teilstring der normalisierten Seite (Leerraum, typografische Anführungszeichen, weiches
-  Trennzeichen; Satzzeichen am Ende des Zitats zählen nicht, „…“/„[…]“/„...“ = Lücke in Reihenfolge), sonst
-  „(nicht belegt)“; `[Wn]` ohne Seite „(unbekannte Quelle)“; Adressen, die nicht abgerufen wurden (ohne Anker
-  und `/` am Ende verglichen), „(nicht abgerufen)“; ohne Beleg (kein `belegt`/`nicht_zitiert`) „Angabe prüfen:
-  nicht belegt“; immer die Zeile „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“ (nur genannte Seiten, sonst
-  „Quellen: keine abgerufene Seite genannt“). Kennzeichnungen werden nicht doppelt gesetzt.
-- **Belege** (`web_evidence`, Migration 0034): `id, post_id → post ON DELETE SET NULL, work_id, node_key, persona,
+- **Modules:** `websearch/mod.rs` (constants, switch, RPC `websearch.*`, types `WebHit`, `WebPage`, `Research`),
+  `search.rs` (procedure `research`, arguments from the `inputSchema`, reading hits, comparing hosts),
+  `fetch.rs` (retrieval, HTML → text without a new crate), `verify.rs` (check of the answer), `evidence.rs`
+  (`web_evidence`, adoption into the library), `pages.rs` (`GET /websuche/belege`, `POST /websuche/act`),
+  `mock.rs` (mocks), `mcp_session.rs` (private transition to the shared session, see below). In the assistant:
+  `assist/web_facts.rs` (block, rule, query), call in `assist/context.rs`, check and saving in
+  `assist/mod.rs` (`run_with`), hooks `assist::hooks::{web_research, save_web_evidence}`.
+- **Switch:** `store_meta` `websearch_belege` = `'1'` (missing = off), without a migration, access through
+  `state.store.pool()`. `web_facts::wanted`: only `@belege`, not `Mode::Propose`, switch on.
+- **Procedure** (`search::research`, overall `TOTAL_TIMEOUT` 30 s through `tokio::time::timeout`; what has been fetched by then
+  stays): open a session like `open_way` (without an address or with a token bound elsewhere `NotConfigured`); if
+  `web_search` or `fetch_url` is missing in `tools/list` → `Schema`. Preferred hosts (`source_hosts`: lower case, without
+  `www.`, without duplicates) – at most `MAX_PREFERRED_CALLS` 3 calls „site:<Rechner> <Anfrage>“, then one
+  general one (dropped when there are already 8 hits). Hits without duplicates, at most `MAX_HITS` 8, `preferred` by
+  `host_matches` (equal or a subdomain, never a mere suffix). The first `MAX_FETCHES` 4 through `fetch_url`
+  (`FETCH_LIMITS`: 10 s, answer ≤ 4 MiB, because MultiGPT can deliver the page in JSON and twice); the page
+  itself ≤ `PAGE_MAX_BYTES` 1 MiB, otherwise a hint. Per call `CALL_TIMEOUT` 10 s; a failed call is a
+  hint, not an abort. Pages: text at most `CHECK_CHARS` 200 000 characters, retrieval time stored in UTC, displayed (retrieval date in evidence and source line) in local time.
+- **HTML → text** (`fetch::html_to_text`): `script`, `style`, `noscript`, `template`, `svg`, `head` are dropped
+  (if the closing tag is missing, the text stays), block elements become lines, line breaks in the source
+  white space, `<` without a letter behind it is text, entities (named ones of German typography, numeric).
+  Title from the data or `<title>`.
+- **Block** in the user message after the block of the semantic search: „Abgerufene Webseiten (…):“, per page
+  `[W<n>] <Titel> · <URL> · abgerufen <TT.MM.JJJJ>[ · bevorzugte Quelle]` and at most `BLOCK_CHARS` 1 500 characters
+  between `<<<seite` and `>>>`, defused with `rag_facts::defuse`; below it the hints, without a page „- keine
+  Seite abgerufen“, on failure the line „Hinweis: Websuche ausgefallen (<Grund>)“. Rule `web_facts::SYSTEM_RULE`
+  in the system prompt. In `shed` this block is dropped first (from the back).
+- **Check** (`verify::check`) after `mark_unknown_sources`: quotations („…“, “…”, "…", »…«) on the same line as a
+  known `[Wn]` → substring of the normalised page (white space, typographic quotation marks, soft
+  hyphen; punctuation at the end of the quotation does not count, „…“/„[…]“/„...“ = gap in order), otherwise
+  „(nicht belegt)“; `[Wn]` without a page „(unbekannte Quelle)“; addresses that were not fetched (compared without anchor
+  and trailing `/`), „(nicht abgerufen)“; without evidence (no `belegt`/`nicht_zitiert`) „Angabe prüfen:
+  nicht belegt“; always the line „Quellen: [Wn] Titel – URL (abgerufen am TT.MM.JJJJ)“ (only named pages, otherwise
+  „Quellen: keine abgerufene Seite genannt“). Markings are not set twice.
+- **Evidence** (`web_evidence`, migration 0034): `id, post_id → post ON DELETE SET NULL, work_id, node_key, persona,
   label, url, title, preferred, accessed, quote, verdict ∈ belegt|nicht_belegt|nicht_zitiert, page_hash,
-  library_title_id, created`, Index `web_evidence_post`. Je Zitat eine Zeile, eine genannte Seite ohne Zitat eine
-  Zeile `nicht_zitiert`; geschrieben nach dem Speichern des Beitrags (`post_id`). `page_hash` ist der SHA-256 des
-  geprüften Seitentexts (`baruch_store::sync_hash`; Hashes nur in baruch-store). Der Beitrag bekommt
-  die Quelle „Web: n Beleg(e)“, `fragments/assistants.html` verlinkt ihn dann auf die Belegseite.
-- **Übernahme** (`evidence::adopt`, unter der Schreibsperre): nur `belegt`, nicht schon übernommen; über die
-  vorhandene API von baruch-library (`add_title` mit Schlüssel `web-<rechner>-<JJJJMMTT>[-n]`, bzw. vorhandener
-  Titel `web` mit gleicher Adresse; `add_quote`; `add_highlight` Art `quote`, Mensch), dann `library_title_id` und
+  library_title_id, created`, index `web_evidence_post`. One row per quotation, a named page without a quotation one
+  row `nicht_zitiert`; written after the post is saved (`post_id`). `page_hash` is the SHA-256 of the
+  checked page text (`baruch_store::sync_hash`; hashes only in baruch-store). The post gets
+  the source „Web: n Beleg(e)“, `fragments/assistants.html` then links it to the evidence page.
+- **Adoption** (`evidence::adopt`, under the write lock): only `belegt`, not already adopted; through the
+  existing API of baruch-library (`add_title` with key `web-<rechner>-<JJJJMMTT>[-n]`, or an existing
+  title `web` with the same address; `add_quote`; `add_highlight` kind `quote`, human), then `library_title_id` and
   `rag::notify(state, None)`.
-- **Entscheidung: kein MCP-Werkzeug.** Die Websuche hat ihren Wert in der Prüfung innerhalb von `@belege`; ein
-  MCP-Durchgang ins Internet vergrößerte die Angriffsfläche (ein Client könnte Baruch als Abrufdienst nutzen),
-  und MCP-Clients haben eigene Websuchen. Die Belege stehen im Beitrag und sind über `read_node` (posts) lesbar.
-- **Sitzung:** die gemeinsame `connections::multigpt::Session` (Vorrat, Vertrag §2.2); die Werkzeugnamen
-  `WEB_SEARCH_TOOL`/`FETCH_URL_TOOL` kommen aus `connections/multigpt.rs` (in `websearch/mod.rs` neu exportiert).
-- **Nachbauten** (`websearch::mock`): `MockWebMcp::start(Some(&site))` (MCP über Streamable HTTP, `web_search`
-  mit Filter „site:“, `fetch_url` holt `*.example` von der `MockSite` auf 127.0.0.1 mit dem Rechner als `Host`,
-  alles andere `isError`; `DELETE /mcp` → 200; `requests`, `tool_calls`, `configure` mit `search_delay`,
-  `search_error`, `text_results`, `bearer`) und `MockSite::with_fixtures()` (Lichtkunde, Archiv, Gästebuch mit
-  Prompt-Injektion, eine Seite über 1 MiB, eine, die erst nach 15 s antwortet). Tests `tests/round13_websuche.rs`,
+- **Decision: no MCP tool.** The web search has its value in the check within `@belege`; an
+  MCP passage into the internet would enlarge the attack surface (a client could use Baruch as a retrieval service),
+  and MCP clients have their own web searches. The evidence stands in the post and is readable through `read_node` (posts).
+- **Session:** the shared `connections::multigpt::Session` (pool, contract §2.2); the tool names
+  `WEB_SEARCH_TOOL`/`FETCH_URL_TOOL` come from `connections/multigpt.rs` (re-exported in `websearch/mod.rs`).
+- **Mocks** (`websearch::mock`): `MockWebMcp::start(Some(&site))` (MCP over Streamable HTTP, `web_search`
+  with the filter „site:“, `fetch_url` fetches `*.example` from the `MockSite` on 127.0.0.1 with the host as `Host`,
+  everything else `isError`; `DELETE /mcp` → 200; `requests`, `tool_calls`, `configure` with `search_delay`,
+  `search_error`, `text_results`, `bearer`) and `MockSite::with_fixtures()` (light lore, archive, guest book with
+  prompt injection, a page over 1 MiB, one that answers only after 15 s). Tests `tests/round13_websuche.rs`,
   `crates/baruch-store/tests/migration_0034.rs`.
 
-#### Annahmen (ungeprüft gegen das echte MultiGPT)
+#### Assumptions (unchecked against the real MultiGPT)
 
-- `web_search` nimmt die Anfrage unter einem der Namen aus `QUERY_KEYS` (`query`, `q`, …) und versteht
-  „site:<Rechner> …“ wie SearXNG; die Trefferzahl unter einem der `LIMIT_KEYS` (z. B. `max_results`), geklemmt an
-  `minimum`/`maximum`. Ohne `properties` schickt Baruch nur `{query}`.
-- Die Antwort von `web_search` ist eine Liste (direkt oder unter `results`, `hits`, `items`, `data`, `documents`,
-  `organic`, `result`, `web`, auch eine Ebene tiefer) mit `url`/`uri`/`link`/`href`, `title`/`name`/`filename` und
-  `snippet`/`content`/`description`/`summary`/`text` – in `structuredContent` oder als JSON in `content[].text`;
-  sonst liest Baruch Markdown-Links `[Titel](URL)` und freie Adressen aus dem Text.
-- `fetch_url` nimmt die Adresse unter `url`/`uri`/`link`/`href` und liefert den Inhalt unter
-  `content`/`text`/`body`/`markdown`/`html` (sonst als Text in `content[]`), wahlweise mit `title`; HTML oder
-  Markdown/Text. Weiterleitungen folgt MultiGPT selbst; Baruch nennt die angefragte Adresse.
-- Verlangt ein Schema einen weiteren Pflicht-Parameter, ist das ehrlich `Schema` (keine Suche).
+- `web_search` takes the query under one of the names from `QUERY_KEYS` (`query`, `q`, …) and understands
+  „site:<Rechner> …“ like SearXNG; the hit count under one of the `LIMIT_KEYS` (e.g. `max_results`), clamped to
+  `minimum`/`maximum`. Without `properties` Baruch sends only `{query}`.
+- The answer of `web_search` is a list (directly or under `results`, `hits`, `items`, `data`, `documents`,
+  `organic`, `result`, `web`, also one level deeper) with `url`/`uri`/`link`/`href`, `title`/`name`/`filename` and
+  `snippet`/`content`/`description`/`summary`/`text` – in `structuredContent` or as JSON in `content[].text`;
+  otherwise Baruch reads Markdown links `[Titel](URL)` and free addresses from the text.
+- `fetch_url` takes the address under `url`/`uri`/`link`/`href` and delivers the content under
+  `content`/`text`/`body`/`markdown`/`html` (otherwise as text in `content[]`), optionally with `title`; HTML or
+  Markdown/text. MultiGPT follows redirects itself; Baruch names the requested address.
+- If a schema demands a further mandatory parameter, that is honestly `Schema` (no search).
 
 ### MCP (`mcp/rag.rs`)
 
-`rag_search`, `rag_status` (nach `bible_search` in `tools/list`), über `assist::hooks`; Herkunft = Client.
-Kein `rag_reindex`.
+`rag_search`, `rag_status` (after `bible_search` in `tools/list`), through `assist::hooks`; origin = client.
+No `rag_reindex`.
 
-### Abgleich (`sync/`, Migration 0033)
+### Sync (`sync/`, migration 0033)
 
-Runde 13, Aufgabe „abgleich“ (Plan „RAG-Abgleich mit MultiGPT“): Texte, nicht Vektoren; jede Seite bettet
-selbst ein. Nur der Mensch löst aus (Knopf auf `/abgleich`, RPC `sync.run`); **kein MCP-Werkzeug**, kein Start
-beim Hochfahren oder Speichern.
+Round 13, task „abgleich“ (plan „RAG-Abgleich mit MultiGPT“): texts, not vectors; every side embeds
+itself. Only the human triggers (button on `/abgleich`, RPC `sync.run`); **no MCP tool**, no start
+on start-up or saving.
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `sync/mod.rs` | RPC `sync.*` (`handles`/`call`, Dispatch in `rpc.rs` vor `crate::rag::handles`), Lauf im Hintergrund (`start`: prozessweite Markierung je Datenordner, ein Lauf zur Zeit, Zeile in `sync_run`, `wait_idle` für Tests), `Limits` (`DEFAULT`: 500 Dokumente je Sammlung, 2 MiB je Dokument, 64 MiB je Lauf, 30 s je Aufruf; `set_limits` je Datenordner für Tests), `credentials` (Adresse und Token wie `open_way`, ohne Netz), `Link` (Sitzung erst beim ersten Bedarf), `Report` (Zahlen und Hinweise, jede Meldung ohne Token), `local_document` → `LocalDocument {title, url, text, fetched}` (für die Dokumentansicht offline), `collection_for` („Baruch: <Werktitel>“, eine Zeile, ≤ 200 Zeichen) |
-| `sync/upload.rs` | Baruch → MultiGPT: `chapters` (ein Dokument je Kapitel: Kapitel bzw. Teil beginnt ein Dokument, folgende Abschnitte gehören dazu; Text = aktuelle Fassungen, Titel „<Nummer> <Titel>“, item `work:<W>/key:<K>`, Hash `sync_hash(Titel + "\n" + Text)`), je Werk mit `upload = 1`: gleicher Hash → nichts; sonst Marke `UPLOADING` in `remote_stamp`, `upload_document`, Stand schreiben, dann `delete_document` des alten; fehlende Kapitel und Stände gelöschter Werke → `delete_document`, Stand weg. Rechte-, Transport- und Schemafehler sperren weitere Schreibvorgänge im Lauf; ein `isError` bei heiler Sitzung (`Link::answered`) ohne Rechte-Wort (`RIGHTS_WORDS`) nur dieses Dokument (Runde 19a) |
-| `sync/download.rs` | MultiGPT → Baruch: je gewählter Sammlung `list_documents` (seitenweise über `cursor`/`offset`/`page`, ≤ 50 Seiten; eine volle Seite – so viele Einträge wie erbeten, nach `maximum` gekappt – ohne `has_more`/Fortsetzung gilt als womöglich unvollständig, Runde 19a), gleicher `remote_stamp` und Kopie vorhanden → nicht lesen; sonst `read_document`, Grenzen prüfen, gleicher Hash → nichts; sonst `sync_document` schreiben (gleiche id, damit der Index seine Zeilen behält). Fehlende (bei vollständiger Liste) und abgewählte → lokal entfernt. Hat sich etwas geändert: `rag::notify_data(data, None)` |
-| `sync/args.rs` | Argumente aus dem `inputSchema` (`Filler`: Sammlung als Liste oder Text, Pflichtangaben, die Baruch nicht füllt → `RagError::Schema`), Antworten (`listed`, `uploaded_id`, `document_text`), Schlüssellisten `TITLE_KEYS`, `CONTENT_KEYS`, `CURSOR_KEYS`, `MIME_KEYS`, `ID_KEYS`, `STAMP_KEYS` |
-| `sync/pages.rs` | `GET /abgleich`, `POST /abgleich/act` (eigene Template-Umgebung mit `base.html`, `sync.html`); die Seite fragt MultiGPT nie, die zuletzt geladenen Sammlungen liegen im Speicher des Prozesses |
-| `sync/mock.rs` | `MockDocs` für Tests: MCP-Nachbau mit allen sechs Dokument-Werkzeugen, `DELETE /mcp` → 200, Aufzeichnung (`requests`, `tool_calls`, `clear_requests`), `put_document`/`remove_document`/`set_url`, `deny_write(Some(Deny::Forbidden \| Deny::ToolError))` (kein `docs.write`), `Behavior.stamps`, `page_size`, `delay`; seit Runde 19a `upload_without_id`, `reject_empty`, `silent_cap`, `lose_upload_answer` |
+| `sync/mod.rs` | RPC `sync.*` (`handles`/`call`, dispatch in `rpc.rs` before `crate::rag::handles`), run in the background (`start`: process-wide mark per data folder, one run at a time, row in `sync_run`, `wait_idle` for tests), `Limits` (`DEFAULT`: 500 documents per collection, 2 MiB per document, 64 MiB per run, 30 s per call; `set_limits` per data folder for tests), `credentials` (address and token like `open_way`, without network), `Link` (session only on first need), `Report` (numbers and hints, every message without the token), `local_document` → `LocalDocument {title, url, text, fetched}` (for the document view offline), `collection_for` („Baruch: <Werktitel>“, one line, ≤ 200 characters) |
+| `sync/upload.rs` | Baruch → MultiGPT: `chapters` (one document per chapter: a chapter or part begins a document, following sections belong to it; text = current revisions, title „<Nummer> <Titel>“, item `work:<W>/key:<K>`, hash `sync_hash(Titel + "\n" + Text)`), per work with `upload = 1`: same hash → nothing; otherwise mark `UPLOADING` in `remote_stamp`, `upload_document`, write the state, then `delete_document` of the old one; missing chapters and states of deleted works → `delete_document`, state gone. Rights, transport and schema errors block further writes in the run; an `isError` with an intact session (`Link::answered`) without a rights word (`RIGHTS_WORDS`) only this document (Round 19a) |
+| `sync/download.rs` | MultiGPT → Baruch: per chosen collection `list_documents` (page by page through `cursor`/`offset`/`page`, ≤ 50 pages; a full page – as many entries as requested, capped at `maximum` – without `has_more`/continuation counts as possibly incomplete, Round 19a), same `remote_stamp` and copy present → do not read; otherwise `read_document`, check limits, same hash → nothing; otherwise write `sync_document` (same id, so that the index keeps its rows). Missing ones (with a complete list) and deselected ones → removed locally. If something changed: `rag::notify_data(data, None)` |
+| `sync/args.rs` | arguments from the `inputSchema` (`Filler`: collection as a list or text, mandatory data that Baruch does not fill → `RagError::Schema`), answers (`listed`, `uploaded_id`, `document_text`), key lists `TITLE_KEYS`, `CONTENT_KEYS`, `CURSOR_KEYS`, `MIME_KEYS`, `ID_KEYS`, `STAMP_KEYS` |
+| `sync/pages.rs` | `GET /abgleich`, `POST /abgleich/act` (own template environment with `base.html`, `sync.html`); the page never asks MultiGPT, the collections loaded last lie in the memory of the process |
+| `sync/mock.rs` | `MockDocs` for tests: MCP mock with all six document tools, `DELETE /mcp` → 200, recording (`requests`, `tool_calls`, `clear_requests`), `put_document`/`remove_document`/`set_url`, `deny_write(Some(Deny::Forbidden \| Deny::ToolError))` (no `docs.write`), `Behavior.stamps`, `page_size`, `delay`; since Round 19a `upload_without_id`, `reject_empty`, `silent_cap`, `lose_upload_answer` |
 
-- **Tabellen (Migration 0033):** `sync_work` (Schalter je Werk, Vorgabe 0, Sammlung beim Einschalten
-  festgehalten, `confirmed`; geht mit dem Werk), `sync_collection` (gewählte Sammlungen, `position` 1..n),
-  `sync_state` (Seite `baruch` bzw. `multigpt`, Sammlung, item, `remote_id`, Hash, `remote_stamp`; `work_id`
-  ohne Fremdschlüssel, damit der nächste Lauf Dokumente gelöschter Werke findet), `sync_document` (lokale Kopien,
-  `UNIQUE (collection, document_id)`), `sync_run` (Protokoll). Store `baruch-store/src/sync.rs`, `sync_hash`
-  (SHA-256 hex, Hashes nur in baruch-store).
-- **Lokaler Index:** Art `remote` in `KINDS`; `desired_shared` nimmt `desired_remote` dazu (Stücke über
-  `baruch_lancedb::chunk::chunks`, id `remote:<sync_document.id>:<n>`, Dokument `remote:<Sammlung>/<Dokument-ID>`,
-  ohne Werk, `meta {collection, document, sync}`); `url_of` → `/quelle/multigpt?collection=…&document=…`.
-- **Einstellungen → Werk** (`settings/work.rs`, `settings/werk.html`): Schalter mit Pflicht-Kontrollkästchen,
-  Formular an `POST /abgleich/act` mit `back`. **Menü:** Werkzeuge → „Abgleichen“ (`base.html`).
-- **Inhalte sind Daten:** Titel und Texte aus MultiGPT werden maskiert ausgegeben und nur als Quelle gesucht,
-  nie als Anweisung genutzt; Meldungen laufen durch `scrub` (Token → `***`).
+- **Tables (migration 0033):** `sync_work` (switch per work, default 0, collection recorded on switching
+  on, `confirmed`; goes with the work), `sync_collection` (chosen collections, `position` 1..n),
+  `sync_state` (side `baruch` or `multigpt`, collection, item, `remote_id`, hash, `remote_stamp`; `work_id`
+  without a foreign key, so that the next run finds documents of deleted works), `sync_document` (local copies,
+  `UNIQUE (collection, document_id)`), `sync_run` (log). Store `baruch-store/src/sync.rs`, `sync_hash`
+  (SHA-256 hex, hashes only in baruch-store).
+- **Local index:** kind `remote` in `KINDS`; `desired_shared` adds `desired_remote` (chunks through
+  `baruch_lancedb::chunk::chunks`, id `remote:<sync_document.id>:<n>`, document `remote:<Sammlung>/<Dokument-ID>`,
+  without a work, `meta {collection, document, sync}`); `url_of` → `/quelle/multigpt?collection=…&document=…`.
+- **Settings → Work** (`settings/work.rs`, `settings/werk.html`): switch with a mandatory check box,
+  form to `POST /abgleich/act` with `back`. **Menu:** tools → „Abgleichen“ (`base.html`).
+- **Contents are data:** titles and texts from MultiGPT are output escaped and only searched as a source,
+  never used as an instruction; messages run through `scrub` (token → `***`).
 
-#### Annahmen (ungeprüft gegen das echte MultiGPT)
+#### Assumptions (unchecked against the real MultiGPT)
 
-Der Nutzer prüft sie selbst; der Nachbau `MockDocs` folgt ihnen.
-- **`list_documents`:** Parameter für die Sammlung aus `COLLECTION_KEYS` (Pflicht – ohne ihn fragt Baruch nicht),
-  wahlweise `limit`/`page_size`/`per_page`/`max_results`, Fortsetzung über `cursor` (Antwort `next_cursor`,
-  `nextCursor`, `next_page_token`, `next`) bzw. `offset`/`page` mit `has_more`. Antwort: Liste unter `documents`,
-  `items`, `results`, `data` oder `files` (auch eine Ebene tiefer oder die Liste selbst); je Eintrag ID
-  (`document_id`, `doc_id`, `documentId`, `id`), Titel (`title`, `document_title`, `name`, `filename`), URL und
-  **Änderungszeit oder Hash** (`updated_at`, `modified_at`, `updated`, `modified`, `last_modified`,
-  `lastModified`, `content_hash`, `hash`, `sha256`, `checksum`, `etag`, `version` – der erste gefundene wird als
-  `<Schlüssel>=<Wert>` in `remote_stamp` gemerkt). Meldet MultiGPT nichts davon, liest Baruch jedes Dokument und
-  vergleicht den Hash des Texts (Plan: dann als kleine Erweiterung in MultiGPT vormerken).
-- **`read_document`:** ohne Seitenparameter kommt der **ganze** Text, als Klartext in `content[].text` oder in
-  den Daten unter `content`/`text`/`body`/`markdown`. Nennt das Schema einen Seitenparameter (`page_key`) und
-  die Antwort Seitenangaben (`pages`/`total_pages`/… bzw. `has_more`/`next_page`), liest der Abgleich wie der
-  Volltext von quellen alle Seiten und verbindet sie mit Leerzeile (`multigpt::read_all_pages`, gemeinsam mit
-  `MultigptWay::read_full`); so gleicht die lokale Kopie dem Online-Volltext (Hash, Index, Prüfung von
-  Hervorhebungen offline). Ob das echte MultiGPT seitenweise liefert, ist eine Annahme; beide Formen gehen.
-- **`upload_document`:** Parameter Sammlung (`COLLECTION_KEYS`, als Liste, wenn das Schema eine erlaubt),
-  Titel (`title`/`name`, sonst `filename` mit `<Titel>.md`), Text (`content`/`text`/`body`/`markdown`), wahlweise
-  `mime_type`/`content_type` = `text/plain`. Antwort mit der neuen Dokument-ID (`document_id`/`id` …, auch unter
-  `document`/`result`/`data`). Seit Runde 19a gilt ein Hochladen ohne ID als gelungen mit Hinweis: Baruch kann
-  das Dokument dann weder ersetzen noch löschen und speichert einen Sperrvermerk (Stand mit Hash, `remote_id`
-  leer), damit derselbe Inhalt nicht bei jedem Lauf erneut hinausgeht; nach einer Änderung wird neu hochgeladen,
-  das alte Dokument bleibt bei MultiGPT liegen (Hinweis). **Die Sammlung entsteht beim ersten Hochladen von selbst**; ein eigenes Werkzeug zum Anlegen ist
-  nicht bekannt.
-- **`delete_document`:** Parameter Dokument (`DOCUMENT_KEYS`), dazu die Sammlung, falls das Schema eine kennt.
-  Scheitert nach dem Ersetzen eines Kapitels das Löschen der alten Fassung, bleibt ihre ID als eigener Stand
-  (`sync_state.item = work:<W>/key:<K>/stale:<alte ID>`, ohne Migration) stehen; er gehört zu keinem Kapitel,
-  also löscht ihn der nächste Lauf wie ein fehlendes Kapitel.
-- **Umfang Baruch → MultiGPT:** nur die aktuellen Fassungen je Kapitel. Kommentare/Befunde (Beiträge der
-  Personas), die `docs/Plan.md` („RAG-Abgleich mit MultiGPT“) auch vorsieht, gehen bisher nicht hinaus – offene
-  Abweichung, im Backlog vorgemerkt.
-- **Rechte:** ein Schlüssel ohne `docs.write` bekommt HTTP 401/403 oder `isError` – beides wird zum Hinweis.
-  Ein `isError` erkennt Baruch als Rechteproblem (sperrt den Rest des Laufs) an Wörtern wie „Berechtigung“,
-  „permission“, „forbidden“, „docs.write“, „verweigert“, „denied“ (`RIGHTS_WORDS`); ohne solche Wörter gilt es
-  nur dem einen Dokument (Annahme über die Texte von MultiGPT).
-- **Vollständigkeit der Liste:** Kappt MultiGPT `limit` still und meldet keine Fortsetzung, ist das nur zu
-  erkennen, wenn die Seite so viele Einträge hat wie erbeten (`limit` am `maximum` des Schemas); antwortet der
-  Server unter dem erbetenen `limit`, gilt die Liste als vollständig (Annahme).
+The user checks them himself; the mock `MockDocs` follows them.
+- **`list_documents`:** parameter for the collection from `COLLECTION_KEYS` (mandatory – without it Baruch does not ask),
+  optionally `limit`/`page_size`/`per_page`/`max_results`, continuation through `cursor` (answer `next_cursor`,
+  `nextCursor`, `next_page_token`, `next`) or `offset`/`page` with `has_more`. Answer: list under `documents`,
+  `items`, `results`, `data` or `files` (also one level deeper or the list itself); per entry ID
+  (`document_id`, `doc_id`, `documentId`, `id`), title (`title`, `document_title`, `name`, `filename`), URL and
+  **modification time or hash** (`updated_at`, `modified_at`, `updated`, `modified`, `last_modified`,
+  `lastModified`, `content_hash`, `hash`, `sha256`, `checksum`, `etag`, `version` – the first one found is remembered as
+  `<Schlüssel>=<Wert>` in `remote_stamp`). If MultiGPT reports none of these, Baruch reads every document and
+  compares the hash of the text (plan: then note it down as a small extension in MultiGPT).
+- **`read_document`:** without a page parameter the **whole** text comes, as plain text in `content[].text` or in
+  the data under `content`/`text`/`body`/`markdown`. If the schema names a page parameter (`page_key`) and
+  the answer page data (`pages`/`total_pages`/… or `has_more`/`next_page`), the sync reads, like the
+  full text of quellen, all pages and joins them with an empty line (`multigpt::read_all_pages`, shared with
+  `MultigptWay::read_full`); so the local copy equals the online full text (hash, index, check of
+  highlights offline). Whether the real MultiGPT delivers page by page is an assumption; both forms work.
+- **`upload_document`:** parameters collection (`COLLECTION_KEYS`, as a list if the schema allows one),
+  title (`title`/`name`, otherwise `filename` with `<Titel>.md`), text (`content`/`text`/`body`/`markdown`), optionally
+  `mime_type`/`content_type` = `text/plain`. Answer with the new document ID (`document_id`/`id` …, also under
+  `document`/`result`/`data`). Since Round 19a an upload without an ID counts as successful with a hint: Baruch can then
+  neither replace nor delete the document and stores a blocking note (state with hash, `remote_id`
+  empty), so that the same content does not go out again on every run; after a change it is uploaded anew,
+  the old document stays at MultiGPT (hint). **The collection comes about by itself with the first upload**; an own tool for creating it is
+  not known.
+- **`delete_document`:** parameter document (`DOCUMENT_KEYS`), plus the collection if the schema knows one.
+  If deleting the old revision fails after replacing a chapter, its ID stays as a state of its own
+  (`sync_state.item = work:<W>/key:<K>/stale:<alte ID>`, without a migration); it belongs to no chapter,
+  so the next run deletes it like a missing chapter.
+- **Scope Baruch → MultiGPT:** only the current revisions per chapter. Comments/findings (posts of the
+  personas), which `docs/Plan.md` („RAG-Abgleich mit MultiGPT“) also provides for, do not go out so far – an open
+  deviation, noted in the backlog.
+- **Rights:** a key without `docs.write` gets HTTP 401/403 or `isError` – both become a hint.
+  Baruch recognises an `isError` as a rights problem (blocks the rest of the run) by words like „Berechtigung“,
+  „permission“, „forbidden“, „docs.write“, „verweigert“, „denied“ (`RIGHTS_WORDS`); without such words it applies
+  only to the one document (assumption about the texts of MultiGPT).
+- **Completeness of the list:** if MultiGPT caps `limit` silently and reports no continuation, that can only be
+  recognised if the page has as many entries as requested (`limit` at the `maximum` of the schema); if the
+  server answers below the requested `limit`, the list counts as complete (assumption).
 
-### Store und Migrationen
+### Store and migrations
 
 - `0031_rag_collections.sql`: `work_rag_collection(work_id → work ON DELETE CASCADE, way ∈ pgvector|multigpt,
-  collection 1..200 Zeichen ohne Zeilenumbruch, position ≥ 1, PK (work_id, way, collection))`; keine Zeile =
-  keine Sammlung (Weg aus). `set_work_collections`: beschnitten, Doppelte entfernt, ≤ 100, `BEGIN IMMEDIATE`,
-  `position` 1..n lückenlos; `RagWay::Lancedb` → `Refused`.
-- `0032_persona_rag.sql` siehe oben; `PersonaRow` unverändert.
-- Tests `crates/baruch-store/tests/{migration_0031,migration_0032,rag_collections}.rs` (Datenbank im Stand bis
-  0030 nachgebaut, verlustfrei, zweites Öffnen gleich, Löschen nimmt die Zeilen mit).
-- Runde 13: `0033_sync.sql` (abgleich: `sync_work`, `sync_collection`, `sync_state`, `sync_document`, `sync_run`,
-  siehe „Abgleich“), `0034_web_evidence.sql` (websuche: `web_evidence`, siehe „Websuche“; der Schalter liegt ohne
-  Migration in `store_meta`, Schlüssel `websearch_belege`), in der Bibliothek `0106_source_remote.sql` (quellen:
+  collection 1..200 characters without a line break, position ≥ 1, PK (work_id, way, collection))`; no row =
+  no collection (way off). `set_work_collections`: trimmed, duplicates removed, ≤ 100, `BEGIN IMMEDIATE`,
+  `position` 1..n without gaps; `RagWay::Lancedb` → `Refused`.
+- `0032_persona_rag.sql` see above; `PersonaRow` unchanged.
+- Tests `crates/baruch-store/tests/{migration_0031,migration_0032,rag_collections}.rs` (database in the state up to
+  0030 rebuilt, lossless, a second opening equal, deleting takes the rows along).
+- Round 13: `0033_sync.sql` (abgleich: `sync_work`, `sync_collection`, `sync_state`, `sync_document`, `sync_run`,
+  see "Sync"), `0034_web_evidence.sql` (websuche: `web_evidence`, see "Web search"; the switch lies without a
+  migration in `store_meta`, key `websearch_belege`), in the library `0106_source_remote.sql` (quellen:
   `library_title_remote`, `library_highlight_check`). Tests `baruch-store/tests/{migration_0033,migration_0034}.rs`
-  (Store bis 0032 mit Daten nachgebaut) und `baruch-library/tests/migration_0106.rs` (Bibliothek bis 0105): alle
-  Zeilen unverändert, nur neue leere Tabellen. `migration_0013.rs` begrenzt die Bibliothek seitdem auf 0105.
-- Nutzerfrage 12: `0035_outline_request_add.sql` legt `outline_request` mit der Antragsart `add` neu an (siehe
-  „Gliederung über MCP und Anträge“); Test `baruch-store/tests/migration_0035.rs` (Store bis 0034 mit Anträgen
-  nachgebaut: alle Zeilen samt id gleich, übrige Schemata gleich, gelöschte id wird nicht neu vergeben).
-  `sync_hash` (SHA-256 hex) in `baruch-store/src/sync.rs` füllt auch `web_evidence.page_hash`.
+  (store up to 0032 rebuilt with data) and `baruch-library/tests/migration_0106.rs` (library up to 0105): all
+  rows unchanged, only new empty tables. Since then `migration_0013.rs` limits the library to 0105.
+- User question 12: `0035_outline_request_add.sql` creates `outline_request` anew with the request kind `add` (see
+  "Outline through MCP and requests"); test `baruch-store/tests/migration_0035.rs` (store up to 0034 rebuilt with requests:
+  all rows including id equal, other schemas equal, a deleted id is not given again).
+  `sync_hash` (SHA-256 hex) in `baruch-store/src/sync.rs` also fills `web_evidence.page_hash`.
 
-### Bauen und Größe
+### Building and size
 
-- `lancedb` bringt rund 260 Crates mit (lance, arrow, datafusion, object_store, parquet); `lance` braucht beim
-  Bauen den Protobuf-Übersetzer `protoc` (hier `~/.local/bin/protoc`). Lizenz Apache-2.0, mit AGPL-3.0
-  verträglich.
-- Jede Test-Binärdatei von `baruch-server` linkt LanceDB statisch mit (≈ 500 MB statt ≈ 145 MB). Mit einer
-  Binärdatei je Testdatei (61) wuchs `target/` nach dem vollen Lauf auf 38–40 GB. Seit Runde 13 (Vorlauf „bau“)
-  sind die Integrationstests des Servers **eine** Binärdatei: `autotests = false`, `[[test]] name = "server"`,
-  `tests/main.rs` mit einem Modul je Fachgebiet (`tests/<gebiet>.rs`), gemeinsame Hilfen `tests/common` und
-  `tests/pgvector_support` einmal eingebunden; `every_test_file_is_bundled` meldet eine Testdatei ohne
-  `mod`-Eintrag. Gemessen nach `cargo clean` und vollem `cargo test --workspace -j 4`: `target/` 38 GB → 9,0 GB,
-  Testbinärdateien 146 → 86, Dauer 18 min 1 s → 13 min 31 s, 1195 → 1196 bestandene Tests (+1 Wächtertest).
-  LanceDB bleibt ohne Cargo-Feature fest eingebaut (der Dienst unverändert).
-- Ein Prozess für alle Server-Tests: prozessweite Zustände teilen sich jetzt alle Module. PDF-Erzeugung unter
-  `common::PDF_SERIAL` (Markierung „PDF entsteht“ je Werk-id), die Modell-Warteschlange über
-  `common::model_queue` (nur Tests eines Moduls zugleich: `round10.rs`, `round10_models.rs`), pgvector-Tests
-  teilen sich einen Container mit je eigener Datenbank.
+- `lancedb` brings roughly 260 crates along (lance, arrow, datafusion, object_store, parquet); `lance` needs the
+  protobuf compiler `protoc` when building (here `~/.local/bin/protoc`). Licence Apache-2.0, compatible with
+  AGPL-3.0.
+- Every test binary of `baruch-server` links LanceDB statically (≈ 500 MB instead of ≈ 145 MB). With one
+  binary per test file (61) `target/` grew to 38–40 GB after the full run. Since Round 13 (preliminary task „bau“)
+  the integration tests of the server are **one** binary: `autotests = false`, `[[test]] name = "server"`,
+  `tests/main.rs` with one module per subject (`tests/<gebiet>.rs`), common helpers `tests/common` and
+  `tests/pgvector_support` included once; `every_test_file_is_bundled` reports a test file without a
+  `mod` entry. Measured after `cargo clean` and a full `cargo test --workspace -j 4`: `target/` 38 GB → 9.0 GB,
+  test binaries 146 → 86, duration 18 min 1 s → 13 min 31 s, 1195 → 1196 passed tests (+1 guard test).
+  LanceDB stays built in permanently without a Cargo feature (the service unchanged).
+- One process for all server tests: process-wide states are now shared by all modules. PDF generation under
+  `common::PDF_SERIAL` (mark „PDF entsteht“ per work id), the model queue through
+  `common::model_queue` (only tests of one module at a time: `round10.rs`, `round10_models.rs`), pgvector tests
+  share one container with a database of their own each.
 
 ### Tests
 
-`tests/round12_lancedb.rs` (Index, Modellwechsel, ohne Einbetter, eine Einbettung zur Zeit),
-`round12_pgvector.rs` (eigener podman-Container `docker.io/pgvector/pgvector:pg17`, sonst initdb-Cluster ohne
-pgvector, sonst ÜBERSPRUNGEN; Hilfe `tests/pgvector_support/mod.rs`: gleichzeitig laufende Tests teilen sich einen
-Container, je Test eine eigene Datenbank `rag_<n>`), `round12_search_ui.rs`,
-`round12_multigpt.rs`, `round12_personas_rag.rs` und Ende-zu-Ende `round12.rs` (fester Nachbau-Vektorraum
-`Concepts`, `MockMultigpt`, pgvector-Container wenn vorhanden: Index zieht nach, Bedeutung ohne gemeinsames Wort,
-drei Wege zusammengeführt ohne Doppelte, Ausfall blockiert nicht, Sammlungen begrenzen, Eliezer aus → FTS und
-Grund auf den Seiten, Literatur/Einfälle ohne JavaScript, MCP mit Token, @belege mit Belegblock und
-Injektionsversuch).
+`tests/round12_lancedb.rs` (index, model change, without embedder, one embedding at a time),
+`round12_pgvector.rs` (own podman container `docker.io/pgvector/pgvector:pg17`, otherwise an initdb cluster without
+pgvector, otherwise „ÜBERSPRUNGEN“; helper `tests/pgvector_support/mod.rs`: tests running at the same time share one
+container, per test an own database `rag_<n>`), `round12_search_ui.rs`,
+`round12_multigpt.rs`, `round12_personas_rag.rs` and end-to-end `round12.rs` (fixed mock vector space
+`Concepts`, `MockMultigpt`, pgvector container if present: the index follows, meaning without a common word,
+three ways merged without duplicates, a failure does not block, collections limit, Eliezer off → FTS and
+reason on the pages, literature/ideas without JavaScript, MCP with token, @belege with evidence block and
+injection attempt).
 
-Runde 13: `round13_quellen.rs`, `round13_websuche.rs`, `round13_abgleich.rs` je Aufgabe und Ende-zu-Ende
-`round13.rs`: **ein** MultiGPT als kleine MCP-Vorderseite (`OneMultigpt`), die jedes Werkzeug an den Nachbau seiner
-Aufgabe weitergibt (`search_documents` → `MockMultigpt`, `web_search`/`fetch_url` → `MockWebMcp` mit `MockSite`,
-Dokument-Werkzeuge → `MockDocs`), Einbettungen über `MockEliezer`: Treffer → Dokumentansicht → Übernahme →
-Titel im Index → Prüfung der Hervorhebungen; @belege mit bevorzugter Quelle, „(nicht belegt)“, Injektionsseite,
-Übernahme eines Belegs; Abgleich nur nach Bestätigung, nur Geändertes, Holen und offline finden, Ausfall mit
-Hinweis, offline die lokale Kopie in der Dokumentansicht.
+Round 13: `round13_quellen.rs`, `round13_websuche.rs`, `round13_abgleich.rs` per task and end-to-end
+`round13.rs`: **one** MultiGPT as a small MCP front (`OneMultigpt`), which passes every tool to the mock of its
+task (`search_documents` → `MockMultigpt`, `web_search`/`fetch_url` → `MockWebMcp` with `MockSite`,
+document tools → `MockDocs`), embeddings through `MockEliezer`: hit → document view → adoption →
+title in the index → check of the highlights; @belege with a preferred source, „(nicht belegt)“, injection page,
+adoption of an evidence item; sync only after confirmation, only what changed, fetching and finding offline, failure with
+a hint, offline the local copy in the document view.
 
-## Personas wirklich (Runde 10)
+## Personas for real (Round 10)
 
-### Port und Modell-Backend
+### Port and model backend
 
 - **Port** `assist/port.rs`: `ModelPort { chat(state, ModelCall, deltas: UnboundedSender<String>), models(state),
-  alias(name), context(state, persona) → ContextBudget {tokens, reported, warning} }` (seit Runde 15 mit
-  Vorgabe-Implementierung = Einstellung der Persona) mit `ModelCall {model, messages, max_tokens, temperature, label,
-  persona}` (Handle der Persona, leer = keine; wählt Verbindung und Freigabe), `ModelAnswer {text, model,
+  alias(name), context(state, persona) → ContextBudget {tokens, reported, warning} }` (since Round 15 with a
+  default implementation = setting of the persona) with `ModelCall {model, messages, max_tokens, temperature, label,
+  persona}` (handle of the persona, empty = none; chooses connection and release), `ModelAnswer {text, model,
   finish_reason, prompt_tokens, completion_tokens}`, `ModelFailure` (`NotConfigured`, `Unreachable`, `Denied`,
-  `Timeout`, `UnknownModel`, `Busy`, `Cancelled`, `Failed`; `Display` deutsch, nie ein Geheimnis), `ModelList`.
-  `NoModel` meldet ehrlich „Kein Modell-Backend angebunden …“. **Abbruch** = Fallenlassen des Futures (Client
-  trennt → Strom fällt → Auftrag fällt → HTTP-Anfrage an Eliezer bricht ab, Platz in der Warteschlange frei).
-- **Adapter** `assist/eliezer.rs` (`EliezerPort`): bildet `ModelCall`/`ModelAnswer`/`ModelFailure` 1:1 auf
-  `baruch_llm::ChatRequest`/`ChatReply`/`LlmError` ab und ruft `crate::models`.
-- **`models.rs`**: `chat(state, ChatRequest, label, deltas)` – Adresse aus der Verbindung `eliezer`, Schlüssel aus
-  dem Schlüsselbund `baruch/eliezer` nur bei `connections::secret_bound` (sonst geht gar nichts hinaus), Alias vor
-  dem Senden, prozessweite `Queue` (`static`, eine Anfrage zur Zeit, höchstens 8 Wartende); `list(state)` →
-  `Listing {models, live, fetched}` (60 s je Adresse zwischengespeichert, nicht durch die Warteschlange);
-  `alias`, `status`, `probe` (Kurztest), Obergrenze `BARUCH_MAX_TOKENS` (Umgebung, wahlweise; klemmt
-  `max_tokens` jedes Aufrufs, etwa für Handprüfungen mit kurzen Antworten), `persona_states`/`persona_summary` (Abgleich der Persona-Modelle),
-  `remember` (Zwischenspeicher aus „Verbindung prüfen“); RPC `model.*` (`handles`/`call`).
-- **`baruch-llm`**: Grenzen (`Limits`): Verbindung 10 s, erstes Stück 180 s (Laden des Modells), Pause 60 s,
-  gesamt 600 s, Modellliste 10 s, Antwort höchstens 1 MiB, `max_tokens` auf 1–4096 geklemmt, keine
-  Weiterleitungen. Nur `choices[0].delta.content` zählt (`reasoning_content` übergangen); `[DONE]` beendet das
-  Lesen sofort. Fehler: Verbindung → `Unreachable`; 401/403 → `Denied` (Hinweis `baruch/eliezer`); 404 oder
-  „model not found“ → `UnknownModel`; 409/429/503 → `Busy`; sonst `Failed` mit höchstens 300 Zeichen der
-  Gegenstelle, Schlüssel daraus entfernt (`scrub`); Zeitgrenzen → `Timeout`. Baruch fordert **nie** eine
-  Kontextlänge an und ruft nie `/api/v1/models/load|unload|estimate`.
-- `connections::run_check`: ein `tokio::time::timeout` (10 s) um die ganze Prüfung; für Eliezer danach Abgleich
-  der Personas (`details.personas`) und `models::remember`. Der Nutzungshinweis der Verbindung Eliezer ist kein
-  STUB mehr (`connections::usage_is_stub`).
+  `Timeout`, `UnknownModel`, `Busy`, `Cancelled`, `Failed`; `Display` in German, never a secret), `ModelList`.
+  `NoModel` honestly reports „Kein Modell-Backend angebunden …“. **Abort** = dropping the future (client
+  disconnects → stream drops → task drops → HTTP request to Eliezer aborts, slot in the queue free).
+- **Adapter** `assist/eliezer.rs` (`EliezerPort`): maps `ModelCall`/`ModelAnswer`/`ModelFailure` 1:1 onto
+  `baruch_llm::ChatRequest`/`ChatReply`/`LlmError` and calls `crate::models`.
+- **`models.rs`**: `chat(state, ChatRequest, label, deltas)` – address from the connection `eliezer`, key from
+  the keyring `baruch/eliezer` only with `connections::secret_bound` (otherwise nothing at all goes out), alias before
+  sending, process-wide `Queue` (`static`, one request at a time, at most 8 waiting); `list(state)` →
+  `Listing {models, live, fetched}` (cached 60 s per address, not through the queue);
+  `alias`, `status`, `probe` (short test), upper limit `BARUCH_MAX_TOKENS` (environment, optional; clamps
+  `max_tokens` of every call, for instance for manual checks with short answers), `persona_states`/`persona_summary` (reconciliation of the persona models),
+  `remember` (cache from „Verbindung prüfen“); RPC `model.*` (`handles`/`call`).
+- **`baruch-llm`**: limits (`Limits`): connection 10 s, first piece 180 s (loading the model), pause 60 s,
+  total 600 s, model list 10 s, answer at most 1 MiB, `max_tokens` clamped to 1–4096, no
+  redirects. Only `choices[0].delta.content` counts (`reasoning_content` skipped); `[DONE]` ends
+  reading immediately. Errors: connection → `Unreachable`; 401/403 → `Denied` (hint `baruch/eliezer`); 404 or
+  „model not found“ → `UnknownModel`; 409/429/503 → `Busy`; otherwise `Failed` with at most 300 characters of the
+  other side, key removed from it (`scrub`); time limits → `Timeout`. Baruch **never** requests a
+  context length and never calls `/api/v1/models/load|unload|estimate`.
+- `connections::run_check`: one `tokio::time::timeout` (10 s) around the whole check; for Eliezer afterwards the reconciliation
+  of the personas (`details.personas`) and `models::remember`. The usage hint of the connection Eliezer is no longer a
+  STUB (`connections::usage_is_stub`).
 
-### Ablauf eines Auftrags (`assist/mod.rs`, `assist::run`)
+### Course of a task (`assist/mod.rs`, `assist::run`)
 
-Persona prüfen (aktiv, sonst -32602) → Kontext lesen **ohne** Schreibsperre (`assist::context::prepare`) →
-Modell aufrufen **ohne** Sperre (mit Gemma ~25 s) → Nachbearbeitung (`assist::prompts`, Hook
-`hooks::mark_answer`) → erst dann `write_lock`, `key` neu auflösen, schreiben: Beiträge über `Store::add_post`
-(Autor = Persona-Handle), Vorschläge über `Store::add_proposal` (immer `proposed`, `model` = tatsächliches
-Modell, Notiz „Vorschlag von @x“, Überschriftszeile der gezeigten Fassung erzwungen, `assist::force_heading`).
-Fehler oder Abbruch speichern nichts. Chat (`assist::chat`): Beitrag des Absenders sofort, dann je erwähnter
-Persona `run` nacheinander (höchstens drei, kein Relay). `assist/rpc.rs` (RPC `persona.ask/review/propose/chat`),
-`assist/routes.rs` (`POST /assistenten/act`, `POST /assistenten/stream` mit eigenem `Stream`, der den Auftrag
-antreibt; neue Abhängigkeit `tokio-stream`).
+Check the persona (active, otherwise -32602) → read the context **without** the write lock (`assist::context::prepare`) →
+call the model **without** the lock (with Gemma ~25 s) → post-processing (`assist::prompts`, hook
+`hooks::mark_answer`) → only then `write_lock`, resolve `key` anew, write: posts through `Store::add_post`
+(author = persona handle), proposals through `Store::add_proposal` (always `proposed`, `model` = actual
+model, note „Vorschlag von @x“, heading line of the shown revision enforced, `assist::force_heading`).
+Errors or abort store nothing. Chat (`assist::chat`): post of the sender immediately, then per mentioned
+persona `run` one after another (at most three, no relay). `assist/rpc.rs` (RPC `persona.ask/review/propose/chat`),
+`assist/routes.rs` (`POST /assistenten/act`, `POST /assistenten/stream` with its own `Stream` that drives the
+task; new dependency `tokio-stream`).
 
-- **Kontext** (`assist/context.rs`): System = Rollen-Prompt (+ Hook `scripture_facts`); Nutzer = Werk (Titel,
-  Art, Zielgruppe), Kapitelumfeld (Kapitel, Nachbarabschnitte mit je ≤ 300 Zeichen Anfang), beim Lektor das
-  Gedächtnis (Einfälle mit `idea.node_id = key`, nicht gelöscht, dazu ≤ 10 offene ohne Bezug), im Chat die
-  letzten 8 Beiträge, dann der Abschnitt der gezeigten Fassung (`rev`, sonst die aktuelle) zwischen `<<<`/`>>>`,
-  zuletzt der Auftrag. Tokens ≈ ⌈Zeichen/3⌉, Budget = Kontextlänge − `max_tokens` − 256; gekürzt wird zuerst
-  das Kapitelumfeld, dann Gedächtnis bzw. Chatverlauf, zuletzt der Abschnitt vom Ende her mit
+- **Context** (`assist/context.rs`): system = role prompt (+ hook `scripture_facts`); user = work (title,
+  kind, target group), chapter surroundings (chapter, neighbouring sections with ≤ 300 characters of beginning each), with the lector the
+  memory (ideas with `idea.node_id = key`, not deleted, plus ≤ 10 open ones without a reference), in the chat the
+  last 8 posts, then the section of the shown revision (`rev`, otherwise the current one) between `<<<`/`>>>`,
+  finally the task. Tokens ≈ ⌈characters/3⌉, budget = context length − `max_tokens` − 256; shortened first is
+  the chapter surroundings, then memory or chat history, finally the section from the end with
   „[… gekürzt: n Zeichen]“ → `truncated: true`. `max_tokens`: ask 700, review 900, chat 500, propose
-  min(4096, Abschnittstokens·1,5 + 200); `temperature` 0,4; `label` „@x <art> key K“ (ohne Text).
-- **Rollen-Prompts** (`assist/prompts.rs`): Vorgaben für `@lektor`, `@exeget`, `@schrift`, `@belege`, `@nathan`,
-  `@hoerer`, sonst allgemein aus der Rolle; ein gespeicherter Prompt (`persona.prompt`, Migration 0015) ersetzt
-  die Vorgabe ganz. Harte Regeln mit Gegenbeispielen („Falsch: … / Richtig: …“) – siehe `docs/Bedienung.md`
+  min(4096, section tokens·1.5 + 200); `temperature` 0.4; `label` „@x <art> key K“ (without text).
+- **Role prompts** (`assist/prompts.rs`): defaults for `@lektor`, `@exeget`, `@schrift`, `@belege`, `@nathan`,
+  `@hoerer`, otherwise general from the role; a stored prompt (`persona.prompt`, migration 0015) replaces
+  the default entirely. Hard rules with counter-examples („Falsch: … / Richtig: …“) – see `docs/Bedienung.md`
   „Assistenten fragen“.
-- **Nachbearbeitung**: Beginnt die Antwort (nach Leerraum, Anführungs- und Markdown-Zeichen, ohne Rücksicht auf
-  Groß-/Kleinschreibung, nur ganze Wörter) mit „Als Assistent“, „Als KI“, „Als Sprachmodell“, „Gerne“ oder
-  „Natürlich“, fordert Baruch **einmal** neu an (Zusatzanweisung `prompts::RETRY_NOTE` am Ende des
-  System-Prompts); beginnt auch die zweite so, fällt ihr erster Satz weg (bis `.`/`!`/`?`/`:` mit Leerraum
-  danach oder bis zum Zeilenende). Beim Strom hält Baruch die ersten 24 Zeichen zurück, bis klar ist, ob die
-  Antwort so beginnt. Vorschläge: Codeblock ``` entfernt.
+- **Post-processing**: if the answer begins (after white space, quotation and Markdown characters, regardless of
+  case, only whole words) with „Als Assistent“, „Als KI“, „Als Sprachmodell“, „Gerne“ or
+  „Natürlich“, Baruch requests anew **once** (additional instruction `prompts::RETRY_NOTE` at the end of the
+  system prompt); if the second one begins like that too, its first sentence is dropped (up to `.`/`!`/`?`/`:` with white space
+  behind it or up to the end of the line). While streaming Baruch holds back the first 24 characters until it is clear whether the
+  answer begins like that. Proposals: code block ``` removed.
 - **Hooks** (`assist/hooks.rs`): `scripture_facts` → `crate::scripture::facts_for`, `mark_answer` →
   `crate::scripture::mark_answer`.
-- **Lektor**: `baruch_core::LectorChoice`, gespeichert in `store_meta` Schlüssel `lector` (`auto` oder ein
-  Handle; keine Zeile = fest `@lektor`, Versuch seit 2026-11-06); Store `lector_choice`/`set_lector_choice`;
-  `personas::lector_of(rows, &choice)`. Ist die feste Persona inaktiv, gilt „automatisch“.
-- **Migration 0015** `persona.prompt TEXT CHECK (NULL oder 1–8000 Zeichen)`; Store `persona_prompt`,
-  `set_persona_prompt`, `PersonaRow.prompt`, `MAX_PROMPT_CHARS`. Keine Datenänderung.
-- **Oberfläche**: `fragments/assistants.html` (Formular `assist-form` mit Prüfen/Vorschlag, Chat-Eingabe an
-  `persona.chat`), Widget `web/src/assist.ts` (`fetch` + `AbortController`, SSE-Zerleger `parseEvents`,
-  vorläufiger Beitrag in Persona-Farbe, danach `baruch:navigate {url}`), Stil `static/assist.css`; Einstellungen
-  `settings/assistants.rs` + `settings/assistenten.html` (Lektor-Formular, `<datalist id="baruch-models">` aus
-  `state.model.models`, Warnungen über `state.model.alias`, Rollen-Prompt).
-- **Testmodell** `assist::mock::ScriptedModel` (öffentlich, nur für Tests): Skript je Aufruf (`Step::words`,
+- **Lector**: `baruch_core::LectorChoice`, stored in `store_meta` key `lector` (`auto` or a
+  handle; no row = fixed `@lektor`, trial since 2026-11-06); store `lector_choice`/`set_lector_choice`;
+  `personas::lector_of(rows, &choice)`. If the fixed persona is inactive, „automatisch“ applies.
+- **Migration 0015** `persona.prompt TEXT CHECK (NULL oder 1–8000 Zeichen)`; store `persona_prompt`,
+  `set_persona_prompt`, `PersonaRow.prompt`, `MAX_PROMPT_CHARS`. No data change.
+- **User interface**: `fragments/assistants.html` (form `assist-form` with check/proposal, chat input to
+  `persona.chat`), widget `web/src/assist.ts` (`fetch` + `AbortController`, SSE parser `parseEvents`,
+  provisional post in the persona colour, afterwards `baruch:navigate {url}`), style `static/assist.css`; settings
+  `settings/assistants.rs` + `settings/assistenten.html` (lector form, `<datalist id="baruch-models">` from
+  `state.model.models`, warnings through `state.model.alias`, role prompt).
+- **Test model** `assist::mock::ScriptedModel` (public, only for tests): script per call (`Step::words`,
   `Fail`, `Hang`, `Wait` + `release()`), `calls()`, `cancelled()`.
 
-### Lektor mit ganzem Kapitel (Runde 15, „lektor“)
+### Lector with the whole chapter (Round 15, „lektor“)
 
-Überholt damit die Punkte „Kontext“ (Kapitelumfeld mit 300 Zeichen je Nachbar, Kürzung des Abschnitts) und
-„Nachbearbeitung“ (verbotene Einleitung auch beim Vorschlag) oben.
+This supersedes the items "Context" (chapter surroundings with 300 characters per neighbour, shortening of the section) and
+"Post-processing" (forbidden opening also for the proposal) above.
 
-- **Schnittstelle S2:** Chat in `assist/chat.rs` (`mentions`, `chat`, `ChatOrder`, `run_chat`, `chat_json`);
-  `Progress` um `Posted(SavedPost)` (Beitrag des Absenders gespeichert), `Retry {persona, reason}` (Neuanforderung:
-  „verbotene Einleitung“ bzw. „fehlendes „Kritisch:““) und `Compressed(Compression)`; `Compression {message,
+- **Interface S2:** chat in `assist/chat.rs` (`mentions`, `chat`, `ChatOrder`, `run_chat`, `chat_json`);
+  `Progress` extended by `Posted(SavedPost)` (post of the sender saved), `Retry {persona, reason}` (re-request:
+  „verbotene Einleitung“ or „fehlendes „Kritisch:““) and `Compressed(Compression)`; `Compression {message,
   summarized, chunks}`, `Scope {Section (Vorgabe), Chapter}`, `Order.scope`, `Outcome.compressed`,
-  `Outcome.proposals` (Vorschlag für das Kapitel). SSE-Weiterleitung in `assist/routes.rs`.
-- **Kontext** (`assist/context.rs`, `prepare_inputs` mit `RagInput`/`BibleInput`): `chapter_units` liefert die
-  Teile des Kapitels (nächster `NodeKind::Chapter` über dem Abschnitt oder er selbst, mit allen Knoten darunter;
-  bei `WorkKind::Sermon` das ganze Werk; ohne Kapitel der Knoten mit Unterpunkten), je Teil die aktuelle Fassung,
-  der eigene in der gezeigten. Die Nutzer-Nachricht baut `Frame::call`: Vorspann (Werk, Befunde der anderen
-  Personas – Beiträge, deren Autor das Handle einer anderen Persona ist, je Teil die letzten drei, im Chat ohne
-  den eigenen Abschnitt –, Gedächtnis, Chatverlauf, Faktenblöcke), dann „Kapitelumfeld:“ mit jedem Teil als
-  `--- Titel ---` und `<<< … >>>` (Wortlaut, „nur Zusammenfassung“ oder „nicht mitgegeben“; der Prüfgegenstand
-  als Verweis), dann der Prüfgegenstand mit Kopf, zuletzt der Auftrag. `Scope::Chapter`: alle Teile sind der
-  Prüfgegenstand (`max_tokens` ask 900, review 1500).
-- **Budget:** `state.model.context(state, &persona).await.tokens` (Schnittstelle S1, `ModelPort::context`) −
-  `max_tokens` − 256, in Zeichen ·3. Zusätze (`Extras`: Web, SWORD, RAG, Befunde, Gedächtnis von hinten, Chat von
-  vorn) werden gekürzt, solange etwas zu viel ist und sie mehr als ein Drittel des Budgets belegen; reicht der Platz
-  danach nicht für den größten Teil des Prüfgegenstands samt 600 Zeichen Umfeld, auch darunter (`truncated`).
-  Kapitel und Prüfgegenstand werden nie gekürzt; `Prepared::fits` sagt, ob sie im Wortlaut passen. Passt nicht
-  einmal das Nötigste (weniger als 600 Zeichen Platz), lehnt `prepare` ehrlich ab (-32000).
-- **Stückeln** (`assist/chunk.rs`, rein; Orchestrierung in `assist/mod.rs`, `compressed_run`): Prüfgegenstand in
-  Stücke von höchstens ⅔ des Platzes (passt damit nicht einmal die Untergrenze unten, der Reihe nach ½, ⅓, ¼ –
-  `PIECE_SHARES`: ein kleinerer Kern lässt dem Umfeld mehr Platz) (`chunk::split`, Schnitt an Absatz, sonst Satzende, sonst Leerraum,
-  Überlappung ⅛, höchstens 600 Zeichen; ein Abschnitt bis ¾ des Platzes bleibt ganz; Kapitel: `chunk::pack`). Je
-  Stück plant `chunk::plan_piece` das Umfeld: alles im Wortlaut, solange es nicht passt der vom Kern fernste Teil
-  als Zusammenfassung, danach – nur wenn es Platz spart – als bloßer Titel. Die nötigen Zusammenfassungen holt
-  `plan_and_summarize` **vor** dem ersten Prüfaufruf und **nacheinander** (eigener Aufruf, `SUMMARY_SYSTEM`,
-  `max_tokens` 80–300, Bezeichnung „… Zusammenfassung“, `persona` gesetzt – die Freigabe „extern“ gilt auch hier);
-  danach wird mit den echten Längen neu geplant (höchstens drei Runden). Der Platz je Stück ist `frame.room` minus
-  `piece_extra` (je Kernteil die Umfeldzeile „wird geprüft, steht unten“, dazu was Kopf „Stück k von n (…)“ und
-  Zusatz im Auftrag bzw. der eigene Auftrag beim Vorschlag länger sind als in `prepare` gezählt). Vor dem ersten
-  Modellaufruf prüft `plan_and_summarize` eine Untergrenze je Stück (Kern im Wortlaut, jeder andere Teil so knapp
-  wie möglich); reicht nicht einmal sie, ehrliche Ablehnung (`too_many_parts`, -32000, nichts gespeichert). Danach
-  werden alle Aufrufe gebaut und **gemessen** (`check_calls`: Zeichen aller Nachrichten ≤ (Kontextlänge −
-  `max_tokens` − 256) · 3), bevor der erste hinausgeht; auch der ungestückelte Aufruf wird gemessen und bei
-  Überschreitung gestückelt. Dann `Progress::Compressed`, dann je Stück
-  ein Aufruf (Strom mit Leerzeile zwischen den Stücken), Befunde mit `chunk::merge` ohne Doppelte (gleich oder einer
-  ganz im anderen, ab 24 Zeichen; der ausführlichere bleibt). Vermerk „Komprimiert: …“ (`compression`) als letzter
-  Absatz des Beitrags bzw. in der Notiz des Vorschlags. Ein Vorschlag zum Abschnitt wird nie gestückelt (der
-  Abschnitt muss ganz passen, sonst `too_long_for_proposal`).
-- **Vorschlag für das Kapitel** (`propose_chapter`): je Teil mit Text ein Aufruf nacheinander (Teil im Wortlaut,
-  Umfeld geplant wie oben, Auftrag `propose_part_task`), danach `proposal_text` (Codeblock, „Kritisch:“-Zeilen weg,
-  Überschrift erzwungen); unveränderte und abgeschnittene Teile fallen weg; gespeichert wird erst am Ende unter
-  **einer** Schreibsperre, je Teil genau ein `proposed`.
-- **„Kritisch:“** (`prompts::needs_critical`, `has_critical`): `answer_call` fordert bei Lektor, Exeget und Nathan
-  höchstens einmal je Auftrag nach (`CRITICAL_RETRY_NOTE`, `Progress::Retry`); scheitert die Nachforderung, bleibt
-  die erste Antwort. Fehlt er im gespeicherten Text, hängt `post_body` `CRITICAL_MISSING_NOTE` an. Beim Vorschlag
-  prüft `call_model` keine Einleitung (`check_opening = false`), `strip_critical_lines` entfernt Befundzeilen.
-- **Faktenblock aus SWORD** (`assist/bible_facts.rs`, Haken `hooks::bible_research` → `crate::bible_research::research`,
-  Daten und Schalter beim Zweig „anbieter“): Block „Belege aus SWORD“ mit `[Sn] <Art> <Modul> · <Stelle> · Lizenz:
-  …` und Text zwischen `<<<beleg`/`>>>`, entschärft mit `rag_facts::defuse`; Hinweise der Recherche darunter;
-  Bibelwortlaut, der schon im Faktenblock der Stellenprüfung steht, fällt weg; Regel `SYSTEM_RULE`; Budget gemeinsam
-  mit RAG/Web (`BIBLE_MAX_CHARS` = min(4000, Budget/5) an `research`); `[Sn]` ohne Eintrag → „(unbekannte Quelle)“
-  (`rag_facts::mark_unknown`). `research()` ist bis zur Integration ein Rumpf (`None`) – Tests über
+  `Outcome.proposals` (proposal for the chapter). SSE forwarding in `assist/routes.rs`.
+- **Context** (`assist/context.rs`, `prepare_inputs` with `RagInput`/`BibleInput`): `chapter_units` delivers the
+  parts of the chapter (nearest `NodeKind::Chapter` above the section or itself, with all nodes below it;
+  with `WorkKind::Sermon` the whole work; without a chapter the node with its sub-items), per part the current revision,
+  its own in the shown one. The user message is built by `Frame::call`: preamble (work, findings of the other
+  personas – posts whose author is the handle of another persona, per part the last three, in the chat without
+  its own section –, memory, chat history, fact blocks), then „Kapitelumfeld:“ with every part as
+  `--- Titel ---` and `<<< … >>>` (wording, „nur Zusammenfassung“ or „nicht mitgegeben“; the subject of the check
+  as a reference), then the subject of the check with a head, finally the task. `Scope::Chapter`: all parts are the
+  subject of the check (`max_tokens` ask 900, review 1500).
+- **Budget:** `state.model.context(state, &persona).await.tokens` (interface S1, `ModelPort::context`) −
+  `max_tokens` − 256, in characters ·3. Extras (`Extras`: web, SWORD, RAG, findings, memory from the back, chat from
+  the front) are shortened as long as something is too much and they occupy more than a third of the budget; if the space
+  afterwards does not suffice for the largest part of the subject of the check plus 600 characters of surroundings, also below that (`truncated`).
+  Chapter and subject of the check are never shortened; `Prepared::fits` says whether they fit in their wording. If not
+  even the minimum fits (less than 600 characters of space), `prepare` honestly refuses (-32000).
+- **Chunking** (`assist/chunk.rs`, pure; orchestration in `assist/mod.rs`, `compressed_run`): subject of the check in
+  pieces of at most ⅔ of the space (if even the lower limit below does not fit with that, in turn ½, ⅓, ¼ –
+  `PIECE_SHARES`: a smaller core leaves more space to the surroundings) (`chunk::split`, cut at a paragraph, otherwise sentence end, otherwise white space,
+  overlap ⅛, at most 600 characters; a section up to ¾ of the space stays whole; chapter: `chunk::pack`). Per
+  piece `chunk::plan_piece` plans the surroundings: everything in its wording; as long as it does not fit, the part farthest from the core
+  as a summary, afterwards – only if it saves space – as a mere title. The summaries needed are fetched by
+  `plan_and_summarize` **before** the first check call and **one after another** (own call, `SUMMARY_SYSTEM`,
+  `max_tokens` 80–300, label „… Zusammenfassung“, `persona` set – the release „extern“ applies here too);
+  afterwards it plans anew with the real lengths (at most three rounds). The space per piece is `frame.room` minus
+  `piece_extra` (per core part the surroundings line „wird geprüft, steht unten“, plus what the head „Stück k von n (…)“ and
+  the addition in the task, or the own task for the proposal, are longer than counted in `prepare`). Before the first
+  model call `plan_and_summarize` checks a lower limit per piece (core in its wording, every other part as short
+  as possible); if not even that suffices, an honest refusal (`too_many_parts`, -32000, nothing stored). Afterwards
+  all calls are built and **measured** (`check_calls`: characters of all messages ≤ (context length −
+  `max_tokens` − 256) · 3) before the first one goes out; the unchunked call is measured too and chunked when
+  it exceeds. Then `Progress::Compressed`, then per piece
+  one call (stream with an empty line between the pieces), findings with `chunk::merge` without duplicates (equal or one
+  wholly inside the other, from 24 characters; the more detailed one stays). Note „Komprimiert: …“ (`compression`) as the last
+  paragraph of the post or in the note of the proposal. A proposal for the section is never chunked (the
+  section must fit whole, otherwise `too_long_for_proposal`).
+- **Proposal for the chapter** (`propose_chapter`): per part with text one call after another (part in its wording,
+  surroundings planned as above, task `propose_part_task`), afterwards `proposal_text` (code block, „Kritisch:“ lines removed,
+  heading enforced); unchanged and cut-off parts are dropped; storing happens only at the end under
+  **one** write lock, exactly one `proposed` per part.
+- **„Kritisch:“** (`prompts::needs_critical`, `has_critical`): `answer_call` re-requests with lector, exegete and Nathan
+  at most once per task (`CRITICAL_RETRY_NOTE`, `Progress::Retry`); if the re-request fails, the first answer
+  stays. If it is missing in the stored text, `post_body` appends `CRITICAL_MISSING_NOTE`. For the proposal
+  `call_model` checks no opening (`check_opening = false`), `strip_critical_lines` removes finding lines.
+- **Fact block from SWORD** (`assist/bible_facts.rs`, hook `hooks::bible_research` → `crate::bible_research::research`,
+  data and switch with the branch „anbieter“): block „Belege aus SWORD“ with `[Sn] <Art> <Modul> · <Stelle> · Lizenz:
+  …` and text between `<<<beleg`/`>>>`, defused with `rag_facts::defuse`; hints of the research below it;
+  Bible wording that already stands in the fact block of the reference check is dropped; rule `SYSTEM_RULE`; budget shared
+  with RAG/web (`BIBLE_MAX_CHARS` = min(4000, budget/5) to `research`); `[Sn]` without an entry → „(unbekannte Quelle)“
+  (`rag_facts::mark_unknown`). Until the integration `research()` is a stub body (`None`) – tests through
   `BibleInput::Given`.
-- **Oberfläche:** `templates/fragments/toast.html` (Hinweiskasten `div.toast.toast-<level>[data-widget=toast]`,
-  ohne JavaScript sichtbar), Widget `web/src/toast.ts` (verschiebt Kästen in `.toast-stack`, „Schließen“, lauscht
-  auf `baruch:toast {message, level, summarized?}`; „warn“ ohne Zeitablauf, „info“ 8 s), Stil `static/toast.css`;
-  `templates/fragments/assist_scope.html` (Optionsfelder `scope`), eingebunden vom Zweig „auftraege“.
+- **User interface:** `templates/fragments/toast.html` (notice box `div.toast.toast-<level>[data-widget=toast]`,
+  visible without JavaScript), widget `web/src/toast.ts` (moves boxes into `.toast-stack`, „Schließen“, listens
+  to `baruch:toast {message, level, summarized?}`; „warn“ without expiry, „info“ 8 s), style `static/toast.css`;
+  `templates/fragments/assist_scope.html` (radio buttons `scope`), included by the branch „auftraege“.
 
-### Bibelstellen (`baruch-scripture`, `scripture.rs`)
+### Bible references (`baruch-scripture`, `scripture.rs`)
 
-- `data/versification.tsv`: je Zeile `OSIS<TAB>Kapitel<TAB>Verse`, 66 Bücher, 1189 Kapitel, 31172 Verse; nur
-  Zahlen, **deutsche Zählung**. Herkunft: Verszählung „German“ des SWORD-Projekts (CrossWire Bible Society,
-  `include/canon_german.h`, SHA-256 im Kopf der Tabelle, abgerufen 2026-11-06); das SWORD-Modul der Schlachter 1951
-  (`GerSch`) ist in dieser Zählung angelegt (`Versification=German`). AT: Bücher, Kapitel, Verse aus
-  `otbooks_german`/`vm_german`; NT: Kapitel wie die SWORD-Standardliste, Verse aus `vm_german`. Übernommen sind nur
-  Zahlen. Nicht mehr verwendet: eBible.org `deu1951` (VPL und USFM) ist auf die englische Zählung (KJV, 31102 Verse)
-  umgestellt – bis 2026-11-06 stand sie hier und meldete z. B. „Ps 51,21“ als ungültig. Der Test
-  `versification.rs` prüft die Summe 31172 und Joel 4/Maleachi 3, `references.rs` Stellen, die nur deutsch
-  gelten. Nie von Hand ändern. Lizenz: `canon_german.h` steht unter GPLv2; übernommen sind nur die Zahlen als
-  Tatsachen, kein Code (Entscheidung des Nutzers 2026-11-06).
-- Parser: Ein Komma mit Leerraum vor einem nummerierten Buch („Joh 3, 1. Joh 4“) trennt Stellen und leitet keinen
-  Vers ein (`verse_mark`). Seit Runde 17b: Verslisten mit Komma (`comma_verse`), Zahlwörter (`COUNT_WORDS`,
-  `count_word_follows`), Uhrzeiten nach Wochentag (`weekday_clock`, nur `scan`), „… Vers 23“ im selben Satz
-  (`verse_later`) – siehe „Runde 17b – stellen“.
-- `src/books.rs`: 66 Bücher (OSIS, Name, Abkürzung, weitere Schreibweisen); Vergleich ohne Punkte, Leerraum,
-  Groß-/Kleinschreibung; jede Schreibweise genau einem Buch. Parser: rekursiver Abstieg über Byte-Stellen, nie
-  Panik.
-- Server `src/scripture.rs`: RPC `scripture.check` (`check(text)`, gemeinsam mit MCP `scripture_check` in
-  `src/mcp/scripture.rs`), `facts_for(handle, section)` (Faktenblock nur für `@schrift`/`@belege`),
-  `mark_answer(handle, section, body)` (Zeile „Wortlaut: ungeprüft …“ bzw. Hinweis auf @schrift). Nur lesend.
-  Seit 2026-11-06 mit Bibel: `facts_for_work`/`mark_answer_for_work` (Hooks in `assist/hooks.rs`, async mit
-  `state` und Werk), `check_with(choice, text)`; `mark_with` setzt auseinandergerissene Ziffern einer Stelle des
-  Abschnitts in der Antwort wieder zusammen (`wording::rejoin_split_refs`, Befund „Mk 1 0,42–45“: Parser und
-  Anzeige schreiben die Zahl richtig, die Lücke stand im Text des Modells).
+- `data/versification.tsv`: per line `OSIS<TAB>Kapitel<TAB>Verse`, 66 books, 1189 chapters, 31172 verses; only
+  numbers, **German versification**. Origin: versification „German“ of the SWORD project (CrossWire Bible Society,
+  `include/canon_german.h`, SHA-256 in the head of the table, retrieved 2026-11-06); the SWORD module of the Schlachter 1951
+  (`GerSch`) is laid out in this versification (`Versification=German`). OT: books, chapters, verses from
+  `otbooks_german`/`vm_german`; NT: chapters as in the SWORD standard list, verses from `vm_german`. Only
+  numbers are taken over. No longer used: eBible.org `deu1951` (VPL and USFM) is converted to the English versification (KJV, 31102 verses)
+  – it stood here until 2026-11-06 and reported, for example, „Ps 51,21“ as invalid. The test
+  `versification.rs` checks the sum 31172 and Joel 4/Malachi 3, `references.rs` references that are valid only in German
+  versification. Never change by hand. Licence: `canon_german.h` is under GPLv2; only the numbers are taken over as
+  facts, no code (decision of the user 2026-11-06).
+- Parser: a comma with white space before a numbered book („Joh 3, 1. Joh 4“) separates references and does not introduce a
+  verse (`verse_mark`). Since Round 17b: verse lists with commas (`comma_verse`), number words (`COUNT_WORDS`,
+  `count_word_follows`), clock times after a weekday (`weekday_clock`, only `scan`), „… Vers 23“ in the same sentence
+  (`verse_later`) – see "Round 17b – stellen".
+- `src/books.rs`: 66 books (OSIS, name, abbreviation, further spellings); comparison without dots, white space,
+  case; every spelling belongs to exactly one book. Parser: recursive descent over byte positions, never
+  a panic.
+- Server `src/scripture.rs`: RPC `scripture.check` (`check(text)`, shared with MCP `scripture_check` in
+  `src/mcp/scripture.rs`), `facts_for(handle, section)` (fact block only for `@schrift`/`@belege`),
+  `mark_answer(handle, section, body)` (line „Wortlaut: ungeprüft …“ or a hint to @schrift). Read only.
+  Since 2026-11-06 with a Bible: `facts_for_work`/`mark_answer_for_work` (hooks in `assist/hooks.rs`, async with
+  `state` and work), `check_with(choice, text)`; `mark_with` joins torn-apart digits of a reference of the
+  section in the answer together again (`wording::rejoin_split_refs`, finding „Mk 1 0,42–45“: parser and
+  display write the number correctly, the gap stood in the text of the model).
 
-### SWORD-Bibeln (2026-11-06, `baruch-sword`, `bibles.rs`, Migration 0030)
+### SWORD Bibles (2026-11-06, `baruch-sword`, `bibles.rs`, migration 0030)
 
-- **Entscheidung Leser (Format):** Die Crate **`sword-modules` 0.1.0** (Logoxide, **CC0-1.0**, reines Rust, kein
-  FFI) liest das Dateiformat; geprüft im Quelltext (`~/.cargo/registry/src/…/sword-modules-0.1.0`): Treiber zText,
-  zText4, RawText, RawText4 (dazu Kommentare/Lexika, die Baruch nicht nutzt), conf nach `docs/spec/conf.md`
-  (Fortsetzungszeilen, RTF-`About`), `DataPath` relativ zum Modulordner (führendes `./` bzw. `/` entfernt), alle 18
-  SWORD-Verszählungen als Tatsachen aus der Laufzeit-API, Index je Testament (Stelle 0 Modulkopf, 1 Testamentkopf,
-  je Buch Einleitung, je Kapitel Einleitung, dann Verse), Block-Zwischenspeicher, Normalisierung der Einträge. Sie
-  dokumentiert eine Reinraum-Ablösung früher aus libsword portierter Teile (`CLEANROOM.md`); Abhängigkeit
-  `topos-bible` 0.6 (CC0-1.0, Stellenangaben, von Baruch nicht benutzt) und deren regex, smallvec, itertools u. a.
-  (MIT/Apache). Eingebunden mit `default-features = false, features = ["zip"]`: kein Installer, kein Netz (ureq,
-  zip, tar), kein bzip2/xz (seit Runde 17c `features = ["zip", "bzip2", "xz"]`, weiter ohne `install`/`https`). **Nicht verwendet:** libsword (GPL-2.0) und `rsword_chirho` (GPL-2.0-or-later), kein
-  Code daraus. Eigener Code von Baruch: Modulordner und Auswahl, Prüfung der Unterstützung, `DataPath`-Wache
-  (`..` → abgelehnt), OSIS/ThML/GBF → Klartext, Versifikationsabgleich, Wortlautvergleich, Suche, Test-Module.
-- **Crate `baruch-sword`** (rein bis auf Dateizugriff): `scan(dirs)` → `BibleInfo` (Name, Beschreibung, About als
-  Text, Versification, Lang, Version, ModDrv, CompressType, BlockType, SourceType, Encoding, DistributionLicense,
-  Copyright, `notice` = Lizenzvermerk, `supported`/`problem`), erste Fundstelle eines Namens gewinnt; nur
-  Bibelmodule. `open(info)` → `Bible` (`verse`, `intro`, `slot_text`, `passage` höchstens 400 Verse, `search` linear
-  mit Treffer- und Zeitgrenze). Unterstützt: zText/zText4 mit ZIP oder LZSS, RawText/RawText4; Verszählung nur
-  „German“ und „KJV“ (`baruch_scripture::versification`), andere → „nicht unterstützt“ (STUB in
-  `versification.rs`); verschlüsselte Module → STUB. (Stand vor Runde 17; seit R17 jede Zählung von
-  `baruch_scripture::versification()`, BZIP2/XZ und `CipherKey`, siehe „Runde 17c – pruefanzeige“.) `text::to_plain`: `note`, `rdg`, `title` (außer
-  `canonical="true"`), `catchWord`, `figure` (ThML auch `scripRef`, `h1`–`h6`; GBF `<RF>…<Rf>`, `<TS>…<Ts>`)
-  fallen weg; `divineName`, `w`, `q`, `transChange` bleiben als Text; Entitäten, Leerraum zusammengefasst.
-  `fixture`: schreibt Test-Module (zText BOOK/CHAPTER/VERSE mit zlib, RawText) mit **eigener** Stellenrechnung aus
-  den Zahlen von `baruch-scripture`; Tests `tests/modules.rs` lesen sie über `sword-modules` zurück (jede Stellenart,
-  beide Zählungen, alle Blockarten) und vergleichen die Tabellen von `sword-modules` Vers für Vers mit unseren.
-  Beleg am echten Modul GerSch: `ot.bzv` 241850 Bytes = 24185 Stellen, `nt.bzv` 8246 Stellen – genau die
-  Stellenzahl der Zählung German.
-- **Verszählung KJV:** `baruch-scripture/data/versification-kjv.tsv` (31102 Verse; die frühere eBible-Tabelle aus
-  der Historie vor `6e1e268`), gleich der KJV-Tabelle von `sword-modules`; `versification::{german, versification}`.
-- **Wortlaut** (`baruch_scripture::wording`, rein): `inline_quotes` („…“, “…”, »…«, «…», "…", `#quote[…]`; eine
-  Leerzeile beendet die Suche), Blockzitate über `baruch_wysiwyg::parse` (`BlockKind::Quote`, Bereich des Inhalts
-  per Klammerzählung, `bibles::block_quotes`), `quote_for` (Zitat direkt vor bzw. nach der Stelle, dazwischen nur
-  Leerraum/Satzzeichen/andere Stellen derselben Liste, höchstens 24 Bytes; Blockzitat mit der Stelle in Zuschreibung
-  oder am Ende), `words` (Typst-Auszeichnung weg, Bindestriche/Apostrophe/weiches Trennzeichen im Wort weg,
-  Trennung „Hei- land“ verbunden außer vor „und/oder“, klein), `compare` (lückenlose Wortfolge je Teil zwischen
-  Auslassungen → stimmt, sonst Wort-Diff über die längste gemeinsame Teilfolge, auf den zitierten Bereich
-  beschränkt). Andere Zählung im Modul: geprüft nur, wenn jedes betroffene Kapitel in German und im Modul gleich
-  viele Verse hat, sonst `versification_mismatch` (keine Abbildung zwischen Zählungen).
-- **Server `src/bibles.rs`:** RPC `bible.*`, `Choice` (keine, fehlt, nicht lesbar, bereit), Zwischenspeicher
-  geöffneter Module je conf-Datei und Änderungszeit (höchstens 8), Lesen in `spawn_blocking` für Scan, Öffnen und
-  Suche; `check_wording` je Stelle. Seite Einstellungen → Quellen (`connections/pages.rs`, `settings/quellen.html`,
-  Block `#bibeln`). MCP `src/mcp/bibles.rs`. Die echten Modulordner liest nur der laufende Dienst; Tests setzen
-  immer eigene Ordner.
-- **Store (Migration 0030):** `bible_dir (position, path UNIQUE)` und `store_meta.bible_dirs` (gesetzt = eigene
-  Liste, auch leer; fehlt = Vorgaben), `work_bible (work_id → work ON DELETE CASCADE, module)`; `bible_dirs`,
-  `set_bible_dirs`, `work_bible`, `set_work_bible` (`src/bibles.rs`), kein Commit im Spiegel (kein Buchtext). Test
-  `tests/migration_0030.rs` (verlustfrei, zweites Öffnen gleich, Löschen des Werks nimmt die Wahl mit).
+- **Decision on the reader (format):** the crate **`sword-modules` 0.1.0** (Logoxide, **CC0-1.0**, pure Rust, no
+  FFI) reads the file format; checked in the source (`~/.cargo/registry/src/…/sword-modules-0.1.0`): drivers zText,
+  zText4, RawText, RawText4 (plus commentaries/lexicons, which Baruch does not use), conf according to `docs/spec/conf.md`
+  (continuation lines, RTF `About`), `DataPath` relative to the module folder (leading `./` or `/` removed), all 18
+  SWORD versifications as facts from the runtime API, index per testament (position 0 module head, 1 testament head,
+  per book introduction, per chapter introduction, then verses), block cache, normalisation of the entries. It
+  documents a clean-room replacement of parts formerly ported from libsword (`CLEANROOM.md`); dependency
+  `topos-bible` 0.6 (CC0-1.0, references, not used by Baruch) and its regex, smallvec, itertools and others
+  (MIT/Apache). Included with `default-features = false, features = ["zip"]`: no installer, no network (ureq,
+  zip, tar), no bzip2/xz (since Round 17c `features = ["zip", "bzip2", "xz"]`, still without `install`/`https`). **Not used:** libsword (GPL-2.0) and `rsword_chirho` (GPL-2.0-or-later), no
+  code from them. Baruch's own code: module folders and choice, check of support, `DataPath` guard
+  (`..` → refused), OSIS/ThML/GBF → plain text, versification reconciliation, wording comparison, search, test modules.
+- **Crate `baruch-sword`** (pure except for file access): `scan(dirs)` → `BibleInfo` (name, description, About as
+  text, Versification, Lang, Version, ModDrv, CompressType, BlockType, SourceType, Encoding, DistributionLicense,
+  Copyright, `notice` = licence note, `supported`/`problem`), the first occurrence of a name wins; only
+  Bible modules. `open(info)` → `Bible` (`verse`, `intro`, `slot_text`, `passage` at most 400 verses, `search` linear
+  with hit and time limit). Supported: zText/zText4 with ZIP or LZSS, RawText/RawText4; versification only
+  „German“ and „KJV“ (`baruch_scripture::versification`), others → „nicht unterstützt“ (STUB in
+  `versification.rs`); encrypted modules → STUB. (State before Round 17; since R17 every versification of
+  `baruch_scripture::versification()`, BZIP2/XZ and `CipherKey`, see "Round 17c – pruefanzeige".) `text::to_plain`: `note`, `rdg`, `title` (except
+  `canonical="true"`), `catchWord`, `figure` (ThML also `scripRef`, `h1`–`h6`; GBF `<RF>…<Rf>`, `<TS>…<Ts>`)
+  are dropped; `divineName`, `w`, `q`, `transChange` stay as text; entities, white space collapsed.
+  `fixture`: writes test modules (zText BOOK/CHAPTER/VERSE with zlib, RawText) with its **own** position arithmetic from
+  the numbers of `baruch-scripture`; tests `tests/modules.rs` read them back through `sword-modules` (every kind of position,
+  both versifications, all block kinds) and compare the tables of `sword-modules` verse by verse with ours.
+  Evidence on the real module GerSch: `ot.bzv` 241850 bytes = 24185 positions, `nt.bzv` 8246 positions – exactly the
+  number of positions of the versification German.
+- **Versification KJV:** `baruch-scripture/data/versification-kjv.tsv` (31102 verses; the former eBible table from
+  the history before `6e1e268`), equal to the KJV table of `sword-modules`; `versification::{german, versification}`.
+- **Wording** (`baruch_scripture::wording`, pure): `inline_quotes` („…“, “…”, »…«, «…», "…", `#quote[…]`; an
+  empty line ends the search), block quotations through `baruch_wysiwyg::parse` (`BlockKind::Quote`, range of the content
+  by bracket counting, `bibles::block_quotes`), `quote_for` (quotation directly before or after the reference, in between only
+  white space/punctuation/other references of the same list, at most 24 bytes; block quotation with the reference in the attribution
+  or at the end), `words` (Typst markup removed, hyphens/apostrophes/soft hyphen inside the word removed,
+  hyphenation „Hei- land“ joined except before „und/oder“, lower case), `compare` (gapless word sequence per part between
+  omissions → matches, otherwise a word diff over the longest common subsequence, limited to the quoted
+  range). Another versification in the module: checked only if every affected chapter has the same number of verses in German and in the module,
+  otherwise `versification_mismatch` (no mapping between versifications).
+- **Server `src/bibles.rs`:** RPC `bible.*`, `Choice` (none, missing, unreadable, ready), cache of
+  opened modules per conf file and modification time (at most 8), reading in `spawn_blocking` for scan, opening and
+  search; `check_wording` per reference. Page Settings → Sources (`connections/pages.rs`, `settings/quellen.html`,
+  block `#bibeln`). MCP `src/mcp/bibles.rs`. Only the running service reads the real module folders; tests always set
+  their own folders.
+- **Store (migration 0030):** `bible_dir (position, path UNIQUE)` and `store_meta.bible_dirs` (set = own
+  list, also empty; missing = defaults), `work_bible (work_id → work ON DELETE CASCADE, module)`; `bible_dirs`,
+  `set_bible_dirs`, `work_bible`, `set_work_bible` (`src/bibles.rs`), no commit in the mirror (no book text). Test
+  `tests/migration_0030.rs` (lossless, a second opening equal, deleting the work takes the choice along).
 
-### Verbindung je Persona (Runde 15b, `models.rs`, `baruch-llm/src/client.rs`, Migration 0036)
+### Connection per persona (Round 15b, `models.rs`, `baruch-llm/src/client.rs`, migration 0036)
 
-- **`baruch_llm::Client`** (Vertrag §3): `BackendKind {Eliezer, Openai, Ollama}`, `ModelInfo {id, context_length}`,
-  `Client::new(kind, Endpoint, Limits)` mit **einem** `reqwest::Client` je Endpunkt (Klone teilen ihn; Verbindungen
-  bleiben im Vorrat von reqwest), `models()` (`GET /v1/models`, bei Eliezer dazu die Kontextlängen aus der
-  Verwaltungsliste), `context_length(model)`, `chat_stream`. Die freien Funktionen `models`, `models_with`,
-  `chat_stream`, `chat_stream_with` bleiben als Hüllen (eigener HTTP-Client je Aufruf, wie bisher). Test
-  `tests/backends.rs` zählt am Nachbau (keep-alive) die TCP-Verbindungen: vier Abfragen über einen Client = eine
-  Verbindung, zwei freie Abfragen = zwei.
-- **Gemeldete Kontextlänge – Annahmen:**
-  - *Eliezer:* `GET /api/v1/models` (Verwaltungsliste in der Form von LM Studio 0.4) mit `key`,
-    `max_context_length` und `loaded_instances[].config.context_length`. Quelle: `docs/wiki/API.md` und
-    `crates/eliezer-api/src/lib.rs` im Projekt Eliezer (gelesen, nicht gegen den laufenden Dienst geprüft).
-    Gemeldet wird die Länge der geladenen Instanz, sonst `max_context_length`. Nur lesend; nie
-    `/api/v1/models/load|unload|estimate`. Ob Eliezer ein noch nicht geladenes Modell mit genau dieser Länge
-    lädt, sieht Baruch weiterhin nicht.
-  - *Ollama:* gemeldet wird die **wirksame** Länge, nie der Höchstwert: Der Chat läuft über
-    `/v1/chat/completions` ohne `num_ctx` (die OpenAI-Schnittstelle von Ollama nimmt keins), Ollama nimmt dann
-    `num_ctx` aus dem Modelfile, sonst seine Vorgabe, und schneidet längere Eingaben still vorn ab. Darum
-    `ollama_context`: `num_ctx` aus `parameters` von `POST /api/show {"model"}`; sonst `context_length` des
-    geladenen Modells aus `GET /api/ps` (`ollama_loaded_context`, Annahme: neuere Fassungen melden es; fehlt
-    `/api/ps`, zählt das nicht als Fehler); sonst `OLLAMA_DEFAULT_CONTEXT` = 4096 (Annahme nach der Ollama-Doku;
-    eine größere Vorgabe über `OLLAMA_CONTEXT_LENGTH` sieht Baruch erst bei geladenem Modell) – jeweils höchstens
-    `<arch>.context_length` aus `model_info`. Alles ungeprüft gegen einen echten Ollama, nur gegen den Nachbau
-    (`MockEliezer` mit `Flavor::Ollama`: `/api/show`, `/api/ps` ohne geladenes Modell). Modellliste über
+- **`baruch_llm::Client`** (contract §3): `BackendKind {Eliezer, Openai, Ollama}`, `ModelInfo {id, context_length}`,
+  `Client::new(kind, Endpoint, Limits)` with **one** `reqwest::Client` per endpoint (clones share it; connections
+  stay in the pool of reqwest), `models()` (`GET /v1/models`, with Eliezer in addition the context lengths from the
+  management list), `context_length(model)`, `chat_stream`. The free functions `models`, `models_with`,
+  `chat_stream`, `chat_stream_with` stay as wrappers (own HTTP client per call, as before). Test
+  `tests/backends.rs` counts the TCP connections at the mock (keep-alive): four queries through one client = one
+  connection, two free queries = two.
+- **Reported context length – assumptions:**
+  - *Eliezer:* `GET /api/v1/models` (management list in the form of LM Studio 0.4) with `key`,
+    `max_context_length` and `loaded_instances[].config.context_length`. Source: `docs/wiki/API.md` and
+    `crates/eliezer-api/src/lib.rs` in the project Eliezer (read, not checked against the running service).
+    Reported is the length of the loaded instance, otherwise `max_context_length`. Read only; never
+    `/api/v1/models/load|unload|estimate`. Whether Eliezer loads a model not yet loaded with exactly this length
+    is still not visible to Baruch.
+  - *Ollama:* reported is the **effective** length, never the maximum: the chat runs through
+    `/v1/chat/completions` without `num_ctx` (the OpenAI interface of Ollama takes none), Ollama then takes
+    `num_ctx` from the Modelfile, otherwise its default, and silently cuts longer input off at the front. Hence
+    `ollama_context`: `num_ctx` from `parameters` of `POST /api/show {"model"}`; otherwise `context_length` of the
+    loaded model from `GET /api/ps` (`ollama_loaded_context`, assumption: newer versions report it; if
+    `/api/ps` is missing, that does not count as an error); otherwise `OLLAMA_DEFAULT_CONTEXT` = 4096 (assumption after the Ollama docs;
+    a larger default through `OLLAMA_CONTEXT_LENGTH` is seen by Baruch only with a loaded model) – each at most
+    `<arch>.context_length` from `model_info`. All unchecked against a real Ollama, only against the mock
+    (`MockEliezer` with `Flavor::Ollama`: `/api/show`, `/api/ps` without a loaded model). Model list through
     `/v1/models`.
-  - *OpenAI-kompatibel:* keine Meldung; es gilt die Einstellung der Persona.
-- **Server `models.rs`:** Verbindungen aus dem Store (`model_connection`), `resolve` (Adresse, Schlüssel aus dem
-  Konto der Verbindung, nur wenn an das jetzige Ziel gebunden), `client_for` (Vorrat je Art, Adresse und
-  Fingerabdruck des Schlüssels), Warteschlange **je Endpunkt** (`status()` fasst zusammen), `route(state, persona)`
-  mit der Freigabe „extern“ (externe Verbindung ohne `persona_backend.external_allowed` → `NotConfigured`, keine
-  Anfrage), `chat_on`, `list_on` (60 s Zwischenspeicher, bei Fehler die abgelaufene Liste mit Hinweis),
-  `context` (min(Einstellung, Meldung), 60 s gemerkt, höchstens 10 s Wartezeit, scheitert nie),
-  `context_cached` (ohne Netz, für `persona.list` und die nicht gezeigten Tabs), `probe_on` (Ergebnis in
-  `model_connection.probe`), `check_connection`, RPC `model.*`. `EliezerPort::chat` ruft `route` mit
-  `ModelCall::persona`, `EliezerPort::context` ruft `models::context` – so gilt die Freigabe für jeden Modellaufruf
-  der Personas (auch Zusammenfassungen des Lektors), und der Lektor bekommt sein Budget über `state.model.context`.
-  Einbettungen (`rag/embed.rs`) nutzen weiter die Verbindung `eliezer` und die freien Funktionen; ist die
-  Modell-Verbindung Eliezer (id 1) als extern markiert, verweigert `rag::embed::endpoint` jede Einbettung
-  (`EXTERNAL_REFUSED`, als „kein Einbettungsmodell“ gemeldet) – Einbetten hat keine Persona, also keine Freigabe.
-- **Lage nach der Adresse** (`models::looks_local`, ohne DNS): lokal sind Loopback, private, CGNAT- und
-  Link-local-Adressen, ULA, Rechnernamen ohne Punkt und `.localhost`/`.local`/`.lan`/`.internal`/`.home.arpa`.
-  `model.connection_set` ohne `external`: beim Anlegen `!looks_local(url)`, beim Ändern bleibt extern, und eine neue
-  nicht erkennbar lokale Adresse macht extern. `describe` setzt `locality_warning`, wenn eine lokal geführte
-  Verbindung auf eine nicht erkennbar lokale Adresse zeigt (Anzeige auf der Seite, keine Sperre: ein Intranet-Name
-  darf bewusst lokal sein).
-- **Store (Migration 0036):** `model_connection (id, name UNIQUE NOCASE, kind, url NULL nur bei id 1, external,
-  account UNIQUE, secret_target, probe, checked, position, …)` ohne AUTOINCREMENT (sonst änderte die Migration
-  `sqlite_sequence`, das die älteren Migrationstests vergleichen); neue ids vergibt der Store über
-  `store_meta.model_connection_last` nie doppelt (ein neues Konto `baruch/model-<id>` erbt nie den Schlüssel einer
-  gelöschten Verbindung). Die Verbindung Eliezer (id 1) stammt aus der Migration, ihre Adresse und Bindung bleiben
-  in `connection` (nicht doppelt geführt), ein Trigger verhindert ihr Löschen. `persona_backend (persona_id,
-  connection_id ON DELETE CASCADE, external_allowed)`; keine Zeile = Eliezer, nicht freigegeben. `PersonaRow` bleibt
-  unverändert. Test `tests/migration_0036.rs`.
-- **Seiten:** Einstellungen → Verbindungen, Abschnitt `#modelle` (`connections/pages.rs`, Formular
-  `POST /einstellungen/modelle/act` im Router von `connections::writes`, hinter `guard::same_origin`);
-  Einstellungen → Assistenten, je Tab `action=backend` und `action=bible` (`personas.rs`, `settings/assistants.rs`).
+  - *OpenAI-compatible:* no report; the setting of the persona applies.
+- **Server `models.rs`:** connections from the store (`model_connection`), `resolve` (address, key from the
+  account of the connection, only if bound to the current target), `client_for` (pool per kind, address and
+  fingerprint of the key), queue **per endpoint** (`status()` summarises), `route(state, persona)`
+  with the release „extern“ (external connection without `persona_backend.external_allowed` → `NotConfigured`, no
+  request), `chat_on`, `list_on` (60 s cache, on error the expired list with a hint),
+  `context` (min(setting, report), remembered 60 s, at most 10 s waiting time, never fails),
+  `context_cached` (without network, for `persona.list` and the tabs not shown), `probe_on` (result in
+  `model_connection.probe`), `check_connection`, RPC `model.*`. `EliezerPort::chat` calls `route` with
+  `ModelCall::persona`, `EliezerPort::context` calls `models::context` – so the release applies to every model call
+  of the personas (also summaries of the lector), and the lector gets its budget through `state.model.context`.
+  Embeddings (`rag/embed.rs`) keep using the connection `eliezer` and the free functions; if the
+  model connection Eliezer (id 1) is marked as external, `rag::embed::endpoint` refuses every embedding
+  (`EXTERNAL_REFUSED`, reported as „kein Einbettungsmodell“) – embedding has no persona, thus no release.
+- **Location by address** (`models::looks_local`, without DNS): local are loopback, private, CGNAT and
+  link-local addresses, ULA, host names without a dot and `.localhost`/`.local`/`.lan`/`.internal`/`.home.arpa`.
+  `model.connection_set` without `external`: when creating `!looks_local(url)`, when changing external stays, and a new
+  address not recognisably local makes it external. `describe` sets `locality_warning` when a connection kept as local
+  points to an address not recognisably local (display on the page, no block: an intranet name
+  may deliberately be local).
+- **Store (migration 0036):** `model_connection (id, name UNIQUE NOCASE, kind, url NULL nur bei id 1, external,
+  account UNIQUE, secret_target, probe, checked, position, …)` without AUTOINCREMENT (otherwise the migration would change
+  `sqlite_sequence`, which the older migration tests compare); new ids are given by the store through
+  `store_meta.model_connection_last` never twice (a new account `baruch/model-<id>` never inherits the key of a
+  deleted connection). The connection Eliezer (id 1) stems from the migration, its address and binding stay
+  in `connection` (not kept twice), a trigger prevents its deletion. `persona_backend (persona_id,
+  connection_id ON DELETE CASCADE, external_allowed)`; no row = Eliezer, not released. `PersonaRow` stays
+  unchanged. Test `tests/migration_0036.rs`.
+- **Pages:** Settings → Connections, section `#modelle` (`connections/pages.rs`, form
+  `POST /einstellungen/modelle/act` in the router of `connections::writes`, behind `guard::same_origin`);
+  Settings → Assistants, per tab `action=backend` and `action=bible` (`personas.rs`, `settings/assistants.rs`).
 
-### Kommentare und Lexika (Runde 15, Punkte 5a–5c, Migration 0037)
+### Commentaries and lexicons (Round 15, items 5a–5c, migration 0037)
 
-- **`baruch-sword/src/reference.rs`:** `Commentary` (RawCom, RawCom4, zCom, zCom4; Verszählung German oder KJV;
-  `entries(book, start, end)` fasst gleiche Einträge benachbarter Verse zu einem Bereich zusammen; lineare Suche)
-  und `Lexicon` (RawLD, RawLD4, zLD; `lookup` mit `@LINK`, `keys(prefix, limit)`, `search` in Stichwort und Text).
-  Klartext über `text::to_plain`, je Eintrag höchstens `MAX_ENTRY_CHARS` (20 000). `scan` füllt seit R15 auch
-  `Scan::commentaries`/`lexicons`, `BibleInfo.kind` (`SourceKind`); `Scan::find` bleibt bei Bibeln. HREFCom,
-  RawFiles, verschlüsselte Module und fremde Verszählungen: `supported: false` mit Grund. Testmodule:
-  `fixture::Layout::{RawCom, ZCom}` und `fixture::{LexiconFixture, LexLayout, write_lexicon}` (Index, `.dat`,
-  zLD-Blöcke mit ZIP), Tests `tests/reference.rs`.
-- **Server `bibles.rs`:** Zwischenspeicher je Art (höchstens 8 offene Module), `commentary_by_name`,
+- **`baruch-sword/src/reference.rs`:** `Commentary` (RawCom, RawCom4, zCom, zCom4; versification German or KJV;
+  `entries(book, start, end)` merges equal entries of neighbouring verses into one range; linear search)
+  and `Lexicon` (RawLD, RawLD4, zLD; `lookup` with `@LINK`, `keys(prefix, limit)`, `search` in keyword and text).
+  Plain text through `text::to_plain`, per entry at most `MAX_ENTRY_CHARS` (20 000). Since R15 `scan` also fills
+  `Scan::commentaries`/`lexicons`, `BibleInfo.kind` (`SourceKind`); `Scan::find` stays with Bibles. HREFCom,
+  RawFiles, encrypted modules and foreign versifications: `supported: false` with a reason. Test modules:
+  `fixture::Layout::{RawCom, ZCom}` and `fixture::{LexiconFixture, LexLayout, write_lexicon}` (index, `.dat`,
+  zLD blocks with ZIP), tests `tests/reference.rs`.
+- **Server `bibles.rs`:** cache per kind (at most 8 open modules), `commentary_by_name`,
   `lexicon_by_name` (`Source::Ready`/`Problem`), RPC `commentary.*`, `lexicon.*`, `bible.work_sources`/
-  `set_work_sources`, `bible.modules` mit `kind`. HTML-Bausteine für die Literatur: `commentary_panel_html`
-  (`<details class="commentaries" data-widget="commentaries">`, je Modul Name, Einträge, Lizenz; alles maskiert)
-  und `commentary_hits_html` (Gruppen „Kommentar“ mit Links `/literatur/bibel?work=…&ref=…&kom=1<tail>`, gesamt
-  3 s, 10 Treffer je Gruppe). Stil `static/commentaries.css`. MCP `mcp/bibles.rs`: `commentary_lookup`,
-  `lexicon_lookup`, `lexicon_search` (nur lesend).
-- **`bible_research.rs` (Daten des Faktenblocks):** `research(state, work, persona, text, max_chars)` – Schalter
-  und Erlaubnis (`personas::bible_state`: @belege Vorgabe an, Lektor Vorgabe aus, sonst nie), Stellen nur aus
-  `baruch_scripture::scan` (ungültige → Hinweis, kein Text), je Stelle Wortlaut der Werk-Bibel, dann je gewähltem
-  Kommentar dessen Einträge; zuletzt Lexikon-Artikel zu Stichwörtern (seit Runde 17b: Strong-Nummern der Verse bei
-  einer Bibel mit Auszeichnung, dann Strong-Nummern und großgeschriebene Wörter des Texts mit Lemma-Probe;
-  höchstens 5 je Lexikon). Gesamtlänge ≤ `max_chars` (je Beleg ≤ 1500), höchstens 12
-  Stellen; Lesen in `spawn_blocking`. `None`, wenn kein Block gehört (Schalter aus, nicht erlaubt, weder Bibel noch
-  Kommentar noch Lexikon gewählt). Die Darstellung im Kontext ist Sache des Lektors (`assist/bible_facts.rs`).
-- **Store (Migration 0037):** `work_sword_source (work_id ON DELETE CASCADE, kind commentary|lexicon, module,
+  `set_work_sources`, `bible.modules` with `kind`. HTML building blocks for the literature: `commentary_panel_html`
+  (`<details class="commentaries" data-widget="commentaries">`, per module name, entries, licence; everything escaped)
+  and `commentary_hits_html` (groups „Kommentar“ with links `/literatur/bibel?work=…&ref=…&kom=1<tail>`, total
+  3 s, 10 hits per group). Style `static/commentaries.css`. MCP `mcp/bibles.rs`: `commentary_lookup`,
+  `lexicon_lookup`, `lexicon_search` (read only).
+- **`bible_research.rs` (data of the fact block):** `research(state, work, persona, text, max_chars)` – switch
+  and permission (`personas::bible_state`: @belege default on, lector default off, otherwise never), references only from
+  `baruch_scripture::scan` (invalid ones → hint, no text), per reference the wording of the work's Bible, then per chosen
+  commentary its entries; finally lexicon articles on keywords (since Round 17b: Strong numbers of the verses with
+  a Bible with markup, then Strong numbers and capitalised words of the text with a lemma probe;
+  at most 5 per lexicon). Total length ≤ `max_chars` (per evidence item ≤ 1500), at most 12
+  references; reading in `spawn_blocking`. `None` if no block belongs there (switch off, not allowed, neither Bible nor
+  commentary nor lexicon chosen). The presentation in the context is the business of the lector (`assist/bible_facts.rs`).
+- **Store (migration 0037):** `work_sword_source (work_id ON DELETE CASCADE, kind commentary|lexicon, module,
   position)`, `persona_bible (persona_id, enabled)`; `src/sword_sources.rs`. Test `tests/migration_0037.rs`.
-- **Seite:** Einstellungen → Werk, Block `#kommentare` (`settings/work.rs`, Formular `POST /einstellungen/werk/bibeln`,
-  Handler `connections::pages::work_bibles_act`, weil die Router von `settings/` nicht zu diesem Zweig gehören).
+- **Page:** Settings → Work, block `#kommentare` (`settings/work.rs`, form `POST /einstellungen/werk/bibeln`,
+  handler `connections::pages::work_bibles_act`, because the routers of `settings/` do not belong to this branch).
 
-### MCP-Tokens (Migration 0016)
+### MCP tokens (migration 0016)
 
-- Tabelle `mcp_token (id, name, hash UNIQUE, prefix, created, last_used, revoked)`, Teilindex
-  `mcp_token_active_name` (Name eindeutig unter gültigen). Store `src/mcp_tokens.rs`: `MCP_TOKEN_PREFIX =
-  "baruch_"`, `McpToken` (ohne Hash/Klartext), `mcp_token_create` (32 Bytes `getrandom`, Base64url ohne Füllung,
-  SHA-256 hex, `prefix` = erste 12 Zeichen), `mcp_token_list`, `mcp_token_revoke` (idempotent),
-  `mcp_token_verify` (nur nicht widerrufene; `last_used` höchstens einmal je Minute).
-- Server `src/mcp/tokens.rs` (RPC `mcp_token.*`, nur Mensch), `src/settings/access.rs` (Seite und
-  `POST /einstellungen/mcp/act`; der frische Klartext geht über ein eigenes `tokio::task_local` nur in diese eine
-  Antwort, `Cache-Control: no-store`), Vorlage `templates/settings/mcp.html`.
+- Table `mcp_token (id, name, hash UNIQUE, prefix, created, last_used, revoked)`, partial index
+  `mcp_token_active_name` (name unique among valid ones). Store `src/mcp_tokens.rs`: `MCP_TOKEN_PREFIX =
+  "baruch_"`, `McpToken` (without hash/plain text), `mcp_token_create` (32 bytes `getrandom`, Base64url without padding,
+  SHA-256 hex, `prefix` = first 12 characters), `mcp_token_list`, `mcp_token_revoke` (idempotent),
+  `mcp_token_verify` (only non-revoked ones; `last_used` at most once per minute).
+- Server `src/mcp/tokens.rs` (RPC `mcp_token.*`, human only), `src/settings/access.rs` (page and
+  `POST /einstellungen/mcp/act`; the fresh plain text goes through its own `tokio::task_local` only into this one
+  answer, `Cache-Control: no-store`), template `templates/settings/mcp.html`.
 
-### Aufträge aus der Oberfläche, Fäden und MCP-Grenzen (Runde 15, „auftraege“)
+### Tasks from the user interface, threads and MCP limits (Round 15, „auftraege“)
 
-- **Strom:** `assist/routes.rs` leitet die Ereignisse aus `Progress` weiter (`posted`, `retry`, `compressed`,
-  Schnittstelle S2) und gibt `done.compressed` aus; `assist.ts` setzt den eigenen Beitrag sofort in den Chat,
-  verwirft bei `retry` das Gezeigte der Persona und meldet `compressed` als `baruch:toast` (Empfänger `toast.ts` des
-  Lektors). Abbrechen: im Chat sind Beitrag und fertige Antworten schon gespeichert (Neuzeichnen), sonst nichts.
-- **Hinweisseite:** `assist::routes::notice_page[_with]` rendert `assist_notice.html` (Status 200) in
-  `view::environment()` + eigener Vorlage; ist dort `fragments/toast.html` (Lektor) registriert, bindet die Seite
-  ihn ein, sonst einen gleichwertigen Kasten. Genutzt von `/assistenten/act`, „an Persona geben“ und der Bibelseite.
-  Rücksprünge nur auf eigene Pfade (`safe_back`).
-- **Fäden ohne Abschnitt (Migration 0038):** Tabellen `chat_thread (id, work_id → work ON DELETE CASCADE, title,
-  created_by, created, updated)` und `chat_thread_post (thread_id → chat_thread ON DELETE CASCADE, position UNIQUE je
-  Faden, author, body, sources JSON, created)`; Store `src/threads.rs` (`thread_list/get/create/add_post`, je eine
-  Transaktion, unbekannter oder fremder Faden → `Refused`). Server `src/threads.rs`: RPC `thread.*`, Seiten
-  `/faeden`, `/faden`, `POST /faden/act`, und `threads::chat` – eigener, schlanker Kontext (Rollen-Prompt, Werk,
-  letzte 12 Beiträge, Auftrag) mit eigenem Modellaufruf über `state.model` (verbotene Einleitung einmal neu,
-  `hooks::mark_answer`, `CUT_NOTE`); `assist::run` bleibt abschnittsgebunden. Test `migration_0038.rs`.
-- **Relay:** eine Stufe – nur Antworten auf die ursprüngliche Nachricht rufen weiter, jede Persona höchstens einmal,
-  alle Antworten zusammen `MAX_CHAT_PERSONAS`. Im Faden in `threads::chat` (`relay: true` nur für MCP), im
-  Abschnitts-Chat über MCP bis Runde 22 in `mcp/tools.rs` (`relay_section` nach `assist::chat`; seit Runde 23 ein Weg
-  `assist::chat::relay_targets` für Oberfläche und MCP: nur Erwähnungen aus Antworten,
-  die nicht selbst aus dem Relay von Runde 30c stammen – `ChatOutcome::relayed` –, gerahmt über
-  `OrderFrame::relay` mit `relay_text` als Auftrag). Der Chat der Oberfläche (`persona.chat`) reicht nur bei
-  direkter Anrede weiter (Runde 30c).
-- **Warteschlange je MCP-Client:** `mcp/quota.rs` (über `#[path]` in `mcp/tools.rs` eingebunden, `mcp.rs`
-  unverändert): Zähler je (Zustand des Servers, Client-Handle), `Slot` gibt beim Fallen frei; höchstens 2 laufende
-  bzw. wartende `chat`/`ask_persona` je Client, sonst `isError` vor jeder Modellanfrage. Seit Runde 23 teilen sich
-  alle Clients ohne Token zusätzlich vier Plätze (siehe „Runde 23 – Härtung“, mcp-namen).
-- **Einfälle:** `ideas::idea_source` nennt die Herkunft („Einfall n von @x“) als Quelle des Beitrags; die Seite
-  des Einfalls bietet die Persona-Auswahl (`persona` im Formular).
-- **Abzeichen „neu“ (`chat.ts`):** Beiträge des Menschen tragen `data-post-own` (Vorlage vergleicht mit „Autor“ =
-  `mirror::HUMAN_NAME`); gemerkt werden nur Zeiten des Servers bzw. „leer“, dazu je Werk der letzte Stand für den
-  ersten Besuch eines Abschnitts.
+- **Stream:** `assist/routes.rs` forwards the events from `Progress` (`posted`, `retry`, `compressed`,
+  interface S2) and outputs `done.compressed`; `assist.ts` puts the own post into the chat immediately,
+  discards what the persona has shown so far on `retry` and reports `compressed` as `baruch:toast` (receiver `toast.ts` of the
+  lector). Cancelling: in the chat, post and finished answers are already stored (redraw), otherwise nothing.
+- **Notice page:** `assist::routes::notice_page[_with]` renders `assist_notice.html` (status 200) in
+  `view::environment()` + own template; if `fragments/toast.html` (lector) is registered there, the page includes
+  it, otherwise an equivalent box. Used by `/assistenten/act`, „an Persona geben“ and the Bible page.
+  Return jumps only to own paths (`safe_back`).
+- **Threads without a section (migration 0038):** tables `chat_thread (id, work_id → work ON DELETE CASCADE, title,
+  created_by, created, updated)` and `chat_thread_post (thread_id → chat_thread ON DELETE CASCADE, position UNIQUE je
+  Faden, author, body, sources JSON, created)`; store `src/threads.rs` (`thread_list/get/create/add_post`, one
+  transaction each, unknown or foreign thread → `Refused`). Server `src/threads.rs`: RPC `thread.*`, pages
+  `/faeden`, `/faden`, `POST /faden/act`, and `threads::chat` – its own lean context (role prompt, work,
+  last 12 posts, task) with its own model call through `state.model` (forbidden opening once anew,
+  `hooks::mark_answer`, `CUT_NOTE`); `assist::run` stays bound to sections. Test `migration_0038.rs`.
+- **Relay:** one stage – only answers to the original message call on, every persona at most once,
+  all answers together `MAX_CHAT_PERSONAS`. In the thread in `threads::chat` (`relay: true` only for MCP), in the
+  section chat through MCP until Round 22 in `mcp/tools.rs` (`relay_section` after `assist::chat`; since Round 23 one way
+  `assist::chat::relay_targets` for user interface and MCP: only mentions from answers
+  that do not themselves stem from the relay of Round 30c – `ChatOutcome::relayed` –, framed through
+  `OrderFrame::relay` with `relay_text` as the task). The chat of the user interface (`persona.chat`) passes on only with
+  direct address (Round 30c).
+- **Queue per MCP client:** `mcp/quota.rs` (included through `#[path]` in `mcp/tools.rs`, `mcp.rs`
+  unchanged): counter per (state of the server, client handle), `Slot` releases when dropped; at most 2 running
+  or waiting `chat`/`ask_persona` per client, otherwise `isError` before any model request. Since Round 23
+  all clients without a token additionally share four slots (see "Round 23 – Hardening", mcp-namen).
+- **Ideas:** `ideas::idea_source` names the origin („Einfall n von @x“) as the source of the post; the page
+  of the idea offers the persona choice (`persona` in the form).
+- **Badge „neu“ (`chat.ts`):** posts of the human carry `data-post-own` (the template compares with „Autor“ =
+  `mirror::HUMAN_NAME`); only times of the server or „leer“ are remembered, plus per work the last state for the
+  first visit of a section.
 
-### Integration Runde 15 (Integrator, 2026-11-08)
+### Integration Round 15 (integrator, 2026-11-08)
 
-- Zusammengeführt `team/anbieter` → `team/lektor` → `team/auftraege` (`--no-ff`); die Schnittstellen S1/S2 lagen per
-  cherry-pick in den anderen Zweigen, bei Konflikten galt die Fassung des Besitzers (§9), dazu die Verdrahtungszeilen
-  aus §10 vereinigt (`lib.rs` STYLE, `tests/main.rs`, `web/src/main.ts`, `docs/RPC.md`).
-- **`.toast` doppelt belegt:** `app.css` hat seit Runde 1 `.toast` für die kurzen roten Fehlermeldungen
-  (`literature.ts`, `outline.ts`, `workspace.ts`, `ideas.ts`, `wysiwyg.ts`, fest unten in der Mitte). Der Hinweis des
-  Lektors nutzt dieselbe Klasse; ohne Anpassung klebte er ohne JavaScript fest unten, und die Fehlermeldungen verloren
-  ihr Rot. `static/toast.css` gilt darum nur für `.toast[data-widget="toast"]` (Test
+- Merged `team/anbieter` → `team/lektor` → `team/auftraege` (`--no-ff`); the interfaces S1/S2 lay in the other branches
+  via cherry-pick, in conflicts the revision of the owner applied (§9), plus the wiring lines
+  from §10 united (`lib.rs` STYLE, `tests/main.rs`, `web/src/main.ts`, `docs/RPC.md`).
+- **`.toast` used twice:** since Round 1 `app.css` has `.toast` for the short red error messages
+  (`literature.ts`, `outline.ts`, `workspace.ts`, `ideas.ts`, `wysiwyg.ts`, fixed at the bottom centre). The hint of the
+  lector uses the same class; without adjustment it stuck at the bottom without JavaScript, and the error messages lost
+  their red. That is why `static/toast.css` applies only to `.toast[data-widget="toast"]` (test
   `round15::the_hint_toast_does_not_restyle_the_error_toasts_of_other_widgets`).
-- **Quellen für [Sn]:** `Prepared.bible_labels` (Kurzangabe je Beleg) und `bible_facts::cited_sources`: jedes in der
-  Antwort zitierte `[Sn]` wird Quelle des Beitrags („SWORD [Sn] <Art> <Modul>, <Stelle>“); ohne das blieb die Nummer
-  für den Leser unauflösbar.
-- **Kontext bei OpenAI-kompatibel:** `models::context` und `context_cached` geben für `kind = openai` nie eine
-  gemeldete Länge zurück (Vertrag §3), auch wenn eine Eliezer-Verbindung derselben Adresse die Zwischenspeicher
-  (je Adresse und Modell) gefüllt hat.
-- **Prüfung MultiGPT:** die Grenze je Anfrage liegt 1 s über der gemeinsamen Grenze (`check::multigpt`); bei gleicher
-  Länge lief unter Last die Grenze von `list_collections` zuerst ab, und die Prüfung meldete „steht“ (Test
-  `round13_quellen::the_check_has_one_timeout_for_all_requests` schlug im vollen Lauf einmal fehl).
-- MCP `initialize` nennt die neuen Werkzeuge (`commentary_lookup`, `lexicon_*`), `scope`, den Faden ohne Abschnitt und
-  die Warteschlange je Client. `/faeden` und `/literatur/bibel` stehen in `round9_menu::all_pages`.
-- Ende-zu-Ende `tests/round15.rs`: Faktenblock mit echtem `bible_research::research` (Bibel, Kommentar mit
-  eingeschleuster „Anweisung“, Lexikon) für `@belege` und den Lektor mit Schalter; Kommentar-Panel und Gruppe
-  „Kommentar“; „an Persona geben“ von der Bibelseite; komprimierter Kapitelbefund über das Formular ohne JavaScript →
-  Hinweisseite mit dem echten Toast; Persona auf Ollama-Nachbau mit gemeldeter kleinerer Länge (komprimiert,
-  nacheinander); externe Verbindung ohne Freigabe auch bei Zusammenfassungen ohne Anfrage; OpenAI ohne Länge; MCP
-  `commentary_lookup` über den echten Eingang.
+- **Sources for [Sn]:** `Prepared.bible_labels` (short reference per evidence item) and `bible_facts::cited_sources`: every `[Sn]` quoted in the
+  answer becomes a source of the post („SWORD [Sn] <Art> <Modul>, <Stelle>“); without that the number stayed
+  unresolvable for the reader.
+- **Context with OpenAI-compatible:** `models::context` and `context_cached` never return a
+  reported length for `kind = openai` (contract §3), even if an Eliezer connection with the same address has filled the caches
+  (per address and model).
+- **Check MultiGPT:** the limit per request lies 1 s above the common limit (`check::multigpt`); with equal
+  length the limit of `list_collections` expired first under load, and the check reported „steht“ (test
+  `round13_quellen::the_check_has_one_timeout_for_all_requests` failed once in the full run).
+- MCP `initialize` names the new tools (`commentary_lookup`, `lexicon_*`), `scope`, the thread without a section and
+  the queue per client. `/faeden` and `/literatur/bibel` stand in `round9_menu::all_pages`.
+- End-to-end `tests/round15.rs`: fact block with the real `bible_research::research` (Bible, commentary with
+  an injected „Anweisung“, lexicon) for `@belege` and the lector with the switch; commentary panel and group
+  „Kommentar“; „an Persona geben“ from the Bible page; compressed chapter finding through the form without JavaScript →
+  notice page with the real toast; persona on an Ollama mock with a reported smaller length (compressed,
+  one after another); external connection without release also for summaries, without a request; OpenAI without length; MCP
+  `commentary_lookup` through the real entry.
 
-## Suche und Spiegel im Einzelnen
+## Search and mirror in detail
 
-- **baruch-library:** `fts_query` macht NUL und Steuerzeichen zu Worttrennern; bleibt nichts übrig,
-  `EmptyQuery`. FTS5-`snippet()` arbeitet mit den Marken U+E000/U+E001; `search.rs::snippet_html`
-  maskiert den Text (`& < > " '`) und übersetzt die Marken ausgeglichen in `<mark>…</mark>`.
-  Hervorhebungen stehen als `kind = 'highlight'` im Index (Trigger aus `0103_highlights.sql`, auch für
-  Umbenennen und Löschen des Titels); die Abfrage verbindet sie mit `library_highlight`, lässt
-  `rejected` weg und füllt `quote_id`/`highlight_id` im Treffer. `build.rs` baut bei neuen Migrationen neu.
-- **Beiträge im Index (0105, `0105_post_index.sql`):** `post_fts_delete` entfernt die Indexzeile eines
-  gelöschten Beitrags, `post_fts_move` trägt bei geändertem `post.node_id` Titel und Werk des neuen Abschnitts
-  ein (Werke löschen, Gliederungspunkte zusammenführen); die Migration räumt verwaiste `post`-Zeilen auf.
-  Die Abfrage lässt Werktreffer ohne lebenden Abschnitt ohnehin weg.
-- **baruch-gitmirror:** Vor jedem Commit werden alle Zwischenordner der alten und neuen Pfade mit
-  `symlink_metadata` geprüft, beim Schreiben werden fehlende Ordner einzeln angelegt (`walk_parents`).
-  Ein Symlink ergibt `MirrorError::InvalidPath`, bevor im Arbeitsordner etwas geändert wird. Eine Datei,
-  die selbst ein Symlink ist, wird durch eine echte Datei ersetzt, ihr Ziel bleibt unberührt. Ohne
-  Änderung am Baum entsteht kein Commit, außer `CommitRequest::allow_empty` ist gesetzt (Protokoll-Commit
-  mit demselben Baum wie sein Vorgänger).
-- **Nachholen:** Scheitert ein Commit, holt der nächste Schnappschuss den vollen DB-Stand nach (Test
+- **baruch-library:** `fts_query` turns NUL and control characters into word separators; if nothing is left,
+  `EmptyQuery`. FTS5 `snippet()` works with the marks U+E000/U+E001; `search.rs::snippet_html`
+  escapes the text (`& < > " '`) and translates the marks, balanced, into `<mark>…</mark>`.
+  Highlights stand as `kind = 'highlight'` in the index (triggers from `0103_highlights.sql`, also for
+  renaming and deleting the title); the query joins them with `library_highlight`, leaves out
+  `rejected` and fills `quote_id`/`highlight_id` in the hit. `build.rs` rebuilds on new migrations.
+- **Posts in the index (0105, `0105_post_index.sql`):** `post_fts_delete` removes the index row of a
+  deleted post, `post_fts_move` enters title and work of the new section when `post.node_id` changes
+  (deleting works, merging outline items); the migration clears orphaned `post` rows.
+  The query leaves out work hits without a living section anyway.
+- **baruch-gitmirror:** before every commit all intermediate folders of the old and new paths are checked with
+  `symlink_metadata`, when writing missing folders are created one by one (`walk_parents`).
+  A symlink results in `MirrorError::InvalidPath` before anything is changed in the working folder. A file
+  that is itself a symlink is replaced by a real file, its target stays untouched. Without a
+  change to the tree no commit comes about, unless `CommitRequest::allow_empty` is set (log commit
+  with the same tree as its predecessor).
+- **Catching up:** if a commit fails, the next snapshot catches up the full DB state (test
   `a_mirror_catches_up_after_an_error`).
 
-## Ablauf einer Änderung
+## Course of a change
 
-1. `revision.accept`, `revision.set_current`, `revision.save`, `revision.update` bzw. `revision.delete`
-   nimmt die **Schreibsperre** (`AppState::write_lock`).
-2. Die Änderung wird in einer Transaktion in SQLite geschrieben.
-3. Noch unter der Sperre: Schnappschuss der aktuellen Revisionen, Commit im Spiegel mit Autor, Rumpf und
-   Trailern dieser Änderung (`Persona`, `Model`, `Baruch-Node`, `Baruch-Revision`, `Baruch-Action`; siehe
-   „Revisionsbaum“).
-4. Sperre frei. Die Antwort trägt `commit` oder bei Spiegelfehler `mirror`.
+1. `revision.accept`, `revision.set_current`, `revision.save`, `revision.update` or `revision.delete`
+   takes the **write lock** (`AppState::write_lock`).
+2. The change is written to SQLite in one transaction.
+3. Still under the lock: snapshot of the current revisions, commit in the mirror with author, body and
+   trailers of this change (`Persona`, `Model`, `Baruch-Node`, `Baruch-Revision`, `Baruch-Action`; see
+   "Revision tree").
+4. Lock free. The answer carries `commit` or, on a mirror error, `mirror`.
 
-Die Sperre deckt Schritt 2 und 3 ab: Liefen zwei Änderungen gleichzeitig, enthielte sonst der erste
-Schnappschuss beide und der zweite Commit fiele aus. Verwerfen und Beiträge ändern den Spiegel nicht
-und laufen ohne Sperre.
+The lock covers steps 2 and 3: if two changes ran at the same time, the first
+snapshot would otherwise contain both and the second commit would drop out. Discarding and posts do not change the mirror
+and run without the lock.
 
-## Schutz der Schnittstellen
+## Protection of the interfaces
 
-`/rpc`, `/act` und `/mcp` liegen hinter `guard::same_origin`: `Sec-Fetch-Site` muss `same-origin` oder
-`none` sein, `Origin` (falls da) muss zu `Host` passen; sonst 403. `/rpc` und `/mcp` verlangen
-`Content-Type: application/json` (sonst 415), damit ein fremder `fetch` einen Preflight bräuchte.
-Lesende GET-Seiten, die teure Wege mit Zugangsdaten auslösen würden – die Bedeutungssuche in
-`GET /literatur?…&lmode=rag` und `GET /einfaelle?…&mode=rag` –, prüfen dieselbe Regel (`guard::check`); bei
-einer fremden Seite läuft keine Suche, die Seite nennt `literature::FOREIGN_PAGE`.
+`/rpc`, `/act` and `/mcp` lie behind `guard::same_origin`: `Sec-Fetch-Site` must be `same-origin` or
+`none`, `Origin` (if present) must match `Host`; otherwise 403. `/rpc` and `/mcp` demand
+`Content-Type: application/json` (otherwise 415), so that a foreign `fetch` would need a preflight.
+Reading GET pages that would trigger expensive ways with credentials – the semantic search in
+`GET /literatur?…&lmode=rag` and `GET /einfaelle?…&mode=rag` – check the same rule (`guard::check`); for
+a foreign page no search runs, the page names `literature::FOREIGN_PAGE`.
 
-`/mcp` prüft danach die Gegenstelle: ohne Token nur Loopback (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`),
-sonst 401 mit `WWW-Authenticate: Bearer realm="baruch"`. Dafür startet `main.rs` mit
-`into_make_service_with_connect_info::<SocketAddr>()`; fehlt `ConnectInfo`, gilt die Anfrage als fremd.
-Vor allen Routen, auch den lesenden, steht `guard::local_host`: `Host` muss eine IP-Adresse (v4 oder `[v6]`,
-mit oder ohne Port), `localhost` oder ein beim Start zusätzlich erlaubter Rechnername sein
-(`AppState::allowed_hosts`, siehe „Host-Regel hinter einem Reverse-Proxy“ unten), sonst 421. Damit greift
-DNS-Rebinding nicht (ein fremder Name, der auf 127.0.0.1 zeigt, schickt seinen Namen als `Host`). Ohne `Host`
-(nur ohne Browser) geht es durch.
-Mit `Authorization: Bearer <Token>` (Runde 10) prüft `mcp::endpoint` den Token über
-`Store::mcp_token_verify` (nur SHA-256-Hash gespeichert): gültig → Zugang von jedem Rechner, Client-Name =
-Token-Name; ungültig oder widerrufen → 401 mit `error="invalid_token"`, auch über Loopback.
-`guard::remote_only_mcp` (im Router um alles, innerhalb von `local_host`) lässt von Gegenstellen außerhalb von
-Loopback nur `/mcp` durch, sonst 403; ohne `ConnectInfo` (Tests) geht die Anfrage durch.
-**Clickjacking:** `guard::no_framing` (äußerste Schicht, also auch auf 403/421) setzt auf jede Antwort
-`X-Frame-Options: DENY` und `Content-Security-Policy: frame-ancestors 'none'` (an eine vorhandene CSP wie die
-`sandbox`-CSP der Bilder angehängt). Sonst könnte eine fremde Seite den Zustimmungsdialog der Gliederung, die
-Freigabe „extern“ oder die Verbindungen unsichtbar einrahmen; das eingerahmte Formular ginge same-origin ab, und
-`same_origin` griffe nicht. Baruch rahmt sich selbst nirgends ein (Test `round15_nachbesserung`).
+`/mcp` then checks the other side: without a token only loopback (`127.0.0.1`, `::1`, `::ffff:127.0.0.1`),
+otherwise 401 with `WWW-Authenticate: Bearer realm="baruch"`. For this `main.rs` starts with
+`into_make_service_with_connect_info::<SocketAddr>()`; if `ConnectInfo` is missing, the request counts as foreign.
+In front of all routes, also the reading ones, stands `guard::local_host`: `Host` must be an IP address (v4 or `[v6]`,
+with or without port), `localhost` or a host name additionally allowed at start
+(`AppState::allowed_hosts`, see "Host rule behind a reverse proxy" below), otherwise 421. So
+DNS rebinding does not work (a foreign name that points to 127.0.0.1 sends its name as `Host`). Without `Host`
+(only without a browser) it passes.
+With `Authorization: Bearer <Token>` (Round 10) `mcp::endpoint` checks the token through
+`Store::mcp_token_verify` (only the SHA-256 hash stored): valid → access from any machine, client name =
+token name; invalid or revoked → 401 with `error="invalid_token"`, also over loopback.
+`guard::remote_only_mcp` (in the router around everything, inside `local_host`) lets only `/mcp` through from other sides outside
+loopback, otherwise 403; without `ConnectInfo` (tests) the request passes.
+**Clickjacking:** `guard::no_framing` (outermost layer, thus also on 403/421) sets on every answer
+`X-Frame-Options: DENY` and `Content-Security-Policy: frame-ancestors 'none'` (appended to an existing CSP like the
+`sandbox` CSP of the images). Otherwise a foreign page could invisibly frame the consent dialog of the outline, the
+release „extern“ or the connections; the framed form would go off same-origin, and
+`same_origin` would not take effect. Baruch frames itself nowhere (test `round15_nachbesserung`).
 
-**Über-Seite (Runde 24).** `about.rs`: Seiten `/ueber` und `/ueber/lizenz`; Konstanten `VERSION`, `LICENSE_ID`,
-`REPOSITORY`, `HOMEPAGE`, `LICENSE_TEXT`, dazu `THIRD_PARTY_PLACES`, `release_url()` und `find_third_party` (sucht
-`THIRD-PARTY-LICENSES.txt` relativ zum laufenden Programm, liest sie nie). Kein Netzzugriff, keine Datenbank; Baruch
-fragt nirgends nach neuen Versionen. Der Schlüsselbund (`connections/secrets.rs`) wird seit Runde 24 je Zielsystem
-über Features der Crate `keyring` gewählt (`[target.'cfg(target_os = …)'.dependencies]` in
+**About page (Round 24).** `about.rs`: pages `/ueber` and `/ueber/lizenz`; constants `VERSION`, `LICENSE_ID`,
+`REPOSITORY`, `HOMEPAGE`, `LICENSE_TEXT`, plus `THIRD_PARTY_PLACES`, `release_url()` and `find_third_party` (looks for
+`THIRD-PARTY-LICENSES.txt` relative to the running program, never reads it). No network access, no database; Baruch
+nowhere asks for new versions. Since Round 24 the keyring (`connections/secrets.rs`) is chosen per target system
+through features of the crate `keyring` (`[target.'cfg(target_os = …)'.dependencies]` in
 `crates/baruch-server/Cargo.toml`: Linux `sync-secret-service` + `crypto-rust`, macOS `apple-native`, Windows
-`windows-native`); die Zweige für macOS und Windows sind übersetzt, aber nie gelaufen. Die Version hat eine Quelle
-(`[workspace.package] version`); `tests/round24_abnahme.rs` hält die Stellen fest, die sie wiederholen
+`windows-native`); the branches for macOS and Windows are compiled but have never run. The version has one source
+(`[workspace.package] version`); `tests/round24_abnahme.rs` pins the places that repeat it
 (`site/hugo.toml`, `CHANGELOG.md`, `README.md`).
 
-**Host-Regel hinter einem Reverse-Proxy (Runde 24).** Zugriff unter einem Rechnernamen geht seit Runde 24 über
-`guard::AllowedHosts` (`crates/baruch-server/src/guard.rs`), gefüllt von `main.rs` aus `--allow-host NAME`
-(mehrfach, nur `serve`) und `BARUCH_ALLOWED_HOSTS` (Komma oder Leerraum) und vor `app(state)` in
-`AppState::allowed_hosts` gesetzt; `AppState::open_with` lässt die Liste leer, alle Tests und `import`/`export`
-laufen also wie vor Runde 24.
+**Host rule behind a reverse proxy (Round 24).** Since Round 24 access under a host name goes through
+`guard::AllowedHosts` (`crates/baruch-server/src/guard.rs`), filled by `main.rs` from `--allow-host NAME`
+(repeatable, only `serve`) and `BARUCH_ALLOWED_HOSTS` (comma or white space) and set in
+`AppState::allowed_hosts` before `app(state)`; `AppState::open_with` leaves the list empty, so all tests and `import`/`export`
+run as before Round 24.
 
-- `AllowedHosts::parse` nimmt nur ganze Namen: 1–253 Zeichen, Labels zu 1–63 Zeichen aus `a–z0–9-` (nicht am
-  Rand `-`), klein gespeichert, ohne Port, ohne Platzhalter, keine IP-Adresse, nicht `localhost`, letztes Label
-  keine Zahl (`127.1`, `0x7f.1` – Browser lesen das als IPv4). Ein ungültiger Name ist ein Fehler mit dem Namen
-  in der Meldung; `main.rs` beendet `serve` dann mit Exit 2, bevor der Datenordner geöffnet wird.
-- `AllowedHosts::allows(host)` = `allowed_host(host)` oder `is_extra(host)`; `is_extra` vergleicht den Namen
-  ohne Port (Port wie bei `allowed_host`: 1–5 Ziffern) und ohne Groß/klein mit der Liste. `local_host` lässt
-  genau das durch; alles andere bleibt 421 (anderer Name, Teil- oder Obername, Leerzeichen, Platzhalter).
-- **Nie lokal:** `guard::via_proxy(hosts, headers)` ist wahr, wenn `Host` ein zusätzlicher Name ist – und, sobald
-  überhaupt Namen erlaubt sind, auch wenn `Host` fehlt oder unlesbar ist (dann steht ein Proxy davor, und
-  „lokal“ wäre nicht belegt). `mcp::endpoint` nimmt eine Anfrage ohne Token nur an, wenn die Gegenstelle
-  Loopback ist **und** `via_proxy` falsch: Unter einem zusätzlichen Namen verlangt `/mcp` immer einen Token,
-  obwohl die Gegenstelle (der Proxy auf demselben Rechner) Loopback ist. Ohne erlaubte Namen ist `via_proxy`
-  immer falsch.
-- **Origin-Prüfung unverändert:** `guard::check` vergleicht `Origin` (ohne Schema) wörtlich mit `Host`. Der
-  Proxy muss `Host` also unverändert durchreichen (samt Port); sonst 403. Das Schema spielt keine Rolle, darum
-  besteht `Origin: https://name` gegen `Host: name`, obwohl Baruch selbst nur HTTP spricht.
-- **Bewusst nicht ausgewertet:** `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `Forwarded`. Sie
-  kämen von jedem, der Baruch direkt erreicht; eine Auswertung wäre nur mit einer Liste vertrauter Proxys sicher.
-  Folge: `guard::remote_only_mcp` sieht bei jeder Anfrage über den Proxy Loopback und lässt alle Routen durch –
-  der Zugangsschutz liegt ohne Konten ganz beim Proxy (ohne Konten hat Baruch keine Anmeldung, `docs/Betrieb.md`;
-  mit Konten verlangt seit Runde 35 die Schicht `auth::gate` eine Sitzung, siehe „Runde 35 – Konten und Rollen“). Steht der Proxy auf
-  einem anderen Rechner, ist die Gegenstelle nicht Loopback, und es bleibt bei „nur `/mcp`“.
-- **Bekannte Grenze:** Schreibt der Proxy `Host` auf `127.0.0.1:<Port>` um, ist die Anfrage von einer lokalen
-  nicht zu unterscheiden; `/mcp` ginge dann ohne Token. Baruch kann das nicht erkennen; `docs/Betrieb.md`
-  verlangt darum eine Probe nach dem Einrichten.
-- Die Seite „MCP-Zugang“ (`settings/access.rs`) zeigt unter einem zusätzlichen Namen die Adresse als
-  `https://<Host>/mcp` (Annahme: TLS im Proxy; das Schema der Anfrage kennt Baruch nicht) und den Befehl mit
+- `AllowedHosts::parse` takes only whole names: 1–253 characters, labels of 1–63 characters from `a–z0–9-` (no `-` at the
+  edge), stored in lower case, without port, without wildcard, no IP address, not `localhost`, last label
+  not a number (`127.1`, `0x7f.1` – browsers read that as IPv4). An invalid name is an error with the name
+  in the message; `main.rs` then ends `serve` with exit 2 before the data folder is opened.
+- `AllowedHosts::allows(host)` = `allowed_host(host)` or `is_extra(host)`; `is_extra` compares the name
+  without port (port as with `allowed_host`: 1–5 digits) and case-insensitively with the list. `local_host` lets
+  exactly that through; everything else stays 421 (another name, sub- or super-name, spaces, wildcard).
+- **Never local:** `guard::via_proxy(hosts, headers)` is true if `Host` is an additional name – and, as soon as
+  any names are allowed at all, also if `Host` is missing or unreadable (then a proxy stands in front, and
+  „lokal“ would not be shown). `mcp::endpoint` accepts a request without a token only if the other side is
+  loopback **and** `via_proxy` is false: under an additional name `/mcp` always demands a token,
+  although the other side (the proxy on the same machine) is loopback. Without allowed names `via_proxy` is
+  always false.
+- **Origin check unchanged:** `guard::check` compares `Origin` (without scheme) literally with `Host`. The
+  proxy must thus pass `Host` through unchanged (including the port); otherwise 403. The scheme plays no role, that is why
+  `Origin: https://name` passes against `Host: name`, although Baruch itself speaks only HTTP.
+- **Deliberately not evaluated:** `X-Forwarded-For`, `X-Forwarded-Proto`, `X-Forwarded-Host`, `Forwarded`. They
+  would come from anyone who reaches Baruch directly; evaluating them would only be safe with a list of trusted proxies.
+  Consequence: `guard::remote_only_mcp` sees loopback for every request through the proxy and lets all routes through –
+  without accounts the access protection lies entirely with the proxy (without accounts Baruch has no login, `docs/Betrieb.md`;
+  with accounts the layer `auth::gate` demands a session since Round 35, see "Round 35 – Accounts and roles"). If the proxy stands on
+  another machine, the other side is not loopback, and it stays at „nur `/mcp`“.
+- **Known limit:** if the proxy rewrites `Host` to `127.0.0.1:<Port>`, the request cannot be told apart from a local
+  one; `/mcp` would then go without a token. Baruch cannot recognise that; that is why `docs/Betrieb.md`
+  demands a probe after setting up.
+- The page „MCP-Zugang“ (`settings/access.rs`) shows the address under an additional name as
+  `https://<Host>/mcp` (assumption: TLS in the proxy; Baruch does not know the scheme of the request) and the command with
   `--header "Authorization: Bearer <Token>"`.
-- Tests: Unit-Tests in `guard.rs` (`parse`, `allows`, `is_extra`, `via_proxy`), `tests/round24_betrieb.rs`
-  (Router mit gesetzten Namen, Programm mit ungültiger Angabe).
+- Tests: unit tests in `guard.rs` (`parse`, `allows`, `is_extra`, `via_proxy`), `tests/round24_betrieb.rs`
+  (router with names set, program with an invalid value).
 
-Offen: kein eigenes TLS. Seit Runde 35: Anmeldung mit Konten (ohne Konten weiter keine); das Cookie der Sitzung
-trägt hinter dem Proxy `Secure`, die übrigen Cookies (Darstellung, zuletzt geöffnetes Werk) weiter nicht.
+Open: no own TLS. Since Round 35: login with accounts (without accounts still none); the session cookie
+carries `Secure` behind the proxy, the other cookies (display, work opened last) still do not.
 
-## Literatur
+## Literature
 
-Die Literatur ist ein Popup der Kopfzeile und hat eigene Seiten; die Arbeitsseite bleibt dreispaltig.
+The literature is a popup of the header and has its own pages; the work page stays three-column.
 
-- **Daten** (`baruch-library`, Migration `0103_highlights.sql`): Tabelle `library_highlight` mit Titel
-  (`ON DELETE CASCADE`), optional Zitat (`ON DELETE SET NULL`), Fundstelle (`locator`), Zeichenbereich
-  `start_char`/`end_char` (beide NULL oder `0 ≤ start ≤ end`, Unicode-Zeichen; im Zitat prüft
-  `add_highlight` außerdem, dass das Ende im Zitat liegt und der Text bis auf Leerraum der Ausschnitt ist –
-  `normalize_space`: Folgen von Unicode-Leerraum werden ein Leerzeichen, Ränder entfallen –, und speichert
-  dann den genauen Ausschnitt des Zitats), Text (nicht leer), Art
-  (`quote`, `core`, `contradiction`, `check`), Notiz, Urheber (`human` oder `assistant` mit Modell) und
-  Status (`active`, `proposed`, `rejected`). Eine CHECK-Bedingung lässt Personas nur `proposed`/`rejected`.
-  `src/highlights.rs`: `add_highlight` (Mensch → `active`, Persona → immer `proposed`; ohne Fundstelle die
-  Stelle des Zitats), `list_highlights`, `get_highlight`, `update_highlight`, `delete_highlight`,
-  `cite_typst`. Fehler über den eigenen `HighlightError` (`Library`, `Unknown`, `Empty`, `InvalidRange`, `TextMismatch`),
-  `LibraryError` bleibt unverändert.
-- **Server** (`src/literature.rs`): eigene Template-Umgebung (`OnceLock`, Vorlagen `literature.html`,
-  `source.html`, `fragments/library.html`, `fragments/highlights.html`); die der Arbeitsseite bleibt, wie sie
-  ist. `pages()` liefert `GET /literatur` und `GET /quelle`, `writes()` `POST /literatur/act` (im Router der
-  schreibenden Routen, also hinter `guard::same_origin`). `handles`/`call` bedienen `literature.render` und
-  `highlight.*` aus `rpc::call` heraus. Adressen baut das Modul selbst (`query_escape`) und gibt sie als
-  sichere Werte an die Vorlagen.
-- **Abschnitt der Literatur-Seiten:** `/literatur` und `/quelle` tragen den festen Schlüssel selbst: aus
-  `?key=` (geht vor `?node=`), sonst beim Laden aus der Stelle bestimmt. Er steht in den Links zur
-  Dokumentansicht, in den versteckten Feldern aller Formulare (`place_fields`) und als `data-key` am Widget
+- **Data** (`baruch-library`, migration `0103_highlights.sql`): table `library_highlight` with title
+  (`ON DELETE CASCADE`), optional quotation (`ON DELETE SET NULL`), location (`locator`), character range
+  `start_char`/`end_char` (both NULL or `0 ≤ start ≤ end`, Unicode characters; in the quotation
+  `add_highlight` also checks that the end lies inside the quotation and that the text, apart from white space, is the excerpt –
+  `normalize_space`: runs of Unicode white space become one space, edges are dropped –, and then stores
+  the exact excerpt of the quotation), text (not empty), kind
+  (`quote`, `core`, `contradiction`, `check`), note, originator (`human` or `assistant` with model) and
+  status (`active`, `proposed`, `rejected`). A CHECK condition allows personas only `proposed`/`rejected`.
+  `src/highlights.rs`: `add_highlight` (human → `active`, persona → always `proposed`; without a location the
+  location of the quotation), `list_highlights`, `get_highlight`, `update_highlight`, `delete_highlight`,
+  `cite_typst`. Errors through its own `HighlightError` (`Library`, `Unknown`, `Empty`, `InvalidRange`, `TextMismatch`),
+  `LibraryError` stays unchanged.
+- **Server** (`src/literature.rs`): own template environment (`OnceLock`, templates `literature.html`,
+  `source.html`, `fragments/library.html`, `fragments/highlights.html`); the one of the work page stays as it
+  is. `pages()` delivers `GET /literatur` and `GET /quelle`, `writes()` `POST /literatur/act` (in the router of the
+  writing routes, thus behind `guard::same_origin`). `handles`/`call` serve `literature.render` and
+  `highlight.*` from within `rpc::call`. The module builds addresses itself (`query_escape`) and passes them as
+  safe values to the templates.
+- **Section of the literature pages:** `/literatur` and `/quelle` carry the fixed key themselves: from
+  `?key=` (takes precedence over `?node=`), otherwise determined from the position when loading. It stands in the links to the
+  document view, in the hidden fields of all forms (`place_fields`) and as `data-key` at the widget
   `source`.
-- **Zitat übernehmen:** `highlight.cite {highlight, key}` übersetzt `key` unter der Schreibsperre in die
-  Stelle, liest die aktuelle Fassung, hängt `cite_typst` an und legt über die unveränderte `Store::add_proposal` einen Vorschlag an (Persona
-  `@literatur`, Modell `baruch-zitat`, Notiz „Zitat aus @schlüssel“). Die aktuelle Fassung bleibt; der Git-
-  Spiegel ändert sich erst beim Übernehmen. `cite_typst` maskiert Backslash, Backtick und
-  `# [ ] * _ $ < > @ ~ = - + /` sowie eine Aufzählung „1.“ am Zeilenanfang mit einem Backslash; eine reine Seitenzahl wird `S. …`.
-- **Widgets** (`web/src/literature.ts`): `literature` (der `<dialog>`, Alt+L, Inhalt über
-  `literature.render`, Suche in `lq` der Adresse, Werk-Treffer über einen versteckten `data-nav`-Link im
-  Arbeitsbereich), `source` (Kontextmenü der Dokumentansicht; Zeichenbereich in Unicode-Zeichen wie in der
-  Datenbank, Anfang und Ende aus DOM-Bereichen vom Zitatanfang, Text wörtlich über `Range.toString()` statt
-  der zusammengefassten `selection.toString()`) und die Markierung der Fundstelle im Textfeld bei
-  `#fundstelle`. `cite` über `/literatur/act` verlangt das Feld `key` (fehlt → 422 „Abschnitt fehlt.“, gibt
-  es den Punkt nicht mehr → 409); das Kontextmenü zitiert nur mit `data-key`.
-- **Volltext und Prüfung (Runde 13, `src/literature/fulltext.rs`, Migration `0106_source_remote.sql`):**
-  `library_title_remote` verknüpft einen Titel mit einem Dokument (`way = 'multigpt'`, Sammlung, Dokument;
-  `baruch_library::{RemoteRef, set_title_remote, title_remote, title_for_remote}`), `library_highlight_check` merkt
-  sich je Hervorhebung das Ergebnis (`FulltextCheck`: `found`, `not_found`, `unverifiable`, mit Meldung und
-  Zeitpunkt; `set_highlight_check`, `highlight_checks`, `highlight_check(_entries)`). `check_range(volltext, start,
-  end, text)` vergleicht wie `check_excerpt` (Leerraum zusammengezogen, Unicode-Zeichen) und gibt nie
-  `unverifiable`. `fulltext::read` (RPC `source.read`, MCP `source_read`, Seiten) liest über
-  `MultigptWay::from_settings`; bei Ausfall die lokale Kopie (`local_copy` → `sync::local_document`; ohne Sammlung
-  die einzige Kopie mit passender Dokument-ID) oder ein ehrlicher Fehler. `fulltext::adopt` (nur RPC/Formular) legt Titel und Verknüpfung
-  unter der Schreibsperre an und ruft `rag::notify(state, None)`. `fulltext::check_highlight` prüft nach jedem
-  `highlight.add`/Formular „Hervorheben“ ohne Zitat mit Bereich; die Hervorhebung ist vorher gespeichert.
-  Vorlage `source_multigpt.html` (eigene Umgebung der Literatur); `/quelle` zeigt den Volltext im Abschnitt
-  `#volltext`. GET-Seiten laden den Volltext nur, wenn `guard::check` die Anfrage als eigene erkennt.
-- **An Persona geben (Runde 15):** `literature::to_persona` (Formular `action=persona`, RPC
-  `literature.to_persona`, Bibelseite) baut aus Frage, markiertem Text und Quellenangabe eine Frage (höchstens
-  `assist::MAX_QUESTION_CHARS`, sonst sichtbar gekürzt) und ruft `assist::run` mit `Mode::Ask`, `post_question`
-  und der Quelle als `sources`; ohne `key` Hinweisseite „Abschnitt wählen“ (`assist::routes::notice_page`). Der
-  Stub ist entfallen. Kontextmenü auch im Volltext (`literature.ts`: Bereich ab `data-offset` des Teils).
-- **Hervorhebung übernehmen (Runde 15):** `literature::own_highlight` kopiert eine Persona-Hervorhebung über die
-  unveränderte `baruch_library::add_highlight` mit Urheber Mensch (also `active`), Notiz „übernommen von @x
-  (Hervorhebung n)“ – an ihr erkennt Baruch eine schon übernommene; das Original bleibt `proposed`. Keine Migration
-  (Runde 15), kein MCP-Werkzeug.
-- **Bibeln in der Literatur (Runde 15, `literature/bibles.rs`):** Kasten und Treffergruppen über die bestehende
-  Server-API `bibles::{modules_value, by_name, lookup, search}` (unverändert) und die HTML-Bausteine
-  `bibles::commentary_panel_html`/`commentary_hits_html` des Zweigs anbieter (im eigenen Zweig leer). Gelesen werden
-  die Modulordner nur bei eingestellten Ordnern oder gewählter Bibel des Werks (`scan_allowed`), damit eine
-  Seite ohne Einstellung – und kein Test – die Vorgabeordner des Rechners liest. Suche im gemeinsamen Feld: höchstens
-  drei Bibeln, je 10 Treffer, zusammen 3 s (`tokio::time::timeout`). Seite `GET /literatur/bibel` und Formular
-  `POST /literatur/bibel/act` (Router-Zeilen in `lib.rs`); das Zitat entsteht wie `highlight.cite` über
-  `Store::add_proposal` unter der Schreibsperre (Autor `@literatur`, Modell `baruch-zitat`), der Text kommt aus dem
-  Modul (`ref`), nie aus dem Formular. Hervorhebungen an Bibeltexten trägt die Bibliothek nicht (Hervorhebung =
-  Titel + Zitat/Bereich); die Seite sagt das ehrlich. Vorlagen `literature_bible.html`,
-  `fragments/literature_bibles.html` (auch in `view::environment`, `library.html` bindet sie mit `ignore missing`
-  ein, weil `baruch-library` das Fragment allein rendert), Widget `bibles.ts`, Stil `static/literature_bibles.css`.
+- **Taking over a quotation:** `highlight.cite {highlight, key}` translates `key` under the write lock into the
+  position, reads the current revision, appends `cite_typst` and creates a proposal through the unchanged `Store::add_proposal` (persona
+  `@literatur`, model `baruch-zitat`, note „Zitat aus @schlüssel“). The current revision stays; the Git
+  mirror changes only on accepting. `cite_typst` escapes backslash, backtick and
+  `# [ ] * _ $ < > @ ~ = - + /` as well as an enumeration „1.“ at the start of a line with a backslash; a bare page number becomes `S. …`.
+- **Widgets** (`web/src/literature.ts`): `literature` (the `<dialog>`, Alt+L, content through
+  `literature.render`, search in `lq` of the address, work hits through a hidden `data-nav` link in the
+  work area), `source` (context menu of the document view; character range in Unicode characters as in the
+  database, start and end from DOM ranges from the start of the quotation, text literally through `Range.toString()` instead of
+  the collapsed `selection.toString()`) and the marking of the location in the text field with
+  `#fundstelle`. `cite` through `/literatur/act` demands the field `key` (missing → 422 „Abschnitt fehlt.“, if
+  the item no longer exists → 409); the context menu cites only with `data-key`.
+- **Full text and check (Round 13, `src/literature/fulltext.rs`, migration `0106_source_remote.sql`):**
+  `library_title_remote` links a title with a document (`way = 'multigpt'`, collection, document;
+  `baruch_library::{RemoteRef, set_title_remote, title_remote, title_for_remote}`), `library_highlight_check` remembers
+  the result per highlight (`FulltextCheck`: `found`, `not_found`, `unverifiable`, with message and
+  time; `set_highlight_check`, `highlight_checks`, `highlight_check(_entries)`). `check_range(volltext, start,
+  end, text)` compares like `check_excerpt` (white space collapsed, Unicode characters) and never returns
+  `unverifiable`. `fulltext::read` (RPC `source.read`, MCP `source_read`, pages) reads through
+  `MultigptWay::from_settings`; on failure the local copy (`local_copy` → `sync::local_document`; without a collection
+  the only copy with a matching document ID) or an honest error. `fulltext::adopt` (only RPC/form) creates title and link
+  under the write lock and calls `rag::notify(state, None)`. `fulltext::check_highlight` checks after every
+  `highlight.add`/form „Hervorheben“ without a quotation but with a range; the highlight is stored beforehand.
+  Template `source_multigpt.html` (own environment of the literature); `/quelle` shows the full text in the section
+  `#volltext`. GET pages load the full text only if `guard::check` recognises the request as an own one.
+- **Giving to a persona (Round 15):** `literature::to_persona` (form `action=persona`, RPC
+  `literature.to_persona`, Bible page) builds a question from question, marked text and source reference (at most
+  `assist::MAX_QUESTION_CHARS`, otherwise visibly shortened) and calls `assist::run` with `Mode::Ask`, `post_question`
+  and the source as `sources`; without `key` the notice page „Abschnitt wählen“ (`assist::routes::notice_page`). The
+  stub is gone. Context menu also in the full text (`literature.ts`: range from `data-offset` of the part).
+- **Taking over a highlight (Round 15):** `literature::own_highlight` copies a persona highlight through the
+  unchanged `baruch_library::add_highlight` with the human as originator (thus `active`), note „übernommen von @x
+  (Hervorhebung n)“ – by it Baruch recognises one already taken over; the original stays `proposed`. No migration
+  (Round 15), no MCP tool.
+- **Bibles in the literature (Round 15, `literature/bibles.rs`):** box and hit groups through the existing
+  server API `bibles::{modules_value, by_name, lookup, search}` (unchanged) and the HTML building blocks
+  `bibles::commentary_panel_html`/`commentary_hits_html` of the branch anbieter (empty in the own branch). The module folders are read
+  only with configured folders or a chosen Bible of the work (`scan_allowed`), so that a
+  page without a setting – and no test – reads the default folders of the machine. Search in the common field: at most
+  three Bibles, 10 hits each, together 3 s (`tokio::time::timeout`). Page `GET /literatur/bibel` and form
+  `POST /literatur/bibel/act` (router lines in `lib.rs`); the quotation comes about like `highlight.cite` through
+  `Store::add_proposal` under the write lock (author `@literatur`, model `baruch-zitat`), the text comes from the
+  module (`ref`), never from the form. The library does not carry highlights on Bible texts (highlight =
+  title + quotation/range); the page says so honestly. Templates `literature_bible.html`,
+  `fragments/literature_bibles.html` (also in `view::environment`, `library.html` includes it with `ignore missing`,
+  because `baruch-library` renders the fragment alone), widget `bibles.ts`, style `static/literature_bibles.css`.
 
-### Runde 16b – zeitwaechter
+### Round 16b – zeitwaechter
 
-Sprechdauer je Gliederungspunkt und gesamt, Zielzeit je Werk, Anzeige in Gliederung und Editorkopf, RPC und MCP;
-dazu lokal/extern im Akkordeon „Assistenten“.
+Speaking time per outline item and in total, target time per work, display in outline and editor head, RPC and MCP;
+plus local/external in the accordion „Assistenten“.
 
-- **Schnittstelle R16-S1 (erster Commit der Runde):** `baruch_typst::timing` (rein, keine Abhängigkeit):
-  `spoken_words` (Zählregeln 1–8, siehe `docs/Bedienung.md` „Zeitwächter“; ein Zeichen-Scanner mit Zeilenanfangs-
-  Regeln für Überschriften, `#set/#show/#let/#import/#include/#heading` und Listenzeichen; Klammergruppen werden
-  mit Code- bzw. Markup-Modus übersprungen, gesprochene Inhaltsblöcke über einen Stapel offener `[`), `speaking_seconds`
-  (ceil(words·60/wpm), wpm auf 60–250 geklemmt), `clock`, Konstanten `DEFAULT_WORDS_PER_MINUTE` 110,
-  `MIN_/MAX_WORDS_PER_MINUTE` 60/250, `MAX_TARGET_MINUTES` 240. Store: Migration `0039_work_timing.sql`
-  (`work_timing`, je Werk eine Zeile, CHECK-Grenzen, `ON DELETE CASCADE` – `Store::delete_work` kennt die Tabelle
-  nicht), `baruch_store::TimingSettings` (Vorgabe 110/keine Zielzeit ohne Zeile), `Store::timing_settings` und
-  `set_timing_settings` (Grenzen vor dem Schreiben → `StoreError::Refused`, nichts geändert; `BEGIN IMMEDIATE`).
-  Server: `crate::timing` mit `TimingStatus`, `SectionTiming`, `WorkTiming` (`shown()` = Predigt oder Zielzeit),
-  `timing_of` (rein: je Punkt die aktuelle Fassung; Teilbaum rückwärts aufsummiert, weil Nachfahren in
-  Baumreihenfolge hinter dem Elternteil stehen), `work_timing`, `timing_json`.
-- **Nur lesend, nicht gespiegelt:** `work.timing`, MCP `work_timing` und die Anzeige nehmen keine Schreibsperre
-  und schreiben keinen Commit. Die Einstellungen stehen nur in SQLite (wie die Farben der Personas).
-- **RPC** (`timing::handles/call`, eine Zeile im werkbezogenen `match` von `rpc::call`): `work.timing`,
-  `work.timing_set` (nur Mensch; `/act` kennt die Methode nicht, MCP hat kein Werkzeug dafür), `timing.count`
-  (höchstens 1 000 000 Zeichen) – damit zählt das Widget mit derselben Regel wie der Server.
-- **Anzeige:** `view::extras` lädt für die Arbeitsseite die Zeiten (`timing::work_timing`) und die Freigaben der
-  Personas (nur über `personas::call("persona.list")`: `locality`, `external_allowed`, `connection`) in
-  `ViewExtras`; `rpc::library_view` hängt sie als Feld `extras` an `LibraryView` (die Zeichenfunktionen von
-  `view` sind synchron). Abweichung vom Vertrag: `rpc.rs` bekam dafür neben der Dispatch-Zeile das Feld und einen
-  Aufruf in `library_view` (die Datei gehört in Runde 16 ohnehin nur R16b). `attach_timing` hängt Dauer und
-  Zeitmarke an die Einträge der Gliederung (Punkte mit Unterpunkten: Teilbaum), `timing_context` liefert den
-  Kontext `timing` für Baum- und Editorkopf (`none`, wenn nicht `shown`). Die Abschnittszeit im Editorkopf ist die
-  der gezeigten Fassung, `data-rest` = Gesamtzeit ohne die aktuelle Fassung des Abschnitts.
-- **Widget** `web/src/timing.ts` (`data-widget="timing"`): hört auf `input` im Editor (`[data-widget=wysiwyg]`,
-  Textfeld und Satzbild), entprellt 700 ms, schickt den Quelltext an `timing.count` und rechnet `rest + seconds`;
-  Fehler leise. Keine zweite Zählregel in TypeScript. Seit Runde 17b (L6) holt es den Quelltext im Satzbild über
-  das Ereignis `baruch:serialize-text` am Editor-Formular (`detail.wait`, Antwort von `wysiwyg.ts`, Vertrag §2.6);
-  ohne Antwort zählt es im offenen Satzbild `innerText`, sonst das Textfeld.
-- **Einstellungen → Werk:** Block „Predigtzeit“ (`id="zeit"`, `settings/werk.html`), Formular
-  `POST /einstellungen/werk/zeit` (`settings::work::timing_act`, Route in `settings::writes()` hinter
-  `same_origin`), 303 mit `ok=zeit#zeit` bzw. `zeitfehler=1#zeit`; `settings.get page=werk` nennt `timing`.
-- **Personas lokal/extern:** `fragments/assistants.html` zeigt je Persona `locality`; extern ohne Freigabe
-  (`PersonaAccess::blocked`) ist gekennzeichnet („Gesperrt“, Hinweis auf Einstellungen → Assistenten) und fällt
-  aus `active_personas` (keine Wahl für Prüfen/Vorschlag/Chat). Die eigentliche Sperre beim Auftrag bleibt im
-  Persona-Backend (Runde 15b).
-- **Tests:** `baruch-typst/tests/timing.rs` (Pflicht-Beispiele, Regeln), `baruch-store/tests/timing.rs`,
-  `baruch-store/tests/migration_0039.rs` (nachgebaute Datenbank bis 0038 → 0039 verlustfrei, CASCADE),
-  `baruch-server/tests/round16_zeit.rs`; Werkzeuglisten in `mcp.rs` und `round4.rs` (`work_timing` direkt nach `outline`; am Ende hätte es die
-  Folgeprüfungen in `round12_multigpt.rs`/`mcp_ideas.rs` gebrochen, `mcp_ideas.rs` bleibt darum unverändert).
+- **Interface R16-S1 (first commit of the round):** `baruch_typst::timing` (pure, no dependency):
+  `spoken_words` (counting rules 1–8, see `docs/Bedienung.md` „Zeitwächter“; a character scanner with line-start
+  rules for headings, `#set/#show/#let/#import/#include/#heading` and list markers; bracket groups are
+  skipped in code or markup mode, spoken content blocks through a stack of open `[`), `speaking_seconds`
+  (ceil(words·60/wpm), wpm clamped to 60–250), `clock`, constants `DEFAULT_WORDS_PER_MINUTE` 110,
+  `MIN_/MAX_WORDS_PER_MINUTE` 60/250, `MAX_TARGET_MINUTES` 240. Store: migration `0039_work_timing.sql`
+  (`work_timing`, one row per work, CHECK limits, `ON DELETE CASCADE` – `Store::delete_work` does not know the table),
+  `baruch_store::TimingSettings` (default 110/no target time without a row), `Store::timing_settings` and
+  `set_timing_settings` (limits before writing → `StoreError::Refused`, nothing changed; `BEGIN IMMEDIATE`).
+  Server: `crate::timing` with `TimingStatus`, `SectionTiming`, `WorkTiming` (`shown()` = sermon or target time),
+  `timing_of` (pure: per item the current revision; subtree summed up backwards, because descendants stand in
+  tree order behind the parent), `work_timing`, `timing_json`.
+- **Read only, not mirrored:** `work.timing`, MCP `work_timing` and the display take no write lock
+  and write no commit. The settings stand only in SQLite (like the colours of the personas).
+- **RPC** (`timing::handles/call`, one line in the work-related `match` of `rpc::call`): `work.timing`,
+  `work.timing_set` (human only; `/act` does not know the method, MCP has no tool for it), `timing.count`
+  (at most 1 000 000 characters) – so the widget counts with the same rule as the server.
+- **Display:** for the work page `view::extras` loads the times (`timing::work_timing`) and the releases of the
+  personas (only through `personas::call("persona.list")`: `locality`, `external_allowed`, `connection`) into
+  `ViewExtras`; `rpc::library_view` appends them as the field `extras` to `LibraryView` (the drawing functions of
+  `view` are synchronous). Deviation from the contract: for this `rpc.rs` got, next to the dispatch line, the field and a
+  call in `library_view` (in Round 16 the file belongs only to R16b anyway). `attach_timing` attaches duration and
+  time mark to the entries of the outline (items with sub-items: subtree), `timing_context` delivers the
+  context `timing` for the tree and editor head (`none` if not `shown`). The section time in the editor head is that
+  of the shown revision, `data-rest` = total time without the current revision of the section.
+- **Widget** `web/src/timing.ts` (`data-widget="timing"`): listens to `input` in the editor (`[data-widget=wysiwyg]`,
+  text field and typeset view), debounces 700 ms, sends the source to `timing.count` and computes `rest + seconds`;
+  errors quietly. No second counting rule in TypeScript. Since Round 17b (L6) it gets the source in the typeset view through
+  the event `baruch:serialize-text` at the editor form (`detail.wait`, answer from `wysiwyg.ts`, contract §2.6);
+  without an answer it counts `innerText` in the open typeset view, otherwise the text field.
+- **Settings → Work:** block „Predigtzeit“ (`id="zeit"`, `settings/werk.html`), form
+  `POST /einstellungen/werk/zeit` (`settings::work::timing_act`, route in `settings::writes()` behind
+  `same_origin`), 303 with `ok=zeit#zeit` or `zeitfehler=1#zeit`; `settings.get page=werk` names `timing`.
+- **Personas local/external:** `fragments/assistants.html` shows `locality` per persona; external without release
+  (`PersonaAccess::blocked`) is marked („Gesperrt“, hint to Settings → Assistants) and drops out of
+  `active_personas` (no choice for check/proposal/chat). The actual block on a task stays in the
+  persona backend (Round 15b).
+- **Tests:** `baruch-typst/tests/timing.rs` (mandatory examples, rules), `baruch-store/tests/timing.rs`,
+  `baruch-store/tests/migration_0039.rs` (rebuilt database up to 0038 → 0039 lossless, CASCADE),
+  `baruch-server/tests/round16_zeit.rs`; tool lists in `mcp.rs` and `round4.rs` (`work_timing` directly after `outline`; at the end it would have
+  broken the follow-up checks in `round12_multigpt.rs`/`mcp_ideas.rs`, that is why `mcp_ideas.rs` stays unchanged).
 
-### Runde 16a – predigt-vorlage
+### Round 16a – predigt-vorlage
 
-- **Werkvorlage Predigt** (`baruch-store/src/works.rs`): `Preset::Sermon` legt in einer Transaktion
-  `numbering_scheme = 'sermon'` und die Punkte aus `SERMON_OUTLINE` an – „Predigttext“ (ohne Nummer), „Hinführung“,
-  „Beobachtung am Text“, „Deutung“, „Zuspruch“, „Anwendung“ (ohne Nummer), „Ausblick“. Die Nummern berechnet
-  `preset_numbers` mit demselben `Numbering::of_scheme(Scheme::Sermon)` wie die Gliederung, gezählt nur über
-  die gezählten Punkte; `node.numbered` wird ausdrücklich gesetzt (nicht über den Trigger 0006). Kein neuer
-  Typ: „ist Predigt“ heißt `work.kind == WorkKind::Sermon`.
-- **Entscheidung zur Titelwahl:** Das Schema `sermon` macht aus dem ersten gezählten Punkt „Einleitung“, aus dem
-  letzten „Schluss“ und aus den übrigen „I.“, „II.“, „III.“. Hießen die Punkte „Einleitung“ oder „Erster Hauptpunkt“,
-  stünde die Nummer in der Gliederung doppelt („Einleitung Einleitung“, „I. Erster Hauptpunkt“). Darum tragen die
-  gezählten Punkte Titel, die ihre Aufgabe nennen, ohne die Nummer zu wiederholen (Hinführung, Beobachtung am Text,
-  Deutung, Zuspruch, Ausblick); Predigttext und Anwendung zählen nicht mit und heißen, was sie sind. So bleibt der
-  letzte gezählte Punkt immer „Schluss“, auch wenn die Anwendung dahinter oder davor steht. Export → Import erhält
-  Gliederung, Nummern und „Nummer aus“ (Test `round16_predigt`).
-- **Predigttext aus SWORD** (`baruch-server/src/works.rs`, `sermon_text`): `text_ref` wird mit
-  `baruch_scripture::parse` gelesen (genau eine gültige Stelle, sonst -32602 vor jedem Schreiben). Bibel:
-  `module` → `bibles::by_name`, sonst `bibles::of_work(from_work)` bzw. Vorgabewerk – dieselbe Logik wie
-  `bible.lookup`, keine Signatur geändert. Die Verse kommen aus `Bible::passage` (in `spawn_blocking`), maskiert mit
-  `baruch_typst::escape_title` (die Wortlautprüfung entfernt die Maskierung wieder); der Text steht als
-  `#quote(block: true, attribution: [<Stelle> (<Modul>)])[…]` unter der Überschrift des Predigttexts
-  (`Store::create_work_with_text`; `create_work` bleibt). Danach `set_work_bible` unter derselben Schreibsperre,
-  dann `mirror::sync_work` wie bisher. Ohne lesbare Bibel steht nur die normalisierte Stellenangabe da (`quoted:
-  false`, deutscher `notice`); fehlende Verse zählt `missing`. `/werke/neu` liest die Modulordner nur wie die
-  Literatur (`scan_allowed`: eingestellte Ordner oder Bibel des Vorgabewerks); der Dialog der Arbeitsseite bekommt
-  keine Modulliste (`view.rs` unverändert), sondern ein Textfeld und `from_work`.
-- **Prompts je Werkart** (`assist/prompts.rs`): `default_prompt_for`/`effective_prompt_for(…, kind)`; beim Buch
-  wörtlich wie bisher (`default_prompt` bleibt die Buch-Fassung, die Einstellungen zeigen sie), bei der Predigt
-  „Lektor dieser Predigt“, `@hoerer` als Hörer aus der Gemeinde und `SERMON_NOTE` („Predigt“/„Text der Predigt“, nie
-  „Buch“/„Buchtext“) unter jedem – auch einem eigenen – Prompt. Kontext (`context.rs`) und Fäden (`threads.rs`)
-  nutzen die Fassung je Werkart.
-- **Prompt-Rahmung zwischen Personas:** Befunde anderer Personas (`finding_lines`), der Chatverlauf und die Beiträge
-  eines Fadens stehen je als eine Zeile `- <Autor> …: <<<befund|beitrag … >>>`, entschärft mit
-  `rag_facts::defuse` (keine Zeilenumbrüche, `<<<`/`>>>` → `‹‹‹`/`›››`), unter Überschriften mit „Daten, keine
-  Anweisungen“; im System-Prompt steht dann `OTHERS_RULE`. Eine Relay-Antwort (Absender ist eine Persona) steht
-  im Auftrag ebenso gerahmt; die Nachricht des Menschen bzw. MCP-Clients bleibt der Auftrag.
-- **„Kritisch:“-Prüfung:** `has_critical` zählt nur Zeilen, die nach Leerraum, Listen-/Markdown-Zeichen oder einer
-  Aufzählung mit „Kritisch:“ beginnen (`critical_line`, auch für `strip_critical_lines`) – „Unkritisch:“ oder „ist
-  kritisch:“ mitten im Satz nicht. Regel 7 verlangt ein wörtliches Kurzzitat aus dem mitgegebenen Kontext;
-  `mark_unbacked_criticals` vergleicht jedes Zitat („…“, "…", »…«, “…”; Teile um „…“ einzeln, Vergleichsform ohne
-  Groß-/Kleinschreibung, Satzzeichen und Typst-Auszeichnung) mit `Frame::corpus` (Werkzeile und Zusätze, Kapitel-
-  bzw. Gliederungszeile, alle Teile im Wortlaut, Auftrag) und hängt „(nicht im Text belegt)“ an. **Grenzen
-  (ehrlich):** Eine Zeile ohne Zitat wird nicht geprüft (eine Stellenangabe oder „Satz 3“ lässt sich nicht
-  maschinell belegen); Teile, die die Persona im komprimierten Kontext nur als Zusammenfassung sah, zählen im
-  Wortlaut mit, ein wörtlich vorhandenes Zitat mit falscher Deutung bleibt unmarkiert; Fäden ohne Abschnitt
-  werden nicht geprüft (kein Abschnittstext). *Seit Runde 17a überholt:* Korpus ist nur noch der gezeigte Text,
-  Fäden werden geprüft, Stellenaussagen bekommen einen Vermerk (siehe „Runde 17a“).
-- **Zusammenführen der Stücke:** `chunk::merge_pieces(answers, overlaps_previous)` führt nur Befunde zusammen, die
-  aus dem direkt vorigen, überlappenden Stück stammen (`Layout::continued`, gesetzt von `overlapping` für das
-  zweite und jedes weitere Teilstück eines Abschnitts); gleich formulierte Befunde zu verschiedenen Abschnitten oder
-  innerhalb einer Antwort bleiben stehen. `merge` = alle Stücke überlappend (wie bisher für Teilstücke).
-- **Wirksame Kontextlänge:** `personas::effective_lector_of` vergleicht bei „automatisch nach Kontext“ (und bei
-  einer festen, inaktiven Wahl) `state.model.context(…).tokens`; eine feste, aktive Wahl fragt nichts ab.
-  `rows_and_lector` nutzt sie (Signatur gleich), `lector_of` bleibt die Regel nach der Einstellung. Der Lektor im
-  Kontext (`is_lector`, Gedächtnis) kommt seither aus `rows_and_lector` statt aus `Work::lector`. Fäden rechnen
-  mit derselben wirksamen Länge. Test-Nachbau: `ScriptedModel::with_reported_context_for(model, n)`.
-- **Schlanker Faden-Kontext:** Gliederung als Datenblock (`context::outline_block`, nur Nummern und Titel), Belege
-  aus SWORD zu den Stellen der Nachricht für berechtigte Personas (`hooks::bible_research`, gleiche Schalter wie im
-  Abschnitt); gekürzt wird in der Reihenfolge Belege, Gliederung, älteste Beiträge. Bedeutungs- und Websuche gibt
-  es im Faden weiterhin nicht.
-- **Chat nur Abschnitt:** `store_meta.chat_scope` (`chapter` | `section`, `Store::chat_scope`/`set_chat_scope`,
-  keine Migration, nicht im Spiegel), RPC `persona.chat_scope_get/set` nur für den Menschen (nicht `/act`, nicht MCP),
-  Formular auf Einstellungen → Assistenten. Im Chat mit `section` ist der einzige Teil der Abschnitt selbst, statt
-  der Kapitelzeile steht `outline_block` da.
+- **Work template sermon** (`baruch-store/src/works.rs`): `Preset::Sermon` creates in one transaction
+  `numbering_scheme = 'sermon'` and the items from `SERMON_OUTLINE` – „Predigttext“ (without a number), „Hinführung“,
+  „Beobachtung am Text“, „Deutung“, „Zuspruch“, „Anwendung“ (without a number), „Ausblick“. The numbers are computed by
+  `preset_numbers` with the same `Numbering::of_scheme(Scheme::Sermon)` as the outline, counted only over
+  the counted items; `node.numbered` is set explicitly (not through the trigger 0006). No new
+  type: „ist Predigt“ means `work.kind == WorkKind::Sermon`.
+- **Decision on the choice of titles:** the scheme `sermon` turns the first counted item into „Einleitung“, the
+  last into „Schluss“ and the others into „I.“, „II.“, „III.“. If the items were called „Einleitung“ or „Erster Hauptpunkt“,
+  the number would stand twice in the outline („Einleitung Einleitung“, „I. Erster Hauptpunkt“). That is why the
+  counted items carry titles that name their task without repeating the number („Hinführung“, „Beobachtung am Text“,
+  „Deutung“, „Zuspruch“, „Ausblick“); „Predigttext“ and „Anwendung“ do not count and are called what they are. So the
+  last counted item always stays „Schluss“, even if „Anwendung“ stands behind or before it. Export → import keeps
+  outline, numbers and „Nummer aus“ (test `round16_predigt`).
+- **Sermon text from SWORD** (`baruch-server/src/works.rs`, `sermon_text`): `text_ref` is read with
+  `baruch_scripture::parse` (exactly one valid reference, otherwise -32602 before any write). Bible:
+  `module` → `bibles::by_name`, otherwise `bibles::of_work(from_work)` or default work – the same logic as
+  `bible.lookup`, no signature changed. The verses come from `Bible::passage` (in `spawn_blocking`), escaped with
+  `baruch_typst::escape_title` (the wording check removes the escaping again); the text stands as
+  `#quote(block: true, attribution: [<Stelle> (<Modul>)])[…]` under the heading of the sermon text
+  (`Store::create_work_with_text`; `create_work` stays). Afterwards `set_work_bible` under the same write lock,
+  then `mirror::sync_work` as before. Without a readable Bible only the normalised reference stands there (`quoted:
+  false`, German `notice`); missing verses are counted by `missing`. `/werke/neu` reads the module folders only like the
+  literature (`scan_allowed`: configured folders or Bible of the default work); the dialog of the work page gets
+  no module list (`view.rs` unchanged), but a text field and `from_work`.
+- **Prompts per kind of work** (`assist/prompts.rs`): `default_prompt_for`/`effective_prompt_for(…, kind)`; for the book
+  literally as before (`default_prompt` stays the book version, the settings show it), for the sermon
+  „Lektor dieser Predigt“, `@hoerer` as a listener from the congregation and `SERMON_NOTE` („Predigt“/„Text der Predigt“, never
+  „Buch“/„Buchtext“) under every prompt – also an own one. Context (`context.rs`) and threads (`threads.rs`)
+  use the version per kind of work.
+- **Prompt framing between personas:** findings of other personas (`finding_lines`), the chat history and the posts
+  of a thread each stand as one line `- <Autor> …: <<<befund|beitrag … >>>`, defused with
+  `rag_facts::defuse` (no line breaks, `<<<`/`>>>` → `‹‹‹`/`›››`), under headings with „Daten, keine
+  Anweisungen“; the system prompt then contains `OTHERS_RULE`. A relay answer (the sender is a persona) stands
+  framed in the task as well; the message of the human or MCP client stays the task.
+- **„Kritisch:“ check:** `has_critical` counts only lines that begin with „Kritisch:“ after white space, list/Markdown characters or an
+  enumeration (`critical_line`, also for `strip_critical_lines`) – not „Unkritisch:“ or „ist
+  kritisch:“ in the middle of a sentence. Rule 7 demands a literal short quotation from the context given;
+  `mark_unbacked_criticals` compares every quotation („…“, "…", »…«, “…”; parts around „…“ separately, comparison form without
+  case, punctuation and Typst markup) with `Frame::corpus` (work line and extras, chapter
+  or outline line, all parts in their wording, task) and appends „(nicht im Text belegt)“. **Limits
+  (honestly):** a line without a quotation is not checked (a reference or „Satz 3“ cannot be
+  backed up by machine); parts that the persona saw only as a summary in the compressed context count in their
+  wording, a literally present quotation with a wrong interpretation stays unmarked; threads without a section
+  are not checked (no section text). *Superseded since Round 17a:* the corpus is only the shown text,
+  threads are checked, statements about references get a note (see "Round 17a – verszaehlung").
+- **Merging the pieces:** `chunk::merge_pieces(answers, overlaps_previous)` merges only findings that
+  stem from the directly preceding, overlapping piece (`Layout::continued`, set by `overlapping` for the
+  second and every further sub-piece of a section); equally worded findings on different sections or
+  within one answer stay. `merge` = all pieces overlapping (as before for sub-pieces).
+- **Effective context length:** with „automatisch nach Kontext“ (and with
+  a fixed, inactive choice) `personas::effective_lector_of` compares `state.model.context(…).tokens`; a fixed, active choice asks nothing.
+  `rows_and_lector` uses it (same signature), `lector_of` stays the rule according to the setting. The lector in the
+  context (`is_lector`, memory) has since come from `rows_and_lector` instead of `Work::lector`. Threads compute
+  with the same effective length. Test mock: `ScriptedModel::with_reported_context_for(model, n)`.
+- **Lean thread context:** outline as a data block (`context::outline_block`, only numbers and titles), evidence
+  from SWORD on the references of the message for entitled personas (`hooks::bible_research`, the same switches as in the
+  section); shortening happens in the order evidence, outline, oldest posts. Semantic and web search still do not exist
+  in the thread.
+- **Chat section only:** `store_meta.chat_scope` (`chapter` | `section`, `Store::chat_scope`/`set_chat_scope`,
+  no migration, not in the mirror), RPC `persona.chat_scope_get/set` only for the human (not `/act`, not MCP),
+  form on Settings → Assistants. In the chat with `section` the only part is the section itself, instead of
+  the chapter line `outline_block` stands there.
 
-### Runde 16c – stichwortzettel
+### Round 16c – stichwortzettel
 
-- **Satz (`baruch-render::notes`, rein):** `notes_source(&NotesDoc, NotesFormat, font_pt) -> String` baut aus
-  fertigen Karten (`NotesCard`: Nummer, Titel, Tiefe, Zeitmarke, Dauer, Stichpunkte, Bibelstellen) eine Typst-Quelle;
-  `compile_pdf` setzt sie unverändert (`compile`/`compile_pdf` sind nicht angefasst). Formate `A5` (A5 hoch, 16 pt,
-  fließend) und `Cards` (A6 quer, 14 pt, `#pagebreak()` vor jedem Abschnitt, ein langer läuft über), Größe auf
-  14–28 pt geklemmt. **Maskierung:** jeder Text steht nur als Typst-Zeichenkette (`typst_string`: `\` und `"`
-  maskiert, Steuerzeichen als `\u{…}`) im Aufruf `#card((…))`; die Funktion `card` setzt Zeichenketten als Text –
-  Markup in Nutzertexten wird nie gelesen. Jeder Titel und Stichpunkt steht zusätzlich als `metadata` mit Label
-  `<baruch-note>`; `tests/notes.rs` fragt Typst per `query` und `assert`, ob ein Text mit `#`, `[`, `]`, `*`, `$`,
-  `\`, `<`, `@` und `"` wörtlich ankommt (und prüft A5-/A6-Maße über die `viewBox` der SVG-Seiten).
-- **Server (`src/pdf/notes.rs`, Untermodul von `pdf.rs`):** `points_of` (Regel marker → strong → first_sentence,
-  höchstens 6 Punkte zu 160 Zeichen; Lesetext über einen kleinen Zeichen-Scanner: Kommentare, stumme Zeilen,
-  Code-Argumente, `#footnote`/`#arbeit`, Labels, Verweise, Mathe, Raw fallen weg) und `refs_of`
-  (`crate::scripture::refs`, nur `RefStatus::Valid`, `normalized`, ohne Doppel). `notes_of` lädt das Werk einmal und
-  nimmt die Zeiten aus `crate::timing::timing_of` mit `Store::timing_settings` – dieselbe Rechnung wie
-  `crate::timing::work_timing` (S1), keine eigene Zählung; der Test `the_clocks_of_the_notes_are_those_of_the_timer`
-  vergleicht Karte für Karte mit `timing_json`. PDF über die vorhandene private Erzeugung `pdf::generate`
-  (`PdfKind::Notes`, „Kein PDF (Stichwortzettel)…“): `pdf::claim` je Werk (409), `typeset::RUNS`, Zeitlimit 120 s
-  (503), Satzfehler 422. Für Tests gibt es `NotesOptions::{limit, append}` (`#[doc(hidden)]`): Die Karten selbst
-  können keinen Satzfehler auslösen; `append` hängt Typst an die erzeugte Quelle, damit der Weg 422 bzw. „Exit 1
-  ohne Datei“ prüfbar ist; `notes_response` ist dafür öffentlich. Einbindung ohne `rpc.rs`/`lib.rs`:
-  `pdf::handles`/`call` geben `notes.*` weiter, `pdf::pages()` trägt die beiden GET-Routen. Eigene
-  Template-Umgebung (`base.html`, `notes.html`). CLI: `main.rs` liest nur `--stichwort/--format/--schrift`
-  (Prüfung über `NotesOptions::parse`); `pdf::notes::write_notes_file` schreibt über `pdf::write_new_file`
-  (`create_new`, halbe Datei wird entfernt; gemeinsam mit `write_pdf_file`).
-- **Anträge (Nutzerentscheidung 2026-11-08):** `outline.request_decide` ruft `mirror::record_request_decision` für
-  jede Entscheidung ohne `change` (abgelehnt, veraltet), nicht mehr nur bei `op.needs_consent()`; damit nehmen RPC,
-  `/gliederung/act` (ohne JavaScript) und der Zustimmungsdialog (Formular bzw. `consent.ts` über RPC) denselben
-  Weg. `mirror.rs`, `consent.rs` und `consent.ts` blieben dafür unverändert. Tests je Antragsart in
-  `tests/round16_antraege.rs`; `tests/outline_mcp.rs` erwartet jetzt den Protokoll-Commit.
-- **Vorschau „neuer Teil“:** `PreviewPoint` (Store) trägt zusätzlich `kind_word`, `before_number`, `before_level`
-  (aus dem Stand vor dem Probelauf); `outline::add_preview` ergänzt `label`/`before_label` mit
-  `view::level_name(work.kind, level)` (Predigt: „Predigtteil“) und `changed_label`. `outline.html` und
-  `consent.html` zeigen `label` statt der bloßen Nummer und „(vorher … → nachher …)“.
-- **Zeiten auf `/gliederung`:** `outline::manager` holt `crate::timing::work_timing` + `timing_json`; die Vorlage
-  zeigt bei `timing.shown` (Predigt oder Zielzeit) die Spalte „Dauer“ (`sections[entry.id]`, Zeitmarke „ab …“) und
-  oben Gesamt-/Zielzeit mit Warnung als Text. Nur lesend.
+- **Typesetting (`baruch-render::notes`, pure):** `notes_source(&NotesDoc, NotesFormat, font_pt) -> String` builds a Typst source from
+  finished cards (`NotesCard`: number, title, depth, time mark, duration, key points, Bible references);
+  `compile_pdf` typesets it unchanged (`compile`/`compile_pdf` are not touched). Formats `A5` (A5 portrait, 16 pt,
+  flowing) and `Cards` (A6 landscape, 14 pt, `#pagebreak()` before every section, a long one runs over), size clamped to
+  14–28 pt. **Escaping:** every text stands only as a Typst string (`typst_string`: `\` and `"`
+  escaped, control characters as `\u{…}`) in the call `#card((…))`; the function `card` sets strings as text –
+  markup in user texts is never read. Every title and key point additionally stands as `metadata` with the label
+  `<baruch-note>`; `tests/notes.rs` asks Typst via `query` and `assert` whether a text with `#`, `[`, `]`, `*`, `$`,
+  `\`, `<`, `@` and `"` arrives literally (and checks A5/A6 dimensions through the `viewBox` of the SVG pages).
+- **Server (`src/pdf/notes.rs`, submodule of `pdf.rs`):** `points_of` (rule marker → strong → first_sentence,
+  at most 6 points of 160 characters; reading text through a small character scanner: comments, silent lines,
+  code arguments, `#footnote`/`#arbeit`, labels, references, maths, raw are dropped) and `refs_of`
+  (`crate::scripture::refs`, only `RefStatus::Valid`, `normalized`, without duplicates). `notes_of` loads the work once and
+  takes the times from `crate::timing::timing_of` with `Store::timing_settings` – the same computation as
+  `crate::timing::work_timing` (S1), no counting of its own; the test `the_clocks_of_the_notes_are_those_of_the_timer`
+  compares card by card with `timing_json`. PDF through the existing private generation `pdf::generate`
+  (`PdfKind::Notes`, „Kein PDF (Stichwortzettel)…“): `pdf::claim` per work (409), `typeset::RUNS`, time limit 120 s
+  (503), typesetting error 422. For tests there are `NotesOptions::{limit, append}` (`#[doc(hidden)]`): the cards themselves
+  cannot trigger a typesetting error; `append` appends Typst to the generated source, so that the path 422 or „Exit 1
+  ohne Datei“ can be checked; `notes_response` is public for that. Wiring without `rpc.rs`/`lib.rs`:
+  `pdf::handles`/`call` pass on `notes.*`, `pdf::pages()` carries the two GET routes. Own
+  template environment (`base.html`, `notes.html`). CLI: `main.rs` reads only `--stichwort/--format/--schrift`
+  (check through `NotesOptions::parse`); `pdf::notes::write_notes_file` writes through `pdf::write_new_file`
+  (`create_new`, a half file is removed; shared with `write_pdf_file`).
+- **Requests (user decision 2026-11-08):** `outline.request_decide` calls `mirror::record_request_decision` for
+  every decision without `change` (rejected, outdated), no longer only with `op.needs_consent()`; so RPC,
+  `/gliederung/act` (without JavaScript) and the consent dialog (form or `consent.ts` through RPC) take the same
+  way. `mirror.rs`, `consent.rs` and `consent.ts` stayed unchanged for this. Tests per request kind in
+  `tests/round16_antraege.rs`; `tests/outline_mcp.rs` now expects the log commit.
+- **Preview „neuer Teil“:** `PreviewPoint` (store) additionally carries `kind_word`, `before_number`, `before_level`
+  (from the state before the trial run); `outline::add_preview` adds `label`/`before_label` with
+  `view::level_name(work.kind, level)` (sermon: „Predigtteil“) and `changed_label`. `outline.html` and
+  `consent.html` show `label` instead of the bare number and „(vorher … → nachher …)“.
+- **Times on `/gliederung`:** `outline::manager` fetches `crate::timing::work_timing` + `timing_json`; with
+  `timing.shown` (sermon or target time) the template shows the column „Dauer“ (`sections[entry.id]`, time mark „ab …“) and
+  at the top total/target time with a warning as text. Read only.
 
-### Integration Runde 16
+### Integration Round 16
 
-Zusammengeführt mit `--no-ff` in der Reihenfolge zeitwaechter → predigt-vorlage → stichwortzettel. Konflikte nur in
-`tests/main.rs`, `docs/Architektur.md` (Abschnitte nebeneinander) und den S1-Dateien `baruch-typst/src/timing.rs`,
-`baruch-server/src/timing.rs` (add/add: der Zweig stichwortzettel trug den cherry-pick des S1-Commits; maßgeblich ist
-die berichtigte Fassung aus zeitwaechter, stichwortzettel hatte sie nicht verändert).
+Merged with `--no-ff` in the order zeitwaechter → predigt-vorlage → stichwortzettel. Conflicts only in
+`tests/main.rs`, `docs/Architektur.md` (sections side by side) and the S1 files `baruch-typst/src/timing.rs`,
+`baruch-server/src/timing.rs` (add/add: the branch stichwortzettel carried the cherry-pick of the S1 commit; authoritative is
+the corrected version from zeitwaechter, stichwortzettel had not changed it).
 
-- **Ende-zu-Ende `tests/round16.rs`:** Predigt über das Formular „Neues Werk“ mit Predigttext aus einer Testbibel
-  (`baruch_sword::fixture`), Text in allen Punkten, Formular „Predigtzeit“ → Zeiten und Warnung in `work.timing`, MCP
-  `work_timing`, `timing.count`, Baum, Editorkopf und `/gliederung`; ohne Bibel nur die Stellenangabe; Stichwortzettel
-  als Seite, `notes.get`, `notes.pdf` (A5 und Karten), Download und `write_notes_file`; jede Antragsart auf der
-  Predigt ohne JavaScript abgelehnt → je ein Protokoll-Commit; Lektor der Predigt mit gerahmtem fremdem Befund,
-  belegter und erfundener Kritik, „Unkritisch:“; Prüfen der ganzen Predigt mit „Kritisch:“ hinter der Teil-Angabe.
-- **„Kritisch:“ hinter der Teil-Angabe** (`assist/prompts.rs`, gefunden in der Handprüfung): Der Auftrag „Prüfe das
-  ganze Kapitel … jeden mit … dem Teil“ führt bei Gemma zu Zeilen „- I. Beobachtung am Text: Kritisch: …“. Seit 16a
-  zählte nur „Kritisch:“ am Zeilenanfang – Baruch forderte deshalb einen vorhandenen Befund nach (eine zweite
-  Modellanfrage) und schrieb fälschlich „nennt keinen mit „Kritisch:“ markierten Befund“ unter den Beitrag. Neu
-  `critical_finding`: Zeilenanfang wie `critical_line` oder „Kritisch:“ direkt nach einer Angabe, die mit „:“, „–“
-  oder „—“ endet (höchstens 80 Zeichen, ohne Satzende – Nummern wie „I.“ zählen nicht als Satzende –, Trenner nicht
-  in offener Klammer; Nachbesserung siehe unten).
-  `has_critical` und `mark_unbacked_criticals` nehmen `critical_finding`; `strip_critical_lines` (Vorschlag =
-  Buchtext) bleibt bei der strengen `critical_line`, damit ein Satz wie „Die kritische Lage: Kritisch: …“ im
-  Buchtext stehen bleibt. Die Zitatprüfung behandelt außer „…“/„...“ auch Einfügungen in `[…]` als Lücke
-  („das Glas ... gesprungen [ist]“ ist belegt).
-- **Predigt im Auftrag:** Kopf und Auftrag sagten auch bei einer Predigt „das ganze Kapitel“; `context.rs`
-  (`sermon_wording`) schreibt dort „die ganze Predigt“ bzw. „zu dieser Predigt“.
-- **Stichwortzettel:** Der Kopf jeder Karte ist `block(sticky: true)` – in der Sichtprüfung stand „III. Zuspruch“
-  allein unten auf Seite 1 des A5-Zettels.
-- **Stil:** `static/predigt.css` (in `STYLE`) für Editorkopf (Zeit in eigener Zeile, sonst wurde der Titel
-  abgeschnitten), Baum- und Gliederungszeiten, „Predigtzeit“, Stichwortzettel-Seite (Karten im Raster), lokal/extern
-  im Akkordeon „Assistenten“ und den Kasten „Nur bei einer Predigt“ in „Neues Werk“.
-- **Handprüfung gegen Eliezer** (Integrator, Pförtner wie Runde 15, höchstens zwei Anfragen an
-  `google/gemma-4-26b-a4b`, erfundene „Laternenpredigt“ mit Predigttext Lk 15,4–6 aus einer erfundenen Testbibel,
-  598 gesprochene Wörter ≈ 5:30): Eine Anfrage „Prüfen, ganze Predigt“ (11,8 s, 1 928 Tokens Prompt, ganze Predigt im
-  Wortlaut, System-Prompt „Lektor dieser Predigt“ mit Predigt-Hinweis) – die Antwort trug zwei „Kritisch:“-Befunde
-  hinter der Teil-Angabe; Baruch erkannte sie nicht und forderte nach (zweite Anfrage, 3,1 s, wieder zwei Befunde,
-  wieder nicht erkannt). Beide Fehler oben behoben und mit den echten Antwortformen getestet; eine dritte Anfrage gab
-  es nicht. Alle Zitate in den „Kritisch:“-Befunden stehen im Text (in Zeilen ohne „Kritisch:“ setzt Gemma auch
-  Umschreibungen in Anführungszeichen, etwa „gesprungenem Glas“ für „Das Glas ist gesprungen“); ein Befund ist inhaltlich falsch („Lk 15,5“ sei im Predigttext
-  nicht belegt, obwohl der Vers in Lk 15,4–6 steht) – das kann die Zitatprüfung nicht sehen (→ Backlog).
+- **End-to-end `tests/round16.rs`:** sermon through the form „Neues Werk“ with a sermon text from a test Bible
+  (`baruch_sword::fixture`), text in all items, form „Predigtzeit“ → times and warning in `work.timing`, MCP
+  `work_timing`, `timing.count`, tree, editor head and `/gliederung`; without a Bible only the reference; notes sheet
+  as a page, `notes.get`, `notes.pdf` (A5 and cards), download and `write_notes_file`; every request kind on the
+  sermon rejected without JavaScript → one log commit each; lector of the sermon with a framed foreign finding,
+  backed and invented criticism, „Unkritisch:“; checking the whole sermon with „Kritisch:“ behind the part label.
+- **„Kritisch:“ behind the part label** (`assist/prompts.rs`, found in the manual check): the task „Prüfe das
+  ganze Kapitel … jeden mit … dem Teil“ leads with Gemma to lines „- I. Beobachtung am Text: Kritisch: …“. Since 16a
+  only „Kritisch:“ at the start of a line counted – Baruch therefore re-requested an existing finding (a second
+  model request) and wrongly wrote „nennt keinen mit „Kritisch:“ markierten Befund“ under the post. New:
+  `critical_finding`: line start like `critical_line` or „Kritisch:“ directly after a label that ends with „:“, „–“
+  or „—“ (at most 80 characters, without a sentence end – numbers like „I.“ do not count as a sentence end –, separator not
+  in an open bracket; follow-up see below).
+  `has_critical` and `mark_unbacked_criticals` take `critical_finding`; `strip_critical_lines` (proposal =
+  book text) stays with the strict `critical_line`, so that a sentence like „Die kritische Lage: Kritisch: …“ stays in the
+  book text. Besides „…“/„...“ the quotation check also treats insertions in `[…]` as a gap
+  („das Glas ... gesprungen [ist]“ is backed).
+- **Sermon in the task:** head and task also said „das ganze Kapitel“ for a sermon; `context.rs`
+  (`sermon_wording`) writes „die ganze Predigt“ or „zu dieser Predigt“ there.
+- **Notes sheet:** the head of every card is `block(sticky: true)` – in the visual check „III. Zuspruch“ stood
+  alone at the bottom of page 1 of the A5 sheet.
+- **Style:** `static/predigt.css` (in `STYLE`) for the editor head (time on its own line, otherwise the title was
+  cut off), tree and outline times, „Predigtzeit“, notes sheet page (cards in a grid), local/external
+  in the accordion „Assistenten“ and the box „Nur bei einer Predigt“ in „Neues Werk“.
+- **Manual check against Eliezer** (integrator, gatekeeper as in Round 15, at most two requests to
+  `google/gemma-4-26b-a4b`, an invented „Laternenpredigt“ with the sermon text Lk 15,4–6 from an invented test Bible,
+  598 spoken words ≈ 5:30): one request „Prüfen, ganze Predigt“ (11.8 s, 1 928 tokens prompt, whole sermon in its
+  wording, system prompt „Lektor dieser Predigt“ with the sermon note) – the answer carried two „Kritisch:“ findings
+  behind the part label; Baruch did not recognise them and re-requested (second request, 3.1 s, again two findings,
+  again not recognised). Both bugs above fixed and tested with the real answer forms; there was no third
+  request. All quotations in the „Kritisch:“ findings stand in the text (in lines without „Kritisch:“ Gemma also puts
+  paraphrases in quotation marks, for instance „gesprungenem Glas“ for „Das Glas ist gesprungen“); one finding is wrong in substance („Lk 15,5“ is supposedly not backed in the sermon text,
+  although the verse stands in Lk 15,4–6) – the quotation check cannot see that (→ backlog).
 
-### Nachbesserung Runde 16 (Gutachten)
+### Follow-up Round 16 (review)
 
-- **Stichwortzettel, Fußnoten** (`pdf/notes.rs`): `strong_spans` übersprang `#footnote[…]` und `#arbeit[…]` nicht;
-  eine Hervorhebung darin wurde Stichpunkt (Regel 2), die ersten Sätze fielen weg, ein Arbeitsauftrag konnte auf die
-  Kanzelkarte geraten. Jetzt überspringt `strong_spans` stumme Aufrufe samt Argumenten und Inhaltsblöcken
-  (`silent_call_end`, dieselbe Namensregel wie `plain`).
-- **Stichwortzettel, Verschachtelung** (`pdf/notes.rs`): `plain_into` öffnete jeden Inhaltsblock `#name[…]` rekursiv
-  ohne Grenze; 60 000 Ebenen (z. B. aus einer importierten `.typ`-Datei) brachten den Stack eines tokio-Workers zum
-  Überlaufen, und der ganze Server brach ab (`GET /werke/{id}/stichwortzettel` liegt nicht hinter `same_origin`).
-  Jetzt höchstens `MAX_NESTING` = 32 Ebenen, tiefer Verschachteltes fällt weg; damit ist auch `group_end` je Ebene
-  höchstens 32-mal über den Text (linear statt quadratisch). `at_line_start` liest nur bis zum letzten
-  Nicht-Leerraum zurück statt über die ganze Zeile. Tests: Einheitstest mit 256 KiB Stack, Server-Test `notes.get`
-  und Seite mit 60 000 Ebenen.
-- **„Kritisch:“ hinter der Teil-Angabe** (`assist/prompts.rs`): `critical_finding` erkennt nun auch eine fett
-  gesetzte Angabe, deren `**` hinter dem Trenner schließt („- **III. Zuspruch:** Kritisch: …“), einen
-  abgeschlossenen Zusatz in Klammern („III. Zuspruch (Schluss): Kritisch: …“; nur ein Trenner in *offener* Klammer
-  zählt nicht) und eine römische Nummer als Aufzählung („II. Kritisch: …“, `strip_list_prefix` kennt „II.“/„II)“
-  wie „2.“/„2)“ – das gilt damit auch für `critical_line` und `strip_critical_lines`).
+- **Notes sheet, footnotes** (`pdf/notes.rs`): `strong_spans` did not skip `#footnote[…]` and `#arbeit[…]`;
+  a highlight in it became a key point (rule 2), the first sentences were dropped, a work assignment could get onto the
+  pulpit card. Now `strong_spans` skips silent calls including arguments and content blocks
+  (`silent_call_end`, the same name rule as `plain`).
+- **Notes sheet, nesting** (`pdf/notes.rs`): `plain_into` opened every content block `#name[…]` recursively
+  without limit; 60 000 levels (e.g. from an imported `.typ` file) overflowed the stack of a tokio worker,
+  and the whole server aborted (`GET /werke/{id}/stichwortzettel` does not lie behind `same_origin`).
+  Now at most `MAX_NESTING` = 32 levels, anything nested deeper is dropped; with that `group_end` also runs over the text at most
+  32 times per level (linear instead of quadratic). `at_line_start` reads back only up to the last
+  non-white-space instead of over the whole line. Tests: unit test with 256 KiB stack, server test `notes.get`
+  and page with 60 000 levels.
+- **„Kritisch:“ behind the part label** (`assist/prompts.rs`): `critical_finding` now also recognises a bold
+  label whose `**` closes behind the separator („- **III. Zuspruch:** Kritisch: …“), a
+  closed addition in brackets („III. Zuspruch (Schluss): Kritisch: …“; only a separator in an *open* bracket
+  does not count) and a Roman number as an enumeration („II. Kritisch: …“, `strip_list_prefix` knows „II.“/„II)“
+  like „2.“/„2)“ – this thus also applies to `critical_line` and `strip_critical_lines`).
 
-### Runde 17a – verszaehlung
+### Round 17a – verszaehlung
 
-- **Alle Verszählungen** (`baruch-scripture/src/versification.rs`): `versification(name)` kennt jede Zählung von
+- **All versifications** (`baruch-scripture/src/versification.rs`): `versification(name)` knows every versification of
   `sword-modules` 0.1.0 (Calvin, Catholic, Catholic2, DarbyFr, German, KJV, KJVA, LXX, Leningrad, Luther, MT, NRSV,
-  NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg; Groß-/Kleinschreibung egal, Schreibweise von sword-modules).
-  German und KJV kommen weiter aus `data/versification*.tsv` (maßgeblich); die übrigen baut Baruch beim ersten
-  Gebrauch aus den Daten von sword-modules (CC0, `default-features = false`: nur Daten, kein Lesen, kein Netz). Jede
-  Zählung enthält nur die 66 Bücher von `books()` in deren Reihenfolge; Spätschriften bleiben draußen, MT und
-  Leningrad haben kein Neues Testament (`chapters_of` → `None`). `all()`/`names()`: German zuerst, dann alphabetisch.
-  `count_range` zählt die Verse einer Stelle (Vers 0 = ganzes Kapitel). Test `tests/versification.rs`: sword-modules
-  „German“/„KJV“ stimmen Vers für Vers mit den Tabellen überein (sonst listet der Test die Abweichungen).
-- **Abbildung** (`versification/mapping.rs`, Daten `data/versification-map.tsv`): Drehpunkt KJV. Je Zeile eine Regel
-  „Zählungen, Buch, Kapitel, erster bis letzter Vers → KJV-Kapitel, erster KJV-Vers, Regelname“; `-` = der Vers hat
-  in KJV keine eigene Entsprechung (z. B. eine Psalmüberschrift, die KJV nicht als Vers zählt, oder „3. Joh 15 ist in
-  KJV Teil von Vers 14“), Kapitel `*` = ganzes Buch nicht abbildbar (Psalmen von LXX, Orthodox, Synodal,
-  SynodalProt, Vulg: griechisch-lateinische Zählung). Der Rückweg ist dieselbe Regel umgekehrt. Ein Kapitel, das eine
-  Regel berührt, ist in der Tabelle ganz beschrieben; ein Kapitel ohne Regel gilt als gleich, wenn beide Zählungen
-  gleich viele Verse haben, sonst ist es nicht abbildbar (`Mapped::Unmapped`, „Versifikation passt nicht: …“ mit
-  beiden Namen) – **nie geraten**. Das „gleich“ gilt nur in einem Buch, für das die Zählung Regeln hat oder dessen
-  Verszahlen in jedem Kapitel mit KJV übereinstimmen; ein Buch ohne Regel, das von KJV abweicht, ist ganz nicht
-  abbildbar („für Ps in Catholic gibt es keine geprüften Regeln …“, Nachbesserung Runde 17: Catholic, Catholic2,
-  Segond und Calvin zählen Psalmüberschriften als Vers 1 ohne Regel in der Tabelle, Ps 13 hat dort wie in KJV 6 Verse
-  und wurde vorher still falsch abgebildet). Zählungen mit Vers für Vers gleichen Zahlen (German/Luther, KJV/KJVA,
-  NRSV/NRSVA) bilden jeden Vers auf sich ab, ebenso ein einzelnes Buch mit gleichen Zahlen und denselben Regeln in
-  beiden Zählungen (z. B. Catholic/Catholic2 in den Psalmen). Regeln gibt es für die hebräische Zählung (German, Luther, MT, Leningrad: alle
-  Psalmüberschriften, Ps 13 mit gleicher Verszahl und trotzdem verschoben, Kapitelgrenzen 1. Mo 31/32 … Mal 3/4) und
-  im Neuen Testament (Apg 19,40/41, 2. Kor 13,12/13 für German/Luther; 3. Joh 14/15 und Offb 12,18/13,1 auch für
-  NRSV/NRSVA). Röm 16 zählt in German und KJV gleich. `map_range` liefert die Verse der Zielzählung in
-  Textreihenfolge ohne Doppel, höchstens `limit` (`truncated` nur, wenn die Stelle mehr als `limit` Verse hat); eine
-  Stelle „ganzes Kapitel“ lässt Psalmüberschriften ohne Verszahl in der Zielzählung aus (Regel in `rules`), eine
-  Versangabe darauf ist nicht abbildbar. Die Tabelle entstand mit einem Hilfsskript (nicht im Repo) aus den Verszahlen beider
-  Zählungen; der Test `tests/mapping.rs` prüft dasselbe unabhängig (Quelle und Ziel existieren, kein Quell- und kein
-  Zielvers doppelt = injektiv, berührte Kapitel ganz abgedeckt), dazu Hin- und Rückweg für jeden Vers German ↔ KJV.
-  **Grenze:** Abweichungen ohne Regel (z. B. 2. Kön 15 in German mit 39 Versen, Calvin, Catholic, DarbyFr, Segond,
-  Synodal) bleiben nicht abbildbar, bis jemand die Regel belegt einträgt; ein Kapitel gleicher Länge mit anders
-  gesetzten Versgrenzen erkennt Baruch nur, wenn eine Regel es beschreibt (wie Ps 13) – in Büchern ohne jede Regel
-  deshalb gar nicht (siehe oben). Test `tests/mapping.rs`: jedes Buch ohne Regel ist nur abbildbar, wenn es mit KJV
-  übereinstimmt.
-- **RPC/MCP** (`src/scripture_map.rs`, `src/mcp/scripture_map.rs`): `scripture.map {ref, from?, to?}` liest mit
-  `baruch_scripture::parse` und prüft gegen `from` (`count_range`), nicht gegen German; `target` in deutscher
-  Schreibweise mit Läufen. `scripture.versifications {}`. MCP `scripture_map` antwortet wie RPC, ein Fehler
-  (unbekannte Zählung) ist `isError` mit der Liste. Nur lesend, ohne Werk.
-- **Korpus der Zitatprüfung (L1)** (`assist/context.rs`): `shown_corpus(facts, calls)` = Faktenblock der
-  Stellenprüfung (`Frame::facts`, steht im System-Prompt) + die Nutzer-Nachrichten der **gesendeten** Aufrufe, aus
-  denen `strip_foreign` die gerahmten fremden Texte entfernt (`<<<befund`, `<<<beitrag`, `<<<einfall` bis zum
-  nächsten `>>>`; der Inhalt ist entschärft, er kann den Kasten nicht früher schließen). So zählen: Werkzeile,
-  Kapitel- bzw. Gliederungszeile, die Teile, wie sie dastanden (ein zusammengefasster Teil nur mit seiner
-  Zusammenfassung – im gestückelten Lauf die Aufrufe aller Stücke), Prüfgegenstand, Auftrag (im Chat die eigene
-  Nachricht), Belege aus SWORD, Treffer der Bedeutungssuche, Webseiten. Nicht zählen: Befunde anderer Personas,
-  Chat- und Fadenbeiträge, Einfälle – und der übrige System-Prompt (seine Beispiele „Falsch: …“ sind keine Belege).
-  `assist::run_inputs` nimmt das Korpus des Aufrufs bzw. aller Stücke (`Squeezed::corpus`).
-- **Stellenaussagen (L2)** (`assist/ref_claims.rs`): `mark_ref_claims(text, corpus)` nach `mark_unbacked_criticals`
-  im Lektor, im Chat (beide über `run_inputs`) und in Fäden. Eine „Kritisch:“-Zeile (`critical_finding`), die eine
-  Stelle nennt (`baruch_scripture::scan`) und behauptet, sie fehle bzw. sei nicht belegt („nicht belegt“, „nicht im
-  Text“, „kommt nicht vor“ …; „fehlt“, „fehlen“, „steht nicht“ nur zusammen mit einem Ort wie „im Text“, „im
-  Predigttext“, „im Abschnitt“; alles als ganze Wörter), bekommt „ (Stelle steht im Text: <Stelle aus dem Korpus>)“,
-  wenn die Stelle ganz in einer gültigen Stelle des Korpus liegt (Vers 0 = ganzes Kapitel); eine ungültige Stelle
-  bekommt „ (Stelle ungültig: <message>)“. Die Vermerke setzt nur Baruch: `strip_notes` entfernt vorhandene (vom
-  Modell geschriebene oder aus einem früheren Durchlauf) vor der Prüfung, die Zeile wird neu geprüft (idempotent,
-  ein gefälschter Vermerk schaltet die Prüfung nicht ab); ebenso entfernt `prompts::mark_unbacked_criticals` ein
-  vorhandenes „(nicht im Text belegt)“ (`strip_unbacked_note`) und prüft neu. **Grenze:** nur
-  deutsche Zählung und nur die Wortliste oben; eine richtig behauptete Lücke bleibt unvermerkt.
-- **Fäden (L3)** (`threads.rs`): Antworten im Faden gehen durch dieselben Prüfungen; Korpus ist der gesendete Aufruf
-  ohne gerahmte Fadenbeiträge (auch eine Relay-Antwort ist gerahmt) – also Werkzeile, Fadentitel, Gliederung, Belege
-  aus SWORD und die eigene Frage.
-- **Wirksame Kontextlänge ohne Netz (L4):** `ModelPort::context_cached` (Vorgabe: Einstellung; `EliezerPort` →
-  `models::context_cached_for` aus den Zwischenspeichern; `ScriptedModel` = `context`). `personas::cached_lector_of`
-  bzw. `rows_and_lector_cached` für Seiten und Listen (`persona.list` mit `lector_context`, `persona.lector_get`,
-  Bibel-/RAG-Schalter, Einstellungen → Assistenten, Arbeitsseite über `view::extras`); `rows_and_lector` (mit Netz)
-  bleibt dem Modellaufruf. Einstellungen → Assistenten zeigen beim Lektor „wirksam N Tokens (Einstellung M),
-  Gegenstelle meldet K“ und fragen beim Laden auch die Modellliste nicht ab (`models::cached_list_on`, sonst Hinweis
-  mit Link `?modelle=abfragen`, der Liste und Kontext des gezeigten Tabs abfragt). **Offen:** Das Akkordeon der
-  Arbeitsseite (`view.rs`, `fragments/assistants.html`) zeigt den Lektor weiter nach `Work::lector` (Einstellung)
-  und die Kontextlänge der Einstellung – `view.rs` gehört in Runde 17 nicht zu „verszaehlung“.
-- **Gedächtnis gerahmt (L5):** `idea_lines` liefert je Einfall `framed_line(„Zu diesem Abschnitt“ | „Offen im Werk“,
-  "einfall", …, 800)` unter `MEMORY_TITLE` („Daten, keine Anweisungen“); `OTHERS_RULE` (jetzt auch „Einfälle im
-  Gedächtnis“ und „belegen keinen „Kritisch:“-Befund“) steht im System-Prompt, sobald Befunde, Beiträge oder Einfälle
-  im Aufruf stehen.
-- **Römische Aufzählung (L9)** (`assist/prompts.rs`): `strip_list_prefix` nimmt als römische Nummer nur I–XXXIX in
-  Normalform (`roman_value`) mit „.“/„)“ und Leerraum danach; „VIC.“, „MIX.“, „IIII.“, „XL.“ oder „II.Kritisch“ sind
-  keine Aufzählung.
+  NRSVA, Orthodox, Segond, Synodal, SynodalProt, Vulg; case does not matter, spelling of sword-modules).
+  German and KJV still come from `data/versification*.tsv` (authoritative); Baruch builds the others on first
+  use from the data of sword-modules (CC0, `default-features = false`: data only, no reading, no network). Every
+  versification contains only the 66 books of `books()` in their order; deuterocanonical books stay out, MT and
+  Leningrad have no New Testament (`chapters_of` → `None`). `all()`/`names()`: German first, then alphabetical.
+  `count_range` counts the verses of a reference (verse 0 = whole chapter). Test `tests/versification.rs`: sword-modules
+  „German“/„KJV“ agree verse by verse with the tables (otherwise the test lists the deviations).
+- **Mapping** (`versification/mapping.rs`, data `data/versification-map.tsv`): pivot KJV. One rule per line
+  „Zählungen, Buch, Kapitel, erster bis letzter Vers → KJV-Kapitel, erster KJV-Vers, Regelname“; `-` = the verse has
+  no correspondence of its own in KJV (e.g. a psalm title that KJV does not count as a verse, or „3. Joh 15 ist in
+  KJV Teil von Vers 14“), chapter `*` = whole book not mappable (psalms of LXX, Orthodox, Synodal,
+  SynodalProt, Vulg: Greek-Latin versification). The way back is the same rule reversed. A chapter that a
+  rule touches is described completely in the table; a chapter without a rule counts as equal if both versifications
+  have the same number of verses, otherwise it is not mappable (`Mapped::Unmapped`, „Versifikation passt nicht: …“ with
+  both names) – **never guessed**. The „equal“ applies only in a book for which the versification has rules or whose
+  verse counts agree with KJV in every chapter; a book without a rule that deviates from KJV is entirely not
+  mappable („für Ps in Catholic gibt es keine geprüften Regeln …“, follow-up Round 17: Catholic, Catholic2,
+  Segond and Calvin count psalm titles as verse 1 without a rule in the table, Ps 13 has 6 verses there as in KJV
+  and was silently mapped wrongly before). Versifications with verse-by-verse equal numbers (German/Luther, KJV/KJVA,
+  NRSV/NRSVA) map every verse onto itself, as does a single book with equal numbers and the same rules in
+  both versifications (e.g. Catholic/Catholic2 in the psalms). There are rules for the Hebrew versification (German, Luther, MT, Leningrad: all
+  psalm titles, Ps 13 with the same verse count and shifted nevertheless, chapter boundaries 1. Mo 31/32 … Mal 3/4) and
+  in the New Testament (Apg 19,40/41, 2. Kor 13,12/13 for German/Luther; 3. Joh 14/15 and Offb 12,18/13,1 also for
+  NRSV/NRSVA). „Röm 16“ counts the same in German and KJV. `map_range` delivers the verses of the target versification in
+  text order without duplicates, at most `limit` (`truncated` only if the reference has more than `limit` verses); a
+  reference „ganzes Kapitel“ leaves out psalm titles without a verse number in the target versification (rule in `rules`), a
+  verse reference onto them is not mappable. The table came about with a helper script (not in the repository) from the verse counts of both
+  versifications; the test `tests/mapping.rs` checks the same independently (source and target exist, no source and no
+  target verse twice = injective, touched chapters covered completely), plus way there and back for every verse German ↔ KJV.
+  **Limit:** deviations without a rule (e.g. „2. Kön 15“ in German with 39 verses, Calvin, Catholic, DarbyFr, Segond,
+  Synodal) stay unmappable until someone enters the rule with evidence; a chapter of equal length with differently
+  set verse boundaries is recognised by Baruch only if a rule describes it (like Ps 13) – in books without any rule
+  therefore not at all (see above). Test `tests/mapping.rs`: every book without a rule is mappable only if it agrees
+  with KJV.
+- **RPC/MCP** (`src/scripture_map.rs`, `src/mcp/scripture_map.rs`): `scripture.map {ref, from?, to?}` reads with
+  `baruch_scripture::parse` and checks against `from` (`count_range`), not against German; `target` in German
+  spelling with runs. `scripture.versifications {}`. MCP `scripture_map` answers like RPC, an error
+  (unknown versification) is `isError` with the list. Read only, without a work.
+- **Corpus of the quotation check (L1)** (`assist/context.rs`): `shown_corpus(facts, calls)` = fact block of the
+  reference check (`Frame::facts`, stands in the system prompt) + the user messages of the **sent** calls, from
+  which `strip_foreign` removes the framed foreign texts (`<<<befund`, `<<<beitrag`, `<<<einfall` up to the
+  next `>>>`; the content is defused, it cannot close the box earlier). So these count: work line,
+  chapter or outline line, the parts as they stood there (a summarised part only with its
+  summary – in the chunked run the calls of all pieces), subject of the check, task (in the chat the own
+  message), evidence from SWORD, hits of the semantic search, web pages. These do not count: findings of other personas,
+  chat and thread posts, ideas – and the rest of the system prompt (its examples „Falsch: …“ are no evidence).
+  `assist::run_inputs` takes the corpus of the call or of all pieces (`Squeezed::corpus`).
+- **Statements about references (L2)** (`assist/ref_claims.rs`): `mark_ref_claims(text, corpus)` after `mark_unbacked_criticals`
+  in the lector, in the chat (both through `run_inputs`) and in threads. A „Kritisch:“ line (`critical_finding`) that names a
+  reference (`baruch_scripture::scan`) and claims it is missing or not backed („nicht belegt“, „nicht im
+  Text“, „kommt nicht vor“ …; „fehlt“, „fehlen“, „steht nicht“ only together with a place like „im Text“, „im
+  Predigttext“, „im Abschnitt“; all as whole words) gets „ (Stelle steht im Text: <Stelle aus dem Korpus>)“
+  if the reference lies wholly within a valid reference of the corpus (verse 0 = whole chapter); an invalid reference
+  gets „ (Stelle ungültig: <message>)“. Only Baruch sets the notes: `strip_notes` removes existing ones (written by the
+  model or from an earlier pass) before the check, the line is checked anew (idempotent,
+  a faked note does not switch off the check); likewise `prompts::mark_unbacked_criticals` removes an
+  existing „(nicht im Text belegt)“ (`strip_unbacked_note`) and checks anew. **Limit:** only
+  German versification and only the word list above; a correctly claimed gap stays unnoted.
+- **Threads (L3)** (`threads.rs`): answers in the thread go through the same checks; the corpus is the sent call
+  without framed thread posts (a relay answer is framed too) – thus work line, thread title, outline, evidence
+  from SWORD and the own question.
+- **Effective context length without network (L4):** `ModelPort::context_cached` (default: setting; `EliezerPort` →
+  `models::context_cached_for` from the caches; `ScriptedModel` = `context`). `personas::cached_lector_of`
+  or `rows_and_lector_cached` for pages and lists (`persona.list` with `lector_context`, `persona.lector_get`,
+  Bible/RAG switches, Settings → Assistants, work page through `view::extras`); `rows_and_lector` (with network)
+  stays reserved for the model call. Settings → Assistants show for the lector „wirksam N Tokens (Einstellung M),
+  Gegenstelle meldet K“ and do not query the model list on load either (`models::cached_list_on`, otherwise a hint
+  with the link `?modelle=abfragen`, which queries list and context of the shown tab). **Open:** the accordion of the
+  work page (`view.rs`, `fragments/assistants.html`) still shows the lector according to `Work::lector` (setting)
+  and the context length of the setting – in Round 17 `view.rs` does not belong to „verszaehlung“.
+- **Memory framed (L5):** `idea_lines` delivers per idea `framed_line(„Zu diesem Abschnitt“ | „Offen im Werk“,
+  "einfall", …, 800)` under `MEMORY_TITLE` („Daten, keine Anweisungen“); `OTHERS_RULE` (now also „Einfälle im
+  Gedächtnis“ and „belegen keinen „Kritisch:“-Befund“) stands in the system prompt as soon as findings, posts or ideas
+  stand in the call.
+- **Roman enumeration (L9)** (`assist/prompts.rs`): `strip_list_prefix` takes as a Roman number only I–XXXIX in
+  normal form (`roman_value`) with „.“/„)“ and white space after it; „VIC.“, „MIX.“, „IIII.“, „XL.“ or „II.Kritisch“ are
+  no enumeration.
 
-### Runde 17b – stellen
+### Round 17b – stellen
 
-- **Parser (`baruch-scripture/src/lib.rs`):** Eingefrorene Typen und Signaturen unverändert (Vertrag §2.2).
-  `items` liest nach einer Punkt-Liste auch eine Komma-Liste (`comma_verse`: „, 18“, „, 18–20“, „, 18f“; kein Vers
-  bei Ordnungszahl „, 2.“, Buch „, 1 Joh“, Kapitel:Vers „, 4,1“, Zahlwort „, 18 Mal“ oder angehängtem Buchstaben „,
-  18a“) – gilt in `parse` und `scan`. Nur `scan`: `count_word_follows` (Zahlwortliste `COUNT_WORDS`, ganzes Wort,
-  Groß/Klein wie geschrieben) verwirft die ganze Angabe; `weekday_clock` verwirft „Mo|Di|Mi|Do|Fr|Sa|So h:mm“
-  (h ≤ 23, mm zweistellig ≤ 59); `verse_later` ersetzt ein ganzes Kapitel (genau ein Eintrag, kein Kapitelbereich)
-  durch Kapitel + Vers, wenn im selben Satz „Vers/Verse/Versen/V.“ mit Zahl folgt (≤ 120 Zeichen, kein Satzende –
-  „.!?“ vor Leerraum außer nach Abkürzung oder Ordnungszahl vor kleinem Wort –, keine Leerzeile, keine andere
-  Stelle); Bereich vom Buch bis zur Versnummer, Rest über `tail` („23–24“, „23f“).
-- **Zitate (`wording::inline_quotes`, `server/src/quotes.rs`):** `quote_end` überspringt innere Paare anderer Art
-  (`INNER_PAIRS`, nur im Absatz); ein Schlusszeichen nach Leerraum, das selbst ein Paar öffnet („er sagte “Ja”“),
-  ist inneres Zitat. Eine Leerzeile beendet die Suche nicht mehr; ein weiteres öffnendes Zeichen derselben Art
-  bricht ab, außer es steht nach einer Leerzeile am Absatzanfang (Fortsetzung). Höchstlänge weiter 3000 Zeichen.
-  `quote_spans` = `inline_quotes` + Blockzitate der obersten Ebene (`baruch_wysiwyg::parse`) + `nested_block_quotes`
-  (`#quote(… block: true …)[…]` überall, auch in `#szene[…]`; Zeichenketten in den Argumenten beachtet), sortiert,
-  gleiche Inhaltsbereiche nur einmal. Grenzen: kein Zitat derselben Art im Zitat; die Zuordnung (`quote_for`,
-  24 Bytes Zwischenraum) bleibt eine Faustregel. `compare` liest den Bibeltext jetzt als Klartext
-  (`wording::plain_words`, ohne `strip_markup`): „#1“ im Verstext ist kein Typst-Code (gefunden mit dem Test der
-  Sonderzeichen im Predigttext; vorher meldete die Prüfung beim eingefügten Predigttext „weicht ab“).
-- **Lexikon-Stichwörter (`bible_research.rs`):** Stichwörter `Keyword::Strong`/`Keyword::Word` in der Reihenfolge
-  Strong der Verse (`Bible::has_strongs` → `Bible::verse_strongs` je Vers der Stellen) → Strong im Text → Wörter.
-  Strong-Nummern sucht `strong_key_forms` als „G25“, „G0025“, „G00025“, die bloße Zahl („00025“, „25“) nur bei
-  `Feature=GreekDef`/`HebrewDef` passend zum Präfix (conf-Datei gelesen, sonst leer) – sonst bekäme ein
-  hebräisches Lexikon den Artikel einer griechischen Nummer. Wörter über `lemma_candidates` (das Wort, dann Stämme
-  ohne -ern/-en/-es/-er/-e/-n/-s mit mindestens drei Buchstaben, längere zuerst) gegen `Lexicon::lookup`
-  (Groß/Klein egal). Seit Runde 19c über `baruch_sword::Lexicon::lookup_lemma` mit Umlaut-Rückführung („Bäume“ →
-  „Baum“) und zuletzt dem letzten Bestandteil eines Kompositums. Ehrliche Grenzen: keine Lemmatisierung;
-  Strong-Nummern nur aus Modulen mit Auszeichnung (OSIS `lemma="strong:…"`, ThML, GBF).
-- **Predigttext (`works.rs`):** liest über `bibles::read_passage` (Abbildung deutsche Zählung → Zählung des Moduls,
-  Vertrag §2.3); „gekürzt“ nur nach `PassageText.truncated` (genau 400 Verse: nicht gekürzt, 401: gekürzt).
-- **Stichwortzettel (`pdf/notes.rs`, L7):** `first_sentence` überspringt den Punkt einer Abkürzung
-  (`ABBREVIATIONS` ohne Groß/Klein, `LETTER_ABBREVIATIONS` „S.“/„V.“ genau, `PAIR_ABBREVIATIONS` „z. B.“ usw. mit
-  oder ohne Leerraum); `plain_into` erkennt `@name` nach jedem Zeichen, das weder Buchstabe/Ziffer noch `_` ist.
-- **Anträge (L8):** `baruch-store/src/requests.rs` liest die Werkart mit (`COLUMNS` mit Unterabfrage auf `work.kind`)
-  und schreibt in Predigten „n vorhandene Predigtteile wandern“ (`summary_for`); keine Migration. Server
-  `outline::preview_label`: bei Predigten Nummer wie im Schema („Predigtteil I.“), beim Buch ohne Schlusspunkt
-  (unverändert).
-- **Zeitwächter (L6):** siehe oben („Widget“); Server unverändert, Test der Zählregel in `tests/round17_stellen.rs`.
-- Tests: `baruch-scripture/tests/references.rs` (Komma-Listen, Zahlwörter, Uhrzeiten, „Vers …“), Einheitentests in
-  `quotes.rs`, `pdf/notes.rs`, `bible_research.rs`, `requests.rs`; Server `tests/round17_stellen.rs`.
+- **Parser (`baruch-scripture/src/lib.rs`):** frozen types and signatures unchanged (contract §2.2).
+  After a dot list `items` also reads a comma list (`comma_verse`: „, 18“, „, 18–20“, „, 18f“; no verse
+  with an ordinal „, 2.“, book „, 1 Joh“, chapter:verse „, 4,1“, number word „, 18 Mal“ or an appended letter „,
+  18a“) – applies in `parse` and `scan`. Only `scan`: `count_word_follows` (number word list `COUNT_WORDS`, whole word,
+  case as written) discards the whole reference; `weekday_clock` discards „Mo|Di|Mi|Do|Fr|Sa|So h:mm“
+  (h ≤ 23, mm two digits ≤ 59); `verse_later` replaces a whole chapter (exactly one entry, no chapter range)
+  by chapter + verse if „Vers/Verse/Versen/V.“ with a number follows in the same sentence (≤ 120 characters, no sentence end –
+  „.!?“ before white space except after an abbreviation or an ordinal before a lower-case word –, no empty line, no other
+  reference); range from the book to the verse number, the rest through `tail` („23–24“, „23f“).
+- **Quotations (`wording::inline_quotes`, `server/src/quotes.rs`):** `quote_end` skips inner pairs of another kind
+  (`INNER_PAIRS`, only within the paragraph); a closing character after white space that itself opens a pair („er sagte “Ja”“)
+  is an inner quotation. An empty line no longer ends the search; a further opening character of the same kind
+  aborts, unless it stands after an empty line at the start of a paragraph (continuation). Maximum length still 3000 characters.
+  `quote_spans` = `inline_quotes` + top-level block quotations (`baruch_wysiwyg::parse`) + `nested_block_quotes`
+  (`#quote(… block: true …)[…]` everywhere, also in `#szene[…]`; strings in the arguments respected), sorted,
+  equal content ranges only once. Limits: no quotation of the same kind inside a quotation; the assignment (`quote_for`,
+  24 bytes of space in between) stays a rule of thumb. `compare` now reads the Bible text as plain text
+  (`wording::plain_words`, without `strip_markup`): „#1“ in the verse text is no Typst code (found with the test of the
+  special characters in the sermon text; before, the check reported „weicht ab“ for the inserted sermon text).
+- **Lexicon keywords (`bible_research.rs`):** keywords `Keyword::Strong`/`Keyword::Word` in the order
+  Strong of the verses (`Bible::has_strongs` → `Bible::verse_strongs` per verse of the references) → Strong in the text → words.
+  `strong_key_forms` looks for Strong numbers as „G25“, „G0025“, „G00025“, the bare number („00025“, „25“) only with
+  `Feature=GreekDef`/`HebrewDef` matching the prefix (conf file read, otherwise empty) – otherwise a
+  Hebrew lexicon would get the article of a Greek number. Words through `lemma_candidates` (the word, then stems
+  without -ern/-en/-es/-er/-e/-n/-s with at least three letters, longer ones first) against `Lexicon::lookup`
+  (case does not matter). Since Round 19c through `baruch_sword::Lexicon::lookup_lemma` with umlaut reduction („Bäume“ →
+  „Baum“) and finally the last component of a compound. Honest limits: no lemmatisation;
+  Strong numbers only from modules with markup (OSIS `lemma="strong:…"`, ThML, GBF).
+- **Sermon text (`works.rs`):** reads through `bibles::read_passage` (mapping German versification → versification of the module,
+  contract §2.3); „gekürzt“ only according to `PassageText.truncated` (exactly 400 verses: not shortened, 401: shortened).
+- **Notes sheet (`pdf/notes.rs`, L7):** `first_sentence` skips the dot of an abbreviation
+  (`ABBREVIATIONS` case-insensitive, `LETTER_ABBREVIATIONS` „S.“/„V.“ exactly, `PAIR_ABBREVIATIONS` „z. B.“ and so on with
+  or without white space); `plain_into` recognises `@name` after every character that is neither letter/digit nor `_`.
+- **Requests (L8):** `baruch-store/src/requests.rs` also reads the kind of work (`COLUMNS` with a subquery on `work.kind`)
+  and writes „n vorhandene Predigtteile wandern“ in sermons (`summary_for`); no migration. Server
+  `outline::preview_label`: for sermons the number as in the scheme („Predigtteil I.“), for the book without a final dot
+  (unchanged).
+- **Timer (L6):** see above ("Widget"); server unchanged, test of the counting rule in `tests/round17_stellen.rs`.
+- Tests: `baruch-scripture/tests/references.rs` (comma lists, number words, clock times, „Vers …“), unit tests in
+  `quotes.rs`, `pdf/notes.rs`, `bible_research.rs`, `requests.rs`; server `tests/round17_stellen.rs`.
 
-### Runde 17c – pruefanzeige
+### Round 17c – pruefanzeige
 
-- **Lesen in der Zählung des Moduls** (`bibles.rs`): `read_passage(bible, book, start, end) -> PassageText` bildet
-  die deutsche Stelle mit `mapping::map_range(german(), bible.v11n, …, MAX_PASSAGE_VERSES)` ab (Besitz der Abbildung:
-  R17a) und liest je abgebildetem Vers `bible.verse`. `PassageText {verses, module_refs, truncated, rules}`;
-  `truncated` kommt aus der Abbildung (die Stelle hat mehr als 400 Verse; genau 400 = nicht gekürzt) statt aus
-  `verses.len() == 400`. `check_wording` und `bible.lookup` lesen nur noch darüber; ein `Err` der Abbildung („Versifikation
-  passt nicht: …“) wird `versification_mismatch` mit Grund und Modulname, ein Lesefehler `module_error`.
-  `module_ref` („Mal 4,1–6 (KJV)“) nur, wenn sich Zählung und gelesene Verse von der deutschen Angabe unterscheiden
-  oder eine Regel griff. Zitate kommen nur aus `crate::quotes::quote_spans` (S2); `bibles::block_quotes` ist entfallen.
-  `WordingResult` trägt `quote_span` (Byte-Bereich des Zitatinhalts) und `module_ref`; JSON additiv.
-- **Prüfanzeige:** `bible.marks {work?, key, rev?}` (`bibles::marks`/`marks_with`, nur lesend) prüft den Text der
-  gezeigten Fassung (`shown_text`: `rev` oder aktuelle) mit `scripture::refs` und `check_wording` und liefert je
-  Stelle `ref_span`/`quote_span` als Byte-Bereiche dieses Textes, `state` (`mark_state`) und `counts`. Seite
-  `GET /werke/{id}/pruefung` in `src/scripture_check.rs` (eigene minijinja-Umgebung mit `base.html` und
-  `scripture_check.html`, wie der Stichwortzettel), Link und Widget in `fragments/editor.html` (Statuszeile, außerhalb
-  des Formulars). Widget `web/src/scripture_check.ts`: ohne ungespeicherte Änderung `bible.marks`, sonst
-  `scripture.check` mit dem Quelltext aus `baruch:serialize-text` (§2.6, Hörer in `wysiwyg.ts`, Rückfall Textfeld);
-  Markierung nur mit `CSS.highlights` (`bibel-stimmt`, `bibel-weicht`), keine DOM-Änderung – das Satzbild liefert
-  unverändert dieselben `editsOf`. Die Zuordnung Zitat → Satzbild sucht den Zitattext in den Textknoten (Leerraum
-  zusammengefasst); ein Byte-Bereich im Quelltext lässt sich ohne Quellpositionen im Satzbild nicht abbilden.
-  Seit der Nachbesserung Runde 17 (`web/src/quote_find.ts`, `placeQuotes`, Test `tests/quote_find.rs` unter Node):
-  Typst-Auszeichnung des Zitats entfernt (`#emph[…]`, `*`, `_`, `\`), nur ganze Wörter; gleicher Wortlaut an
-  mehreren Stellen wird in der Reihenfolge von `quote_span` den Fundstellen zugeordnet (zuerst denen in
-  Anführungszeichen, sonst allen); passt die Zahl nicht, bleibt das Zitat unmarkiert und die Fußzeile zählt es
-  („nicht eindeutig gefunden“). Gleicher `quote_span` = dasselbe Zitat (eine Fundstelle).
-- **Verschlüsselte Module** (`baruch-sword`): `BibleInfo.enciphered` (conf trägt `CipherKey`), `BibleInfo::locked()`
-  (leer), `open_with_key`/`reference::open_commentary_with_key`/`open_lexicon_with_key` setzen den Schlüssel nur im
-  Speicher in die conf (`ModuleConf::set("CipherKey", …)` wie `SwordLibrary::open_module_with_key`); ohne Schlüssel
-  `BibleError::Locked`. `common_support` lehnt `CipherKey` nicht mehr ab (STUB entfernt). `Bible::probe` (und
-  `Commentary::probe`, `Lexicon::probe`) liest über `probe_entries` die ersten nicht leeren Einträge (höchstens 64
-  bzw. 2048 Zeichen): Entschlüsseln + Entpacken ohne Fehler und jeder Eintrag ohne U+FFFD und ohne Steuerzeichen
-  außer Tabulator/Zeilenwechsel (Nachbesserung Runde 17: vorher nur der erste Eintrag und nur U+FFFD/NUL – bei
-  Latin-1, der SWORD-Vorgabe ohne `Encoding`, entsteht nie U+FFFD, ein falscher Schlüssel ging bei RawText oft als
-  gültig durch; Test `tests/cipher.rs` mit 200 falschen Schlüsseln). Server: Schlüssel nur über `AppState::secrets` (Konto `sword-cipher:<name klein>`,
-  `bibles::stored_cipher_key`, nur für verschlüsselte Module abgefragt), `by_name`/`of_work`/Kommentare/Lexika holen
-  ihn selbst; Zwischenspeicher-Schlüssel `(conf, Name, Änderungszeit, Prüfsumme des Schlüssels)` – nie der Klartext.
-  `bible.cipher_key_set` probt vor dem Speichern (falsch → -32000 ohne Inhalt des Fehlers, er könnte Bruchstücke
-  falsch entschlüsselter Daten tragen); beide Methoden in `bibles::WRITES` (nicht `/act`: Allowlist in `lib.rs`;
-  kein MCP-Werkzeug). Formulare über `POST /einstellungen/quellen/act` (`connections/pages.rs`).
-- **Test-Module:** `fixture::Fixture::compression(Zip|Bzip2|Xz)` (bzip2 0.6, lzma-rs 0.3 nur zum Schreiben),
-  `Fixture::latin1()` (Text in Latin-1, conf ohne `Encoding`) und `Fixture::enciphered(key)`: Sapphire II nach der
-  gemeinfreien Beschreibung (`sword-modules` `docs/spec/cipher.md`) **selbst** umgesetzt, nur Verschlüsseln; Blöcke
-  nach dem Packen bzw. Einträge (RawText) je für sich, conf `CipherKey=` leer. Gelesen wird über `sword-modules`.
-  Dass beide übereinstimmen, belegt allein nichts gegen echtes SWORD (beide folgen derselben Beschreibung); deshalb
-  seit der Nachbesserung Runde 17 der Abgleich mit **libsword** (`tests/libsword.rs`): zwei Module, mit `osis2mod`
-  aus libsword 1.9.0 aus einer frei erfundenen OSIS-Datei und einem erfundenen Schlüssel erzeugt (BZIP2 und XZ,
-  Kapitelblöcke, verschlüsselt; `tests/data/libsword/`, je Datei xz-gepackt), liest Baruch Vers für Vers richtig, ein
-  falscher Schlüssel fällt beim Probelesen auf. Umgekehrt liest `diatheke` (libsword) die von der Fixture
-  verschlüsselten Module (zText mit BZIP2/XZ, RawText), wenn es installiert ist (sonst übersprungen, etwa in der
-  CI). RawText verschlüsselt `osis2mod` trotz `-c` nicht (Klartext in der Datei); dafür gibt es nur die Gegenrichtung.
-  Kein fremdes Modul, kein geratener Schlüssel.
-- **Obergrenze beim Entpacken** (Nachbesserung Runde 17): `sword-modules` 0.1.0 (CC0) liegt unter
-  `vendor/sword-modules` (nur `src`, `Cargo.toml` ohne Beispiele/Tests, `LICENSE`, `README.md`; per
-  `[patch.crates-io]` im Workspace, `exclude = ["vendor"]`) mit einer einzigen Änderung in `src/compress.rs`: Ein
-  Block entpackt höchstens `MAX_BLOCK_BYTES` = 64 MiB (ZIP und BZIP2 über `take`, XZ über einen begrenzten
-  Schreiber), sonst `Error::Decompress("… more than 64 MiB")`. Ohne Grenze konnte ein manipuliertes Modul aus wenigen
-  Byte Gigabytes entpacken (Dekompressionsbombe) und Baruch per OOM beenden – schon beim Nachschlagen, in der
-  Prüfanzeige oder über `bible_search`. LZSS wächst höchstens um das 9-Fache der gepackten Größe und bleibt
-  unbegrenzt. Test `tests/compression.rs` (65 MiB Nullen, die Größe im Index lügt). Bei einem Update von
-  sword-modules die Änderung übertragen oder upstream vorschlagen.
-- **Strong-Nummern** (`Bible::verse_strongs`, `text::strongs`): OSIS `lemma="strong:…"`, ThML
-  `<sync type="Strongs" value>`, GBF `<WH…>`/`<WG…>`, unabhängig von `SourceType`; ohne Buchstaben H im AT, G im NT.
-  `has_strongs`: `GlobalOptionFilter` mit „Strongs“ oder `Feature=StrongsNumbers`. Nutzer: Lexikon-Stichwörter in
+- **Reading in the versification of the module** (`bibles.rs`): `read_passage(bible, book, start, end) -> PassageText` maps
+  the German reference with `mapping::map_range(german(), bible.v11n, …, MAX_PASSAGE_VERSES)` (ownership of the mapping:
+  R17a) and reads `bible.verse` per mapped verse. `PassageText {verses, module_refs, truncated, rules}`;
+  `truncated` comes from the mapping (the reference has more than 400 verses; exactly 400 = not shortened) instead of from
+  `verses.len() == 400`. `check_wording` and `bible.lookup` now read only through it; an `Err` of the mapping („Versifikation
+  passt nicht: …“) becomes `versification_mismatch` with reason and module name, a read error `module_error`.
+  `module_ref` („Mal 4,1–6 (KJV)“) only if versification and read verses differ from the German reference
+  or a rule applied. Quotations come only from `crate::quotes::quote_spans` (S2); `bibles::block_quotes` is gone.
+  `WordingResult` carries `quote_span` (byte range of the quotation content) and `module_ref`; JSON additive.
+- **Check display:** `bible.marks {work?, key, rev?}` (`bibles::marks`/`marks_with`, read only) checks the text of the
+  shown revision (`shown_text`: `rev` or current) with `scripture::refs` and `check_wording` and delivers per
+  reference `ref_span`/`quote_span` as byte ranges of this text, `state` (`mark_state`) and `counts`. Page
+  `GET /werke/{id}/pruefung` in `src/scripture_check.rs` (own minijinja environment with `base.html` and
+  `scripture_check.html`, like the notes sheet), link and widget in `fragments/editor.html` (status line, outside
+  the form). Widget `web/src/scripture_check.ts`: without an unsaved change `bible.marks`, otherwise
+  `scripture.check` with the source from `baruch:serialize-text` (§2.6, listener in `wysiwyg.ts`, fallback text field);
+  marking only with `CSS.highlights` (`bibel-stimmt`, `bibel-weicht`), no DOM change – the typeset view delivers
+  the same `editsOf` unchanged. The assignment quotation → typeset view looks for the quotation text in the text nodes (white space
+  collapsed); a byte range in the source cannot be mapped in the typeset view without source positions.
+  Since the follow-up Round 17 (`web/src/quote_find.ts`, `placeQuotes`, test `tests/quote_find.rs` under Node):
+  Typst markup of the quotation removed (`#emph[…]`, `*`, `_`, `\`), only whole words; the same wording at
+  several places is assigned to the occurrences in the order of `quote_span` (first those in
+  quotation marks, otherwise all); if the number does not match, the quotation stays unmarked and the footer counts it
+  („nicht eindeutig gefunden“). The same `quote_span` = the same quotation (one occurrence).
+- **Encrypted modules** (`baruch-sword`): `BibleInfo.enciphered` (conf carries `CipherKey`), `BibleInfo::locked()`
+  (empty), `open_with_key`/`reference::open_commentary_with_key`/`open_lexicon_with_key` set the key only in
+  memory into the conf (`ModuleConf::set("CipherKey", …)` like `SwordLibrary::open_module_with_key`); without a key
+  `BibleError::Locked`. `common_support` no longer refuses `CipherKey` (STUB removed). `Bible::probe` (and
+  `Commentary::probe`, `Lexicon::probe`) reads through `probe_entries` the first non-empty entries (at most 64
+  or 2048 characters): decrypting + unpacking without error and every entry without U+FFFD and without control characters
+  except tab/line feed (follow-up Round 17: before, only the first entry and only U+FFFD/NUL – with
+  Latin-1, the SWORD default without `Encoding`, U+FFFD never arises, a wrong key often passed as
+  valid with RawText; test `tests/cipher.rs` with 200 wrong keys). Server: key only through `AppState::secrets` (account `sword-cipher:<name klein>`,
+  `bibles::stored_cipher_key`, queried only for encrypted modules), `by_name`/`of_work`/commentaries/lexicons fetch
+  it themselves; cache key `(conf, Name, Änderungszeit, Prüfsumme des Schlüssels)` – never the plain text.
+  `bible.cipher_key_set` probes before storing (wrong → -32000 without the content of the error, it could carry fragments
+  of wrongly decrypted data); both methods in `bibles::WRITES` (not `/act`: allow list in `lib.rs`;
+  no MCP tool). Forms through `POST /einstellungen/quellen/act` (`connections/pages.rs`).
+- **Test modules:** `fixture::Fixture::compression(Zip|Bzip2|Xz)` (bzip2 0.6, lzma-rs 0.3 only for writing),
+  `Fixture::latin1()` (text in Latin-1, conf without `Encoding`) and `Fixture::enciphered(key)`: Sapphire II implemented
+  **ourselves** after the public-domain description (`sword-modules` `docs/spec/cipher.md`), only encrypting; blocks
+  after packing or entries (RawText) each on their own, conf `CipherKey=` empty. Reading goes through `sword-modules`.
+  That both agree proves nothing on its own against real SWORD (both follow the same description); that is why
+  since the follow-up Round 17 there is the cross-check with **libsword** (`tests/libsword.rs`): two modules, generated with `osis2mod`
+  from libsword 1.9.0 from a freely invented OSIS file and an invented key (BZIP2 and XZ,
+  chapter blocks, encrypted; `tests/data/libsword/`, each file xz-packed), are read correctly by Baruch verse by verse, a
+  wrong key is noticed on the probe read. Conversely `diatheke` (libsword) reads the modules encrypted by the fixture
+  (zText with BZIP2/XZ, RawText) if it is installed (otherwise skipped, for instance in the
+  CI). `osis2mod` does not encrypt RawText despite `-c` (plain text in the file); for that there is only the opposite direction.
+  No foreign module, no guessed key.
+- **Upper limit when unpacking** (follow-up Round 17): `sword-modules` 0.1.0 (CC0) lies under
+  `vendor/sword-modules` (only `src`, `Cargo.toml` without examples/tests, `LICENSE`, `README.md`; via
+  `[patch.crates-io]` in the workspace, `exclude = ["vendor"]`) with one single change in `src/compress.rs`: a
+  block unpacks at most `MAX_BLOCK_BYTES` = 64 MiB (ZIP and BZIP2 through `take`, XZ through a bounded
+  writer), otherwise `Error::Decompress("… more than 64 MiB")`. Without a limit a manipulated module could unpack gigabytes
+  from a few bytes (decompression bomb) and end Baruch by OOM – already on lookup, in the
+  check display or through `bible_search`. LZSS grows at most by 9 times the packed size and stays
+  unbounded. Test `tests/compression.rs` (65 MiB of zeros, the size in the index lies). On an update of
+  sword-modules carry the change over or propose it upstream.
+- **Strong numbers** (`Bible::verse_strongs`, `text::strongs`): OSIS `lemma="strong:…"`, ThML
+  `<sync type="Strongs" value>`, GBF `<WH…>`/`<WG…>`, independent of `SourceType`; without a letter H in the OT, G in the NT.
+  `has_strongs`: `GlobalOptionFilter` with „Strongs“ or `Feature=StrongsNumbers`. User: lexicon keywords in
   `bible_research.rs` (R17b).
-- **Lizenz und Kommentare:** `info_json` additiv `cipher`, `notice`; `bible.modules` je Modul `key_stored`;
-  Bibelseite „Lizenz (laut conf)“ und `module_ref`; Kommentar-Panel je Modul ein `<details class="commentary">`
-  (Widget `web/src/commentaries.ts`: alle auf/zu, Zustand in localStorage nur in try/catch), Gruppenüberschriften
-  „Kommentar · Modul“ wie „Bibel · Modul“ (`.hit-group-title`). Stil `static/pruefung.css`.
-- **Offen:** Die Verse der Bibelseite tragen bei einem Modul in anderer Zählung dessen Nummern (Klick setzt sie
-  als deutsche Stelle ins Feld „Stelle“); die Rückabbildung je Vers fehlt.
+- **Licence and commentaries:** `info_json` additively `cipher`, `notice`; `bible.modules` per module `key_stored`;
+  Bible page „Lizenz (laut conf)“ and `module_ref`; commentary panel one `<details class="commentary">` per module
+  (widget `web/src/commentaries.ts`: all open/closed, state in localStorage only in try/catch), group headings
+  „Kommentar · Modul“ like „Bibel · Modul“ (`.hit-group-title`). Style `static/pruefung.css`.
+- **Open:** with a module in another versification the verses of the Bible page carry its numbers (a click puts them
+  as a German reference into the field „Stelle“); the reverse mapping per verse is missing.
 
-### Integration Runde 17
+### Integration Round 17
 
-- **Zusammenführen:** `team/verszaehlung` → `team/stellen` → `team/pruefanzeige` mit `--no-ff`. Die
-  Schnittstellen-Commits lagen per Cherry-pick in mehreren Zweigen; Git fügte dabei `all()`/`names()` in
-  `versification.rs` doppelt ein (Konflikt „hinzufügen/hinzufügen“ in `mapping.rs`, sauberer Auto-Merge mit
-  doppeltem Inhalt in `versification.rs`, `bibles.rs`, `wysiwyg.ts`, `baruch-sword/*`). Gelöst nach Besitz: die
-  Fassung des Besitzers gilt (verszaehlung für `baruch-scripture/src/versification*`, stellen für `quotes.rs`,
-  pruefanzeige für `baruch-sword`, `bibles.rs`, `wysiwyg.ts`), weil kein anderer Zweig dort über die Schnittstelle
-  hinaus geändert hatte (geprüft mit `git diff <S-Commit> team/<id> -- <Datei>`).
-- **Bücher mit Nummer 4/5** (`baruch-scripture/src/lib.rs`): `book_token` und `scan` begannen eine Stelle nur bei
-  „1“–„3“; „4. Mose“/„5. Mose“ waren weder in `parse` noch im Fließtext erreichbar (seit Runde 10). Aufgefallen,
-  weil der Test „nicht abbildbarer Vers“ nach dem Zusammenführen auf 4. Mo 25,19 (= KJV Num 26,1) stieß und
-  `scripture.check` keine Stelle fand. Jetzt „1“–„5“; Test `the_fourth_and_fifth_book_of_moses_are_found_in_running_text`.
-- **Zitat zur Stelle über eine Leerzeile** (`wording::quote_for`): Hat eine Stelle ein Zitat davor und eines
-  danach, und liegt nur zwischen dem Zitat davor und der Stelle eine Leerzeile (`paragraph_break`), gilt das Zitat
-  danach. Vorher bekam „„…“ (Joh 3,16)⏎⏎Psalm 139, besonders Vers 23: „…““ das Joh-Zitat noch einmal (Ergebnis
-  „weicht ab“). Gefunden im Ende-zu-Ende-Test.
-- **Akkordeon der Arbeitsseite** (`view.rs`, offener Punkt aus R17a): `ViewExtras` trägt `lector` (aus
-  `persona.list`, also `personas::cached_lector_of`, ohne Netz) und je Persona `context_tokens` (`context.tokens`);
-  `values` nimmt beides vor `Work::lector`/`context_length`.
-- **`ref_claims::claims_missing`** zieht `prompts::UNBACKED_NOTE` vor der Wortsuche ab: Sonst zählte „(nicht im
-  Text belegt)“ (Baruch hängt es an, Gemma ahmte es in der Handprüfung mitten in der Zeile nach) als Behauptung
-  „nicht im Text“, und eine Zeile mit einer Stelle aus dem Korpus bekam fälschlich „(Stelle steht im Text: …)“.
-- **Liste „Zitate prüfen“** (`static/pruefung.css`): Bezugsrahmen ist `.editor-status` (über `:has`), die Liste
-  steht links und rechts bündig (vorher `right: 0` am Knopf, links abgeschnitten – Sichtprüfung).
-- **MCP-Hinweis beim Verbinden** (`mcp.rs`, `initialize`): nennt `scripture_map` und `quote_span`/`module_ref`.
-- **Ende-zu-Ende** `tests/round17.rs`: BZIP2-Bibel in KJV-Zählung → Predigt „Mal 3,19–24“ liest Mal 4,1–6 (KJV),
-  `scripture.map`, Parser-Fälle, `bible.marks` mit Byte-Bereichen, Prüfseite und Editor-Link ohne JavaScript;
-  XZ-verschlüsselte Bibel mit `MemorySecrets` (falscher Schlüssel über Formular und RPC, richtiger probegelesen, nie
-  angezeigt); Lektor auf einer Predigt (Lk 15,5 kenntlich, ungültige Stelle, fremder Befund unbelegt, Einfall
-  gerahmt); Akkordeon; Stil der Liste.
-- **Handprüfung gegen Eliezer** (Pförtner wie Runde 15/16, zwei Anfragen an `google/gemma-4-26b-a4b`, Baruch mit
-  `--secrets memory`, erfundene „Möwenpredigt“ mit Predigttext Lk 15,4–6 aus einer erfundenen BZIP2-Bibel in
-  KJV-Zählung, ≈ 3:00): „Prüfen, ganze Predigt“ (10,5 s, 5 306 Zeichen) – vier „Kritisch:“-Befunde, alle hinter der
-  Teil-Angabe erkannt, alle Zitate im Text; der Befund zur Anwendung („denn ich habe sie wieder“ weicht von Lk 15,6
-  ab) deckt sich mit der Wortlautprüfung. Eine Zeile trug „(nicht im Text belegt)“ vom Modell selbst und bekam
-  deshalb „(Stelle steht im Text: Joh 3,16)“ – behoben (siehe oben). Frage „Sind Lk 15,5 und Lk 15,6 gedeckt?“
-  (1,8 s): Gemma nannte Lk 15,5 diesmal richtig „gedeckt“; die Behauptung „Lk 15,5 nicht belegt“ trat nicht wieder
-  auf und ist nur offline (Nachbau) geprüft.
+- **Merging:** `team/verszaehlung` → `team/stellen` → `team/pruefanzeige` with `--no-ff`. The
+  interface commits lay in several branches via cherry-pick; Git inserted `all()`/`names()` twice in
+  `versification.rs` (conflict „hinzufügen/hinzufügen“ in `mapping.rs`, clean auto-merge with
+  doubled content in `versification.rs`, `bibles.rs`, `wysiwyg.ts`, `baruch-sword/*`). Resolved by ownership: the
+  revision of the owner applies (verszaehlung for `baruch-scripture/src/versification*`, stellen for `quotes.rs`,
+  pruefanzeige for `baruch-sword`, `bibles.rs`, `wysiwyg.ts`), because no other branch had changed anything there beyond the interface
+  (checked with `git diff <S-Commit> team/<id> -- <Datei>`).
+- **Books with number 4/5** (`baruch-scripture/src/lib.rs`): `book_token` and `scan` began a reference only with
+  „1“–„3“; „4. Mose“/„5. Mose“ were reachable neither in `parse` nor in running text (since Round 10). Noticed
+  because the test „nicht abbildbarer Vers“ hit 4. Mo 25,19 (= KJV Num 26,1) after merging and
+  `scripture.check` found no reference. Now „1“–„5“; test `the_fourth_and_fifth_book_of_moses_are_found_in_running_text`.
+- **Quotation for a reference across an empty line** (`wording::quote_for`): if a reference has a quotation before it and one
+  after it, and an empty line (`paragraph_break`) lies only between the quotation before and the reference, the quotation
+  after it applies. Before, „„…“ (Joh 3,16)⏎⏎Psalm 139, besonders Vers 23: „…““ got the John quotation once more (result
+  „weicht ab“). Found in the end-to-end test.
+- **Accordion of the work page** (`view.rs`, open item from R17a): `ViewExtras` carries `lector` (from
+  `persona.list`, thus `personas::cached_lector_of`, without network) and per persona `context_tokens` (`context.tokens`);
+  `values` takes both before `Work::lector`/`context_length`.
+- **`ref_claims::claims_missing`** subtracts `prompts::UNBACKED_NOTE` before the word search: otherwise „(nicht im
+  Text belegt)“ (Baruch appends it, Gemma imitated it in the middle of the line in the manual check) counted as the claim
+  „nicht im Text“, and a line with a reference from the corpus wrongly got „(Stelle steht im Text: …)“.
+- **List „Zitate prüfen“** (`static/pruefung.css`): the frame of reference is `.editor-status` (through `:has`), the list
+  stands flush left and right (before `right: 0` at the button, cut off on the left – visual check).
+- **MCP hint on connecting** (`mcp.rs`, `initialize`): names `scripture_map` and `quote_span`/`module_ref`.
+- **End-to-end** `tests/round17.rs`: BZIP2 Bible in KJV versification → sermon „Mal 3,19–24“ reads Mal 4,1–6 (KJV),
+  `scripture.map`, parser cases, `bible.marks` with byte ranges, check page and editor link without JavaScript;
+  XZ-encrypted Bible with `MemorySecrets` (wrong key through form and RPC, right one probe-read, never
+  displayed); lector on a sermon (Lk 15,5 recognisable, invalid reference, foreign finding unbacked, idea
+  framed); accordion; style of the list.
+- **Manual check against Eliezer** (gatekeeper as in Round 15/16, two requests to `google/gemma-4-26b-a4b`, Baruch with
+  `--secrets memory`, an invented „Möwenpredigt“ with the sermon text Lk 15,4–6 from an invented BZIP2 Bible in
+  KJV versification, ≈ 3:00): „Prüfen, ganze Predigt“ (10.5 s, 5 306 characters) – four „Kritisch:“ findings, all recognised behind the
+  part label, all quotations in the text; the finding on the application („denn ich habe sie wieder“ deviates from Lk 15,6)
+  agrees with the wording check. One line carried „(nicht im Text belegt)“ from the model itself and therefore got
+  „(Stelle steht im Text: Joh 3,16)“ – fixed (see above). Question „Sind Lk 15,5 und Lk 15,6 gedeckt?“
+  (1.8 s): this time Gemma correctly called Lk 15,5 „gedeckt“; the claim „Lk 15,5 nicht belegt“ did not appear again
+  and has only been checked offline (mock).
 
 
-## Austauschformat (Runde 26)
+## Exchange format (Round 26)
 
-Crate `baruch-exchange` (Modell, Schreiben, Lesen und Prüfen, ohne Datenbank), Store-Module `uuids`,
-`exchange_dump` und `exchange_apply`, Server-Module `exchange::{export, import}` und `instance`. Migration
-`0041_uuids.sql` (Kennungen, Grabsteine, Instanzkennung) und `0042_uuid_tombstone_cascade.sql` (Grabsteine auch
-bei der Kaskade beim Löschen eines Werks); die reservierten Nummern 0043 (import) und 0044 (export) blieben ungenutzt.
+Crate `baruch-exchange` (model, writing, reading and checking, without a database), store modules `uuids`,
+`exchange_dump` and `exchange_apply`, server modules `exchange::{export, import}` and `instance`. Migration
+`0041_uuids.sql` (identifiers, tombstones, instance identifier) and `0042_uuid_tombstone_cascade.sql` (tombstones also
+for the cascade when a work is deleted); the reserved numbers 0043 (import) and 0044 (export) stayed unused.
 
-### Kennungen (ids)
+### Identifiers (ids)
 
-**Migration 0041 (`0041_uuids.sql`)** – kein Tabellenumbau, darum nicht in `FOREIGN_KEYS_OFF`:
+**Migration 0041 (`0041_uuids.sql`)** – no table rebuild, therefore not in `FOREIGN_KEYS_OFF`:
 
-- Zehn Tabellen bekommen `uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))`
-  (per `ALTER TABLE … ADD COLUMN`, als letzte Spalte): `work`, `node`, `revision`, `work_template_revision`,
-  `post`, `idea`, `chat_thread`, `chat_thread_post`, `asset`, `asset_revision`. Vorhandene Zeilen bekommen eine
-  zufällige v4 (SQL-Ausdruck aus `randomblob`, Version 4, Variante 10), dazu je Tabelle
+- Ten tables get `uuid TEXT CHECK (uuid IS NULL OR (length(uuid) = 36 AND uuid = lower(uuid)))`
+  (via `ALTER TABLE … ADD COLUMN`, as the last column): `work`, `node`, `revision`, `work_template_revision`,
+  `post`, `idea`, `chat_thread`, `chat_thread_post`, `asset`, `asset_revision`. Existing rows get a
+  random v4 (SQL expression from `randomblob`, version 4, variant 10), plus per table
   `CREATE UNIQUE INDEX <T>_uuid`.
-- **Fülltrigger** `<T>_uuid_fill AFTER INSERT … WHEN NEW.uuid IS NULL` setzt die v4. Darum nennt kein
-  Schreibweg des Stores die Spalte; eine mitgegebene uuid bleibt (so legt `exchange_apply` an).
-- **Grabstein-Trigger** `<T>_uuid_tombstone AFTER DELETE … WHEN OLD.uuid IS NOT NULL` schreibt
-  `INSERT OR IGNORE INTO uuid_tombstone (uuid, kind, work_uuid)`; die Werk-uuid kommt über den Weg zum Werk
-  (Fassung → Punkt → Werk, Fadenbeitrag → Faden → Werk, Bildfassung → Bild → Werk; beim Werk die eigene).
-- `uuid_tombstone (uuid PRIMARY KEY, kind CHECK (…10 Arten…), work_uuid, deleted)` mit Index
+- **Fill trigger** `<T>_uuid_fill AFTER INSERT … WHEN NEW.uuid IS NULL` sets the v4. That is why no
+  write path of the store names the column; a uuid passed along stays (that is how `exchange_apply` creates rows).
+- **Tombstone trigger** `<T>_uuid_tombstone AFTER DELETE … WHEN OLD.uuid IS NOT NULL` writes
+  `INSERT OR IGNORE INTO uuid_tombstone (uuid, kind, work_uuid)`; the work uuid comes through the path to the work
+  (revision → item → work, thread post → thread → work, image revision → image → work; for the work its own).
+- `uuid_tombstone (uuid PRIMARY KEY, kind CHECK (…10 Arten…), work_uuid, deleted)` with index
   `uuid_tombstone_work`; `store_meta.instance_uuid` (v4, `INSERT OR IGNORE`).
-- Keine Sperre gegen das Ändern der uuid: Regel im Code, nur `exchange_apply` setzt eine uuid, und nur auf einer
-  Zeile, die es in derselben Transaktion angelegt hat. Der Test `no_code_path_but_exchange_apply_writes_the_uuid_column`
-  (`crates/baruch-store/tests/uuids.rs`) prüft den Quelltext aller Crates auf `SET uuid` und `INSERT … uuid`.
+- No lock against changing the uuid: a rule in the code, only `exchange_apply` sets a uuid, and only on a
+  row that it created in the same transaction. The test `no_code_path_but_exchange_apply_writes_the_uuid_column`
+  (`crates/baruch-store/tests/uuids.rs`) checks the source of all crates for `SET uuid` and `INSERT … uuid`.
 
-**Migration 0042 (`0042_uuid_tombstone_cascade.sql`)** – Nachbesserung: `chat_thread` und `chat_thread_post`
-gehen beim Löschen eines Werks per `ON DELETE CASCADE`. In einer Kaskade ist die Elternzeile schon fort, wenn der
-Grabstein-Trigger des Kinds läuft; die Werk-uuid wäre NULL (Test
-`without_0042_threads_deleted_by_cascade_would_forget_their_work`). Zwei Trigger löschen darum die Kinder vorher
-selbst: `work_cascade_uuid_tombstone BEFORE DELETE ON work` (Fäden des Werks) und
-`chat_thread_cascade_uuid_tombstone BEFORE DELETE ON chat_thread` (Beiträge des Fadens). Einfälle hängen mit
-`ON DELETE SET NULL` am Werk: Sie bleiben, ohne Grabstein.
+**Migration 0042 (`0042_uuid_tombstone_cascade.sql`)** – follow-up: `chat_thread` and `chat_thread_post`
+go with `ON DELETE CASCADE` when a work is deleted. In a cascade the parent row is already gone when the
+tombstone trigger of the child runs; the work uuid would be NULL (test
+`without_0042_threads_deleted_by_cascade_would_forget_their_work`). That is why two triggers delete the children beforehand
+themselves: `work_cascade_uuid_tombstone BEFORE DELETE ON work` (threads of the work) and
+`chat_thread_cascade_uuid_tombstone BEFORE DELETE ON chat_thread` (posts of the thread). Ideas hang on the work with
+`ON DELETE SET NULL`: they stay, without a tombstone.
 
-**Store** (`crates/baruch-store/src/uuids.rs`): `Instance {uuid, name}` mit `label()` („ohne Namen (xxxxxxxx)“),
-`new_uuid()` (v4 über `getrandom`), `Store::instance`, `set_instance_name` (trim, ≤ 80 Zeichen, keine
-Steuerzeichen, leer löscht `store_meta.instance_name`; Fehler `StoreError::Exchange`), `work_uuid`,
-`work_by_uuid`, `node_key_by_uuid`, `node_uuid`. `WorkMeta.uuid` (`works.rs`) trägt die Werk-uuid zu `work.meta`
-und „Werk ändern“. Server: `instance.rs` (RPC `instance.*`), Formular in `settings/data.rs`
-(`POST /einstellungen/daten/instanz`, hinter `guard::same_origin`).
+**Store** (`crates/baruch-store/src/uuids.rs`): `Instance {uuid, name}` with `label()` („ohne Namen (xxxxxxxx)“),
+`new_uuid()` (v4 through `getrandom`), `Store::instance`, `set_instance_name` (trim, ≤ 80 characters, no
+control characters, empty deletes `store_meta.instance_name`; error `StoreError::Exchange`), `work_uuid`,
+`work_by_uuid`, `node_key_by_uuid`, `node_uuid`. `WorkMeta.uuid` (`works.rs`) carries the work uuid to `work.meta`
+and „Werk ändern“. Server: `instance.rs` (RPC `instance.*`), form in `settings/data.rs`
+(`POST /einstellungen/daten/instanz`, behind `guard::same_origin`).
 
-**Regel für spätere Tabellenumbauten:** Baut eine Migration eine der zehn Tabellen nach dem SQLite-Verfahren neu
-auf (neue Tabelle, Daten kopieren, `DROP`, `RENAME`, siehe 0040), muss sie die Spalte `uuid` samt CHECK und Werten
-mitkopieren und danach `<T>_uuid`, `<T>_uuid_fill` und `<T>_uuid_tombstone` neu anlegen – bei `work` und
-`chat_thread` zusätzlich `work_cascade_uuid_tombstone` bzw. `chat_thread_cascade_uuid_tombstone` aus 0042. Ein
-`DROP TABLE` mit ausgeschalteten Fremdschlüsseln löscht keine Zeile einzeln und hinterlässt darum keine
-Grabsteine; die Trigger verschwinden aber mit der Tabelle. Der Migrationstest vergleicht dafür die Objekte aus
+**Rule for later table rebuilds:** if a migration rebuilds one of the ten tables by the SQLite procedure
+(new table, copy data, `DROP`, `RENAME`, see 0040), it must copy the column `uuid` including CHECK and values
+along and afterwards create `<T>_uuid`, `<T>_uuid_fill` and `<T>_uuid_tombstone` anew – for `work` and
+`chat_thread` additionally `work_cascade_uuid_tombstone` or `chat_thread_cascade_uuid_tombstone` from 0042. A
+`DROP TABLE` with foreign keys switched off deletes no row individually and therefore leaves no
+tombstones; but the triggers disappear with the table. For this the migration test compares the objects from
 0041/0042 (`new_objects()` in `crates/baruch-store/tests/migration_0041.rs`).
 
 
-### Ausgeben (export)
+### Output (export)
 
 
-- **Dump** `baruch_store::Store::exchange_dump(work)` (`crates/baruch-store/src/exchange_dump.rs`): eine lesende
-  Transaktion (WAL-Schnappschuss), Tabellen → `baruch_exchange::ExchangeWork`. Verweise werden auf UUIDs
-  übersetzt: `revision.based_on`/`asset_revision.based_on` (Nummern) → UUID der Fassung, `post_ref.node_seq`/`rev`
-  → UUID von Punkt und Fassung (ohne passende Fassung ohne `fassung`), `idea.node_id` → Punkt-UUID,
-  `work_book.cover_asset_id`/`author_photo_asset_id` → Bild-UUID, `done_ref` „key N…“ → Punkt-UUID. Positionen
-  von Beiträgen werden zur Reihenfolge ab 1. Bilder als Rohbytes (Base64 der Datenbank entschlüsselt),
-  `sha256` neu gerechnet. Grabsteine: `uuid_tombstone` mit der Werk-UUID. Baum der Gliederung über `parent_seq`
-  und `position`.
-- **Schreiben** `baruch_exchange::write` (`crates/baruch-exchange/src/write.rs`): eigener kleiner Schreiber
-  (String, Einrückung zwei Leerzeichen, kein quick-xml-Writer), damit Maskierung und Base64-Zweig genau dem
-  Vertrag folgen: `write_xml(doc, Inline|Files)`, `write_manifest`, `write_baruch` (zip 2.4, `mimetype` STORED
-  zuerst, Raster STORED, `werk.xml`/SVG/Manifest DEFLATE, fester Zeitstempel 1980-01-01 und Rechte 0644 →
-  deterministisch). Der Schreiber prüft UUIDs, Zeiten, Bildtypen und `sha256 == sha256_hex(data)` und gibt
-  sonst `ExchangeError::Write` mit dem Feldnamen zurück, statt eine Datei zu schreiben, die das XSD ablehnt.
-- **XSD** `docs/schema/baruch-werk-1.xsd` (Unterversion 1, seit Runde 25 eingefroren) und
-  `docs/schema/baruch-werk-1-u2.xsd` (Unterversion 2 mit `<karte>`, gegen das seit Runde 25 jede Ausgabe geprüft
-  wird); Prüfung mit `xmllint` in `crates/baruch-exchange/tests/xsd.rs` (dort auch die Rust-Prüfung der
-  Pflichtelemente über quick-xml-Ereignisse, falls xmllint fehlt) und `crates/baruch-server/tests/round26_export.rs`.
-- **Server** `src/exchange/export.rs`: `document` (Dump + Instanz + Zeitpunkt UTC + `baruch <Version>`),
-  `export_file(state, work, Format)` → `ExportFile` (gemeinsam für Downloads, RPC, CLI und MCP), Seite
-  `templates/exchange.html` (eigene minijinja-Umgebung), Downloads mit `Content-Disposition: attachment` und
-  `Cache-Control: no-store`, `cli_export` mit `create_new` (nie überschreiben). MCP `src/mcp/exchange.rs`
-  (`exchange_export`, Grenze `MCP_EXPORT_LIMIT` = 4 MiB Datei, weil die Antwort den Inhalt zweimal trägt).
-- Migration: export braucht keine; die reservierte Nummer 0044 bleibt ungenutzt.
+- **Dump** `baruch_store::Store::exchange_dump(work)` (`crates/baruch-store/src/exchange_dump.rs`): one reading
+  transaction (WAL snapshot), tables → `baruch_exchange::ExchangeWork`. References are translated to
+  UUIDs: `revision.based_on`/`asset_revision.based_on` (numbers) → UUID of the revision, `post_ref.node_seq`/`rev`
+  → UUID of item and revision (without a matching revision without `fassung`), `idea.node_id` → item UUID,
+  `work_book.cover_asset_id`/`author_photo_asset_id` → image UUID, `done_ref` „key N…“ → item UUID. Positions
+  of posts become an order from 1. Images as raw bytes (Base64 of the database decoded),
+  `sha256` recomputed. Tombstones: `uuid_tombstone` with the work UUID. Tree of the outline through `parent_seq`
+  and `position`.
+- **Writing** `baruch_exchange::write` (`crates/baruch-exchange/src/write.rs`): own small writer
+  (string, indentation two spaces, no quick-xml writer), so that escaping and the Base64 branch follow the
+  contract exactly: `write_xml(doc, Inline|Files)`, `write_manifest`, `write_baruch` (zip 2.4, `mimetype` STORED
+  first, raster STORED, `werk.xml`/SVG/manifest DEFLATE, fixed time stamp 1980-01-01 and permissions 0644 →
+  deterministic). The writer checks UUIDs, times, image types and `sha256 == sha256_hex(data)` and otherwise returns
+  `ExchangeError::Write` with the field name instead of writing a file that the XSD refuses.
+- **XSD** `docs/schema/baruch-werk-1.xsd` (minor version 1, frozen since Round 25) and
+  `docs/schema/baruch-werk-1-u2.xsd` (minor version 2 with `<karte>`, against which every output has been checked since Round 25);
+  check with `xmllint` in `crates/baruch-exchange/tests/xsd.rs` (there also the Rust check of the
+  mandatory elements through quick-xml events, in case xmllint is missing) and `crates/baruch-server/tests/round26_export.rs`.
+- **Server** `src/exchange/export.rs`: `document` (dump + instance + time UTC + `baruch <Version>`),
+  `export_file(state, work, Format)` → `ExportFile` (shared for downloads, RPC, CLI and MCP), page
+  `templates/exchange.html` (own minijinja environment), downloads with `Content-Disposition: attachment` and
+  `Cache-Control: no-store`, `cli_export` with `create_new` (never overwrite). MCP `src/mcp/exchange.rs`
+  (`exchange_export`, limit `MCP_EXPORT_LIMIT` = 4 MiB file, because the answer carries the content twice).
+- Migration: export needs none; the reserved number 0044 stays unused.
 
-### Einlesen (import)
+### Reading in (import)
 
 
-- **Lesen** (`baruch-exchange/src/read.rs`, Untermodule `read/dom.rs` – sicherer XML-Baum mit quick-xml 0.38
-  (`NsReader`, `trim_text(false)`, `Event::DocType`/`PI` → Unsafe, `GeneralRef` nur vordefiniert oder
-  Zeichenreferenz, Grenzen), `read/map.rs` – Baum → Modell mit „benutzt“-Markierung je Kind und Attribut
-  (Unbenutztes → `unknown`), `read/archive.rs` – ZIP (zip 2.4: `by_index_raw` für Name, Verknüpfung,
-  Verschlüsselung, Kompression; Zentralverzeichnis selbst gezählt, weil zip doppelte Namen still zusammenfasst;
-  Entpacken mit `take(Grenze + 1)`; Manifest), `read/check.rs` – `validate`). `read`/`read_xml`/`read_baruch`
-  geben nur geprüfte Dokumente zurück.
-- **Planen und Schreiben** (`baruch-store/src/exchange_apply.rs`): `Store::exchange_preview` und
-  `Store::exchange_apply` laufen durch dieselbe Funktion `execute`; die Vorschau rollt ihre Transaktion zurück.
-  Neu: Zeilen mit allen Kennungen aus der Datei (`ensure_free` prüft vorher, dass keine Kennung schon einem
-  anderen Werk gehört). Abgleichen: (a) neue Punkte über `outline::insert_bare` (Gliederung wie beim Anlegen,
-  aber ohne Fassung 1; meldet `WouldAdopt` für einen neuen Teil vor Kapiteln bzw. `Misplaced`), danach setzt das
-  Modul die uuid der eben angelegten Zeile und legt die Fassungen der Datei an; (c)/(d) Fassungen mit
-  `last_rev + 1` und `derive_uuid`; (b) Anträge über `requests::outline_request_in` (Probelauf im Sicherungspunkt,
-  Doppel → Hinweis) und `requests::add_request_in` (Teil mit Zustimmung); (e)–(g) Vorlage, Beiträge, Einfälle,
-  Fäden, Bilder (`assets::prepare` = Prüfung wie beim Hochladen, `free_name`, `path_owner`), Angaben. Am Ende
-  `load::work`. Herausgezogene Helfer ohne Verhaltensänderung: `requests::outline_request_in` (Kern von
-  `Store::outline_request`), `requests::add_request_in`, `outline::apply_with` (Schalter `bare`),
-  `outline::heading_title`, `outline::insert_bare`; in `assets.rs` nur Sichtbarkeit (`Content`, `prepare`,
+- **Reading** (`baruch-exchange/src/read.rs`, submodules `read/dom.rs` – safe XML tree with quick-xml 0.38
+  (`NsReader`, `trim_text(false)`, `Event::DocType`/`PI` → Unsafe, `GeneralRef` only predefined or
+  character reference, limits), `read/map.rs` – tree → model with a „benutzt“ mark per child and attribute
+  (unused → `unknown`), `read/archive.rs` – ZIP (zip 2.4: `by_index_raw` for name, link,
+  encryption, compression; central directory counted ourselves, because zip silently merges duplicate names;
+  unpacking with `take(Grenze + 1)`; manifest), `read/check.rs` – `validate`). `read`/`read_xml`/`read_baruch`
+  return only checked documents.
+- **Planning and writing** (`baruch-store/src/exchange_apply.rs`): `Store::exchange_preview` and
+  `Store::exchange_apply` run through the same function `execute`; the preview rolls its transaction back.
+  New: rows with all identifiers from the file (`ensure_free` checks beforehand that no identifier already belongs to
+  another work). Reconciling: (a) new items through `outline::insert_bare` (outline as when creating,
+  but without revision 1; reports `WouldAdopt` for a new part before chapters or `Misplaced`), afterwards the
+  module sets the uuid of the row just created and creates the revisions of the file; (c)/(d) revisions with
+  `last_rev + 1` and `derive_uuid`; (b) requests through `requests::outline_request_in` (trial run in a savepoint,
+  duplicate → hint) and `requests::add_request_in` (part with consent); (e)–(g) template, posts, ideas,
+  threads, images (`assets::prepare` = check as on upload, `free_name`, `path_owner`), data. At the end
+  `load::work`. Helpers pulled out without a change in behaviour: `requests::outline_request_in` (core of
+  `Store::outline_request`), `requests::add_request_in`, `outline::apply_with` (switch `bare`),
+  `outline::heading_title`, `outline::insert_bare`; in `assets.rs` only visibility (`Content`, `prepare`,
   `free_name`, `path_owner`, `name_fits`).
-- **Wege** (`baruch-server/src/exchange/import.rs`): Seite `/austausch/einlesen`, Formulare `/austausch/vorschau`
-  (multipart, Eingangsdatei erst nach gelungener Vorschau unter `<data>/austausch-eingang/<sha256>`) und
-  `/austausch/uebernehmen` (Datei aus dem Eingang, danach gelöscht), RPC `work.exchange_preview`/`import`, CLI
-  `cli_import`; Vorlagen `exchange_import.html`, `exchange_preview.html`, `exchange_done.html` (eigene Umgebung).
-  Vorschau und Übernehmen halten `state.write_lock`; der Spiegel-Commit kommt aus `mirror::record_exchange`
-  (`describe_exchange`, ein Commit, `allow_empty`).
-- **Keine Migration** in dieser Stufe (0043 bleibt frei): Die Herkunft der Anträge ist `IdeaOrigin::Human` mit dem
-  Namen „Austausch: <Instanz>“.
-- Tests: `crates/baruch-exchange/tests/read.rs` (Prüfdateien `tests/data/import/`), `crates/baruch-store/tests/
-  exchange_apply.rs`, `crates/baruch-server/tests/round26_import.rs` und `round26_roundtrip.rs` (meldet
-  ÜBERSPRUNGEN, solange `work.exchange_export` ein Stub ist).
+- **Ways** (`baruch-server/src/exchange/import.rs`): page `/austausch/einlesen`, forms `/austausch/vorschau`
+  (multipart, incoming file only after a successful preview under `<data>/austausch-eingang/<sha256>`) and
+  `/austausch/uebernehmen` (file from the inbox, deleted afterwards), RPC `work.exchange_preview`/`import`, CLI
+  `cli_import`; templates `exchange_import.html`, `exchange_preview.html`, `exchange_done.html` (own environment).
+  Preview and accepting hold `state.write_lock`; the mirror commit comes from `mirror::record_exchange`
+  (`describe_exchange`, one commit, `allow_empty`).
+- **No migration** in this stage (0043 stays free): the origin of the requests is `IdeaOrigin::Human` with the
+  name „Austausch: <Instanz>“.
+- Tests: `crates/baruch-exchange/tests/read.rs` (test files `tests/data/import/`), `crates/baruch-store/tests/
+  exchange_apply.rs`, `crates/baruch-server/tests/round26_import.rs` and `round26_roundtrip.rs` (reports
+  „ÜBERSPRUNGEN“ as long as `work.exchange_export` is a stub).
 
-### Integration Runde 26
+### Integration Round 26
 
-Zusammengeführt mit `--no-ff` in der Reihenfolge ids → export → import (Konflikte keine; die Doku-Abschnitte lagen
-getrennt). Danach:
+Merged with `--no-ff` in the order ids → export → import (no conflicts; the doc sections lay
+apart). Afterwards:
 
-- **Fehlalarm im Wächtertest** `no_code_path_but_exchange_apply_writes_the_uuid_column` (`baruch-store/tests/uuids.rs`):
-  Er suchte `INSERT` und `, uuid =` zeilenweise und schlug auf `HashSet::insert(uuid…)` im Leser und auf
-  `uuid => …` im minijinja-Kontext der Ausgabeseite an. Jetzt nur noch SQL: `INSERT INTO` bzw. `, uuid =` ohne `>`.
-- **Rundreise-Test** `round26_roundtrip` lief in import nur als „ÜBERSPRUNGEN“; nach dem Merge scheiterte er an der
-  Überschriftsebene (`===` an einem Abschnitt, der Store verlangt `==`). Die handgeschriebene Prüfdatei
-  `werk.baruch.xml` trägt bewusst ungewöhnliche Texte (Leerraum, `]]>`, Steuerzeichen); das Einlesen prüft die
-  Typst-Ebene der Fassungen nicht gegen die Art des Punkts (Text bleibt exakt, wie er kam). Ein dritter Test zeigt
-  Umbenennen auf B → auf A die mitgekommene Fassung und der Hinweis „Umschalten genügt“, kein Antrag `Rename`.
-- **MCP-Hinweis beim Verbinden** nennt `exchange_export` und sagt, dass es das Einlesen über MCP nicht gibt.
-- **Sichtprüfung:** Einzahl/Mehrzahl in Vorschau, Ergebnis und Ausgabeseite („1 Fassung“, „1 Antrag“); das Formular
-  „Übernehmen“ wuchs als leerer Kasten bis zum Seitenende (`.works-page` ist eine Flex-Spalte, `.work-form` hat
-  `flex: 1 1 320px`) → `flex: 0 0 auto` auf den Austauschseiten; die Tabelle der Abweichungen links ausgerichtet; in der
-  Antragsliste unter `/gliederung` bricht die lange Begründung (Instanz-UUID und sha256) um, statt die Knöpfe aus dem
-  Kasten zu schieben.
-- **Ende-zu-Ende mit zwei Wegwerf-Instanzen** (eigene Server auf `127.0.0.1:0`, `--secrets memory`, Verbindungen auf
-  `127.0.0.1:9`, dritter Datenordner nur für die Kommandozeile): 75 Prüfungen grün – Werk mit zwei Teilen, Vorwort ohne
-  Nummer, Abschnitt, mehreren Fassungen (abgelöst, Vorschlag über MCP mit Modell), zwei Vorlagenfassungen, Einfällen
-  (offen, erledigt, gelöscht), Beiträgen, Faden, PNG mit zwei Fassungen als Umschlag, SVG, Buchangaben, Sprechdauer;
-  A → B neu und B → Ausgabe gleich A bis auf `<ausgabe>`; Kommandozeile (Vorschau, neu, Exit 1 ohne `--abgleichen`,
-  Export ohne Überschreiben, Datei über 128 MiB); B ändert Fassung, Einfall, Umbenennen, „mit Nummer“ → A gleicht über
-  das Formular ab: zwei weitere Fassungen, ein Einfall, Antrag „mit Nummer zählen“ mit Herkunft „Austausch: Laptop“,
-  „aktuell“ unverändert, keine UUID verschwunden; zweiter Durchgang legt nichts an; `..`-Pfad, falsche Prüfsumme,
-  DTD mit externer Entität, XML-Bombe, 40 Ebenen, ZIP-Bombe (70 MiB `werk.xml`) abgelehnt, Zeilenzahlen aller 17
-  Werktabellen gleich; MCP-, XML- und ZIP-Ausgabe ohne Schlüssel, MCP-Token und Persona-Modelle.
+- **False alarm in the guard test** `no_code_path_but_exchange_apply_writes_the_uuid_column` (`baruch-store/tests/uuids.rs`):
+  it searched `INSERT` and `, uuid =` line by line and fired on `HashSet::insert(uuid…)` in the reader and on
+  `uuid => …` in the minijinja context of the output page. Now only SQL: `INSERT INTO` or `, uuid =` without `>`.
+- **Round-trip test** `round26_roundtrip` ran in import only as „ÜBERSPRUNGEN“; after the merge it failed on the
+  heading level (`===` at a section, the store demands `==`). The hand-written test file
+  `werk.baruch.xml` deliberately carries unusual texts (white space, `]]>`, control characters); reading in does not check the
+  Typst level of the revisions against the kind of the item (the text stays exactly as it came). A third test shows
+  renaming on B → on A the revision that came along and the hint „Umschalten genügt“, no request `Rename`.
+- **MCP hint on connecting** names `exchange_export` and says that there is no reading in through MCP.
+- **Visual check:** singular/plural in preview, result and output page („1 Fassung“, „1 Antrag“); the form
+  „Übernehmen“ grew as an empty box down to the end of the page (`.works-page` is a flex column, `.work-form` has
+  `flex: 1 1 320px`) → `flex: 0 0 auto` on the exchange pages; the table of deviations aligned left; in the
+  request list under `/gliederung` the long reason (instance UUID and sha256) wraps instead of pushing the buttons out of the
+  box.
+- **End-to-end with two throwaway instances** (own servers on `127.0.0.1:0`, `--secrets memory`, connections to
+  `127.0.0.1:9`, a third data folder only for the command line): 75 checks green – work with two parts, foreword without
+  a number, section, several revisions (superseded, proposal through MCP with model), two template revisions, ideas
+  (open, done, deleted), posts, thread, PNG with two revisions as cover, SVG, book data, speaking time;
+  A → B new and B → output equal to A except for `<ausgabe>`; command line (preview, new, exit 1 without `--abgleichen`,
+  export without overwriting, file over 128 MiB); B changes revision, idea, renaming, „mit Nummer“ → A reconciles through
+  the form: two more revisions, one idea, request „mit Nummer zählen“ with origin „Austausch: Laptop“,
+  „aktuell“ unchanged, no UUID vanished; a second pass creates nothing; `..` path, wrong checksum,
+  DTD with an external entity, XML bomb, 40 levels, ZIP bomb (70 MiB `werk.xml`) refused, row counts of all 17
+  work tables equal; MCP, XML and ZIP output without keys, MCP tokens and persona models.
 
-### Nachbesserung Runde 26 (Gutachten)
+### Follow-up Round 26 (review)
 
-- **Gelöschtes Werk zurückspielen:** `delete_work` lässt Einfälle als Einfälle ohne Werk mit ihrer Kennung zurück
-  (0011, `ON DELETE SET NULL`); das Einlesen als neues Werk lehnte deshalb die eigene Sicherung ab („gibt es hier
-  schon in einem anderen Werk“). Jetzt ordnet `exchange_apply::adopt_orphan_idea` einen solchen Einfall dem
-  eingelesenen Werk wieder zu (nur `work_id` und `node_id`, Inhalt bleibt), beim Neu-Einlesen wie beim Abgleich.
-- **Hin und her ohne Doppelung:** Unter (c) und (d) wird keine Fassung angelegt, wenn der Punkt schon eine mit genau
-  demselben Text hat (`same_text_number`); vorher entstand nach einer Bearbeitung an Ort und Stelle beim Abgleich im
-  Wechsel je Seite eine inhaltsgleiche Kopie (Austauschformat.md §4 „Hin und her“).
-- **Instanzname aus der Datei:** `baruch_exchange::clean_instance_name` beim Lesen und noch einmal in
-  `mirror::describe_exchange` (`<`/`>` → `‹`/`›`, Steuerzeichen → Leerzeichen, 80 Zeichen). Vorher scheiterte der
-  Spiegel-Commit an „Laptop <Jörg>“ (gix lehnt `<>\n` im Autor ab), obwohl das Werk schon übernommen war.
-- **Grabsteine neuer Art:** Bei `version` > 1 wird ein unbekanntes `<eintrag art>` als unbekannt gemeldet und
-  übersprungen statt die Datei abzulehnen (Vorbereitung R25, Austauschformat.md §6).
-- **Rundreise-Test ohne Ausweg:** `round26_roundtrip::export` scheitert bei jedem Fehler hart; die Variante
-  `ExchangeError::NotImplemented` ist entfernt (kein Stub erzeugt sie mehr).
+- **Playing back a deleted work:** `delete_work` leaves ideas behind as ideas without a work with their identifier
+  (0011, `ON DELETE SET NULL`); reading in as a new work therefore refused its own backup („gibt es hier
+  schon in einem anderen Werk“). Now `exchange_apply::adopt_orphan_idea` assigns such an idea to the
+  work read in again (only `work_id` and `node_id`, the content stays), both when reading in anew and when reconciling.
+- **Back and forth without duplication:** under (c) and (d) no revision is created if the item already has one with exactly
+  the same text (`same_text_number`); before, after an edit in place, reconciling alternately on each side produced
+  a copy with identical content (Austauschformat.md §4 „Hin und her“).
+- **Instance name from the file:** `baruch_exchange::clean_instance_name` when reading and once more in
+  `mirror::describe_exchange` (`<`/`>` → `‹`/`›`, control characters → spaces, 80 characters). Before, the
+  mirror commit failed on „Laptop <Jörg>“ (gix refuses `<>\n` in the author), although the work had already been taken over.
+- **Tombstones of a new kind:** with `version` > 1 an unknown `<eintrag art>` is reported as unknown and
+  skipped instead of refusing the file (preparation R25, Austauschformat.md §6).
+- **Round-trip test without an escape:** `round26_roundtrip::export` fails hard on every error; the variant
+  `ExchangeError::NotImplemented` is removed (no stub produces it any more).
 
-## Gedankenkarte (Runde 25)
+## Idea map (Round 25)
 
-**Stand Runde 34:** Seite, Bild, Widget und Ausgaben dieses Abschnitts sind durch die Mindmap ersetzt (siehe „Runde 34
-– Mindmap“ am Ende); `bild/layout.rs`, `bild/svg.rs` und `web/src/idea_map.ts` gibt es nicht mehr. Daten,
-Verbindungen, Nähe, Gruppen und Austausch gelten weiter.
+**State of Round 34:** page, image, widget and outputs of this section are replaced by the mind map (see
+"Round 34 – Mind map" at the end); `bild/layout.rs`, `bild/svg.rs` and `web/src/idea_map.ts` no longer exist. Data,
+links, nearness, groups and exchange still apply.
 
-Die Einfälle eines Werks als Karte (Vertrag Runde 25): Mitte das Werk, darum Teile und Kapitel, Einfälle an
-ihrem Bezug, Verbindungen zwischen Einfällen (Migration `0043_idea_map.sql`, Tabellen `idea_link` und
-`idea_map_pos`), Nähe nur angezeigt. Umgesetzt in drei Zweigen (karte-daten, karte-bild, karte-widget) auf der
-Schnittstelle R25-S1; einziger bleibender Stub war das Benennen von Gruppen durch einen Assistenten – seit Runde 19b
-umgesetzt (`idea_map/groups.rs`, siehe „Runde 19 – R19b pgvector“).
+The ideas of a work as a map (contract Round 25): in the centre the work, around it parts and chapters, ideas at
+their reference, links between ideas (migration `0043_idea_map.sql`, tables `idea_link` and
+`idea_map_pos`), nearness only displayed. Implemented in three branches (karte-daten, karte-bild, karte-widget) on the
+interface R25-S1; the only remaining stub was the naming of groups by an assistant – implemented since Round 19b
+(`idea_map/groups.rs`, see "Round 19 – RAG maintenance, rest of the references", R19b pgvector).
 
-### Daten (karte-daten)
-- **Migration 0043** (`0043_idea_map.sql`): Tabellen `idea_link` (Einfall → Einfall, `kind` aus vier Wörtern,
-  `note` ≤ 500, Herkunft, `deleted` weich, `uuid`; CHECKs gegen Selbstbezug und für „widerspricht“ nur mit
-  `from_id < to_id`, `UNIQUE (from_id, to_id, kind)`) und `idea_map_pos` (je Werk und Einfall eine Lage, Koordinaten
-  ≤ 1e6). Beide mit uuid wie 0041 (eindeutiger Index, Fülltrigger, Grabstein-Trigger: Verbindung mit dem Werk des
-  Einfalls `from_id`, Lage mit ihrem Werk) und `work_map_pos_cascade_uuid_tombstone` (Lagen vor dem Werk löschen,
-  damit der Grabstein die Werk-uuid kennt) sowie `idea_link_cascade_uuid_tombstone` (Verbindungen vor einem hart
-  gelöschten Einfall löschen, sonst fehlte dem Grabstein einer Verbindung mit diesem `from_id` das Werk; vom
-  Integrator bei der Zusammenführung nachgetragen). `uuid_tombstone` bekommt die Arten `idea_link`/`idea_map_pos`: die zehn
-  Grabstein-Trigger aus 0041 fallen, die Tabelle wird über eine temporäre Kopie neu angelegt (nicht `RENAME`, damit
-  der Text in `sqlite_master` bis auf den CHECK gleich bleibt), dann stehen die Trigger wörtlich wieder da. Kein
-  Fremdschlüssel zeigt auf `uuid_tombstone`, darum nicht in `FOREIGN_KEYS_OFF`. Test `tests/migration_0043.rs`
-  (nachgebaute Datenbank im Stand 0042 mit Grabsteinen aller zehn Arten).
-- **Store** `src/idea_links.rs`: `LinkKind`, `IdeaLink`, `NewIdeaLink`, `MapPos`; `idea_link_create` (prüft erst,
-  dann eine Transaktion; normalisiert „widerspricht“; vorhandenes aktives Paar → `changed = false` ohne Schreiben,
-  gelöschtes → wiederhergestellt), `idea_link_get/delete/restore`, `idea_links_of_idea/of_work` (`deleted = false`:
-  aktive Verbindungen mit zwei nicht gelöschten Einfällen – ein gelöschter Einfall fällt so nur durch den Filter
-  heraus), `idea_map_positions` (nur nicht gelöschte Einfälle, die noch zum Werk gehören), `idea_map_pos_set`
-  (UPSERT, die uuid bleibt), `idea_map_pos_reset` (hart, Grabstein). Fehler über `StoreError::Idea` (→ -32602), die
-  uuid setzt nur der Fülltrigger. `einfaelle.md` (`ideas.rs`) bekommt je Einfall „- Verbindungen: → 79 führt weiter;
-  ↔ 48 widerspricht („Notiz“); ← 12 Beispiel für“ über `idea_links::mirror_lines`. Test `tests/idea_links.rs`.
-- **Server** `src/idea_map/mod.rs`: RPC (`call`, Parameter auch als Ziffern-Text für das Formular der Karte;
-  `filter_from_params` = gemeinsame Auslegung für RPC und Seite) und `build` (Knoten aus der Gliederung mit
-  Aufklappen `open`, Filter status/word/origin, Treffer `q` über `Store::idea_search`, Verbindungen, Lagen, Nähe).
-  `idea_map/links.rs`: Verbindungen schreiben unter `write_lock` mit genau einem Commit über `mirror::record_idea`
-  (eigener Commit-Auftrag `describe`, `mirror.rs` blieb unverändert), auch für MCP. `idea_map/near.rs`: Paare aus
-  gespeicherten Vektoren (Kosinus ab Schwelle) und gleichen Schlagwörtern (`word_key`), je Einfall höchstens
-  `near_limit` Partner (gierig nach Wert, deterministisch). `rag/neighbors.rs`: liest die gespeicherten Vektoren
-  `idea:<id>` des Werks aus LanceDB (`Index::stored`), nie eine Einbettung; ohne Einbetter oder Index-Ordner
-  `NoEmbedder` (legt keinen Ordner an), bei Fehler oder anderem Modell `Unavailable`.
-- **MCP** `src/mcp/idea_map.rs`: `idea_map` (mit `url` je Einfall), `idea_links`, `idea_link`, `idea_unlink`; Herkunft
-  über `tools::origin_of` (Persona oder `@mcp:<client>`).
-- Tests `tests/round25_daten.rs`: 40 erfundene Einfälle (Knoten, Anker, Zähler, Aufklappen, Filter, `q`), Commits
-  mit Trailern und `einfaelle.md`, Lagen ohne Commit, gelöschter Einfall, MCP mit Herkunft, Nähe mit eigenem
-  Nachbau-Einbetter (Beleg: keine Einbettung beim Zeichnen) und ohne Einbetter.
-<!-- Ende R25 karte-daten -->
+### Data (karte-daten)
+- **Migration 0043** (`0043_idea_map.sql`): tables `idea_link` (idea → idea, `kind` from four words,
+  `note` ≤ 500, origin, `deleted` soft, `uuid`; CHECKs against self-reference and for „widerspricht“ only with
+  `from_id < to_id`, `UNIQUE (from_id, to_id, kind)`) and `idea_map_pos` (one position per work and idea, coordinates
+  ≤ 1e6). Both with uuid as in 0041 (unique index, fill trigger, tombstone trigger: link with the work of the
+  idea `from_id`, position with its work) and `work_map_pos_cascade_uuid_tombstone` (delete positions before the work,
+  so that the tombstone knows the work uuid) as well as `idea_link_cascade_uuid_tombstone` (delete links before a hard-
+  deleted idea, otherwise the tombstone of a link with this `from_id` would lack the work; added by the
+  integrator during the merge). `uuid_tombstone` gets the kinds `idea_link`/`idea_map_pos`: the ten
+  tombstone triggers from 0041 are dropped, the table is created anew through a temporary copy (not `RENAME`, so that
+  the text in `sqlite_master` stays the same except for the CHECK), then the triggers stand there again literally. No
+  foreign key points to `uuid_tombstone`, therefore not in `FOREIGN_KEYS_OFF`. Test `tests/migration_0043.rs`
+  (rebuilt database in the state 0042 with tombstones of all ten kinds).
+- **Store** `src/idea_links.rs`: `LinkKind`, `IdeaLink`, `NewIdeaLink`, `MapPos`; `idea_link_create` (checks first,
+  then one transaction; normalises „widerspricht“; existing active pair → `changed = false` without writing,
+  deleted one → restored), `idea_link_get/delete/restore`, `idea_links_of_idea/of_work` (`deleted = false`:
+  active links with two undeleted ideas – a deleted idea thus drops out only through the filter),
+  `idea_map_positions` (only undeleted ideas that still belong to the work), `idea_map_pos_set`
+  (UPSERT, the uuid stays), `idea_map_pos_reset` (hard, tombstone). Errors through `StoreError::Idea` (→ -32602), the
+  uuid is set only by the fill trigger. `einfaelle.md` (`ideas.rs`) gets per idea `- Verbindungen: → 79 führt weiter;
+  ↔ 48 widerspricht („Notiz“); ← 12 Beispiel für` through `idea_links::mirror_lines`. Test `tests/idea_links.rs`.
+- **Server** `src/idea_map/mod.rs`: RPC (`call`, parameters also as digit text for the form of the map;
+  `filter_from_params` = common interpretation for RPC and page) and `build` (nodes from the outline with
+  expanding `open`, filter status/word/origin, hits `q` through `Store::idea_search`, links, positions, nearness).
+  `idea_map/links.rs`: writing links under `write_lock` with exactly one commit through `mirror::record_idea`
+  (own commit order `describe`, `mirror.rs` stayed unchanged), also for MCP. `idea_map/near.rs`: pairs from
+  stored vectors (cosine from a threshold) and equal keywords (`word_key`), per idea at most
+  `near_limit` partners (greedy by value, deterministic). `rag/neighbors.rs`: reads the stored vectors
+  `idea:<id>` of the work from LanceDB (`Index::stored`), never an embedding; without an embedder or index folder
+  `NoEmbedder` (creates no folder), on error or another model `Unavailable`.
+- **MCP** `src/mcp/idea_map.rs`: `idea_map` (with `url` per idea), `idea_links`, `idea_link`, `idea_unlink`; origin
+  through `tools::origin_of` (persona or `@mcp:<client>`).
+- Tests `tests/round25_daten.rs`: 40 invented ideas (nodes, anchors, counters, expanding, filters, `q`), commits
+  with trailers and `einfaelle.md`, positions without a commit, deleted idea, MCP with origin, nearness with an own
+  mock embedder (evidence: no embedding when drawing) and without an embedder.
+<!-- End R25 karte-daten -->
 
-### Bild und Seiten (karte-bild)
+### Image and pages (karte-bild)
 
-`crates/baruch-server/src/idea_map/bild/` macht aus der `IdeaMap` von `idea_map::build` (karte-daten) Bild, Seite
-und Ausgaben; eigene Daten oder RPC hat es nicht.
+`crates/baruch-server/src/idea_map/bild/` turns the `IdeaMap` of `idea_map::build` (karte-daten) into image, page
+and outputs; it has no data or RPC of its own.
 
-- **`layout.rs`** – deterministische radiale Anordnung, rein (keine Zufälle, keine Reihenfolge aus HashMaps): Werk bei
-  (0,0); Ringe nach der Tiefe in der Gliederung der Karte; Winkel wie bei einem radialen Baum (oberste Knoten ab 12 Uhr
-  im Uhrzeigersinn, Sektor nach dem Platzbedarf des Teilbaums, Kinder im Sektor des Elternknotens). Die Einfälle eines
-  Knotens liegen als **Traube** auf einem Sechseckgitter (`LATTICE` 52, Radius `IDEA_R` 13, nächste Gitterpunkte
-  zuerst, der Streifen der Beschriftung unter dem Knoten bleibt frei; im letzten Gitterring nach außen gerichtete
-  Plätze zuerst). Keine Überlappung **per Konstruktion**: im Gitter ≥ 2·`IDEA_R`+`GAP`, zum Knoten ≥ r+`IDEA_R`+`GAP`;
-  je Ring wächst der Radius (×1,05), bis jedes Paar von Trauben-Scheiben ≥ Rc₁+Rc₂+`GAP` auseinander ist; Ringe sind
-  disjunkte Kreisringe. Gespeicherte Lagen (`positions`) überstimmen (`pinned`, kein Gitterplatz). Messung: 300 Einfälle
-  ≈ 1 ms im Debug-Bau (Test `round25_bild::three_hundred_ideas_…`, Abnahme < 200 ms). Ergebnis `Layout` (Kreise in der
-  Reihenfolge Knoten, Einfälle; `get(id)`; viewBox mit Rand für Beschriftungen).
-- **`svg.rs`** – Zeichnung nach dem DOM-Vertrag §4.4: `<svg class="im-svg" … data-im-svg>`, `<g class="im-viewport">`,
-  Kanten als `<line>` von Mittelpunkt zu Mittelpunkt (Baum `im-tree`, Bezug `im-ref`, Verbindungen
-  `im-link im-kind-<art>` mit `data-link`/`data-kind` und `<title>`, Nähe `im-near` mit `data-score`, nur mit `near`;
-  seit Runde 18a Pfeilspitzen, Strichart als Attribut und sichtbare Beschriftung `im-edge-label`, siehe „Runde 18a“),
-  Knoten mit `data-node`/`data-x`/`data-y`/`data-r` und `transform="translate(x y)"` (Werk und „Ohne Kapitel“ `<g>`,
-  Teil/Kapitel/Abschnitt `<a>` in Key-Form, Einfälle `<a href="/einfaelle/<id>">` mit `data-idea`/`data-key`/
-  `data-anchor`, `im-open|im-done`, `im-pinned`, mit `q` `im-hit|im-dim`). Zahlen auf eine Nachkommastelle (`num`),
-  alle Nutzertexte über `esc`. `render(map, layout, standalone)`: im HTML ohne eigenen Stil (`static/karte.css`, Farben aus
-  `app.css`, darum Hell/Dunkel ohne Doppelung), eigenständig mit XML-Kopf, Größe, `<title>` und `STANDALONE_STYLE`
-  (feste helle Farben, nur einfache Klassen-Selektoren – der SVG-Leser im Typst-Satz kennt keine Variablen); Attribute
-  ohne Wert dann als `=""` (wohlgeformtes XML, von `xmllint` geprüft).
-- **`export.rs`** – Markdown (Überschrift je Knoten, Ebene = Tiefe + 1; Einfälle mit Verbindungen in der Schreibweise
-  des Spiegels; „Widersprüche“, „Nähe“; Markdown-Zeichen maskiert) und FreeMind 1.0.1 (Knoten verschachtelt wie auf
-  der Karte, IDs `ID_<id ohne Sonderzeichen>`, Gedanke als `richcontent TYPE="NOTE"`, Verbindungen als `arrowlink`
-  – „widerspricht“ mit Pfeil an beiden Enden – und als Attribut „Verbindung“). `tree_order` und `links_of` nutzt auch
-  die Seite.
-- **`mod.rs`** – Routen und Seite. Filter aus der Adresse (`parse_filter`, unbekannte Werte fallen weg; `near` letzter
-  Wert gewinnt, weil das Formular ein verstecktes `near=0` vor das Kästchen setzt; `open` mehrfach) und kanonischer
-  Abfrageteil (`filter_query`) für alle Links, Ausgaben und den Rücksprung. Eigene Template-Umgebung (`base.html` +
-  `templates/karte.html`, kein `fragments/idea_capture.html`). Ausgaben: `.svg` (`image/svg+xml`), `.md`
-  (`text/markdown; charset=utf-8`), `.mm` (`application/x-freemind`, Anhang), `.pdf` über `pdf::source_to_pdf(work,
-  PdfKind::Map, …)` (`pdf_source`: A4 quer, Titel und Filter nur als Typst-Zeichenketten, die eigenständige SVG als
-  Datei `karte.svg` eingepasst; 409 läuft schon, 503 Zeit, 422 Satzfehler – als Karte mit Meldung).
-  `POST /werke/{id}/karte/act` (hinter `guard::same_origin`): `idea.update` über `crate::ideas::call` (nur `id`, `key`),
-  `idea.link`/`idea.unlink`/`idea.link_restore`/`idea.map_pos_reset` über `crate::idea_map::call`; vorher Prüfung, dass
-  der Einfall bzw. die Verbindung zu diesem Werk gehört (sonst 422). `back` wird nicht übernommen, sondern als Filter
-  gelesen und neu aufgebaut (`back_filter`) – die Weiterleitung `303 /werke/{id}/karte?<filter>&ok=<wort>[&undo=<id>]`
-  enthält nichts Ungeprüftes. Fehler: die Karte mit Meldung (422 ungültig, 409 abgelehnt, 400 unbekannte Aktion, 404
-  unbekanntes Werk).
-- Daneben: `PdfKind::Map` („Gedankenkarte“) in `pdf.rs`; Menüpunkt in `base.html`; `ideas.rs` gibt den Seiten
-  `map_href` (Liste) bzw. `links`/`map_href`/`map_act` (Einfall, über `Store::idea_links_of_idea`) mit; Stil in
-  `static/karte.css` (Strichart je Art, `im-empty`, `im-dim`, `im-hide-near`, Druck, Dunkel) und `static/ideas.css`.
-- Gruppen benennen: seit Runde 19b kein Stub mehr, sondern der Knopf „Gruppen benennen (Assistent)“ mit
-  Abschnitt „Gruppen“ (`idea_map/groups.rs`, siehe „### R19b pgvector“).
-<!-- Ende R25 karte-bild -->
+- **`layout.rs`** – deterministic radial layout, pure (no randomness, no order from HashMaps): work at
+  (0,0); rings by the depth in the outline of the map; angles as in a radial tree (top-level nodes from 12 o'clock
+  clockwise, sector by the space needed by the subtree, children in the sector of the parent node). The ideas of a
+  node lie as a **cluster** on a hexagonal grid (`LATTICE` 52, radius `IDEA_R` 13, nearest grid points
+  first, the strip of the label below the node stays free; in the last grid ring places facing outwards
+  first). No overlap **by construction**: in the grid ≥ 2·`IDEA_R`+`GAP`, to the node ≥ r+`IDEA_R`+`GAP`;
+  per ring the radius grows (×1.05) until every pair of cluster discs is ≥ Rc₁+Rc₂+`GAP` apart; rings are
+  disjoint annuli. Stored positions (`positions`) override (`pinned`, no grid place). Measurement: 300 ideas
+  ≈ 1 ms in the debug build (test `round25_bild::three_hundred_ideas_…`, acceptance < 200 ms). Result `Layout` (circles in the
+  order nodes, ideas; `get(id)`; viewBox with a margin for labels).
+- **`svg.rs`** – drawing according to the DOM contract §4.4: `<svg class="im-svg" … data-im-svg>`, `<g class="im-viewport">`,
+  edges as `<line>` from centre to centre (tree `im-tree`, reference `im-ref`, links
+  `im-link im-kind-<art>` with `data-link`/`data-kind` and `<title>`, nearness `im-near` with `data-score`, only with `near`;
+  since Round 18a arrowheads, dash style as an attribute and a visible label `im-edge-label`, see "Round 18a – Ribbon"),
+  nodes with `data-node`/`data-x`/`data-y`/`data-r` and `transform="translate(x y)"` (work and „Ohne Kapitel“ `<g>`,
+  part/chapter/section `<a>` in key form, ideas `<a href="/einfaelle/<id>">` with `data-idea`/`data-key`/
+  `data-anchor`, `im-open|im-done`, `im-pinned`, with `q` `im-hit|im-dim`). Numbers to one decimal place (`num`),
+  all user texts through `esc`. `render(map, layout, standalone)`: in the HTML without its own style (`static/karte.css`, colours from
+  `app.css`, hence light/dark without duplication), standalone with XML head, size, `<title>` and `STANDALONE_STYLE`
+  (fixed light colours, only simple class selectors – the SVG reader in Typst typesetting knows no variables); attributes
+  without a value then as `=""` (well-formed XML, checked by `xmllint`).
+- **`export.rs`** – Markdown (heading per node, level = depth + 1; ideas with links in the notation
+  of the mirror; „Widersprüche“, „Nähe“; Markdown characters escaped) and FreeMind 1.0.1 (nodes nested as on
+  the map, IDs `ID_<id ohne Sonderzeichen>`, thought as `richcontent TYPE="NOTE"`, links as `arrowlink`
+  – „widerspricht“ with an arrow at both ends – and as the attribute „Verbindung“). `tree_order` and `links_of` are also used by
+  the page.
+- **`mod.rs`** – routes and page. Filter from the address (`parse_filter`, unknown values are dropped; for `near` the last
+  value wins, because the form puts a hidden `near=0` before the check box; `open` repeatable) and canonical
+  query part (`filter_query`) for all links, outputs and the return jump. Own template environment (`base.html` +
+  `templates/karte.html`, no `fragments/idea_capture.html`). Outputs: `.svg` (`image/svg+xml`), `.md`
+  (`text/markdown; charset=utf-8`), `.mm` (`application/x-freemind`, attachment), `.pdf` through `pdf::source_to_pdf(work,
+  PdfKind::Map, …)` (`pdf_source`: A4 landscape, title and filter only as Typst strings, the standalone SVG fitted in as the
+  file `karte.svg`; 409 already running, 503 time, 422 typesetting error – as a map with a message).
+  `POST /werke/{id}/karte/act` (behind `guard::same_origin`): `idea.update` through `crate::ideas::call` (only `id`, `key`),
+  `idea.link`/`idea.unlink`/`idea.link_restore`/`idea.map_pos_reset` through `crate::idea_map::call`; beforehand a check that
+  the idea or the link belongs to this work (otherwise 422). `back` is not taken over, but read as a filter
+  and rebuilt (`back_filter`) – the redirect `303 /werke/{id}/karte?<filter>&ok=<wort>[&undo=<id>]`
+  contains nothing unchecked. Errors: the map with a message (422 invalid, 409 refused, 400 unknown action, 404
+  unknown work).
+- Besides: `PdfKind::Map` („Gedankenkarte“) in `pdf.rs`; menu entry in `base.html`; `ideas.rs` passes the pages
+  `map_href` (list) or `links`/`map_href`/`map_act` (idea, through `Store::idea_links_of_idea`); style in
+  `static/karte.css` (dash style per kind, `im-empty`, `im-dim`, `im-hide-near`, print, dark) and `static/ideas.css`.
+- Naming groups: since Round 19b no longer a stub, but the button „Gruppen benennen (Assistent)“ with the
+  section „Gruppen“ (`idea_map/groups.rs`, see "Round 19 – RAG maintenance, rest of the references", R19b pgvector).
+<!-- End R25 karte-bild -->
 
-### Widget und Austausch (karte-widget)
+### Widget and exchange (karte-widget)
 
-**Widget** `crates/baruch-server/web/src/idea_map.ts` (`register("idea-map", …)` auf `.im-stage`, von `build.rs`
-übersetzt, geladen über `main.ts`), Stil `static/karte_widget.css`. Es liest nur den DOM-Vertrag §4.4 (Klassen
-`im-*`, `data-node/x/y/r/key/idea/anchor/work/near`, `data-from/to` der Kanten, `[data-im-viewport]`,
-`[data-im-toolbar]`, `[data-im-side]`, `form.im-filter`) und ruft nur `idea.get`, `idea.create`, `idea.update`,
-`idea.link`, `idea.map_pos_set`, `idea.map_pos_reset` (Test `round25_widget::the_widget_reads_only_the_dom_contract_and_calls_only_the_allowed_methods`
-prüft das am ausgelieferten Skript). widgets.ts, ideas.ts, zoom.ts und main.ts bleiben unverändert.
+**Widget** `crates/baruch-server/web/src/idea_map.ts` (`register("idea-map", …)` on `.im-stage`, compiled by `build.rs`,
+loaded through `main.ts`), style `static/karte_widget.css`. It reads only the DOM contract §4.4 (classes
+`im-*`, `data-node/x/y/r/key/idea/anchor/work/near`, `data-from/to` of the edges, `[data-im-viewport]`,
+`[data-im-toolbar]`, `[data-im-side]`, `form.im-filter`) and calls only `idea.get`, `idea.create`, `idea.update`,
+`idea.link`, `idea.map_pos_set`, `idea.map_pos_reset` (test `round25_widget::the_widget_reads_only_the_dom_contract_and_calls_only_the_allowed_methods`
+checks that on the delivered script). widgets.ts, ideas.ts, zoom.ts and main.ts stay unchanged.
 
-- **Ausschnitt:** Zustand `{s, tx, ty}` → `transform="translate(tx ty) scale(s)"` nur auf `[data-im-viewport]`.
-  Zoom um einen Punkt der viewBox (`svg.getScreenCTM()`), Verschieben über die Differenz zweier viewBox-Punkte;
-  `sessionStorage` `baruch_im_view_<werk>` (try/catch) hält den Ausschnitt über das Neuladen. Mausrad mit Strg
-  wird nicht angefasst (zoom.ts).
-- **Ziehen:** Pointer Events mit `setPointerCapture`; ab 4 Bildschirmpunkten wird aus dem Klick ein Ziehen.
-  Knotenkoordinaten über `viewport.getScreenCTM().inverse()` (also in den Einheiten von `data-x/data-y`);
-  `place()` setzt `data-x/y`, `transform` und die Endpunkte jeder `.im-edge` mit `data-from`/`data-to` des Knotens.
-  Ablageziel (`targetAt`): Knoten mit Abstand ≤ `data-r`, Einfälle vor Gliederungsknoten, das Werk nie. Einfall →
-  Dialog (`<dialog class="im-dialog">`, vier Arten, Notiz ≤ 500) → `idea.link`; Teil/Kapitel/Abschnitt →
-  `idea.update {id, key}`; „Ohne Kapitel“ → `idea.update {id, key: null}`; sonst `idea.map_pos_set` (Koordinaten auf
-  ±1e6 begrenzt) und `im-pinned`. Nach Bezug und Verbindung lädt die Seite neu (der Server ordnet an).
-- **Tastatur:** wandernder `tabindex` (genau ein Knoten 0, zuerst das Werk), `<g>`-Knoten bekommen `role="button"`
-  und eine `aria-label` aus ihrem `<title>`. Pfeile: nächster Knoten mit Abstand in der Richtung plus doppeltem
-  Querversatz; Verbinden-Modus (`V`, Klassen `im-connecting`/`im-source`/`im-target`) wandert nur über Einfälle.
-  `N` schaltet `im-hide-near` und `near` in der Adresse (`history.replaceState`); war die Seite mit `near=0`
-  gezeichnet (keine Nähe-Kanten im DOM), lädt sie mit `near=1` neu. Alt+E: Dialog „Neuer Einfall“ →
-  `idea.create {work, key, words, note}` mit dem Bezug des fokussierten Knotens. Meldungen über `.im-status`
-  (`role="status"`), Hilfe `.im-help` per `aria-describedby` an der Karte. Texte nur über `textContent`.
+- **View section:** state `{s, tx, ty}` → `transform="translate(tx ty) scale(s)"` only on `[data-im-viewport]`.
+  Zoom around a point of the viewBox (`svg.getScreenCTM()`), panning through the difference of two viewBox points;
+  `sessionStorage` `baruch_im_view_<werk>` (try/catch) keeps the view section across reloading. The mouse wheel with Ctrl
+  is not touched (zoom.ts).
+- **Dragging:** pointer events with `setPointerCapture`; from 4 screen pixels on a click becomes a drag.
+  Node coordinates through `viewport.getScreenCTM().inverse()` (thus in the units of `data-x/data-y`);
+  `place()` sets `data-x/y`, `transform` and the end points of every `.im-edge` with `data-from`/`data-to` of the node.
+  Drop target (`targetAt`): node with distance ≤ `data-r`, ideas before outline nodes, never the work. Idea →
+  dialog (`<dialog class="im-dialog">`, four kinds, note ≤ 500) → `idea.link`; part/chapter/section →
+  `idea.update {id, key}`; „Ohne Kapitel“ → `idea.update {id, key: null}`; otherwise `idea.map_pos_set` (coordinates limited to
+  ±1e6) and `im-pinned`. After a reference and a link the page reloads (the server lays out).
+- **Keyboard:** roving `tabindex` (exactly one node 0, the work first), `<g>` nodes get `role="button"`
+  and an `aria-label` from their `<title>`. Arrows: nearest node by distance in the direction plus double the
+  lateral offset; connect mode (`V`, classes `im-connecting`/`im-source`/`im-target`) moves only over ideas.
+  `N` toggles `im-hide-near` and `near` in the address (`history.replaceState`); if the page was drawn with `near=0`
+  (no nearness edges in the DOM), it reloads with `near=1`. Alt+E: dialog „Neuer Einfall“ →
+  `idea.create {work, key, words, note}` with the reference of the focused node. Messages through `.im-status`
+  (`role="status"`), help `.im-help` via `aria-describedby` at the map. Texts only through `textContent`.
 
-**Austausch Unterversion 2** (Vertrag §4.6):
+**Exchange minor version 2** (contract §4.6):
 
 - `baruch-exchange/src/model.rs`: `FORMAT_VERSION = 2`; `ExchangeLinkKind` (`fuehrt-weiter`, `gehoert-zu`,
   `beispiel-fuer`, `widerspricht`), `ExchangeLink`, `ExchangePosition`, `ExchangeMap` (`ExchangeWork.map`),
-  Grabsteinarten `Link = "verbindung"` (`idea_link`) und `Position = "lage"` (`idea_map_pos`) mit
-  `since_version()` (2, sonst 1); dazu `MAP_COORD_LIMIT`, `MAX_LINK_NOTE_CHARS` und `ExchangeMap::is_empty`.
-- `write.rs`: `<karte>` am Ende von `<werk>` nur mit Inhalt, erst `<verbindung>` (mit `<notiz>`), dann `<lage/>`;
-  x/y über `f64::to_string` (kürzeste genaue Darstellung), außerhalb ±1e6 → `ExchangeError::Write`.
-- `read/map.rs`: `<karte>` erst ab `version >= 2` (sonst unbekannt, `werk/karte`); eine Grabsteinart mit
-  `since_version() > version` ist ein XML-Fehler; unbekannte Arten bei `version > FORMAT_VERSION` werden gemeldet und
-  übersprungen. `read/check.rs` (`check_map`): Verweise auf Einfälle des Dokuments, kein Selbstbezug, kein Paar
-  mit derselben Art doppelt (`widerspricht` normalisiert), Notiz ≤ 500 ohne Steuerzeichen außer `\n`, je Einfall
-  eine Lage, |x|, |y| ≤ 1e6; die Kennungen zählen zur Eindeutigkeit im ganzen Dokument (auch gegen Grabsteine).
-- `docs/schema/baruch-werk-1-u2.xsd`: Kopie des v1-XSD mit festgelegtem `Karte` (`Verbindung`, `Lage`,
-  `VerbindungArt`, `Koordinate` als `xs:double` in ±1e6) und erweitertem `GrabsteinArt`; das v1-XSD bleibt
-  unverändert.
-- Store `exchange_dump.rs`: `map()` liest `idea_link` (beide Einfälle im Werk, auch weich gelöschte, nach id) und
-  `idea_map_pos` (Einfall noch im Werk, nach id); Grabsteine wie bisher über `work_uuid`.
-- Store `exchange_apply.rs`: `new_map` (nach Einfällen und Bildern; `ensure_free`, `widerspricht` mit from < to
-  nach lokalen ids) und `merge_map` (nach `merge_ideas`, damit eben eingelesene Einfälle zählen): unbekannte
-  Kennung + beide Einfälle im Werk → anlegen, sonst Hinweis; gleiches Paar+Art (in der normalisierten Richtung)
-  → Hinweis „gibt es hier schon unter anderer Kennung“; bekannte Kennung → nie überschreiben (Hinweis bei Notiz/
-  gelöscht); Grabstein → „hier gelöscht“; Lage nur, wenn es für (Werk, Einfall) keine gibt. `AddCounts.links`,
-  `AddCounts.positions` (in `total()`), Wörter `verbindung`/`lage` in `items` und `deleted_here`. Nur hier wird
-  `uuid` in `idea_link`/`idea_map_pos` geschrieben (Wächtertest `uuids.rs`).
+  tombstone kinds `Link = "verbindung"` (`idea_link`) and `Position = "lage"` (`idea_map_pos`) with
+  `since_version()` (2, otherwise 1); plus `MAP_COORD_LIMIT`, `MAX_LINK_NOTE_CHARS` and `ExchangeMap::is_empty`.
+- `write.rs`: `<karte>` at the end of `<werk>` only with content, first `<verbindung>` (with `<notiz>`), then `<lage/>`;
+  x/y through `f64::to_string` (shortest exact representation), outside ±1e6 → `ExchangeError::Write`.
+- `read/map.rs`: `<karte>` only from `version >= 2` (otherwise unknown, `werk/karte`); a tombstone kind with
+  `since_version() > version` is an XML error; unknown kinds with `version > FORMAT_VERSION` are reported and
+  skipped. `read/check.rs` (`check_map`): references to ideas of the document, no self-reference, no pair
+  with the same kind twice (`widerspricht` normalised), note ≤ 500 without control characters except `\n`, per idea
+  one position, |x|, |y| ≤ 1e6; the identifiers count towards uniqueness in the whole document (also against tombstones).
+- `docs/schema/baruch-werk-1-u2.xsd`: copy of the v1 XSD with a defined `Karte` (`Verbindung`, `Lage`,
+  `VerbindungArt`, `Koordinate` as `xs:double` in ±1e6) and an extended `GrabsteinArt`; the v1 XSD stays
+  unchanged.
+- Store `exchange_dump.rs`: `map()` reads `idea_link` (both ideas in the work, also soft-deleted ones, by id) and
+  `idea_map_pos` (idea still in the work, by id); tombstones as before through `work_uuid`.
+- Store `exchange_apply.rs`: `new_map` (after ideas and images; `ensure_free`, `widerspricht` with from < to
+  by local ids) and `merge_map` (after `merge_ideas`, so that ideas just read in count): unknown
+  identifier + both ideas in the work → create, otherwise a hint; the same pair+kind (in the normalised direction)
+  → hint „gibt es hier schon unter anderer Kennung“; known identifier → never overwrite (hint for note/
+  deleted); tombstone → „hier gelöscht“; position only if there is none for (work, idea). `AddCounts.links`,
+  `AddCounts.positions` (in `total()`), words `verbindung`/`lage` in `items` and `deleted_here`. Only here is
+  `uuid` written into `idea_link`/`idea_map_pos` (guard test `uuids.rs`).
 - Server: `exchange/import.rs` (`add_list`: „Verbindungen der Gedankenkarte“, „Lagen auf der Gedankenkarte“ in
-  Vorschau, Ergebnis und CLI), `exchange/export.rs` (`counts`: `links`, `deleted_links`, `positions` für
-  `templates/exchange.html`), Beschreibung von MCP `exchange_export`. Keine Migration (0044 bleibt ungenutzt).
+  preview, result and CLI), `exchange/export.rs` (`counts`: `links`, `deleted_links`, `positions` for
+  `templates/exchange.html`), description of MCP `exchange_export`. No migration (0044 stays unused).
 - Tests: `baruch-exchange/tests/{read,write,xsd}.rs`, `baruch-store/tests/{exchange_map,exchange_apply,uuids}.rs`,
-  Server `tests/round25_widget.rs` (Rundreise A → B → A mit Karte, Vorschauseite, Seite „Austausch“) und
-  `round26_*` gegen das u2-XSD.
-- Gefunden (gemeldet an karte-daten, Migration 0043): Wird ein Einfall hart gelöscht, der `from_id` einer
-  Verbindung ist, schreibt der Grabstein-Trigger `idea_link_uuid_tombstone` `work_uuid` NULL (die Einfallzeile ist
-  in der Kaskade schon fort, wie vor 0042 bei Fäden); Abhilfe wäre ein `BEFORE DELETE ON idea`, der die
-  Verbindungen vorher löscht. Praktisch selten (Einfälle werden nur weich gelöscht). Behoben bei der Integration
-  (Trigger `idea_link_cascade_uuid_tombstone` in 0043, `uuids.rs` prüft jetzt beide Richtungen).
-<!-- Ende R25 karte-widget -->
+  server `tests/round25_widget.rs` (round trip A → B → A with map, preview page, page „Austausch“) and
+  `round26_*` against the u2 XSD.
+- Found (reported to karte-daten, migration 0043): if an idea that is the `from_id` of a
+  link is deleted hard, the tombstone trigger `idea_link_uuid_tombstone` writes `work_uuid` NULL (the idea row is
+  already gone in the cascade, as with threads before 0042); a remedy would be a `BEFORE DELETE ON idea` that deletes the
+  links beforehand. Rare in practice (ideas are only deleted softly). Fixed in the integration
+  (trigger `idea_link_cascade_uuid_tombstone` in 0043, `uuids.rs` now checks both directions).
+<!-- End R25 karte-widget -->
 
-### Integration Runde 25 (Integrator, 2026-11-08)
-- Zusammengeführt `team/karte-daten` → `team/karte-bild` → `team/karte-widget` (`--no-ff`, ohne Konflikte; alle drei
-  von S1 `c0e5e8a` abgezweigt).
-- **Migration 0043 berichtigt** (noch auf keiner Instanz ausgeführt): `BEFORE DELETE ON idea` löscht die Verbindungen,
-  solange die Einfallzeile steht (`idea_link_cascade_uuid_tombstone`), sonst trüge der Grabstein einer Verbindung mit
-  diesem `from_id` kein Werk (Befund karte-widget). `migration_0043.rs` kennt das neue Objekt, `uuids.rs` löscht jetzt
-  den mittleren Einfall (Quelle und Ziel zugleich).
-- **Kanonische Adresse der Karte:** `build` setzt die Vorgaben `near_limit`/`near_threshold` in den angewandten Filter
-  ein; `bild::filter_query` schrieb sie dann in jeden Link (`?near_limit=3&near_threshold=0.75`). Erst nach dem
-  Zusammenführen sichtbar (zwei Tests in `round25_bild.rs` schlugen an); jetzt fallen Vorgabewerte aus der Adresse.
-- Die Teile von `round25_bild.rs`, die ohne R25a „ÜBERSPRUNGEN“ meldeten, laufen jetzt voll.
-- **Abnahme** `tests/round25_abnahme.rs`: erfundenes Werk mit zwei Teilen und 40 Einfällen, Einbettungen vom Nachbau
-  `MockEliezer` (512 Dim.); Seite ohne JavaScript (SVG, Gliederung, Filter per GET, Formulare), `im-empty`, Anker am
-  Kapitel bzw. „Ohne Kapitel“; Nähe über Vektoren ohne Einbettungsanfrage beim Zeichnen und über Schlagwörter;
-  Bezug per Widget-RPC und Formular (je ein Commit); „widerspricht“ in Karte, Liste Widersprüche, `einfaelle.md` und
-  MCP `idea_links`; Lagen ohne Commit; gelöschter Einfall fällt samt Verbindung heraus und kommt zurück; SVG/Markdown/
-  FreeMind/PDF (xmllint). Ohne Einbettungsmodell nennt die Seite den Ersatz über Schlagwörter.
-- **Sichtprüfung** (Firefox headless, eigener Wegwerf-Server mit erfundenem Werk, Einbettungen von einem eigenen
-  Nachbau auf 127.0.0.1:0): Die Bühne war in der Flex-Spalte `.karte` auf ihre Mindesthöhe gedrückt (Karte winzig,
-  mit JavaScript unten abgeschnitten) – jetzt `flex-shrink: 0` für die Kinder von `.karte` und `.im-stage` und eine
-  feste Höhe `min(78vh, 900px)` für `.im-svg` (`static/karte.css`). „Einpassen“ im Widget lässt Platz für die
-  Beschriftungen unter und neben den Kreisen (`LABEL_SIDE`, `LABEL_BELOW`). Die Seitenleiste nennt den Status wie
-  der Rest der Oberfläche „verarbeitet“ (nicht „erledigt“). Bilder: `.claude/sicht/r25/`.
-- **Nachbesserung nach dem Gutachten:**
-  - Werkwechsel eines verbundenen Einfalls: `Store::idea_update` löst beim Umzug (anderes Werk oder „ohne Werk“)
-    in derselben Transaktion alle nicht gelösten Verbindungen des Einfalls weich und löscht seine Lagen hart
-    (Grabstein `idea_map_pos` im alten Werk). Vorher blieb die Verbindung aktiv und verband zwei Werke: Karte und
-    Austauschformat ließen sie weg, `/einfaelle/<id>`, `idea_links {idea}` und `einfaelle.md` beider Werke zeigten
-    sie, „Lösen“ von der Seite eines umgezogenen Ziels scheiterte mit 422, eine alte Lage tauchte beim Zurückziehen
-    wieder auf. `ideas::update` nennt die gelösten Verbindungen im Commit beider Spiegel und als `unlinked` in der
-    Antwort (RPC `idea.update`, MCP `idea_update`). Tests: Store `idea_links.rs`
-    (`moving_a_linked_idea_…`), Server `round25_daten.rs` (`moving_a_linked_idea_to_another_work_unlinks_it_everywhere`).
-  - Zähler der Karte rollen hoch: `idea_map::build` zählt einen Einfall am Anker und an allen Vorfahren bis unter
-    das Werk (`parent_slot`). Ein Teil mit gefüllten Kapiteln galt vorher als leer (blass, ohne Zahl, „Keine
-    Einfälle.“); ein aufgeklapptes Kapitel zählt jetzt seine Abschnitte mit. Liste und Markdown sagen bei einem Punkt
-    ohne eigene, aber mit Einfällen darunter „Keine eigenen Einfälle; sie hängen an den Punkten darunter.“
-  - „Zeigen, was fehlt“ hebt hervor statt zurückzunehmen: `im-empty` = gestrichelter Rand in der Warnfarbe, im Kreis
-    das Wort „leer“ (`svg.rs`, auch in der eigenständigen SVG), in der Liste das Schild „leer“ und ein gestrichelter
-    Warnrand (`static/karte.css`, `templates/karte.html`).
+### Integration Round 25 (integrator, 2026-11-08)
+- Merged `team/karte-daten` → `team/karte-bild` → `team/karte-widget` (`--no-ff`, without conflicts; all three
+  branched from S1 `c0e5e8a`).
+- **Migration 0043 corrected** (not yet run on any instance): `BEFORE DELETE ON idea` deletes the links
+  while the idea row still stands (`idea_link_cascade_uuid_tombstone`), otherwise the tombstone of a link with
+  this `from_id` would carry no work (finding karte-widget). `migration_0043.rs` knows the new object, `uuids.rs` now deletes
+  the middle idea (source and target at once).
+- **Canonical address of the map:** `build` puts the defaults `near_limit`/`near_threshold` into the applied filter;
+  `bild::filter_query` then wrote them into every link (`?near_limit=3&near_threshold=0.75`). Visible only after
+  merging (two tests in `round25_bild.rs` fired); now default values are dropped from the address.
+- The parts of `round25_bild.rs` that reported „ÜBERSPRUNGEN“ without R25a now run fully.
+- **Acceptance** `tests/round25_abnahme.rs`: invented work with two parts and 40 ideas, embeddings from the mock
+  `MockEliezer` (512 dim.); page without JavaScript (SVG, outline, filter via GET, forms), `im-empty`, anchor at the
+  chapter or „Ohne Kapitel“; nearness through vectors without an embedding request when drawing and through keywords;
+  reference via widget RPC and form (one commit each); „widerspricht“ in the map, list of contradictions, `einfaelle.md` and
+  MCP `idea_links`; positions without a commit; a deleted idea drops out together with its link and comes back; SVG/Markdown/
+  FreeMind/PDF (xmllint). Without an embedding model the page names the substitute through keywords.
+- **Visual check** (Firefox headless, own throwaway server with an invented work, embeddings from an own
+  mock on 127.0.0.1:0): the stage was squeezed to its minimum height in the flex column `.karte` (map tiny,
+  cut off at the bottom with JavaScript) – now `flex-shrink: 0` for the children of `.karte` and `.im-stage` and a
+  fixed height `min(78vh, 900px)` for `.im-svg` (`static/karte.css`). „Einpassen“ in the widget leaves room for the
+  labels below and beside the circles (`LABEL_SIDE`, `LABEL_BELOW`). The side bar names the status like
+  the rest of the user interface „verarbeitet“ (not „erledigt“). Images: `.claude/sicht/r25/`.
+- **Follow-up after the review:**
+  - Change of work of a linked idea: when moving (another work or „ohne Werk“) `Store::idea_update` dissolves
+    all undissolved links of the idea softly in the same transaction and deletes its positions hard
+    (tombstone `idea_map_pos` in the old work). Before, the link stayed active and connected two works: map and
+    exchange format left it out, `/einfaelle/<id>`, `idea_links {idea}` and `einfaelle.md` of both works showed
+    it, „Lösen“ from the page of a moved target failed with 422, an old position reappeared when moving back.
+    `ideas::update` names the dissolved links in the commit of both mirrors and as `unlinked` in the
+    answer (RPC `idea.update`, MCP `idea_update`). Tests: store `idea_links.rs`
+    (`moving_a_linked_idea_…`), server `round25_daten.rs` (`moving_a_linked_idea_to_another_work_unlinks_it_everywhere`).
+  - Counters of the map roll up: `idea_map::build` counts an idea at the anchor and at all ancestors up to below
+    the work (`parent_slot`). A part with filled chapters counted as empty before (pale, without a number, „Keine
+    Einfälle.“); an expanded chapter now counts its sections too. List and Markdown say for an item
+    without own ideas but with ideas below it „Keine eigenen Einfälle; sie hängen an den Punkten darunter.“
+  - „Zeigen, was fehlt“ highlights instead of toning down: `im-empty` = dashed border in the warning colour, in the circle
+    the word „leer“ (`svg.rs`, also in the standalone SVG), in the list the tag „leer“ and a dashed
+    warning border (`static/karte.css`, `templates/karte.html`).
 
-## Runde 18a – Menüband
+## Round 18a – Ribbon
 
-Menüband für Editor und Satz-Ansicht, abbrechbarer Typst-Satz ohne Läufe von fremden Seiten, Kapitel einer geteilten
-Seite, Kopfzeile in schmalen Fenstern und die Kanten der Gedankenkarte.
+Ribbon for editor and typeset page, cancellable Typst typesetting without runs from foreign pages, chapter of a shared
+page, header in narrow windows and the edges of the idea map.
 
-- **Menüband** (`templates/fragments/edit_toolbar.html`): ein Fragment, zwei Fassungen. Im Editor
-  (`div.ws-bar.ribbon[data-edit-toolbar][hidden]`) bleiben alle Haken des Satzbilds (`data-ws-mode`, `data-ws-tools`,
-  `data-ws-format`, `data-ws-cmd`); dahinter `span.ribbon-formats[data-widget=ribbon]` mit je einem Knopf
-  `data-ribbon-cmd`/`data-ribbon-snippet` aus `src/ribbon.rs` (`formats(template)`: `scene`/`work` nur bei
-  `#let szene`/`#let arbeit` in der Werkvorlage, dann `footnote`, `quote`, `list`, `enum`, `terms`, `break`, `link`;
-  RPC `ribbon.formats`; Kontext `ribbon` aus `view::ViewExtras`) und `data-ribbon-image`. Widget `web/src/ribbon.ts`:
-  bei offenem Satzbild nur `sendWsCommand` (eingefrorene `ws_command.ts`), `handled = false` → Hinweis über
-  `baruch:toast`; im Quelltext Einfügen ins Textfeld an `selectionStart` (`execCommand("insertText")`, Rückfall
-  `setRangeText` + `input`). Kein Import von `wysiwyg.ts`. Mit `satz_page` (Satz-Seite) `div.ribbon-satz
-  [data-ribbon-satz]`: Zurück, PDF, ‹ › mit `aria-label`, Formular „Satz abbrechen“ – ohne JavaScript; `typeset.html`
-  leert `{% block scripts %}` (kein `main.js`). Stil `static/ribbon.css`. Nachbesserung: `typeset::render` setzt
-  `scriptless = true`; `base.html` zeigt dann in der Kopfzeile kein Widget – das Thema als Link auf
-  `/einstellungen/darstellung`, „⚙ Einstellungen“ ohne Dialog und `aria-keyshortcuts`, „Öffnen“ der Werkwahl
-  sichtbar statt in `<noscript>`.
-- **Abbruch** (`baruch-render`): `Cancel(Arc<AtomicBool>)` mit `cancel`/`is_cancelled`, `compile_cancellable(source,
-  cancel) -> Option<Rendered>` (`None` = abgebrochen, nie halbe Seiten); `compile`/`compile_pdf` unverändert.
-  Prüfstellen: vor dem Lauf, nach `typst::compile` (Auswertung und Umbruch), vor jeder SVG-Seite, am Ende.
-  **Gemessen** (`crates/baruch-render/tests/cancel.rs`, Debug-Bau, 2026-11-08): 500 Absätze (512 Seiten) – ohne
-  Abbruch 777 ms, abgebrochen nach 200 ms zurück nach 252 ms (der Umbruch war fertig, gespart wurde das Schreiben
-  der SVG-Seiten); Auswertungsschleife mit 3 000 000 Runden – ohne Abbruch 353 ms, abgebrochen nach 100 ms zurück
-  erst nach 368 ms (nicht unterbrochen). **Nicht möglich:** ein Abbruch über die Welt (nach dem Abbruch keine
-  Dateien oder Schriften mehr liefern). Typst merkt sich die Antworten der Welt (`comemo`) und bricht mit „comemo:
-  found differing return values. is there an impure tracked function?“ ab, wenn dieselbe Frage in einem Lauf anders
-  beantwortet wird – im ersten Entwurf so beobachtet und darum verworfen. Auswertung und Umbruch laufen also immer
-  zu Ende; ein eigener Prozess je Lauf wäre der einzige harte Abbruch (nicht umgesetzt, Rest).
-- **Server** (`src/typeset.rs`): Jeder Lauf für ein Werk (`compile_for`: Satz-Seite, SVG-Seite, `preview.typst`,
-  `typst_check`) meldet sich mit Datenordner, Werk und `Cancel` in einer prozessweiten Liste an; die Anmeldung
-  (`Arc<Registration>`) halten Anfrage und Hintergrundlauf, sie fällt mit dem letzten. `cancel(work)` (Vertrag, alle
-  Server im Prozess) bzw. `cancel_in(data, work)` (RPC `preview.cancel`, `POST /werke/{id}/satz/abbrechen`) setzen
-  alle `Cancel` des Werks. Die Anfrage wartet mit `tokio::select!` auf Sperre bzw. Lauf **oder** den Abbruch (Abfrage
-  alle 20 ms) und kehrt sofort mit -32000 `CANCELLED` zurück; der Lauf hält die Sperre `RUNS`, bis Typst an der
-  nächsten Prüfstelle aufhört, und legt nichts ab. `compile` ohne Werk (Umschlag) ist nicht angemeldet. Die Seite
-  nach dem Abbrechen (`?abgebrochen=1|0`) setzt nicht neu (`cached_typeset`: nur ein schon gesetzter Stand). Für
-  Tests: `running_in`, `runs_of(stand)` (begonnene Läufe je Stand, höchstens 256 Stände), `cache_contains`,
+- **Ribbon** (`templates/fragments/edit_toolbar.html`): one fragment, two versions. In the editor
+  (`div.ws-bar.ribbon[data-edit-toolbar][hidden]`) all hooks of the typeset view stay (`data-ws-mode`, `data-ws-tools`,
+  `data-ws-format`, `data-ws-cmd`); behind them `span.ribbon-formats[data-widget=ribbon]` with one button each
+  `data-ribbon-cmd`/`data-ribbon-snippet` from `src/ribbon.rs` (`formats(template)`: `scene`/`work` only with
+  `#let szene`/`#let arbeit` in the work template, then `footnote`, `quote`, `list`, `enum`, `terms`, `break`, `link`;
+  RPC `ribbon.formats`; context `ribbon` from `view::ViewExtras`) and `data-ribbon-image`. Widget `web/src/ribbon.ts`:
+  with an open typeset view only `sendWsCommand` (frozen `ws_command.ts`), `handled = false` → hint through
+  `baruch:toast`; in source mode inserting into the text field at `selectionStart` (`execCommand("insertText")`, fallback
+  `setRangeText` + `input`). No import of `wysiwyg.ts`. With `satz_page` (typeset page) `div.ribbon-satz
+  [data-ribbon-satz]`: back, PDF, ‹ › with `aria-label`, form „Satz abbrechen“ – without JavaScript; `typeset.html`
+  empties `{% block scripts %}` (no `main.js`). Style `static/ribbon.css`. Follow-up: `typeset::render` sets
+  `scriptless = true`; `base.html` then shows no widget in the header – the theme as a link to
+  `/einstellungen/darstellung`, „⚙ Einstellungen“ without dialog and `aria-keyshortcuts`, „Öffnen“ of the work choice
+  visible instead of in `<noscript>`.
+- **Cancellation** (`baruch-render`): `Cancel(Arc<AtomicBool>)` with `cancel`/`is_cancelled`, `compile_cancellable(source,
+  cancel) -> Option<Rendered>` (`None` = cancelled, never half pages); `compile`/`compile_pdf` unchanged.
+  Check points: before the run, after `typst::compile` (evaluation and layout), before every SVG page, at the end.
+  **Measured** (`crates/baruch-render/tests/cancel.rs`, debug build, 2026-11-08): 500 paragraphs (512 pages) – without
+  cancellation 777 ms, cancelled after 200 ms back after 252 ms (the layout was finished, what was saved was writing
+  the SVG pages); evaluation loop with 3 000 000 rounds – without cancellation 353 ms, cancelled after 100 ms back
+  only after 368 ms (not interrupted). **Not possible:** a cancellation through the world (delivering no more
+  files or fonts after the cancellation). Typst memoises the answers of the world (`comemo`) and aborts with „comemo:
+  found differing return values. is there an impure tracked function?“ if the same question is answered differently
+  within one run – observed like that in the first draft and therefore discarded. So evaluation and layout always run
+  to the end; an own process per run would be the only hard cancellation (not done, remainder).
+- **Server** (`src/typeset.rs`): every run for a work (`compile_for`: typeset page, SVG page, `preview.typst`,
+  `typst_check`) registers with data folder, work and `Cancel` in a process-wide list; the registration
+  (`Arc<Registration>`) is held by request and background run, it drops with the last one. `cancel(work)` (contract, all
+  servers in the process) or `cancel_in(data, work)` (RPC `preview.cancel`, `POST /werke/{id}/satz/abbrechen`) set
+  all `Cancel` of the work. The request waits with `tokio::select!` for the lock or run **or** the cancellation (polled
+  every 20 ms) and returns immediately with -32000 `CANCELLED`; the run holds the lock `RUNS` until Typst stops at the
+  next check point, and stores nothing. `compile` without a work (cover) is not registered. The page
+  after cancelling (`?abgebrochen=1|0`) does not typeset anew (`cached_typeset`: only an already typeset stand). For
+  tests: `running_in`, `runs_of(stand)` (runs begun per stand, at most 256 stands), `cache_contains`,
   `pdf::pdf_runs()`.
-- **Fremde Seiten:** `GET /werke/{id}/satz`, `…/{stand}/{n}.svg` und `/werke/{id}/pdf` – nach der Nachbesserung zu
-  Runde 18 auch Umschlag (`/werke/{id}/umschlag`, `.svg`, `.pdf`), `/werke/{id}/stichwortzettel.pdf` und
-  `/werke/{id}/karte.pdf`, also jeder GET, der Typst startet und die Sperre `typeset::RUNS` hält – prüfen zuerst
-  `guard::cross_site_get` (`Sec-Fetch-Site: cross-site|same-site`) → 403 (`typeset::foreign_get`), bevor sie das Werk
-  vorbereiten oder Typst starten. Ohne Kopf (curl, alte Browser) bleibt alles wie vorher.
-- **Zwischenspeicher:** zusätzlich zur Zahl (8) eine Bytegrenze `CACHE_BYTES` = 192 MiB über alle SVG-Seiten
-  (`cache_put_within`); der neueste Stand bleibt auch über der Grenze.
-- **Kapitel einer geteilten Seite:** `Rendered.page_lines` (neu in `baruch-render`) nennt je Seite die Zeilen von
-  `main`, aus denen Text auf ihr steht (erste Glyphe jedes Textstücks, auch in Kopf- und Fußzeilen).
-  `Typeset::chapter` zählt die Seite, auf der das nächste Kapitel beginnt, zum Kapitel dazu, wenn dort Text aus seinen
-  Zeilen steht – ohne Überschriftszeilen, weil die Vorlage Überschriften als lebenden Kolumnentitel oder im
-  Inhaltsverzeichnis auf fremde Seiten zitiert. Grenzen: Ein Kapitel, das auf der geteilten Seite nur mit einem Bild
-  oder einer Linie (ohne Text) endet, zählt dort nicht; zitiert die Vorlage anderen Text als Überschriften auf fremde
-  Seiten, kann eine Seite einem Kapitel zuviel zugeordnet werden.
-- **Schriften:** `baruch_render::warm_fonts()` lädt eingebettete und Systemschriften einmal je Prozess;
-  `typeset::warm_fonts()` startet das in `spawn_blocking` und kehrt sofort zurück. Vorschlag für den Integrator:
-  in `main.rs` beim Start von `serve` (in der Tokio-Laufzeit) aufrufen; Tests rufen es nicht von selbst.
-- **Kopfzeile:** `static/app.css` – unter 1000 px Breite `@media (max-width: 999.98px) { .topbar { flex-wrap: wrap } }`;
-  darüber bleibt die einzeilige Regel. Der Test (`round9_menu.rs`) liest nur die Regeln; die Breite misst die
-  Sichtprüfung.
-- **„neu“ als Wort:** `chat.ts` hängt an neue Beiträge `span.badge.post-new-label` („neu“) hinter den Namen.
-- **Heller Streifen rechts** (Satz, Gliederungsschema): `.works-page` (`works.css`) ist zugleich Scrollbehälter
-  (`overflow: auto`) und auf 1100 px begrenzt und mittig; auf langen Seiten stand seine Bildlaufleiste darum mitten im
-  Fenster rechts neben dem Inhalt. `typeset.css`/`numbering.css` geben diesen beiden Seiten die volle Breite und
-  rücken den Inhalt über `padding-inline: max(18px, calc((100% - 1100px) / 2 + 18px))` gleich breit in die Mitte.
-  Ursache aus dem CSS abgeleitet, nicht im Browser gemessen (Sichtprüfung des Integrators).
-- **Gedankenkarte, DOM-Vertrag ergänzt** (`src/idea_map/bild/svg.rs`, `web/src/idea_map.ts`, Tests
+- **Foreign pages:** `GET /werke/{id}/satz`, `…/{stand}/{n}.svg` and `/werke/{id}/pdf` – after the follow-up to
+  Round 18 also the cover (`/werke/{id}/umschlag`, `.svg`, `.pdf`), `/werke/{id}/stichwortzettel.pdf` and
+  `/werke/{id}/karte.pdf`, i.e. every GET that starts Typst and holds the lock `typeset::RUNS` – first check
+  `guard::cross_site_get` (`Sec-Fetch-Site: cross-site|same-site`) → 403 (`typeset::foreign_get`), before they prepare the work
+  or start Typst. Without the header (curl, old browsers) everything stays as before.
+- **Cache:** in addition to the count (8) a byte limit `CACHE_BYTES` = 192 MiB over all SVG pages
+  (`cache_put_within`); the newest stand stays even above the limit.
+- **Chapter of a shared page:** `Rendered.page_lines` (new in `baruch-render`) names per page the lines of
+  `main` from which text stands on it (first glyph of every text piece, also in headers and footers).
+  `Typeset::chapter` adds the page on which the next chapter begins to the chapter if text from its
+  lines stands there – without heading lines, because the template quotes headings as a running head or in the
+  table of contents on foreign pages. Limits: a chapter that ends on the shared page only with an image
+  or a line (without text) does not count there; if the template quotes other text than headings on foreign
+  pages, a page can be assigned to one chapter too many.
+- **Fonts:** `baruch_render::warm_fonts()` loads embedded and system fonts once per process;
+  `typeset::warm_fonts()` starts that in `spawn_blocking` and returns immediately. Proposal for the integrator:
+  call it in `main.rs` at the start of `serve` (in the Tokio runtime); tests do not call it by themselves.
+- **Header:** `static/app.css` – below 1000 px width `@media (max-width: 999.98px) { .topbar { flex-wrap: wrap } }`;
+  above that the single-line rule stays. The test (`round9_menu.rs`) only reads the rules; the width is measured by the
+  visual check.
+- **„neu“ as a word:** `chat.ts` appends `span.badge.post-new-label` („neu“) behind the name of new posts.
+- **Light strip on the right** (typesetting, outline scheme): `.works-page` (`works.css`) is at the same time a scroll container
+  (`overflow: auto`) and limited to 1100 px and centred; on long pages its scroll bar therefore stood in the middle of the
+  window to the right of the content. `typeset.css`/`numbering.css` give these two pages the full width and
+  move the content, equally wide, into the middle through `padding-inline: max(18px, calc((100% - 1100px) / 2 + 18px))`.
+  Cause derived from the CSS, not measured in the browser (visual check of the integrator).
+- **Idea map, DOM contract extended** (`src/idea_map/bild/svg.rs`, `web/src/idea_map.ts`, tests
   `round25_{bild,widget}.rs`, `round18_menueband.rs`):
-  - `<defs>` vor `g.im-viewport` mit `<marker id="im-arrow-<art>" class="im-arrow im-arrow-<art>">` für die
-    gerichteten Arten (`leads_to`, `belongs_to`, `example_of`; `contradicts` ist ungerichtet). Die Spitze hat eine
-    feste helle Füllung (für SVG-Datei und PDF); auf der Seite färbt `karte.css` sie nach dem Thema.
-  - Verbindungskante `line.im-edge.im-link.im-kind-<art>` zusätzlich mit `stroke-dasharray` (außer `leads_to`), bei
-    gerichteten Arten `marker-end="url(#im-arrow-<art>)"` und `data-arrow` (in der eigenständigen Datei
-    `data-arrow=""`); sie endet dann am Rand des Zielkreises (`r` + 2), sonst im Mittelpunkt. Bezug `im-ref` mit
-    `stroke-dasharray="4 3"`, Nähe `im-near` mit `"1 3"`, Baum durchgezogen.
-  - Beschriftung: `g.im-edge-labels` nach `g.im-edges` und `g.im-nodes` (seit der Integration über den Knoten, damit
-    kurze Kanten zwischen nahen Einfällen lesbar beschriftet sind; `pointer-events: none`), darin je Verbindung bzw. Nähe-Kante
-    `<text class="im-edge-label im-label-<art>|im-label-near" data-from data-to x y text-anchor="middle">` mit der
-    Art („führt weiter“ …) bzw. „nah“, 4 Einheiten über der Mitte.
-  - Widget: `place` zeichnet beim Ziehen jede Kante über `redraw` neu (Pfeilkanten am Kreisrand) und setzt jede
-    Beschriftung mit gleichem `data-from`/`data-to` über `relabel` in die Mitte. Die Seitenleiste `.im-side` beginnt
-    bei `--im-top` (Abstand des Bilds vom oberen Rand der Bühne, gemessen vom Widget, neu bei `ResizeObserver` und
-    `resize`), überdeckt also die Werkzeugleiste nicht mehr.
-  - Ausgaben: SVG/PDF wie die Seite (Stil der Beschriftung in `STANDALONE_STYLE`); FreeMind `arrowlink` mit `COLOR`
-    je Art (FreeMind kennt keine Strichart für Pfeile); Markdown nennt die Art wie bisher als Wort.
+  - `<defs>` before `g.im-viewport` with `<marker id="im-arrow-<art>" class="im-arrow im-arrow-<art>">` for the
+    directed kinds (`leads_to`, `belongs_to`, `example_of`; `contradicts` is undirected). The tip has a
+    fixed light fill (for SVG file and PDF); on the page `karte.css` colours it according to the theme.
+  - Link edge `line.im-edge.im-link.im-kind-<art>` additionally with `stroke-dasharray` (except `leads_to`), with
+    directed kinds `marker-end="url(#im-arrow-<art>)"` and `data-arrow` (in the standalone file
+    `data-arrow=""`); it then ends at the edge of the target circle (`r` + 2), otherwise at the centre. Reference `im-ref` with
+    `stroke-dasharray="4 3"`, nearness `im-near` with `"1 3"`, tree solid.
+  - Label: `g.im-edge-labels` after `g.im-edges` and `g.im-nodes` (since the integration above the nodes, so that
+    short edges between close ideas are labelled legibly; `pointer-events: none`), inside it per link or nearness edge
+    `<text class="im-edge-label im-label-<art>|im-label-near" data-from data-to x y text-anchor="middle">` with the
+    kind („führt weiter“ …) or „nah“, 4 units above the middle.
+  - Widget: while dragging `place` redraws every edge through `redraw` (arrow edges at the circle edge) and puts every
+    label with the same `data-from`/`data-to` into the middle through `relabel`. The side bar `.im-side` begins
+    at `--im-top` (distance of the image from the upper edge of the stage, measured by the widget, anew on `ResizeObserver` and
+    `resize`), so it no longer covers the toolbar.
+  - Outputs: SVG/PDF like the page (style of the label in `STANDALONE_STYLE`); FreeMind `arrowlink` with `COLOR`
+    per kind (FreeMind knows no dash style for arrows); Markdown names the kind as a word as before.
 
 <!-- R38c split: architektur_1 above, architektur_2 below -->
 
