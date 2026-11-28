@@ -46,6 +46,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
@@ -165,9 +166,7 @@ fn content_bytes(content: &str, encoding: &str) -> Result<(Vec<u8>, bool), RpcEr
     match AssetEncoding::parse(encoding) {
         Some(AssetEncoding::Base64) => Ok((baruch_store::decode_base64(content)?, true)),
         Some(AssetEncoding::Svg) => Ok((content.as_bytes().to_vec(), false)),
-        None => {
-            Err(RpcError::new(INVALID_PARAMS, format!("encoding: „base64“ oder „svg“ erwartet, nicht „{encoding}“")))
-        }
+        None => Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.rpc.encoding", &[("encoding", encoding.into())]))),
     }
 }
 
@@ -254,7 +253,7 @@ pub async fn call(
         }
         "asset.delete" => {
             if params_value.get("confirm") != Some(&serde_json::Value::Bool(true)) {
-                return Err(RpcError::new(INVALID_PARAMS, "Löschen bitte bestätigen (confirm)."));
+                return Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.rpc.confirm_delete", &[])));
             }
             let p: DeleteParams = params(params_value)?;
             delete(state, work, &p.name, p.rev).await
@@ -281,13 +280,14 @@ async fn summary_and_revision(
     let revision = match rev {
         Some(rev) => revisions.iter().find(|r| r.number == rev).cloned().ok_or_else(|| {
             let numbers: Vec<String> = revisions.iter().map(|r| r.number.to_string()).collect();
-            StoreError::Asset(format!("Bild {name}: Fassung {rev} gibt es nicht; vorhanden: {}", numbers.join(", ")))
+            StoreError::Asset(tc(
+                "assets_msg.rpc.no_revision",
+                &[("name", name.into()), ("rev", rev.into()), ("numbers", numbers.join(", ").into())],
+            ))
         })?,
-        None => revisions
-            .iter()
-            .find(|r| r.current)
-            .cloned()
-            .ok_or_else(|| RpcError::new(crate::rpc::INTERNAL, format!("Bild {name}: keine aktuelle Fassung")))?,
+        None => revisions.iter().find(|r| r.current).cloned().ok_or_else(|| {
+            RpcError::new(crate::rpc::INTERNAL, tc("assets_msg.rpc.no_current", &[("name", name.into())]))
+        })?,
     };
     Ok((summary, revision))
 }
@@ -309,11 +309,9 @@ async fn update(state: &AppState, work: WorkId, p: &UpdateParams) -> Result<serd
     let revisions = store.asset_revisions(work, &p.name).await?;
     let Some(old) = revisions.iter().find(|r| r.number == p.rev) else {
         let numbers: Vec<String> = revisions.iter().map(|r| r.number.to_string()).collect();
-        return Err(StoreError::Asset(format!(
-            "Bild {}: Fassung {} gibt es nicht; vorhanden: {}",
-            p.name,
-            p.rev,
-            numbers.join(", ")
+        return Err(StoreError::Asset(tc(
+            "assets_msg.rpc.no_revision",
+            &[("name", p.name.as_str().into()), ("rev", p.rev.into()), ("numbers", numbers.join(", ").into())],
         ))
         .into());
     };
@@ -422,7 +420,11 @@ fn page_settings(headers: &HeaderMap) -> Value {
 fn render(status: StatusCode, name: &str, ctx: Value) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("assets_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -459,15 +461,27 @@ pub(crate) fn path_text(text: &str) -> Value {
     Value::from_safe_string(out)
 }
 
-/// Readable size: „512 Bytes“, „3,2 KiB“, „1,5 MiB“.
+/// Readable size: „512 Bytes“, „3,2 KiB“, „1,5 MiB“ (decimal separator of the request language, Round 39a).
 fn size_text(bytes: u64) -> String {
+    let local =
+        |text: String| if crate::i18n::current() == crate::i18n::Lang::De { text.replace('.', ",") } else { text };
     if bytes < 1024 {
         format!("{bytes} Bytes")
     } else if bytes < 1024 * 1024 {
-        format!("{:.1} KiB", bytes as f64 / 1024.0).replace('.', ",")
+        local(format!("{:.1} KiB", bytes as f64 / 1024.0))
     } else {
-        format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0)).replace('.', ",")
+        local(format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0)))
     }
+}
+
+/// „Fehler: …“ in the language of the request.
+fn error_text(error: impl std::fmt::Display) -> String {
+    tc("assets_msg.page.error", &[("error", error.to_string().into())])
+}
+
+/// 404 for an unknown work.
+fn unknown_work() -> Response {
+    (StatusCode::NOT_FOUND, tc("assets_msg.page.unknown_work", &[])).into_response()
 }
 
 /// Timestamp `2026-11-05T10:11:12.123Z` (UTC) → `2026-11-05 11:11` in local time.
@@ -475,37 +489,35 @@ fn short_time(time: &str) -> String {
     crate::localtime::minutes(time)
 }
 
-fn type_label(mime: &str) -> &'static str {
+fn type_label(mime: &str) -> String {
     match mime {
-        "image/png" => "PNG",
-        "image/jpeg" => "JPEG",
-        "image/gif" => "GIF",
-        "image/webp" => "WebP",
-        "image/svg+xml" => "SVG",
-        _ => "Bild",
+        "image/png" => "PNG".to_owned(),
+        "image/jpeg" => "JPEG".to_owned(),
+        "image/gif" => "GIF".to_owned(),
+        "image/webp" => "WebP".to_owned(),
+        "image/svg+xml" => "SVG".to_owned(),
+        _ => tc("assets_msg.page.image", &[]),
     }
 }
 
 /// Notice after a redirect (`?hinweis=…`).
-fn notice(code: Option<&str>) -> Option<&'static str> {
+fn notice(code: Option<&str>) -> Option<String> {
     Some(match code? {
-        "hinzugefuegt" => "Das Bild ist hinzugefügt.",
-        "ersetzt" => "Neue Fassung hochgeladen; sie ist jetzt aktuell.",
-        "umgeschaltet" => "Die gewählte Fassung ist jetzt aktuell.",
-        "geaendert" => "Gespeichert.",
-        "unveraendert" => "Nichts geändert.",
-        "fassung-geloescht" => "Die Fassung ist gelöscht; ihr Inhalt steht im Git-Spiegel.",
-        "geloescht" => "Das Bild ist gelöscht; sein Inhalt steht im Git-Spiegel.",
+        "hinzugefuegt" => tc("assets_msg.notice.added", &[]),
+        "ersetzt" => tc("assets_msg.notice.replaced", &[]),
+        "umgeschaltet" => tc("assets_msg.notice.switched", &[]),
+        "geaendert" => tc("assets_msg.notice.saved", &[]),
+        "unveraendert" => tc("assets_msg.notice.unchanged", &[]),
+        "fassung-geloescht" => tc("assets_msg.notice.revision_deleted", &[]),
+        "geloescht" => tc("assets_msg.notice.deleted", &[]),
         // Round 11: cover (forms of “cover”) and requests (of “mcp-assets”) return here.
-        "umschlag_gesetzt" => "Das Bild ist jetzt der Umschlag des Werks.",
-        "umschlag_entfernt" => "Das Werk hat keinen Umschlag mehr.",
-        "antrag_bestaetigt" => "Der Antrag ist bestätigt und ausgeführt.",
-        "antrag_abgelehnt" => "Der Antrag ist abgelehnt.",
-        "antrag_veraltet" => {
-            "Der Antrag ist veraltet (das Bild hat sich inzwischen geändert) und wurde nicht ausgeführt."
-        }
-        "endung_angepasst" => "Neue Fassung hochgeladen; das Bild heißt jetzt mit der neuen Endung, die Pfade blieben.",
-        "pfad_zugeordnet" => "Der Pfad gehört jetzt in allen Schreibweisen zum gewählten Bild.",
+        "umschlag_gesetzt" => tc("assets_msg.notice.cover_set", &[]),
+        "umschlag_entfernt" => tc("assets_msg.notice.cover_removed", &[]),
+        "antrag_bestaetigt" => tc("assets_msg.notice.request_confirmed", &[]),
+        "antrag_abgelehnt" => tc("assets_msg.notice.request_rejected", &[]),
+        "antrag_veraltet" => tc("assets_msg.notice.request_stale", &[]),
+        "endung_angepasst" => tc("assets_msg.notice.extension_adapted", &[]),
+        "pfad_zugeordnet" => tc("assets_msg.notice.path_assigned", &[]),
         _ => return None,
     })
 }
@@ -519,12 +531,16 @@ async fn hook_cover_name(state: &AppState, work: WorkId) -> Option<String> {
 
 /// HTML block id="umschlag" for the page „Bilder“ (top).
 async fn hook_cover_panel(state: &AppState, work: WorkId) -> String {
-    crate::cover::assets_panel(state, work).await.unwrap_or_else(|e| panel_error("Umschlag", &e.message))
+    crate::cover::assets_panel(state, work)
+        .await
+        .unwrap_or_else(|e| panel_error(&tc("assets_msg.page.cover_panel", &[]), &e.message))
 }
 
 /// HTML block id="antraege" (requests about images) for the page „Bilder“ (bottom).
 async fn hook_requests_panel(state: &AppState, work: WorkId) -> String {
-    crate::asset_requests::panel(state, work).await.unwrap_or_else(|e| panel_error("Anträge", &e.message))
+    crate::asset_requests::panel(state, work)
+        .await
+        .unwrap_or_else(|e| panel_error(&tc("assets_msg.page.requests_panel", &[]), &e.message))
 }
 
 /// Honest replacement if a block of the images page could not be built (text escaped).
@@ -575,13 +591,13 @@ async fn list_response(
 ) -> Response {
     let meta = match state.store.work_meta(work).await {
         Ok(meta) => meta,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => return unknown_work(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let query = query.map(str::trim).filter(|q| !q.is_empty());
     let assets = match state.store.asset_search(work, query.unwrap_or("")).await {
         Ok(assets) => assets,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let total = match query {
         Some(_) => state.store.asset_list(work).await.map(|all| all.len()).unwrap_or(assets.len()),
@@ -628,19 +644,19 @@ async fn detail_response(
 ) -> Response {
     let meta = match state.store.work_meta(work).await {
         Ok(meta) => meta,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => return unknown_work(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let (summary, revision) = match summary_and_revision(state, work, name, shown).await {
         Ok(found) => found,
         Err(e) if e.code == INVALID_PARAMS => {
-            return (StatusCode::NOT_FOUND, format!("Fehler: {}", e.message)).into_response();
+            return (StatusCode::NOT_FOUND, error_text(&e.message)).into_response();
         }
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
     };
     let revisions = match state.store.asset_revisions(work, name).await {
         Ok(revisions) => revisions,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let base = format!("/werke/{work}/bilder/{name}");
     let list: Vec<Value> = revisions
@@ -726,7 +742,7 @@ async fn detail_page(
 fn image_response(data: &AssetData) -> Response {
     let bytes = match data.bytes() {
         Ok(bytes) => bytes,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let mime =
         HeaderValue::from_str(&data.mime).unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
@@ -745,9 +761,9 @@ fn image_response(data: &AssetData) -> Response {
 fn not_found(e: StoreError) -> Response {
     match e {
         StoreError::UnknownWork(_) | StoreError::UnknownAsset { .. } | StoreError::Asset(_) => {
-            (StatusCode::NOT_FOUND, format!("Fehler: {e}")).into_response()
+            (StatusCode::NOT_FOUND, error_text(e)).into_response()
         }
-        e => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        e => (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     }
 }
 
@@ -775,25 +791,25 @@ struct ThumbQuery {
 pub fn thumbnail_bytes(bytes: &[u8], mime: &str, bound: u32) -> Result<(Vec<u8>, &'static str), String> {
     let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
-        .map_err(|e| format!("Bild nicht lesbar: {e}"))?;
+        .map_err(|e| tc("assets_msg.thumb.unreadable", &[("error", e.to_string().into())]))?;
     let mut limits = image::Limits::default();
     // At most 20 000 pixels per side and 512 MiB when unpacking (protection against “pixel bombs”).
     limits.max_image_width = Some(20_000);
     limits.max_image_height = Some(20_000);
     limits.max_alloc = Some(512 * 1024 * 1024);
     reader.limits(limits);
-    let picture = reader.decode().map_err(|e| format!("Bild nicht lesbar: {e}"))?;
+    let picture = reader.decode().map_err(|e| tc("assets_msg.thumb.unreadable", &[("error", e.to_string().into())]))?;
     let picture = if picture.width().max(picture.height()) > bound { picture.thumbnail(bound, bound) } else { picture };
     let mut out = std::io::Cursor::new(Vec::new());
     let mime = if mime == "image/jpeg" {
         image::DynamicImage::ImageRgb8(picture.to_rgb8())
             .write_to(&mut out, image::ImageFormat::Jpeg)
-            .map_err(|e| format!("Vorschau ließ sich nicht schreiben: {e}"))?;
+            .map_err(|e| tc("assets_msg.thumb.write_failed", &[("error", e.to_string().into())]))?;
         "image/jpeg"
     } else {
         picture
             .write_to(&mut out, image::ImageFormat::Png)
-            .map_err(|e| format!("Vorschau ließ sich nicht schreiben: {e}"))?;
+            .map_err(|e| tc("assets_msg.thumb.write_failed", &[("error", e.to_string().into())]))?;
         "image/png"
     };
     Ok((out.into_inner(), mime))
@@ -813,7 +829,7 @@ async fn thumbnail(
         Some(text) => match text.parse::<u32>() {
             Ok(b) if (THUMB_MIN..=THUMB_MAX).contains(&b) => b,
             _ => {
-                let message = format!("b: längste Seite in Pixeln zwischen {THUMB_MIN} und {THUMB_MAX} angeben.");
+                let message = tc("assets_msg.thumb.bound", &[("min", THUMB_MIN.into()), ("max", THUMB_MAX.into())]);
                 return (StatusCode::BAD_REQUEST, message).into_response();
             }
         },
@@ -841,14 +857,14 @@ async fn thumbnail(
     }
     let bytes = match data.bytes() {
         Ok(bytes) => bytes,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let mime = data.mime.clone();
     // At most two thumbnails at once: each unpacks the whole raster image (memory), a list with
     // many images must not flood the machine (review Round 11).
     static THUMB_SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
     let Ok(_slot) = THUMB_SLOTS.acquire().await else {
-        return (StatusCode::SERVICE_UNAVAILABLE, "Fehler: Vorschaubilder nicht verfügbar").into_response();
+        return (StatusCode::SERVICE_UNAVAILABLE, tc("assets_msg.thumb.unavailable", &[])).into_response();
     };
     let made = tokio::task::spawn_blocking(crate::i18n::carry(move || thumbnail_bytes(&bytes, &mime, bound))).await;
     match made {
@@ -863,8 +879,8 @@ async fn thumbnail(
             bytes,
         )
             .into_response(),
-        Ok(Err(message)) => (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {message}")).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Ok(Err(message)) => (StatusCode::UNPROCESSABLE_ENTITY, error_text(message)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     }
 }
 
@@ -876,11 +892,12 @@ struct PathQuery {
 /// `GET /werke/{id}/bilder/pfad?p=…`: the current image for the path from template/text (for the typeset view).
 async fn by_path(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>, Query(q): Query<PathQuery>) -> Response {
     let Some(path) = q.p.filter(|p| !p.trim().is_empty()) else {
-        return (StatusCode::NOT_FOUND, "Fehler: kein Pfad").into_response();
+        return (StatusCode::NOT_FOUND, tc("assets_msg.page.no_path", &[])).into_response();
     };
     match state.store.asset_by_path(id, &path).await {
         Ok(Some(data)) => image_response(&data),
-        Ok(None) => (StatusCode::NOT_FOUND, format!("Kein Bild zum Pfad „{path}“.")).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, tc("assets_msg.page.no_image_for_path", &[("path", path.as_str().into())]))
+            .into_response(),
         Err(e) => not_found(e),
     }
 }
@@ -910,15 +927,15 @@ async fn upload(
         async move {
             match work {
                 Some(work) => list_response(&state, &headers, work, status, form, Some(message), None, None).await,
-                None => (status, format!("Fehler: {message}")).into_response(),
+                None => (status, error_text(message)).into_response(),
             }
         }
     };
-    let too_large = || format!("Das Bild ist größer als {} MiB.", MAX_ASSET_BYTES / (1024 * 1024));
+    let too_large = || tc("assets_msg.upload.too_large", &[("mib", (MAX_ASSET_BYTES / (1024 * 1024)).into())]);
     let mut multipart = match multipart {
         Ok(multipart) => multipart,
         Err(e) => {
-            let message = format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text());
+            let message = tc("assets_msg.upload.not_multipart", &[("detail", e.body_text().into())]);
             return failed(None, StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
         }
     };
@@ -932,7 +949,7 @@ async fn upload(
                 } else {
                     (
                         StatusCode::UNPROCESSABLE_ENTITY,
-                        format!("Das Formular ließ sich nicht lesen ({}).", e.body_text()),
+                        tc("assets_msg.upload.form_unreadable", &[("detail", e.body_text().into())]),
                     )
                 };
                 return failed(work, status, form, message).await;
@@ -949,7 +966,7 @@ async fn upload(
                     } else {
                         (
                             StatusCode::UNPROCESSABLE_ENTITY,
-                            format!("Die Datei ließ sich nicht lesen ({}).", e.body_text()),
+                            tc("assets_msg.upload.file_unreadable", &[("detail", e.body_text().into())]),
                         )
                     };
                     return failed(work, status, form, message).await;
@@ -972,10 +989,11 @@ async fn upload(
     }
     form.as_base64 = checked(as_base64.as_deref());
     let Some(work) = work else {
-        return failed(None, StatusCode::UNPROCESSABLE_ENTITY, form, "Werk fehlt.".into()).await;
+        return failed(None, StatusCode::UNPROCESSABLE_ENTITY, form, tc("assets_msg.upload.work_missing", &[])).await;
     };
     let Some((file_name, bytes)) = file.filter(|(name, _)| !name.trim().is_empty()) else {
-        return failed(Some(work), StatusCode::UNPROCESSABLE_ENTITY, form, "Bitte eine Bilddatei wählen.".into()).await;
+        let message = tc("assets_msg.upload.choose_file", &[]);
+        return failed(Some(work), StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
     };
     let base = file_name.rsplit(['/', '\\']).next().unwrap_or("").to_owned();
     if bytes.len() > MAX_ASSET_BYTES {
@@ -1282,15 +1300,15 @@ fn excerpt(raw: &str) -> String {
 pub fn image_places(body: &str) -> Vec<(String, String)> {
     let blocks = baruch_wysiwyg::parse(body).blocks;
     let mut out = vec![
-        ("end".to_owned(), "am Ende".to_owned()),
-        ("start".to_owned(), "am Anfang (unter der Überschrift)".to_owned()),
+        ("end".to_owned(), tc("assets_msg.insert.at_end", &[])),
+        ("start".to_owned(), tc("assets_msg.insert.at_start", &[])),
     ];
     let first = usize::from(blocks.first().is_some_and(is_title));
     for (n, block) in blocks.iter().enumerate().skip(first) {
         if block.raw.trim().is_empty() {
             continue;
         }
-        out.push((format!("block:{n}"), format!("vor „{}“", excerpt(&block.raw))));
+        out.push((format!("block:{n}"), tc("assets_msg.insert.before", &[("excerpt", excerpt(&block.raw).into())])));
     }
     out
 }
@@ -1313,22 +1331,21 @@ fn heading_line(text: &str) -> &str {
 async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>) -> Response {
     let number = |v: &Option<String>| v.as_deref().and_then(|v| v.trim().parse::<i64>().ok());
     let (Some(work), Some(key), Some(rev)) = (number(&form.work), number(&form.key), number(&form.rev)) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk, Abschnitt (key) und Fassung (rev) angeben.")
-            .into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.insert.place_fields", &[])).into_response();
     };
     let Ok(rev) = u32::try_from(rev) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Fassung ungültig.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.insert.rev_invalid", &[])).into_response();
     };
     let Some(place) = Place::parse(form.place.as_deref()) else {
         return (
             StatusCode::UNPROCESSABLE_ENTITY,
-            "Fehler: Stelle ungültig (end, start, block:<Nummer> oder offset:<Stelle>).",
+            tc("assets_msg.insert.place_invalid", &[("lt", "<".into()), ("gt", ">".into())]),
         )
             .into_response();
     };
     let name = form.name.as_deref().map(str::trim).unwrap_or("").to_owned();
     if name.is_empty() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Bild wählen.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.insert.choose_image", &[])).into_response();
     }
     // Forms send line breaks as CRLF; the position (UTF-16) counts in the browser's text with LF.
     let unsaved = form.body.as_deref().map(|b| b.replace("\r\n", "\n"));
@@ -1351,10 +1368,7 @@ async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>
         })?;
         let text = match &unsaved {
             Some(body) if heading_line(body) != heading_line(&base.body) => {
-                return Err(RpcError::new(
-                    INVALID_PARAMS,
-                    "Die Überschriftszeile ist geändert – erst speichern, dann das Bild einfügen.",
-                ));
+                return Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.insert.heading_changed", &[])));
             }
             Some(body) => body.as_str(),
             None => base.body.as_str(),
@@ -1374,7 +1388,7 @@ async fn insert(State(state): State<Arc<AppState>>, Form(form): Form<InsertForm>
     .await;
     match result {
         Ok(key) => Redirect::to(&format!("/?work={work}&key={key}")).into_response(),
-        Err(e) => (status_of(&e), format!("Fehler: {}", e.message)).into_response(),
+        Err(e) => (status_of(&e), error_text(&e.message)).into_response(),
     }
 }
 
@@ -1398,14 +1412,14 @@ struct ActForm {
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work: Option<WorkId> = form.work.as_deref().and_then(|w| w.trim().parse().ok());
     let Some(work) = work else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.form.work_missing", &[])).into_response();
     };
     let name = form.name.as_deref().map(str::trim).unwrap_or("").to_owned();
     if form.action == "resolve_path" {
         // Round 21c: legacy data – the human picks the image that keeps the path (one mirror commit).
         let normal = form.normal.as_deref().map(str::trim).unwrap_or("");
         let result = if normal.is_empty() || name.is_empty() {
-            Err(RpcError::new(INVALID_PARAMS, "Pfad und Bild wählen."))
+            Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.form.path_and_image", &[])))
         } else {
             call(&state, work, "asset.path_resolve", json!({ "normal": normal, "asset": name })).await
         };
@@ -1418,12 +1432,12 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         };
     }
     if name.is_empty() {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Bild fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.form.image_missing", &[])).into_response();
     }
     let rev: Option<u32> = form.rev.as_deref().and_then(|r| r.trim().parse().ok());
     let confirmed = checked(form.confirm.as_deref());
-    let need_rev = || RpcError::new(INVALID_PARAMS, "Fassung fehlt.");
-    let unconfirmed = || RpcError::new(INVALID_PARAMS, "Löschen bitte mit dem Kästchen bestätigen.");
+    let need_rev = || RpcError::new(INVALID_PARAMS, tc("assets_msg.form.rev_missing", &[]));
+    let unconfirmed = || RpcError::new(INVALID_PARAMS, tc("assets_msg.form.confirm_delete", &[]));
     let result: Result<(&str, Option<u32>), RpcError> = match form.action.as_str() {
         "set_current" => match rev {
             Some(rev) => call(&state, work, "asset.set_current", json!({ "name": name, "rev": rev }))
@@ -1461,7 +1475,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         "remove" => call(&state, work, "asset.delete", json!({ "name": name, "confirm": true }))
             .await
             .map(|_| ("geloescht", None)),
-        _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+        _ => return (StatusCode::BAD_REQUEST, tc("assets_msg.form.unknown_action", &[])).into_response(),
     };
     match result {
         Ok(("geloescht", _)) => Redirect::to(&format!("/werke/{work}/bilder?hinweis=geloescht")).into_response(),
@@ -1507,9 +1521,11 @@ mod tests {
 
     #[test]
     fn sizes_are_shown_in_german() {
-        assert_eq!(size_text(512), "512 Bytes", "unter 1 KiB in Bytes");
-        assert_eq!(size_text(3 * 1024 + 200), "3,2 KiB", "Komma statt Punkt");
-        assert_eq!(size_text(MAX_ASSET_BYTES as u64), "8,0 MiB", "Grenze");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            assert_eq!(size_text(512), "512 Bytes", "unter 1 KiB in Bytes");
+            assert_eq!(size_text(3 * 1024 + 200), "3,2 KiB", "Komma statt Punkt");
+            assert_eq!(size_text(MAX_ASSET_BYTES as u64), "8,0 MiB", "Grenze");
+        })
     }
 
     #[test]

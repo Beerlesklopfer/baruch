@@ -18,6 +18,7 @@ use serde::Serialize;
 
 use crate::AppState;
 use crate::connections::multigpt::{Limits, MultigptWay, local_part};
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
 /// Way of the link (`library_title_remote.way`).
@@ -97,7 +98,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 pub fn checked_document(document: &str) -> Result<String, RpcError> {
     let document = document.trim();
     if document.is_empty() || document.chars().count() > 500 || document.chars().any(char::is_control) {
-        return Err(invalid("document: Dokument-ID von MultiGPT (1–500 Zeichen, eine Zeile)."));
+        return Err(invalid(tc("sources_msg.fulltext.document_invalid", &[])));
     }
     Ok(document.to_owned())
 }
@@ -106,7 +107,7 @@ pub fn checked_document(document: &str) -> Result<String, RpcError> {
 pub fn checked_collection(collection: Option<&str>) -> Result<String, RpcError> {
     let collection = collection.unwrap_or("").trim();
     if collection.chars().count() > 200 || collection.chars().any(char::is_control) {
-        return Err(invalid("collection: höchstens 200 Zeichen in einer Zeile."));
+        return Err(invalid(tc("sources_msg.fulltext.collection_invalid", &[])));
     }
     Ok(collection.to_owned())
 }
@@ -210,14 +211,17 @@ pub fn pieces(text: &str, marks: &[[usize; 2]]) -> Vec<Piece> {
 fn unavailable(e: &RagError) -> RpcError {
     match e {
         RagError::Invalid(m) => invalid(m.clone()),
-        other => RpcError::new(REFUSED, format!("Der Volltext ist gerade nicht abrufbar: {}", other.message())),
+        other => RpcError::new(
+            REFUSED,
+            tc("sources_msg.fulltext.unavailable_now", &[("error", other.message().to_string().into())]),
+        ),
     }
 }
 
 /// Read one part (`source.read`, `source_read`, pages). Title without a link → -32602.
 pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str>) -> Result<Reading, RpcError> {
     if part == 0 {
-        return Err(invalid("part: Teile zählen ab 1."));
+        return Err(invalid(tc("sources_msg.fulltext.part_from_one", &[])));
     }
     let pool = state.store.pool();
     let (document, collection, linked) = match target {
@@ -228,9 +232,7 @@ pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str
                 if let Some(text) = baruch_library::title_text(pool, *id).await? {
                     return read_imported(state, &entry, &text, part, q).await;
                 }
-                return Err(invalid(format!(
-                    "Titel {id} hat keinen Volltext: weder mit MultiGPT verknüpft noch als PDF/EPUB importiert."
-                )));
+                return Err(invalid(tc("sources_msg.fulltext.no_fulltext", &[("id", (*id).into())])));
             };
             (remote.document, remote.collection, Some(entry))
         }
@@ -291,10 +293,12 @@ pub async fn read(state: &AppState, target: &Target, part: usize, q: Option<&str
                 text: found.text,
                 marks,
                 origin: "lokal",
-                message: Some(format!(
-                    "MultiGPT ist nicht erreichbar ({}); gezeigt wird die lokale Kopie vom {}.",
-                    e.message().trim_end_matches('.'),
-                    crate::sync::display_time(&copy.fetched)
+                message: Some(tc(
+                    "sources_msg.fulltext.local_copy",
+                    &[
+                        ("error", e.message().trim_end_matches('.').to_owned().into()),
+                        ("time", crate::sync::display_time(&copy.fetched).into()),
+                    ],
                 )),
                 offset: Some(offset),
                 paged_by_remote: false,
@@ -333,11 +337,14 @@ async fn read_imported(
         text: found.text,
         marks,
         origin: ORIGIN_IMPORT,
-        message: Some(format!(
-            "Volltext aus der importierten Datei „{}“ (lokal gelesen{}, ohne MultiGPT).",
-            text.source_name,
-            if created.is_empty() { String::new() } else { format!(" am {}", crate::localtime::minutes(&created)) }
-        )),
+        message: Some(if created.is_empty() {
+            tc("sources_msg.fulltext.imported", &[("name", text.source_name.as_str().into())])
+        } else {
+            tc(
+                "sources_msg.fulltext.imported_at",
+                &[("name", text.source_name.as_str().into()), ("time", crate::localtime::minutes(&created).into())],
+            )
+        }),
         offset: Some(offset),
         paged_by_remote: false,
     })
@@ -418,7 +425,12 @@ pub async fn adopt(
                     .bind(&key)
                     .fetch_optional(pool)
                     .await
-                    .map_err(|e| RpcError::new(crate::rpc::INTERNAL, format!("Bibliothek: {e}")))?;
+                    .map_err(|e| {
+                        RpcError::new(
+                            crate::rpc::INTERNAL,
+                            tc("sources_msg.fulltext.library_error", &[("error", e.to_string().into())]),
+                        )
+                    })?;
                 if taken.is_none() {
                     break;
                 }
@@ -462,14 +474,9 @@ pub async fn check_highlight(state: &AppState, h: &Highlight) -> Result<Option<H
             // Round 21a: local full text of an imported source.
             Some(text) => (
                 check_range(&text.text, start, end, &h.text),
-                format!("Geprüft gegen den lokalen Volltext aus „{}“.", text.source_name),
+                tc("sources_msg.fulltext.checked_imported", &[("name", text.source_name.as_str().into())]),
             ),
-            None => (
-                FulltextCheck::Unverifiable,
-                "Die Quelle ist nicht mit MultiGPT verknüpft und hat keinen importierten Volltext; ohne Volltext lässt \
-                 sich der Bereich nicht prüfen."
-                    .to_owned(),
-            ),
+            None => (FulltextCheck::Unverifiable, tc("sources_msg.fulltext.not_checkable", &[])),
         },
         Some(remote) => {
             let full = match MultigptWay::from_settings(state, Limits::SEARCH).await {
@@ -481,12 +488,15 @@ pub async fn check_highlight(state: &AppState, h: &Highlight) -> Result<Option<H
                 Err(e) => match local_copy(state, &remote.collection, &remote.document).await {
                     Some(copy) => (
                         check_range(&copy.text, start, end, &h.text),
-                        format!(
-                            "Geprüft gegen die lokale Kopie vom {} (MultiGPT nicht erreichbar).",
-                            crate::sync::display_time(&copy.fetched)
+                        tc(
+                            "sources_msg.fulltext.checked_copy",
+                            &[("time", crate::sync::display_time(&copy.fetched).into())],
                         ),
                     ),
-                    None => (FulltextCheck::Unverifiable, format!("Volltext nicht abrufbar: {}", e.message())),
+                    None => (
+                        FulltextCheck::Unverifiable,
+                        tc("sources_msg.fulltext.unavailable", &[("error", e.message().to_string().into())]),
+                    ),
                 },
             }
         }

@@ -48,6 +48,7 @@ use serde_json::{Value, json};
 
 use super::{Failed, PDF_TIMEOUT, PdfKind, PdfOut};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::Settings;
 
@@ -73,11 +74,11 @@ pub enum Rule {
 
 impl Rule {
     /// Display: „eigene Markierung“, „Hervorhebung“, „erster Satz je Absatz“.
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            Rule::Marker => "eigene Markierung",
-            Rule::Strong => "Hervorhebung",
-            Rule::FirstSentence => "erster Satz je Absatz",
+            Rule::Marker => tc("export_msg.notes.rule_marker", &[]),
+            Rule::Strong => tc("export_msg.notes.rule_strong", &[]),
+            Rule::FirstSentence => tc("export_msg.notes.rule_first_sentence", &[]),
         }
     }
 }
@@ -677,13 +678,16 @@ impl NotesOptions {
         let format = match format.map(str::trim).filter(|f| !f.is_empty()) {
             None => NotesFormat::A5,
             Some(text) => NotesFormat::parse(text)
-                .ok_or_else(|| format!("Format „{text}“ gibt es nicht; a5 oder karten erwartet"))?,
+                .ok_or_else(|| tc("export_msg.notes.format_unknown", &[("text", text.into())]))?,
         };
         let size = match font_pt.map(str::trim).filter(|f| !f.is_empty()) {
             None => None,
             Some(text) => Some(
                 text.parse::<u32>().ok().filter(|pt| (MIN_FONT_PT..=MAX_FONT_PT).contains(pt)).ok_or_else(|| {
-                    format!("Schriftgröße „{text}“: ganze Zahl von {MIN_FONT_PT} bis {MAX_FONT_PT} (Punkt) erwartet")
+                    tc(
+                        "export_msg.notes.font_size",
+                        &[("text", text.into()), ("min", MIN_FONT_PT.into()), ("max", MAX_FONT_PT.into())],
+                    )
                 })?,
             ),
         };
@@ -737,12 +741,17 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let format = match params.get("format") {
                 None | Some(Value::Null) => None,
                 Some(Value::String(s)) => Some(s.clone()),
-                Some(_) => return Err(invalid("format: \"a5\" oder \"karten\" erwartet".into())),
+                Some(_) => return Err(invalid(tc("export_msg.notes.format_param", &[]))),
             };
             let font = match params.get("font_pt") {
                 None | Some(Value::Null) => None,
                 Some(Value::Number(n)) => Some(n.to_string()),
-                Some(_) => return Err(invalid(format!("font_pt: Zahl von {MIN_FONT_PT} bis {MAX_FONT_PT} erwartet"))),
+                Some(_) => {
+                    return Err(invalid(tc(
+                        "export_msg.notes.font_param",
+                        &[("min", MIN_FONT_PT.into()), ("max", MAX_FONT_PT.into())],
+                    )));
+                }
             };
             let mut options = NotesOptions::parse(format.as_deref(), font.as_deref()).map_err(invalid)?;
             options.draft = crate::typeset::draft_param(&params)?;
@@ -846,7 +855,11 @@ fn page(
     };
     match templates().get_template("notes.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage notes.html: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("export_msg.typeset.template_error", &[("name", "notes.html".into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -864,8 +877,14 @@ pub async fn notes_page(
 ) -> Response {
     let title = match work_title(&state, id).await {
         Ok(Some(title)) => title,
-        Ok(None) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Ok(None) => return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            )
+                .into_response();
+        }
     };
     let (options, error) = match NotesOptions::parse(query.format.as_deref(), query.schrift.as_deref()) {
         Ok(options) => (options, None),
@@ -911,8 +930,11 @@ pub async fn notes_download(
                     Some(e),
                 )
             }
-            Ok(None) => (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+            Ok(None) => (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
+            Err(e) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, tc("export_msg.page.error", &[("error", e.to_string().into())]))
+                    .into_response()
+            }
         },
     }
 }
@@ -922,8 +944,14 @@ pub async fn notes_download(
 pub async fn notes_response(state: &AppState, headers: &HeaderMap, id: WorkId, options: &NotesOptions) -> Response {
     let title = match work_title(state, id).await {
         Ok(Some(title)) => title,
-        Ok(None) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Ok(None) => return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            )
+                .into_response();
+        }
     };
     let failed = match generate(state, id, options).await {
         Ok((notes, pdf)) => return super::attachment(&file_name(&notes.slug), pdf.bytes),
@@ -946,6 +974,16 @@ pub async fn notes_response(state: &AppState, headers: &HeaderMap, id: WorkId, o
 /// PDF to `target`. If the file already exists, nothing is written; if the typesetting fails, no file is
 /// created.
 pub async fn write_notes_file(
+    state: &AppState,
+    work: WorkId,
+    target: &std::path::Path,
+    options: NotesOptions,
+) -> Result<PdfOut, String> {
+    // The command line stays German (Round 39a, contract §5: CLI untouched).
+    crate::i18n::scope(crate::i18n::Lang::De, write_notes_file_german(state, work, target, options)).await
+}
+
+async fn write_notes_file_german(
     state: &AppState,
     work: WorkId,
     target: &std::path::Path,

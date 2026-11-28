@@ -12,6 +12,7 @@ use baruch_store::{StoreError, WorkId};
 
 use super::{DocxExportOptions, WARN_MORE_PROPOSALS};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::RpcError;
 
 /// This many individual messages about Typst islands stand in the answer; the rest is counted.
@@ -110,9 +111,7 @@ fn tidy(warnings: Vec<DocxWarning>) -> Vec<DocxWarning> {
     if more_islands > 0 {
         out.push(DocxWarning {
             code: WARN_ISLAND.to_owned(),
-            message: format!(
-                "{more_islands} weitere Typst-Inseln stehen ebenfalls nur als sichtbarer Quelltext in der Datei."
-            ),
+            message: tc("export_msg.docx.more_islands", &[("count", more_islands.into())]),
         });
     }
     out
@@ -187,16 +186,21 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
     let (mut blocks, mut warnings, mut proposals) = (Vec::new(), Vec::new(), 0usize);
     for node in &loaded.nodes {
         let Some(current) = node.current_index().map(|i| &node.revisions[i]) else { continue };
-        let place =
-            if node.title.trim().is_empty() { "ohne Titel".to_owned() } else { format!("„{}“", node.title.trim()) };
+        let place = if node.title.trim().is_empty() {
+            tc("export_msg.docx.untitled", &[])
+        } else {
+            tc("export_msg.docx.quoted_title", &[("title", node.title.trim().into())])
+        };
         let read = |body: &str, warnings: &mut Vec<DocxWarning>| -> Vec<Block> {
             let mut read = from_typst(body, &paths);
             fill_alt(&mut read.blocks, &alts);
-            warnings.extend(
-                read.warnings
-                    .into_iter()
-                    .map(|w| DocxWarning { code: w.code, message: format!("Abschnitt {place}: {}", w.message) }),
-            );
+            warnings.extend(read.warnings.into_iter().map(|w| DocxWarning {
+                code: w.code,
+                message: tc(
+                    "export_msg.docx.section_warning",
+                    &[("place", place.as_str().into()), ("message", w.message.into())],
+                ),
+            }));
             read.blocks
         };
         let current_blocks = read(&current.body, &mut warnings);
@@ -222,13 +226,19 @@ pub(super) async fn document(state: &AppState, work: WorkId, options: &DocxExpor
             let more = open.len() - 1;
             warnings.push(DocxWarning {
                 code: WARN_MORE_PROPOSALS.to_owned(),
-                message: format!(
-                    "Abschnitt {place}: {more} {} nicht in der Datei – als Änderungsverfolgung steht nur der jüngste \
-                     (Fassung {} von {}).",
-                    if more == 1 { "weiterer offener Vorschlag steht" } else { "weitere offene Vorschläge stehen" },
-                    latest.number,
-                    change.author,
-                ),
+                message: {
+                    let args = [
+                        ("place", place.as_str().into()),
+                        ("more", more.into()),
+                        ("rev", latest.number.into()),
+                        ("author", change.author.as_str().into()),
+                    ];
+                    if more == 1 {
+                        tc("export_msg.docx.more_proposals_one", &args)
+                    } else {
+                        tc("export_msg.docx.more_proposals", &args)
+                    }
+                },
             });
         }
     }
@@ -283,16 +293,22 @@ mod tests {
 
     #[test]
     fn many_island_warnings_are_counted_instead_of_listed() {
-        let island = |n: usize| DocxWarning { code: WARN_ISLAND.to_owned(), message: format!("Insel {n}") };
-        let mut all: Vec<DocxWarning> = (0..8).map(island).collect();
-        all.push(island(0));
-        all.push(DocxWarning { code: "docx_bild_fehlt".into(), message: "Bild".into() });
-        let tidy = tidy(all);
-        assert_eq!(tidy.len(), MAX_ISLAND_WARNINGS + 2, "fünf einzelne Inseln, das Bild und eine Zeile mit dem Rest");
-        assert!(
-            tidy.last().is_some_and(|w| w.message.starts_with("3 weitere Typst-Inseln")),
-            "die doppelte Meldung zählt nicht, die übrigen drei stehen als Zahl da: {tidy:?}"
-        );
-        assert!(tidy.iter().any(|w| w.code == "docx_bild_fehlt"), "andere Meldungen bleiben vollständig");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let island = |n: usize| DocxWarning { code: WARN_ISLAND.to_owned(), message: format!("Insel {n}") };
+            let mut all: Vec<DocxWarning> = (0..8).map(island).collect();
+            all.push(island(0));
+            all.push(DocxWarning { code: "docx_bild_fehlt".into(), message: "Bild".into() });
+            let tidy = tidy(all);
+            assert_eq!(
+                tidy.len(),
+                MAX_ISLAND_WARNINGS + 2,
+                "fünf einzelne Inseln, das Bild und eine Zeile mit dem Rest"
+            );
+            assert!(
+                tidy.last().is_some_and(|w| w.message.starts_with("3 weitere Typst-Inseln")),
+                "die doppelte Meldung zählt nicht, die übrigen drei stehen als Zahl da: {tidy:?}"
+            );
+            assert!(tidy.iter().any(|w| w.code == "docx_bild_fehlt"), "andere Meldungen bleiben vollständig");
+        })
     }
 }

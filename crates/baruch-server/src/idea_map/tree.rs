@@ -472,7 +472,7 @@ async fn assemble(
                 .collect(),
         }
     } else {
-        super::Near { state: super::NearState::Off, message: super::near::OFF.to_owned(), pairs: Vec::new() }
+        super::Near { state: super::NearState::Off, message: super::near::off(), pairs: Vec::new() }
     };
     let total_ideas = shown_ideas(&root);
     let mind_map = MindMap {
@@ -623,16 +623,18 @@ pub async fn import(
     let refused = |message: String| RpcError::new(REFUSED, message);
     let (count, deepest) = import_size(tree);
     if count == 0 {
-        return Err(refused("Die Datei enthält keinen Knoten; nichts angelegt.".to_owned()));
+        return Err(refused(crate::i18n::tc("ideas_msg.import.no_node", &[])));
     }
     if count > MAX_IMPORT_NODES {
-        return Err(refused(format!(
-            "Die Mindmap hat {count} Knoten; einlesen lassen sich höchstens {MAX_IMPORT_NODES}. Nichts angelegt."
+        return Err(refused(crate::i18n::tc(
+            "ideas_msg.import.too_many",
+            &[("count", count.into()), ("max", MAX_IMPORT_NODES.into())],
         )));
     }
     if deepest > MAX_TREE_DEPTH {
-        return Err(refused(format!(
-            "Die Mindmap ist {deepest} Ebenen tief; einlesen lassen sich höchstens {MAX_TREE_DEPTH}. Nichts angelegt."
+        return Err(refused(crate::i18n::tc(
+            "ideas_msg.import.too_deep",
+            &[("deepest", deepest.into()), ("max", MAX_TREE_DEPTH.into())],
         )));
     }
     let seeds: Vec<IdeaSeed> = tree.nodes.iter().map(seed).collect();
@@ -644,7 +646,9 @@ pub async fn import(
     let held = state.write_lock.lock().await;
     let (ideas, linked) = match state.store.idea_import_tree(work, parent, &seeds, &links, origin).await {
         Ok(done) => done,
-        Err(StoreError::Idea(message)) => return Err(refused(format!("{message} Nichts angelegt."))),
+        Err(StoreError::Idea(message)) => {
+            return Err(refused(format!("{message} {}", crate::i18n::tc("ideas_msg.import.nothing_created", &[]))));
+        }
         Err(e) => return Err(e.into()),
     };
     // Round 36: the ideas of the cloud back into the cloud. `ideas` is in depth-first order of the

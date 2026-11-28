@@ -34,6 +34,7 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
 /// A solution as the UI shows it (position in the post, adoptable, finding).
@@ -286,12 +287,13 @@ pub fn apply_solutions(text: &str, solutions: &[(&str, &Solution)]) -> Result<St
     let mut out = text.to_owned();
     for (label, s) in solutions {
         if s.replacement.trim().is_empty() {
-            return Err(format!(
-                "{label} hat keine neue Formulierung (nur einen Schritt); sie lässt sich nicht einsetzen."
-            ));
+            return Err(tc("assist_msg.solution.no_wording", &[("label", (*label).into())]));
         }
         let Some(range) = locate(&out, &s.quote) else {
-            return Err(format!("{label}: Das Zitat „{}“ steht nicht (mehr) im Text.", clip(&s.quote, 80)));
+            return Err(tc(
+                "assist_msg.solution.quote_gone",
+                &[("label", (*label).into()), ("quote", clip(&s.quote, 80).into())],
+            ));
         };
         out.replace_range(range, s.replacement.trim());
     }
@@ -346,10 +348,12 @@ fn node_of(work: &Work, key: i64) -> Option<&Node> {
 
 /// Text of the revision `rev` (without a value the current one) with its number.
 fn revision_text(node: &Node, rev: Option<u32>) -> Result<(u32, String), RpcError> {
-    let number = rev.or_else(|| node.current_number()).ok_or_else(|| refused("Der Abschnitt hat keine Fassung."))?;
-    let revision = node
-        .revision(number)
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("Fassung {number} gibt es in diesem Abschnitt nicht.")))?;
+    let number = rev
+        .or_else(|| node.current_number())
+        .ok_or_else(|| refused(tc("assist_msg.solution.no_revision_at_all", &[])))?;
+    let revision = node.revision(number).ok_or_else(|| {
+        RpcError::new(INVALID_PARAMS, tc("assist_msg.solution.no_such_revision", &[("number", number.into())]))
+    })?;
     Ok((number, revision.body.clone()))
 }
 
@@ -412,7 +416,7 @@ pub async fn rfc_proposal(
         return Ok(None);
     }
     let work = state.store.load_work(base.work).await?;
-    let node = node_of(&work, base.key).ok_or_else(|| refused("Der Abschnitt ist nicht mehr da."))?;
+    let node = node_of(&work, base.key).ok_or_else(|| refused(tc("assist_msg.solution.section_gone", &[])))?;
     let wanted = base.basis.as_ref().map(|b| b.rev).or(base.rev);
     let (basis_rev, text) = revision_text(node, wanted)?;
     let mut changed = text.clone();
@@ -422,7 +426,7 @@ pub async fn rfc_proposal(
             break;
         }
         // A solution whose quotation an earlier one already replaced is dropped (no error for the collective proposal).
-        if let Ok(next) = apply_solutions(&changed, &[("Lösung", s)]) {
+        if let Ok(next) = apply_solutions(&changed, &[(&tc("assist_msg.solution.label", &[]), s)]) {
             changed = next;
             used += 1;
         }
@@ -472,8 +476,9 @@ fn number(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     super::rpc::number(params, name)
 }
 
-fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
-    number(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt ({what})")))
+/// The fixed key of the section (`key`), required.
+fn required_key(params: &Value) -> Result<i64, RpcError> {
+    number(params, "key")?.ok_or_else(|| invalid(tc("assist_msg.solution.key_missing", &[])))
 }
 
 fn rev_param(params: &Value, name: &str) -> Result<Option<u32>, RpcError> {
@@ -483,13 +488,13 @@ fn rev_param(params: &Value, name: &str) -> Result<Option<u32>, RpcError> {
             .ok()
             .filter(|n| *n >= 1)
             .map(Some)
-            .ok_or_else(|| invalid(format!("{name}: Fassungsnummer ab 1 erwartet"))),
+            .ok_or_else(|| invalid(tc("assist_msg.solution.rev_number", &[("name", name.into())]))),
     }
 }
 
 /// List of numbers (`[1, 2]`, one number, digits as text or „1,2“ from forms).
 fn numbers(params: &Value, name: &str) -> Result<Vec<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Liste von Zahlen erwartet"));
+    let wrong = || invalid(tc("assist_msg.solution.number_list", &[("name", name.into())]));
     let one = |v: &Value| -> Result<Vec<i64>, RpcError> {
         match v {
             Value::Number(n) => n.as_i64().map(|n| vec![n]).ok_or_else(wrong),
@@ -542,7 +547,7 @@ fn post_in(node: &Node, id: i64) -> Result<&baruch_core::Post, RpcError> {
     node.posts
         .iter()
         .find(|p| p.id == id)
-        .ok_or_else(|| invalid(format!("Beitrag {id} gehört nicht zu diesem Abschnitt.")))
+        .ok_or_else(|| invalid(tc("assist_msg.solution.post_elsewhere", &[("id", id.into())])))
 }
 
 /// Shown revision for solutions of a post: `rev`, else the review basis of the post, else the current one.
@@ -557,10 +562,10 @@ async fn shown_for(state: &AppState, work: WorkId, post: Option<i64>, rev: Optio
 /// `solution.list {key, post?, rev?}` → `{solutions: [SolutionView]}`: with `post` the solutions of the post (position
 /// like `picks` of `solution.adopt`), else the solutions of all findings of the section (position per finding).
 async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
-    let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
+    let key = required_key(params)?;
     let loaded = state.store.load_work(work).await?;
     let node =
-        node_of(&loaded, key).ok_or_else(|| invalid(format!("Abschnitt {key} gibt es in diesem Werk nicht.")))?;
+        node_of(&loaded, key).ok_or_else(|| invalid(tc("assist_msg.solution.no_section", &[("key", key.into())])))?;
     let post = number(params, "post")?;
     let rev = shown_for(state, work, post, rev_param(params, "rev")?).await;
     let (shown_rev, shown) = revision_text(node, rev)?;
@@ -591,14 +596,14 @@ async fn list(state: &AppState, work: WorkId, params: &Value) -> Result<Value, R
 /// `picks` are positions in the solutions of the post ([`parse_solutions`]) or – with `finding` – of the finding. Base
 /// is `rev`, else the review basis of the post (`PostMeta::basis_rev`) or for a finding the current revision.
 async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
-    let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
+    let key = required_key(params)?;
     let picks = numbers(params, "picks")?;
     if picks.is_empty() {
-        return Err(invalid("picks fehlt: mindestens eine Lösung wählen"));
+        return Err(invalid(tc("assist_msg.solution.picks_missing", &[])));
     }
     let loaded = state.store.load_work(work).await?;
     let node =
-        node_of(&loaded, key).ok_or_else(|| invalid(format!("Abschnitt {key} gibt es in diesem Werk nicht.")))?;
+        node_of(&loaded, key).ok_or_else(|| invalid(tc("assist_msg.solution.no_section", &[("key", key.into())])))?;
     let finding = match number(params, "finding")? {
         Some(id) => Some(state.store.finding_get(work, id).await?),
         None => None,
@@ -606,12 +611,12 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
     if let Some(f) = &finding
         && f.key != Some(key)
     {
-        return Err(invalid(format!("Befund {} gehört nicht zu diesem Abschnitt.", f.id)));
+        return Err(invalid(tc("assist_msg.solution.finding_elsewhere", &[("id", f.id.into())])));
     }
     let post_id = match (&finding, number(params, "post")?) {
         (_, Some(id)) => id,
-        (Some(f), None) => f.post.ok_or_else(|| invalid("Der Befund stammt aus keinem Beitrag dieses Abschnitts."))?,
-        (None, None) => return Err(invalid("post fehlt (Beitrag mit den Lösungen) – oder finding (Befund)")),
+        (Some(f), None) => f.post.ok_or_else(|| invalid(tc("assist_msg.solution.finding_without_post", &[])))?,
+        (None, None) => return Err(invalid(tc("assist_msg.solution.post_missing", &[]))),
     };
     let post = post_in(node, post_id)?;
     let solutions: Vec<Solution> = match &finding {
@@ -628,26 +633,32 @@ async fn adopt(state: &AppState, work: WorkId, params: &Value) -> Result<Value, 
     // Duplicate numbers count once: inserting the same solution twice would replace its own replacement again.
     let mut seen = std::collections::HashSet::new();
     for &pick in picks.iter().filter(|p| seen.insert(**p)) {
-        let s = usize::try_from(pick)
-            .ok()
-            .and_then(|i| solutions.get(i))
-            .ok_or_else(|| invalid(format!("Lösung {pick} gibt es nicht ({} Lösungen).", solutions.len())))?;
+        let s = usize::try_from(pick).ok().and_then(|i| solutions.get(i)).ok_or_else(|| {
+            invalid(tc(
+                "assist_msg.solution.no_such_solution",
+                &[("pick", pick.into()), ("count", solutions.len().into())],
+            ))
+        })?;
         if !adoptable(s, &text) {
-            return Err(invalid(format!(
-                "Lösung {pick} ist nicht übernehmbar: {}",
-                if s.replacement.trim().is_empty() {
-                    "Sie nennt nur einen Schritt, keine neue Formulierung.".to_owned()
-                } else {
-                    format!("Das Zitat „{}“ steht nicht in Fassung {basis_rev}.", clip(&s.quote, 80))
-                }
+            let why = if s.replacement.trim().is_empty() {
+                tc("assist_msg.solution.only_step", &[])
+            } else {
+                tc(
+                    "assist_msg.solution.quote_not_in",
+                    &[("quote", clip(&s.quote, 80).into()), ("rev", basis_rev.into())],
+                )
+            };
+            return Err(invalid(tc(
+                "assist_msg.solution.not_adoptable",
+                &[("pick", pick.into()), ("why", why.into())],
             )));
         }
-        chosen.push((format!("Lösung {pick}"), s));
+        chosen.push((tc("assist_msg.solution.numbered", &[("pick", pick.into())]), s));
     }
     let labelled: Vec<(&str, &Solution)> = chosen.iter().map(|(l, s)| (l.as_str(), *s)).collect();
     let changed = apply_solutions(&text, &labelled).map_err(invalid)?;
     if changed == text {
-        return Err(refused("Die Lösungen ändern den Text nicht; kein Vorschlag angelegt."));
+        return Err(refused(tc("assist_msg.solution.no_change", &[])));
     }
     let persona = post.author.clone();
     let note = match &finding {
@@ -699,15 +710,16 @@ pub fn variant_count(params: &Value) -> Result<Option<u8>, RpcError> {
     match number(params, "count")? {
         None => Ok(None),
         Some(n @ 2..=3) => Ok(Some(n as u8)),
-        Some(n) => {
-            Err(invalid(format!("count: 2 oder 3 Varianten (höchstens {}), nicht {n}", super::variants::MAX_VARIANTS)))
-        }
+        Some(n) => Err(invalid(tc(
+            "assist_msg.solution.count",
+            &[("max", usize::from(super::variants::MAX_VARIANTS).into()), ("n", n.into())],
+        ))),
     }
 }
 
 /// `solution.variants {key, rev?, findings?, count?}` → `VariantOutcome` (lector by setting, proposals only).
 pub async fn variants(state: &AppState, work: WorkId, params: &Value, asker: &str) -> Result<Value, RpcError> {
-    let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
+    let key = required_key(params)?;
     let post = number(params, "post")?;
     let mut findings = numbers(params, "findings")?;
     // From a post („Lösungen umsetzen“ below its solutions): without a value its findings (without praise).
@@ -740,22 +752,24 @@ pub async fn variants(state: &AppState, work: WorkId, params: &Value, asker: &st
 /// `solution.reject_siblings {key, rev, confirm: true}` → `{rejected: [rev], group}`: rejects the other open
 /// proposals of the variant group of `rev` (the human only; `rev` itself stays).
 async fn reject_siblings(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
-    let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
-    let rev = rev_param(params, "rev")?.ok_or_else(|| invalid("rev fehlt (die Variante, die bleibt)"))?;
+    let key = required_key(params)?;
+    let rev = rev_param(params, "rev")?.ok_or_else(|| invalid(tc("assist_msg.solution.rev_missing", &[])))?;
     if !confirmed(params) {
-        return Err(invalid("confirm: true fehlt – die übrigen Varianten werden verworfen"));
+        return Err(invalid(tc("assist_msg.solution.confirm_missing", &[])));
     }
     let _held = state.write_lock.lock().await;
     let seq = state.store.node_seq(work, key).await?;
     let tree = state.store.revision_tree(work).await?;
     let infos = tree.iter().find(|n| n.node == seq).map(|n| n.revisions.as_slice()).unwrap_or_default();
-    let info =
-        infos.iter().find(|i| i.number == rev).ok_or_else(|| invalid(format!("Fassung {rev} gibt es nicht.")))?;
+    let info = infos
+        .iter()
+        .find(|i| i.number == rev)
+        .ok_or_else(|| invalid(tc("assist_msg.solution.no_rev", &[("rev", rev.into())])))?;
     let group = info
         .variant
         .as_ref()
         .map(|v| v.group.clone())
-        .ok_or_else(|| invalid(format!("Fassung {rev} ist keine Variante.")))?;
+        .ok_or_else(|| invalid(tc("assist_msg.solution.not_a_variant", &[("rev", rev.into())])))?;
     let mut rejected = Vec::new();
     for sibling in infos {
         let same = sibling.variant.as_ref().is_some_and(|v| v.group == group);
@@ -788,10 +802,10 @@ async fn comparison(state: &AppState, work: WorkId, key: i64, group: &str) -> Re
     let seq = state.store.node_seq(work, key).await?;
     let members = state.store.variant_group(work, seq, group).await?;
     if members.is_empty() {
-        return Err(invalid(format!("Variantengruppe {group} gibt es in diesem Abschnitt nicht.")));
+        return Err(invalid(tc("assist_msg.solution.no_group_in_section", &[("group", group.into())])));
     }
     let loaded = state.store.load_work(work).await?;
-    let node = node_of(&loaded, key).ok_or_else(|| invalid("Der Abschnitt ist nicht mehr da."))?;
+    let node = node_of(&loaded, key).ok_or_else(|| invalid(tc("assist_msg.solution.section_gone", &[])))?;
     let tree = state.store.revision_tree(work).await?;
     let infos = tree.iter().find(|n| n.node == seq).map(|n| n.revisions.as_slice()).unwrap_or_default();
     let base = infos.iter().find(|i| i.number == members[0].0).and_then(|i| i.based_on);
@@ -833,8 +847,9 @@ async fn comparison(state: &AppState, work: WorkId, key: i64, group: &str) -> Re
 
 /// `solution.compare {key, group}` → `{base, variants: [{rev, label, summary, findings, diff_html, against}]}`.
 async fn compare(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
-    let key = required(params, "key", "fester Schlüssel des Abschnitts")?;
-    let group = super::rpc::text(params, "group")?.ok_or_else(|| invalid("group fehlt (Variantengruppe)"))?;
+    let key = required_key(params)?;
+    let group =
+        super::rpc::text(params, "group")?.ok_or_else(|| invalid(tc("assist_msg.solution.group_missing", &[])))?;
     comparison(state, work, key, group.trim()).await
 }
 
@@ -879,7 +894,10 @@ fn page(
     };
     match templates().get_template("variants.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (StatusCode::OK, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage variants.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("assist_msg.page.template_error", &[("name", "variants.html".into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 
@@ -910,7 +928,7 @@ async fn variants_page(
         Err(e) => return plain(StatusCode::NOT_FOUND, RpcError::from(e).message),
     };
     let Some(group) = pair(&pairs, "group") else {
-        return plain(StatusCode::BAD_REQUEST, "group fehlt (Variantengruppe)");
+        return plain(StatusCode::BAD_REQUEST, tc("assist_msg.solution.group_missing", &[]));
     };
     // Without `key` (link from the revision tree of the chapter) the group determines the section.
     let key = match pair_number(&pairs, "key") {
@@ -918,7 +936,10 @@ async fn variants_page(
         None => match state.store.variant_group_key(work, group.trim()).await {
             Ok(Some(key)) => key,
             Ok(None) => {
-                return plain(StatusCode::NOT_FOUND, format!("Variantengruppe {group} gibt es in diesem Werk nicht."));
+                return plain(
+                    StatusCode::NOT_FOUND,
+                    tc("assist_msg.solution.no_group_in_work", &[("group", group.into())]),
+                );
             }
             Err(e) => return plain(StatusCode::INTERNAL_SERVER_ERROR, RpcError::from(e).message),
         },
@@ -926,7 +947,10 @@ async fn variants_page(
     let back = crate::view::node_url(work, key, None, false, "", "");
     match comparison(&state, work, key, group.trim()).await {
         Ok(cmp) => page(&headers, work, &title, Some(cmp), None, back),
-        Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) if e.code == INTERNAL => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("assist_msg.page.error", &[("error", e.message.as_str().into())]),
+        ),
         Err(e) => page(&headers, work, &title, None, Some(e.message), back),
     }
 }
@@ -941,10 +965,10 @@ async fn act(
 ) -> Response {
     let method = pair(&pairs, "method").unwrap_or("").trim().to_owned();
     if !matches!(method.as_str(), "solution.adopt" | "solution.variants" | "solution.reject_siblings") {
-        return plain(StatusCode::BAD_REQUEST, "unbekannte Aktion");
+        return plain(StatusCode::BAD_REQUEST, tc("assist_msg.page.unknown_action", &[]));
     }
     let Some(work) = pair_number(&pairs, "work") else {
-        return plain(StatusCode::BAD_REQUEST, "work fehlt (Werk-id)");
+        return plain(StatusCode::BAD_REQUEST, tc("assist_msg.page.work_missing", &[]));
     };
     let title = match state.store.load_work(work).await {
         Ok(w) => w.title,
@@ -980,7 +1004,10 @@ async fn act(
             let url = if method == "solution.reject_siblings" { back } else { target.unwrap_or(back) };
             Redirect::to(&url).into_response()
         }
-        Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) if e.code == INTERNAL => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("assist_msg.page.error", &[("error", e.message.as_str().into())]),
+        ),
         Err(e) => page(&headers, work, &title, None, Some(e.message), back),
     }
 }

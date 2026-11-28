@@ -141,7 +141,21 @@ async fn the_mcp_tool_answers_like_the_rpc_method_and_refuses_an_unknown_versifi
     let answer: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(answer["result"]["isError"], false, "scripture_map gelingt: {answer}");
     let content = &answer["result"]["structuredContent"];
-    let rpc = ok(&server, "scripture.map", json!({ "ref": "Mal 4,5" })).await;
+    let rpc = {
+        // Round 39a: MCP answers in English, so the RPC answer for the comparison is asked in English too.
+        let request = common::with_lang(
+            axum::http::Request::post("/rpc")
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(
+                    json!({ "jsonrpc": "2.0", "id": 1, "method": "scripture.map", "params": { "ref": "Mal 4,5" } })
+                        .to_string(),
+                ))
+                .unwrap(),
+            "en",
+        );
+        let (_, _, body) = server.send(request).await;
+        serde_json::from_str::<Value>(&body).unwrap()["result"].clone()
+    };
     assert_eq!(content, &rpc, "MCP antwortet wie RPC scripture.map");
     assert_eq!(content["refs"][0]["target"], "Mal 3,23", "Mal 4,5 (KJV) = Mal 3,23: {content}");
     let (_, _, body) = server.send(call(json!({ "ref": "Mal 4,5", "to": "Klingonisch" }))).await;

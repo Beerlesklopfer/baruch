@@ -42,6 +42,7 @@ use serde_json::json;
 use super::{At, ToPersona, error_response, href, number, page_settings, render, text};
 use crate::AppState;
 use crate::bibles::Choice;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::query_escape;
 
@@ -53,12 +54,14 @@ pub const SEARCH_MODULES: usize = 3;
 pub const SEARCH_TIME: Duration = Duration::from_secs(3);
 /// Hits of the wording search on the Bible page.
 pub const PAGE_HITS: usize = 50;
-/// Notice without a Bible.
-pub const NO_BIBLE: &str = "Keine SWORD-Bibel verfügbar: Modulordner und Bibel des Werks stellst du unter \
-     Einstellungen → Quellen → Bibeln (SWORD) ein.";
+/// Notice without a Bible (language of the request, Round 39a).
+pub fn no_bible() -> String {
+    tc("sources_msg.bible_page.no_bible", &[])
+}
 /// Notice about „Hervorheben“ on the Bible page.
-pub const NO_HIGHLIGHT: &str = "Hervorheben geht nur bei Titeln der Bibliothek (Zitat mit Zeichenbereich); eine \
-     Bibelstelle ist kein solcher Titel. Zitieren und „an Persona geben“ gehen.";
+pub fn no_highlight() -> String {
+    tc("sources_msg.bible_page.no_highlight", &[])
+}
 /// Target of the link „Einstellungen → Quellen“.
 pub const SOURCES_URL: &str = "/einstellungen/quellen";
 
@@ -230,13 +233,13 @@ async fn bible_list(state: &AppState, at: &At) -> Result<Vec<BibleEntry>, RpcErr
 pub(super) async fn shelf(state: &AppState, at: &At, query: Option<&str>) -> Shelf {
     let mut shelf = Shelf { page_url: page_url(at, None, ""), ..Shelf::default() };
     if !scan_allowed(state, at.work).await {
-        shelf.hint = Some(NO_BIBLE.to_owned());
+        shelf.hint = Some(no_bible());
         return shelf;
     }
     match bible_list(state, at).await {
-        Ok(list) if list.is_empty() => shelf.hint = Some(NO_BIBLE.to_owned()),
+        Ok(list) if list.is_empty() => shelf.hint = Some(no_bible()),
         Ok(list) => shelf.bibles = list,
-        Err(e) => shelf.hint = Some(format!("Bibeln nicht lesbar: {}", e.message)),
+        Err(e) => shelf.hint = Some(tc("sources_msg.bible_page.unreadable", &[("error", e.message.as_str().into())])),
     }
     let Some(query) = query.map(str::trim).filter(|q| !q.is_empty()) else { return shelf };
     let usable: Vec<String> =
@@ -254,7 +257,7 @@ pub(super) async fn shelf(state: &AppState, at: &At, query: Option<&str>) -> She
             module: String::new(),
             hits: Vec::new(),
             truncated: true,
-            problem: Some("Bibelsuche abgebrochen: Zeitgrenze von 3 s erreicht.".to_owned()),
+            problem: Some(tc("sources_msg.bible_page.search_timeout", &[])),
         }),
     }
     shelf.commentary_hits = crate::bibles::commentary_hits_html(state, at.work, query, &tail(at)).await;
@@ -384,10 +387,10 @@ fn href_string(url: String) -> String {
     url.replace('&', "&amp;")
 }
 
-fn notice_text(code: Option<&str>) -> Option<&'static str> {
+fn notice_text(code: Option<&str>) -> Option<String> {
     match code? {
-        "cited" => Some("Zitat als Vorschlag im Abschnitt angelegt; übernehmen kannst nur du."),
-        "highlight" => Some(NO_HIGHLIGHT),
+        "cited" => Some(tc("sources_msg.bible_page.cited", &[])),
+        "highlight" => Some(no_highlight()),
         _ => None,
     }
 }
@@ -405,7 +408,7 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): 
     {
         Ok(at) => at,
         Err(StoreError::UnknownWork(_)) => {
-            return (axum::http::StatusCode::NOT_FOUND, "unbekanntes Werk").into_response();
+            return (axum::http::StatusCode::NOT_FOUND, tc("sources_msg.page.unknown_work", &[])).into_response();
         }
         Err(e) => return error_response(e.into()),
     };
@@ -417,7 +420,7 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): 
         settings => page_settings(&headers), work => work, node => node, rev => rev,
         bibles => list.iter().map(entry_value).collect::<Vec<_>>(), place_fields => at.fields(),
         literature_url => href(at.literature_url()), work_url => href(at.work_url()),
-        settings_url => Value::from_safe_string(SOURCES_URL.to_owned()), no_bible => NO_BIBLE, no_highlight => NO_HIGHLIGHT,
+        settings_url => Value::from_safe_string(SOURCES_URL.to_owned()), no_bible => no_bible(), no_highlight => no_highlight(),
         notice => notice_text(q.notice.as_deref()), has_key => at.key.is_some(),
         library_query => at.lq.as_deref(),
     };
@@ -545,7 +548,8 @@ pub struct BibleAct {
 async fn verses(state: &AppState, module: &str, reference: &str) -> Result<(String, String, String), RpcError> {
     let choice = crate::bibles::by_name(state, module).await?;
     let Some(bible) = choice.bible() else {
-        return Err(RpcError::new(REFUSED, choice.json()["problem"].as_str().unwrap_or(NO_BIBLE).to_owned()));
+        let problem = choice.json()["problem"].as_str().map(str::to_owned).unwrap_or_else(no_bible);
+        return Err(RpcError::new(REFUSED, problem));
     };
     let module = bible.info.name.clone();
     let found = crate::bibles::lookup(state, &choice, reference).await?;
@@ -554,7 +558,11 @@ async fn verses(state: &AppState, module: &str, reference: &str) -> Result<(Stri
     let mut parts = Vec::new();
     for r in &refs {
         if r["status"].as_str() != Some("valid") {
-            return Err(RpcError::new(INVALID_PARAMS, r["message"].as_str().unwrap_or("Stelle ungültig").to_owned()));
+            let message = r["message"]
+                .as_str()
+                .map(str::to_owned)
+                .unwrap_or_else(|| tc("sources_msg.bible_page.passage_invalid", &[]));
+            return Err(RpcError::new(INVALID_PARAMS, message));
         }
         labels.push(r["normalized"].as_str().unwrap_or_default().to_owned());
         for v in r["verses"].as_array().map(Vec::as_slice).unwrap_or_default() {
@@ -564,7 +572,10 @@ async fn verses(state: &AppState, module: &str, reference: &str) -> Result<(Stri
         }
     }
     if parts.is_empty() {
-        return Err(RpcError::new(INVALID_PARAMS, format!("Zu „{reference}“ hat das Modul {module} keinen Text.")));
+        return Err(RpcError::new(
+            INVALID_PARAMS,
+            tc("sources_msg.bible_page.no_text", &[("reference", reference.into()), ("module", module.into())]),
+        ));
     }
     let mut body = parts.join(" ");
     if body.chars().count() > crate::bibles::MAX_TEXT_CHARS {
@@ -632,12 +643,12 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<BibleAct>) -> 
     let back = page_url(&at, Some(&module), &ref_param(&reference));
     let notice = |message: &str| crate::assist::routes::notice_page(message, &back, None);
     if form.action == "highlight" {
-        return notice(NO_HIGHLIGHT);
+        return notice(&no_highlight());
     }
     if reference.is_empty() || module.is_empty() {
-        return notice("Stelle und Bibel angeben (z. B. „Ps 139,23-24“).");
+        return notice(&tc("sources_msg.bible_page.reference_and_bible", &[]));
     }
-    let Some(key) = number::<i64>(&form.key) else { return notice(super::PICK_SECTION) };
+    let Some(key) = number::<i64>(&form.key) else { return notice(&super::pick_section()) };
     match form.action.as_str() {
         "cite" => match cite_verses(&state, at.work, key, &module, &reference).await {
             Ok(rev) => {
@@ -665,7 +676,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<BibleAct>) -> 
                     let url = crate::view::node_url(at.work, key, at.rev, at.preview, "", &at.lq_tail());
                     match answer.get("compressed").filter(|c| c.is_object()) {
                         Some(c) => crate::assist::routes::notice_page(
-                            "Die Antwort der Persona ist gespeichert.",
+                            &tc("sources_msg.persona.answer_saved", &[]),
                             &url,
                             Some(c),
                         ),
@@ -675,7 +686,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<BibleAct>) -> 
                 Err(e) => notice(&e.message),
             }
         }
-        other => notice(&format!("Unbekannte Aktion „{other}“.")),
+        other => notice(&tc("sources_msg.bible_page.unknown_action", &[("action", other.into())])),
     }
 }
 

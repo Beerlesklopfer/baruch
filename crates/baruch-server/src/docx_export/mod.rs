@@ -33,6 +33,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::Settings;
 
@@ -77,7 +78,9 @@ pub async fn export_file(state: &AppState, work: WorkId, options: &DocxExportOpt
     let bytes =
         tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_docx::write::write(&document, &write_options)))
             .await
-            .map_err(|e| RpcError::new(crate::rpc::INTERNAL, format!("Word-Datei schreiben: {e}")))??;
+            .map_err(|e| {
+                RpcError::new(crate::rpc::INTERNAL, tc("export_msg.docx.write", &[("error", e.to_string().into())]))
+            })??;
     Ok(DocxFile { file_name: format!("{slug}.docx"), bytes, proposals: built.proposals, warnings: built.warnings })
 }
 
@@ -88,7 +91,7 @@ fn warnings_json(warnings: &[baruch_docx::DocxWarning]) -> Value {
 /// Work from `work`: number (id), text (folder name or id as digits) or – without a value – the default work.
 async fn work_of(state: &AppState, params: &Value) -> Result<WorkId, RpcError> {
     let unknown = |e: StoreError| match e {
-        StoreError::UnknownWork(_) => RpcError::new(INVALID_PARAMS, "work: unbekanntes Werk"),
+        StoreError::UnknownWork(_) => RpcError::new(INVALID_PARAMS, tc("export_msg.docx.unknown_work", &[])),
         other => other.into(),
     };
     match params.get("work") {
@@ -136,6 +139,16 @@ pub async fn cli_export(
     path: &std::path::Path,
     options: &DocxExportOptions,
 ) -> Result<String, String> {
+    // The command line stays German (Round 39a, contract §5: CLI untouched).
+    crate::i18n::scope(crate::i18n::Lang::De, cli_export_german(state, work, path, options)).await
+}
+
+async fn cli_export_german(
+    state: &AppState,
+    work: WorkId,
+    path: &std::path::Path,
+    options: &DocxExportOptions,
+) -> Result<String, String> {
     // A dead link counts as existing too: overwrite nothing, create nothing behind a link.
     if std::fs::symlink_metadata(path).is_ok() {
         return Err(format!("Export: {} gibt es schon; nichts überschrieben", path.display()));
@@ -173,8 +186,9 @@ fn templates() -> &'static Environment<'static> {
 /// Answer for a work that does not exist (404), or another error of the store (500).
 fn store_failure(e: StoreError) -> Response {
     match e {
-        StoreError::UnknownWork(_) => (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        e => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        StoreError::UnknownWork(_) => (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
+        e => (StatusCode::INTERNAL_SERVER_ERROR, tc("export_msg.page.error", &[("error", e.to_string().into())]))
+            .into_response(),
     }
 }
 
@@ -197,7 +211,14 @@ async fn page(State(state): State<Arc<AppState>>, headers: HeaderMap, Path(id): 
     };
     match templates().get_template("docx_export.html").and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage docx_export.html: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc(
+                "export_msg.typeset.template_error",
+                &[("name", "docx_export.html".into()), ("error", e.to_string().into())],
+            ),
+        )
+            .into_response(),
     }
 }
 
@@ -216,13 +237,12 @@ async fn download(
 ) -> Response {
     // Like PDF and EPUB: the file is not created on request of a foreign page (in addition to `guard::own_reads`).
     if crate::guard::cross_site_get(&headers) {
-        return (StatusCode::FORBIDDEN, "Abgelehnt: Die Word-Datei entsteht nicht auf Anfrage einer fremden Seite.")
-            .into_response();
+        return (StatusCode::FORBIDDEN, tc("export_msg.docx.foreign", &[])).into_response();
     }
     let proposals = match query.vorschlaege.as_deref().map(str::trim) {
         None | Some("" | "0") => false,
         Some("1") => true,
-        Some(_) => return (StatusCode::BAD_REQUEST, "vorschlaege: 1 oder 0").into_response(),
+        Some(_) => return (StatusCode::BAD_REQUEST, tc("export_msg.docx.proposals_flag", &[])).into_response(),
     };
     if let Err(e) = state.store.work_slug(id).await {
         return store_failure(e);
@@ -243,7 +263,10 @@ async fn download(
                 .into_response()
         }
         Err(e) if e.code == INVALID_PARAMS => (StatusCode::UNPROCESSABLE_ENTITY, e.message).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response(),
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, tc("export_msg.page.error", &[("error", e.message.as_str().into())]))
+                .into_response()
+        }
     }
 }
 

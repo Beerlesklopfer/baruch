@@ -116,17 +116,20 @@ async fn a_second_call_comes_from_the_cache_and_page_returns_the_svg() {
 
 #[tokio::test]
 async fn the_time_limit_answers_refused() {
-    let server = common::open().await;
-    let (work, _) = import(&server, BOOK, "zeitlimit", true).await;
-    let refused = baruch_server::typeset::typeset_with_limit(&server.state, work, Duration::ZERO).await;
-    let error = refused.err().expect("mit Zeitlimit 0 darf kein Ergebnis kommen");
-    assert_eq!(error.code, baruch_server::rpc::REFUSED, "Zeitüberschreitung ist ein fachlicher Fehler (REFUSED)");
-    assert!(error.message.starts_with("Typst brauchte länger als"), "verständliche Meldung: {}", error.message);
-    // Whether the expired run had already begun depends on whether a parallel test was just holding the lock; that it
-    // computes to the end and fills the cache is therefore checked by the unit test
-    // `a_timed_out_run_finishes_in_the_background_and_fills_the_cache` in `typeset.rs`.
-    let later = baruch_server::typeset::typeset(&server.state, work).await.expect("mit 60 s gelingt der Satz");
-    assert_eq!(later.page_count(), 3, "nach der Zeitüberschreitung setzt der nächste Aufruf normal");
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let server = common::open().await;
+        let (work, _) = import(&server, BOOK, "zeitlimit", true).await;
+        let refused = baruch_server::typeset::typeset_with_limit(&server.state, work, Duration::ZERO).await;
+        let error = refused.err().expect("mit Zeitlimit 0 darf kein Ergebnis kommen");
+        assert_eq!(error.code, baruch_server::rpc::REFUSED, "Zeitüberschreitung ist ein fachlicher Fehler (REFUSED)");
+        assert!(error.message.starts_with("Typst brauchte länger als"), "verständliche Meldung: {}", error.message);
+        // Whether the expired run had already begun depends on whether a parallel test was just holding the lock; that it
+        // computes to the end and fills the cache is therefore checked by the unit test
+        // `a_timed_out_run_finishes_in_the_background_and_fills_the_cache` in `typeset.rs`.
+        let later = baruch_server::typeset::typeset(&server.state, work).await.expect("mit 60 s gelingt der Satz");
+        assert_eq!(later.page_count(), 3, "nach der Zeitüberschreitung setzt der nächste Aufruf normal");
+    })
+    .await
 }
 
 #[tokio::test]

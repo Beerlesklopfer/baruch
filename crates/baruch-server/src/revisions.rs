@@ -29,6 +29,7 @@ use minijinja::value::Serde;
 use minijinja::{Environment, Value as Tpl, context};
 use serde_json::{Value, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError, add_mirror, resolve_keys};
 use crate::{AppState, mirror};
 
@@ -43,7 +44,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Number from 0 from `params[key]`, also as text (forms); missing, `null` or empty → `None`.
 fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
-    let wrong = || invalid(format!("{key}: Zahl ab 0 erwartet"));
+    let wrong = || invalid(tc("outline_msg.param.number", &[("name", key.into())]));
     match params.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(wrong),
@@ -54,13 +55,14 @@ fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
 }
 
 fn required_u32(params: &Value, key: &str) -> Result<u32, RpcError> {
-    let value = number(params, key)?.ok_or_else(|| invalid(format!("{key} fehlt")))?;
-    u32::try_from(value).map_err(|_| invalid(format!("{key}: zu groß")))
+    let value =
+        number(params, key)?.ok_or_else(|| invalid(tc("outline_msg.param.missing", &[("name", key.into())])))?;
+    u32::try_from(value).map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", key.into())])))
 }
 
 fn node_of(params: &Value) -> Result<usize, RpcError> {
-    let value = number(params, "node")?.ok_or_else(|| invalid("node oder key fehlt"))?;
-    usize::try_from(value).map_err(|_| invalid("node: zu groß"))
+    let value = number(params, "node")?.ok_or_else(|| invalid(tc("outline_msg.revision.node_missing", &[])))?;
+    usize::try_from(value).map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "node".into())])))
 }
 
 /// Truth value: `true`, `1`, `"1"`, `"on"`, `"true"` → true; `false`, `0`, `"0"`, `"off"`, `"false"`, `""` → false.
@@ -73,9 +75,9 @@ fn boolean(params: &Value, key: &str) -> Result<Option<bool>, RpcError> {
         Some(Value::String(s)) => match s.trim() {
             "1" | "on" | "true" => Ok(Some(true)),
             "0" | "off" | "false" | "" => Ok(Some(false)),
-            _ => Err(invalid(format!("{key}: an oder aus erwartet"))),
+            _ => Err(invalid(tc("outline_msg.revision.switch", &[("name", key.into())]))),
         },
-        Some(_) => Err(invalid(format!("{key}: an oder aus erwartet"))),
+        Some(_) => Err(invalid(tc("outline_msg.revision.switch", &[("name", key.into())]))),
     }
 }
 
@@ -102,11 +104,11 @@ fn policy_json(work: WorkId, policy: &RevisionPolicy) -> Value {
 /// [`RevisionPolicy::validate`] (German message, -32602).
 fn policy_from(params: &Value, stored: RevisionPolicy) -> Result<RevisionPolicy, RpcError> {
     let percent = match number(params, "max_change_percent")? {
-        Some(p) => u8::try_from(p).map_err(|_| invalid("Größte Änderung: 1 bis 100 Prozent."))?,
+        Some(p) => u8::try_from(p).map_err(|_| invalid(tc("outline_msg.revision.max_change", &[])))?,
         None => stored.max_change_percent,
     };
     let minutes = match number(params, "new_after_minutes")? {
-        Some(m) => u32::try_from(m).map_err(|_| invalid("Neue Fassung nach: 0 bis 1440 Minuten."))?,
+        Some(m) => u32::try_from(m).map_err(|_| invalid(tc("outline_msg.revision.new_after", &[])))?,
         None => stored.new_after_minutes,
     };
     let policy = RevisionPolicy {
@@ -227,7 +229,10 @@ async fn history_context(
         .map(|s| {
             context! {
                 seq => s.seq,
-                kind => match s.kind { AmendKind::Amend => "Fortschreibung", AmendKind::Undo => "Rücknahme" },
+                kind => match s.kind {
+                    AmendKind::Amend => tc("outline_msg.revision.amend", &[]),
+                    AmendKind::Undo => tc("outline_msg.revision.undo", &[]),
+                },
                 undo_of => s.undo_of,
                 author => s.author.as_str(),
                 created => crate::localtime::minutes(&s.created),
@@ -262,7 +267,13 @@ fn render_history(headers: &HeaderMap, status: StatusCode, ctx: Tpl) -> Response
     let ctx = context! { settings => Tpl::from(Serde(settings)), ..ctx };
     match templates().get_template("revision_history.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage revision_history.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc(
+                "outline_msg.numbering.template_error",
+                &[("name", "revision_history.html".into()), ("error", e.to_string().into())],
+            ),
+        ),
     }
 }
 
@@ -287,10 +298,10 @@ async fn history_page(
         pair(&pairs, "key").and_then(|k| k.parse::<i64>().ok()),
         pair(&pairs, "rev").and_then(|r| r.parse::<u32>().ok()),
     ) else {
-        return plain(StatusCode::BAD_REQUEST, "key und rev fehlen (Abschnitt und Fassung).");
+        return plain(StatusCode::BAD_REQUEST, tc("outline_msg.revision.key_rev_missing", &[]));
     };
-    let notice = pair(&pairs, "ok").map(|_| "Zurückgenommen: der Text steht wieder auf dem gewählten Stand.");
-    match history_context(&state, work, key, rev, notice, None).await {
+    let notice = pair(&pairs, "ok").map(|_| tc("outline_msg.revision.undone", &[]));
+    match history_context(&state, work, key, rev, notice.as_deref(), None).await {
         Ok((_, ctx)) => render_history(&headers, StatusCode::OK, ctx),
         Err(e) => plain(status_of(&e), e.message),
     }
@@ -304,7 +315,7 @@ async fn act(
     Form(pairs): Form<Vec<(String, String)>>,
 ) -> Response {
     if pair(&pairs, "method") != Some("revision.amend_undo") {
-        return plain(StatusCode::BAD_REQUEST, "unbekannte Aktion");
+        return plain(StatusCode::BAD_REQUEST, tc("outline_msg.page.unknown_action", &[]));
     }
     let work = match pair(&pairs, "work").and_then(|w| w.parse::<WorkId>().ok()) {
         Some(w) => w,
@@ -317,7 +328,7 @@ async fn act(
         pair(&pairs, "key").and_then(|k| k.parse::<i64>().ok()),
         pair(&pairs, "rev").and_then(|r| r.parse::<u32>().ok()),
     ) else {
-        return plain(StatusCode::UNPROCESSABLE_ENTITY, "key und rev fehlen (Abschnitt und Fassung).");
+        return plain(StatusCode::UNPROCESSABLE_ENTITY, tc("outline_msg.revision.key_rev_missing", &[]));
     };
     let params = json!({ "work": work, "key": key, "rev": rev, "seq": pair(&pairs, "seq").unwrap_or("") });
     match call(&state, work, "revision.amend_undo", params).await {

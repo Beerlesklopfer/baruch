@@ -697,7 +697,10 @@ async fn a_work_title_head_without_a_title_in_the_template_is_named_in_the_warni
     let view = result(&server.rpc("work.typeset_get", json!({ "work": work })).await).clone();
     assert_eq!(
         view["warnings"],
-        json!([baruch_server::typeset_settings::NO_DOCUMENT_TITLE]),
+        json!([baruch_server::i18n::sync_scope(
+            baruch_server::i18n::Lang::De,
+            baruch_server::typeset_settings::no_document_title
+        )]),
         "Kolumnentitel „Werktitel“ ohne #set document(title: …) bliebe leer: {view}"
     );
 }

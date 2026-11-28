@@ -291,7 +291,24 @@ async fn requests_show_a_preview_over_rpc_mcp_and_on_the_page_without_javascript
     assert_eq!(preview.len(), shown.len(), "alle Punkte der Gliederung");
     // MCP with preview: the same.
     let listed = mcp_ok(&server, &s, "outline_requests", json!({ "work": work, "preview": true })).await;
-    assert_eq!(listed["requests"][0]["preview"], json!(preview), "MCP liefert dieselbe Vorschau wie RPC");
+    let english = {
+        // Round 39a: MCP answers in English, so the RPC answer for the comparison is asked in English too.
+        let request = common::with_lang(
+            axum::http::Request::post("/rpc")
+                .header(axum::http::header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(
+                    json!({ "jsonrpc": "2.0", "id": 1, "method": "outline.requests", "params": { "work": work, "preview": true } }).to_string(),
+                ))
+                .unwrap(),
+            "en",
+        );
+        let (_, _, body) = server.send(request).await;
+        serde_json::from_str::<Value>(&body).unwrap()["result"].clone()
+    };
+    assert_eq!(
+        listed["requests"][0]["preview"], english["requests"][0]["preview"],
+        "MCP liefert dieselbe Vorschau wie RPC"
+    );
     // Page without JavaScript: <details> with the preview at the request.
     let (status, page) = server.get(&format!("/gliederung?work={work}")).await;
     assert_eq!(status, StatusCode::OK, "Gliederungsseite lädt");

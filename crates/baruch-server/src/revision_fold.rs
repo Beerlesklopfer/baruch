@@ -25,6 +25,7 @@ use baruch_store::{StoreError, WorkId};
 use chrono::{Local, NaiveDate, TimeZone, Utc};
 use serde_json::{Value, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError, resolve_keys};
 use crate::{AppState, mirror};
 
@@ -45,7 +46,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 }
 
 fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
-    let wrong = || invalid(format!("{key}: Zahl ab 0 erwartet"));
+    let wrong = || invalid(tc("outline_msg.param.number", &[("name", key.into())]));
     match params.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_u64().map(Some).ok_or_else(wrong),
@@ -56,16 +57,19 @@ fn number(params: &Value, key: &str) -> Result<Option<u64>, RpcError> {
 }
 
 fn node_of(params: &Value) -> Result<usize, RpcError> {
-    let value = number(params, "node")?.ok_or_else(|| invalid("node oder key fehlt"))?;
-    usize::try_from(value).map_err(|_| invalid("node: zu groß"))
+    let value = number(params, "node")?.ok_or_else(|| invalid(tc("outline_msg.revision.node_missing", &[])))?;
+    usize::try_from(value).map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "node".into())])))
 }
 
 /// Day `JJJJ-MM-TT` (local time, midnight) → UTC instant in the format of `revision.created`.
 pub fn day_start_utc(date: &str) -> Result<String, RpcError> {
-    let day =
-        NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").map_err(|_| invalid("date: Tag als JJJJ-MM-TT erwartet"))?;
-    let midnight = day.and_hms_opt(0, 0, 0).ok_or_else(|| invalid("date: ungültiger Tag"))?;
-    let local = Local.from_local_datetime(&midnight).earliest().ok_or_else(|| invalid("date: ungültiger Tag"))?;
+    let day = NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d")
+        .map_err(|_| invalid(tc("outline_msg.fold.date_format", &[])))?;
+    let midnight = day.and_hms_opt(0, 0, 0).ok_or_else(|| invalid(tc("outline_msg.fold.date_invalid", &[])))?;
+    let local = Local
+        .from_local_datetime(&midnight)
+        .earliest()
+        .ok_or_else(|| invalid(tc("outline_msg.fold.date_invalid", &[])))?;
     Ok(local.with_timezone(&Utc).format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
 }
 
@@ -102,8 +106,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let _held = state.write_lock.lock().await;
             let params = resolve_keys(state, work, params).await?;
             let node = node_of(&params)?;
-            let rev = number(&params, "rev")?.ok_or_else(|| invalid("rev fehlt"))?;
-            let rev = u32::try_from(rev).map_err(|_| invalid("rev: zu groß"))?;
+            let rev = number(&params, "rev")?
+                .ok_or_else(|| invalid(tc("outline_msg.param.missing", &[("name", "rev".into())])))?;
+            let rev = u32::try_from(rev)
+                .map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "rev".into())])))?;
             store.set_revision_fold(work, node, rev, mirror::HUMAN_NAME).await?;
             let mut answer = fold_state(state, work, node).await?;
             answer["rev"] = json!(rev);
@@ -124,7 +130,10 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         }
         "revision.fold_before" => {
             let _held = state.write_lock.lock().await;
-            let date = params.get("date").and_then(Value::as_str).ok_or_else(|| invalid("date fehlt (JJJJ-MM-TT)"))?;
+            let date = params
+                .get("date")
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid(tc("outline_msg.fold.date_missing", &[])))?;
             let before = day_start_utc(date)?;
             let done = store.fold_revisions_before(work, &before, mirror::HUMAN_NAME).await?;
             let sections: Vec<Value> =

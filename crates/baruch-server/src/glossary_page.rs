@@ -32,6 +32,7 @@ use minijinja::value::{Serde, Value as JinjaValue};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, RpcError};
 use crate::view::Settings;
 
@@ -116,19 +117,19 @@ pub(crate) async fn page_base(
 ) -> Result<(JinjaValue, JinjaValue), Response> {
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let Ok(meta) = state.store.work_meta(work).await else {
-        return Err(plain(StatusCode::NOT_FOUND, "Unbekanntes Werk."));
+        return Err(plain(StatusCode::NOT_FOUND, &tc("reference_msg.glossary.unknown_work", &[])));
     };
     Ok((JinjaValue::from(Serde(&settings)), JinjaValue::from(Serde(json!({ "id": work, "title": meta.title })))))
 }
 
 /// Notice for `ok` after an action of the glossary page.
-pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
+pub(crate) fn ok_message(ok: &str) -> Option<String> {
     Some(match ok {
-        "add" => "Begriff ins Glossar aufgenommen.",
-        "update" => "Begriff geändert.",
-        "delete" => "Begriff gelöscht (wiederherstellbar über den Spiegel).",
-        "accept" => "Vorschlag übernommen – der Begriff steht jetzt im Glossar.",
-        "reject" => "Vorschlag verworfen.",
+        "add" => tc("reference_msg.glossary.ok_add", &[]),
+        "update" => tc("reference_msg.glossary.ok_update", &[]),
+        "delete" => tc("reference_msg.glossary.ok_delete", &[]),
+        "accept" => tc("reference_msg.glossary.ok_accept", &[]),
+        "reject" => tc("reference_msg.glossary.ok_reject", &[]),
         _ => return None,
     })
 }
@@ -140,16 +141,17 @@ fn ok_text(query: &BTreeMap<String, String>) -> Option<String> {
         let count = |name: &str| query.get(name).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
         let (new, skipped) = (count("neu"), count("uebersprungen"));
         let mut text = match new {
-            0 => "Der Lektor hat keine neuen Begriffe vorgeschlagen.".to_owned(),
-            1 => "Der Lektor hat 1 Begriff vorgeschlagen – er steht unter „Vorschläge der Assistenten“.".to_owned(),
-            n => format!("Der Lektor hat {n} Begriffe vorgeschlagen – sie stehen unter „Vorschläge der Assistenten“."),
+            0 => tc("reference_msg.glossary.suggest_none", &[]),
+            1 => tc("reference_msg.glossary.suggest_one", &[("count", new.into())]),
+            n => tc("reference_msg.glossary.suggest_many", &[("count", n.into())]),
         };
         if skipped > 0 {
-            text.push_str(&format!(" {skipped} übersprungen (schon im Glossar oder vorgeschlagen bzw. unbrauchbar)."));
+            text.push(' ');
+            text.push_str(&tc("reference_msg.glossary.suggest_skipped", &[("count", skipped.into())]));
         }
         return Some(text);
     }
-    ok_message(ok).map(str::to_owned)
+    ok_message(ok)
 }
 
 // ---- Glossary page ------------------------------------------------------------------------------------------------
@@ -242,7 +244,10 @@ async fn glossary_page(
 fn render(status: StatusCode, template: &str, ctx: JinjaValue) -> Response {
     match templates().get_template(template).and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, &format!("Vorlage {template}: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &tc("reference_msg.page.template_error", &[("name", template.into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 
@@ -291,7 +296,7 @@ async fn act(
         let headers = headers.clone();
         async move { glossary_page(&state, &headers, work, &BTreeMap::new(), Some(retry), status).await }
     };
-    let need_id = || id.ok_or_else(|| "Begriff fehlt (Feld id).".to_owned());
+    let need_id = || id.ok_or_else(|| tc("reference_msg.glossary.id_missing", &[]));
     let result: Result<Value, Result<RpcError, String>> = match action.as_str() {
         "add" => crate::glossary::add(&state, work, edit_from(&fields)).await.map_err(Ok),
         "update" => match need_id() {
@@ -299,9 +304,7 @@ async fn act(
             Err(m) => Err(Err(m)),
         },
         "delete" => match need_id() {
-            Ok(_) if field(&fields, "confirm") != "1" => {
-                Err(Err("Löschen bitte mit dem Häkchen bestätigen; nichts geändert.".to_owned()))
-            }
+            Ok(_) if field(&fields, "confirm") != "1" => Err(Err(tc("reference_msg.glossary.confirm_delete", &[]))),
             Ok(id) => crate::glossary::delete(&state, work, id).await.map_err(Ok),
             Err(m) => Err(Err(m)),
         },
@@ -313,7 +316,10 @@ async fn act(
             // Proposals only (origin the persona); adopting stays with the human.
             let key = match field(&fields, "key").trim() {
                 "" => Ok(None),
-                k => k.parse::<i64>().map(Some).map_err(|_| format!("Abschnitt „{k}“: Zahl erwartet.")),
+                k => k
+                    .parse::<i64>()
+                    .map(Some)
+                    .map_err(|_| tc("reference_msg.glossary.key_number", &[("key", k.into())])),
             };
             match key {
                 Ok(key) => match crate::assist::glossary::suggest(&state, work, key, None).await {
@@ -332,8 +338,7 @@ async fn act(
             }
         }
         _ => {
-            return (StatusCode::BAD_REQUEST, "Unbekannte Aktion (add, update, delete, accept, reject oder suggest).")
-                .into_response();
+            return (StatusCode::BAD_REQUEST, tc("reference_msg.glossary.unknown_action", &[])).into_response();
         }
     };
     match result {
@@ -368,7 +373,7 @@ async fn marking(
     match key {
         None => {
             status = StatusCode::BAD_REQUEST;
-            problem = Some("Welcher Abschnitt? Der Link braucht key (und wahlweise rev).".to_owned());
+            problem = Some(tc("reference_msg.marking.key_missing", &[]));
         }
         Some(key) => match state.store.load_work(work).await {
             Ok(loaded) => match loaded.nodes.iter().find(|n| n.key == key) {
@@ -384,21 +389,21 @@ async fn marking(
                         }
                         None => {
                             status = StatusCode::NOT_FOUND;
-                            problem = Some(format!(
-                                "Fassung {} gibt es in diesem Abschnitt nicht.",
-                                query.get("rev").map_or("", |r| r.as_str())
+                            problem = Some(tc(
+                                "reference_msg.marking.no_revision",
+                                &[("rev", query.get("rev").map_or("", |r| r.as_str()).into())],
                             ));
                         }
                     }
                 }
                 None => {
                     status = StatusCode::NOT_FOUND;
-                    problem = Some(format!("Abschnitt mit Schlüssel {key} gibt es nicht (mehr)."));
+                    problem = Some(tc("reference_msg.marking.no_section", &[("key", key.into())]));
                 }
             },
             Err(e) => {
                 status = StatusCode::INTERNAL_SERVER_ERROR;
-                problem = Some(format!("Fehler: {e}"));
+                problem = Some(tc("reference_msg.page.error", &[("error", e.to_string().into())]));
             }
         },
     }

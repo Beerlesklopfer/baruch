@@ -75,6 +75,7 @@ use minijinja::{Environment, Value, context};
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{Settings, query_escape};
 use crate::{AppState, mirror};
@@ -107,7 +108,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Number from a JSON value (number or digits as text, forms).
 fn int(value: &Json, name: &str) -> Result<i64, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(tc("ideas_msg.param.number", &[("name", name.into())]));
     match value {
         Json::Number(n) => n.as_i64().ok_or_else(wrong),
         Json::String(s) => s.trim().parse().map_err(|_| wrong()),
@@ -118,7 +119,7 @@ fn int(value: &Json, name: &str) -> Result<i64, RpcError> {
 /// `id` (mandatory).
 fn id_param(params: &Json) -> Result<IdeaId, RpcError> {
     match params.get("id") {
-        None | Some(Json::Null) => Err(invalid("id fehlt (Einfall)")),
+        None | Some(Json::Null) => Err(invalid(tc("ideas_msg.param.id_missing", &[]))),
         Some(value) => int(value, "id"),
     }
 }
@@ -139,7 +140,7 @@ fn text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
         Some(Json::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("ideas_msg.param.text", &[("name", name.into())]))),
     }
 }
 
@@ -149,9 +150,13 @@ pub(crate) fn split_words(value: &Json, name: &str) -> Result<Vec<String>, RpcEr
         Json::String(s) => Ok(s.split([',', ';']).map(str::to_owned).collect()),
         Json::Array(list) => list
             .iter()
-            .map(|w| w.as_str().map(str::to_owned).ok_or_else(|| invalid(format!("{name}: Liste von Texten erwartet"))))
+            .map(|w| {
+                w.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| invalid(tc("ideas_msg.param.text_list", &[("name", name.into())])))
+            })
             .collect(),
-        _ => Err(invalid(format!("{name}: Liste oder Text „a, b; c“ erwartet"))),
+        _ => Err(invalid(tc("ideas_msg.param.list_or_text", &[("name", name.into())]))),
     }
 }
 
@@ -168,9 +173,9 @@ fn list_status(params: &Json) -> Result<Option<IdeaStatus>, RpcError> {
         None | Some(Json::Null) => Ok(None),
         Some(Json::String(s)) if s.is_empty() || s == "all" => Ok(None),
         Some(Json::String(s)) => {
-            IdeaStatus::parse(s).map(Some).ok_or_else(|| invalid("status: open, done oder all erwartet"))
+            IdeaStatus::parse(s).map(Some).ok_or_else(|| invalid(tc("ideas_msg.param.status_all", &[])))
         }
-        Some(_) => Err(invalid("status: open, done oder all erwartet")),
+        Some(_) => Err(invalid(tc("ideas_msg.param.status_all", &[]))),
     }
 }
 
@@ -192,13 +197,14 @@ async fn list_scope(state: &AppState, params: &Json) -> Result<IdeaScope, RpcErr
 fn limit_param(params: &Json, name: &str) -> Result<u32, RpcError> {
     match params.get(name) {
         None | Some(Json::Null) => Ok(0),
-        Some(value) => u32::try_from(int(value, name)?).map_err(|_| invalid(format!("{name}: nicht negativ"))),
+        Some(value) => u32::try_from(int(value, name)?)
+            .map_err(|_| invalid(tc("ideas_msg.param.not_negative", &[("name", name.into())]))),
     }
 }
 
 /// Boolean (Round 34, `cloud`): `true`/`false`, `1`/`0` or as text from forms; missing → `None`.
 fn flag(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
-    let wrong = || invalid(format!("{name}: true oder false erwartet"));
+    let wrong = || invalid(tc("ideas_msg.param.flag", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
         Some(Json::Bool(b)) => Ok(Some(*b)),
@@ -222,7 +228,7 @@ fn place_param(params: &Json) -> Result<Place, RpcError> {
         None | Some("") | Some("after") => Ok(Place::After),
         Some("before") => Ok(Place::Before),
         Some("into") => Ok(Place::Into),
-        Some(_) => Err(invalid("place: before, after oder into erwartet")),
+        Some(_) => Err(invalid(tc("ideas_msg.param.place", &[]))),
     }
 }
 
@@ -359,6 +365,19 @@ pub(crate) async fn update(
     Ok(answer)
 }
 
+/// „Fehler: …“ in the language of the request.
+fn error_text(error: impl std::fmt::Display) -> String {
+    tc("ideas_msg.page.error", &[("error", error.to_string().into())])
+}
+
+/// Is `message` the refusal of an unknown work (`StoreError::UnknownWork`)? Compared with the German store text and
+/// with its text in the language of the request (Round 39a: `store_text` may translate it), each up to the number.
+pub(crate) fn is_unknown_work(message: &str) -> bool {
+    let shown = crate::store_text::store_error_text(crate::i18n::current(), &StoreError::UnknownWork(0));
+    let prefix = shown.trim_end_matches('0').trim_end();
+    message.starts_with("unbekanntes Werk") || (!prefix.is_empty() && message.starts_with(prefix))
+}
+
 fn moved_text(from: Option<WorkId>, to: Option<WorkId>) -> String {
     let name = |w: Option<WorkId>| w.map_or_else(|| "ohne Werk".to_owned(), |w| format!("Werk {w}"));
     format!("{} → {}", name(from), name(to))
@@ -468,10 +487,10 @@ fn post_body(idea: &Idea) -> String {
 /// Work and position for processing: work of the idea (mandatory), section from `key` or the relation.
 async fn target(state: &AppState, idea: &Idea, key: Option<i64>) -> Result<(WorkId, i64, usize), RpcError> {
     let Some(work) = idea.work else {
-        return Err(invalid("Ein Einfall ohne Werk lässt sich so nicht verarbeiten; erst einem Werk zuordnen."));
+        return Err(invalid(tc("ideas_msg.process.no_work", &[])));
     };
     let Some(key) = key.or(idea.key) else {
-        return Err(invalid("Welcher Abschnitt? key angeben oder den Einfall einem Abschnitt zuordnen."));
+        return Err(invalid(tc("ideas_msg.process.no_section", &[])));
     };
     let seq = state.store.node_seq(work, key).await?;
     Ok((work, key, seq))
@@ -481,8 +500,8 @@ async fn target(state: &AppState, idea: &Idea, key: Option<i64>) -> Result<(Work
 async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
     let id = id_param(params)?;
     let used = match params.get("as").and_then(Json::as_str).map(str::trim) {
-        Some(s) => IdeaUse::parse(s).ok_or_else(|| invalid("as: outline, post, note oder persona erwartet"))?,
-        None => return Err(invalid("as fehlt (outline, post, note oder persona)")),
+        Some(s) => IdeaUse::parse(s).ok_or_else(|| invalid(tc("ideas_msg.process.as_invalid", &[])))?,
+        None => return Err(invalid(tc("ideas_msg.process.as_missing", &[]))),
     };
     let key = optional_ref(params, "key")?.flatten();
     if used == IdeaUse::Persona {
@@ -491,7 +510,7 @@ async fn process(state: &AppState, params: &Json) -> Result<Json, RpcError> {
     let held = state.write_lock.lock().await;
     let idea = state.store.idea_get(id).await?;
     if idea.deleted.is_some() {
-        return Err(StoreError::Idea(format!("Einfall {id} ist gelöscht; erst wiederherstellen.")).into());
+        return Err(StoreError::Idea(tc("ideas_msg.process.deleted", &[("id", id.into())])).into());
     }
     let human = IdeaOrigin::Human { name: mirror::HUMAN_NAME.to_owned() };
     let mut answer = json!({});
@@ -567,7 +586,7 @@ pub fn idea_source(idea: &Idea) -> String {
 async fn process_persona(state: &AppState, params: &Json, id: IdeaId, key: Option<i64>) -> Result<Json, RpcError> {
     let idea = state.store.idea_get(id).await?;
     if idea.deleted.is_some() {
-        return Err(StoreError::Idea(format!("Einfall {id} ist gelöscht; erst wiederherstellen.")).into());
+        return Err(StoreError::Idea(tc("ideas_msg.process.deleted", &[("id", id.into())])).into());
     }
     let (work, key, _) = target(state, &idea, key).await?;
     let persona = match text(params, "persona")?.filter(|p| !p.trim().is_empty()) {
@@ -578,7 +597,7 @@ async fn process_persona(state: &AppState, params: &Json, id: IdeaId, key: Optio
             .await?
             .lector()
             .map(|p| p.handle.clone())
-            .ok_or_else(|| RpcError::new(REFUSED, "Keine Persona ist aktiv (kein Lektor)."))?,
+            .ok_or_else(|| RpcError::new(REFUSED, tc("ideas_msg.process.no_lector", &[])))?,
     };
     let whose = match &idea.origin {
         IdeaOrigin::Human { .. } => "des Autors".to_owned(),
@@ -628,7 +647,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let words = match words_param(&params)? {
                 Some(words) => words,
                 None if !title.trim().is_empty() => Vec::new(),
-                None => return Err(invalid("words fehlt (mindestens ein Schlagwort oder ein Titel)")),
+                None => return Err(invalid(tc("ideas_msg.create.words_missing", &[]))),
             };
             let parent = optional_ref(&params, "parent")?.flatten();
             let before = optional_ref(&params, "before")?.flatten();
@@ -640,7 +659,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             }
             let key = optional_ref(&params, "key")?.flatten();
             if cloud == Some(true) && (parent.is_some() || key.is_some()) {
-                return Err(invalid("cloud: in die Wolke geht nur ohne parent und key"));
+                return Err(invalid(tc("ideas_msg.create.cloud", &[])));
             }
             let spot = IdeaSpot { title: &title, parent, before, main_topic: cloud == Some(false) };
             let (note, quote, source, bible) =
@@ -674,11 +693,11 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         "idea.search" if search_mode(&params)? == "rag" => {
             let query = text(&params, "query")?.unwrap_or_default();
             if query.trim().is_empty() {
-                return Err(invalid("Suchbegriff fehlt."));
+                return Err(invalid(tc("ideas_msg.search.query_missing", &[])));
             }
             let work = match list_scope(state, &params).await? {
                 IdeaScope::Work(work) => work,
-                _ => return Err(invalid("Bedeutungssuche nur innerhalb eines Werks (work: Werk-id).")),
+                _ => return Err(invalid(tc("ideas_msg.search.rag_one_work", &[]))),
             };
             let limit = match limit_param(&params, "limit")? {
                 0 => DEFAULT_LIMIT,
@@ -697,7 +716,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                     .iter()
                     .find(|w| w.way == Way::Lancedb)
                     .map(|w| format!("{}: {}", w.way.title(), w.message.trim().trim_end_matches('.')))
-                    .unwrap_or_else(|| "LanceDB wurde nicht gefragt".to_owned());
+                    .unwrap_or_else(|| tc("ideas_msg.search.lancedb_not_asked", &[]));
                 return Err(rag_unavailable(&reason));
             }
             let hits: Vec<Json> = found
@@ -711,7 +730,8 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         }
         "idea.search" => {
             let query = text(&params, "query")?.unwrap_or_default();
-            let fts = baruch_library::fts_query(&query).ok_or_else(|| invalid("Suchbegriff fehlt."))?;
+            let fts =
+                baruch_library::fts_query(&query).ok_or_else(|| invalid(tc("ideas_msg.search.query_missing", &[])))?;
             let filter = IdeaFilter {
                 scope: list_scope(state, &params).await?,
                 status: list_status(&params)?,
@@ -731,7 +751,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                 (text(&params, "note")?, text(&params, "quote")?, text(&params, "source")?, text(&params, "bible")?);
             let status = match text(&params, "status")? {
                 None => None,
-                Some(s) => Some(IdeaStatus::parse(s.trim()).ok_or_else(|| invalid("status: open oder done erwartet"))?),
+                Some(s) => Some(IdeaStatus::parse(s.trim()).ok_or_else(|| invalid(tc("ideas_msg.param.status", &[])))?),
             };
             let title = text(&params, "title")?;
             let edit = IdeaEdit {
@@ -758,7 +778,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         }
         "idea.delete" => {
             if params.get("confirm") != Some(&Json::Bool(true)) {
-                return Err(invalid("Löschen bitte bestätigen (confirm)."));
+                return Err(invalid(tc("ideas_msg.param.confirm_delete", &[])));
             }
             delete(state, id_param(&params)?, &human).await
         }
@@ -772,7 +792,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
 fn rag_unavailable(reason: &str) -> RpcError {
     RpcError::new(
         crate::rpc::RAG_UNAVAILABLE,
-        format!("Bedeutungssuche nicht verfügbar: {}.", reason.trim().trim_end_matches('.')),
+        tc("ideas_msg.search.rag_unavailable", &[("reason", reason.trim().trim_end_matches('.').into())]),
     )
 }
 
@@ -782,7 +802,7 @@ fn search_mode(params: &Json) -> Result<&'static str, RpcError> {
         None | Some(Json::Null) => Ok("fts"),
         Some(Json::String(s)) if s.trim().is_empty() || s.trim() == "fts" => Ok("fts"),
         Some(Json::String(s)) if s.trim() == "rag" => Ok("rag"),
-        Some(_) => Err(invalid("mode: fts oder rag erwartet")),
+        Some(_) => Err(invalid(tc("ideas_msg.search.mode", &[]))),
     }
 }
 
@@ -852,7 +872,11 @@ fn templates() -> &'static Environment<'static> {
 fn render(name: &str, status: StatusCode, ctx: Value) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("ideas_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -1037,10 +1061,10 @@ async fn list_page(
 ) -> Response {
     let params = json!({ "work": query.work(), "status": query.status() });
     let failed = |e: RpcError| {
-        if e.code == INVALID_PARAMS && e.message.starts_with("unbekanntes Werk") {
-            return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response();
+        if e.code == INVALID_PARAMS && is_unknown_work(&e.message) {
+            return (StatusCode::NOT_FOUND, tc("ideas_msg.page.unknown_work", &[])).into_response();
         }
-        (status_of(&e), format!("Fehler: {}", e.message)).into_response()
+        (status_of(&e), error_text(&e.message)).into_response()
     };
     let scope = match list_scope(state, &params).await {
         Ok(scope) => scope,
@@ -1059,12 +1083,12 @@ async fn list_page(
     };
     let search = query.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
     // Semantic search (Round 12): only with a chosen work; otherwise a note and the wording search.
-    let mut rag_note: Option<&str> = None;
+    let mut rag_note: Option<String> = None;
     let mut rag: Option<Json> = None;
     let rag_work = match (search, query.rag(), &filter.scope) {
         (Some(_), true, IdeaScope::Work(work)) => Some(*work),
         (Some(_), true, _) => {
-            rag_note = Some("Bedeutungssuche nur innerhalb eines Werks; gezeigt wird die Wortlaut-Suche (FTS).");
+            rag_note = Some(tc("ideas_msg.search.rag_note", &[]));
             None
         }
         _ => None,
@@ -1073,7 +1097,7 @@ async fn list_page(
     let own_page = crate::guard::check(headers).is_ok();
     let rag_found = match (rag_work, search) {
         (Some(_), Some(_)) if !own_page => {
-            rag = Some(crate::literature::rag_unavailable(crate::literature::FOREIGN_PAGE, None));
+            rag = Some(crate::literature::rag_unavailable(&crate::literature::foreign_page(), None));
             Some(Vec::new())
         }
         (Some(work), Some(q)) => match rag_ideas(state, work, q, filter.status, DEFAULT_LIMIT).await {
@@ -1131,8 +1155,8 @@ async fn list_page(
     };
     let workspace = work.parse::<WorkId>().ok().map(|w| href(format!("/?work={w}")));
     let notice = query.ok.as_deref().map(|ok| match ok {
-        "geloescht" => "Der Einfall ist gelöscht; unter „Gelöschte“ lässt er sich wiederherstellen.",
-        _ => "Gespeichert.",
+        "geloescht" => tc("ideas_msg.notice.deleted", &[]),
+        _ => tc("ideas_msg.notice.saved", &[]),
     });
     let ctx = context! {
         settings => settings_of(headers),
@@ -1188,18 +1212,18 @@ async fn one_page(
     let idea = match state.store.idea_get(id).await {
         Ok(idea) => idea,
         Err(StoreError::UnknownIdea(_)) => {
-            return (StatusCode::NOT_FOUND, format!("Einfall {id} gibt es nicht.")).into_response();
+            return (StatusCode::NOT_FOUND, tc("ideas_msg.page.unknown_idea", &[("id", id.into())])).into_response();
         }
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let titles = match state.store.works().await {
         Ok(titles) => titles,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let selected = idea.work.map_or_else(|| "none".to_owned(), |w| w.to_string());
     let works = match work_choices(&state.store, &selected).await {
         Ok(works) => works,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     // Round 15: persona selection for „Auftrag an eine Persona“ (active personas, default the lector of the work).
     let lector = match idea.work {
@@ -1229,7 +1253,7 @@ async fn one_page(
                     context! { key => n.key, label => label, selected => Some(n.key) == idea.key }
                 })
                 .collect(),
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
         },
         None => Vec::new(),
     };
@@ -1286,12 +1310,12 @@ async fn idea_page(
     Query(query): Query<IdeaQuery>,
 ) -> Response {
     let notice = query.ok.as_deref().map(|ok| match ok {
-        "angelegt" => "Der Einfall ist festgehalten.",
-        "wiederhergestellt" => "Der Einfall ist wiederhergestellt.",
-        "verarbeitet" => "Der Einfall ist verarbeitet.",
-        _ => "Gespeichert.",
+        "angelegt" => tc("ideas_msg.notice.created", &[]),
+        "wiederhergestellt" => tc("ideas_msg.notice.restored", &[]),
+        "verarbeitet" => tc("ideas_msg.notice.processed", &[]),
+        _ => tc("ideas_msg.notice.saved", &[]),
     });
-    one_page(&state, &headers, id, StatusCode::OK, notice, None).await
+    one_page(&state, &headers, id, StatusCode::OK, notice.as_deref(), None).await
 }
 
 /// Form to `POST /einfaelle/act`: the same fields as the RPC methods, everything as text.
@@ -1344,7 +1368,7 @@ fn put(params: &mut Json, name: &str, value: &Option<String>) {
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let allowed = ["idea.create", "idea.update", "idea.delete", "idea.restore", "idea.process", "idea.move"];
     if !allowed.contains(&form.method.as_str()) {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("ideas_msg.page.unknown_action", &[])).into_response();
     }
     let id: Option<IdeaId> = form.id.as_deref().and_then(|id| id.trim().parse().ok());
     let mut params = json!({});
@@ -1386,11 +1410,11 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
                         id,
                         StatusCode::UNPROCESSABLE_ENTITY,
                         None,
-                        Some("Löschen bitte bestätigen.".into()),
+                        Some(tc("ideas_msg.form.confirm_delete", &[])),
                     )
                     .await
                 }
-                None => (StatusCode::UNPROCESSABLE_ENTITY, "Löschen bitte bestätigen.").into_response(),
+                None => (StatusCode::UNPROCESSABLE_ENTITY, tc("ideas_msg.form.confirm_delete", &[])).into_response(),
             };
         }
         params["confirm"] = json!(true);
@@ -1420,9 +1444,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             };
             Redirect::to(&url).into_response()
         }
-        Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
-        }
+        Err(e) if e.code == INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
         Err(e) => {
             let status = status_of(&e);
             match (form.method.as_str(), id) {

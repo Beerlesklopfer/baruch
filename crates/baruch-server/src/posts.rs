@@ -71,6 +71,7 @@ use minijinja::{Environment, context};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{self, lq_param};
 use crate::{AppState, mirror};
@@ -98,7 +99,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Integer from `params[name]` (number or digits as text from forms); missing or empty → `None`.
 fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(tc("posts_msg.param.number", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -109,14 +110,16 @@ fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
 }
 
 fn id_param(params: &Value) -> Result<i64, RpcError> {
-    int(params, "id")?.ok_or_else(|| invalid("id fehlt (Beitrag)"))
+    int(params, "id")?.ok_or_else(|| invalid(tc("posts_msg.param.id_missing", &[])))
 }
 
 /// Revision shown `rev` (from 1); missing → `None`.
 fn rev_param(params: &Value) -> Result<Option<u32>, RpcError> {
     match int(params, "rev")? {
         None => Ok(None),
-        Some(rev) => u32::try_from(rev).ok().filter(|r| *r >= 1).map(Some).ok_or_else(|| invalid("rev: Fassung ab 1")),
+        Some(rev) => {
+            u32::try_from(rev).ok().filter(|r| *r >= 1).map(Some).ok_or_else(|| invalid(tc("posts_msg.param.rev", &[])))
+        }
     }
 }
 
@@ -182,12 +185,9 @@ impl Actor {
 
 /// Message when an MCP client or a persona wants to touch a foreign post.
 pub(crate) fn not_own(post: &PostInfo, actor: &IdeaOrigin) -> String {
-    format!(
-        "Nur eigene Beiträge lassen sich über MCP verschieben, löschen oder umwandeln: Beitrag {} stammt von {}, \
-         nicht von {}. Fremde Beiträge verwaltet der Mensch.",
-        post.id,
-        post.author,
-        actor.name()
+    tc(
+        "posts_msg.refused.not_own",
+        &[("id", post.id.into()), ("author", post.author.as_str().into()), ("actor", actor.name().into())],
     )
 }
 
@@ -263,22 +263,22 @@ fn op_of(method: &str, params: &Value) -> Result<Op, RpcError> {
     match method {
         "post.delete" => {
             if params.get("confirm") != Some(&Value::Bool(true)) {
-                return Err(invalid("Löschen bitte bestätigen (confirm)."));
+                return Err(invalid(tc("posts_msg.param.confirm_delete", &[])));
             }
             Ok(Op::Delete)
         }
         "post.move" => match (int(params, "target_key")?, int(params, "target")?) {
             (Some(key), _) => Ok(Op::Move(Target::Key(key))),
             (None, Some(seq)) => {
-                let seq = usize::try_from(seq).map_err(|_| invalid("target: Stelle ab 0 erwartet"))?;
+                let seq = usize::try_from(seq).map_err(|_| invalid(tc("posts_msg.param.target_seq", &[])))?;
                 Ok(Op::Move(Target::Seq(seq)))
             }
-            (None, None) => Err(invalid("Ziel fehlt: target_key (fester Schlüssel des Abschnitts) angeben.")),
+            (None, None) => Err(invalid(tc("posts_msg.param.target_missing", &[]))),
         },
         "post.to_idea" => {
             let words = match params.get("words") {
                 Some(value) if !value.is_null() => crate::ideas::split_words(value, "words")?,
-                _ => return Err(invalid("words fehlt (mindestens ein Schlagwort)")),
+                _ => return Err(invalid(tc("posts_msg.param.words_missing", &[]))),
             };
             Ok(Op::ToIdea(words))
         }
@@ -294,7 +294,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let id = id_param(&params)?;
             let body = match params.get("body") {
                 Some(Value::String(body)) => body.clone(),
-                _ => return Err(invalid("body fehlt (neuer Text)")),
+                _ => return Err(invalid(tc("posts_msg.param.body_missing", &[]))),
             };
             return edit(state, work, id, &body, &Actor::current()).await;
         }
@@ -304,11 +304,11 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             return Ok(json!({ "id": id, "work": work, "versions": versions }));
         }
         "post.page" => {
-            let key = int(&params, "key")?.ok_or_else(|| invalid("key fehlt (fester Schlüssel des Abschnitts)"))?;
+            let key = int(&params, "key")?.ok_or_else(|| invalid(tc("posts_msg.param.key_missing", &[])))?;
             let limit = match int(&params, "limit")? {
                 None => CHAT_PAGE_POSTS,
                 Some(n) if (1..=200).contains(&n) => n as usize,
-                Some(_) => return Err(invalid("limit: 1 bis 200 erwartet")),
+                Some(_) => return Err(invalid(tc("posts_msg.param.limit", &[]))),
             };
             return page(state, work, key, int(&params, "before")?, limit).await;
         }
@@ -320,7 +320,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             return repeat(state, work, id, rev, basis).await;
         }
         "post.since" => {
-            let key = int(&params, "key")?.ok_or_else(|| invalid("key fehlt (fester Schlüssel des Abschnitts)"))?;
+            let key = int(&params, "key")?.ok_or_else(|| invalid(tc("posts_msg.param.key_missing", &[])))?;
             let after = int(&params, "after")?.unwrap_or(0);
             return since(state, work, key, after, rev_param(&params)?).await;
         }
@@ -359,7 +359,7 @@ struct ActForm {
 }
 
 fn unprocessable(message: impl Into<String>) -> Response {
-    (StatusCode::UNPROCESSABLE_ENTITY, format!("Fehler: {}", message.into())).into_response()
+    (StatusCode::UNPROCESSABLE_ENTITY, tc("posts_msg.page.error", &[("error", message.into().into())])).into_response()
 }
 
 /// `POST /beitraege/act`: `method` = post.delete|post.move|post.to_idea|post.edit|post.to_findings|post.repeat; then
@@ -367,12 +367,12 @@ fn unprocessable(message: impl Into<String>) -> Response {
 /// new post), error 422 with text (500 for internal ones).
 async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> Response {
     if !handles(&form.method) {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("posts_msg.page.unknown_action", &[])).into_response();
     }
     let work = match form.work.as_deref().map(str::trim).filter(|w| !w.is_empty()) {
         Some(text) => match text.parse::<WorkId>() {
             Ok(work) => work,
-            Err(_) => return unprocessable("work: Werk-id (Zahl) erwartet"),
+            Err(_) => return unprocessable(tc("posts_msg.param.work_number", &[])),
         },
         None => match state.default_work().await {
             Ok(work) => work,
@@ -400,7 +400,7 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
     if form.method == "post.delete" {
         // The server checks the checkbox itself; `required` in the HTML alone stops nobody.
         if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
-            return unprocessable("Löschen bitte bestätigen (Kästchen ankreuzen).");
+            return unprocessable(tc("posts_msg.form.confirm_delete", &[]));
         }
         params["confirm"] = json!(true);
     }
@@ -413,7 +413,11 @@ async fn act_form(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>)
     let answer = match call(&state, work, &form.method, params).await {
         Ok(answer) => answer,
         Err(e) if e.code == INTERNAL => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("posts_msg.page.error", &[("error", e.message.as_str().into())]),
+            )
+                .into_response();
         }
         Err(e) => return unprocessable(e.message),
     };
@@ -473,10 +477,7 @@ pub fn history_url(work: WorkId, key: i64) -> String {
 
 /// Message when somebody wants to edit a post that is not his (Round 28).
 pub(crate) fn not_editable(id: i64, author: &str, actor: &str) -> String {
-    format!(
-        "Nur eigene Beiträge lassen sich bearbeiten: Beitrag {id} stammt von {author}, nicht von {actor}. Beiträge von \
-         Personas bleiben unverändert (kopieren, zitieren, in Einfall oder Befund umwandeln geht)."
-    )
+    tc("posts_msg.refused.not_editable", &[("id", id.into()), ("author", author.into()), ("actor", actor.into())])
 }
 
 /// Is the post of the author `author` an own one of whoever makes the request (Round 35)? For a Lektor those
@@ -513,7 +514,7 @@ pub fn quote_text(author: &str, body: &str) -> String {
 /// his, an MCP client its – since Round 23 through [`Actor::owns`], so with a token also those under the legacy
 /// handle); under the write lock; exactly one commit with the text before and after.
 pub(crate) async fn edit(state: &AppState, work: WorkId, id: i64, body: &str, by: &Actor) -> Result<Value, RpcError> {
-    crate::assist::check_text(body, "Der Beitrag")?;
+    crate::assist::check_text(body, "post")?;
     let store = &state.store;
     let held = state.write_lock.lock().await;
     let before = store.post_get(work, id).await?;
@@ -564,13 +565,14 @@ async fn styles(state: &AppState) -> std::collections::HashMap<String, String> {
 async fn page(state: &AppState, work: WorkId, key: i64, before: Option<i64>, limit: usize) -> Result<Value, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let loaded = state.store.load_work(work).await?;
-    let node = loaded.nodes.get(seq).ok_or_else(|| invalid(format!("Abschnitt {key} gibt es nicht")))?;
+    let node =
+        loaded.nodes.get(seq).ok_or_else(|| invalid(tc("posts_msg.param.no_section", &[("key", key.into())])))?;
     let end = match before {
         Some(id) => node
             .posts
             .iter()
             .position(|p| p.id == id)
-            .ok_or_else(|| invalid(format!("before: Beitrag {id} steht nicht in diesem Abschnitt")))?,
+            .ok_or_else(|| invalid(tc("posts_msg.param.before_elsewhere", &[("id", id.into())])))?,
         None => node.posts.len(),
     };
     let start = end.saturating_sub(limit);
@@ -624,14 +626,7 @@ async fn fallback_request(
             rev: None,
             ..Default::default()
         }),
-        None => Err(RpcError::new(
-            REFUSED,
-            format!(
-                "Beitrag {} hat keinen gespeicherten Auftrag und keine vorangehende Nachricht des Menschen; wiederholen \
-                 lässt er sich nicht. Bitte die Frage neu stellen.",
-                info.id
-            ),
-        )),
+        None => Err(RpcError::new(REFUSED, tc("posts_msg.repeat.no_order", &[("id", info.id.into())]))),
     }
 }
 
@@ -688,7 +683,7 @@ pub(crate) async fn repeat(
     if !crate::chat_render::is_persona(&info.author) {
         return Err(RpcError::new(
             REFUSED,
-            format!("Nur Antworten von Personas lassen sich wiederholen; Beitrag {id} stammt von {}.", info.author),
+            tc("posts_msg.repeat.only_personas", &[("id", id.into()), ("author", info.author.as_str().into())]),
         ));
     }
     let meta = state.store.post_meta(work, &[id]).await?.remove(&id).unwrap_or_default();
@@ -697,7 +692,7 @@ pub(crate) async fn repeat(
         None => fallback_request(state, work, &info).await?,
     };
     let mode = Mode::parse(&request.mode).filter(|m| *m != Mode::Propose).ok_or_else(|| {
-        RpcError::new(REFUSED, format!("Der Auftrag „{}“ lässt sich nicht wiederholen.", request.mode))
+        RpcError::new(REFUSED, tc("posts_msg.repeat.mode", &[("mode", request.mode.as_str().into())]))
     })?;
     let scope = if request.scope == "chapter" { Scope::Chapter } else { Scope::Section };
     let chosen = crate::assist::basis::choose(state, work, info.key, rev, basis).await?;
@@ -729,7 +724,7 @@ pub(crate) async fn repeat(
         }
     };
     let Some(post) = outcome.post.clone() else {
-        return Err(RpcError::new(INTERNAL, "Die Wiederholung hat keinen Beitrag ergeben."));
+        return Err(RpcError::new(INTERNAL, tc("posts_msg.repeat.no_post", &[])));
     };
     let filter = baruch_store::FindingFilter {
         post: Some(id),
@@ -804,8 +799,11 @@ pub(crate) async fn since(
     rev: Option<u32>,
 ) -> Result<Value, RpcError> {
     let loaded = state.store.load_work(work).await?;
-    let node =
-        loaded.nodes.iter().find(|n| n.key == key).ok_or_else(|| invalid(format!("Abschnitt {key} gibt es nicht")))?;
+    let node = loaded
+        .nodes
+        .iter()
+        .find(|n| n.key == key)
+        .ok_or_else(|| invalid(tc("posts_msg.param.no_section", &[("key", key.into())])))?;
     // After the post `after`; if it is not (any more) in the section, all with a larger id.
     let start = match node.posts.iter().position(|p| p.id == after) {
         Some(i) => i + 1,
@@ -869,7 +867,11 @@ fn templates() -> &'static Environment<'static> {
 fn render(name: &str, ctx: minijinja::Value) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("posts_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -971,11 +973,10 @@ async fn history(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q
         Err(e) => return (StatusCode::NOT_FOUND, e.message).into_response(),
     };
     let Some(key) = number::<i64>(&q.key) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: key fehlt (fester Schlüssel des Abschnitts)")
-            .into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("posts_msg.page.key_missing", &[])).into_response();
     };
     let Some(node) = loaded.nodes.iter().find(|n| n.key == key) else {
-        return (StatusCode::NOT_FOUND, format!("Abschnitt {key} gibt es in diesem Werk nicht.")).into_response();
+        return (StatusCode::NOT_FOUND, tc("posts_msg.page.no_section", &[("key", key.into())])).into_response();
     };
     let edits = edited_map(&state, work).await.unwrap_or_default();
     let colors = styles(&state).await;
@@ -1014,7 +1015,7 @@ async fn single(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q)
         Err(e) => return (StatusCode::NOT_FOUND, e.message).into_response(),
     };
     let Some(id) = number::<i64>(&q.id) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: id fehlt (Beitrag)").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("posts_msg.page.id_missing", &[])).into_response();
     };
     let info = match state.store.post_get(work, id).await {
         Ok(info) => info,

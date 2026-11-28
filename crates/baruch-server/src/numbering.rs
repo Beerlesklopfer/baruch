@@ -31,6 +31,7 @@ use minijinja::{Environment, Value, context};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 use crate::{AppState, mirror};
@@ -53,12 +54,12 @@ fn invalid(message: impl Into<String>) -> RpcError {
 fn scheme_params(params: &Json) -> Result<(String, Option<String>), RpcError> {
     let scheme = match params.get("scheme") {
         Some(Json::String(s)) if !s.trim().is_empty() => s.trim().to_owned(),
-        _ => return Err(invalid("scheme fehlt (id eines Gliederungsschemas, z. B. „decimal“)")),
+        _ => return Err(invalid(tc("outline_msg.numbering.scheme_missing", &[]))),
     };
     let custom = match params.get("custom") {
         None | Some(Json::Null) => None,
         Some(Json::String(s)) => Some(s.clone()),
-        Some(_) => return Err(invalid("custom: Text oder null erwartet")),
+        Some(_) => return Err(invalid(tc("outline_msg.numbering.custom", &[]))),
     };
     Ok((scheme, custom))
 }
@@ -161,7 +162,11 @@ fn render(status: StatusCode, ctx: Value) -> Response {
     match templates().get_template("work_numbering.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
         Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage work_numbering.html: {e}")).into_response()
+            let text = tc(
+                "outline_msg.numbering.template_error",
+                &[("name", "work_numbering.html".into()), ("error", e.to_string().into())],
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, text).into_response()
         }
     }
 }
@@ -175,10 +180,10 @@ fn status_of(e: &RpcError) -> StatusCode {
 }
 
 fn error_response(e: RpcError) -> Response {
-    if e.code == INVALID_PARAMS && e.message.starts_with("unbekanntes Werk") {
-        return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response();
+    if e.code == INVALID_PARAMS && crate::ideas::is_unknown_work(&e.message) {
+        return (StatusCode::NOT_FOUND, tc("outline_msg.page.unknown_work", &[])).into_response();
     }
-    (status_of(&e), format!("Fehler: {}", e.message)).into_response()
+    (status_of(&e), tc("outline_msg.page.error", &[("error", e.message.as_str().into())])).into_response()
 }
 
 /// Address and values of the page: `schema`/`scheme` preselects the scheme, `muster`/`custom` the own
@@ -295,7 +300,7 @@ async fn numbering_page(
 ) -> Response {
     let mut shown =
         Shown::from_query(q.schema.as_deref(), q.scheme.as_deref(), q.muster.as_deref(), q.custom.as_deref());
-    shown.notice = q.ok.is_some().then(|| "Das Gliederungsschema ist übernommen.".to_owned());
+    shown.notice = q.ok.is_some().then(|| tc("outline_msg.numbering.adopted", &[]));
     page(&state, &headers, id, StatusCode::OK, shown, None).await
 }
 
@@ -313,7 +318,9 @@ struct ActForm {
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     let work: WorkId = match form.work.as_deref().map(str::trim).and_then(|w| w.parse().ok()) {
         Some(work) => work,
-        None => return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: work fehlt (Werk-id)").into_response(),
+        None => {
+            return (StatusCode::UNPROCESSABLE_ENTITY, tc("outline_msg.numbering.work_missing", &[])).into_response();
+        }
     };
     if let Err(e) = state.store.work_slug(work).await {
         return error_response(e.into());
@@ -322,7 +329,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     let custom = clean(form.custom.as_deref());
     let result = match scheme.as_deref() {
         Some(scheme) => set(&state, work, scheme, custom.as_deref()).await,
-        None => Err(invalid("Bitte ein Gliederungsschema wählen.")),
+        None => Err(invalid(tc("outline_msg.numbering.choose", &[]))),
     };
     let back = crate::works::settings_back(form.back.as_deref());
     match result {

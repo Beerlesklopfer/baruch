@@ -264,6 +264,7 @@ async fn literature_by_meaning_folds_weak_hits_on_the_page_and_in_the_popup() {
 
 #[tokio::test]
 async fn idea_search_by_meaning_without_an_embedder_fails_with_rag_unavailable() {
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
     let server = common::open().await;
     let work = server.state.default_work().await.unwrap();
     ok(&server, "idea.create", json!({ "work": work, "words": ["Möwen"], "note": "Die Möwen kehren zurück." })).await;
@@ -283,7 +284,8 @@ async fn idea_search_by_meaning_without_an_embedder_fails_with_rag_unavailable()
     let tool = mcp(&server, "idea_search", json!({ "work": work, "query": "Möwen", "mode": "rag" })).await;
     assert_eq!(tool["result"]["isError"], true, "Begründung: MCP meldet den Ausfall als isError: {tool}");
     let text = tool["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(text.contains("Bedeutungssuche nicht verfügbar"), "Begründung: mit Grund: {text}");
+    // Round 39a: MCP answers in English.
+    assert!(text.contains("Semantic search not available"), "Begründung: mit Grund: {text}");
     let fts = mcp(&server, "idea_search", json!({ "work": work, "query": "Möwen" })).await;
     assert_eq!(fts["result"]["isError"], false, "Begründung: ohne mode bleibt es die Volltextsuche: {fts}");
 
@@ -292,6 +294,8 @@ async fn idea_search_by_meaning_without_an_embedder_fails_with_rag_unavailable()
         html.contains("data-rag-missing") && html.contains("Einbettungsmodell"),
         "Begründung: die Seite /einfaelle zeigt den Grund weiter (ohne JavaScript): {html}"
     );
+})
+    .await
 }
 
 // ---- Wording with hyphenation leftovers --------------------------------------------------------------------

@@ -36,6 +36,7 @@ use baruch_store::{IdeaId, WorkId};
 use serde_json::{Value as Json, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::idea_map::MapFilter;
 use crate::idea_map::bild::mindmap::{self, RenderOptions};
 use crate::idea_map::bild::{
@@ -76,10 +77,11 @@ pub fn writes() -> Router<Arc<AppState>> {
 pub(crate) async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<(String, Scene), Response> {
     let slug = match work_info(state, work).await? {
         Some((slug, _)) => slug,
-        None => return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk")),
+        None => return Err(plain(StatusCode::NOT_FOUND, tc("ideas_msg.page.unknown_work", &[]))),
     };
-    let map =
-        tree::scene(state, work, filter).await.map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))?;
+    let map = tree::scene(state, work, filter)
+        .await
+        .map_err(|e| plain(status_of(&e), tc("ideas_msg.page.error", &[("error", e.message.as_str().into())])))?;
     Ok((slug, map))
 }
 
@@ -193,7 +195,9 @@ async fn xmind_file(
                 Some(format!("attachment; filename=\"{slug}-mindmap.xmind\"")),
                 bytes,
             ),
-            Err(message) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {message}")),
+            Err(message) => {
+                plain(StatusCode::INTERNAL_SERVER_ERROR, tc("ideas_msg.page.error", &[("error", message.into())]))
+            }
         },
         Err(response) => response,
     }
@@ -250,9 +254,9 @@ async fn pdf_file(
     match crate::pdf::source_to_pdf(work, PdfKind::Map, source, PDF_TIMEOUT).await {
         Ok(pdf) => crate::pdf::attachment(&format!("{slug}-mindmap.pdf"), pdf.bytes),
         Err(e) => {
-            let status = if e.message == crate::pdf::BUSY {
+            let status = if crate::pdf::is_busy(&e.message) {
                 StatusCode::CONFLICT
-            } else if e.message.starts_with("Typst brauchte länger") {
+            } else if crate::typeset::is_timeout(&e.message) {
                 StatusCode::SERVICE_UNAVAILABLE
             } else if e.code == REFUSED {
                 StatusCode::UNPROCESSABLE_ENTITY
@@ -291,7 +295,7 @@ fn number(value: Option<&str>, name: &str) -> Result<i64, RpcError> {
     let value = value.unwrap_or("").trim();
     let value = value.strip_prefix("Einfall").unwrap_or(value).trim_start();
     let digits: String = value.chars().take_while(char::is_ascii_digit).collect();
-    digits.parse().map_err(|_| invalid(format!("{name}: Zahl erwartet")))
+    digits.parse().map_err(|_| invalid(tc("ideas_msg.param.number", &[("name", name.into())])))
 }
 
 /// Optional reference from an existing form field: empty, `null`, `none` or `keiner` → `null`, otherwise a number.
@@ -306,7 +310,7 @@ fn reference(value: &str, name: &str) -> Result<Option<i64>, RpcError> {
 pub(crate) async fn ensure_in_work(state: &AppState, idea: IdeaId, work: WorkId) -> Result<(), RpcError> {
     let found = state.store.idea_get(idea).await?;
     if found.work != Some(work) {
-        return Err(RpcError::new(REFUSED, format!("Einfall {idea} gehört nicht zu diesem Werk.")));
+        return Err(RpcError::new(REFUSED, tc("ideas_msg.map.idea_elsewhere", &[("idea", idea.into())])));
     }
     Ok(())
 }
@@ -416,9 +420,7 @@ async fn run_act(
                     params["parent"] = Json::Null;
                     params["key"] = json!(number(Some(key), "ziel")?);
                 } else {
-                    return Err(invalid(
-                        "ziel: „wolke“, „w“ (Hauptthema am Werk), „i:<Einfall>“ oder „n:<Kapitel>“ erwartet",
-                    ));
+                    return Err(invalid(tc("ideas_msg.map.target", &[("lt", "<".into()), ("gt", ">".into())])));
                 }
             }
             for name in ["parent", "key", "before"] {
@@ -511,7 +513,7 @@ async fn run_act(
 
 fn unknown_action(method: &str) -> RpcError {
     let shown: String = method.chars().filter(|c| !c.is_control()).take(60).collect();
-    RpcError::new(METHOD_NOT_FOUND, format!("Unbekannte Aktion „{shown}“ auf der Mindmap."))
+    RpcError::new(METHOD_NOT_FOUND, tc("ideas_msg.map.unknown_action", &[("action", shown.into())]))
 }
 
 /// `POST /werke/{id}/karte/act` (urlencoded): field `method` ∈ [`ACT_METHODS`], plus the fields of the action (`id`,
@@ -530,7 +532,7 @@ async fn act(
     let filter = back_filter(field("back").as_deref());
     match work_info(&state, work).await {
         Ok(Some(_)) => {}
-        Ok(None) => return plain(StatusCode::NOT_FOUND, "unbekanntes Werk"),
+        Ok(None) => return plain(StatusCode::NOT_FOUND, tc("ideas_msg.page.unknown_work", &[])),
         Err(response) => return response,
     }
     let to_outline = field("seite").as_deref().map(str::trim) == Some("gliederung");
@@ -564,7 +566,10 @@ async fn act(
                 Redirect::to(&format!("/werke/{work}/karte?{query}")).into_response()
             }
         }
-        Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) if e.code == INTERNAL => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("ideas_msg.page.error", &[("error", e.message.as_str().into())]),
+        ),
         Err(e) => {
             let status = status_of(&e);
             if to_outline {

@@ -40,6 +40,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
@@ -136,7 +137,7 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
     purge(state, work).await?;
     let request = store.asset_request_get(work, id).await?;
     if !request.is_open() {
-        return Err(RpcError::new(REFUSED, "Über diesen Antrag ist schon entschieden."));
+        return Err(RpcError::new(REFUSED, tc("assets_msg.request.decided", &[])));
     }
     if !confirm {
         let _held = state.write_lock.lock().await;
@@ -147,15 +148,23 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
         AssetOp::SetCover { name, expected_cover } => {
             let now = cover_name(state, work).await?;
             if now != *expected_cover {
-                let shown = |c: &Option<String>| c.as_deref().map_or_else(|| "keiner".to_owned(), |n| format!("„{n}“"));
-                let message =
-                    format!("Der Umschlag ist inzwischen {} (beim Antrag {}).", shown(&now), shown(expected_cover));
+                let shown = |c: &Option<String>| {
+                    c.as_deref().map_or_else(
+                        || tc("assets_msg.request.no_cover", &[]),
+                        |n| tc("assets_msg.request.quoted", &[("name", n.into())]),
+                    )
+                };
+                let message = tc(
+                    "assets_msg.request.cover_changed",
+                    &[("now", shown(&now).into()), ("then", shown(expected_cover).into())],
+                );
                 return stale(state, work, id, &message).await;
             }
             if let Some(name) = name
                 && let Err(StoreError::UnknownAsset { .. }) = store.asset_revisions(work, name).await
             {
-                return stale(state, work, id, &format!("Das Bild „{name}“ gibt es nicht mehr.")).await;
+                return stale(state, work, id, &tc("assets_msg.request.image_gone", &[("name", name.as_str().into())]))
+                    .await;
             }
             // Round 20c: set the cover and decide the request under one write lock, then **one** commit
             // „Bildantrag n bestätigt: …“ with the cover before/after in the body (formerly two commits).
@@ -164,7 +173,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Ok(change) => change,
                 Err(e) if refusal(&e) => {
                     drop(held);
-                    return stale(state, work, id, &format!("Nicht mehr ausführbar: {e}")).await;
+                    return stale(
+                        state,
+                        work,
+                        id,
+                        &tc("assets_msg.request.not_executable", &[("error", e.to_string().into())]),
+                    )
+                    .await;
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -188,7 +203,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Ok(list) => list,
                 Err(StoreError::UnknownAsset { .. }) => {
                     drop(held);
-                    return stale(state, work, id, &format!("Das Bild „{name}“ gibt es nicht mehr.")).await;
+                    return stale(
+                        state,
+                        work,
+                        id,
+                        &tc("assets_msg.request.image_gone", &[("name", name.as_str().into())]),
+                    )
+                    .await;
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -196,8 +217,9 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
             if current.is_none_or(|r| &r.sha256 != expected_sha256) {
                 let number = current.map_or(0, |r| r.number);
                 drop(held);
-                let message = format!(
-                    "„{name}“ hat inzwischen eine andere aktuelle Fassung ({number}); der Antrag bezog sich auf den Stand davor."
+                let message = tc(
+                    "assets_msg.request.other_current",
+                    &[("name", name.as_str().into()), ("number", number.into())],
                 );
                 return stale(state, work, id, &message).await;
             }
@@ -214,7 +236,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Ok(change) => change,
                 Err(e) if refusal(&e) => {
                     drop(held);
-                    return stale(state, work, id, &format!("Nicht mehr ausführbar: {e}")).await;
+                    return stale(
+                        state,
+                        work,
+                        id,
+                        &tc("assets_msg.request.not_executable", &[("error", e.to_string().into())]),
+                    )
+                    .await;
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -242,7 +270,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Ok(list) => list,
                 Err(StoreError::UnknownAsset { .. }) => {
                     drop(held);
-                    return stale(state, work, id, &format!("Das Bild „{name}“ gibt es nicht mehr.")).await;
+                    return stale(
+                        state,
+                        work,
+                        id,
+                        &tc("assets_msg.request.image_gone", &[("name", name.as_str().into())]),
+                    )
+                    .await;
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -251,17 +285,23 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Some(rev) => revisions.iter().find(|r| r.number == *rev),
             };
             let message = match target {
-                None => Some(format!("Fassung {} von „{name}“ gibt es nicht mehr.", rev.unwrap_or(0))),
+                None => Some(tc(
+                    "assets_msg.request.revision_gone",
+                    &[("rev", rev.unwrap_or(0).into()), ("name", name.as_str().into())],
+                )),
                 Some(r) if &r.sha256 != expected_sha256 => Some(match rev {
-                    None => format!(
-                        "„{name}“ hat inzwischen eine andere aktuelle Fassung ({}); der Antrag bezog sich auf den Stand davor.",
-                        r.number
+                    None => tc(
+                        "assets_msg.request.other_current",
+                        &[("name", name.as_str().into()), ("number", r.number.into())],
                     ),
-                    Some(rev) => format!("Fassung {rev} von „{name}“ ist inzwischen eine andere."),
+                    Some(rev) => tc(
+                        "assets_msg.request.revision_changed",
+                        &[("rev", (*rev).into()), ("name", name.as_str().into())],
+                    ),
                 }),
-                Some(r) if rev.is_some() && r.current => Some(format!(
-                    "Fassung {} von „{name}“ ist inzwischen die aktuelle und lässt sich nicht löschen.",
-                    r.number
+                Some(r) if rev.is_some() && r.current => Some(tc(
+                    "assets_msg.request.revision_current",
+                    &[("rev", r.number.into()), ("name", name.as_str().into())],
                 )),
                 Some(_) => None,
             };
@@ -281,7 +321,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
                 Ok(change) => change,
                 Err(e) if refusal(&e) => {
                     drop(held);
-                    return stale(state, work, id, &format!("Nicht mehr ausführbar: {e}")).await;
+                    return stale(
+                        state,
+                        work,
+                        id,
+                        &tc("assets_msg.request.not_executable", &[("error", e.to_string().into())]),
+                    )
+                    .await;
                 }
                 Err(e) => return Err(e.into()),
             };
@@ -299,9 +345,13 @@ pub async fn decide(state: &AppState, work: WorkId, id: i64, confirm: bool) -> R
 
 fn id_param(params: &Value) -> Result<i64, RpcError> {
     match params.get("id") {
-        Some(Value::Number(n)) => n.as_i64().ok_or_else(|| RpcError::new(INVALID_PARAMS, "id: Zahl erwartet")),
-        Some(Value::String(s)) => s.trim().parse().map_err(|_| RpcError::new(INVALID_PARAMS, "id: Zahl erwartet")),
-        _ => Err(RpcError::new(INVALID_PARAMS, "id fehlt (Nummer des Antrags)")),
+        Some(Value::Number(n)) => {
+            n.as_i64().ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("assets_msg.request.id_number", &[])))
+        }
+        Some(Value::String(s)) => {
+            s.trim().parse().map_err(|_| RpcError::new(INVALID_PARAMS, tc("assets_msg.request.id_number", &[])))
+        }
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.request.id_missing", &[]))),
     }
 }
 
@@ -309,7 +359,7 @@ fn confirm_param(params: &Value) -> Result<bool, RpcError> {
     match params.get("decision").and_then(Value::as_str).map(str::trim) {
         Some("confirm") => Ok(true),
         Some("reject") => Ok(false),
-        _ => Err(RpcError::new(INVALID_PARAMS, "decision: confirm oder reject erwartet")),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.request.decision", &[]))),
     }
 }
 
@@ -319,7 +369,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let open = match params.get("open") {
                 None | Some(Value::Null) => true,
                 Some(Value::Bool(b)) => *b,
-                Some(_) => return Err(RpcError::new(INVALID_PARAMS, "open: true oder false erwartet")),
+                Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("assets_msg.request.open_flag", &[]))),
             };
             purge(state, work).await?;
             let list = state.store.asset_requests(work, open).await?;
@@ -397,7 +447,7 @@ struct ActForm {
 async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> Response {
     let work = match form.work.as_deref().map(str::trim).and_then(|w| w.parse::<WorkId>().ok()) {
         Some(work) => work,
-        None => return (StatusCode::UNPROCESSABLE_ENTITY, "work fehlt (Werk-id)").into_response(),
+        None => return (StatusCode::UNPROCESSABLE_ENTITY, tc("assets_msg.request.work_missing", &[])).into_response(),
     };
     let params = json!({ "id": form.id, "decision": form.decision });
     let (id, confirm) = match (id_param(&params), confirm_param(&params)) {
@@ -422,16 +472,19 @@ async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> R
 }
 
 async fn content(State(state): State<Arc<AppState>>, Path((work, nr)): Path<(WorkId, i64)>) -> Response {
-    let not_found = || (StatusCode::NOT_FOUND, "Antrag mit Inhalt gibt es nicht").into_response();
+    let not_found = || (StatusCode::NOT_FOUND, tc("assets_msg.request.no_content", &[])).into_response();
+    let error = |e: String| {
+        (StatusCode::INTERNAL_SERVER_ERROR, tc("assets_msg.page.error", &[("error", e.into())])).into_response()
+    };
     if let Err(e) = purge(&state, work).await
         && !matches!(e, StoreError::UnknownWork(_))
     {
-        return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response();
+        return error(e.to_string());
     }
     let request = match state.store.asset_request_get(work, nr).await {
         Ok(request) => request,
         Err(StoreError::UnknownRequest { .. } | StoreError::UnknownWork(_)) => return not_found(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return error(e.to_string()),
     };
     let AssetOp::Replace { mime, encoding, content, .. } = &request.op else { return not_found() };
     if request.purged {
@@ -439,17 +492,20 @@ async fn content(State(state): State<Arc<AppState>>, Path((work, nr)): Path<(Wor
         return (
             StatusCode::GONE,
             [(header::CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8"))],
-            format!(
-                "Der vorgeschlagene Inhalt von Antrag {nr} ist entfernt: über den Antrag wurde am {decided} entschieden, \
-                 und Baruch hebt den Inhalt entschiedener Anträge {} Tage lang auf.",
-                baruch_store::ASSET_REQUEST_PURGE_DAYS
+            tc(
+                "assets_msg.request.purged",
+                &[
+                    ("nr", nr.into()),
+                    ("decided", decided.into()),
+                    ("days", baruch_store::ASSET_REQUEST_PURGE_DAYS.into()),
+                ],
             ),
         )
             .into_response();
     }
     let bytes = match replace_bytes(content, *encoding) {
         Ok(bytes) => bytes,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return error(e.to_string()),
     };
     let mime = HeaderValue::from_str(mime).unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
     (

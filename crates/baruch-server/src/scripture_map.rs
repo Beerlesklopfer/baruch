@@ -13,6 +13,7 @@ use baruch_scripture::{Found, books, parse};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
 /// Longest reference (characters).
@@ -45,12 +46,17 @@ fn named(params: &Value, field: &str, default: &str) -> Result<&'static Versific
     let name = match params.get(field) {
         None | Some(Value::Null) => default,
         Some(Value::String(s)) => s.as_str(),
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, format!("{field}: Name einer Verszählung als Text"))),
+        Some(_) => {
+            return Err(RpcError::new(INVALID_PARAMS, tc("reference_msg.map.name_text", &[("field", field.into())])));
+        }
     };
     versification(name).ok_or_else(|| {
         RpcError::new(
             INVALID_PARAMS,
-            format!("{field}: Verszählung „{}“ unbekannt; bekannt sind {}", name.trim(), names().join(", ")),
+            tc(
+                "reference_msg.map.unknown",
+                &[("field", field.into()), ("name", name.trim().into()), ("known", names().join(", ").into())],
+            ),
         )
     })
 }
@@ -62,9 +68,12 @@ pub fn map_json(params: &Value) -> Result<Value, RpcError> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|r| !r.is_empty())
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, "ref fehlt (Stellenangabe, z. B. „Joel 2,28–32“)"))?;
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("reference_msg.map.ref_missing", &[])))?;
     if reference.chars().count() > MAX_REF_CHARS {
-        return Err(RpcError::new(INVALID_PARAMS, format!("ref: höchstens {MAX_REF_CHARS} Zeichen")));
+        return Err(RpcError::new(
+            INVALID_PARAMS,
+            tc("reference_msg.map.ref_too_long", &[("max", MAX_REF_CHARS.into())]),
+        ));
     }
     let from = named(params, "from", DEFAULT_FROM)?;
     let to = named(params, "to", DEFAULT_TO)?;
@@ -90,15 +99,23 @@ fn entry(from: &Versification, to: &Versification, found: &Found) -> Value {
             let same = mapped.rules.is_empty() && same_verses(from, book.id, passage.start, passage.end, &mapped);
             let target = label(to, &mapped.verses);
             let mut message = if same {
-                format!("gleich in {}: {}", to.name, target.as_deref().unwrap_or("-"))
+                tc(
+                    "reference_msg.map.same",
+                    &[("name", to.name.into()), ("target", target.as_deref().unwrap_or("-").into())],
+                )
             } else {
-                format!("in {}: {}", to.name, target.as_deref().unwrap_or("-"))
+                tc(
+                    "reference_msg.map.mapped",
+                    &[("name", to.name.into()), ("target", target.as_deref().unwrap_or("-").into())],
+                )
             };
             if !mapped.rules.is_empty() {
-                message.push_str(&format!(" (Regel: {})", mapped.rules.join("; ")));
+                message.push(' ');
+                message.push_str(&tc("reference_msg.map.rule", &[("rules", mapped.rules.join("; ").into())]));
             }
             if mapped.truncated {
-                message.push_str(&format!(" – gekürzt auf {MAX_VERSES} Verse"));
+                message.push(' ');
+                message.push_str(&tc("reference_msg.map.truncated", &[("max", MAX_VERSES.into())]));
             }
             let verses: Vec<Value> = mapped
                 .verses
@@ -118,16 +135,31 @@ fn entry(from: &Versification, to: &Versification, found: &Found) -> Value {
 fn range_problem(from: &Versification, book: &str, start: (u16, u16), end: (u16, u16)) -> String {
     let abbr = books().iter().find(|b| b.id == book).map_or(book, |b| b.abbr);
     let Some(chapters) = from.chapters_of(book) else {
-        return format!("das Buch {abbr} gibt es in {} nicht", from.name);
+        return tc("reference_msg.map.no_book", &[("abbr", abbr.into()), ("name", from.name.into())]);
     };
     for (chapter, verse) in [start, end] {
         match from.verses_in(book, chapter) {
-            None => return format!("{abbr} hat in {} nur {} Kapitel", from.name, chapters.len()),
-            Some(n) if verse > n => return format!("{abbr} {chapter} hat in {} nur {n} Verse", from.name),
+            None => {
+                return tc(
+                    "reference_msg.map.chapters",
+                    &[("abbr", abbr.into()), ("name", from.name.into()), ("count", chapters.len().into())],
+                );
+            }
+            Some(n) if verse > n => {
+                return tc(
+                    "reference_msg.map.verses",
+                    &[
+                        ("abbr", abbr.into()),
+                        ("chapter", u32::from(chapter).into()),
+                        ("name", from.name.into()),
+                        ("count", u32::from(n).into()),
+                    ],
+                );
+            }
             Some(_) => {}
         }
     }
-    format!("{abbr}: Ende vor dem Anfang")
+    tc("reference_msg.map.end_before_start", &[("abbr", abbr.into())])
 }
 
 /// Are the mapped verses exactly the verses of the passage in `from`?

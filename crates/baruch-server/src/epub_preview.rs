@@ -41,6 +41,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
@@ -138,21 +139,21 @@ fn default_file(book: &EpubBook) -> Option<String> {
         .map(|i| i.href.clone())
 }
 
-/// German label of the file kind (list of chapter boundaries).
-pub fn kind_label(kind: ItemKind) -> &'static str {
+/// Label of the file kind in the language of the request (list of chapter boundaries).
+pub fn kind_label(kind: ItemKind) -> String {
     match kind {
-        ItemKind::Cover => "Umschlag",
-        ItemKind::Front => "Titelei",
-        ItemKind::Part => "Teil",
-        ItemKind::Chapter => "Kapitel",
-        ItemKind::Notes => "Anmerkungen",
-        ItemKind::Nav => "Inhalt",
-        ItemKind::Ncx => "Inhalt (EPUB 2)",
-        ItemKind::Style => "Stil",
-        ItemKind::Image => "Bild",
-        ItemKind::CoverImage => "Umschlagbild",
-        ItemKind::Glossary => "Glossar",
-        ItemKind::Index => "Register",
+        ItemKind::Cover => tc("export_msg.epub_kind.cover", &[]),
+        ItemKind::Front => tc("export_msg.epub_kind.front", &[]),
+        ItemKind::Part => tc("export_msg.epub_kind.part", &[]),
+        ItemKind::Chapter => tc("export_msg.epub_kind.chapter", &[]),
+        ItemKind::Notes => tc("export_msg.epub_kind.notes", &[]),
+        ItemKind::Nav => tc("export_msg.epub_kind.nav", &[]),
+        ItemKind::Ncx => tc("export_msg.epub_kind.ncx", &[]),
+        ItemKind::Style => tc("export_msg.epub_kind.style", &[]),
+        ItemKind::Image => tc("export_msg.epub_kind.image", &[]),
+        ItemKind::CoverImage => tc("export_msg.epub_kind.cover_image", &[]),
+        ItemKind::Glossary => tc("export_msg.epub_kind.glossary", &[]),
+        ItemKind::Index => tc("export_msg.epub_kind.index", &[]),
     }
 }
 
@@ -220,7 +221,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let p: PreviewParams =
                 serde_json::from_value(params).map_err(|e| RpcError::new(INVALID_PARAMS, e.to_string()))?;
             let readers = chosen_profiles(p.readers.as_deref().unwrap_or_default()).map_err(|slug| {
-                RpcError::new(INVALID_PARAMS, format!("readers: unbekanntes Reader-Profil „{slug}“"))
+                RpcError::new(INVALID_PARAMS, tc("export_msg.epub_preview.unknown_reader", &[("slug", slug.into())]))
             })?;
             let book = crate::epub::book_for(state, work, p.footnotes).await?;
             let file = match p.file.map(|f| f.trim().to_owned()).filter(|f| !f.is_empty()) {
@@ -228,14 +229,13 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
                     if !safe_href(&file) || !text_files(&book).iter().any(|i| i.href == file) {
                         return Err(RpcError::new(
                             INVALID_PARAMS,
-                            format!("file: keine Datei mit Text im EPUB: {file}"),
+                            tc("export_msg.epub_preview.no_text_file", &[("file", file.as_str().into())]),
                         ));
                     }
                     file
                 }
-                None => {
-                    default_file(&book).ok_or_else(|| RpcError::new(REFUSED, "Das EPUB hat keine Datei mit Text."))?
-                }
+                None => default_file(&book)
+                    .ok_or_else(|| RpcError::new(REFUSED, tc("export_msg.epub_preview.no_text", &[])))?,
             };
             let readers: Vec<Value> = readers
                 .iter()
@@ -314,19 +314,16 @@ async fn reader_page(
     Query(q): Query<ReaderQuery>,
 ) -> Response {
     if crate::guard::cross_site_get(&headers) && !from_own_frame(&headers, id) {
-        return text_response(
-            StatusCode::FORBIDDEN,
-            "Abgelehnt: Die EPUB-Vorschau entsteht nicht auf Anfrage einer fremden Seite.",
-        );
+        return text_response(StatusCode::FORBIDDEN, &tc("export_msg.epub_preview.foreign", &[]));
     }
     let Some(reader) = profile(&slug) else {
-        return text_response(StatusCode::NOT_FOUND, "Unbekanntes Reader-Profil.");
+        return text_response(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_profile", &[]));
     };
     if !safe_href(&file) {
-        return text_response(StatusCode::NOT_FOUND, "Unbekannte Datei.");
+        return text_response(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_file", &[]));
     }
     let Ok(footnotes) = footnotes_of(q.fussnoten.as_deref()) else {
-        return text_response(StatusCode::BAD_REQUEST, "fussnoten: popup oder endnoten");
+        return text_response(StatusCode::BAD_REQUEST, &tc("export_msg.epub.footnotes", &[]));
     };
     // Links from a chapter file to the notes lose the query: notes.xhtml exists only with endnotes.
     let footnotes =
@@ -334,16 +331,28 @@ async fn reader_page(
     let night = q.nacht.as_deref() == Some("1");
     match state.store.work_slug(id).await {
         Ok(_) => {}
-        Err(StoreError::UnknownWork(_)) => return text_response(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
-        Err(e) => return text_response(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {e}")),
+        Err(StoreError::UnknownWork(_)) => {
+            return text_response(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_work", &[]));
+        }
+        Err(e) => {
+            return text_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            );
+        }
     }
     let book = match crate::epub::book_for(&state, id, footnotes).await {
         Ok(book) => book,
         Err(e) if e.code == REFUSED => return text_response(StatusCode::UNPROCESSABLE_ENTITY, &e.message),
-        Err(e) => return text_response(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {}", e.message)),
+        Err(e) => {
+            return text_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.message.as_str().into())]),
+            );
+        }
     };
     let Some((media_type, bytes)) = reader_file(&book, reader, &file, night) else {
-        return text_response(StatusCode::NOT_FOUND, "Unbekannte Datei.");
+        return text_response(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_file", &[]));
     };
     let content_type =
         HeaderValue::from_str(&media_type).unwrap_or(HeaderValue::from_static("application/octet-stream"));
@@ -372,33 +381,33 @@ struct FrameView {
     night: bool,
     src: JinjaValue,
     open: JinjaValue,
-    lacks: Vec<&'static str>,
+    lacks: Vec<String>,
 }
 
 /// Missing capabilities of a profile in words (note below the frame).
-fn lacks(reader: &ReaderProfile) -> Vec<&'static str> {
+fn lacks(reader: &ReaderProfile) -> Vec<String> {
     let s = &reader.supports;
     let mut out = Vec::new();
     if !s.popup_footnotes {
-        out.push("Fußnoten als Sprung statt Popup");
+        out.push(tc("export_msg.epub_preview.lacks_popup", &[]));
     }
     if !s.css_backgrounds {
-        out.push("keine Hintergrundfarben");
+        out.push(tc("export_msg.epub_preview.lacks_backgrounds", &[]));
     }
     if !s.svg_images {
-        out.push("SVG-Bilder unsicher");
+        out.push(tc("export_msg.epub_preview.lacks_svg", &[]));
     }
     if !s.embedded_fonts {
-        out.push("keine eingebetteten Schriften");
+        out.push(tc("export_msg.epub_preview.lacks_fonts", &[]));
     }
     if s.overrides_publisher_font {
-        out.push("eigene Vorgabeschrift statt der Schrift des Buchs");
+        out.push(tc("export_msg.epub_preview.overrides_font", &[]));
     }
     if !s.hyphenation {
-        out.push("keine Silbentrennung");
+        out.push(tc("export_msg.epub_preview.lacks_hyphenation", &[]));
     }
     if !s.night_mode {
-        out.push("kein Nachtmodus");
+        out.push(tc("export_msg.epub_preview.lacks_night", &[]));
     }
     out
 }
@@ -416,7 +425,7 @@ fn plain(path: &str) -> JinjaValue {
 struct FileView {
     href: JinjaValue,
     title: String,
-    kind: &'static str,
+    kind: String,
     boundary: bool,
     current: bool,
     link: JinjaValue,
@@ -474,17 +483,19 @@ async fn preview_page(
     Query(pairs): Query<Vec<(String, String)>>,
 ) -> Response {
     if crate::guard::cross_site_get(&headers) {
-        return text_response(
-            StatusCode::FORBIDDEN,
-            "Abgelehnt: Die EPUB-Vorschau entsteht nicht auf Anfrage einer fremden Seite.",
-        );
+        return text_response(StatusCode::FORBIDDEN, &tc("export_msg.epub_preview.foreign", &[]));
     }
     let title = match state.store.works().await {
         Ok(works) => match works.into_iter().find(|(w, _, _)| *w == id) {
             Some((_, _, title)) => title,
-            None => return text_response(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
+            None => return text_response(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_work", &[])),
         },
-        Err(e) => return text_response(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {e}")),
+        Err(e) => {
+            return text_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            );
+        }
     };
     let q = PreviewQuery::from_pairs(pairs);
     let mut status = StatusCode::OK;
@@ -493,14 +504,14 @@ async fn preview_page(
     let known: Vec<String> = q.readers.iter().filter(|s| profile(s).is_some()).cloned().collect();
     for slug in q.readers.iter().filter(|s| profile(s).is_none()) {
         status = StatusCode::NOT_FOUND;
-        notices.push(format!("Unbekanntes Reader-Profil „{slug}“ – nicht angezeigt."));
+        notices.push(tc("export_msg.epub_preview.profile_not_shown", &[("slug", slug.as_str().into())]));
     }
     let readers = chosen_profiles(&known).unwrap_or_else(|_| required().collect());
     let footnotes = match footnotes_of(q.footnotes.as_deref()) {
         Ok(mode) => mode.unwrap_or_default(),
         Err(()) => {
             status = StatusCode::BAD_REQUEST;
-            notices.push("Fußnoten: „popup“ oder „endnoten“ – gezeigt wird die Vorgabe (Popup).".into());
+            notices.push(tc("export_msg.epub_preview.footnotes_default", &[]));
             FootnoteMode::Popup
         }
     };
@@ -520,7 +531,7 @@ async fn preview_page(
             Some(f) if safe_href(f) && text_files(book).iter().any(|i| &i.href == f) => Some(f.clone()),
             Some(f) => {
                 status = StatusCode::NOT_FOUND;
-                notices.push(format!("Die Datei „{f}“ gibt es im EPUB nicht – gezeigt wird die erste Kapiteldatei."));
+                notices.push(tc("export_msg.epub_preview.file_missing", &[("file", f.as_str().into())]));
                 default_file(book)
             }
             None => default_file(book),
@@ -597,7 +608,13 @@ async fn preview_page(
     };
     match templates().get_template("epub_preview.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => text_response(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: Vorlage epub_preview.html: {e}")),
+        Err(e) => text_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &tc(
+                "export_msg.typeset.template_error",
+                &[("name", "epub_preview.html".into()), ("error", e.to_string().into())],
+            ),
+        ),
     }
 }
 

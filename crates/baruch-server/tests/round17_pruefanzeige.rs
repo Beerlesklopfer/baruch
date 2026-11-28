@@ -547,56 +547,61 @@ async fn the_licence_notice_is_visible_on_every_bible_page() {
 
 #[tokio::test]
 async fn the_commentary_panel_has_one_details_per_module_and_unified_group_titles() {
-    let commentary = |name: &str| {
-        Fixture::new(name, Layout::RawCom, german())
-            .conf("Description", "Erfundener Kommentar")
-            .conf("DistributionLicense", "Public Domain")
-            .verse("Ps", 23, 1, "Erfundene Auslegung zum stillen Wasser.")
-    };
-    let (server, _dir, work, _key) =
-        setup(&[kiesel(Layout::RawText), commentary("Bachkommentar"), commentary("Wiesenkommentar")], None).await;
-    ok(
-        &server,
-        "bible.set_work_sources",
-        json!({ "work": work, "commentaries": ["Bachkommentar", "Wiesenkommentar"], "lexicons": [] }),
-    )
-    .await;
-    let html = baruch_server::bibles::commentary_panel_html(&server.state, work, "Ps 23,1").await;
-    assert!(
-        html.starts_with("<details class=\"commentaries\" data-widget=\"commentaries\">"),
-        "Panel mit Widget: {html}"
-    );
-    assert_eq!(
-        html.matches("<details class=\"commentary\"").count(),
-        2,
-        "je Modul ein eigenes <details> (ohne JavaScript klappbar): {html}"
-    );
-    assert!(
-        html.contains("Kommentar · Bachkommentar") && html.contains("Kommentar · Wiesenkommentar"),
-        "Überschrift „Kommentar · Modul“"
-    );
-    let hits = baruch_server::bibles::commentary_hits_html(&server.state, work, "stillen Wasser", "").await;
-    assert!(
-        hits.contains("hit-group-title\">Kommentar · Bachkommentar<"),
-        "Treffergruppe wie „Bibel · Modul“ gestaltet: {hits}"
-    );
-
-    let ts = include_str!("../web/src/commentaries.ts");
-    assert!(ts.contains("alle aufklappen") && ts.contains("alle zuklappen"), "Knöpfe zum Auf-/Zuklappen");
-    // Every access (window.localStorage) is in an open try block; mentions in the comment do not count.
-    assert!(ts.contains("window.localStorage"), "Zustand in localStorage gemerkt");
-    for (i, _) in ts.match_indices("window.localStorage") {
-        let before = &ts[..i];
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let commentary = |name: &str| {
+            Fixture::new(name, Layout::RawCom, german())
+                .conf("Description", "Erfundener Kommentar")
+                .conf("DistributionLicense", "Public Domain")
+                .verse("Ps", 23, 1, "Erfundene Auslegung zum stillen Wasser.")
+        };
+        let (server, _dir, work, _key) =
+            setup(&[kiesel(Layout::RawText), commentary("Bachkommentar"), commentary("Wiesenkommentar")], None).await;
+        ok(
+            &server,
+            "bible.set_work_sources",
+            json!({ "work": work, "commentaries": ["Bachkommentar", "Wiesenkommentar"], "lexicons": [] }),
+        )
+        .await;
+        let html = baruch_server::bibles::commentary_panel_html(&server.state, work, "Ps 23,1").await;
         assert!(
-            before.rfind("try {").is_some_and(|t| before[t..].matches('}').count() <= before[t..].matches('{').count()),
-            "localStorage nur in try/catch (Stelle {i})"
+            html.starts_with("<details class=\"commentaries\" data-widget=\"commentaries\">"),
+            "Panel mit Widget: {html}"
         );
-    }
-    let main = include_str!("../web/src/main.ts");
-    assert!(
-        main.contains("import \"./commentaries.js\";") && main.contains("import \"./scripture_check.js\";"),
-        "beide Widgets geladen"
-    );
-    let css = include_str!("../static/literature_bibles.css");
-    assert!(css.contains(".hit-group-title"), "einheitlicher Stil der Gruppenüberschriften");
+        assert_eq!(
+            html.matches("<details class=\"commentary\"").count(),
+            2,
+            "je Modul ein eigenes <details> (ohne JavaScript klappbar): {html}"
+        );
+        assert!(
+            html.contains("Kommentar · Bachkommentar") && html.contains("Kommentar · Wiesenkommentar"),
+            "Überschrift „Kommentar · Modul“"
+        );
+        let hits = baruch_server::bibles::commentary_hits_html(&server.state, work, "stillen Wasser", "").await;
+        assert!(
+            hits.contains("hit-group-title\">Kommentar · Bachkommentar<"),
+            "Treffergruppe wie „Bibel · Modul“ gestaltet: {hits}"
+        );
+
+        let ts = include_str!("../web/src/commentaries.ts");
+        assert!(ts.contains("alle aufklappen") && ts.contains("alle zuklappen"), "Knöpfe zum Auf-/Zuklappen");
+        // Every access (window.localStorage) is in an open try block; mentions in the comment do not count.
+        assert!(ts.contains("window.localStorage"), "Zustand in localStorage gemerkt");
+        for (i, _) in ts.match_indices("window.localStorage") {
+            let before = &ts[..i];
+            assert!(
+                before
+                    .rfind("try {")
+                    .is_some_and(|t| before[t..].matches('}').count() <= before[t..].matches('{').count()),
+                "localStorage nur in try/catch (Stelle {i})"
+            );
+        }
+        let main = include_str!("../web/src/main.ts");
+        assert!(
+            main.contains("import \"./commentaries.js\";") && main.contains("import \"./scripture_check.js\";"),
+            "beide Widgets geladen"
+        );
+        let css = include_str!("../static/literature_bibles.css");
+        assert!(css.contains(".hit-group-title"), "einheitlicher Stil der Gruppenüberschriften");
+    })
+    .await
 }

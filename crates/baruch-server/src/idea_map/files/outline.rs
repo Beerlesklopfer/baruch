@@ -23,6 +23,7 @@ use minijinja::{Environment, Value, context};
 use super::export::{self, cloud, placed};
 use super::{closed_of, is_node_id, load_tree};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::idea_map::MapFilter;
 use crate::idea_map::bild::{filter_query, parse_filter, plain, with_query};
 use crate::idea_map::tree::{Scene, TreeKind, TreeNode};
@@ -70,22 +71,22 @@ pub(crate) fn href(url: String) -> Value {
 }
 
 /// Feedback for `ok=<wort>`.
-fn notice_of(ok: &str) -> &'static str {
+fn notice_of(ok: &str) -> String {
     match ok {
-        "angelegt" => "Einfall angelegt.",
-        "umbenannt" => "Umbenannt.",
-        "bezug" => "Bezug gesetzt.",
-        "umgehaengt" => "Umgehängt.",
-        "in-wolke" => "In die Wolke gelegt (mit seinen Unterknoten).",
-        "ort-unveraendert" => "Der Einfall steht schon dort; nichts geändert.",
-        "geloescht" => "Einfall gelöscht (samt Unterknoten).",
-        "einfall-wieder" => "Einfall wiederhergestellt.",
-        "verbunden" => "Verbunden.",
-        "unveraendert" => "Diese Verbindung gibt es schon; nichts geändert.",
-        "geloest" => "Verbindung gelöst.",
-        "wiederhergestellt" => "Verbindung wiederhergestellt.",
-        "eingelesen" => "Mindmap eingelesen.",
-        _ => "Gespeichert.",
+        "angelegt" => tc("ideas_msg.map_notice.created", &[]),
+        "umbenannt" => tc("ideas_msg.map_notice.renamed", &[]),
+        "bezug" => tc("ideas_msg.map_notice.reference", &[]),
+        "umgehaengt" => tc("ideas_msg.outline_notice.moved", &[]),
+        "in-wolke" => tc("ideas_msg.map_notice.to_cloud", &[]),
+        "ort-unveraendert" => tc("ideas_msg.map_notice.place_unchanged", &[]),
+        "geloescht" => tc("ideas_msg.outline_notice.deleted", &[]),
+        "einfall-wieder" => tc("ideas_msg.map_notice.restored", &[]),
+        "verbunden" => tc("ideas_msg.map_notice.linked", &[]),
+        "unveraendert" => tc("ideas_msg.map_notice.link_exists", &[]),
+        "geloest" => tc("ideas_msg.map_notice.unlinked", &[]),
+        "wiederhergestellt" => tc("ideas_msg.map_notice.link_restored", &[]),
+        "eingelesen" => tc("ideas_msg.outline_notice.imported", &[]),
+        _ => tc("ideas_msg.notice.saved", &[]),
     }
 }
 
@@ -261,7 +262,13 @@ fn panel(scene: &Scene, chosen: &str) -> Option<Value> {
         sibling_parent => parent.idea.filter(|_| parent.kind == TreeKind::Idea),
         sibling_key => parent.key.filter(|_| matches!(parent.kind, TreeKind::Part | TreeKind::Chapter)),
         sibling_before => id_of(siblings.get(place + 1)),
-        parent_title => if in_cloud { "Wolke".to_owned() } else if main_topic { format!("{} (Hauptthema am Werk)", export::node_title(parent)) } else { export::node_title(parent) },
+        parent_title => if in_cloud {
+            tc("ideas_msg.outline_notice.cloud", &[])
+        } else if main_topic {
+            tc("ideas_msg.outline_notice.main_topic", &[("title", export::node_title(parent).into())])
+        } else {
+            export::node_title(parent)
+        },
         targets => targets, chapters => chapters, key => node.key, others => others, links => links,
         up => up, down => down,
         kinds => LinkKind::ALL.iter().map(|k| context! { value => k.as_str(), label => k.label() }).collect::<Vec<_>>(),
@@ -385,7 +392,13 @@ pub(crate) async fn render(
     };
     match templates().get_template("karte_gliederung.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage karte_gliederung.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc(
+                "ideas_msg.page.template_error",
+                &[("name", "karte_gliederung.html".into()), ("error", e.to_string().into())],
+            ),
+        ),
     }
 }
 

@@ -36,6 +36,7 @@ use minijinja::value::{Serde, Value as JinjaValue};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::Settings;
 use crate::{AppState, mirror};
@@ -49,8 +50,10 @@ pub const INBOX_DIR: &str = "austausch-eingang";
 /// Entries in the inbox that are older are cleared away by the next preview.
 pub const INBOX_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// Note of the CLI and the forms if the title is already taken.
-pub const TITLE_HINT: &str = "Mit einem eigenen Titel einlesen (Formular: Feld „Titel“, CLI: --title \"…\").";
+/// Note of the CLI and the forms if the title is already taken (language of the request; the CLI runs in German).
+pub fn title_hint() -> String {
+    tc("export_msg.exchange.title_hint", &[])
+}
 
 /// Page of the form (merged through `exchange::pages`).
 pub fn pages() -> Router<Arc<AppState>> {
@@ -84,7 +87,11 @@ fn templates() -> &'static Environment<'static> {
 fn render(name: &str, status: StatusCode, ctx: JinjaValue) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("export_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -136,13 +143,18 @@ async fn import_page(headers: HeaderMap, Query(query): Query<ImportQuery>) -> Re
 async fn read_document(bytes: Arc<Vec<u8>>) -> Result<ExchangeDocument, RpcError> {
     tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_exchange::read::read(&bytes, &Limits::DEFAULT)))
         .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
+        .map_err(|e| {
+            RpcError::new(INTERNAL, tc("export_msg.exchange.read_aborted", &[("error", e.to_string().into())]))
+        })?
         .map_err(RpcError::from)
 }
 
 fn store_error(e: StoreError) -> RpcError {
     match e {
-        StoreError::DuplicateTitle { .. } => RpcError::new(REFUSED, format!("{e} {TITLE_HINT}")),
+        StoreError::DuplicateTitle { .. } => {
+            let text = crate::store_text::store_error_text(crate::i18n::current(), &e);
+            RpcError::new(REFUSED, format!("{text} {}", title_hint()))
+        }
         e => e.into(),
     }
 }
@@ -176,10 +188,7 @@ pub async fn import_bytes(
 ) -> Result<ImportOutcome, RpcError> {
     let sha = baruch_exchange::sha256_hex(&bytes);
     if !sha.eq_ignore_ascii_case(sha256.trim()) {
-        return Err(RpcError::new(
-            INVALID_PARAMS,
-            "Die Prüfsumme passt nicht zur gezeigten Datei; bitte die Vorschau neu holen.",
-        ));
+        return Err(RpcError::new(INVALID_PARAMS, tc("export_msg.exchange.checksum_mismatch", &[])));
     }
     let doc = read_document(Arc::new(bytes)).await?;
     let held = state.write_lock.lock().await;
@@ -222,7 +231,8 @@ fn params<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, RpcError> {
 
 fn decode(data: &str) -> Result<Vec<u8>, RpcError> {
     let compact: String = data.chars().filter(|c| !c.is_ascii_whitespace()).collect();
-    baruch_store::decode_base64(&compact).map_err(|_| RpcError::new(INVALID_PARAMS, "data ist kein gültiges Base64."))
+    baruch_store::decode_base64(&compact)
+        .map_err(|_| RpcError::new(INVALID_PARAMS, tc("export_msg.exchange.base64_invalid", &[])))
 }
 
 fn title_of(title: &Option<String>) -> Option<&str> {
@@ -240,8 +250,8 @@ pub async fn rpc_preview(state: &AppState, params_value: Value) -> Result<Value,
 /// RPC `work.exchange_import {data: Base64, sha256, mode: "new"|"merge", title?}`.
 pub async fn rpc_import(state: &AppState, params_value: Value) -> Result<Value, RpcError> {
     let p: ImportParams = params(params_value)?;
-    let mode =
-        ApplyMode::parse(p.mode.trim()).ok_or_else(|| RpcError::new(INVALID_PARAMS, "mode ist „new“ oder „merge“."))?;
+    let mode = ApplyMode::parse(p.mode.trim())
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("export_msg.exchange.mode", &[])))?;
     let outcome = import_bytes(state, decode(&p.data)?, &p.sha256, mode, title_of(&p.title)).await?;
     Ok(import_answer(&outcome))
 }
@@ -281,7 +291,7 @@ fn is_sha256(text: &str) -> bool {
 fn inbox(data: &Path) -> Result<PathBuf, String> {
     let dir = data.join(INBOX_DIR);
     if std::fs::symlink_metadata(&dir).is_ok_and(|m| m.file_type().is_symlink()) {
-        return Err(format!("{} ist eine symbolische Verknüpfung; dort wird nichts abgelegt", dir.display()));
+        return Err(tc("export_msg.exchange.inbox_symlink", &[("path", dir.display().to_string().into())]));
     }
     Ok(dir)
 }
@@ -311,12 +321,20 @@ fn sweep(dir: &Path) {
 /// Put a file into the inbox (first clear away old ones); writes through a helper file and renames.
 fn put_inbox(data: &Path, sha: &str, bytes: &[u8]) -> Result<(), String> {
     let dir = inbox(data)?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", dir.display()))?;
+    let failed = |key: &str, path: &Path, e: std::io::Error| {
+        let args = [("path", path.display().to_string().into()), ("error", e.to_string().into())];
+        match key {
+            "create" => tc("export_msg.exchange.inbox_create", &args),
+            "write" => tc("export_msg.exchange.inbox_write", &args),
+            _ => tc("export_msg.exchange.inbox_store", &args),
+        }
+    };
+    std::fs::create_dir_all(&dir).map_err(|e| failed("create", &dir, e))?;
     sweep(&dir);
     let target = dir.join(sha);
     let temp = dir.join(format!(".{sha}.{}", std::process::id()));
-    std::fs::write(&temp, bytes).map_err(|e| format!("{} lässt sich nicht schreiben: {e}", temp.display()))?;
-    std::fs::rename(&temp, &target).map_err(|e| format!("{} lässt sich nicht ablegen: {e}", target.display()))
+    std::fs::write(&temp, bytes).map_err(|e| failed("write", &temp, e))?;
+    std::fs::rename(&temp, &target).map_err(|e| failed("store", &target, e))
 }
 
 fn take_inbox_path(data: &Path, sha: &str) -> Result<PathBuf, String> {
@@ -337,14 +355,11 @@ async fn read_upload(multipart: Result<Multipart, MultipartRejection>) -> Result
     let too_large = || {
         (
             StatusCode::PAYLOAD_TOO_LARGE,
-            format!(
-                "Die Datei ist größer als {} MiB; größere Werke über die Kommandozeile einlesen.",
-                Limits::DEFAULT.max_file_bytes / (1024 * 1024)
-            ),
+            tc("export_msg.exchange.too_large", &[("mib", (Limits::DEFAULT.max_file_bytes / (1024 * 1024)).into())]),
         )
     };
     let mut multipart = multipart.map_err(|e| {
-        (StatusCode::UNPROCESSABLE_ENTITY, format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text()))
+        (StatusCode::UNPROCESSABLE_ENTITY, tc("export_msg.exchange.not_multipart", &[("detail", e.body_text().into())]))
     })?;
     let mut upload = Upload::default();
     loop {
@@ -355,7 +370,7 @@ async fn read_upload(multipart: Result<Multipart, MultipartRejection>) -> Result
             Err(e) => {
                 return Err((
                     StatusCode::UNPROCESSABLE_ENTITY,
-                    format!("Das Formular ließ sich nicht lesen ({}).", e.body_text()),
+                    tc("export_msg.exchange.form_unreadable", &[("detail", e.body_text().into())]),
                 ));
             }
         };
@@ -368,7 +383,7 @@ async fn read_upload(multipart: Result<Multipart, MultipartRejection>) -> Result
                     Err(e) => {
                         return Err((
                             StatusCode::UNPROCESSABLE_ENTITY,
-                            format!("Die Datei ließ sich nicht lesen ({}).", e.body_text()),
+                            tc("export_msg.exchange.file_unreadable", &[("detail", e.body_text().into())]),
                         ));
                     }
                 }
@@ -389,31 +404,40 @@ async fn read_upload(multipart: Result<Multipart, MultipartRejection>) -> Result
 /// Short description of a preview for templates: numbers as a list (kind, number) without zeros, the kind in the
 /// singular for exactly 1 („1 Fassung“, „2 Fassungen“).
 fn add_list(add: &baruch_store::exchange_apply::AddCounts) -> Vec<(String, usize)> {
+    let word = |n: usize, text: String| (text, n);
     [
-        ("Gliederungspunkt", "Gliederungspunkte", add.nodes),
-        ("Fassung", "Fassungen", add.revisions),
-        ("Vorlagenfassung", "Vorlagenfassungen", add.template_revisions),
-        ("Einfall", "Einfälle", add.ideas),
-        ("Beitrag", "Beiträge", add.posts),
-        ("Faden", "Fäden", add.threads),
-        ("Fadenbeitrag", "Fadenbeiträge", add.thread_posts),
-        ("Bild", "Bilder", add.assets),
-        ("Bildfassung", "Bildfassungen", add.asset_revisions),
-        ("Verbindung der Gedankenkarte", "Verbindungen der Gedankenkarte", add.links),
-        ("Lage auf der Gedankenkarte", "Lagen auf der Gedankenkarte", add.positions),
-        ("Block der Umschlag-Anordnung", "Blöcke der Umschlag-Anordnung", add.cover_blocks),
-        ("Befund", "Befunde", add.findings),
-        ("Eintrag im Verlauf der Befunde", "Einträge im Verlauf der Befunde", add.finding_entries),
-        ("alte Fassung eines Beitrags", "alte Fassungen von Beiträgen", add.post_versions),
-        ("Satz-Einstellungen", "Satz-Einstellungen", add.typeset),
-        ("eigenes Register", "eigene Register", add.registers),
-        ("Glossarbegriff", "Glossarbegriffe", add.glossary_terms),
+        word(add.nodes, tc("export_msg.exchange.add.nodes", &[("count", add.nodes.into())])),
+        word(add.revisions, tc("export_msg.exchange.add.revisions", &[("count", add.revisions.into())])),
+        word(
+            add.template_revisions,
+            tc("export_msg.exchange.add.template_revisions", &[("count", add.template_revisions.into())]),
+        ),
+        word(add.ideas, tc("export_msg.exchange.add.ideas", &[("count", add.ideas.into())])),
+        word(add.posts, tc("export_msg.exchange.add.posts", &[("count", add.posts.into())])),
+        word(add.threads, tc("export_msg.exchange.add.threads", &[("count", add.threads.into())])),
+        word(add.thread_posts, tc("export_msg.exchange.add.thread_posts", &[("count", add.thread_posts.into())])),
+        word(add.assets, tc("export_msg.exchange.add.assets", &[("count", add.assets.into())])),
+        word(
+            add.asset_revisions,
+            tc("export_msg.exchange.add.asset_revisions", &[("count", add.asset_revisions.into())]),
+        ),
+        word(add.links, tc("export_msg.exchange.add.links", &[("count", add.links.into())])),
+        word(add.positions, tc("export_msg.exchange.add.positions", &[("count", add.positions.into())])),
+        word(add.cover_blocks, tc("export_msg.exchange.add.cover_blocks", &[("count", add.cover_blocks.into())])),
+        word(add.findings, tc("export_msg.exchange.add.findings", &[("count", add.findings.into())])),
+        word(
+            add.finding_entries,
+            tc("export_msg.exchange.add.finding_entries", &[("count", add.finding_entries.into())]),
+        ),
+        word(add.post_versions, tc("export_msg.exchange.add.post_versions", &[("count", add.post_versions.into())])),
+        word(add.typeset, tc("export_msg.exchange.add.typeset", &[("count", add.typeset.into())])),
+        word(add.registers, tc("export_msg.exchange.add.registers", &[("count", add.registers.into())])),
+        word(add.glossary_terms, tc("export_msg.exchange.add.glossary_terms", &[("count", add.glossary_terms.into())])),
         // Round 22: continuations (also when fast-forwarding a known revision).
-        ("Fortschreibung", "Fortschreibungen", add.amends),
+        word(add.amends, tc("export_msg.exchange.add.amends", &[("count", add.amends.into())])),
     ]
     .into_iter()
-    .filter(|(_, _, n)| *n > 0)
-    .map(|(one, many, n)| ((if n == 1 { one } else { many }).to_owned(), n))
+    .filter(|(_, n)| *n > 0)
     .collect()
 }
 
@@ -445,7 +469,10 @@ fn deviation_rows(work: Option<i64>, report: &ExchangeReport) -> Vec<Value> {
 
 fn instance_text(report: &ExchangeReport) -> String {
     if report.instance.name.trim().is_empty() {
-        format!("ohne Namen ({})", report.instance.uuid.chars().take(8).collect::<String>())
+        tc(
+            "export_msg.exchange.instance_unnamed",
+            &[("uuid", report.instance.uuid.chars().take(8).collect::<String>().into())],
+        )
     } else {
         report.instance.name.trim().to_owned()
     }
@@ -467,7 +494,7 @@ async fn preview_form(
             &headers,
             StatusCode::UNPROCESSABLE_ENTITY,
             upload.work,
-            Some("Bitte eine Austauschdatei (.baruch oder .baruch.xml) wählen.".into()),
+            Some(tc("export_msg.exchange.choose_file", &[])),
             &upload.title,
         );
     };
@@ -535,7 +562,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
             &headers,
             StatusCode::UNPROCESSABLE_ENTITY,
             None,
-            Some("Ungültige Prüfsumme; bitte die Datei neu wählen.".into()),
+            Some(tc("export_msg.exchange.checksum_invalid", &[])),
             "",
         );
     }
@@ -544,7 +571,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
             &headers,
             StatusCode::UNPROCESSABLE_ENTITY,
             None,
-            Some("Unbekannter Modus (neu oder abgleichen).".into()),
+            Some(tc("export_msg.exchange.mode_unknown", &[])),
             "",
         );
     };
@@ -560,7 +587,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
                 &headers,
                 StatusCode::GONE,
                 None,
-                Some("Die Datei der Vorschau ist nicht mehr da (nach 24 Stunden weggeräumt oder schon übernommen); bitte neu wählen.".into()),
+                Some(tc("export_msg.exchange.preview_gone", &[])),
                 &form.title,
             );
         }
@@ -573,7 +600,8 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
         Ok(outcome) => outcome,
         Err(e) => {
             let mut message = e.message.clone();
-            message.push_str(" Die Datei bitte noch einmal wählen.");
+            message.push(' ');
+            message.push_str(&tc("export_msg.exchange.choose_again", &[]));
             return form_page(&headers, status_of(&e), None, Some(message), &form.title);
         }
     };
@@ -685,7 +713,12 @@ pub fn report_text(report: &ExchangeReport) -> String {
 /// CLI `import DATEI.baruch|DATEI.baruch.xml [--abgleichen] [--vorschau] [--title T]`: without flag and unknown →
 /// new; without flag and known → error with a pointer to `--abgleichen`; `--abgleichen` for an unknown work →
 /// error; `--vorschau` writes nothing.
+/// The command line stays German (Round 39a, contract §5: CLI untouched): the whole run in a German scope.
 pub async fn cli_import(state: &AppState, path: &std::path::Path, options: &CliImport) -> Result<String, String> {
+    crate::i18n::scope(crate::i18n::Lang::De, cli_import_german(state, path, options)).await
+}
+
+async fn cli_import_german(state: &AppState, path: &std::path::Path, options: &CliImport) -> Result<String, String> {
     let owned = path.to_owned();
     let bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || read_cli_file(&owned)))
         .await

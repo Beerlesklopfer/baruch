@@ -32,6 +32,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub use super::chat::{chat_json, run_chat};
 use super::{Mode, Order, Outcome, Progress, Scope};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
 /// Methods of this module.
@@ -46,13 +47,13 @@ pub fn text(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("assist_msg.persona.text", &[("name", name.into())]))),
     }
 }
 
 /// Number (or digits as text, forms); missing/empty → `None`.
 pub fn number(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(tc("assist_msg.rpc.number", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -67,23 +68,23 @@ pub fn scope(params: &Value) -> Result<Scope, RpcError> {
     match text(params, "scope")?.as_deref().map(str::trim) {
         None | Some("") | Some("section") => Ok(Scope::Section),
         Some("chapter") => Ok(Scope::Chapter),
-        Some(other) => Err(invalid(format!("scope: „section“ oder „chapter“ erwartet, nicht „{other}“"))),
+        Some(other) => Err(invalid(tc("assist_msg.rpc.scope", &[("other", other.into())]))),
     }
 }
 
 /// Work, key and shown revision; `node` is rejected for anything that writes.
 pub async fn address(state: &AppState, params: &Value) -> Result<(WorkId, i64, Option<u32>), RpcError> {
     if params.get("node").is_some_and(|n| !n.is_null()) {
-        return Err(invalid("node (Stelle) wird nicht angenommen; key mitgeben (fester Schlüssel des Abschnitts)."));
+        return Err(invalid(tc("assist_msg.rpc.node_refused", &[])));
     }
     let work = match number(params, "work")? {
         Some(work) => work,
         None => state.default_work().await?,
     };
     state.store.work_slug(work).await?;
-    let key = number(params, "key")?.ok_or_else(|| invalid("key fehlt (fester Schlüssel des Abschnitts)"))?;
+    let key = number(params, "key")?.ok_or_else(|| invalid(tc("assist_msg.solution.key_missing", &[])))?;
     let rev = match number(params, "rev")? {
-        Some(rev) => Some(u32::try_from(rev).map_err(|_| invalid("rev: Fassungsnummer ab 1 erwartet"))?),
+        Some(rev) => Some(u32::try_from(rev).map_err(|_| invalid(tc("assist_msg.rpc.rev_number", &[])))?),
         None => None,
     };
     Ok((work, key, rev))
@@ -95,7 +96,7 @@ async fn persona_or_lector(state: &AppState, params: &Value, work: WorkId) -> Re
         return Ok(p);
     }
     let loaded = state.store.load_work(work).await?;
-    loaded.lector().map(|p| p.handle.clone()).ok_or_else(|| invalid("Keine Persona ist aktiv (kein Lektor)."))
+    loaded.lector().map(|p| p.handle.clone()).ok_or_else(|| invalid(tc("assist_msg.rpc.no_lector", &[])))
 }
 
 /// Order from RPC parameters (ask/review/propose).
@@ -104,7 +105,7 @@ pub async fn order(state: &AppState, mode: Mode, params: &Value) -> Result<Order
     let persona = match mode {
         Mode::Ask => text(params, "persona")?
             .filter(|p| !p.trim().is_empty())
-            .ok_or_else(|| invalid("persona fehlt (z. B. „@lektor“)"))?,
+            .ok_or_else(|| invalid(tc("assist_msg.rpc.persona_missing", &[])))?,
         _ => persona_or_lector(state, params, work).await?,
     };
     let field = match mode {

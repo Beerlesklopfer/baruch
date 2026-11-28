@@ -129,38 +129,41 @@ fn size_and_budget(call: &ModelCall, context: u32) -> (usize, usize) {
 
 #[tokio::test]
 async fn a_chapter_with_many_parts_never_sends_a_call_over_the_context_length() {
-    // Recalculation of the finding: check the whole chapter, 10 sections of 3000 characters each → 20 overlapping
-    // parts. Before, at 4096 tokens one piece went out with ≈ 5655 instead of at most ≈ 4400 characters of surroundings
-    // and core. Since Round 18b consecutive omitted parts share one line; at 4096 tokens the case now fits chunked
-    // (measured in `round18_lektor::omitted_parts_in_one_line_…`). Hence a smaller context here (CONTEXT) at which even
-    // the condensed lower bound does not fit: the case stays an honest rejection. At 2600 tokens the room is not even
-    // enough for role prompt and job (different message), at 4096 it fits. Round 30b: the solution obligation lengthens
-    // every default prompt (≈ 150 tokens); 3000 tokens therefore already fall below the limit for role prompt and job,
-    // 3200 lie in the intended range again.
-    const CONTEXT: u32 = 3200;
-    let recorder = Recorder::default();
-    let (server, work, keys) = coast(recorder.clone(), 10, 3000).await;
-    ok(&server, "persona.update", json!({ "handle": "@lektor", "context_length": CONTEXT })).await;
-    let posts_before = server.state.store.load_work(work).await.unwrap().nodes[0].posts.len();
-    let result = baruch_server::assist::run(&server.state, &chapter_review(work, keys[0]), None).await;
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        // Recalculation of the finding: check the whole chapter, 10 sections of 3000 characters each → 20 overlapping
+        // parts. Before, at 4096 tokens one piece went out with ≈ 5655 instead of at most ≈ 4400 characters of surroundings
+        // and core. Since Round 18b consecutive omitted parts share one line; at 4096 tokens the case now fits chunked
+        // (measured in `round18_lektor::omitted_parts_in_one_line_…`). Hence a smaller context here (CONTEXT) at which even
+        // the condensed lower bound does not fit: the case stays an honest rejection. At 2600 tokens the room is not even
+        // enough for role prompt and job (different message), at 4096 it fits. Round 30b: the solution obligation lengthens
+        // every default prompt (≈ 150 tokens); 3000 tokens therefore already fall below the limit for role prompt and job,
+        // 3200 lie in the intended range again.
+        const CONTEXT: u32 = 3200;
+        let recorder = Recorder::default();
+        let (server, work, keys) = coast(recorder.clone(), 10, 3000).await;
+        ok(&server, "persona.update", json!({ "handle": "@lektor", "context_length": CONTEXT })).await;
+        let posts_before = server.state.store.load_work(work).await.unwrap().nodes[0].posts.len();
+        let result = baruch_server::assist::run(&server.state, &chapter_review(work, keys[0]), None).await;
 
-    // Even with all other parts only as titles (or an empty summary) every piece bursts the room: the lower bound is
-    // known before every model call, so reject honestly – without summaries for nothing.
-    let e = result.expect_err("20 Teile passen bei so kleinem Kontext auch komprimiert nicht");
-    assert_eq!(e.code, -32000, "ehrlicher Fehler: {e:?}");
-    assert!(
-        e.message.contains("reicht auch komprimiert nicht") && e.message.contains("Nichts gespeichert"),
-        "nennt den Grund und dass nichts gespeichert ist: {}",
-        e.message
-    );
-    assert!(e.message.contains(&format!("{CONTEXT} Tokens")), "nennt die Kontextlänge: {}", e.message);
-    assert!(
-        recorder.calls().is_empty(),
-        "kein Aufruf ging hinaus (weder ein zu großes Prüfstück noch nutzlose Zusammenfassungen): {:?}",
-        recorder.calls().iter().map(|c| c.label.clone()).collect::<Vec<_>>()
-    );
-    let posts_after = server.state.store.load_work(work).await.unwrap().nodes[0].posts.len();
-    assert_eq!(posts_after, posts_before, "nichts gespeichert");
+        // Even with all other parts only as titles (or an empty summary) every piece bursts the room: the lower bound is
+        // known before every model call, so reject honestly – without summaries for nothing.
+        let e = result.expect_err("20 Teile passen bei so kleinem Kontext auch komprimiert nicht");
+        assert_eq!(e.code, -32000, "ehrlicher Fehler: {e:?}");
+        assert!(
+            e.message.contains("reicht auch komprimiert nicht") && e.message.contains("Nichts gespeichert"),
+            "nennt den Grund und dass nichts gespeichert ist: {}",
+            e.message
+        );
+        assert!(e.message.contains(&format!("{CONTEXT} Tokens")), "nennt die Kontextlänge: {}", e.message);
+        assert!(
+            recorder.calls().is_empty(),
+            "kein Aufruf ging hinaus (weder ein zu großes Prüfstück noch nutzlose Zusammenfassungen): {:?}",
+            recorder.calls().iter().map(|c| c.label.clone()).collect::<Vec<_>>()
+        );
+        let posts_after = server.state.store.load_work(work).await.unwrap().nodes[0].posts.len();
+        assert_eq!(posts_after, posts_before, "nichts gespeichert");
+    })
+    .await
 }
 
 #[tokio::test]

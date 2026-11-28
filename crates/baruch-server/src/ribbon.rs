@@ -14,6 +14,7 @@ use baruch_store::WorkId;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{METHOD_NOT_FOUND, RpcError};
 
 /// One format of the work template as a button of the ribbon.
@@ -62,49 +63,39 @@ pub fn formats(template: &str) -> Vec<RibbonFormat> {
         });
     };
     if defined.iter().any(|name| name == "szene") {
-        push("scene", "Szene", "Szene nach der Werkvorlage (#szene)", "#szene[\n\n]\n");
+        push("scene", &tc("view_msg.ribbon.scene", &[]), &tc("view_msg.ribbon.scene_title", &[]), "#szene[\n\n]\n");
     }
     if defined.iter().any(|name| name == "arbeit") {
-        push("work", "Arbeit", "Arbeitsauftrag nach der Werkvorlage (#arbeit)", "#arbeit[\n\n]\n");
+        push("work", &tc("view_msg.ribbon.work", &[]), &tc("view_msg.ribbon.work_title", &[]), "#arbeit[\n\n]\n");
     }
     if let Some(name) = SCRIPTURE_FUNCTIONS.iter().find(|f| defined.iter().any(|name| name == *f)) {
         push(
             "scripture",
-            "Bibelstelle",
-            &format!("Bibelstelle nach der Werkvorlage (#{name}[…], z. B. Joh 3,16)"),
+            &tc("view_msg.ribbon.scripture", &[]),
+            &tc("view_msg.ribbon.scripture_title", &[("name", (*name).into())]),
             &format!("#{name}[]"),
         );
     }
     if cites_literature(template) {
-        push(
-            "cite",
-            "Literaturverweis",
-            "Verweis auf einen Eintrag des Literaturverzeichnisses der Werkvorlage (@schlüssel)",
-            "@",
-        );
+        push("cite", &tc("view_msg.ribbon.cite", &[]), &tc("view_msg.ribbon.cite_title", &[]), "@");
     }
-    push("footnote", "Fußnote", "Fußnote an der Cursorstelle (#footnote)", "#footnote[]");
+    push("footnote", &tc("view_msg.ribbon.footnote", &[]), &tc("view_msg.ribbon.footnote_title", &[]), "#footnote[]");
     // Round 23a (finding of the user): room for the attribution below the block. Round 36: without a preset line
     // „– “ (it stayed unfilled as a single dash); the hint names the form. An empty
     // `attribution: []` is out of the question: Typst sets a line with the dash for it (measured in
     // `crates/baruch-render/tests/quote_attribution.rs`). The empty lines before and after are set by the widget
     // depending on the surroundings (`web/src/ribbon.ts`, `insertion`), the cursor stands in the body.
-    push(
-        "quote",
-        "Zitat",
-        "Zitat als eigener Block (#quote); die Stellenangabe kommt als eigene Zeile direkt darunter (– Stelle)",
-        QUOTE_SNIPPET,
-    );
-    push("list", "Liste", "Liste mit Spiegelstrichen (- …)", "- \n");
-    push("enum", "Aufzählung", "Nummerierte Aufzählung (1. …)", "1. \n");
-    push("terms", "Begriff", "Begriffsliste (/ Begriff: Erklärung)", "/ Begriff: \n");
-    push("break", "Umbruch", "Zeilenumbruch im Absatz (\\)", "\\\n");
-    push("link", "Link", "Verweis auf eine Adresse (#link)", "#link(\"https://\")[]");
+    push("quote", &tc("view_msg.ribbon.quote", &[]), &tc("view_msg.ribbon.quote_title", &[]), QUOTE_SNIPPET);
+    push("list", &tc("view_msg.ribbon.list", &[]), &tc("view_msg.ribbon.list_title", &[]), "- \n");
+    push("enum", &tc("view_msg.ribbon.enum", &[]), &tc("view_msg.ribbon.enum_title", &[]), "1. \n");
+    push("terms", &tc("view_msg.ribbon.terms", &[]), &tc("view_msg.ribbon.terms_title", &[]), "/ Begriff: \n");
+    push("break", &tc("view_msg.ribbon.break", &[]), &tc("view_msg.ribbon.break_title", &[]), "\\\n");
+    push("link", &tc("view_msg.ribbon.link", &[]), &tc("view_msg.ribbon.link_title", &[]), "#link(\"https://\")[]");
     // Round 30a: cross-reference to an outline item; the button opens the dialog (web/src/xref.ts).
     push(
         "xref",
-        "Verweis",
-        "Querverweis auf einen Gliederungspunkt (#link(<kN>)[…], wahlweise mit Seitenzahl)",
+        &tc("view_msg.ribbon.xref", &[]),
+        &tc("view_msg.ribbon.xref_title", &[("lt", "<".into()), ("gt", ">".into())]),
         "#link(<k>)[]",
     );
     out
@@ -312,48 +303,55 @@ mod tests {
 
     #[test]
     fn scripture_and_cite_appear_only_when_the_template_gives_them() {
-        let built_in = ["footnote", "quote", "list", "enum", "terms", "break", "link", "xref"];
-        let with = "#let bibelstelle(stelle) = text(style: \"italic\", stelle)\n#bibliography(\"quellen.bib\")\n";
-        let mut expected = vec!["scripture", "cite"];
-        expected.extend(built_in);
-        assert_eq!(cmds(with), expected, "Bibelstelle und Literaturverweis aus der Vorlage vor den eingebauten");
-        let all = formats(with);
-        let scripture = all.iter().find(|f| f.cmd == "scripture").unwrap();
-        assert_eq!(scripture.snippet, "#bibelstelle[]", "Snippet mit dem Namen der Vorlage, Inhalt in den Klammern");
-        assert_eq!(scripture.label, "Bibelstelle", "deutsche Beschriftung");
-        let cite = all.iter().find(|f| f.cmd == "cite").unwrap();
-        assert_eq!((cite.label.as_str(), cite.snippet.as_str()), ("Literaturverweis", "@"), "@cite als Knopf");
-        let bibel = formats("#let bibel(body) = emph(body)\n");
-        assert_eq!(
-            bibel.iter().find(|f| f.cmd == "scripture").map(|f| f.snippet.as_str()),
-            Some("#bibel[]"),
-            "auch #let bibel ergibt den Knopf, mit ihrem Namen"
-        );
-        assert_eq!(cmds(""), built_in, "ohne Vorlage weder Bibelstelle noch Literaturverweis");
-        assert_eq!(
-            cmds("// #bibliography(\"x.bib\")\n#let bibelstellen(x) = x\n#let bibel_neu(x) = x\n"),
-            built_in,
-            "auskommentiertes Verzeichnis und ähnliche Namen zählen nicht"
-        );
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let built_in = ["footnote", "quote", "list", "enum", "terms", "break", "link", "xref"];
+            let with = "#let bibelstelle(stelle) = text(style: \"italic\", stelle)\n#bibliography(\"quellen.bib\")\n";
+            let mut expected = vec!["scripture", "cite"];
+            expected.extend(built_in);
+            assert_eq!(cmds(with), expected, "Bibelstelle und Literaturverweis aus der Vorlage vor den eingebauten");
+            let all = formats(with);
+            let scripture = all.iter().find(|f| f.cmd == "scripture").unwrap();
+            assert_eq!(
+                scripture.snippet, "#bibelstelle[]",
+                "Snippet mit dem Namen der Vorlage, Inhalt in den Klammern"
+            );
+            assert_eq!(scripture.label, "Bibelstelle", "deutsche Beschriftung");
+            let cite = all.iter().find(|f| f.cmd == "cite").unwrap();
+            assert_eq!((cite.label.as_str(), cite.snippet.as_str()), ("Literaturverweis", "@"), "@cite als Knopf");
+            let bibel = formats("#let bibel(body) = emph(body)\n");
+            assert_eq!(
+                bibel.iter().find(|f| f.cmd == "scripture").map(|f| f.snippet.as_str()),
+                Some("#bibel[]"),
+                "auch #let bibel ergibt den Knopf, mit ihrem Namen"
+            );
+            assert_eq!(cmds(""), built_in, "ohne Vorlage weder Bibelstelle noch Literaturverweis");
+            assert_eq!(
+                cmds("// #bibliography(\"x.bib\")\n#let bibelstellen(x) = x\n#let bibel_neu(x) = x\n"),
+                built_in,
+                "auskommentiertes Verzeichnis und ähnliche Namen zählen nicht"
+            );
+        })
     }
 
     #[test]
     fn snippets_are_valid_typst_shapes_with_german_labels() {
-        let all = formats("#let szene(body) = body\n#let arbeit(body) = body\n");
-        let get = |cmd: &str| all.iter().find(|f| f.cmd == cmd).unwrap_or_else(|| panic!("{cmd} fehlt"));
-        assert_eq!(get("scene").snippet, "#szene[\n\n]\n", "Szene als Block mit leerer Zeile für den Text");
-        assert_eq!(get("footnote").snippet, "#footnote[]", "Fußnote mitten im Absatz, ohne Zeilenumbruch");
-        assert_eq!(get("break").snippet, "\\\n", "Zeilenumbruch ist ein Backslash am Zeilenende");
-        assert_eq!(
-            get("quote").snippet,
-            "#quote(block: true)[]\n",
-            "Zitat als Block ohne `attribution` (eine leere setzte in Typst eine Strichzeile) und seit Runde 36 ohne \
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let all = formats("#let szene(body) = body\n#let arbeit(body) = body\n");
+            let get = |cmd: &str| all.iter().find(|f| f.cmd == cmd).unwrap_or_else(|| panic!("{cmd} fehlt"));
+            assert_eq!(get("scene").snippet, "#szene[\n\n]\n", "Szene als Block mit leerer Zeile für den Text");
+            assert_eq!(get("footnote").snippet, "#footnote[]", "Fußnote mitten im Absatz, ohne Zeilenumbruch");
+            assert_eq!(get("break").snippet, "\\\n", "Zeilenumbruch ist ein Backslash am Zeilenende");
+            assert_eq!(
+                get("quote").snippet,
+                "#quote(block: true)[]\n",
+                "Zitat als Block ohne `attribution` (eine leere setzte in Typst eine Strichzeile) und seit Runde 36 ohne \
              Folgezeile „– “; die Leerzeilen davor und danach setzt das Widget (Runde 23a)"
-        );
-        assert_eq!(get("list").label, "Liste", "deutsche Beschriftung");
-        assert!(
-            all.iter().all(|f| !f.title.is_empty() && !f.label.is_empty()),
-            "jeder Knopf hat Titel und Beschriftung"
-        );
+            );
+            assert_eq!(get("list").label, "Liste", "deutsche Beschriftung");
+            assert!(
+                all.iter().all(|f| !f.title.is_empty() && !f.label.is_empty()),
+                "jeder Knopf hat Titel und Beschriftung"
+            );
+        })
     }
 }

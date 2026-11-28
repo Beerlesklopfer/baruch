@@ -63,6 +63,7 @@ use minijinja::{Environment, Value as Jinja, context};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
@@ -427,14 +428,11 @@ pub async fn build_wrap_for(state: &AppState, work: WorkId, layout: Option<&Cove
         let errors = rendered.diagnostics.iter().filter(|d| d.severity == baruch_render::Severity::Error).count();
         return Err(RpcError::new(
             REFUSED,
-            format!(
-                "Der Buchsatz hat {errors} Fehler; ohne gesetzte Seiten gibt es kein Seitenmaß für den Umschlag \
-                 (Meldungen unter /werke/{work}/satz)."
-            ),
+            tc("cover_msg.measure.typeset_errors", &[("errors", errors.into()), ("work", work.into())]),
         ));
     }
     let (width_pt, height_pt) = svg_size_pt(&rendered.pages[0])
-        .ok_or_else(|| RpcError::new(INTERNAL, "Seitengröße der ersten Buchseite nicht lesbar"))?;
+        .ok_or_else(|| RpcError::new(INTERNAL, tc("cover_msg.measure.page_size", &[])))?;
     let pages = rendered.pages.len();
     // If the frame is already in the typeset book (after the integration through typeset::prepare), front,
     // inside and back do not count towards the book block.
@@ -507,16 +505,11 @@ pub async fn block_heights(
     // Round 23a: with the typesetting time limit (60 s); after it the run is cancelled and the answer honest.
     let rendered = compile_limited(source, MEASURE_TIMEOUT)
         .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Blockhöhen: {e}")))?
+        .map_err(|e| {
+            RpcError::new(INTERNAL, tc("cover_msg.measure.block_heights", &[("error", e.to_string().into())]))
+        })?
         .ok_or_else(|| {
-            RpcError::new(
-                REFUSED,
-                format!(
-                    "Die Umschlag-Blöcke lassen sich nicht setzen: Typst wurde nach {} Sekunden nicht fertig \
-                     (Zeitgrenze).",
-                    MEASURE_TIMEOUT.as_secs()
-                ),
-            )
+            RpcError::new(REFUSED, tc("cover_msg.measure.timeout", &[("seconds", MEASURE_TIMEOUT.as_secs().into())]))
         })?;
     if rendered.has_errors() {
         let message = rendered
@@ -524,7 +517,7 @@ pub async fn block_heights(
             .iter()
             .find(|d| d.severity == baruch_render::Severity::Error)
             .map_or_else(String::new, |d| d.message.clone());
-        return Err(RpcError::new(REFUSED, format!("Die Umschlag-Blöcke lassen sich nicht setzen: {message}")));
+        return Err(RpcError::new(REFUSED, tc("cover_msg.measure.blocks_failed", &[("message", message.into())])));
     }
     let sizes = baruch_render::page_sizes_pt(&rendered);
     Ok(has_content
@@ -556,7 +549,7 @@ pub async fn front_cover_source(state: &AppState, work: WorkId) -> Result<Source
         .collect();
     let Some((page_width_mm, page_height_mm)) = book_page_mm(&page_template(&template, &settings), &assets).await
     else {
-        return Err("das Seitenformat der Werkvorlage ließ sich nicht setzen (Satzfehler in der Vorlage)".to_owned());
+        return Err(tc("cover_msg.measure.page_format", &[]));
     };
     let stored = state.store.cover_layout(work).await.map_err(|e| e.to_string())?;
     let layout =
@@ -737,7 +730,7 @@ fn text_param(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
         Some(Value::String(s)) => Ok(Some(s.clone())),
         Some(Value::Number(n)) => Ok(Some(n.to_string())),
         Some(Value::Null) => Ok(Some(String::new())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("cover_msg.param.text", &[("name", name.into())]))),
     }
 }
 
@@ -748,15 +741,15 @@ fn bool_param(params: &Value, name: &str) -> Result<Option<bool>, RpcError> {
         Some(Value::String(s)) => match s.trim() {
             "1" | "on" | "true" | "ja" => Ok(Some(true)),
             "" | "0" | "off" | "false" | "nein" => Ok(Some(false)),
-            _ => Err(invalid(format!("{name}: an/aus (true/false) erwartet"))),
+            _ => Err(invalid(tc("cover_msg.param.switch", &[("name", name.into())]))),
         },
-        Some(_) => Err(invalid(format!("{name}: an/aus (true/false) erwartet"))),
+        Some(_) => Err(invalid(tc("cover_msg.param.switch", &[("name", name.into())]))),
     }
 }
 
 /// Number in mm, also as text with comma („0,1“).
 fn mm_param(params: &Value, name: &str, label: &str) -> Result<Option<f64>, RpcError> {
-    let wrong = || invalid(format!("{label}: Zahl in mm erwartet (z. B. 0,1)."));
+    let wrong = || invalid(tc("cover_msg.param.mm", &[("label", label.into())]));
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_f64().map(Some).ok_or_else(wrong),
@@ -769,14 +762,12 @@ fn mm_param(params: &Value, name: &str, label: &str) -> Result<Option<f64>, RpcE
 /// Paper thickness from `paper_mm` (per page, stored) or `paper_sheet_mm` (per sheet = 2 pages, Round 20c; stored
 /// halved, no migration). Both together → `INVALID_PARAMS`.
 fn paper_param(params: &Value) -> Result<Option<f64>, RpcError> {
-    let page = mm_param(params, "paper_mm", "Papierdicke")?;
-    let sheet = mm_param(params, "paper_sheet_mm", "Papierdicke je Blatt")?;
+    let page = mm_param(params, "paper_mm", &tc("cover_msg.param.paper", &[]))?;
+    let sheet = mm_param(params, "paper_sheet_mm", &tc("cover_msg.param.paper_sheet", &[]))?;
     match (page, sheet) {
-        (Some(_), Some(_)) => Err(invalid(
-            "paper_mm und paper_sheet_mm nicht zusammen angeben (paper_sheet_mm = Dicke je Blatt = 2 × paper_mm).",
-        )),
+        (Some(_), Some(_)) => Err(invalid(tc("cover_msg.param.paper_both", &[]))),
         (None, Some(sheet)) if !(sheet.is_finite() && sheet > 0.0 && sheet <= 2.0) => {
-            Err(invalid("Papierdicke je Blatt: mehr als 0 und höchstens 2 mm (1 Blatt = 2 Seiten)."))
+            Err(invalid(tc("cover_msg.param.paper_sheet_range", &[])))
         }
         (None, Some(sheet)) => Ok(Some(sheet / 2.0)),
         (page, None) => Ok(page),
@@ -814,19 +805,19 @@ async fn meta_set(state: &AppState, work: WorkId, params: &Value) -> Result<Valu
         None => None,
         Some(Value::Null) => Some(None),
         Some(Value::String(s)) => Some(Some(s.trim().to_owned()).filter(|s| !s.is_empty())),
-        Some(_) => return Err(invalid("author_photo: Bildname oder null erwartet")),
+        Some(_) => return Err(invalid(tc("cover_msg.param.author_photo", &[]))),
     };
-    edit.title_area =
-        match text_param(params, "title_area")? {
-            None => None,
-            Some(area) => Some(TitleArea::parse(&area).ok_or_else(|| {
-                invalid(format!("title_area: „top“, „middle“ oder „bottom“ erwartet, nicht „{area}“"))
-            })?),
-        };
+    edit.title_area = match text_param(params, "title_area")? {
+        None => None,
+        Some(area) => Some(
+            TitleArea::parse(&area)
+                .ok_or_else(|| invalid(tc("cover_msg.param.title_area", &[("area", area.as_str().into())])))?,
+        ),
+    };
     edit.front_matter = bool_param(params, "front_matter")?;
     edit.cover_pages = bool_param(params, "cover_pages")?;
     edit.paper_mm = paper_param(params)?;
-    edit.bleed_mm = mm_param(params, "bleed_mm", "Beschnitt")?;
+    edit.bleed_mm = mm_param(params, "bleed_mm", &tc("cover_msg.param.bleed", &[]))?;
     let subtitle = text_param(params, "subtitle")?;
     let author = text_param(params, "author")?;
     let bible = text_param(params, "bible")?;
@@ -938,10 +929,11 @@ async fn meta_get(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
 /// `work.update` (lock and commit there). If the template already has all four functions: `REFUSED`, no change.
 async fn imprint_adopt(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let template = state.store.work_template(work).await?;
-    let adopted = tc::imprint_template_missing(&template)
-        .map_err(|why| RpcError::new(REFUSED, format!("Impressum-Vorlage nicht übernommen: {why}")))?;
+    let adopted = tc::imprint_template_missing(&template).map_err(|why| {
+        RpcError::new(REFUSED, tc("cover_msg.imprint.not_adopted", &[("why", why.to_string().into())]))
+    })?;
     if adopted == template {
-        return Err(RpcError::new(REFUSED, "Impressum-Vorlage nicht übernommen: Die Werkvorlage hat schon alles."));
+        return Err(RpcError::new(REFUSED, tc("cover_msg.imprint.complete", &[])));
     }
     let updated = crate::works::call(state, "work.update", json!({ "work": work, "template": adopted })).await?;
     let mut answer = json!({ "work": work, "template_rev": updated["template_rev"] });
@@ -961,8 +953,8 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let name = match params.get("name") {
                 Some(Value::Null) => None,
                 Some(Value::String(s)) => Some(s.as_str()),
-                Some(_) => return Err(invalid("name: Bildname oder null erwartet")),
-                None => return Err(invalid("name fehlt: Bildname des Umschlags oder null zum Entfernen")),
+                Some(_) => return Err(invalid(tc("cover_msg.param.name", &[]))),
+                None => return Err(invalid(tc("cover_msg.param.name_missing", &[]))),
             };
             set_cover(state, work, name).await
         }
@@ -1014,7 +1006,10 @@ fn templates() -> &'static Environment<'static> {
 }
 
 fn render_template(name: &str, ctx: Jinja) -> Result<String, String> {
-    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
+    templates()
+        .get_template(name)
+        .and_then(|t| t.render(ctx))
+        .map_err(|e| tc("cover_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]))
 }
 
 /// A rejected form: message and the entered values (field name → text).
@@ -1139,13 +1134,13 @@ fn page_settings(headers: &HeaderMap) -> Jinja {
 }
 
 /// Notices after a redirect (`hinweis=…` or `ok=…`).
-fn notice(code: Option<&str>) -> Option<&'static str> {
+fn notice(code: Option<&str>) -> Option<String> {
     match code? {
-        "umschlag_gesetzt" => Some("Der Umschlag ist gesetzt."),
-        "umschlag_entfernt" => Some("Der Umschlag ist entfernt."),
-        "buchangaben" => Some("Die Buchangaben sind gespeichert."),
-        "anordnung" => Some("Die Umschlag-Anordnung ist gespeichert."),
-        "impressum" => Some("Die Impressum-Vorlage ist in die Werkvorlage übernommen (neue Fassung der Vorlage)."),
+        "umschlag_gesetzt" => Some(tc("cover_msg.notice.cover_set", &[])),
+        "umschlag_entfernt" => Some(tc("cover_msg.notice.cover_removed", &[])),
+        "buchangaben" => Some(tc("cover_msg.notice.book_details", &[])),
+        "anordnung" => Some(tc("cover_msg.notice.layout", &[])),
+        "impressum" => Some(tc("cover_msg.notice.imprint", &[])),
         _ => None,
     }
 }
@@ -1172,8 +1167,8 @@ async fn page_response(
 ) -> Response {
     let title = match state.store.work_meta(work).await {
         Ok(meta) => meta.title,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, unknown_work()).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let back = format!("/werke/{work}/umschlag");
     let panel = match panel_context(state, work, &back, input.retry).await {
@@ -1184,7 +1179,7 @@ async fn page_response(
     };
     let panel = match panel {
         Ok(html) => html,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     // Editor: layout with the preview from the fields (without storing).
     let fields: Vec<(String, String)> = input.fields.iter().filter(|(k, _)| k.starts_with("b.")).cloned().collect();
@@ -1240,8 +1235,18 @@ async fn page_response(
     };
     match render_template("cover.html", ctx) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     }
+}
+
+/// „Fehler: …“ in the language of the request.
+fn error_text(error: impl std::fmt::Display) -> String {
+    tc("cover_msg.page.error", &[("error", error.to_string().into())])
+}
+
+/// „unbekanntes Werk“ in the language of the request.
+fn unknown_work() -> String {
+    tc("cover_msg.page.unknown_work", &[])
 }
 
 /// Print check of the images (resolution) for the cover page.
@@ -1276,8 +1281,8 @@ async fn cover_page(
 fn pdf_status(e: &RpcError) -> StatusCode {
     match e.code {
         INVALID_PARAMS => StatusCode::NOT_FOUND,
-        REFUSED if e.message.contains("entsteht gerade") => StatusCode::CONFLICT,
-        REFUSED if e.message.starts_with("Typst brauchte länger") => StatusCode::SERVICE_UNAVAILABLE,
+        REFUSED if crate::pdf::is_busy(&e.message) => StatusCode::CONFLICT,
+        REFUSED if crate::typeset::is_timeout(&e.message) => StatusCode::SERVICE_UNAVAILABLE,
         REFUSED => StatusCode::UNPROCESSABLE_ENTITY,
         _ => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -1314,7 +1319,7 @@ async fn cover_svg(
         Err(e) => return (pdf_status(&e), e.message).into_response(),
     };
     let Some(page) = compiled.rendered.pages.first() else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Der Umschlag ließ sich nicht setzen.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("cover_msg.page.not_typeset", &[])).into_response();
     };
     (
         [
@@ -1352,24 +1357,30 @@ pub fn block_label(kind: CoverBlockKind) -> String {
     format!("{} ({})", kind.label(), kind.face().label())
 }
 
-/// German name of a block field (messages, form).
-pub fn block_field_label(field: &str) -> &'static str {
+/// Name of a block field in the language of the request (messages, form).
+pub fn block_field_label(field: &str) -> String {
     match field {
-        "x_mm" => "x",
-        "y_mm" => "y",
-        "width_mm" => "Breite",
-        "align" => "Ausrichtung",
-        "size_pt" => "Schriftgröße",
-        "leading_em" => "Zeilenabstand",
-        "color" => "Farbe",
-        "font" => "Schrift",
-        "style" => "Schnitt",
-        "backdrop" => "Hintergrund",
-        "visible" => "Sichtbar",
-        "direction" => "Laufrichtung",
-        "text" => "Text",
-        _ => "Feld",
+        "x_mm" => "x".to_owned(),
+        "y_mm" => "y".to_owned(),
+        "width_mm" => tc("cover_msg.block_field.width", &[]),
+        "align" => tc("cover_msg.block_field.align", &[]),
+        "size_pt" => tc("cover_msg.block_field.size", &[]),
+        "leading_em" => tc("cover_msg.block_field.leading", &[]),
+        "color" => tc("cover_msg.block_field.color", &[]),
+        "font" => tc("cover_msg.block_field.font", &[]),
+        "style" => tc("cover_msg.block_field.style", &[]),
+        "backdrop" => tc("cover_msg.block_field.backdrop", &[]),
+        "visible" => tc("cover_msg.block_field.visible", &[]),
+        "direction" => tc("cover_msg.block_field.direction", &[]),
+        "text" => tc("cover_msg.block_field.text", &[]),
+        _ => tc("cover_msg.block_field.other", &[]),
     }
+}
+
+/// A decimal number of [`number_value`] with the decimal separator of the request language (de comma, en point).
+fn local_decimal(value: f64) -> String {
+    let text = number_value(value);
+    if crate::i18n::current() == crate::i18n::Lang::De { text.replace('.', ",") } else { text }
 }
 
 /// Number from a field (dot or comma); finite values only.
@@ -1392,7 +1403,7 @@ fn number_value(value: f64) -> String {
 
 /// Limit for messages: „-50 und 1000“.
 fn bounds(range: (f64, f64)) -> String {
-    format!("{} und {}", number_value(range.0).replace('.', ","), number_value(range.1).replace('.', ","))
+    tc("cover_msg.block.bounds", &[("low", local_decimal(range.0).into()), ("high", local_decimal(range.1).into())])
 }
 
 /// Apply a field to a block; errors as a German message with kind and field.
@@ -1401,7 +1412,10 @@ fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(
     let ranged = |range: (f64, f64), unit: &str| -> Result<f64, String> {
         match number_field(raw) {
             Some(v) if v >= range.0 && v <= range.1 => Ok(v),
-            _ => Err(wrong(format!("Zahl zwischen {} {unit} erwartet, nicht „{}“.", bounds(range), raw.trim()))),
+            _ => Err(wrong(tc(
+                "cover_msg.block.number_range",
+                &[("bounds", bounds(range).into()), ("unit", unit.into()), ("raw", raw.trim().into())],
+            ))),
         }
     };
     match field {
@@ -1411,23 +1425,22 @@ fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(
         "size_pt" => block.size_pt = ranged(cl::SIZE_PT, "pt")?,
         "leading_em" => block.leading_em = ranged(cl::LEADING_EM, "em")?,
         "align" => {
-            block.align = CoverAlign::parse(raw).ok_or_else(|| {
-                wrong(format!("„left“, „center“, „right“ oder „justify“ erwartet, nicht „{}“.", raw.trim()))
-            })?
+            block.align = CoverAlign::parse(raw)
+                .ok_or_else(|| wrong(tc("cover_msg.block.align", &[("raw", raw.trim().into())])))?
         }
         "style" => {
             block.style = FontStyle::parse(raw)
-                .ok_or_else(|| wrong(format!("„normal“, „bold“ oder „italic“ erwartet, nicht „{}“.", raw.trim())))?
+                .ok_or_else(|| wrong(tc("cover_msg.block.style", &[("raw", raw.trim().into())])))?
         }
         "backdrop" => {
             block.backdrop = Backdrop::parse(raw)
-                .ok_or_else(|| wrong(format!("„none“, „shadow“ oder „gradient“ erwartet, nicht „{}“.", raw.trim())))?
+                .ok_or_else(|| wrong(tc("cover_msg.block.backdrop", &[("raw", raw.trim().into())])))?
         }
         "color" => {
             let color = raw.trim().to_ascii_lowercase();
             let hex = color.len() == 7 && color.starts_with('#') && color[1..].bytes().all(|b| b.is_ascii_hexdigit());
             if !(color == "light" || color == "dark" || hex) {
-                return Err(wrong(format!("„light“, „dark“ oder #rrggbb erwartet, nicht „{}“.", raw.trim())));
+                return Err(wrong(tc("cover_msg.block.color", &[("raw", raw.trim().into())])));
             }
             block.color = color;
         }
@@ -1438,10 +1451,7 @@ fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(
             } else {
                 let allowed = font.chars().all(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.'));
                 if !allowed || font.chars().count() > cl::MAX_FONT_CHARS {
-                    return Err(wrong(format!(
-                        "Schriftname aus Buchstaben, Ziffern, Leerzeichen und - _ . (höchstens {} Zeichen) erwartet.",
-                        cl::MAX_FONT_CHARS
-                    )));
+                    return Err(wrong(tc("cover_msg.block.font", &[("max", cl::MAX_FONT_CHARS.into())])));
                 }
                 block.font = Some(font.to_owned());
             }
@@ -1450,30 +1460,36 @@ fn apply_block_field(block: &mut CoverBlock, field: &str, raw: &str) -> Result<(
             block.visible = match raw.trim() {
                 "1" | "on" | "true" | "ja" => true,
                 "" | "0" | "off" | "false" | "nein" => false,
-                other => return Err(wrong(format!("an/aus (1/0) erwartet, nicht „{other}“."))),
+                other => return Err(wrong(tc("cover_msg.block.switch", &[("raw", other.into())]))),
             }
         }
         "direction" => {
             if block.kind.face() == CoverFace::Spine {
-                block.direction = Some(SpineDirection::parse(raw).ok_or_else(|| {
-                    wrong(format!("„down“ (von oben nach unten) oder „up“ erwartet, nicht „{}“.", raw.trim()))
-                })?);
+                block.direction = Some(
+                    SpineDirection::parse(raw)
+                        .ok_or_else(|| wrong(tc("cover_msg.block.direction", &[("raw", raw.trim().into())])))?,
+                );
             } else if !raw.trim().is_empty() {
-                return Err(wrong("gibt es nur auf dem Rücken.".to_owned()));
+                return Err(wrong(tc("cover_msg.block.spine_only", &[])));
             }
         }
         "text" => {
             let text = raw.replace("\r\n", "\n");
             if block.kind.own_text() {
                 if text.chars().count() > cl::MAX_TEXT_CHARS {
-                    return Err(wrong(format!("höchstens {} Zeichen.", cl::MAX_TEXT_CHARS)));
+                    return Err(wrong(tc("cover_msg.block.text_too_long", &[("max", cl::MAX_TEXT_CHARS.into())])));
                 }
                 block.text = Some(text);
             } else if !text.trim().is_empty() {
-                return Err(wrong("Dieser Block nimmt seinen Text aus Werk und Buchangaben.".to_owned()));
+                return Err(wrong(tc("cover_msg.block.text_from_work", &[])));
             }
         }
-        other => return Err(format!("{}: unbekanntes Feld „{other}“.", block_label(block.kind))),
+        other => {
+            return Err(tc(
+                "cover_msg.block.unknown_field",
+                &[("block", block_label(block.kind).into()), ("field", other.into())],
+            ));
+        }
     }
     Ok(())
 }
@@ -1486,7 +1502,10 @@ pub fn blocks_from_fields(fields: &[(String, String)], base: &[CoverBlock]) -> R
         if let Some(rest) = name.strip_prefix("b.") {
             let kind = rest.split_once('.').map_or(rest, |(kind, _)| kind);
             if CoverBlockKind::parse(kind).is_none() {
-                return Err(format!("Unbekannte Blockart „{kind}“ im Feld „{name}“."));
+                return Err(tc(
+                    "cover_msg.block.unknown_kind",
+                    &[("kind", kind.into()), ("name", name.as_str().into())],
+                ));
             }
         }
     }
@@ -1502,7 +1521,7 @@ pub fn blocks_from_fields(fields: &[(String, String)], base: &[CoverBlock]) -> R
             .iter()
             .find(|b| b.kind == kind)
             .cloned()
-            .ok_or_else(|| format!("{}: kein Ausgangsblock.", block_label(kind)))?;
+            .ok_or_else(|| tc("cover_msg.block.no_base", &[("block", block_label(kind).into())]))?;
         for (field, raw) in given {
             apply_block_field(&mut block, field, raw)?;
         }
@@ -1684,8 +1703,8 @@ pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, 
     let (b, w, h, s) = (geometry.bleed_mm, geometry.page_width_mm, geometry.page_height_mm, geometry.spine_mm);
     let safety = geometry.safety_mm;
     let mut out = vec![
-        ("bleed", "Beschnitt (Außenkante)".to_owned(), 0.0, 0.0, wrap_w, wrap_h),
-        ("trim", "Schnittkante".to_owned(), b, b, 2.0 * w + s, h),
+        ("bleed", tc("cover_msg.guide.bleed", &[]), 0.0, 0.0, wrap_w, wrap_h),
+        ("trim", tc("cover_msg.guide.trim", &[]), b, b, 2.0 * w + s, h),
     ];
     for face in [CoverFace::Back, CoverFace::Spine, CoverFace::Front] {
         let (ox, oy) = geometry.face_origin(face);
@@ -1693,7 +1712,7 @@ pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, 
         if fw > 2.0 * safety && fh > 2.0 * safety {
             out.push((
                 "safety",
-                format!("Sicherheitsabstand {} mm ({})", number_value(safety).replace('.', ","), face.label()),
+                tc("cover_msg.guide.safety", &[("mm", local_decimal(safety).into()), ("face", face.label().into())]),
                 ox + safety,
                 oy + safety,
                 fw - 2.0 * safety,
@@ -1701,11 +1720,11 @@ pub fn guides(geometry: &CoverGeometry) -> Vec<(&'static str, String, f64, f64, 
             ));
         }
     }
-    out.push(("spine", "Rückenkante links".to_owned(), b + w, b, 0.0, h));
-    out.push(("spine", "Rückenkante rechts".to_owned(), b + w + s, b, 0.0, h));
-    out.push(("center", "Mitte der Rückseite".to_owned(), b + w / 2.0, b, 0.0, h));
-    out.push(("center", "Mitte der Vorderseite".to_owned(), b + w + s + w / 2.0, b, 0.0, h));
-    out.push(("center", "Mitte der Höhe".to_owned(), b, b + h / 2.0, 2.0 * w + s, 0.0));
+    out.push(("spine", tc("cover_msg.guide.spine_left", &[]), b + w, b, 0.0, h));
+    out.push(("spine", tc("cover_msg.guide.spine_right", &[]), b + w + s, b, 0.0, h));
+    out.push(("center", tc("cover_msg.guide.middle_back", &[]), b + w / 2.0, b, 0.0, h));
+    out.push(("center", tc("cover_msg.guide.middle_front", &[]), b + w + s + w / 2.0, b, 0.0, h));
+    out.push(("center", tc("cover_msg.guide.middle_height", &[]), b, b + h / 2.0, 2.0 * w + s, 0.0));
     out
 }
 
@@ -1741,13 +1760,17 @@ impl EditorState {
                     }
                 }
                 let label = block_label(kind);
-                let aria = format!(
-                    "{label}: x {} mm, y {} mm, Breite {} mm{}",
-                    format_mm(block.x_mm),
-                    format_mm(block.y_mm),
-                    format_mm(block.width_mm),
-                    if block.visible { "" } else { ", verborgen" }
-                );
+                let args = [
+                    ("label", label.as_str().into()),
+                    ("x", format_mm(block.x_mm).into()),
+                    ("y", format_mm(block.y_mm).into()),
+                    ("width", format_mm(block.width_mm).into()),
+                ];
+                let aria = if block.visible {
+                    tc("cover_msg.editor.block_aria", &args)
+                } else {
+                    tc("cover_msg.editor.block_aria_hidden", &args)
+                };
                 context! {
                     kind => kind.as_str(), label => label, name => kind.label(), face => kind.face().as_str(),
                     face_label => kind.face().label(), aria => aria, stored => vb.stored,
@@ -1823,9 +1846,12 @@ async fn cover_pdf_download(
         }
         Err(e) => {
             let status = pdf_status(&e);
-            let retry = Retry { error: format!("Kein Umschlag-PDF: {}", e.message), values: BTreeMap::new() };
+            let retry = Retry {
+                error: tc("cover_msg.page.no_pdf", &[("error", e.message.as_str().into())]),
+                values: BTreeMap::new(),
+            };
             if status == StatusCode::NOT_FOUND {
-                return (status, "unbekanntes Werk").into_response();
+                return (status, unknown_work()).into_response();
             }
             page_response(&state, &headers, id, status, PageInput { retry: Some(&retry), ..PageInput::default() }).await
         }
@@ -1897,7 +1923,7 @@ async fn cover_act(
 ) -> Response {
     let fields: BTreeMap<String, String> = pairs.into_iter().collect();
     let Some(work) = form_work(&fields) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("cover_msg.form.work_missing", &[])).into_response();
     };
     let back =
         safe_back(fields.get("back").map(String::as_str)).unwrap_or_else(|| format!("/einstellungen/werk?work={work}"));
@@ -1906,7 +1932,7 @@ async fn cover_act(
         "set" => {
             let name = fields.get("name").map(|n| n.trim()).unwrap_or("");
             if name.is_empty() {
-                Err(invalid("Bitte ein Bild für den Umschlag wählen."))
+                Err(invalid(tc("cover_msg.form.choose_image", &[])))
             } else {
                 set_cover(&state, work, Some(name)).await.map(|_| "umschlag_gesetzt")
             }
@@ -1916,13 +1942,11 @@ async fn cover_act(
             let area = fields.get("title_area").cloned().unwrap_or_default();
             meta_set(&state, work, &json!({ "title_area": area })).await.map(|_| "buchangaben")
         }
-        _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+        _ => return (StatusCode::BAD_REQUEST, tc("cover_msg.form.unknown_action", &[])).into_response(),
     };
     match result {
         Ok(hint) => Redirect::to(&success_target(&back, "umschlag", hint)).into_response(),
-        Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
-        }
+        Err(e) if e.code == INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
         Err(e) => {
             let status = form_status(&e);
             failed(&state, &headers, work, &back, status, Retry { error: e.message, values: BTreeMap::new() }).await
@@ -1965,7 +1989,7 @@ async fn book_act(
 ) -> Response {
     let fields: BTreeMap<String, String> = pairs.into_iter().collect();
     let Some(work) = form_work(&fields) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("cover_msg.form.work_missing", &[])).into_response();
     };
     let back =
         safe_back(fields.get("back").map(String::as_str)).unwrap_or_else(|| format!("/einstellungen/werk?work={work}"));
@@ -1988,9 +2012,7 @@ async fn book_act(
     }
     match meta_set(&state, work, &params).await {
         Ok(_) => Redirect::to(&success_target(&back, "buchangaben", "buchangaben")).into_response(),
-        Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
-        }
+        Err(e) if e.code == INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
         Err(e) => {
             let mut values: BTreeMap<String, String> = fields
                 .iter()
@@ -2034,7 +2056,7 @@ async fn layout_act(
 ) -> Response {
     let fields: BTreeMap<String, String> = pairs.iter().cloned().collect();
     let Some(work) = form_work(&fields) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("cover_msg.form.work_missing", &[])).into_response();
     };
     let back = safe_back(fields.get("back").map(String::as_str)).unwrap_or_else(|| format!("/werke/{work}/umschlag"));
     let action = fields.get("action").map(|a| a.trim()).unwrap_or("save");
@@ -2044,7 +2066,7 @@ async fn layout_act(
                 let base: Vec<CoverBlock> = base.blocks.into_iter().map(|b| b.block).collect();
                 match blocks_from_fields(&pairs, &base) {
                     Ok(blocks) if blocks.is_empty() => {
-                        Err(invalid("Keine Blöcke im Formular (Felder b.<Art>.<Feld>)."))
+                        Err(invalid(tc("cover_msg.form.no_blocks", &[("lt", "<".into()), ("gt", ">".into())])))
                     }
                     Ok(blocks) => crate::cover_layout::layout_set(&state, work, blocks).await,
                     Err(message) => Err(invalid(message)),
@@ -2056,7 +2078,7 @@ async fn layout_act(
             let area = fields.get("area").map(String::as_str).unwrap_or("");
             match TitleArea::parse(area) {
                 Some(area) => crate::cover_layout::layout_reset(&state, work, &[CoverFace::Front], Some(area)).await,
-                None => Err(invalid(format!("Schnellwahl: „top“, „middle“ oder „bottom“ erwartet, nicht „{area}“."))),
+                None => Err(invalid(tc("cover_msg.form.quick_area", &[("area", area.into())]))),
             }
         }
         "reset" => {
@@ -2070,17 +2092,15 @@ async fn layout_act(
                 }
             }
             match wrong {
-                Some(word) => Err(invalid(format!("Flächen: „front“, „spine“ oder „back“ erwartet, nicht „{word}“."))),
+                Some(word) => Err(invalid(tc("cover_msg.form.faces", &[("word", word.into())]))),
                 None => crate::cover_layout::layout_reset(&state, work, &faces, None).await,
             }
         }
-        _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+        _ => return (StatusCode::BAD_REQUEST, tc("cover_msg.form.unknown_action", &[])).into_response(),
     };
     match result {
         Ok(_) => Redirect::to(&with_code(&back, "anordnung")).into_response(),
-        Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
-        }
+        Err(e) if e.code == INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
         Err(e) => {
             let status = form_status(&e);
             // The input stays (only when saving; quick choice and reset have no values).
@@ -2101,14 +2121,12 @@ async fn imprint_act(
 ) -> Response {
     let fields: BTreeMap<String, String> = pairs.into_iter().collect();
     let Some(work) = form_work(&fields) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("cover_msg.form.work_missing", &[])).into_response();
     };
     let back = safe_back(fields.get("back").map(String::as_str)).unwrap_or_else(|| format!("/werke/{work}/umschlag"));
     match imprint_adopt(&state, work).await {
         Ok(_) => Redirect::to(&with_code(&back, "impressum")).into_response(),
-        Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
-        }
+        Err(e) if e.code == INTERNAL => (StatusCode::INTERNAL_SERVER_ERROR, error_text(&e.message)).into_response(),
         Err(e) => {
             let retry = Retry { error: e.message, values: BTreeMap::new() };
             failed(&state, &headers, work, &back, StatusCode::UNPROCESSABLE_ENTITY, retry).await
@@ -2150,21 +2168,23 @@ mod tests {
 
     #[test]
     fn wrong_fields_name_kind_and_field() {
-        let base = vec![sample(CoverBlockKind::FrontTitle), sample(CoverBlockKind::BackBlurb)];
-        let cases = [
-            (("b.front_title.x_mm", "1001"), "Titel (Vorderseite), x"),
-            (("b.front_title.size_pt", "drei"), "Titel (Vorderseite), Schriftgröße"),
-            (("b.front_title.direction", "up"), "nur auf dem Rücken"),
-            (("b.back_blurb.text", "eigener Text"), "Klappentext (Rückseite), Text"),
-            (("b.front_title.font", "Schrift;rot"), "Titel (Vorderseite), Schrift"),
-            (("b.front_title.color", "rot"), "Titel (Vorderseite), Farbe"),
-            (("b.front_title.unsinn", "1"), "unbekanntes Feld"),
-            (("b.rueckenwind.x_mm", "1"), "Unbekannte Blockart"),
-        ];
-        for ((name, value), needle) in cases {
-            let error = blocks_from_fields(&pairs(&[(name, value)]), &base).unwrap_err();
-            assert!(error.contains(needle), "{name}={value}: Meldung nennt „{needle}“: {error}");
-        }
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let base = vec![sample(CoverBlockKind::FrontTitle), sample(CoverBlockKind::BackBlurb)];
+            let cases = [
+                (("b.front_title.x_mm", "1001"), "Titel (Vorderseite), x"),
+                (("b.front_title.size_pt", "drei"), "Titel (Vorderseite), Schriftgröße"),
+                (("b.front_title.direction", "up"), "nur auf dem Rücken"),
+                (("b.back_blurb.text", "eigener Text"), "Klappentext (Rückseite), Text"),
+                (("b.front_title.font", "Schrift;rot"), "Titel (Vorderseite), Schrift"),
+                (("b.front_title.color", "rot"), "Titel (Vorderseite), Farbe"),
+                (("b.front_title.unsinn", "1"), "unbekanntes Feld"),
+                (("b.rueckenwind.x_mm", "1"), "Unbekannte Blockart"),
+            ];
+            for ((name, value), needle) in cases {
+                let error = blocks_from_fields(&pairs(&[(name, value)]), &base).unwrap_err();
+                assert!(error.contains(needle), "{name}={value}: Meldung nennt „{needle}“: {error}");
+            }
+        })
     }
 
     #[test]

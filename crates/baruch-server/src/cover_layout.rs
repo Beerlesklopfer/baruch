@@ -29,6 +29,7 @@ use serde_json::{Map, Value, json};
 use crate::AppState;
 use crate::asset_requests::Decided;
 use crate::cover_print::CoverWarning;
+use crate::i18n::tc;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
@@ -149,33 +150,41 @@ pub fn parse_block(
     base: impl FnOnce(CoverBlockKind) -> Option<CoverBlock>,
 ) -> Result<CoverBlock, String> {
     let Some(object) = value.as_object() else {
-        return Err(format!("Umschlag-Block Nr. {}: ein Objekt mit kind, x_mm, … erwartet", index + 1));
+        return Err(tc("cover_msg.layout.not_object", &[("number", (index + 1).into())]));
     };
     let kind = match object.get("kind") {
         Some(Value::String(word)) => CoverBlockKind::parse(word).ok_or_else(|| {
-            format!("Umschlag-Block Nr. {}, Feld kind: unbekannte Art „{word}“ (erlaubt: {})", index + 1, kind_list())
+            tc(
+                "cover_msg.layout.unknown_kind",
+                &[("number", (index + 1).into()), ("word", word.as_str().into()), ("allowed", kind_list().into())],
+            )
         })?,
         _ => {
-            return Err(format!(
-                "Umschlag-Block Nr. {}, Feld kind: Art als Text erwartet ({})",
-                index + 1,
-                kind_list()
+            return Err(tc(
+                "cover_msg.layout.kind_text",
+                &[("number", (index + 1).into()), ("allowed", kind_list().into())],
             ));
         }
     };
-    let label = format!("Umschlag-Block „{}“ ({})", kind_label(kind), kind.as_str());
-    let wrong = |field: &str, what: &str| format!("{label}, Feld {field}: {what}");
+    let label =
+        tc("cover_msg.layout.block_label", &[("label", kind_label(kind).into()), ("kind", kind.as_str().into())]);
+    let wrong = |field: &str, what: &str| {
+        tc(
+            "cover_msg.layout.field",
+            &[("label", label.as_str().into()), ("field", field.into()), ("what", what.into())],
+        )
+    };
     for key in object.keys() {
         if !FIELDS.contains(&key.as_str()) && key != "stored" && key != "height_mm" {
-            return Err(wrong(key, "unbekanntes Feld"));
+            return Err(wrong(key, &tc("cover_msg.layout.unknown_field", &[])));
         }
     }
     let base = base(kind);
-    let missing = |field: &str| wrong(field, "fehlt");
+    let missing = |field: &str| wrong(field, &tc("cover_msg.layout.missing", &[]));
     let number = |field: &str, current: Option<f64>| -> Result<f64, String> {
         match object.get(field) {
-            Some(Value::Number(n)) => n.as_f64().ok_or_else(|| wrong(field, "Zahl erwartet")),
-            Some(_) => Err(wrong(field, "Zahl erwartet")),
+            Some(Value::Number(n)) => n.as_f64().ok_or_else(|| wrong(field, &tc("cover_msg.layout.number", &[]))),
+            Some(_) => Err(wrong(field, &tc("cover_msg.layout.number", &[]))),
             None => current.ok_or_else(|| missing(field)),
         }
     };
@@ -188,16 +197,21 @@ pub fn parse_block(
         wrong: &dyn Fn(&str, &str) -> String,
     ) -> Result<T, String> {
         match object.get(field) {
-            Some(Value::String(s)) => parse(s).ok_or_else(|| wrong(field, &format!("„{s}“ – erlaubt: {allowed}"))),
-            Some(_) => Err(wrong(field, &format!("Text erwartet ({allowed})"))),
-            None => current.ok_or_else(|| wrong(field, "fehlt")),
+            Some(Value::String(s)) => parse(s).ok_or_else(|| {
+                wrong(
+                    field,
+                    &tc("cover_msg.layout.allowed", &[("value", s.as_str().into()), ("allowed", allowed.into())]),
+                )
+            }),
+            Some(_) => Err(wrong(field, &tc("cover_msg.layout.text_allowed", &[("allowed", allowed.into())]))),
+            None => current.ok_or_else(|| wrong(field, &tc("cover_msg.layout.missing", &[]))),
         }
     }
     let optional_text = |field: &str, current: Option<Option<String>>| -> Result<Option<String>, String> {
         match object.get(field) {
             Some(Value::String(s)) => Ok(Some(s.clone())),
             Some(Value::Null) => Ok(None),
-            Some(_) => Err(wrong(field, "Text oder null erwartet")),
+            Some(_) => Err(wrong(field, &tc("cover_msg.layout.text_or_null", &[]))),
             None => Ok(current.flatten()),
         }
     };
@@ -212,7 +226,7 @@ pub fn parse_block(
         leading_em: number("leading_em", b.map(|b| b.leading_em))?,
         color: match object.get("color") {
             Some(Value::String(s)) => s.clone(),
-            Some(_) => return Err(wrong("color", "Text erwartet (light, dark oder #rrggbb)")),
+            Some(_) => return Err(wrong("color", &tc("cover_msg.layout.color", &[]))),
             None => b.map(|b| b.color.clone()).ok_or_else(|| missing("color"))?,
         },
         font: optional_text("font", b.map(|b| b.font.clone()))?,
@@ -220,15 +234,18 @@ pub fn parse_block(
         backdrop: word(object, "backdrop", b.map(|b| b.backdrop), Backdrop::parse, "none, shadow, gradient", &wrong)?,
         visible: match object.get("visible") {
             Some(Value::Bool(v)) => *v,
-            Some(_) => return Err(wrong("visible", "true oder false erwartet")),
+            Some(_) => return Err(wrong("visible", &tc("cover_msg.layout.flag", &[]))),
             None => b.map(|b| b.visible).ok_or_else(|| missing("visible"))?,
         },
         direction: match object.get("direction") {
-            Some(Value::String(s)) => Some(
-                SpineDirection::parse(s).ok_or_else(|| wrong("direction", &format!("„{s}“ – erlaubt: down, up")))?,
-            ),
+            Some(Value::String(s)) => Some(SpineDirection::parse(s).ok_or_else(|| {
+                wrong(
+                    "direction",
+                    &tc("cover_msg.layout.allowed", &[("value", s.as_str().into()), ("allowed", "down, up".into())]),
+                )
+            })?),
             Some(Value::Null) => None,
-            Some(_) => return Err(wrong("direction", "down, up oder null erwartet")),
+            Some(_) => return Err(wrong("direction", &tc("cover_msg.layout.direction", &[]))),
             None => b.and_then(|b| b.direction),
         },
         text: optional_text("text", b.map(|b| b.text.clone()))?,
@@ -245,7 +262,7 @@ pub fn parse_blocks(
     mut base: impl FnMut(CoverBlockKind) -> Option<CoverBlock>,
 ) -> Result<Vec<CoverBlock>, String> {
     let Some(Value::Array(items)) = value else {
-        return Err("blocks: Liste von Blöcken erwartet (je {kind, x_mm, y_mm, width_mm, …})".into());
+        return Err(tc("cover_msg.layout.blocks_list", &[]));
     };
     items.iter().enumerate().map(|(i, v)| parse_block(i, v, &mut base)).collect()
 }
@@ -519,7 +536,7 @@ pub async fn layout_reset(
 pub async fn fonts(state: &AppState, work: WorkId) -> Result<Value, RpcError> {
     let families = tokio::task::spawn_blocking(baruch_render::font_families)
         .await
-        .map_err(|e| RpcError::new(INTERNAL, format!("Schriften: {e}")))?;
+        .map_err(|e| RpcError::new(INTERNAL, tc("cover_msg.layout.fonts", &[("error", e.to_string().into())])))?;
     let default = default_font(state, work).await?;
     Ok(json!({ "families": families, "default": default }))
 }
@@ -535,26 +552,26 @@ async fn stale(state: &AppState, work: WorkId, id: i64, message: &str) -> Result
 /// or a block is no longer valid). Called by `asset_requests::decide` after the check “still open”.
 pub async fn decide_request(state: &AppState, work: WorkId, request: &AssetRequest) -> Result<Decided, RpcError> {
     let AssetOp::CoverLayout { blocks, expected_layout } = &request.op else {
-        return Err(RpcError::new(INVALID_PARAMS, "Dieser Antrag betrifft nicht die Umschlag-Anordnung."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("cover_msg.layout.not_layout_request", &[])));
     };
     let defaults = defaults(state, work).await;
     let held = state.write_lock.lock().await;
     let now = Store::cover_layout_fingerprint(&state.store.cover_layout(work).await?);
     if &now != expected_layout {
         drop(held);
-        return stale(
-            state,
-            work,
-            request.id,
-            "Die Umschlag-Anordnung wurde inzwischen geändert; der Antrag bezog sich auf den Stand davor.",
-        )
-        .await;
+        return stale(state, work, request.id, &tc("cover_msg.layout.stale", &[])).await;
     }
     let change = match state.store.set_cover_blocks(work, blocks).await {
         Ok(change) => change,
         Err(e @ (StoreError::Refused(_) | StoreError::Asset(_) | StoreError::CoverBlock(_))) => {
             drop(held);
-            return stale(state, work, request.id, &format!("Nicht mehr ausführbar: {e}")).await;
+            return stale(
+                state,
+                work,
+                request.id,
+                &tc("cover_msg.layout.not_executable", &[("error", e.to_string().into())]),
+            )
+            .await;
         }
         Err(e) => return Err(e.into()),
     };
@@ -583,17 +600,14 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let faces = match params.get("faces") {
                 None | Some(Value::Null) => Vec::new(),
                 Some(value) => serde_json::from_value::<Vec<CoverFace>>(value.clone())
-                    .map_err(|_| RpcError::new(INVALID_PARAMS, "faces: Liste aus „front“, „spine“, „back“ erwartet"))?,
+                    .map_err(|_| RpcError::new(INVALID_PARAMS, tc("cover_msg.layout.faces", &[])))?,
             };
             let area = match params.get("area") {
                 None | Some(Value::Null) => None,
                 Some(Value::String(word)) => Some(TitleArea::parse(word).ok_or_else(|| {
-                    RpcError::new(
-                        INVALID_PARAMS,
-                        format!("area: „top“, „middle“ oder „bottom“ erwartet, nicht „{word}“"),
-                    )
+                    RpcError::new(INVALID_PARAMS, tc("cover_msg.layout.area_not", &[("word", word.as_str().into())]))
                 })?),
-                Some(_) => return Err(RpcError::new(INVALID_PARAMS, "area: „top“, „middle“ oder „bottom“ erwartet")),
+                Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("cover_msg.layout.area", &[]))),
             };
             layout_reset(state, work, &faces, area).await
         }
@@ -649,24 +663,26 @@ mod tests {
 
     #[test]
     fn json_blocks_name_kind_and_field_on_errors() {
-        let full = json!(block());
-        assert_eq!(parse_block(0, &full, |_| None).unwrap(), block(), "serde-Form liest sich zurück");
-        let mut with_view = full.clone();
-        with_view["stored"] = json!(true);
-        with_view["height_mm"] = json!(8.5);
-        assert!(parse_block(0, &with_view, |_| None).is_ok(), "Felder aus cover.layout werden übergangen");
-        let mut bad = full.clone();
-        bad["x_mm"] = json!("zwölf");
-        let e = parse_block(0, &bad, |_| None).unwrap_err();
-        assert!(e.contains("front_title") && e.contains("x_mm"), "Art und Feld: {e}");
-        let e = parse_block(2, &json!({ "kind": "front_cloud" }), |_| None).unwrap_err();
-        assert!(e.contains("Nr. 3") && e.contains("front_cloud") && e.contains("kind"), "unbekannte Art: {e}");
-        let e = parse_block(0, &json!({ "kind": "back_blurb" }), |_| None).unwrap_err();
-        assert!(
-            e.contains("back_blurb") && e.contains("x_mm") && e.contains("fehlt"),
-            "ohne Grundlage fehlt x_mm: {e}"
-        );
-        let partial = parse_block(0, &json!({ "kind": "front_title", "y_mm": 40 }), |_| Some(block())).unwrap();
-        assert_eq!((partial.x_mm, partial.y_mm), (12.0, 40.0), "MCP: fehlende Felder aus dem wirksamen Block");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let full = json!(block());
+            assert_eq!(parse_block(0, &full, |_| None).unwrap(), block(), "serde-Form liest sich zurück");
+            let mut with_view = full.clone();
+            with_view["stored"] = json!(true);
+            with_view["height_mm"] = json!(8.5);
+            assert!(parse_block(0, &with_view, |_| None).is_ok(), "Felder aus cover.layout werden übergangen");
+            let mut bad = full.clone();
+            bad["x_mm"] = json!("zwölf");
+            let e = parse_block(0, &bad, |_| None).unwrap_err();
+            assert!(e.contains("front_title") && e.contains("x_mm"), "Art und Feld: {e}");
+            let e = parse_block(2, &json!({ "kind": "front_cloud" }), |_| None).unwrap_err();
+            assert!(e.contains("Nr. 3") && e.contains("front_cloud") && e.contains("kind"), "unbekannte Art: {e}");
+            let e = parse_block(0, &json!({ "kind": "back_blurb" }), |_| None).unwrap_err();
+            assert!(
+                e.contains("back_blurb") && e.contains("x_mm") && e.contains("fehlt"),
+                "ohne Grundlage fehlt x_mm: {e}"
+            );
+            let partial = parse_block(0, &json!({ "kind": "front_title", "y_mm": 40 }), |_| Some(block())).unwrap();
+            assert_eq!((partial.x_mm, partial.y_mm), (12.0, 40.0), "MCP: fehlende Felder aus dem wirksamen Block");
+        })
     }
 }

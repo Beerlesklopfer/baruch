@@ -345,8 +345,8 @@ pub fn pattern(q: &str, options: PatternOptions) -> Result<Regex, String> {
         .dfa_size_limit(DFA_SIZE_LIMIT)
         .build()
         .map_err(|e| match e {
-            regex::Error::CompiledTooBig(_) => "Der reguläre Ausdruck ist zu groß.".to_owned(),
-            other => format!("Ungültiger regulärer Ausdruck: {other}"),
+            regex::Error::CompiledTooBig(_) => crate::i18n::tc("reference_msg.search.regex_too_big", &[]),
+            other => crate::i18n::tc("reference_msg.search.regex_invalid", &[("error", other.to_string().into())]),
         })
 }
 

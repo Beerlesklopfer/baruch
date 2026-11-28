@@ -38,6 +38,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
 /// Maximum width of the EPUB cover in pixels (usual cover size 1600 × 2560).
@@ -292,7 +293,7 @@ pub async fn front_cover_png(state: &AppState, work: WorkId) -> Result<Vec<u8>, 
         baruch_render::render_png(&source, 0, COVER_MAX_WIDTH, COVER_MAX_HEIGHT)
     }))
     .await
-    .map_err(|e| format!("Rasterbild: {e}"))??;
+    .map_err(|e| tc("export_msg.epub.raster", &[("error", e.to_string().into())]))??;
     if let Ok(mut cache) = raster_cache().lock() {
         if cache.len() >= 8 {
             cache.remove(0);
@@ -316,15 +317,11 @@ pub async fn epub_cover(state: &AppState, work: WorkId) -> Result<(Option<EpubIm
         }
         Err(reason) => {
             let message = match &raw {
-                Some(image) => format!(
-                    "EPUB-Cover: Die Umschlag-Vorderseite ließ sich nicht als Bild setzen ({reason}); statt dessen steht \
-                     die Bilddatei des Umschlags „{}“ ohne Titel im EPUB.",
-                    image.path
+                Some(image) => tc(
+                    "export_msg.epub.cover_image_instead",
+                    &[("reason", reason.to_string().into()), ("path", image.path.as_str().into())],
                 ),
-                None => format!(
-                    "EPUB-Cover: Die Umschlag-Vorderseite ließ sich nicht als Bild setzen ({reason}); das EPUB hat kein \
-                     Cover."
-                ),
+                None => tc("export_msg.epub.cover_none", &[("reason", reason.to_string().into())]),
             };
             Ok((raw, vec![EpubWarning { code: COVER_RASTER_FAILED.into(), message, key: None }]))
         }
@@ -395,6 +392,15 @@ pub async fn write_epub_file(
     work: WorkId,
     target: &std::path::Path,
 ) -> Result<(usize, Vec<EpubWarning>), String> {
+    // The command line stays German (Round 39a, contract §5: CLI untouched).
+    crate::i18n::scope(crate::i18n::Lang::De, write_epub_file_german(state, work, target)).await
+}
+
+async fn write_epub_file_german(
+    state: &AppState,
+    work: WorkId,
+    target: &std::path::Path,
+) -> Result<(usize, Vec<EpubWarning>), String> {
     if std::fs::symlink_metadata(target).is_ok() {
         return Err(format!("{} gibt es schon; nichts überschrieben", target.display()));
     }
@@ -427,13 +433,12 @@ async fn download(
     Query(q): Query<DownloadQuery>,
 ) -> Response {
     if crate::guard::cross_site_get(&headers) {
-        return (StatusCode::FORBIDDEN, "Abgelehnt: Das EPUB entsteht nicht auf Anfrage einer fremden Seite.")
-            .into_response();
+        return (StatusCode::FORBIDDEN, tc("export_msg.epub.foreign", &[])).into_response();
     }
     let footnotes = match q.fussnoten.as_deref() {
         None | Some("") | Some("popup") => FootnoteMode::Popup,
         Some("endnoten") => FootnoteMode::Endnotes,
-        Some(_) => return (StatusCode::BAD_REQUEST, "fussnoten: popup oder endnoten").into_response(),
+        Some(_) => return (StatusCode::BAD_REQUEST, tc("export_msg.epub.footnotes", &[])).into_response(),
     };
     let draft = match crate::typeset::draft_query(q.entwurf.as_deref()) {
         Ok(draft) => draft,
@@ -441,8 +446,11 @@ async fn download(
     };
     if let Err(e) = state.store.work_slug(id).await {
         return match e {
-            StoreError::UnknownWork(_) => (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-            e => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+            StoreError::UnknownWork(_) => {
+                (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response()
+            }
+            e => (StatusCode::INTERNAL_SERVER_ERROR, tc("export_msg.page.error", &[("error", e.to_string().into())]))
+                .into_response(),
         };
     }
     match epub_bytes_draft(&state, id, footnotes, draft).await {
@@ -461,6 +469,9 @@ async fn download(
                 .into_response()
         }
         Err(e) if e.code == REFUSED => (StatusCode::UNPROCESSABLE_ENTITY, e.message).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response(),
+        Err(e) => {
+            (StatusCode::INTERNAL_SERVER_ERROR, tc("export_msg.page.error", &[("error", e.message.as_str().into())]))
+                .into_response()
+        }
     }
 }

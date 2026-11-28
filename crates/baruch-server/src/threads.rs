@@ -82,6 +82,7 @@ use tokio::sync::mpsc::unbounded_channel;
 use crate::AppState;
 use crate::assist::chat::{MAX_RELAY_ANSWERS, addressed, line_addresses};
 use crate::assist::{ChatError, FramedAnswer, MAX_CHAT_PERSONAS, Message, ModelCall, PostLinks, Role, mentions};
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
@@ -313,7 +314,7 @@ async fn ask(state: &AppState, call: &ModelCall) -> Result<crate::assist::ModelA
         }
     }
     if answer.text.trim().is_empty() {
-        return Err(RpcError::new(REFUSED, "Das Modell hat keine verwertbare Antwort geliefert; nichts gespeichert."));
+        return Err(RpcError::new(REFUSED, tc("posts_msg.thread.empty_answer", &[])));
     }
     Ok(answer)
 }
@@ -440,10 +441,10 @@ async fn answer_inner(
 /// Message into a thread (see the module documentation): first the post of the sender (stored at once), then the
 /// answers. If a persona fails, its error is in `errors`; the other posts stay.
 pub async fn chat(state: &AppState, order: &ThreadOrder<'_>) -> Result<ThreadOutcome, RpcError> {
-    crate::assist::check_text(order.message, "Die Nachricht")?;
+    crate::assist::check_text(order.message, "message")?;
     let message = order.message.trim();
     if message.is_empty() {
-        return Err(invalid("Die Nachricht ist leer."));
+        return Err(invalid(tc("posts_msg.thread.message_empty", &[])));
     }
     let rows = state.store.persona_list().await?;
     let rfc = crate::assist::chat::is_rfc(message);
@@ -597,7 +598,7 @@ pub fn handles(method: &str) -> bool {
 }
 
 fn number(params: &serde_json::Value, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(tc("posts_msg.param.number", &[("name", name.into())]));
     match params.get(name) {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -611,7 +612,7 @@ fn text(params: &serde_json::Value, name: &str) -> Result<Option<String>, RpcErr
     match params.get(name) {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("posts_msg.thread.text", &[("name", name.into())]))),
     }
 }
 
@@ -625,7 +626,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
             Ok(json!({ "work": work, "threads": threads }))
         }
         "thread.get" => {
-            let id = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
+            let id = number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
             let read = state.store.thread_get(work, id).await?;
             Ok(json!({ "work": work, "thread": read.summary, "posts": read.entries, "url": thread_url(work, id) }))
         }
@@ -643,32 +644,37 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
             Ok(outcome_json(&chat(state, &order).await?))
         }
         "thread.post_edit" => {
-            let thread = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
-            let id = number(&params, "id")?.ok_or_else(|| invalid("id fehlt (Fadenbeitrag)"))?;
-            let body = text(&params, "body")?.ok_or_else(|| invalid("body fehlt (neuer Text)"))?;
+            let thread =
+                number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
+            let id = number(&params, "id")?.ok_or_else(|| invalid(tc("posts_msg.thread.id_missing", &[])))?;
+            let body = text(&params, "body")?.ok_or_else(|| invalid(tc("posts_msg.param.body_missing", &[])))?;
             edit_post(state, work, thread, id, &body, crate::mirror::HUMAN_NAME).await
         }
         "thread.post_versions" => {
-            let thread = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
-            let id = number(&params, "id")?.ok_or_else(|| invalid("id fehlt (Fadenbeitrag)"))?;
+            let thread =
+                number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
+            let id = number(&params, "id")?.ok_or_else(|| invalid(tc("posts_msg.thread.id_missing", &[])))?;
             let versions = state.store.thread_post_versions(work, thread, id).await?;
             Ok(json!({ "work": work, "thread": thread, "id": id, "versions": versions }))
         }
         "thread.post_delete" => {
-            let thread = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
-            let id = number(&params, "id")?.ok_or_else(|| invalid("id fehlt (Fadenbeitrag)"))?;
+            let thread =
+                number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
+            let id = number(&params, "id")?.ok_or_else(|| invalid(tc("posts_msg.thread.id_missing", &[])))?;
             if params.get("confirm") != Some(&serde_json::Value::Bool(true)) {
-                return Err(invalid("Löschen bitte bestätigen (confirm)."));
+                return Err(invalid(tc("posts_msg.param.confirm_delete", &[])));
             }
             delete_post(state, work, thread, id, &crate::posts::Actor::human()).await
         }
         "thread.repeat" => {
-            let thread = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
-            let id = number(&params, "id")?.ok_or_else(|| invalid("id fehlt (Fadenbeitrag)"))?;
+            let thread =
+                number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
+            let id = number(&params, "id")?.ok_or_else(|| invalid(tc("posts_msg.thread.id_missing", &[])))?;
             repeat_post(state, work, thread, id).await
         }
         "thread.since" => {
-            let thread = number(&params, "thread")?.ok_or_else(|| invalid("thread fehlt (id des Fadens)"))?;
+            let thread =
+                number(&params, "thread")?.ok_or_else(|| invalid(tc("posts_msg.thread.thread_missing", &[])))?;
             let after = number(&params, "after")?.unwrap_or(0);
             since(state, work, thread, after).await
         }
@@ -701,7 +707,7 @@ pub(crate) async fn edit_post_as(
     actor: &str,
     also: &[String],
 ) -> Result<serde_json::Value, RpcError> {
-    crate::assist::check_text(body, "Der Beitrag")?;
+    crate::assist::check_text(body, "post")?;
     let _held = state.write_lock.lock().await;
     let read = state.store.thread_get(work, thread).await?;
     let Some(before) = read.entries.iter().find(|p| p.id == id) else {
@@ -789,11 +795,9 @@ pub(crate) async fn delete_post(
     if actor.only_own && !actor.owns(&before.author) {
         return Err(RpcError::new(
             REFUSED,
-            format!(
-                "Nur eigene Beiträge lassen sich über MCP löschen: Fadenbeitrag {id} stammt von {}, nicht von {}. \
-                 Fremde Beiträge verwaltet der Mensch.",
-                before.author,
-                actor.origin.name()
+            tc(
+                "posts_msg.thread.not_own",
+                &[("id", id.into()), ("author", before.author.as_str().into()), ("actor", actor.origin.name().into())],
             ),
         ));
     }
@@ -850,7 +854,7 @@ pub(crate) async fn repeat_post(
     if !is_persona(&old.author) {
         return Err(RpcError::new(
             REFUSED,
-            format!("Nur Antworten von Personas lassen sich wiederholen; Beitrag {id} stammt von {}.", old.author),
+            tc("posts_msg.repeat.only_personas", &[("id", id.into()), ("author", old.author.as_str().into())]),
         ));
     }
     let meta = state.store.thread_post_meta(work, &[id]).await?.remove(&id).unwrap_or_default();
@@ -859,13 +863,7 @@ pub(crate) async fn repeat_post(
         None => match thread_fallback(&read.entries, index) {
             Some(previous) => previous.body.clone(),
             None => {
-                return Err(RpcError::new(
-                    REFUSED,
-                    format!(
-                        "Beitrag {id} hat keinen gespeicherten Auftrag und keine vorangehende Nachricht des Menschen; \
-                         wiederholen lässt er sich nicht."
-                    ),
-                ));
+                return Err(RpcError::new(REFUSED, tc("posts_msg.thread.no_order", &[("id", id.into())])));
             }
         },
     };
@@ -1035,7 +1033,11 @@ fn templates() -> &'static Environment<'static> {
 fn render(name: &str, ctx: Value) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("posts_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -1144,7 +1146,7 @@ async fn faeden(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q)
 
 async fn faden(State(state): State<Arc<AppState>>, headers: HeaderMap, Query(q): Query<PageQuery>) -> Response {
     let Some(thread) = parse::<i64>(&q.thread) else {
-        return list_page(&state, &headers, parse(&q.work), Some("Faden fehlt: aus der Liste wählen.".into())).await;
+        return list_page(&state, &headers, parse(&q.work), Some(tc("posts_msg.thread.choose", &[]))).await;
     };
     // Round 28: „Zitieren“ without JavaScript – the answer begins with the quoted post as „> …“.
     let mut draft = String::new();
@@ -1183,18 +1185,18 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     // Round 30c: delete and repeat without JavaScript.
     if let Some(method) = form.method.as_deref().map(str::trim).filter(|m| !m.is_empty()) {
         let (Some(thread), Some(id)) = (thread, parse::<i64>(&form.id)) else {
-            return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: thread und id (Zahlen) fehlen").into_response();
+            return (StatusCode::UNPROCESSABLE_ENTITY, tc("posts_msg.thread.form_ids", &[])).into_response();
         };
         let result = match method {
             "thread.post_delete" => {
                 if !matches!(form.confirm.as_deref(), Some("1" | "on")) {
-                    let notice = "Löschen bitte bestätigen (Kästchen „wirklich löschen“ ankreuzen).".to_owned();
+                    let notice = tc("posts_msg.thread.confirm_delete", &[]);
                     return thread_page(&state, &headers, Some(resolved), thread, Some(notice), "").await;
                 }
                 delete_post(&state, resolved, thread, id, &crate::posts::Actor::human()).await
             }
             "thread.repeat" => repeat_post(&state, resolved, thread, id).await,
-            _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+            _ => return (StatusCode::BAD_REQUEST, tc("posts_msg.page.unknown_action", &[])).into_response(),
         };
         return match result {
             Ok(answer) => Redirect::to(answer["url"].as_str().unwrap_or("/faeden")).into_response(),
@@ -1216,8 +1218,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         }
         Ok(outcome) => {
             let lines: Vec<String> = outcome.errors.iter().map(|e| format!("{}: {}", e.persona, e.message)).collect();
-            let notice =
-                format!("Dein Beitrag ist gespeichert, aber nicht jede Persona hat geantwortet: {}", lines.join(" · "));
+            let notice = tc("posts_msg.thread.partly_answered", &[("errors", lines.join(" · ").into())]);
             thread_page(&state, &headers, Some(resolved), outcome.thread.id, Some(notice), "").await
         }
         // Nothing stored: note on the same page, the draft stays in the field.

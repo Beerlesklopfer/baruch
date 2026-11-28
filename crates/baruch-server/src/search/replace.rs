@@ -15,6 +15,7 @@ use super::{
     Collected, MAX_REPLACEMENT_CHARS, SearchHit, SearchQuery, SearchRange, TIME_LIMIT, collect, hit, query_from,
 };
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{HUMAN_EMAIL, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
@@ -117,8 +118,9 @@ fn diff_html(text: &str, found: &[super::scan::Found]) -> String {
 fn check_replacement(replacement: &str) -> Result<(), RpcError> {
     let chars = replacement.chars().count();
     if chars > MAX_REPLACEMENT_CHARS {
-        return Err(invalid(format!(
-            "Der Ersatz darf höchstens {MAX_REPLACEMENT_CHARS} Zeichen haben (hier {chars})."
+        return Err(invalid(tc(
+            "reference_msg.replace.too_long",
+            &[("max", MAX_REPLACEMENT_CHARS.into()), ("chars", chars.into())],
         )));
     }
     Ok(())
@@ -132,18 +134,14 @@ async fn collect_for_replace(
     replacement: &str,
 ) -> Result<Collected, RpcError> {
     if query.range == SearchRange::All {
-        return Err(invalid("Ersetzen geht nur in einem Werk (nicht „alle Werke“)."));
+        return Err(invalid(tc("reference_msg.replace.one_work", &[])));
     }
     check_replacement(replacement)?;
     let collected = collect(state, work, query, Some(replacement), usize::MAX, TIME_LIMIT).await?;
     if collected.over_budget {
         return Err(RpcError::new(
             crate::rpc::REFUSED,
-            format!(
-                "Zu viele Ersetzungen auf einmal (die eingesetzten Texte wären zusammen größer als {} MiB); ersetzt \
-                 wurde nichts. Bitte die Suche oder den Bereich eingrenzen.",
-                super::MAX_EXPANDED_BYTES / (1024 * 1024)
-            ),
+            tc("reference_msg.replace.too_many", &[("mib", (super::MAX_EXPANDED_BYTES / (1024 * 1024)).into())]),
         ));
     }
     Ok(collected)
@@ -219,10 +217,7 @@ pub async fn replace(
     let held = state.write_lock.lock().await;
     let collected = collect_for_replace(state, work, &query, replacement).await?;
     if collected.timed_out {
-        return Err(RpcError::new(
-            crate::rpc::REFUSED,
-            "Die Suche brauchte länger als 2 s; ersetzt wurde nichts. Bitte den Bereich verkleinern.",
-        ));
+        return Err(RpcError::new(crate::rpc::REFUSED, tc("reference_msg.replace.timeout", &[])));
     }
     let mut bodies: Vec<(i64, u32, String)> = Vec::new();
     for s in &collected.sections {
@@ -239,15 +234,17 @@ pub async fn replace(
         bodies.push((s.section.key, base, super::scan::apply(&s.section.text, &s.found, skip)));
     }
     if bodies.len() > MAX_SECTIONS {
-        return Err(invalid(format!("Höchstens {MAX_SECTIONS} Abschnitte je Ersetzen (hier {}).", bodies.len())));
+        return Err(invalid(tc(
+            "reference_msg.replace.max_sections",
+            &[("max", MAX_SECTIONS.into()), ("count", bodies.len().into())],
+        )));
     }
     // Sections from the choice without hits any more (changed in the meantime): skipped with a reason.
     let mut skipped_early = Vec::new();
     if let Some(picks) = picks {
         for p in picks {
             if !collected.sections.iter().any(|s| s.section.key == p.key) {
-                skipped_early
-                    .push(ReplaceSkip { key: p.key, reason: "Keine Treffer mehr in diesem Abschnitt.".into() });
+                skipped_early.push(ReplaceSkip { key: p.key, reason: tc("reference_msg.replace.no_more_hits", &[]) });
             }
         }
     }
@@ -345,7 +342,7 @@ pub async fn undo(state: &AppState, work: WorkId, batch: i64) -> Result<Value, R
 fn confirmed(params: &Value) -> Result<(), RpcError> {
     match params.get("confirm") {
         Some(Value::Bool(true)) => Ok(()),
-        _ => Err(invalid("Ersetzen bitte bestätigen (confirm: true).")),
+        _ => Err(invalid(tc("reference_msg.replace.confirm", &[]))),
     }
 }
 
@@ -354,7 +351,7 @@ fn replacement_of(params: &Value) -> Result<String, RpcError> {
         .get("replacement")
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| invalid("replacement: Ersatztext fehlt (leer ist erlaubt)."))
+        .ok_or_else(|| invalid(tc("reference_msg.replace.replacement_missing", &[])))
 }
 
 /// RPC `search.preview`.
@@ -388,9 +385,11 @@ pub async fn replace_rpc(state: &AppState, work: WorkId, params: &Value) -> Resu
 pub async fn undo_rpc(state: &AppState, work: WorkId, params: &Value) -> Result<Value, RpcError> {
     match params.get("confirm") {
         Some(Value::Bool(true)) => {}
-        _ => return Err(invalid("Rückgängig bitte bestätigen (confirm: true).")),
+        _ => return Err(invalid(tc("reference_msg.replace.undo_confirm", &[]))),
     }
-    let batch =
-        params.get("batch").and_then(Value::as_i64).ok_or_else(|| invalid("batch: Nummer des Ersetzens fehlt."))?;
+    let batch = params
+        .get("batch")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| invalid(tc("reference_msg.replace.batch_missing", &[])))?;
     undo(state, work, batch).await
 }

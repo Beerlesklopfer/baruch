@@ -493,7 +493,10 @@ async fn the_pdf_comes_from_source_to_pdf_with_the_map_kind() {
     let (status, html) = b.server.get(&format!("/werke/{}/karte.pdf", b.work)).await;
     drop(busy);
     assert_eq!(status, StatusCode::CONFLICT, "zweite gleichzeitige Erzeugung → 409");
-    assert!(html.contains(baruch_server::pdf::BUSY), "ehrliche Meldung auf der Seite: {html}");
+    assert!(
+        html.contains(baruch_server::i18n::t(baruch_server::i18n::Lang::De, "export_msg.pdf.busy", &[]).as_str()),
+        "ehrliche Meldung auf der Seite: {html}"
+    );
 }
 
 #[tokio::test]

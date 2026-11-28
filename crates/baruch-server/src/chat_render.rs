@@ -38,6 +38,7 @@ use baruch_store::{Finding, PostMeta, WorkId};
 use regex::Regex;
 
 use crate::bibles::html_escape;
+use crate::i18n::tc;
 
 /// Quotations shorter than this many characters are not linked (too many chance hits).
 pub const MIN_QUOTE_CHARS: usize = 12;
@@ -437,12 +438,12 @@ fn marker_span(links: &Links<'_>, key: i64, quote: Option<&str>) -> String {
         }
         crate::xref::MarkerCheck::UnknownKey { key } => format!(
             "<span class=\"jump-unchecked\" title=\"{}\">{}</span>",
-            attr(&format!("Sprungmarke ungeprüft: Abschnitt {key} gibt es in diesem Werk nicht")),
+            attr(&tc("posts_msg.chat.jump_no_section", &[("key", key.into())])),
             html_escape(quote.unwrap_or(&format!("key:{key}")))
         ),
         crate::xref::MarkerCheck::QuoteMissing { key, quote } => format!(
             "<span class=\"jump-unchecked\" title=\"{}\">{}</span>",
-            attr(&format!("Sprungmarke ungeprüft: das Zitat steht nicht in Abschnitt {key}")),
+            attr(&tc("posts_msg.chat.jump_no_quote", &[("key", key.into())])),
             html_escape(&quote)
         ),
     }
@@ -493,7 +494,8 @@ fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
         let Ok(id) = number.parse::<i64>() else { continue };
         let html = if kind == "Einfall" {
             format!(
-                "<a class=\"idea-ref\" href=\"/einfaelle/{id}\" title=\"Einfall {id} öffnen\">{}</a>",
+                "<a class=\"idea-ref\" href=\"/einfaelle/{id}\" title=\"{}\">{}</a>",
+                attr(&tc("posts_msg.chat.open_idea", &[("id", id.into())])),
                 html_escape(whole.as_str())
             )
         } else {
@@ -502,8 +504,9 @@ fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
                 continue;
             }
             format!(
-                "<a class=\"finding-ref\" href=\"/werke/{}/befunde?befund={id}\" title=\"Befund {id} öffnen\">{}</a>",
+                "<a class=\"finding-ref\" href=\"/werke/{}/befunde?befund={id}\" title=\"{}\">{}</a>",
                 links.work_id,
+                attr(&tc("posts_msg.chat.open_finding", &[("id", id.into())])),
                 html_escape(whole.as_str())
             )
         };
@@ -515,9 +518,9 @@ fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
         };
         let href = format!("/literatur/bibel?work={}&ref={}", links.work_id, crate::view::query_escape(normalized));
         let html = format!(
-            "<a class=\"bible-ref\" href=\"{}\" title=\"{} in der Bibel des Werks aufschlagen\">{}</a>",
+            "<a class=\"bible-ref\" href=\"{}\" title=\"{}\">{}</a>",
             attr(&href),
-            attr(normalized),
+            attr(&tc("posts_msg.chat.open_bible", &[("passage", normalized.as_str().into())])),
             html_escape(&f.input)
         );
         push(&mut found, Span { start: f.span.0, end: f.span.1, html });
@@ -527,12 +530,16 @@ fn spans(line: &str, links: &Links<'_>) -> Vec<Span> {
         let quote = c[1].trim();
         let Some((key, rev)) = quote_target(links, quote) else { continue };
         let target = crate::xref::JumpTarget { work: links.work_id, key, rev, find: Some(quote.to_owned()), at: None };
-        let title = links
-            .work
-            .nodes
-            .iter()
-            .find(|n| n.key == key)
-            .map_or("Zitat".to_owned(), |n| format!("Zitat in {} {}", n.number, n.title).replace("  ", " "));
+        let title = links.work.nodes.iter().find(|n| n.key == key).map_or_else(
+            || tc("posts_msg.chat.quote", &[]),
+            |n| {
+                tc(
+                    "posts_msg.chat.quote_in",
+                    &[("number", n.number.as_str().into()), ("title", n.title.as_str().into())],
+                )
+                .replace("  ", " ")
+            },
+        );
         push(
             &mut found,
             Span { start: whole.start(), end: whole.end(), html: jump_link(&target, whole.as_str(), &title) },

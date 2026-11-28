@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 
 use super::{DeferTarget, Finding, FindingKind, FindingStatus, FindingStatusEntry, finding_json, finding_url};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::RpcError;
 
 /// At most this many findings the work page loads (upper limit of [`baruch_store::FindingFilter::limit`]).
@@ -123,7 +124,8 @@ pub fn reference(id: i64) -> String {
 /// “Number title” of a section (without a title „(ohne Titel)“).
 pub fn node_label(work: &Work, key: i64) -> Option<String> {
     let node = work.nodes.iter().find(|n| n.key == key)?;
-    let title = if node.title.is_empty() { "(ohne Titel)" } else { node.title.as_str() };
+    let untitled = tc("findings_msg.view.untitled", &[]);
+    let title = if node.title.is_empty() { untitled.as_str() } else { node.title.as_str() };
     Some(if node.number.is_empty() { title.to_owned() } else { format!("{} {title}", node.number) })
 }
 
@@ -160,15 +162,22 @@ pub fn status_words_amend(
     let label = status.label();
     match status {
         FindingStatus::Adopted => match rev {
-            Some(rev) => format!("{label} in {}", baruch_store::findings::adopted_words(rev, amend)),
-            None => format!("{label} (Fassung gelöscht)"),
+            Some(rev) => tc(
+                "findings_msg.view.adopted_in",
+                &[("label", label.into()), ("revision", baruch_store::findings::adopted_words(rev, amend).into())],
+            ),
+            None => tc("findings_msg.view.revision_deleted", &[("label", label.into())]),
         },
         FindingStatus::Deferred => match deferred {
             Some(DeferTarget::Node { key }) => {
-                format!("{label} nach {}", node_label(work, *key).unwrap_or_else(|| format!("Abschnitt {key}")))
+                let target = node_label(work, *key)
+                    .unwrap_or_else(|| tc("findings_msg.view.section", &[("key", (*key).into())]));
+                tc("findings_msg.view.deferred_to", &[("label", label.into()), ("target", target.into())])
             }
-            Some(DeferTarget::Idea { id }) => format!("{label} in Einfall {id}"),
-            None if deferred_uuid.is_some() => format!("{label} (Ziel gelöscht)"),
+            Some(DeferTarget::Idea { id }) => {
+                tc("findings_msg.view.deferred_idea", &[("label", label.into()), ("id", (*id).into())])
+            }
+            None if deferred_uuid.is_some() => tc("findings_msg.view.target_deleted", &[("label", label.into())]),
             None => label.to_owned(),
         },
         _ => label.to_owned(),
@@ -194,10 +203,10 @@ pub fn entry_json(work: &Work, entry: &FindingStatusEntry) -> Value {
     // Round 22: query of a persona „Befund n scheint erledigt?“ (open proposal „erledigt“ of an assistant).
     value["question"] = json!(entry.proposed && entry.decision.is_none() && entry.status == FindingStatus::Done);
     value["decision_label"] = json!(match entry.decision.as_deref() {
-        Some("confirmed") => "bestätigt",
-        Some("rejected") => "verworfen",
-        Some("stale") => "veraltet",
-        _ => "",
+        Some("confirmed") => tc("findings_msg.view.confirmed", &[]),
+        Some("rejected") => tc("findings_msg.view.rejected", &[]),
+        Some("stale") => tc("findings_msg.view.stale", &[]),
+        _ => String::new(),
     });
     value
 }
@@ -211,20 +220,24 @@ pub fn revision_choices(work: &Work, key: i64) -> Vec<Value> {
         .map(|r| {
             let current = r.status == baruch_core::RevisionStatus::Current;
             let status = match r.status {
-                baruch_core::RevisionStatus::Current => "aktuell",
-                baruch_core::RevisionStatus::Proposed => "Vorschlag",
-                baruch_core::RevisionStatus::Rejected => "verworfen",
-                baruch_core::RevisionStatus::Superseded => "ersetzt",
+                baruch_core::RevisionStatus::Current => tc("findings_msg.view.rev_current", &[]),
+                baruch_core::RevisionStatus::Proposed => tc("findings_msg.view.rev_proposed", &[]),
+                baruch_core::RevisionStatus::Rejected => tc("findings_msg.view.rev_rejected", &[]),
+                baruch_core::RevisionStatus::Superseded => tc("findings_msg.view.rev_superseded", &[]),
             };
-            json!({ "number": r.number, "label": format!("Fassung {} ({status})", r.number), "current": current })
+            let label = tc("findings_msg.view.revision", &[("number", r.number.into()), ("status", status.into())]);
+            json!({ "number": r.number, "label": label, "current": current })
         })
         .collect();
     out.reverse();
     out
 }
 
-/// Addition to the status of an open collective finding whose origins are all decided (Round 23a).
-pub const STALE_SUMMARY_WORDS: &str = "veraltet (alle Ursprünge entschieden)";
+/// Addition to the status of an open collective finding whose origins are all decided (Round 23a), in the language
+/// of the request.
+pub fn stale_summary_words() -> String {
+    tc("findings_msg.view.stale_summary", &[])
+}
 
 /// Picture of a finding for page and accordion: [`finding_json`] plus `ref` („[B<id>]“), `status_sign`,
 /// `kind_sign`, `status_words`, `node_label`, `node_url`, `post_url`, `time`, `attached` (attached findings, one
@@ -245,7 +258,7 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
     ));
     // Round 23a (PM decision): an open collective finding whose origins are all decided is “stale”.
     if finding.stale_summary {
-        value["status_words"] = json!(format!("{} · {STALE_SUMMARY_WORDS}", finding.status.label()));
+        value["status_words"] = json!(format!("{} · {}", finding.status.label(), stale_summary_words()));
     }
     value["time"] = json!(crate::localtime::minutes(&finding.created));
     value["node_label"] = json!(finding.key.and_then(|k| node_label(work, k)));

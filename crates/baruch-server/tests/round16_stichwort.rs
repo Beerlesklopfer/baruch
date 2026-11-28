@@ -232,39 +232,46 @@ async fn notes_pdf_and_the_download_give_a_named_pdf_attachment() {
 
 #[tokio::test]
 async fn busy_typst_errors_and_timeouts_give_409_422_and_503() {
-    let _serial = SERIAL.lock().await;
-    let s = sermon_work().await;
-    let running = baruch_server::pdf::claim(s.work).expect("niemand erzeugt gerade ein PDF für dieses Werk");
-    let (status, _, body) = get_bytes(&s.server, &format!("/werke/{}/stichwortzettel.pdf", s.work)).await;
-    assert_eq!(status, StatusCode::CONFLICT, "läuft schon → 409");
-    assert!(String::from_utf8(body).unwrap().contains("entsteht gerade ein PDF"), "ehrliche Meldung auf der Seite");
-    let answer = s.server.rpc("notes.pdf", json!({ "work": s.work })).await;
-    assert_eq!(answer["error"]["message"], baruch_server::pdf::BUSY, "über RPC dieselbe Meldung: {answer}");
-    drop(running);
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let _serial = SERIAL.lock().await;
+        let s = sermon_work().await;
+        let running = baruch_server::pdf::claim(s.work).expect("niemand erzeugt gerade ein PDF für dieses Werk");
+        let (status, _, body) = get_bytes(&s.server, &format!("/werke/{}/stichwortzettel.pdf", s.work)).await;
+        assert_eq!(status, StatusCode::CONFLICT, "läuft schon → 409");
+        assert!(String::from_utf8(body).unwrap().contains("entsteht gerade ein PDF"), "ehrliche Meldung auf der Seite");
+        let answer = s.server.rpc("notes.pdf", json!({ "work": s.work })).await;
+        assert_eq!(
+            answer["error"]["message"],
+            baruch_server::i18n::t(baruch_server::i18n::Lang::De, "export_msg.pdf.busy", &[]),
+            "über RPC dieselbe Meldung: {answer}"
+        );
+        drop(running);
 
-    let headers = HeaderMap::new();
-    let broken = NotesOptions { append: "\n#panic(\"Probe\")\n".into(), ..NotesOptions::default() };
-    let response = baruch_server::pdf::notes::notes_response(&s.server.state, &headers, s.work, &broken).await;
-    let (status, html) = body_text(response).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Satzfehler → 422");
-    assert!(html.contains("Kein PDF (Stichwortzettel): Der Satz scheitert"), "die Seite sagt, warum: {html}");
-    assert!(!html.starts_with("%PDF"), "nie eine halbe Datei");
+        let headers = HeaderMap::new();
+        let broken = NotesOptions { append: "\n#panic(\"Probe\")\n".into(), ..NotesOptions::default() };
+        let response = baruch_server::pdf::notes::notes_response(&s.server.state, &headers, s.work, &broken).await;
+        let (status, html) = body_text(response).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "Satzfehler → 422");
+        assert!(html.contains("Kein PDF (Stichwortzettel): Der Satz scheitert"), "die Seite sagt, warum: {html}");
+        assert!(!html.starts_with("%PDF"), "nie eine halbe Datei");
 
-    let slow = NotesOptions { limit: Duration::ZERO, ..NotesOptions::default() };
-    let response = baruch_server::pdf::notes::notes_response(&s.server.state, &headers, s.work, &slow).await;
-    let (status, html) = body_text(response).await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "Zeit abgelaufen → 503");
-    assert!(html.contains("Typst brauchte länger als 0 s"), "die Meldung nennt das Limit: {html}");
-    // The timed-out run finishes computing in the background and holds the work for that long.
-    let freed = async {
-        loop {
-            if let Some(claim) = baruch_server::pdf::claim(s.work) {
-                break claim;
+        let slow = NotesOptions { limit: Duration::ZERO, ..NotesOptions::default() };
+        let response = baruch_server::pdf::notes::notes_response(&s.server.state, &headers, s.work, &slow).await;
+        let (status, html) = body_text(response).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "Zeit abgelaufen → 503");
+        assert!(html.contains("Typst brauchte länger als 0 s"), "die Meldung nennt das Limit: {html}");
+        // The timed-out run finishes computing in the background and holds the work for that long.
+        let freed = async {
+            loop {
+                if let Some(claim) = baruch_server::pdf::claim(s.work) {
+                    break claim;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
             }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    };
-    drop(tokio::time::timeout(Duration::from_secs(60), freed).await.expect("der Hintergrundlauf endet"));
+        };
+        drop(tokio::time::timeout(Duration::from_secs(60), freed).await.expect("der Hintergrundlauf endet"));
+    })
+    .await
 }
 
 // ---- Page and menu -----------------------------------------------------------------------------------

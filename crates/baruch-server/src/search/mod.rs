@@ -27,6 +27,7 @@ use baruch_core::{NodeKind, Work};
 use serde_json::Value;
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::xref::{JumpTarget, jump_url};
 use scan::{Found, PatternOptions};
@@ -54,14 +55,14 @@ impl TextKind {
         }
     }
 
-    /// German label.
-    pub fn label(self) -> &'static str {
+    /// Label in the language of the request.
+    pub fn label(self) -> String {
         match self {
-            TextKind::Text => "Text",
-            TextKind::Heading => "Überschriften",
-            TextKind::Footnote => "Fußnoten",
-            TextKind::Quote => "Zitate (auch Bibelzitate)",
-            TextKind::Code => "Typst-Code",
+            TextKind::Text => tc("reference_msg.search.kind_text", &[]),
+            TextKind::Heading => tc("reference_msg.search.kind_heading", &[]),
+            TextKind::Footnote => tc("reference_msg.search.kind_footnote", &[]),
+            TextKind::Quote => tc("reference_msg.search.kind_quote", &[]),
+            TextKind::Code => tc("reference_msg.search.kind_code", &[]),
         }
     }
 
@@ -263,19 +264,22 @@ fn invalid(message: impl Into<String>) -> RpcError {
 fn check_query(query: &SearchQuery) -> Result<(), RpcError> {
     let chars = query.q.chars().count();
     if chars == 0 {
-        return Err(invalid("Bitte einen Suchtext eingeben."));
+        return Err(invalid(tc("reference_msg.search.query_missing", &[])));
     }
     if chars > MAX_QUERY_CHARS {
-        return Err(invalid(format!("Der Suchtext darf höchstens {MAX_QUERY_CHARS} Zeichen haben (hier {chars}).")));
+        return Err(invalid(tc(
+            "reference_msg.search.query_too_long",
+            &[("max", MAX_QUERY_CHARS.into()), ("chars", chars.into())],
+        )));
     }
     if query.rev == RevChoice::Shown && !matches!(query.range, SearchRange::Section | SearchRange::Selection) {
-        return Err(invalid("Die gezeigte Fassung lässt sich nur im Abschnitt oder in der Auswahl durchsuchen."));
+        return Err(invalid(tc("reference_msg.search.shown_rev", &[])));
     }
     if query.range.needs_key() && query.key.is_none() {
-        return Err(invalid(format!("Für den Bereich „{}“ fehlt der Abschnitt (key).", query.range.word())));
+        return Err(invalid(tc("reference_msg.search.key_missing", &[("range", query.range.word().into())])));
     }
     if query.range == SearchRange::Picked && query.sel.is_empty() {
-        return Err(invalid("Bitte mindestens einen Gliederungspunkt auswählen (sel)."));
+        return Err(invalid(tc("reference_msg.search.sel_missing", &[])));
     }
     Ok(())
 }
@@ -324,7 +328,7 @@ fn seq_of(work: &Work, key: i64) -> Result<usize, RpcError> {
     work.nodes
         .iter()
         .position(|n| n.key == key)
-        .ok_or_else(|| invalid(format!("Den Abschnitt {key} gibt es in diesem Werk nicht.")))
+        .ok_or_else(|| invalid(tc("reference_msg.marks.no_section", &[("key", key.into())])))
 }
 
 /// Sections (positions) of a work in the range and the label of the range.
@@ -336,27 +340,29 @@ fn sections_in(work: &Work, query: &SearchQuery) -> Result<(Vec<usize>, String),
     Ok(match query.range {
         SearchRange::Selection => {
             let seq = seq_of(work, query.key.unwrap_or_default())?;
-            (vec![seq], format!("Auswahl in {}", named(seq)))
+            (vec![seq], tc("reference_msg.search.range_selection", &[("name", named(seq).into())]))
         }
         SearchRange::Section => {
             let seq = seq_of(work, query.key.unwrap_or_default())?;
-            (vec![seq], format!("Abschnitt {}", named(seq)))
+            (vec![seq], tc("reference_msg.search.range_section", &[("name", named(seq).into())]))
         }
         SearchRange::Chapter => {
             let seq = seq_of(work, query.key.unwrap_or_default())?;
             let root = ancestor_of(work, seq, NodeKind::Chapter).unwrap_or(seq);
-            (subtree(work, root), format!("Kapitel {}", named(root)))
+            (subtree(work, root), tc("reference_msg.search.range_chapter", &[("name", named(root).into())]))
         }
         SearchRange::Part => {
             let seq = seq_of(work, query.key.unwrap_or_default())?;
             match ancestor_of(work, seq, NodeKind::Part) {
-                Some(root) => (subtree(work, root), format!("Teil {}", named(root))),
-                None => ((0..work.nodes.len()).collect(), "ganzes Werk (keine Teile)".to_owned()),
+                Some(root) => {
+                    (subtree(work, root), tc("reference_msg.search.range_part", &[("name", named(root).into())]))
+                }
+                None => ((0..work.nodes.len()).collect(), tc("reference_msg.search.range_work_no_parts", &[])),
             }
         }
         SearchRange::From => {
             let seq = seq_of(work, query.key.unwrap_or_default())?;
-            ((seq..work.nodes.len()).collect(), format!("ab {} bis zum Ende", named(seq)))
+            ((seq..work.nodes.len()).collect(), tc("reference_msg.search.range_from", &[("name", named(seq).into())]))
         }
         SearchRange::Picked => {
             let mut seqs = Vec::new();
@@ -368,9 +374,16 @@ fn sections_in(work: &Work, query: &SearchQuery) -> Result<(Vec<usize>, String),
             }
             seqs.sort_unstable();
             let n = seqs.len();
-            (seqs, if n == 1 { "1 ausgewählter Abschnitt".to_owned() } else { format!("{n} ausgewählte Abschnitte") })
+            let label = if n == 1 {
+                tc("reference_msg.search.range_picked_one", &[("count", n.into())])
+            } else {
+                tc("reference_msg.search.range_picked", &[("count", n.into())])
+            };
+            (seqs, label)
         }
-        SearchRange::Work | SearchRange::All => ((0..work.nodes.len()).collect(), "ganzes Werk".to_owned()),
+        SearchRange::Work | SearchRange::All => {
+            ((0..work.nodes.len()).collect(), tc("reference_msg.search.range_work", &[]))
+        }
     })
 }
 
@@ -393,7 +406,7 @@ fn section_text(
         (Some(text), true) => text.replace("\r\n", "\n"),
         _ => match node.revision(rev) {
             Some(r) => r.body.clone(),
-            None => return Err(invalid(format!("Fassung {rev} gibt es in diesem Abschnitt nicht."))),
+            None => return Err(invalid(tc("reference_msg.marking.no_revision", &[("rev", rev.into())]))),
         },
     };
     let window = if own && query.range == SearchRange::Selection {
@@ -457,7 +470,8 @@ pub(crate) async fn collect(
     for id in works {
         let work = state.store.load_work(id).await?;
         let (seqs, label) = sections_in(&work, query)?;
-        out.range_label = if query.range == SearchRange::All { "alle Werke".to_owned() } else { label };
+        out.range_label =
+            if query.range == SearchRange::All { tc("reference_msg.search.range_all", &[]) } else { label };
         for seq in seqs {
             if Instant::now() >= deadline {
                 out.timed_out = true;
@@ -584,7 +598,8 @@ pub fn handles(method: &str) -> bool {
 
 /// Search from RPC parameters (flat).
 pub(crate) fn query_from(params: &Value) -> Result<SearchQuery, RpcError> {
-    serde_json::from_value(params.clone()).map_err(|e| invalid(format!("Suche: {e}")))
+    serde_json::from_value(params.clone())
+        .map_err(|e| invalid(tc("reference_msg.search.params", &[("error", e.to_string().into())])))
 }
 
 /// Answer RPC `search.*`.

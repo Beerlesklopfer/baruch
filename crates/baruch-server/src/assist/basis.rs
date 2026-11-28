@@ -14,6 +14,7 @@ use baruch_core::{Author, Node, RevisionStatus};
 use baruch_store::{StoreError, WorkId};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
 /// Requested review basis.
@@ -44,12 +45,8 @@ impl BasisChoice {
     /// Parameter `basis` from RPC or form: missing or empty → `Shown`, text per [`BasisChoice::parse`], number from 1
     /// → `Rev`; otherwise -32602.
     pub fn from_param(params: &serde_json::Value) -> Result<BasisChoice, RpcError> {
-        let wrong = |shown: &str| {
-            RpcError::new(
-                INVALID_PARAMS,
-                format!("basis: „shown“, „current“ oder eine Fassungsnummer erwartet, nicht „{shown}“"),
-            )
-        };
+        let wrong =
+            |shown: &str| RpcError::new(INVALID_PARAMS, tc("assist_msg.basis.invalid", &[("shown", shown.into())]));
         match params.get("basis") {
             None | Some(serde_json::Value::Null) => Ok(BasisChoice::Shown),
             Some(serde_json::Value::String(s)) if s.trim().is_empty() => Ok(BasisChoice::Shown),
@@ -141,7 +138,7 @@ pub fn choose_in(node: &Node, seq: usize, shown: Option<u32>, choice: BasisChoic
         BasisChoice::Rev(n) => Some(n),
     };
     let Some(mut wanted) = wanted else {
-        return Err(RpcError::new(REFUSED, "Der Abschnitt hat noch keine Fassung, die sich prüfen ließe."));
+        return Err(RpcError::new(REFUSED, tc("assist_msg.basis.no_revision", &[])));
     };
     let Some(revision) = node.revision(wanted) else {
         let existing = node.revisions.iter().map(|r| r.number).collect();

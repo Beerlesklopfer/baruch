@@ -27,6 +27,7 @@ use minijinja::value::{Serde, Value as JinjaValue};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 use crate::view::Settings;
 
@@ -57,7 +58,8 @@ fn error_page(status: StatusCode, message: &str) -> Response {
     (
         status,
         Html(format!(
-            "<!doctype html><meta charset=\"utf-8\"><title>Austausch</title><p>{}</p>",
+            "<!doctype html><meta charset=\"utf-8\"><title>{}</title><p>{}</p>",
+            crate::bibles::html_escape(&tc("export_msg.exchange.title", &[])),
             crate::bibles::html_escape(message)
         )),
     )
@@ -226,7 +228,11 @@ fn counts(doc: &ExchangeDocument) -> Value {
 
 /// Display name of an instance: name or „ohne Namen (<erste 8 Zeichen>)“ (contract F3).
 pub fn instance_label(uuid: &str, name: &str) -> String {
-    if name.trim().is_empty() { format!("ohne Namen ({})", uuid.get(..8).unwrap_or(uuid)) } else { name.to_owned() }
+    if name.trim().is_empty() {
+        tc("export_msg.exchange.instance_unnamed", &[("uuid", uuid.get(..8).unwrap_or(uuid).into())])
+    } else {
+        name.to_owned()
+    }
 }
 
 /// `GET /werke/{id}/austausch`.
@@ -234,13 +240,23 @@ async fn exchange_page(State(state): State<Arc<AppState>>, headers: HeaderMap, P
     let (slug, title) = match state.store.works().await {
         Ok(list) => match list.into_iter().find(|(w, _, _)| *w == id) {
             Some((_, slug, title)) => (slug, title),
-            None => return error_page(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
+            None => return error_page(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_work", &[])),
         },
-        Err(e) => return error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {e}")),
+        Err(e) => {
+            return error_page(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            );
+        }
     };
     let doc = match document(&state, id).await {
         Ok(doc) => doc,
-        Err(e) => return error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {}", e.message)),
+        Err(e) => {
+            return error_page(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.message.as_str().into())]),
+            );
+        }
     };
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let ctx = minijinja::context! {
@@ -260,7 +276,10 @@ async fn exchange_page(State(state): State<Arc<AppState>>, headers: HeaderMap, P
     };
     match templates().get_template("exchange.html").and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Vorlage exchange.html: {e}")),
+        Err(e) => error_page(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &tc("export_msg.page.template_error", &[("name", "exchange.html".into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 
@@ -268,12 +287,22 @@ async fn exchange_page(State(state): State<Arc<AppState>>, headers: HeaderMap, P
 async fn download(state: &AppState, id: WorkId, format: Format) -> Response {
     match state.store.works().await {
         Ok(list) if list.iter().any(|(w, _, _)| *w == id) => {}
-        Ok(_) => return error_page(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
-        Err(e) => return error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {e}")),
+        Ok(_) => return error_page(StatusCode::NOT_FOUND, &tc("export_msg.epub_preview.unknown_work", &[])),
+        Err(e) => {
+            return error_page(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            );
+        }
     }
     let file = match export_file(state, id, format).await {
         Ok(file) => file,
-        Err(e) => return error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Austausch: {}", e.message)),
+        Err(e) => {
+            return error_page(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("export_msg.exchange.failed", &[("error", e.message.as_str().into())]),
+            );
+        }
     };
     let disposition = format!("attachment; filename=\"{}\"", file.file_name.replace(['"', '\\'], "_"));
     let mut response = file.bytes.into_response();
@@ -304,9 +333,9 @@ pub async fn rpc_export(state: &AppState, params: serde_json::Value) -> Result<s
     let format = match params.get("format") {
         None | Some(Value::Null) => Format::Baruch,
         Some(Value::String(word)) => Format::parse(word).ok_or_else(|| {
-            RpcError::new(INVALID_PARAMS, format!("format: „baruch“ oder „xml“ erwartet, nicht „{word}“"))
+            RpcError::new(INVALID_PARAMS, tc("export_msg.exchange.format_not", &[("word", word.as_str().into())]))
         })?,
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "format: „baruch“ oder „xml“ erwartet")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("export_msg.exchange.format", &[]))),
     };
     let file = export_file(state, work, format).await?;
     Ok(answer(file))
@@ -381,7 +410,11 @@ mod tests {
     #[test]
     fn instance_without_name_shows_the_uuid_prefix() {
         // Contract F3: „ohne Namen (<erste 8 Zeichen>)“.
-        assert_eq!(instance_label("0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6", ""), "ohne Namen (0f8c2a4e)", "ohne Namen");
+        // Round 39a: the label follows the interface language; the German wording is checked.
+        let unnamed = crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            instance_label("0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6", "")
+        });
+        assert_eq!(unnamed, "ohne Namen (0f8c2a4e)", "ohne Namen");
         assert_eq!(instance_label("0f8c2a4e-1b3d-4c5e-9f60-718293a4b5c6", "Laptop"), "Laptop", "mit Namen");
     }
 }

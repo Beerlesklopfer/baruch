@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 
 use baruch_store::{FALLBACK_COLOR, NodeRevisions, PersonaColor, RevisionInfo, WorkId, WorkSummary};
 
+use crate::i18n::tc;
 use crate::rpc::LibraryView;
 
 /// What is shown right now; it also stands in the address (`/?work=1&key=12&rev=3&view=preview`, Round 8).
@@ -322,7 +323,7 @@ struct TreeItem {
     open: bool,
     /// Level in the outline (part 0, chapter 1, section 2, subsection 3) and its name.
     level: u8,
-    level_name: &'static str,
+    level_name: String,
     /// Neighbours on the same level under the same parent (targets for ↑ and ↓).
     up: Option<usize>,
     down: Option<usize>,
@@ -354,13 +355,13 @@ pub fn levels(work: &Work) -> Vec<u8> {
 }
 
 /// Name of a level; for sermons level 1 is called „Predigtteil“.
-pub fn level_name(kind: WorkKind, level: u8) -> &'static str {
+pub fn level_name(kind: WorkKind, level: u8) -> String {
     match (level, kind) {
-        (0, _) => "Teil",
-        (1, WorkKind::Sermon) => "Predigtteil",
-        (1, WorkKind::Book) => "Kapitel",
-        (2, _) => "Abschnitt",
-        _ => "Unterabschnitt",
+        (0, _) => tc("view_msg.level.part", &[]),
+        (1, WorkKind::Sermon) => tc("view_msg.level.sermon_part", &[]),
+        (1, WorkKind::Book) => tc("view_msg.level.chapter", &[]),
+        (2, _) => tc("view_msg.level.section", &[]),
+        _ => tc("view_msg.level.subsection", &[]),
     }
 }
 
@@ -566,12 +567,12 @@ struct PreviewLine {
     text: String,
 }
 
-fn status_label(status: RevisionStatus) -> &'static str {
+fn status_label(status: RevisionStatus) -> String {
     match status {
-        RevisionStatus::Current => "aktuell",
-        RevisionStatus::Proposed => "Vorschlag",
-        RevisionStatus::Rejected => "verworfen",
-        RevisionStatus::Superseded => "ersetzt",
+        RevisionStatus::Current => tc("view_msg.status.current", &[]),
+        RevisionStatus::Proposed => tc("view_msg.status.proposed", &[]),
+        RevisionStatus::Rejected => tc("view_msg.status.rejected", &[]),
+        RevisionStatus::Superseded => tc("view_msg.status.superseded", &[]),
     }
 }
 
@@ -878,20 +879,28 @@ fn proposals_of(
             let base_body = base.and_then(|b| node.revision(b)).map_or("", |r| r.body.as_str());
             let base_note = if is_shown {
                 Some(match base {
-                    Some(b) => format!(
-                        "Unterschied zu Fassung {b}{} · gezeigt",
-                        if base == current { " (aktuell)" } else { "" }
-                    ),
-                    None => "gezeigt".to_owned(),
+                    Some(b) if base == current => tc("view_msg.proposal.diff_current", &[("rev", b.into())]),
+                    Some(b) => tc("view_msg.proposal.diff", &[("rev", b.into())]),
+                    None => tc("view_msg.proposal.shown", &[]),
                 })
             } else {
                 None
             };
             // A Lektor is an account, not a persona: there is no name next to the handle – do not name it twice.
             let mut head = if is_lektorat(&handle) && name == handle {
-                format!("{handle} · Fassung {}", revision.number)
+                tc(
+                    "view_msg.proposal.head_lektor",
+                    &[("handle", handle.as_str().into()), ("rev", revision.number.into())],
+                )
             } else {
-                format!("{name} ({handle}) · Fassung {}", revision.number)
+                tc(
+                    "view_msg.proposal.head",
+                    &[
+                        ("name", name.as_str().into()),
+                        ("handle", handle.as_str().into()),
+                        ("rev", revision.number.into()),
+                    ],
+                )
             };
             if !model.is_empty() {
                 head.push_str(&format!(" · {model}"));
@@ -900,9 +909,18 @@ fn proposals_of(
             let base_amend =
                 infos.iter().find(|i| i.number == revision.number).and_then(|i| i.based_on_amend).filter(|&k| k > 0);
             match (based_on.filter(|&b| b != shown.number), base_amend) {
-                (Some(b), Some(k)) => head.push_str(&format!(" · beruht auf Fassung {b}, Stand {k}")),
-                (Some(b), None) => head.push_str(&format!(" · auf Fassung {b}")),
-                (None, Some(k)) => head.push_str(&format!(" · beruht auf Stand {k}")),
+                (Some(b), Some(k)) => {
+                    head.push_str(" · ");
+                    head.push_str(&tc("view_msg.proposal.based_on_amend", &[("rev", b.into()), ("amend", k.into())]));
+                }
+                (Some(b), None) => {
+                    head.push_str(" · ");
+                    head.push_str(&tc("view_msg.proposal.on_rev", &[("rev", b.into())]));
+                }
+                (None, Some(k)) => {
+                    head.push_str(" · ");
+                    head.push_str(&tc("view_msg.proposal.based_on_state", &[("amend", k.into())]));
+                }
                 (None, None) => {}
             }
             // Review R22: base amended further since the proposal → note „veraltet“; accepting would take
@@ -912,7 +930,8 @@ fn proposals_of(
                 && let Some(now) = infos.iter().find(|i| i.number == b).map(|i| i.amend_seq)
                 && now > k
             {
-                head.push_str(&format!(" · veraltet: Fassung {b} ist inzwischen bei Stand {now}"));
+                head.push_str(" · ");
+                head.push_str(&tc("view_msg.proposal.stale", &[("rev", b.into()), ("now", now.into())]));
             }
             let hunks = baruch_wysiwyg::align(base_body, &revision.body);
             let (old, new) = (baruch_wysiwyg::parse(base_body).blocks, baruch_wysiwyg::parse(&revision.body).blocks);
@@ -938,7 +957,10 @@ fn proposals_of(
                     let place = if is_shown { &hunk.proposal } else { &hunk.base };
                     let mut meta = meta.clone();
                     if parts > 1 {
-                        meta.head = format!("{head} · Teil {}/{parts}", k + 1);
+                        meta.head = format!(
+                            "{head} · {}",
+                            tc("view_msg.proposal.part", &[("k", (k + 1).into()), ("parts", parts.into())])
+                        );
                     }
                     HunkView {
                         meta,
@@ -962,7 +984,7 @@ fn proposals_of(
                 // Equals the shown revision: one overlay at the end, so that accept/reject stay.
                 let mut meta = meta;
                 if meta.base_note.is_none() {
-                    meta.base_note = Some("gleicht der gezeigten Fassung".to_owned());
+                    meta.base_note = Some(tc("view_msg.proposal.equals_shown", &[]));
                 }
                 let end = shown_blocks.len();
                 views.push(HunkView { meta, at: end, gap: end, kind: "changed", satz: None, lines: Vec::new() });
@@ -1032,7 +1054,7 @@ struct TreeRevision {
     number: u32,
     depth: usize,
     based_on: Option<u32>,
-    status: &'static str,
+    status: String,
     status_key: &'static str,
     author: String,
     persona: bool,
@@ -1250,11 +1272,11 @@ fn saved_notice(saved: Option<&str>) -> Option<String> {
     let saved = saved?;
     let mut parts = saved.split('-');
     match (parts.next()?, parts.next()?.parse::<u32>().ok()?, parts.next(), parts.next()) {
-        ("amended", k, None, None) => Some(format!("Gespeichert: fortgeschrieben (Stand {k}).")),
-        ("new", n, None, None) => Some(format!("Gespeichert: neue Fassung {n}.")),
+        ("amended", k, None, None) => Some(tc("view_msg.saved.amended", &[("amend", k.into())])),
+        ("new", n, None, None) => Some(tc("view_msg.saved.new", &[("rev", n.into())])),
         ("new", n, Some(reason), None) => {
             let label = REASONS.iter().find(|r| r.id() == reason)?.label();
-            Some(format!("Gespeichert: neue Fassung {n} ({label})."))
+            Some(tc("view_msg.saved.new_reason", &[("rev", n.into()), ("reason", label.into())]))
         }
         _ => None,
     }
@@ -1362,7 +1384,8 @@ fn post_targets(work: &Work, shown: usize) -> Vec<Value> {
         .map(|n| {
             // Non-breaking spaces: ordinary ones would collapse in <option>.
             let indent = "\u{a0}\u{a0}".repeat(usize::from(levels[n.id].saturating_sub(1)));
-            let title = if n.title.is_empty() { "(ohne Titel)" } else { n.title.as_str() };
+            let untitled = tc("view_msg.xref.untitled", &[]);
+            let title = if n.title.is_empty() { untitled.as_str() } else { n.title.as_str() };
             let label =
                 if n.number.is_empty() { format!("{indent}{title}") } else { format!("{indent}{} {title}", n.number) };
             context! { key => n.key, label => label }
@@ -1589,8 +1612,10 @@ fn values(work: &Work, shelf: &Shelf, at: &Resolved, settings: &Settings, librar
             open_list => node.revisions.iter().filter(|r| r.status == RevisionStatus::Proposed).map(|r| context! {
                 number => r.number,
                 label => match &r.author {
-                    Author::Assistant { persona, .. } => format!("Vorschlag {} von {persona}", r.number),
-                    Author::Human { .. } => format!("Vorschlag {}", r.number),
+                    Author::Assistant { persona, .. } => {
+                        tc("view_msg.basis.proposal_by", &[("rev", r.number.into()), ("persona", persona.as_str().into())])
+                    }
+                    Author::Human { .. } => tc("view_msg.basis.proposal", &[("rev", r.number.into())]),
                 },
             }).collect::<Vec<_>>(),
             // Round 22: state of the shown revision, history, state of the base of a proposal.

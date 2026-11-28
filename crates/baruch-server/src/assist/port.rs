@@ -73,17 +73,21 @@ pub enum ModelFailure {
     Failed(String),
 }
 
+use crate::i18n::tc;
+
 impl std::fmt::Display for ModelFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ModelFailure::NotConfigured(why) => write!(f, "Kein Modell-Backend nutzbar: {why}"),
-            ModelFailure::Unreachable(why) => write!(f, "Das Modell-Backend ist nicht erreichbar: {why}"),
-            ModelFailure::Denied(why) => write!(f, "Das Modell-Backend verweigert den Zugang: {why}"),
-            ModelFailure::Timeout(why) => write!(f, "Zeitüberschreitung beim Modell: {why}"),
-            ModelFailure::UnknownModel(why) => write!(f, "Unbekanntes Modell: {why}"),
-            ModelFailure::Busy(why) => write!(f, "Das Modell ist ausgelastet: {why}"),
-            ModelFailure::Cancelled => f.write_str("Abgebrochen; es wurde nichts gespeichert."),
-            ModelFailure::Failed(why) => write!(f, "Der Modellaufruf ist gescheitert: {why}"),
+            ModelFailure::NotConfigured(why) => {
+                f.write_str(&tc("assist_msg.model.not_configured", &[("why", why.into())]))
+            }
+            ModelFailure::Unreachable(why) => f.write_str(&tc("assist_msg.model.unreachable", &[("why", why.into())])),
+            ModelFailure::Denied(why) => f.write_str(&tc("assist_msg.model.denied", &[("why", why.into())])),
+            ModelFailure::Timeout(why) => f.write_str(&tc("assist_msg.model.timeout", &[("why", why.into())])),
+            ModelFailure::UnknownModel(why) => f.write_str(&tc("assist_msg.model.unknown", &[("why", why.into())])),
+            ModelFailure::Busy(why) => f.write_str(&tc("assist_msg.model.busy", &[("why", why.into())])),
+            ModelFailure::Cancelled => f.write_str(&tc("assist_msg.model.cancelled", &[])),
+            ModelFailure::Failed(why) => f.write_str(&tc("assist_msg.model.failed", &[("why", why.into())])),
         }
     }
 }

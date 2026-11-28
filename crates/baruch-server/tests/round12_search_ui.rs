@@ -429,79 +429,85 @@ fn merged(hit: Hit, rank: usize, found_by: Vec<Way>) -> MergedHit {
 
 #[test]
 fn an_answer_renders_badges_states_percent_and_safe_links() {
-    let answer = Answer {
-        work: 1,
-        query: "Möwen".into(),
-        hits: vec![
-            merged(
-                hit(Way::Lancedb, "work:1", Some("key:7"), None, json!({ "work": 1, "key": 7 }), 0.875),
-                1,
-                vec![Way::Lancedb, Way::Multigpt],
-            ),
-            merged(
-                hit(Way::Multigpt, "doc-9", None, Some("javascript:alert(1)"), json!({}), 0.5),
-                2,
-                vec![Way::Multigpt],
-            ),
-            merged(
-                hit(Way::Multigpt, "doc-10", None, Some("https://gpt.example/d/10"), json!({}), 0.4),
-                3,
-                vec![Way::Multigpt],
-            ),
-        ],
-        ways: vec![
-            WayReport::new(Way::Lancedb, WayState::Connected, "", 1, 3),
-            WayReport::new(
-                Way::Pgvector,
-                WayState::Off,
-                "Keine Sammlung gewählt (Einstellungen → Verbindungen).",
-                0,
-                0,
-            ),
-            WayReport::new(Way::Multigpt, WayState::Failed, "Zeitlimit", 0, 20000),
-        ],
-    };
-    assert_eq!(
-        ways_line(&answer),
-        "LanceDB: verbunden · pgvector: aus · MultiGPT: ausgefallen (Zeitlimit)",
-        "Zustandszeile nach Vertrag §8.2"
-    );
-    let view = rag_view(&answer);
-    assert_eq!(view["available"], true, "ein Weg ist verbunden: {view}");
-    let hits = view["hits"].as_array().unwrap();
-    assert_eq!(hits[0]["link"], "/?work=1&key=7", "LanceDB ohne Adresse: Ort aus meta.work/meta.key");
-    assert_eq!(hits[1]["link"], Value::Null, "javascript: ergibt keinen Link");
-    assert_eq!(hits[2]["link"], "https://gpt.example/d/10", "http(s) der Gegenstelle bleibt");
-    assert_eq!((hits[0]["percent"].clone(), hits[1]["percent"].clone()), (json!(88), json!(50)), "Ähnlichkeit in %");
-    assert_eq!(hits[0]["way_title"], "LanceDB", "Weg-Abzeichen");
-    assert_eq!(hits[0]["found_by"], json!(["LanceDB", "MultiGPT"]), "alle findenden Wege");
-    assert_eq!(hits[0]["snippet"], "Die Möwen <kehren> zurück.", "Ausschnitt als Text (die Vorlage maskiert)");
-    assert_eq!(hit_link(&answer.hits[1]), None, "dieselbe Regel in hit_link");
+    baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        let answer = Answer {
+            work: 1,
+            query: "Möwen".into(),
+            hits: vec![
+                merged(
+                    hit(Way::Lancedb, "work:1", Some("key:7"), None, json!({ "work": 1, "key": 7 }), 0.875),
+                    1,
+                    vec![Way::Lancedb, Way::Multigpt],
+                ),
+                merged(
+                    hit(Way::Multigpt, "doc-9", None, Some("javascript:alert(1)"), json!({}), 0.5),
+                    2,
+                    vec![Way::Multigpt],
+                ),
+                merged(
+                    hit(Way::Multigpt, "doc-10", None, Some("https://gpt.example/d/10"), json!({}), 0.4),
+                    3,
+                    vec![Way::Multigpt],
+                ),
+            ],
+            ways: vec![
+                WayReport::new(Way::Lancedb, WayState::Connected, "", 1, 3),
+                WayReport::new(
+                    Way::Pgvector,
+                    WayState::Off,
+                    "Keine Sammlung gewählt (Einstellungen → Verbindungen).",
+                    0,
+                    0,
+                ),
+                WayReport::new(Way::Multigpt, WayState::Failed, "Zeitlimit", 0, 20000),
+            ],
+        };
+        assert_eq!(
+            ways_line(&answer),
+            "LanceDB: verbunden · pgvector: aus · MultiGPT: ausgefallen (Zeitlimit)",
+            "Zustandszeile nach Vertrag §8.2"
+        );
+        let view = rag_view(&answer);
+        assert_eq!(view["available"], true, "ein Weg ist verbunden: {view}");
+        let hits = view["hits"].as_array().unwrap();
+        assert_eq!(hits[0]["link"], "/?work=1&key=7", "LanceDB ohne Adresse: Ort aus meta.work/meta.key");
+        assert_eq!(hits[1]["link"], Value::Null, "javascript: ergibt keinen Link");
+        assert_eq!(hits[2]["link"], "https://gpt.example/d/10", "http(s) der Gegenstelle bleibt");
+        assert_eq!(
+            (hits[0]["percent"].clone(), hits[1]["percent"].clone()),
+            (json!(88), json!(50)),
+            "Ähnlichkeit in %"
+        );
+        assert_eq!(hits[0]["way_title"], "LanceDB", "Weg-Abzeichen");
+        assert_eq!(hits[0]["found_by"], json!(["LanceDB", "MultiGPT"]), "alle findenden Wege");
+        assert_eq!(hits[0]["snippet"], "Die Möwen <kehren> zurück.", "Ausschnitt als Text (die Vorlage maskiert)");
+        assert_eq!(hit_link(&answer.hits[1]), None, "dieselbe Regel in hit_link");
 
-    let off = Answer {
-        hits: vec![],
-        ways: vec![
-            WayReport::new(Way::Lancedb, WayState::Failed, "Kein Einbettungsmodell erreichbar", 0, 1),
-            WayReport::new(
-                Way::Pgvector,
-                WayState::Off,
-                "Für dieses Werk nicht gewählt (Einstellungen → Verbindungen).",
-                0,
-                0,
-            ),
-            WayReport::new(Way::Multigpt, WayState::Off, "In dieser Anfrage nicht gefragt.", 0, 0),
-        ],
-        ..answer
-    };
-    let view = rag_view(&off);
-    assert_eq!(view["available"], false, "kein Weg verbunden: nicht verfügbar");
-    let message = view["message"].as_str().unwrap();
-    assert!(
-        message.starts_with("Bedeutungssuche nicht verfügbar: LanceDB: Kein Einbettungsmodell erreichbar")
-            && message.ends_with("Die Wortlaut-Suche (FTS) geht weiter."),
-        "Grund je Weg und der Hinweis auf FTS: {message}"
-    );
-    assert!(view["ways_line"].as_str().unwrap().contains("LanceDB: ausgefallen"), "Zustandszeile bleibt: {view}");
+        let off = Answer {
+            hits: vec![],
+            ways: vec![
+                WayReport::new(Way::Lancedb, WayState::Failed, "Kein Einbettungsmodell erreichbar", 0, 1),
+                WayReport::new(
+                    Way::Pgvector,
+                    WayState::Off,
+                    "Für dieses Werk nicht gewählt (Einstellungen → Verbindungen).",
+                    0,
+                    0,
+                ),
+                WayReport::new(Way::Multigpt, WayState::Off, "In dieser Anfrage nicht gefragt.", 0, 0),
+            ],
+            ..answer
+        };
+        let view = rag_view(&off);
+        assert_eq!(view["available"], false, "kein Weg verbunden: nicht verfügbar");
+        let message = view["message"].as_str().unwrap();
+        assert!(
+            message.starts_with("Bedeutungssuche nicht verfügbar: LanceDB: Kein Einbettungsmodell erreichbar")
+                && message.ends_with("Die Wortlaut-Suche (FTS) geht weiter."),
+            "Grund je Weg und der Hinweis auf FTS: {message}"
+        );
+        assert!(view["ways_line"].as_str().unwrap().contains("LanceDB: ausgefallen"), "Zustandszeile bleibt: {view}");
+    })
 }
 
 // ---- Ideas ----------------------------------------------------------------------------------------
@@ -571,7 +577,9 @@ async fn get_from(server: &common::Server, uri: &str, site: &str) -> (StatusCode
 async fn a_foreign_page_cannot_start_the_meaning_search_over_get() {
     let server = common::open().await;
     let work = server.state.default_work().await.unwrap();
-    let foreign = esc(baruch_server::literature::FOREIGN_PAGE);
+    // Round 39a: the reason follows the interface language; the harness pins German.
+    let foreign =
+        esc(&baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, baruch_server::literature::foreign_page));
     // Reason: without an embedder (tests) every search that actually ran names the failure of LanceDB (NO_EMBEDDER). If
     // this reason is missing and the hint about the foreign page is there, no search ran – hence no embedding, no
     // pgvector connection and no MultiGPT session either.

@@ -42,6 +42,7 @@ use minijinja::value::{Serde, Value as JinjaValue};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::typeset::{self, Compiled, Typeset};
 use crate::view::Settings;
@@ -70,12 +71,12 @@ pub enum PdfKind {
 }
 
 impl PdfKind {
-    fn word(self) -> &'static str {
+    fn word(self) -> String {
         match self {
-            PdfKind::Book => "Buch",
-            PdfKind::Cover => "Umschlag",
-            PdfKind::Notes => "Stichwortzettel",
-            PdfKind::Map => "Mindmap",
+            PdfKind::Book => tc("export_msg.pdf.kind_book", &[]),
+            PdfKind::Cover => tc("export_msg.pdf.kind_cover", &[]),
+            PdfKind::Notes => tc("export_msg.pdf.kind_notes", &[]),
+            PdfKind::Map => tc("export_msg.pdf.kind_map", &[]),
         }
     }
 }
@@ -91,8 +92,15 @@ pub struct PdfOut {
     pub millis: u64,
 }
 
-/// Message when a PDF is already being generated for the work.
-pub const BUSY: &str = "Für dieses Werk entsteht gerade ein PDF; bitte warten und dann noch einmal versuchen.";
+/// Message when a PDF is already being generated for the work (language of the request, Round 39a).
+pub fn busy_text() -> String {
+    tc("export_msg.pdf.busy", &[])
+}
+
+/// Is `message` the refusal of [`busy_text`] (in German or in the language of the request)?
+pub fn is_busy(message: &str) -> bool {
+    message == busy_text() || message == crate::i18n::t(crate::i18n::Lang::De, "export_msg.pdf.busy", &[])
+}
 
 fn busy_works() -> std::sync::MutexGuard<'static, BTreeSet<WorkId>> {
     static BUSY_WORKS: Mutex<BTreeSet<WorkId>> = Mutex::new(BTreeSet::new());
@@ -144,31 +152,30 @@ impl Failed {
 fn typst_refusal(kind: PdfKind, pdf: &Pdf) -> RpcError {
     let errors: Vec<_> = pdf.diagnostics.iter().filter(|d| d.severity == baruch_render::Severity::Error).collect();
     let first = errors.first().map_or_else(
-        || "Typst lieferte kein PDF".to_owned(),
-        |d| {
-            let place = match (&d.file, d.line) {
-                (Some(file), Some(line)) => format!(" ({file}, Zeile {line})"),
-                (None, Some(line)) => format!(" (Zeile {line} im Export)"),
-                _ => String::new(),
-            };
-            format!("{}{place}", d.message)
+        || tc("export_msg.pdf.no_pdf_from_typst", &[]),
+        |d| match (&d.file, d.line) {
+            (Some(file), Some(line)) => tc(
+                "export_msg.pdf.error_in_file",
+                &[("message", d.message.as_str().into()), ("file", file.as_str().into()), ("line", line.into())],
+            ),
+            (None, Some(line)) => {
+                tc("export_msg.pdf.error_in_export", &[("message", d.message.as_str().into()), ("line", line.into())])
+            }
+            _ => d.message.clone(),
         },
     );
     let count = errors.len().max(1);
-    let word = if count == 1 { "Fehler" } else { "Fehlern" };
-    RpcError::new(
-        REFUSED,
-        format!("Kein PDF ({}): Der Satz scheitert mit {count} {word}. Erster: {first}", kind.word()),
-    )
+    let args = [("kind", kind.word().into()), ("count", count.into()), ("first", first.into())];
+    let message = if count == 1 { tc("export_msg.pdf.failed_one", &args) } else { tc("export_msg.pdf.failed", &args) };
+    RpcError::new(REFUSED, message)
 }
 
 async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) -> Result<PdfOut, Failed> {
-    let busy = claim(work).ok_or_else(|| Failed::Busy(RpcError::new(REFUSED, BUSY)))?;
+    let busy = claim(work).ok_or_else(|| Failed::Busy(RpcError::new(REFUSED, busy_text())))?;
     let run = async move {
-        let permit = typeset::RUNS
-            .acquire()
-            .await
-            .map_err(|e| Failed::Other(RpcError::new(INTERNAL, format!("Typst-Sperre: {e}"))))?;
+        let permit = typeset::RUNS.acquire().await.map_err(|e| {
+            Failed::Other(RpcError::new(INTERNAL, tc("export_msg.typeset.lock", &[("error", e.to_string().into())])))
+        })?;
         let handle = tokio::task::spawn_blocking(crate::i18n::carry(move || {
             // Lock and work belong to the run: if the time runs out, Typst finishes computing and releases
             // both only then.
@@ -179,13 +186,12 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
             let pdf = baruch_render::compile_pdf(&source);
             (pdf, u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX))
         }));
-        handle.await.map_err(|e| Failed::Other(RpcError::new(INTERNAL, format!("Typst ist abgestürzt: {e}"))))
+        handle.await.map_err(|e| {
+            Failed::Other(RpcError::new(INTERNAL, tc("export_msg.typeset.crashed", &[("error", e.to_string().into())])))
+        })
     };
     let begun = Instant::now();
-    let timeout = || {
-        let message = format!("Typst brauchte länger als {}", typeset::seconds(limit));
-        Failed::Timeout(RpcError::new(REFUSED, message))
-    };
+    let timeout = || Failed::Timeout(RpcError::new(REFUSED, typeset::timeout_text(limit)));
     // `tokio::time::timeout` polls the run first: if it finishes faster than the timer fires, `Ok` comes
     // even after the limit has passed (always possible at 0). Therefore the measured time counts in addition.
     let (pdf, millis) = match tokio::time::timeout(limit, run).await {
@@ -244,7 +250,7 @@ fn flag(params: &Value, name: &str) -> Result<bool, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(false),
         Some(Value::Bool(b)) => Ok(*b),
-        Some(_) => Err(RpcError::new(INVALID_PARAMS, format!("{name}: true oder false erwartet"))),
+        Some(_) => Err(RpcError::new(INVALID_PARAMS, tc("export_msg.pdf.flag", &[("name", name.into())]))),
     }
 }
 
@@ -337,14 +343,28 @@ async fn download(
     let (slug, title) = match state.store.works().await {
         Ok(works) => match works.into_iter().find(|(w, _, _)| *w == id) {
             Some((_, slug, title)) => (slug, title),
-            None => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
+            None => return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
         },
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            )
+                .into_response();
+        }
     };
     let prepared = match typeset::prepare_with(&state, id, draft).await {
         Ok(prepared) => prepared,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => {
+            return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("export_msg.page.error", &[("error", e.to_string().into())]),
+            )
+                .into_response();
+        }
     };
     let source = prepared.source.clone();
     let failed = match generate(id, PdfKind::Book, source, PDF_TIMEOUT).await {
@@ -386,7 +406,12 @@ async fn download(
 /// `baruch-server export <werk> --pdf DATEI`: the book as PDF to `target`. If the file already exists,
 /// nothing is written; if the typesetting fails, no file is created. Result: the PDF (for the
 /// output of the CLI).
+/// The command line stays German (Round 39a, contract §5: CLI untouched): the whole run in a German scope.
 pub async fn write_pdf_file(state: &AppState, work: WorkId, target: &std::path::Path) -> Result<PdfOut, String> {
+    crate::i18n::scope(crate::i18n::Lang::De, write_pdf_file_german(state, work, target)).await
+}
+
+async fn write_pdf_file_german(state: &AppState, work: WorkId, target: &std::path::Path) -> Result<PdfOut, String> {
     if std::fs::symlink_metadata(target).is_ok() {
         return Err(format!("{} gibt es schon; nichts überschrieben", target.display()));
     }
@@ -434,27 +459,29 @@ mod tests {
 
     #[test]
     fn a_typst_refusal_names_the_first_error_and_the_count() {
-        let diag = |message: &str, line| baruch_render::Diagnostic {
-            severity: baruch_render::Severity::Error,
-            message: message.into(),
-            hints: vec![],
-            line: Some(line),
-            column: Some(1),
-            file: None,
-        };
-        let pdf = Pdf {
-            stand: String::new(),
-            bytes: None,
-            pages: 0,
-            diagnostics: vec![diag("unknown variable: x", 4), diag("unknown variable: y", 9)],
-            print: vec![],
-        };
-        let e = typst_refusal(PdfKind::Book, &pdf);
-        assert_eq!(e.code, REFUSED, "Satzfehler sind fachlich (REFUSED)");
-        assert_eq!(
-            e.message,
-            "Kein PDF (Buch): Der Satz scheitert mit 2 Fehlern. Erster: unknown variable: x (Zeile 4 im Export)",
-            "erste Meldung mit Zeile und die Zahl"
-        );
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let diag = |message: &str, line| baruch_render::Diagnostic {
+                severity: baruch_render::Severity::Error,
+                message: message.into(),
+                hints: vec![],
+                line: Some(line),
+                column: Some(1),
+                file: None,
+            };
+            let pdf = Pdf {
+                stand: String::new(),
+                bytes: None,
+                pages: 0,
+                diagnostics: vec![diag("unknown variable: x", 4), diag("unknown variable: y", 9)],
+                print: vec![],
+            };
+            let e = typst_refusal(PdfKind::Book, &pdf);
+            assert_eq!(e.code, REFUSED, "Satzfehler sind fachlich (REFUSED)");
+            assert_eq!(
+                e.message,
+                "Kein PDF (Buch): Der Satz scheitert mit 2 Fehlern. Erster: unknown variable: x (Zeile 4 im Export)",
+                "erste Meldung mit Zeile und die Zahl"
+            );
+        })
     }
 }

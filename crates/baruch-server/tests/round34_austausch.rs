@@ -524,90 +524,103 @@ async fn the_pdf_is_built_from_the_mindmap_drawing() {
 
 #[tokio::test]
 async fn the_preview_creates_nothing_and_only_the_confirmation_imports() {
-    let b = open_book().await;
-    let (status, html) = b.server.get(&format!("/werke/{}/karte/einlesen", b.work)).await;
-    assert_eq!(status, StatusCode::OK, "das Formular zum Einlesen antwortet");
-    assert!(
-        html.contains("enctype=\"multipart/form-data\"") && html.contains("name=\"file\""),
-        "Formular mit Datei-Upload, ohne JavaScript: {html}"
-    );
-    assert!(html.contains("als Hauptthemen ans Werk"), "Vorgabe: Die eingelesenen Knoten werden Hauptthemen am Werk");
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let b = open_book().await;
+        let (status, html) = b.server.get(&format!("/werke/{}/karte/einlesen", b.work)).await;
+        assert_eq!(status, StatusCode::OK, "das Formular zum Einlesen antwortet");
+        assert!(
+            html.contains("enctype=\"multipart/form-data\"") && html.contains("name=\"file\""),
+            "Formular mit Datei-Upload, ohne JavaScript: {html}"
+        );
+        assert!(
+            html.contains("als Hauptthemen ans Werk"),
+            "Vorgabe: Die eingelesenen Knoten werden Hauptthemen am Werk"
+        );
 
-    let file = include_bytes!("data/r34/hafenfest.mm");
-    let (status, html) = preview(&b.server, b.work, file).await;
-    assert_eq!(status, StatusCode::OK, "die Vorschau antwortet: {html}");
-    assert!(
-        html.contains("data-import-preview") && html.contains("data-count=\"6\""),
-        "Vorschau mit der Zahl der Knoten: {html}"
-    );
-    for title in ["Buden", "Räucherfisch", "Teig am Vorabend", "Shanty-Chor"] {
-        assert!(html.contains(title), "die Vorschau zeigt den Knoten „{title}“");
-    }
-    assert!(html.contains("Noch ist nichts angelegt"), "die Vorschau sagt, dass noch nichts angelegt ist");
-    assert_eq!(idea_count(&b.server, b.work).await, 0, "die Vorschau legt keinen Einfall an");
+        let file = include_bytes!("data/r34/hafenfest.mm");
+        let (status, html) = preview(&b.server, b.work, file).await;
+        assert_eq!(status, StatusCode::OK, "die Vorschau antwortet: {html}");
+        assert!(
+            html.contains("data-import-preview") && html.contains("data-count=\"6\""),
+            "Vorschau mit der Zahl der Knoten: {html}"
+        );
+        for title in ["Buden", "Räucherfisch", "Teig am Vorabend", "Shanty-Chor"] {
+            assert!(html.contains(title), "die Vorschau zeigt den Knoten „{title}“");
+        }
+        assert!(html.contains("Noch ist nichts angelegt"), "die Vorschau sagt, dass noch nichts angelegt ist");
+        assert_eq!(idea_count(&b.server, b.work).await, 0, "die Vorschau legt keinen Einfall an");
 
-    let tree = hidden_tree(&html);
-    assert_eq!(tree, import::read(file).unwrap(), "das verborgene Feld trägt genau den gelesenen Baum");
-    assert_eq!(tree.title, "Hafenfest", "die Wurzel der Datei wird Titel, nicht Knoten");
-    assert_eq!(tree.nodes[0].note, "Fisch & Waffeln\nStrom vom Kran", "HTML in der Notiz ist reiner Text geworden");
-    assert_eq!(tree.nodes[0].words, vec!["Markt"], "nur das Attribut „Schlagwort“ wird Schlagwort");
-    assert_eq!(
-        tree.links,
-        vec![ImportLink { from: vec![0], to: vec![1], note: "braucht".to_owned() }],
-        "Beziehung mit Beschriftung"
-    );
+        let tree = hidden_tree(&html);
+        assert_eq!(tree, import::read(file).unwrap(), "das verborgene Feld trägt genau den gelesenen Baum");
+        assert_eq!(tree.title, "Hafenfest", "die Wurzel der Datei wird Titel, nicht Knoten");
+        assert_eq!(tree.nodes[0].note, "Fisch & Waffeln\nStrom vom Kran", "HTML in der Notiz ist reiner Text geworden");
+        assert_eq!(tree.nodes[0].words, vec!["Markt"], "nur das Attribut „Schlagwort“ wird Schlagwort");
+        assert_eq!(
+            tree.links,
+            vec![ImportLink { from: vec![0], to: vec![1], note: "braucht".to_owned() }],
+            "Beziehung mit Beschriftung"
+        );
 
-    let apply = format!("/werke/{}/karte/einlesen/anlegen", b.work);
-    let body = format!("tree={}&parent=", form_encode(&serde_json::to_string(&tree).unwrap()));
-    let request = Request::post(&apply)
-        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(Body::from(body))
-        .unwrap();
-    let (status, headers, page) = b.server.send(request).await;
-    assert_eq!(status, StatusCode::SEE_OTHER, "die Bestätigung legt an: {page}");
-    assert_eq!(
-        headers[header::LOCATION],
-        format!("/werke/{}/karte?ok=eingelesen", b.work).as_str(),
-        "nach dem Anlegen zurück zur Mindmap"
-    );
-    assert_eq!(idea_count(&b.server, b.work).await, 6, "alle Knoten der Vorschau sind Einfälle geworden");
+        let apply = format!("/werke/{}/karte/einlesen/anlegen", b.work);
+        let body = format!("tree={}&parent=", form_encode(&serde_json::to_string(&tree).unwrap()));
+        let request = Request::post(&apply)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from(body))
+            .unwrap();
+        let (status, headers, page) = b.server.send(request).await;
+        assert_eq!(status, StatusCode::SEE_OTHER, "die Bestätigung legt an: {page}");
+        assert_eq!(
+            headers[header::LOCATION],
+            format!("/werke/{}/karte?ok=eingelesen", b.work).as_str(),
+            "nach dem Anlegen zurück zur Mindmap"
+        );
+        assert_eq!(idea_count(&b.server, b.work).await, 6, "alle Knoten der Vorschau sind Einfälle geworden");
 
-    let request = Request::post(&apply)
-        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(Body::from("tree=%7Bkaputt&parent="))
-        .unwrap();
-    let (status, _, page) = b.server.send(request).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ein beschädigtes Feld tree wird abgelehnt");
-    assert!(page.contains("Die Vorschau ist beschädigt"), "mit verständlicher Meldung: {page}");
+        let request = Request::post(&apply)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from("tree=%7Bkaputt&parent="))
+            .unwrap();
+        let (status, _, page) = b.server.send(request).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "ein beschädigtes Feld tree wird abgelehnt");
+        assert!(page.contains("Die Vorschau ist beschädigt"), "mit verständlicher Meldung: {page}");
 
-    let deep = (0..=MAX_TREE_DEPTH).fold(leaf("unten"), |below, level| branch(&format!("e{level}"), vec![below]));
-    let forged = serde_json::to_string(&ImportTree { nodes: vec![deep], ..ImportTree::default() }).unwrap();
-    let request = Request::post(&apply)
-        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-        .body(Body::from(format!("tree={}&parent=", form_encode(&forged))))
-        .unwrap();
-    let (status, _, page) = b.server.send(request).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "der Baum aus dem Formular wird serverseitig erneut geprüft");
-    assert!(page.contains(&import::too_deep()), "ein gefälschter, zu tiefer Baum wird abgelehnt: {page}");
+        let deep = (0..=MAX_TREE_DEPTH).fold(leaf("unten"), |below, level| branch(&format!("e{level}"), vec![below]));
+        let forged = serde_json::to_string(&ImportTree { nodes: vec![deep], ..ImportTree::default() }).unwrap();
+        let request = Request::post(&apply)
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from(format!("tree={}&parent=", form_encode(&forged))))
+            .unwrap();
+        let (status, _, page) = b.server.send(request).await;
+        assert_eq!(
+            status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "der Baum aus dem Formular wird serverseitig erneut geprüft"
+        );
+        assert!(page.contains(&import::too_deep()), "ein gefälschter, zu tiefer Baum wird abgelehnt: {page}");
 
-    let other = b.server.import("#set document(title: \"Fremdes Buch\")\n\n= Eins\n\nText.\n", "fremd.typ").await.work;
-    let foreign = result(&b.server.rpc("idea.create", json!({ "work": other, "words": "Fremd" })).await)["idea"]["id"]
-        .as_i64()
-        .unwrap();
-    let (status, _, page) = send_bytes(&b.server, upload(b.work, file, Some(foreign))).await;
-    assert_eq!(status, StatusCode::CONFLICT, "ein Zielknoten aus einem anderen Werk wird abgelehnt");
-    assert!(String::from_utf8_lossy(&page).contains("gehört nicht zu diesem Werk"), "mit Meldung");
+        let other =
+            b.server.import("#set document(title: \"Fremdes Buch\")\n\n= Eins\n\nText.\n", "fremd.typ").await.work;
+        let foreign =
+            result(&b.server.rpc("idea.create", json!({ "work": other, "words": "Fremd" })).await)["idea"]["id"]
+                .as_i64()
+                .unwrap();
+        let (status, _, page) = send_bytes(&b.server, upload(b.work, file, Some(foreign))).await;
+        assert_eq!(status, StatusCode::CONFLICT, "ein Zielknoten aus einem anderen Werk wird abgelehnt");
+        assert!(String::from_utf8_lossy(&page).contains("gehört nicht zu diesem Werk"), "mit Meldung");
 
-    let request = upload(b.work, file, None);
-    let (parts, body) = request.into_parts();
-    let mut request = Request::from_parts(parts, body);
-    request.headers_mut().insert(header::ORIGIN, "http://fremd.example".parse().unwrap());
-    let (status, _, _) = send_bytes(&b.server, request).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "das Einlesen bleibt hinter guard::same_origin");
+        let request = upload(b.work, file, None);
+        let (parts, body) = request.into_parts();
+        let mut request = Request::from_parts(parts, body);
+        request.headers_mut().insert(header::ORIGIN, "http://fremd.example".parse().unwrap());
+        let (status, _, _) = send_bytes(&b.server, request).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "das Einlesen bleibt hinter guard::same_origin");
+    })
+    .await
 }
 
 #[tokio::test]
 async fn foreign_input_is_refused_with_a_clear_message_and_no_crash() {
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
     let b = open_book().await;
     let work = b.work;
 
@@ -717,6 +730,8 @@ async fn foreign_input_is_refused_with_a_clear_message_and_no_crash() {
     assert_eq!(idea_count(&b.server, work).await, 0, "keine der abgelehnten Dateien hat etwas angelegt");
     let (status, _) = b.server.get(&format!("/werke/{work}/karte/gliederung")).await;
     assert_eq!(status, StatusCode::OK, "der Server läuft nach all dem weiter");
+})
+    .await
 }
 
 // ---- Outline view and forms ----------------------------------------------------------------------

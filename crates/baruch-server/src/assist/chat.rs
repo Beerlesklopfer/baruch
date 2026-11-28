@@ -53,6 +53,7 @@ use super::{
     check_text, context, post, run, send,
 };
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError};
 
 /// Mention that calls all active personas in an RFC.
@@ -442,10 +443,10 @@ pub async fn chat(
     progress: Option<&UnboundedSender<Progress>>,
 ) -> Result<ChatOutcome, RpcError> {
     let ChatOrder { work, key, message, rev, author, extra, web, as_order, basis, relay } = order.clone();
-    check_text(message, "Die Nachricht")?;
+    check_text(message, "message")?;
     let message = message.trim();
     if message.is_empty() {
-        return Err(RpcError::new(INVALID_PARAMS, "Die Nachricht ist leer."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("posts_msg.thread.message_empty", &[])));
     }
     let rfc = is_rfc(message);
     let write = !rfc && (as_order || is_write_order(message));
@@ -684,7 +685,7 @@ async fn write_order(
 ) -> Result<(), RpcError> {
     let outcome = run(state, order, progress).await?;
     let Some(rev) = outcome.rev else {
-        return Err(RpcError::new(crate::rpc::INTERNAL, "Der Vorschlag hat keine Fassungsnummer."));
+        return Err(RpcError::new(crate::rpc::INTERNAL, tc("assist_msg.chat.no_rev", &[])));
     };
     let handle = outcome.persona.clone();
     let body = order_note(rev);
@@ -708,9 +709,7 @@ async fn write_order(
         match state.store.finding_get(order.work, id).await {
             Ok(finding) if finding.key == Some(order.key) => {}
             Ok(_) => {
-                result.notes.push(format!(
-                    "[B{id}]: Der Befund gehört nicht zu diesem Abschnitt; kein Statusvorschlag zu Fassung {rev}."
-                ));
+                result.notes.push(tc("assist_msg.chat.finding_elsewhere", &[("id", id.into()), ("rev", rev.into())]));
                 continue;
             }
             Err(e) => {
@@ -804,10 +803,10 @@ pub fn basis_param(params: &Value) -> Result<super::basis::BasisChoice, RpcError
         Some(Value::Number(n)) => n.to_string(),
         Some(Value::String(s)) if s.trim().is_empty() => return Ok(super::basis::BasisChoice::Shown),
         Some(Value::String(s)) => s.clone(),
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "basis: shown, current oder eine Fassungsnummer")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.chat.basis", &[]))),
     };
     super::basis::BasisChoice::parse(&text)
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, "basis: shown, current oder eine Fassungsnummer"))
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("assist_msg.chat.basis", &[])))
 }
 
 #[cfg(test)]

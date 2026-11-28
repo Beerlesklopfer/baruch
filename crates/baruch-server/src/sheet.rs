@@ -14,6 +14,7 @@ use baruch_store::{SheetSettings, WorkId};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
 /// Fields of the settings as RPC and form name them.
@@ -61,7 +62,7 @@ pub async fn set_sheet(state: &AppState, work: WorkId, params: &Value) -> Result
         None | Some(Value::Null) => false,
         Some(Value::Bool(b)) => *b,
         Some(Value::String(s)) => matches!(s.trim(), "1" | "true" | "on" | "ja"),
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "reset: true oder false erwartet")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("export_msg.sheet.reset", &[]))),
     };
     // Round 23a (review R18): reading, changing and writing under the write lock of the server, so that two
     // simultaneous partial changes (one only `font`, one only `fill`) do not overwrite each other.
@@ -73,7 +74,9 @@ pub async fn set_sheet(state: &AppState, work: WorkId, params: &Value) -> Result
             Some(Value::Null) => None,
             Some(Value::String(s)) if s.trim().is_empty() => None,
             Some(Value::String(s)) => Some(s.trim().to_owned()),
-            Some(_) => return Err(RpcError::new(INVALID_PARAMS, format!("{field}: Text erwartet"))),
+            Some(_) => {
+                return Err(RpcError::new(INVALID_PARAMS, tc("export_msg.sheet.text", &[("field", field.into())])));
+            }
         };
         if let Some(target) = slot(&mut settings, field) {
             *target = value;

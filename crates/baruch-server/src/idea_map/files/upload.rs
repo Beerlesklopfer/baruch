@@ -29,6 +29,7 @@ use super::import::{self, MAX_UPLOAD_BYTES};
 use super::outline::{href, templates};
 use super::{ensure_in_work, load_tree};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::idea_map::MapFilter;
 use crate::idea_map::bild::{plain, status_of};
 use crate::idea_map::tree::{self, ImportTree, MAX_IMPORT_NODES, MAX_TREE_DEPTH, TreeKind};
@@ -118,7 +119,13 @@ async fn show(
     };
     match templates().get_template("karte_einlesen.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage karte_einlesen.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc(
+                "ideas_msg.page.template_error",
+                &[("name", "karte_einlesen.html".into()), ("error", e.to_string().into())],
+            ),
+        ),
     }
 }
 
@@ -129,7 +136,7 @@ fn parent_of(value: &str) -> Result<Option<IdeaId>, String> {
     if value.is_empty() {
         return Ok(None);
     }
-    value.parse().map(Some).map_err(|_| "Der gewählte Knoten ist kein Einfall.".to_owned())
+    value.parse().map(Some).map_err(|_| tc("ideas_msg.upload.not_an_idea", &[]))
 }
 
 /// `GET /werke/{id}/karte/einlesen` (optionally `?unter=i:<id>` as preselection).
@@ -156,7 +163,7 @@ pub async fn preview(
     let mut multipart = match multipart {
         Ok(m) => m,
         Err(e) => {
-            return fail(unprocessable, format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text()))
+            return fail(unprocessable, tc("ideas_msg.upload.not_multipart", &[("detail", e.body_text().into())]))
                 .await;
         }
     };
@@ -170,7 +177,11 @@ pub async fn preview(
                 return fail(StatusCode::PAYLOAD_TOO_LARGE, import::too_large()).await;
             }
             Err(e) => {
-                return fail(unprocessable, format!("Das Formular ließ sich nicht lesen ({}).", e.body_text())).await;
+                return fail(
+                    unprocessable,
+                    tc("ideas_msg.upload.form_unreadable", &[("detail", e.body_text().into())]),
+                )
+                .await;
             }
         };
         match field.name().unwrap_or("") {
@@ -180,7 +191,11 @@ pub async fn preview(
                     return fail(StatusCode::PAYLOAD_TOO_LARGE, import::too_large()).await;
                 }
                 Err(e) => {
-                    return fail(unprocessable, format!("Die Datei ließ sich nicht lesen ({}).", e.body_text())).await;
+                    return fail(
+                        unprocessable,
+                        tc("ideas_msg.upload.file_unreadable", &[("detail", e.body_text().into())]),
+                    )
+                    .await;
                 }
             },
             "parent" => parent_field = field.text().await.unwrap_or_default(),
@@ -188,7 +203,7 @@ pub async fn preview(
         }
     }
     let Some(bytes) = file.filter(|b| !b.is_empty()) else {
-        return fail(unprocessable, "Bitte eine Datei wählen (.mm oder .xmind).".to_owned()).await;
+        return fail(unprocessable, tc("ideas_msg.upload.choose", &[])).await;
     };
     if bytes.len() > MAX_UPLOAD_BYTES {
         return fail(StatusCode::PAYLOAD_TOO_LARGE, import::too_large()).await;
@@ -207,7 +222,7 @@ pub async fn preview(
     match read {
         Ok(Ok(tree)) => show(&state, &headers, work, StatusCode::OK, Mode::Preview(&tree), parent, None).await,
         Ok(Err(message)) => fail(unprocessable, message).await,
-        Err(_) => fail(unprocessable, "Die Datei ließ sich nicht lesen.".to_owned()).await,
+        Err(_) => fail(unprocessable, tc("ideas_msg.upload.unreadable", &[])).await,
     }
 }
 
@@ -227,20 +242,23 @@ pub async fn apply(
     form: Result<Form<ApplyForm>, FormRejection>,
 ) -> Response {
     let unprocessable = StatusCode::UNPROCESSABLE_ENTITY;
-    let again = "Bitte die Datei noch einmal einlesen.";
+    let again = tc("ideas_msg.upload.again", &[]);
     let Form(form) = match form {
         Ok(form) => form,
         Err(e) => {
             let (status, message) = if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
-                (StatusCode::PAYLOAD_TOO_LARGE, format!("Die Vorschau ist zu groß geworden. {again}"))
+                (
+                    StatusCode::PAYLOAD_TOO_LARGE,
+                    tc("ideas_msg.upload.preview_too_large", &[("again", again.as_str().into())]),
+                )
             } else {
-                (unprocessable, format!("Das Formular ließ sich nicht lesen. {again}"))
+                (unprocessable, tc("ideas_msg.upload.form_broken", &[("again", again.as_str().into())]))
             };
             return show(&state, &headers, work, status, Mode::Form, None, Some(message)).await;
         }
     };
     let tree = serde_json::from_str::<ImportTree>(&form.tree)
-        .map_err(|_| format!("Die Vorschau ist beschädigt oder fehlt. {again}"))
+        .map_err(|_| tc("ideas_msg.upload.preview_broken", &[("again", again.as_str().into())]))
         .and_then(import::check);
     let tree = match tree {
         Ok(tree) => tree,
@@ -260,7 +278,10 @@ pub async fn apply(
     let origin = IdeaOrigin::Human { name: crate::mirror::HUMAN_NAME.to_owned() };
     match tree::import(&state, work, parent, &tree, &origin).await {
         Ok(_) => Redirect::to(&format!("/werke/{work}/karte?ok=eingelesen")).into_response(),
-        Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) if e.code == INTERNAL => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("ideas_msg.page.error", &[("error", e.message.as_str().into())]),
+        ),
         // Refused (in the S1 state: “not implemented yet”): the preview stays, with the message.
         Err(e) => show(&state, &headers, work, status_of(&e), Mode::Preview(&tree), parent, Some(e.message)).await,
     }

@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::glossary_page::{back_to, failure_status, field, page_base, plain};
+use crate::i18n::tc;
 use crate::index_marks::MarkRequest;
 use crate::rpc::RpcError;
 
@@ -48,15 +49,15 @@ fn templates() -> &'static Environment<'static> {
 }
 
 /// Notice for `ok` after an action of the index page (also on the page „an der Markierung“).
-pub(crate) fn ok_message(ok: &str) -> Option<&'static str> {
+pub(crate) fn ok_message(ok: &str) -> Option<String> {
     Some(match ok {
-        "mark" => "Registermarke gesetzt – als neue Fassung des Abschnitts.",
-        "unmark" => "Registermarke entfernt – als neue Fassung des Abschnitts.",
-        "accept" => "Registervorschlag übernommen – die Marke steht in einer neuen Fassung.",
-        "reject" => "Registervorschlag verworfen.",
-        "register_add" => "Register angelegt.",
-        "register_rename" => "Register umbenannt.",
-        "register_delete" => "Register gelöscht.",
+        "mark" => tc("reference_msg.index.ok_mark", &[]),
+        "unmark" => tc("reference_msg.index.ok_unmark", &[]),
+        "accept" => tc("reference_msg.index.ok_accept", &[]),
+        "reject" => tc("reference_msg.index.ok_reject", &[]),
+        "register_add" => tc("reference_msg.index.ok_register_add", &[]),
+        "register_rename" => tc("reference_msg.index.ok_register_rename", &[]),
+        "register_delete" => tc("reference_msg.index.ok_register_delete", &[]),
         _ => return None,
     })
 }
@@ -103,7 +104,7 @@ async fn index_page(
             .as_ref()
             .and_then(|w| w.nodes.iter().find(|n| n.key == key))
             .map(|n| if n.number.is_empty() { n.title.clone() } else { format!("{} {}", n.number, n.title) })
-            .unwrap_or_else(|| format!("Abschnitt {key}"))
+            .unwrap_or_else(|| tc("reference_msg.index.section", &[("key", key.into())]))
     };
     let sections: Vec<Value> = registers
         .iter()
@@ -135,10 +136,10 @@ async fn index_page(
         .map(|mut p| {
             let key = p.get("key").and_then(Value::as_i64).unwrap_or_default();
             let occurrence = match p.get("occurrence") {
-                Some(Value::String(s)) if s == "first" => "erste Fundstelle".to_owned(),
-                Some(Value::String(s)) if s == "all" => "alle Fundstellen".to_owned(),
-                Some(Value::String(s)) => format!("{s}. Fundstelle"),
-                Some(Value::Number(n)) => format!("{n}. Fundstelle"),
+                Some(Value::String(s)) if s == "first" => tc("reference_msg.index.first", &[]),
+                Some(Value::String(s)) if s == "all" => tc("reference_msg.index.all", &[]),
+                Some(Value::String(s)) => tc("reference_msg.index.nth", &[("n", s.as_str().into())]),
+                Some(Value::Number(n)) => tc("reference_msg.index.nth", &[("n", n.to_string().into())]),
                 _ => String::new(),
             };
             p["section_label"] = json!(label_of(key));
@@ -196,8 +197,16 @@ async fn page(
 }
 
 /// Number from the form or a message with the field name.
-fn number<T: std::str::FromStr>(fields: &[(String, String)], name: &str, label: &str) -> Result<T, String> {
-    field(fields, name).trim().parse::<T>().map_err(|_| format!("{label}: keine gültige Zahl (Feld {name})."))
+fn number<T: std::str::FromStr>(fields: &[(String, String)], name: &str) -> Result<T, String> {
+    field(fields, name).trim().parse::<T>().map_err(|_| {
+        let label = match name {
+            "key" => tc("reference_msg.index.field_key", &[]),
+            "rev" => tc("reference_msg.index.field_rev", &[]),
+            "start" => tc("reference_msg.index.field_start", &[]),
+            _ => tc("reference_msg.index.field_end", &[]),
+        };
+        tc("reference_msg.index.not_a_number", &[("label", label.into()), ("name", name.into())])
+    })
 }
 
 /// Mark from the form (index default „stichwort“, term default the word), checked as in typesetting.
@@ -230,18 +239,18 @@ async fn act(
     let result: Result<Value, Result<RpcError, String>> = match action.as_str() {
         "mark" => {
             let request = (|| -> Result<MarkRequest, String> {
-                let key = number::<i64>(&fields, "key", "Abschnitt")?;
-                let rev = number::<u32>(&fields, "rev", "Fassung")?;
+                let key = number::<i64>(&fields, "key")?;
+                let rev = number::<u32>(&fields, "rev")?;
                 let word = field(&fields, "word").trim().to_owned();
                 if word.is_empty() {
-                    return Err("Wort: bitte das Wort angeben, hinter das die Marke kommt.".to_owned());
+                    return Err(tc("reference_msg.index.word_missing", &[]));
                 }
                 let raw = field(&fields, "occurrence").trim();
                 let occurrence = if raw.is_empty() {
                     Occurrence::First
                 } else {
                     Occurrence::from_param(raw)
-                        .ok_or_else(|| format!("Fundstelle: „{raw}“ ist weder „erste“, „alle“ noch eine Zahl ab 1."))?
+                        .ok_or_else(|| tc("reference_msg.index.occurrence_form", &[("raw", raw.into())]))?
                 };
                 Ok(MarkRequest { key, rev, word, occurrence, mark: mark_from(&fields)? })
             })();
@@ -253,10 +262,10 @@ async fn act(
         "unmark" => {
             let parsed = (|| -> Result<(i64, u32, usize, usize), String> {
                 Ok((
-                    number(&fields, "key", "Abschnitt")?,
-                    number(&fields, "rev", "Fassung")?,
-                    number(&fields, "start", "Anfang")?,
-                    number(&fields, "end", "Ende")?,
+                    number(&fields, "key")?,
+                    number(&fields, "rev")?,
+                    number(&fields, "start")?,
+                    number(&fields, "end")?,
                 ))
             })();
             match parsed {
@@ -268,12 +277,12 @@ async fn act(
         }
         "accept" | "reject" => match id {
             Some(id) => crate::glossary::index_decide(&state, work, id, action == "accept").await.map_err(Ok),
-            None => Err(Err("Registervorschlag fehlt (Feld id).".to_owned())),
+            None => Err(Err(tc("reference_msg.index.proposal_missing", &[]))),
         },
         "register_add" => crate::glossary::register_add(&state, work, &slug, &title).await.map_err(Ok),
         "register_rename" => crate::glossary::register_rename(&state, work, &slug, &title).await.map_err(Ok),
         "register_delete" if field(&fields, "confirm") != "1" => {
-            Err(Err("Löschen bitte mit dem Häkchen bestätigen; nichts geändert.".to_owned()))
+            Err(Err(tc("reference_msg.glossary.confirm_delete", &[])))
         }
         "register_delete" => crate::glossary::register_delete(&state, work, &slug).await.map_err(Ok),
         _ => {

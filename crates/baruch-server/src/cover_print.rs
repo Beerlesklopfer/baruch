@@ -26,6 +26,7 @@ use baruch_store::{BookMeta, CoverBlock, CoverBlockKind, CoverFace, CoverGeometr
 use baruch_typst::cover_layout::{Backdrop, effective_blocks};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::RpcError;
 
 /// A warning of the print check: `code` from [`CODES`], affected block (none for the mandatory details) and
@@ -52,9 +53,10 @@ pub const CODES: [&str; 11] = [
     "draft",
 ];
 
-/// Round 22: message if the cover PDF carries a watermark.
-pub const DRAFT_WARNING: &str = "Das Umschlag-PDF trägt das Wasserzeichen „Entwurf“ – so nicht an die Druckerei geben \
-     (ohne Wasserzeichen: Umschlag-PDF mit ?entwurf=0 oder „Entwurf auch auf dem Umschlag“ ausschalten).";
+/// Round 22: message if the cover PDF carries a watermark (language of the request, Round 39a).
+pub fn draft_warning() -> String {
+    tc("cover_msg.print.draft", &[])
+}
 
 /// Minimum contrast (WCAG ratio) between text and background.
 pub const MIN_CONTRAST: f64 = 3.0;
@@ -94,7 +96,7 @@ pub async fn cover_checks_with(
     let mut warnings = Vec::new();
     let stored = crate::typeset::stored_draft(state, work).await?;
     if crate::typeset::cover_draft(stored.as_ref(), draft).is_some() {
-        warnings.push(CoverWarning { code: "draft", block: None, message: DRAFT_WARNING.to_owned() });
+        warnings.push(CoverWarning { code: "draft", block: None, message: draft_warning() });
     }
     warnings.extend(block_and_imprint_checks(state, work, layout).await?);
     Ok(warnings)
@@ -138,10 +140,13 @@ async fn block_and_imprint_checks(
                 warnings.push(CoverWarning {
                     code: "font",
                     block: Some(block.kind),
-                    message: format!(
-                        "{}: Schrift „{}“ fehlt; gesetzt mit der Vorgabe „{default_font}“.",
-                        name(block.kind),
-                        block.font.as_deref().unwrap_or("")
+                    message: tc(
+                        "cover_msg.print.font_missing",
+                        &[
+                            ("block", name(block.kind).into()),
+                            ("font", block.font.as_deref().unwrap_or("").into()),
+                            ("default", default_font.as_str().into()),
+                        ],
                     ),
                 });
             }
@@ -378,34 +383,52 @@ pub fn block_checks(
             if x < -eps || x + w > fw + eps {
                 warn(
                     "spine",
-                    format!(
-                        "{who} fällt aus dem Rücken: {} dick ab x {}, der Rücken ist {} breit.",
-                        mm(w),
-                        mm(x),
-                        mm(fw)
+                    tc(
+                        "cover_msg.print.spine",
+                        &[
+                            ("who", who.as_str().into()),
+                            ("w", mm(w).into()),
+                            ("x", mm(x).into()),
+                            ("fw", mm(fw).into()),
+                        ],
                     ),
                 );
             }
             if y < -eps || y + h > fh + eps {
-                warn("bleed", format!("{who} ragt oben oder unten in den Beschnitt (y {} bis {}).", mm(y), mm(y + h)));
+                warn(
+                    "bleed",
+                    tc(
+                        "cover_msg.print.bleed_spine",
+                        &[("who", who.as_str().into()), ("y", mm(y).into()), ("y2", mm(y + h).into())],
+                    ),
+                );
             } else if y < safety - eps || y + h > fh - safety + eps {
-                warn("safety", format!("{who} liegt näher als {} an der Schnittkante oben oder unten.", mm(safety)));
+                warn(
+                    "safety",
+                    tc("cover_msg.print.safety_spine", &[("who", who.as_str().into()), ("safety", mm(safety).into())]),
+                );
             }
         } else if x < -eps || y < -eps || x + w > fw + eps || y + h > fh + eps {
             warn(
                 "bleed",
-                format!(
-                    "{who} ragt über die Schnittkante bzw. den Falz in den Beschnitt (x {} bis {}, y {} bis {}; Fläche {} × {}).",
-                    mm(x),
-                    mm(x + w),
-                    mm(y),
-                    mm(y + h),
-                    mm(fw),
-                    mm(fh)
+                tc(
+                    "cover_msg.print.bleed",
+                    &[
+                        ("who", who.as_str().into()),
+                        ("x", mm(x).into()),
+                        ("x2", mm(x + w).into()),
+                        ("y", mm(y).into()),
+                        ("y2", mm(y + h).into()),
+                        ("fw", mm(fw).into()),
+                        ("fh", mm(fh).into()),
+                    ],
                 ),
             );
         } else if x < safety - eps || y < safety - eps || x + w > fw - safety + eps || y + h > fh - safety + eps {
-            warn("safety", format!("{who} liegt näher als {} an der Schnittkante bzw. am Falz.", mm(safety)));
+            warn(
+                "safety",
+                tc("cover_msg.print.safety", &[("who", who.as_str().into()), ("safety", mm(safety).into())]),
+            );
         }
         if face == CoverFace::Back
             && block.kind != CoverBlockKind::BackBarcode
@@ -415,7 +438,7 @@ pub fn block_checks(
             && y < by + bh
             && by < y + h
         {
-            warn("barcode", format!("{who} überdeckt den Strichcode."));
+            warn("barcode", tc("cover_msg.print.barcode", &[("who", who.as_str().into())]));
         }
         // Contrast: background below the block (raster image of the front or dark area), darkened
         // by shadow or gradient.
@@ -431,11 +454,13 @@ pub fn block_checks(
             if ratio < MIN_CONTRAST {
                 warn(
                     "contrast",
-                    format!(
-                        "{who}: Kontrast {} : 1 zum Hintergrund ist zu gering (mindestens {} : 1); hellere bzw. dunklere \
-                         Schrift, Schatten oder Verlauf wählen.",
-                        format!("{ratio:.1}").replace('.', ","),
-                        format!("{MIN_CONTRAST:.1}").replace('.', ",")
+                    tc(
+                        "cover_msg.print.contrast",
+                        &[
+                            ("who", who.as_str().into()),
+                            ("ratio", crate::i18n::number(crate::i18n::current(), ratio, 1).into()),
+                            ("min", crate::i18n::number(crate::i18n::current(), MIN_CONTRAST, 1).into()),
+                        ],
                     ),
                 );
             }
@@ -456,23 +481,16 @@ pub fn imprint_checks(meta: &BookMeta, bible: &str) -> Vec<CoverWarning> {
         out.push(CoverWarning { code, block: None, message: message.to_owned() });
     };
     if empty(&meta.publisher) || empty(&meta.publisher_address) {
-        warn(
-            "imprint_publisher",
-            "Impressum: Verlag bzw. Herausgeber oder dessen Anschrift fehlt (bei Selbstverlag Name und Anschrift des \
-             Verfassers bzw. Herausgebers).",
-        );
+        warn("imprint_publisher", &tc("cover_msg.print.imprint_publisher", &[]));
     }
     if empty(&meta.printer) || empty(&meta.printer_address) {
-        warn("imprint_printer", "Impressum: Druckerei oder deren Anschrift fehlt.");
+        warn("imprint_printer", &tc("cover_msg.print.imprint_printer", &[]));
     }
     if empty(&meta.year) {
-        warn("imprint_year", "Impressum: Erscheinungsjahr fehlt.");
+        warn("imprint_year", &tc("cover_msg.print.imprint_year", &[]));
     }
     if !empty(bible) && empty(&meta.bible_notice) {
-        warn(
-            "imprint_bible_notice",
-            "Impressum: Eine Bibelübersetzung ist gesetzt, aber der Rechtehinweis der Übersetzung fehlt.",
-        );
+        warn("imprint_bible_notice", &tc("cover_msg.print.imprint_bible_notice", &[]));
     }
     out
 }
