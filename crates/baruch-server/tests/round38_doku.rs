@@ -213,7 +213,9 @@ fn the_history_files_announce_english_and_stay_german_below() {
         "the newest round is the first section below „Unveröffentlicht“"
     );
     assert!(
-        unreleased.contains("\n### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)\n"),
+        unreleased.contains(
+            "\n### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)\n"
+        ),
         "the section of Round 39c stays below „Unveröffentlicht“, after the newer round"
     );
     assert!(

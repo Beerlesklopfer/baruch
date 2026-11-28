@@ -101,8 +101,12 @@ fn the_anchor_tool_checks_what_the_translators_must_keep() {
     std::fs::write(&good, "# Titel {#title}\n\n## Gleich {#same}\n\n## Gleich {#same-1}\n").unwrap();
     std::fs::write(&missing_id, "# Titel {#title}\n\n## Gleich {#same}\n\n## Gleich\n").unwrap();
     std::fs::write(&wrong_level, "# Titel {#title}\n\n## Gleich {#same}\n\n### Gleich {#same-1}\n").unwrap();
-    let (e, g, m, l) =
-        (english.to_str().unwrap(), good.to_str().unwrap(), missing_id.to_str().unwrap(), wrong_level.to_str().unwrap());
+    let (e, g, m, l) = (
+        english.to_str().unwrap(),
+        good.to_str().unwrap(),
+        missing_id.to_str().unwrap(),
+        wrong_level.to_str().unwrap(),
+    );
     let (code, out, _) = python("scripts/docs-anchors.py", &[e]);
     assert_eq!(code, 0, "listing the anchors of a file works");
     assert_eq!(
@@ -162,7 +166,11 @@ fn the_generator_builds_both_sections_from_the_real_files() {
         }
     }
     let rpc = std::fs::read_to_string(site.path().join("generated-de/docs/rpc.md")).unwrap();
-    assert!(rpc.starts_with("---\ntitle: "), "the German page starts with its front matter: {}", &rpc[..40.min(rpc.len())]);
+    assert!(
+        rpc.starts_with("---\ntitle: "),
+        "the German page starts with its front matter: {}",
+        &rpc[..40.min(rpc.len())]
+    );
     assert!(rpc.contains("quelle: \"docs/de/RPC.md\""), "the front matter names the German source file");
 }
 
@@ -244,8 +252,7 @@ fn ci_site_generates_both_languages_shows_the_lag_and_checks_the_german_pages() 
     );
     assert!(script.contains("--lang all"), "the generator runs for both languages");
     assert!(
-        script.contains("/en/docs/ /docs/ $(")
-            && script.contains("--list --lang all | cut -f2"),
+        script.contains("/en/docs/ /docs/ $(") && script.contains("--list --lang all | cut -f2"),
         "after the build ci-site.sh checks /en/docs/, /docs/ and every page of both languages: a missing mount \
          builds silently"
     );
@@ -257,10 +264,7 @@ fn the_rule_is_described_where_developers_look() {
         ("AGENTS.md", &["`docs/de/`", "`scripts/check-doc-lag.py`", "Round 39d"][..]),
         ("docs/Bedienung.md", &["`docs/de/`", "`scripts/check-doc-lag.py`"][..]),
         ("docs/Verteilung.md", &["`docs/de/`", "`scripts/check-doc-lag.py`", "`site/tools/docs_pages.py`"][..]),
-        (
-            "site/README.md",
-            &["site/generated-de/", "docs/de/", "check-doc-lag.py", "not checked in", "/docs/"][..],
-        ),
+        ("site/README.md", &["site/generated-de/", "docs/de/", "check-doc-lag.py", "not checked in", "/docs/"][..]),
         ("site/tools/README.md", &["docs/de/", "--lang", "generated-de", "explicit id"][..]),
     ] {
         let text = repo_file(file);
