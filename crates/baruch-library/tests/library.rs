@@ -519,6 +519,23 @@ async fn index_follows_updates_and_deletes() {
 fn environment() -> minijinja::Environment<'static> {
     let mut env = minijinja::Environment::new();
     env.add_template("fragments/library.html", FRAGMENT).unwrap();
+    // Round 39a: the fragment takes its texts from the catalogs of baruch-server (`t(key, **args)`). Outside the
+    // server the German catalog of the area `sources` stands in, so the assertions keep the German wording: single
+    // line values with `{ $name }` replaced; anything else shows the key.
+    env.add_function("t", |key: &str, kwargs: minijinja::value::Kwargs| -> Result<String, minijinja::Error> {
+        let catalog = include_str!("../../baruch-server/locales/de/sources.ftl");
+        let mut text = catalog
+            .lines()
+            .find_map(|line| line.strip_prefix(key).and_then(|rest| rest.strip_prefix(" = ")))
+            .unwrap_or(key)
+            .to_owned();
+        for name in kwargs.args() {
+            let value: minijinja::Value = kwargs.get(name)?;
+            text = text.replace(&format!("{{ ${name} }}"), &value.to_string());
+        }
+        kwargs.assert_all_used()?;
+        Ok(text)
+    });
     env
 }
 

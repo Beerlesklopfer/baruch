@@ -7,14 +7,14 @@
     summary, hints, works [{work, title, upload, collection, confirmed, documents, synced, current}],
     collections [{collection, documents, synced}], offered [{name, count}], notice, error. -#}
 {% extends "base.html" %}
-{% block title %}Abgleich mit MultiGPT – Baruch{% endblock %}
-{% block page_title %}Abgleich mit MultiGPT{% endblock %}
+{% block title %}{{ t("system.sync.window_title") }}{% endblock %}
+{% block page_title %}{{ t("system.sync.title") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/{% if selected %}?work={{ selected }}{% endif %}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("system.sync.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("system.sync.back_group") }}">
+    <a class="btn" href="/{% if selected %}?work={{ selected }}{% endif %}">{{ t("system.sync.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -25,35 +25,33 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Abgleich mit MultiGPT</h1>
-  <p class="muted">Baruch lädt die aktuellen Fassungen der Werke mit Schalter „nach MultiGPT hochladen“ hoch (ein
-    Dokument je Kapitel) und holt die gewählten Sammlungen als lokale Kopie, die auch offline durchsuchbar ist.
-    Nur dieser Knopf startet den Abgleich; Fehler erscheinen hier als Hinweis, lokal geht nichts verloren.</p>
+  <h1 class="pane-title">{{ t("system.sync.title") }}</h1>
+  <p class="muted">{{ t("system.sync.intro") }}</p>
   {%- if not configured %}
-  <p class="notice" role="status" data-sync-unconfigured>MultiGPT ist noch nicht eingerichtet:
-    <a href="/einstellungen/verbindungen{% if selected %}?work={{ selected }}{% endif %}#multigpt">Einstellungen → Verbindungen</a>.</p>
+  <p class="notice" role="status" data-sync-unconfigured>{{ t("system.sync.unconfigured") }}
+    <a href="/einstellungen/verbindungen{% if selected %}?work={{ selected }}{% endif %}#multigpt">{{ t("system.sync.settings_connections") }}</a>.</p>
   {%- endif %}
 
   <section class="sync-run" aria-labelledby="sync-run-title">
-    <h2 id="sync-run-title">Abgleichen</h2>
+    <h2 id="sync-run-title">{{ t("system.sync.run_title") }}</h2>
     <form method="post" action="/abgleich/act">
       <input type="hidden" name="action" value="run">
       {%- if selected %}<input type="hidden" name="work" value="{{ selected }}">{% endif %}
-      <button class="btn primary" type="submit"{% if running %} disabled{% endif %}>Abgleichen</button>
+      <button class="btn primary" type="submit"{% if running %} disabled{% endif %}>{{ t("system.sync.run") }}</button>
     </form>
     {%- if running %}
-    <p class="notice" role="status" data-sync-running>Der Abgleich läuft gerade …</p>
+    <p class="notice" role="status" data-sync-running>{{ t("system.sync.running") }}</p>
     {%- endif %}
     {%- if last %}
-    <p data-sync-last>zuletzt abgeglichen {% if last.finished %}{{ last.finished|when }}{% else %}(begonnen {{ last.started|when }}, nicht beendet){% endif %}
-      {%- if last.ok == true %} – <strong>ohne Fehler</strong>{% elif last.ok == false %} – <strong>mit Hinweisen</strong>{% endif %}</p>
+    <p data-sync-last>{{ t("system.sync.last") }} {% if last.finished %}{{ last.finished|when }}{% else %}{{ t("system.sync.unfinished", started=last.started|when) }}{% endif %}
+      {%- if last.ok == true %} {{ t("system.sync.ok_html") }}{% elif last.ok == false %} {{ t("system.sync.hints_html") }}{% endif %}</p>
     <ul class="sync-counts" data-sync-counts>
-      <li>hochgeladen: <span data-count="uploaded">{{ last.uploaded }}</span></li>
-      <li>ersetzt: <span data-count="replaced">{{ last.replaced }}</span></li>
-      <li>entfernt: <span data-count="removed">{{ last.removed }}</span></li>
-      <li>geholt: <span data-count="downloaded">{{ last.downloaded }}</span></li>
-      <li>unverändert: <span data-count="unchanged">{{ last.unchanged }}</span></li>
-      <li>Fehler: <span data-count="failed">{{ last.failed }}</span></li>
+      <li>{{ t("system.sync.uploaded") }} <span data-count="uploaded">{{ last.uploaded }}</span></li>
+      <li>{{ t("system.sync.replaced") }} <span data-count="replaced">{{ last.replaced }}</span></li>
+      <li>{{ t("system.sync.removed") }} <span data-count="removed">{{ last.removed }}</span></li>
+      <li>{{ t("system.sync.downloaded") }} <span data-count="downloaded">{{ last.downloaded }}</span></li>
+      <li>{{ t("system.sync.unchanged") }} <span data-count="unchanged">{{ last.unchanged }}</span></li>
+      <li>{{ t("system.sync.failed") }} <span data-count="failed">{{ last.failed }}</span></li>
     </ul>
     {%- if summary %}<p>{{ summary }}</p>{% endif %}
     {%- if hints %}
@@ -64,57 +62,57 @@
     </ul>
     {%- endif %}
     {%- else %}
-    <p data-sync-last>Noch nie abgeglichen.</p>
+    <p data-sync-last>{{ t("system.sync.never") }}</p>
     {%- endif %}
   </section>
 
+  {%- set collection_pattern = "Baruch: <" ~ t("system.sync.work_title_placeholder") ~ ">" %}
   <section class="sync-works" aria-labelledby="sync-works-title">
-    <h2 id="sync-works-title">Werke nach MultiGPT hochladen</h2>
-    <p class="muted">Vorgabe: aus. Eingeschaltet geht beim nächsten Abgleich je Kapitel ein Dokument mit den
-      aktuellen Fassungen in die Sammlung „Baruch: &lt;Werktitel&gt;“; geänderte Kapitel werden ersetzt.</p>
+    <h2 id="sync-works-title">{{ t("system.sync.works_title") }}</h2>
+    <p class="muted">{{ t("system.sync.works_help", collection_pattern=collection_pattern) }}</p>
     {%- for w in works %}
     <form class="sync-work{% if w.current %} current{% endif %}" method="post" action="/abgleich/act" id="werk-{{ w.work }}">
       <input type="hidden" name="action" value="upload">
       <input type="hidden" name="work" value="{{ w.work }}">
       <strong>{{ w.title }}</strong>
       {%- if w.upload %}
-      <span data-sync-upload="an">– hochladen an, Sammlung „{{ w.collection }}“, {{ w.documents }} Kapitel{% if w.synced %}, zuletzt {{ w.synced|when }}{% endif %}</span>
-      <button class="btn" type="submit">Hochladen ausschalten</button>
+      <span data-sync-upload="an">{{ t("system.sync.upload_on", collection=w.collection, documents=w.documents) }}{% if w.synced %}{{ t("system.sync.last_synced", synced=w.synced|when) }}{% endif %}</span>
+      <button class="btn" type="submit">{{ t("system.sync.switch_off") }}</button>
       {%- else %}
-      <span data-sync-upload="aus">– hochladen aus{% if w.documents %} ({{ w.documents }} Kapitel liegen noch in „{{ w.collection }}“){% endif %}</span>
+      <span data-sync-upload="aus">{{ t("system.sync.upload_off") }}{% if w.documents %} {{ t("system.sync.still_there", documents=w.documents, collection=w.collection) }}{% endif %}</span>
       <input type="hidden" name="on" value="1">
-      <label class="inline"><input type="checkbox" name="confirm" value="1" required> Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT</label>
-      <button class="btn" type="submit">Hochladen einschalten</button>
+      <label class="inline"><input type="checkbox" name="confirm" value="1" required> {{ t("system.sync.confirm") }}</label>
+      <button class="btn" type="submit">{{ t("system.sync.switch_on") }}</button>
       {%- endif %}
     </form>
     {%- else %}
-    <p class="muted">Es gibt noch kein Werk.</p>
+    <p class="muted">{{ t("system.sync.no_works") }}</p>
     {%- endfor %}
   </section>
 
   <section class="sync-collections" aria-labelledby="sync-collections-title">
-    <h2 id="sync-collections-title">Sammlungen von MultiGPT holen</h2>
+    <h2 id="sync-collections-title">{{ t("system.sync.collections_title") }}</h2>
     <form method="post" action="/abgleich/act">
       <input type="hidden" name="action" value="collections">
       {%- if selected %}<input type="hidden" name="work" value="{{ selected }}">{% endif %}
       <fieldset>
-        <legend>Gewählte Sammlungen (lokale Kopie, offline suchbar)</legend>
+        <legend>{{ t("system.sync.chosen") }}</legend>
         {%- for c in collections %}
-        <label class="inline"><input type="checkbox" name="collection" value="{{ c.collection }}" checked> {{ c.collection }} ({{ c.documents }} {% if c.documents == 1 %}Dokument{% else %}Dokumente{% endif %}{% if c.synced %}, zuletzt {{ c.synced|when }}{% endif %})</label>
+        <label class="inline"><input type="checkbox" name="collection" value="{{ c.collection }}" checked> {{ c.collection }} ({{ t("system.sync.documents", count=c.documents) }}{% if c.synced %}{{ t("system.sync.last_synced", synced=c.synced|when) }}{% endif %})</label>
         {%- else %}
-        <p class="muted">Keine Sammlung gewählt.</p>
+        <p class="muted">{{ t("system.sync.no_collection") }}</p>
         {%- endfor %}
         {%- for c in offered %}
-        <label class="inline"><input type="checkbox" name="collection" value="{{ c.name }}"> {{ c.name }}{% if c.count is not none %} ({{ c.count }} {% if c.count == 1 %}Dokument{% else %}Dokumente{% endif %} bei MultiGPT){% endif %}</label>
+        <label class="inline"><input type="checkbox" name="collection" value="{{ c.name }}"> {{ c.name }}{% if c.count is not none %} ({{ t("system.sync.documents_at_multigpt", count=c.count) }}){% endif %}</label>
         {%- endfor %}
-        <label>Weitere Sammlung <input type="text" name="collection_new" maxlength="200" size="30"></label>
+        <label>{{ t("system.sync.more") }} <input type="text" name="collection_new" maxlength="200" size="30"></label>
       </fieldset>
-      <button class="btn" type="submit">Sammlungen übernehmen</button>
+      <button class="btn" type="submit">{{ t("system.sync.collections_apply") }}</button>
     </form>
     <form method="post" action="/abgleich/act">
       <input type="hidden" name="action" value="load_collections">
       {%- if selected %}<input type="hidden" name="work" value="{{ selected }}">{% endif %}
-      <button class="btn" type="submit">Sammlungen von MultiGPT laden</button>
+      <button class="btn" type="submit">{{ t("system.sync.collections_load") }}</button>
     </form>
   </section>
 </main>

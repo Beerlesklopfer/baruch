@@ -37,30 +37,30 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h3 class="pane-title">Assistenten</h3>
-  <p class="small settings-lector">Lektor: {% if lector %}<strong>{{ lector.name }}</strong> <span class="muted" data-lector-tokens="{{ lector.tokens }}">{{ lector.handle }} · wirksam {{ lector.tokens }} Tokens{% if lector.tokens != lector.context_length %} (Einstellung {{ lector.context_length }}){% endif %}{% if lector.reported %}, Gegenstelle meldet {{ lector.reported }}{% endif %}</span>{% else %}keiner (keine Persona ist aktiv){% endif %}
-    <span class="muted tiny">– {% if lector_mode == "fixed" %}fest gewählt{% if fixed_fallback %} ({{ lector_fixed }} ist nicht aktiv, darum gilt der größte Kontext){% endif %}{% else %}automatisch die aktive Persona mit dem größten Kontext{% endif %}.</span></p>
+  <h3 class="pane-title">{{ t("settings.assistants.title") }}</h3>
+  <p class="small settings-lector">{{ t("settings.assistants.lector_label") }} {% if lector %}<strong>{{ lector.name }}</strong> <span class="muted" data-lector-tokens="{{ lector.tokens }}">{{ t("settings.assistants.lector_tokens", handle=lector.handle, tokens=lector.tokens) }}{% if lector.tokens != lector.context_length %} {{ t("settings.assistants.lector_setting", context_length=lector.context_length) }}{% endif %}{% if lector.reported %}{{ t("settings.assistants.lector_reported", reported=lector.reported) }}{% endif %}</span>{% else %}{{ t("settings.assistants.lector_none") }}{% endif %}
+    <span class="muted tiny">– {% if lector_mode == "fixed" %}{{ t("settings.assistants.lector_fixed") }}{% if fixed_fallback %} {{ t("settings.assistants.lector_fallback", lector_fixed=lector_fixed) }}{% endif %}{% else %}{{ t("settings.assistants.lector_auto") }}{% endif %}.</span></p>
   <form class="persona-lector-form" id="lektor" method="post" action="/einstellungen/personas/act">
     <input type="hidden" name="method" value="persona.set_lector">
     {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
     <fieldset>
-      <legend class="small">Lektor <span class="badge" title="Versuch seit 2026-11-06: alle Personas auf einem Modell">Versuch: fest @lektor</span></legend>
-      <label class="small"><input type="radio" name="mode" value="fixed"{% if lector_mode == "fixed" %} checked{% endif %}> fest
-        <select name="handle" aria-label="feste Persona als Lektor">
-          {%- for p in personas %}<option value="{{ p.handle }}"{% if (lector_fixed and p.handle == lector_fixed) or (not lector_fixed and p.handle == "@lektor") %} selected{% endif %}>{{ p.name }} ({{ p.handle }}){% if not p.stored_active %} – inaktiv{% endif %}</option>{% endfor %}
+      <legend class="small">{{ t("settings.assistants.lector_legend") }} <span class="badge" title="{{ t("settings.assistants.trial_title") }}">{{ t("settings.assistants.trial_badge") }}</span></legend>
+      <label class="small"><input type="radio" name="mode" value="fixed"{% if lector_mode == "fixed" %} checked{% endif %}> {{ t("settings.assistants.mode_fixed") }}
+        <select name="handle" aria-label="{{ t("settings.assistants.fixed_select") }}">
+          {%- for p in personas %}<option value="{{ p.handle }}"{% if (lector_fixed and p.handle == lector_fixed) or (not lector_fixed and p.handle == "@lektor") %} selected{% endif %}>{{ p.name }} ({{ p.handle }}){% if not p.stored_active %} {{ t("settings.assistants.inactive_suffix") }}{% endif %}</option>{% endfor %}
         </select></label>
-      <label class="small"><input type="radio" name="mode" value="auto"{% if lector_mode == "auto" %} checked{% endif %}> automatisch nach Kontext (aktive Persona mit dem größten Kontext)</label>
-      <button class="btn" type="submit">Speichern</button>
+      <label class="small"><input type="radio" name="mode" value="auto"{% if lector_mode == "auto" %} checked{% endif %}> {{ t("settings.assistants.mode_auto") }}</label>
+      <button class="btn" type="submit">{{ t("common.save") }}</button>
     </fieldset>
   </form>
   <form class="persona-lector-form" id="chat" method="post" action="/einstellungen/personas/act">
     <input type="hidden" name="method" value="persona.chat_scope_set">
     {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
     <fieldset>
-      <legend class="small">Abschnitts-Chat: was die Personas mitbekommen</legend>
-      <label class="small"><input type="radio" name="scope" value="chapter"{% if chat_scope != "section" %} checked{% endif %}> das ganze Kapitel (bei einer Predigt die ganze Predigt; Vorgabe)</label>
-      <label class="small"><input type="radio" name="scope" value="section"{% if chat_scope == "section" %} checked{% endif %}> Chat nur Abschnitt (dazu Titel und Gliederung des Werks)</label>
-      <button class="btn" type="submit">Speichern</button>
+      <legend class="small">{{ t("settings.assistants.chat_scope") }}</legend>
+      <label class="small"><input type="radio" name="scope" value="chapter"{% if chat_scope != "section" %} checked{% endif %}> {{ t("settings.assistants.scope_chapter") }}</label>
+      <label class="small"><input type="radio" name="scope" value="section"{% if chat_scope == "section" %} checked{% endif %}> {{ t("settings.assistants.scope_section") }}</label>
+      <button class="btn" type="submit">{{ t("common.save") }}</button>
     </fieldset>
   </form>
   {%- if models %}
@@ -68,34 +68,33 @@
     {%- for m in models %}<option value="{{ m }}">{% endfor %}
   </datalist>
   {%- elif models_pending %}
-  <p class="notice small" role="note" data-models-pending>Modellliste noch nicht abgefragt: Beim Laden der Seite fragt Baruch keine Gegenstelle. <a href="/einstellungen/assistenten{{ fetch_q }}" data-settings-page="assistenten">Modellliste abfragen</a>. Modellnamen lassen sich frei eintragen.</p>
+  <p class="notice small" role="note" data-models-pending>{{ t("settings.assistants.models_pending") }} <a href="/einstellungen/assistenten{{ fetch_q }}" data-settings-page="assistenten">{{ t("settings.assistants.models_fetch") }}</a>{{ t("settings.assistants.models_free") }}</p>
   {%- else %}
-  <p class="notice small" role="note">Modellliste nicht verfügbar: {{ models_note }} Modellnamen lassen sich frei eintragen.</p>
+  <p class="notice small" role="note">{{ t("settings.assistants.models_unavailable", models_note=models_note) }}</p>
   {%- endif %}
   {%- if mixed_models %}
-  <p class="notice warning small" role="note">Die aktiven Personas nutzen verschiedene Modelle ({{ mixed_models | join(", ") }}).
-    Jedes Modell braucht eigenen Grafikspeicher (VRAM); Wechsel laden das Modell neu.</p>
+  <p class="notice warning small" role="note">{{ t("settings.assistants.mixed_models", mixed_models=mixed_models | join(", ")) }}</p>
   {%- endif %}
   {%- if unknown_persona %}
-  <p class="notice warning small" role="note">Persona „{{ unknown_persona }}“ gibt es nicht; gezeigt wird die erste.</p>
+  <p class="notice warning small" role="note">{{ t("settings.assistants.unknown_persona", unknown_persona=unknown_persona) }}</p>
   {%- endif %}
   {%- if personas %}
   <div class="persona-tabs" data-widget="persona-tabs">
     <div class="persona-tablist" role="tablist" aria-label="Personas">
     {%- for p in personas %}
-      <a class="persona-tab pc" role="tab" id="tab-{{ p.anchor }}" style="{{ p.style }}" href="/einstellungen/assistenten?persona={{ p.tab_q }}{{ work_q }}" data-settings-page="assistenten" data-persona="{{ p.tab_q }}" aria-controls="persona-{{ p.anchor }}" aria-selected="{% if p.selected %}true{% else %}false{% endif %}" tabindex="{% if p.selected %}0{% else %}-1{% endif %}" title="{{ p.handle }} · {{ p.summary }}"><span class="pc-swatch" aria-hidden="true"></span>{{ p.name }}{% if p.lector %} <span class="badge primary">Lektor</span>{% endif %}{% if not p.stored_active %} <span class="muted tiny">(inaktiv)</span>{% endif %}</a>
+      <a class="persona-tab pc" role="tab" id="tab-{{ p.anchor }}" style="{{ p.style }}" href="/einstellungen/assistenten?persona={{ p.tab_q }}{{ work_q }}" data-settings-page="assistenten" data-persona="{{ p.tab_q }}" aria-controls="persona-{{ p.anchor }}" aria-selected="{% if p.selected %}true{% else %}false{% endif %}" tabindex="{% if p.selected %}0{% else %}-1{% endif %}" title="{{ p.handle }} · {{ p.summary }}"><span class="pc-swatch" aria-hidden="true"></span>{{ p.name }}{% if p.lector %} <span class="badge primary">{{ t("settings.assistants.lector_badge") }}</span>{% endif %}{% if not p.stored_active %} <span class="muted tiny">{{ t("settings.assistants.inactive") }}</span>{% endif %}</a>
     {%- endfor %}
     </div>
     {%- for p in personas %}
     <div class="persona-panel pc" role="tabpanel" id="persona-{{ p.anchor }}" aria-labelledby="tab-{{ p.anchor }}" style="{{ p.style }}"{% if not p.selected %} hidden{% endif %}>
       <div class="persona-panel-head"><span class="pc-swatch" aria-hidden="true"></span>
         <strong>{{ p.name }}</strong> <span class="muted small">{{ p.handle }}</span>
-        {%- if p.lector %} <span class="badge primary" title="{% if lector_mode == "fixed" and not fixed_fallback %}fest gewählt{% else %}größter Kontext{% endif %}">Lektor</span>{% endif %}
-        <span class="muted tiny">· {% if p.chosen %}eigene Farbe{% else %}Vorgabe{% endif %} {{ p.color }} · Rollen-Prompt {% if p.prompt_custom %}eigener{% else %}Vorgabe{% endif %}</span></div>
+        {%- if p.lector %} <span class="badge primary" title="{% if lector_mode == "fixed" and not fixed_fallback %}{{ t("settings.assistants.lector_fixed") }}{% else %}{{ t("settings.assistants.largest_context") }}{% endif %}">{{ t("settings.assistants.lector_badge") }}</span>{% endif %}
+        <span class="muted tiny">· {% if p.chosen %}{{ t("settings.assistants.own_color") }}{% else %}{{ t("settings.assistants.default") }}{% endif %} {{ t("settings.assistants.color_prompt", color=p.color) }} {% if p.prompt_custom %}{{ t("settings.assistants.prompt_own") }}{% else %}{{ t("settings.assistants.default") }}{% endif %}</span></div>
       {%- if p.model_state == "unbekannt" %}
-      <p class="notice warning tiny" role="note">Modell „{{ p.model }}“ ist unbekannt bei Eliezer.</p>
+      <p class="notice warning tiny" role="note">{{ t("settings.assistants.model_unknown", model=p.model) }}</p>
       {%- elif p.model_state == "alias" %}
-      <p class="notice tiny" role="note">Alter Name: Alias → {{ p.model_target }}</p>
+      <p class="notice tiny" role="note">{{ t("settings.assistants.model_alias", model_target=p.model_target) }}</p>
       {%- endif %}
       {%- if confirm_reset and p.selected %}
       <form class="persona-confirm notice warning" method="post" action="/einstellungen/personas/act" role="alertdialog" aria-labelledby="rueckfrage-{{ p.anchor }}">
@@ -103,9 +102,9 @@
         <input type="hidden" name="handle" value="{{ p.handle }}">
         <input type="hidden" name="confirm" value="1">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <p id="rueckfrage-{{ p.anchor }}" class="small">Den eigenen Rollen-Prompt von {{ p.name }} verwerfen und wieder die Vorgabe verwenden?</p>
-        <button class="btn danger" type="submit">Ja, Vorgabe wiederherstellen</button>
-        <a class="btn" href="/einstellungen/assistenten?persona={{ p.tab_q }}{{ work_q }}" data-settings-page="assistenten">Abbrechen</a>
+        <p id="rueckfrage-{{ p.anchor }}" class="small">{{ t("settings.assistants.reset_prompt_question", name=p.name) }}</p>
+        <button class="btn danger" type="submit">{{ t("settings.assistants.reset_prompt_yes") }}</button>
+        <a class="btn" href="/einstellungen/assistenten?persona={{ p.tab_q }}{{ work_q }}" data-settings-page="assistenten">{{ t("common.cancel") }}</a>
       </form>
       {%- endif %}
       {#- No hidden action field: the button names the action (Enter in a field triggers the first
@@ -115,20 +114,20 @@
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <div class="persona-fields">
           <label>Name <input type="text" name="name" value="{{ p.name_value }}" required maxlength="80" autocomplete="off"></label>
-          <label>Kürzel <input type="text" value="{{ p.handle }}" readonly aria-readonly="true" title="Das Kürzel (@handle) ist fest; über es sprechen Chat und MCP die Persona an."></label>
-          <label>Farbe <input type="color" name="color" value="{{ p.color }}"></label>
-          <label>oder als Text <input type="text" name="color_text" value="{{ p.color_text or "" }}" placeholder="#rrggbb" size="8" maxlength="7"></label>
-          <label>Modell <input type="text" name="model" value="{{ p.model }}" required maxlength="200"{% if models %} list="baruch-models"{% endif %}></label>
-          <label>Kontext (Tokens) <input type="number" name="context_length" value="{{ p.context_length }}" min="1" max="10000000" required></label>
-          <label class="check"><input type="checkbox" name="active" value="1"{% if p.active %} checked{% endif %}> aktiv</label>
+          <label>{{ t("settings.assistants.handle") }} <input type="text" value="{{ p.handle }}" readonly aria-readonly="true" title="{{ t("settings.assistants.handle_title") }}"></label>
+          <label>{{ t("settings.assistants.color") }} <input type="color" name="color" value="{{ p.color }}"></label>
+          <label>{{ t("settings.assistants.color_text") }} <input type="text" name="color_text" value="{{ p.color_text or "" }}" placeholder="#rrggbb" size="8" maxlength="7"></label>
+          <label>{{ t("settings.assistants.model") }} <input type="text" name="model" value="{{ p.model }}" required maxlength="200"{% if models %} list="baruch-models"{% endif %}></label>
+          <label>{{ t("settings.assistants.context") }} <input type="number" name="context_length" value="{{ p.context_length }}" min="1" max="10000000" required></label>
+          <label class="check"><input type="checkbox" name="active" value="1"{% if p.active %} checked{% endif %}> {{ t("settings.assistants.active") }}</label>
         </div>
-        <label class="persona-wide">Rolle <textarea name="role" rows="2" required maxlength="200">{{ p.role }}</textarea></label>
-        <label class="persona-wide">Rollen-Prompt {% if p.prompt_custom %}(eigener){% else %}(Vorgabe aus dem Programm; Speichern ohne Änderung lässt die Vorgabe){% endif %}
-          <textarea class="persona-prompt-text" name="prompt" rows="24" maxlength="8000" spellcheck="true" lang="de" aria-label="Rollen-Prompt von {{ p.handle }}">{{ p.prompt }}</textarea></label>
+        <label class="persona-wide">{{ t("settings.assistants.role") }} <textarea name="role" rows="2" required maxlength="200">{{ p.role }}</textarea></label>
+        <label class="persona-wide">{{ t("settings.assistants.prompt") }} {% if p.prompt_custom %}{{ t("settings.assistants.prompt_custom") }}{% else %}{{ t("settings.assistants.prompt_default") }}{% endif %}
+          <textarea class="persona-prompt-text" name="prompt" rows="24" maxlength="8000" spellcheck="true" lang="de" aria-label="{{ t("settings.assistants.prompt_label", handle=p.handle) }}">{{ p.prompt }}</textarea></label>
         <div class="actions">
-          <button class="btn primary" type="submit" name="action" value="save">Speichern</button>
-          <button class="btn" type="submit" name="action" value="reset_color" formnovalidate{% if not p.chosen %} disabled title="Es gilt schon die Farbe der Palette."{% else %} title="Farbe zurück zur Vorgabe der Palette"{% endif %}>Farbe der Palette</button>
-          <button class="btn" type="submit" name="action" value="reset_prompt" formnovalidate{% if not p.prompt_custom %} disabled title="Es gilt schon die Vorgabe."{% else %} title="fragt vorher nach"{% endif %}>Vorgabe wiederherstellen</button>
+          <button class="btn primary" type="submit" name="action" value="save">{{ t("common.save") }}</button>
+          <button class="btn" type="submit" name="action" value="reset_color" formnovalidate{% if not p.chosen %} disabled title="{{ t("settings.assistants.palette_already") }}"{% else %} title="{{ t("settings.assistants.palette_title") }}"{% endif %}>{{ t("settings.assistants.palette") }}</button>
+          <button class="btn" type="submit" name="action" value="reset_prompt" formnovalidate{% if not p.prompt_custom %} disabled title="{{ t("settings.assistants.default_already") }}"{% else %} title="{{ t("settings.assistants.asks_first") }}"{% endif %}>{{ t("settings.assistants.restore_default") }}</button>
         </div>
       </form>
       {#- Round 15b: connection of the persona, local/external, clearance, effective context. #}
@@ -137,22 +136,21 @@
         <input type="hidden" name="handle" value="{{ p.handle }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <fieldset>
-          <legend class="small">Modell-Verbindung <span class="badge{% if p.backend.external %} warning{% endif %}" data-locality-badge>{{ p.backend.locality }}</span></legend>
-          <label class="small">Verbindung
+          <legend class="small">{{ t("settings.assistants.backend") }} <span class="badge{% if p.backend.external %} warning{% endif %}" data-locality-badge>{{ p.backend.locality }}</span></legend>
+          <label class="small">{{ t("settings.assistants.connection") }}
             <select name="connection">
               {%- for c in p.backend.connections %}<option value="{{ c.id }}"{% if c.selected %} selected{% endif %}>{{ c.name }} ({{ c.kind }}, {{ c.locality }})</option>{% endfor %}
             </select></label>
-          <label class="check small"><input type="checkbox" name="external_allowed" value="1"{% if p.backend.external_allowed %} checked{% endif %}> Buchtext an eine externe Verbindung schicken (Freigabe für {{ p.handle }})</label>
-          <button class="btn" type="submit">Übernehmen</button>
+          <label class="check small"><input type="checkbox" name="external_allowed" value="1"{% if p.backend.external_allowed %} checked{% endif %}> {{ t("settings.assistants.external_allowed", handle=p.handle) }}</label>
+          <button class="btn" type="submit">{{ t("settings.assistants.apply") }}</button>
           {%- if p.backend.blocked %}
-          <p class="notice warning tiny" role="note" data-backend-blocked>„{{ p.backend.connection_name }}“ ist extern und für {{ p.handle }} nicht freigegeben: Aufträge an {{ p.name }} werden abgelehnt, es geht nichts hinaus.</p>
+          <p class="notice warning tiny" role="note" data-backend-blocked>{{ t("settings.assistants.backend_blocked", connection_name=p.backend.connection_name, handle=p.handle, name=p.name) }}</p>
           {%- endif %}
-          <p class="small" data-context-tokens="{{ p.backend.context_tokens }}">Wirksamer Kontext: {{ p.backend.context_tokens }} Tokens{% if p.backend.context_reported %} <span class="muted tiny">(Gegenstelle meldet {{ p.backend.context_reported }})</span>{% else %} <span class="muted tiny">(keine Meldung der Gegenstelle; es gilt die Einstellung)</span>{% endif %}</p>
+          <p class="small" data-context-tokens="{{ p.backend.context_tokens }}">{{ t("settings.assistants.context_tokens", context_tokens=p.backend.context_tokens) }}{% if p.backend.context_reported %} <span class="muted tiny">{{ t("settings.assistants.context_reported", context_reported=p.backend.context_reported) }}</span>{% else %} <span class="muted tiny">{{ t("settings.assistants.context_unreported") }}</span>{% endif %}</p>
           {%- if p.backend.context_warning %}
           <p class="notice warning tiny" role="note" data-context-warning>{{ p.backend.context_warning }}</p>
           {%- endif %}
-          <p class="muted tiny">Verbindungen richtet Einstellungen → Verbindungen → Modell-Verbindungen ein. „extern“ verlässt diesen
-            Rechner bzw. das eigene Netz; ohne Freigabe schickt Baruch keinen Buchtext dorthin (Vorgabe: keine Freigabe).</p>
+          <p class="muted tiny">{{ t("settings.assistants.backend_help") }}</p>
         </fieldset>
       </form>
       {%- if p.backend.bible_allowed %}
@@ -161,12 +159,10 @@
         <input type="hidden" name="handle" value="{{ p.handle }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <fieldset>
-          <legend class="small">Bibel-Belege (SWORD)</legend>
-          <label class="check small"><input type="checkbox" name="on" value="1"{% if p.backend.bible_context %} checked{% endif %}> Bibel-Belege aus SWORD mitgeben (Wortlaut der Werk-Bibel, gewählte Kommentare und Lexika)</label>
-          <button class="btn" type="submit">Übernehmen</button>
-          <p class="muted tiny">Zu den Bibelstellen im Text gehen Wortlaut, Kommentare und Lexikon-Artikel als Daten mit (lokal, aus den
-            SWORD-Modulen; Auswahl je Werk unter Einstellungen → Werk), nummeriert [S1] …; Anweisungen darin befolgt die
-            Persona nicht. Nur für @belege (Vorgabe an) und den Lektor (Vorgabe aus){% if p.backend.bible_default %}; hier: Vorgabe an{% endif %}.</p>
+          <legend class="small">{{ t("settings.assistants.bible") }}</legend>
+          <label class="check small"><input type="checkbox" name="on" value="1"{% if p.backend.bible_context %} checked{% endif %}> {{ t("settings.assistants.bible_on") }}</label>
+          <button class="btn" type="submit">{{ t("settings.assistants.apply") }}</button>
+          <p class="muted tiny">{{ t("settings.assistants.bible_help") }}{% if p.backend.bible_default %}{{ t("settings.assistants.bible_default_on") }}{% endif %}.</p>
         </fieldset>
       </form>
       {%- endif %}
@@ -176,12 +172,10 @@
         <input type="hidden" name="handle" value="{{ p.handle }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <fieldset>
-          <legend class="small">Bedeutungssuche</legend>
-          <label class="check small"><input type="checkbox" name="on" value="1"{% if p.rag_context %} checked{% endif %}> Treffer der Bedeutungssuche als Belege mitgeben</label>
-          <button class="btn" type="submit">Übernehmen</button>
-          <p class="muted tiny">Bis zu fünf Treffer aus den Wegen des Werks (Einstellungen → Verbindungen) gehen als
-            Daten mit, nummeriert [R1] … [R5]; {{ p.name }} darf nur diese als Quelle nennen. Anweisungen in den
-            Treffern befolgt die Persona nicht. Nur für @belege und den Lektor.</p>
+          <legend class="small">{{ t("settings.assistants.rag") }}</legend>
+          <label class="check small"><input type="checkbox" name="on" value="1"{% if p.rag_context %} checked{% endif %}> {{ t("settings.assistants.rag_on") }}</label>
+          <button class="btn" type="submit">{{ t("settings.assistants.apply") }}</button>
+          <p class="muted tiny">{{ t("settings.assistants.rag_help", name=p.name) }}</p>
         </fieldset>
       </form>
       {%- endif %}
@@ -190,30 +184,22 @@
         <input type="hidden" name="action" value="switch">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <fieldset>
-          <legend class="small">Websuche</legend>
-          <label class="check small"><input type="checkbox" name="on" value="1"{% if websearch.on %} checked{% endif %}> im Web recherchieren (über MultiGPT: <code>web_search</code> und <code>fetch_url</code>)</label>
-          <button class="btn" type="submit">Übernehmen</button>
+          <legend class="small">{{ t("settings.assistants.websearch") }}</legend>
+          <label class="check small"><input type="checkbox" name="on" value="1"{% if websearch.on %} checked{% endif %}> {{ t("settings.assistants.websearch_on_html") }}</label>
+          <button class="btn" type="submit">{{ t("settings.assistants.apply") }}</button>
           {%- if not websearch.configured %}
-          <p class="notice warning tiny" role="note">MultiGPT ist nicht eingerichtet (Einstellungen → Verbindungen); ohne Adresse sucht {{ p.name }} nicht im Web.</p>
+          <p class="notice warning tiny" role="note">{{ t("settings.assistants.websearch_unconfigured", name=p.name) }}</p>
           {%- endif %}
-          <p class="muted tiny">Zuerst die bevorzugten Quellen (Einstellungen → Quellen, die ersten drei über „site:“), dann das
-            allgemeine Web; höchstens acht Treffer, davon vier abgerufene Seiten, alles zusammen höchstens 30 s.
-            {{ p.name }} nennt nur abgerufene Seiten als [W1] … [W4]. Baruch prüft jedes Zitat gegen den abgerufenen
-            Text, kennzeichnet „(nicht belegt)“ und setzt die Quellenzeile mit Abrufdatum selbst. Belegte Zitate
-            lassen sich auf der Belegseite in die Bibliothek übernehmen. Vorgabe: aus.</p>
-          <p class="muted tiny">Was das Haus verlässt: Die Suchanfrage ist die Frage bzw. beim Prüfen der Anfang des Abschnitts
-            (höchstens 200 Zeichen unveröffentlichter Buchtext); sie geht über MultiGPT an die Suchmaschine.</p>
+          <p class="muted tiny">{{ t("settings.assistants.websearch_help", name=p.name) }}</p>
+          <p class="muted tiny">{{ t("settings.assistants.websearch_leaves") }}</p>
         </fieldset>
       </form>
       {%- endif %}
     </div>
     {%- endfor %}
   </div>
-  <p class="muted small">Jede Persona erscheint in ihrer Farbe: in der Liste der Assistenten, im Abschnitts-Chat,
-    in den Fassungen und bei ihren Vorschlägen im Buchtext. Ohne eigene Wahl gilt die Vorgabe aus der Palette
-    (nach der Reihenfolge der Personas). Hintergründe werden so aufgehellt bzw. abgedunkelt, dass der Text
-    in beiden Themen gut lesbar bleibt.</p>
+  <p class="muted small">{{ t("settings.assistants.colors_help") }}</p>
   {%- else %}
-  <p class="muted">Es gibt noch keine Personas.</p>
+  <p class="muted">{{ t("settings.assistants.no_personas") }}</p>
   {%- endif %}
 </section>

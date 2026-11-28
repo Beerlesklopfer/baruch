@@ -12,33 +12,33 @@
     Context: requests (each id, work, work_title, summary, origin_label, note, preview or preview_error,
     adopted_count), first_url. -#}
 <div class="consent-bar" role="alert" data-consent-bar>
-  <strong>Zustimmung nötig:</strong>
-  {%- if requests | length == 1 %} {{ requests[0].origin_label }} möchte die Gliederung umstellen: {{ requests[0].summary }}.
-  {%- else %} {{ requests | length }} Anträge der Assistenten warten auf Ihre Zustimmung.{% endif %}
-  Ohne Ihre Zustimmung ändert sich nichts.
-  <a class="btn primary" href="{{ first_url }}" data-consent-open aria-haspopup="dialog" aria-controls="consent">Ansehen und entscheiden</a>
+  {{ t("system.consent.needed_html") }}
+  {%- if requests | length == 1 %} {{ t("system.consent.one", origin_label=requests[0].origin_label, summary=requests[0].summary) }}
+  {%- else %} {{ t("system.consent.many", requests=requests | length) }}{% endif %}
+  {{ t("system.consent.nothing_without") }}
+  <a class="btn primary" href="{{ first_url }}" data-consent-open aria-haspopup="dialog" aria-controls="consent">{{ t("system.consent.open") }}</a>
 </div>
 <dialog class="consent-dialog" id="consent" data-widget="consent" aria-labelledby="consent-title">
-  <header class="consent-head"><h2 class="pane-title" id="consent-title">Zustimmung zur Gliederung</h2></header>
+  <header class="consent-head"><h2 class="pane-title" id="consent-title">{{ t("system.consent.title") }}</h2></header>
   <div class="consent-body">
   {%- for r in requests %}
     <section class="consent-request" data-consent-request="{{ r.id }}">
-      <p><strong>{{ r.origin_label }}</strong> möchte im Werk „{{ r.work_title }}“: {{ r.summary }}.</p>
+      <p>{{ t("system.consent.request_html", origin_label=r.origin_label, work_title=r.work_title, summary=r.summary) }}</p>
       {%- if r.note %}
-      <p class="small">Begründung: {{ r.note }}</p>
+      <p class="small">{{ t("system.consent.note", note=r.note) }}</p>
       {%- endif %}
-      <p class="small">Gliederung nach Ihrer Zustimmung:</p>
+      <p class="small">{{ t("system.consent.preview") }}</p>
       {%- if r.preview_error %}
-      <p class="small warning">Keine Vorschau: {{ r.preview_error }}</p>
+      <p class="small warning">{{ t("system.consent.no_preview", preview_error=r.preview_error) }}</p>
       {%- else %}
       <ol class="request-preview-list consent-preview">
       {%- for p in r.preview %}
         <li class="preview-{{ p.mark }} level-{{ p.level }}">
           {#- Round 16c: kind and number unambiguous („Teil 1“, „Kapitel 2“), before → after for adopted chapters. #}
           <span class="num preview-label">{{ p.label }}</span> {{ p.title }}
-          {%- if p.changed_label %} <span class="small muted preview-before">(vorher {{ p.before_label }} → nachher {{ p.label }})</span>{% endif %}
-          {%- if p.mark == "added" %} <span class="badge primary">neu</span>
-          {%- elif p.mark == "adopted" %} <span class="badge warning">wandert unter den neuen Teil</span>{% endif %}</li>
+          {%- if p.changed_label %} <span class="small muted preview-before">{{ t("system.consent.before_after", before_label=p.before_label, label=p.label) }}</span>{% endif %}
+          {%- if p.mark == "added" %} <span class="badge primary">{{ t("system.consent.added") }}</span>
+          {%- elif p.mark == "adopted" %} <span class="badge warning">{{ t("system.consent.adopted") }}</span>{% endif %}</li>
       {%- endfor %}
       </ol>
       {%- endif %}
@@ -47,12 +47,12 @@
         <input type="hidden" name="work" value="{{ r.work }}">
         <input type="hidden" name="id" value="{{ r.id }}">
         <input type="hidden" name="view" value="gliederung">
-        <button class="btn primary" type="submit" name="decision" value="confirm">Zustimmen</button>
-        <button class="btn" type="submit" name="decision" value="reject">Ablehnen</button>
+        <button class="btn primary" type="submit" name="decision" value="confirm">{{ t("system.consent.confirm") }}</button>
+        <button class="btn" type="submit" name="decision" value="reject">{{ t("system.consent.reject") }}</button>
         <span class="small consent-message" data-consent-message role="status"></span>
       </form>
     </section>
   {%- endfor %}
   </div>
-  <form class="consent-later" method="dialog"><button class="btn" type="submit">Später entscheiden</button></form>
+  <form class="consent-later" method="dialog"><button class="btn" type="submit">{{ t("system.consent.later") }}</button></form>
 </dialog>

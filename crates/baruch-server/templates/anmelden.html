@@ -6,18 +6,19 @@
     comes from this page itself, then the cookie is there.
     Context: name, next, error (text or none), retry_after (seconds or none), notice (sentence from MESSAGES or
     none), signed_in (display name or none). -#}
+{%- set password_cmd = "baruch-server passwort <" ~ t("accounts.cmd_name") ~ ">" -%}
 <!doctype html>
 <html lang="{{ ui_lang() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Anmelden – Baruch</title>
+  <title>{{ t("accounts.sign_in.window_title") }}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="konto-seite">
 <main class="konto-karte">
-  <h1 class="pane-title">Baruch – Anmelden</h1>
+  <h1 class="pane-title">{{ t("accounts.sign_in.heading") }}</h1>
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
@@ -25,21 +26,21 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   {%- if retry_after is not none %}
-  <p class="notice warning" role="alert" data-retry-after="{{ retry_after }}">Zu viele Fehlversuche. Bitte {{ retry_after }} {% if retry_after == 1 %}Sekunde{% else %}Sekunden{% endif %} warten und dann erneut versuchen.</p>
+  <p class="notice warning" role="alert" data-retry-after="{{ retry_after }}">{{ t("accounts.sign_in.too_many", count=retry_after) }}</p>
   {%- endif %}
   {%- if signed_in %}
-  <p class="notice" role="status">Angemeldet als {{ signed_in }}. <a href="{{ next }}">Weiter</a></p>
+  <p class="notice" role="status">{{ t("accounts.sign_in.signed_in", signed_in=signed_in) }} <a href="{{ next }}">{{ t("accounts.sign_in.continue") }}</a></p>
   {%- endif %}
   <form class="konto-form" method="post" action="/anmelden">
     <input type="hidden" name="next" value="{{ next }}">
-    <label>Name <input type="text" name="name" value="{{ name }}" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
-    <label>Passwort <input type="password" name="password" autocomplete="current-password" required></label>
-    <button class="btn primary" type="submit">Anmelden</button>
+    <label>{{ t("accounts.sign_in.name") }} <input type="text" name="name" value="{{ name }}" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>{{ t("accounts.sign_in.password") }} <input type="password" name="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">{{ t("accounts.sign_in.submit") }}</button>
   </form>
   {%- if not signed_in %}
-  <p class="muted small">Schon angemeldet? <a href="{{ next }}">Weiter</a> – nach einem Link von außen (E-Mail, andere Seite) fragt Baruch einmal nach; der Klick hier genügt dann.</p>
+  <p class="muted small">{{ t("accounts.sign_in.already") }} <a href="{{ next }}">{{ t("accounts.sign_in.continue") }}</a> {{ t("accounts.sign_in.already_help") }}</p>
   {%- endif %}
-  <p class="muted small">Passwort vergessen? Der Autor setzt es unter Einstellungen → Konten neu. Hat der Autor selbst es vergessen, hilft am Rechner, auf dem Baruch läuft, der Befehl <code>baruch-server passwort &lt;Name&gt;</code>.</p>
+  <p class="muted small">{{ t("accounts.sign_in.forgotten_html", password_cmd=password_cmd) }}</p>
 </main>
 </body>
 </html>

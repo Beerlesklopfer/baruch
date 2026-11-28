@@ -182,6 +182,7 @@ mod round38c_prompts;
 mod round39a_i18n;
 mod round39a_templates_1;
 mod round39a_templates_2;
+mod round39a_templates_3;
 mod round4;
 mod round5;
 mod round5_fixes;

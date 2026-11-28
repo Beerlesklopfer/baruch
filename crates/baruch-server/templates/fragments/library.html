@@ -30,7 +30,7 @@
 {%- set at_q = (("&work=" ~ work.id) if (work is defined and work.id is defined) else "")
              ~ (("&key=" ~ node.key) if (node is defined and node.key is defined) else "") %}
 {%- set hit_keys = (library_hits | default([]) | selectattr("key") | map(attribute="key") | list) if library_query else [] %}
-{%- set kind_labels = {"quote": "Zitat", "core": "Kernaussage", "contradiction": "Widerspruch", "check": "zu prüfen"} %}
+{%- set kind_labels = {"quote": t("sources.library.kind_quote"), "core": t("sources.library.kind_core"), "contradiction": t("sources.library.kind_contradiction"), "check": t("sources.library.kind_check")} %}
 <section class="library" data-widget="library">
 <form action="/literatur" method="get" class="library-search" role="search">
   {%- if work is defined and work.id is defined %}
@@ -49,22 +49,22 @@
   {%- if view is defined and view == "preview" %}
   <input type="hidden" name="view" value="preview">
   {%- endif %}
-  <input type="search" name="lq" value="{{ library_query | default('', true) }}" placeholder="Werk und Literatur durchsuchen …" aria-label="Werk und Literatur durchsuchen">
+  <input type="search" name="lq" value="{{ library_query | default('', true) }}" placeholder="{{ t("sources.library.search_placeholder") }}" aria-label="{{ t("sources.library.search_label") }}">
   <fieldset class="library-mode">
-    <legend class="tiny">Suche nach</legend>
-    <label class="tiny"><input type="radio" name="lmode" value="fts"{% if not rag_mode %} checked{% endif %}> Wortlaut (FTS)</label>
-    <label class="tiny"><input type="radio" name="lmode" value="rag"{% if rag_mode %} checked{% endif %}> Bedeutung (RAG)</label>
+    <legend class="tiny">{{ t("sources.library.search_by") }}</legend>
+    <label class="tiny"><input type="radio" name="lmode" value="fts"{% if not rag_mode %} checked{% endif %}> {{ t("sources.library.mode_fts") }}</label>
+    <label class="tiny"><input type="radio" name="lmode" value="rag"{% if rag_mode %} checked{% endif %}> {{ t("sources.library.mode_rag") }}</label>
   </fieldset>
-  <button class="btn" type="submit">Suchen</button>
+  <button class="btn" type="submit">{{ t("sources.library.search") }}</button>
 </form>
 {%- if rag_mode and library_query is defined and library_query and library_rag is defined %}
 <div class="library-hits library-rag" data-rag="{% if library_rag.available %}ok{% else %}none{% endif %}">
-  <div class="muted tiny">Bedeutungs-Treffer für „{{ library_query }}“</div>
+  <div class="muted tiny">{{ t("sources.library.rag_hits_for", library_query=library_query) }}</div>
   {%- if library_rag.ways_line %}
   <p class="library-ways tiny" data-ways>{{ library_rag.ways_line }}</p>
   {%- endif %}
   {%- if not library_rag.available %}
-  <p class="notice small" role="status" data-rag-missing>{{ library_rag.message }} <a href="{{ fts_url }}" data-fts-link>Dieselbe Suche im Wortlaut (FTS)</a></p>
+  <p class="notice small" role="status" data-rag-missing>{{ library_rag.message }} <a href="{{ fts_url }}" data-fts-link>{{ t("sources.library.same_fts") }}</a></p>
   {%- else %}
   {#- Round 19c: weak hits (hit.weak, similarity below baruch_rag::WEAK_SCORE) stand with „schwach“ next to the
       percentage behind the others, collapsed in <details> „n schwache Treffer“ (expandable without JavaScript). #}
@@ -77,26 +77,26 @@
       {%- endif %}
       <span class="badge rag-way way-{{ hit.way }}">{{ hit.way_title }}</span>
       {%- if hit.fulltext_link %}
-      <a class="tiny rag-fulltext" href="{{ hit.fulltext_link }}{{ at_q }}{{ lq_tail }}" data-fulltext>Volltext</a>
+      <a class="tiny rag-fulltext" href="{{ hit.fulltext_link }}{{ at_q }}{{ lq_tail }}" data-fulltext>{{ t("sources.library.fulltext") }}</a>
       {%- endif %}
-      <span class="muted tiny">{% if hit.collection %}{{ hit.collection }} · {% endif %}Ähnlichkeit {{ hit.percent }} %{% if hit.weak %} <span class="weak-label" data-weak-label>{{ weak_label }}</span>{% endif %}{% if hit.found_by | length > 1 %} · gefunden von {{ hit.found_by | join(", ") }}{% endif %}</span>
+      <span class="muted tiny">{% if hit.collection %}{{ hit.collection }} · {% endif %}{{ t("sources.library.similarity", percent=hit.percent) }}{% if hit.weak %} <span class="weak-label" data-weak-label>{{ weak_label }}</span>{% endif %}{% if hit.found_by | length > 1 %} {{ t("sources.library.found_by", found_by=hit.found_by | join(", ")) }}{% endif %}</span>
       <div class="library-snippet small rag-snippet">{{ hit.snippet }}</div>
     </li>
   {%- endmacro %}
   <ul>
-  {%- for hit in library_rag.hits %}{% if not hit.weak %}{{ rag_hit(hit, at_q, lq_tail, library_rag.weak_label | default("schwach")) }}{% endif %}
+  {%- for hit in library_rag.hits %}{% if not hit.weak %}{{ rag_hit(hit, at_q, lq_tail, library_rag.weak_label | default(t("sources.library.weak"))) }}{% endif %}
   {%- endfor %}
   {%- if not library_rag.hits %}
-    <li class="muted small">Keine Treffer.</li>
+    <li class="muted small">{{ t("sources.library.no_hits") }}</li>
   {%- elif library_rag.weak_count and library_rag.weak_count == library_rag.hits | length %}
-    <li class="muted small" data-only-weak>Nur schwache Treffer.</li>
+    <li class="muted small" data-only-weak>{{ t("sources.library.only_weak") }}</li>
   {%- endif %}
   </ul>
   {%- if library_rag.weak_count %}
   <details class="weak-hits" data-weak-hits>
-    <summary class="small">{{ library_rag.weak_count }} schwache{% if library_rag.weak_count == 1 %}r{% endif %} Treffer</summary>
+    <summary class="small">{{ t("sources.library.weak_hits", count=library_rag.weak_count) }}</summary>
     <ul>
-    {%- for hit in library_rag.hits %}{% if hit.weak %}{{ rag_hit(hit, at_q, lq_tail, library_rag.weak_label | default("schwach")) }}{% endif %}
+    {%- for hit in library_rag.hits %}{% if hit.weak %}{{ rag_hit(hit, at_q, lq_tail, library_rag.weak_label | default(t("sources.library.weak"))) }}{% endif %}
     {%- endfor %}
     </ul>
   </details>
@@ -105,27 +105,27 @@
 </div>
 {%- elif library_query is defined and library_query %}
 <div class="library-hits">
-  <div class="muted tiny">Treffer für „{{ library_query }}“</div>
+  <div class="muted tiny">{{ t("sources.library.hits_for", library_query=library_query) }}</div>
   <ul>
   {%- for hit in library_hits | default([]) %}
     <li class="library-hit" data-kind="{{ hit.kind }}">
       {%- if hit.kind == "revision" or hit.kind == "post" %}
       <a href="/?work={{ hit.work }}&amp;key={{ hit.node_key }}{% if hit.rev %}&amp;rev={{ hit.rev }}{% endif %}&amp;lq={{ lq_url }}#fundstelle" data-hit="work">{{ hit.label }}</a>
-      <span class="muted tiny">{% if hit.kind == "revision" %}Revision {{ hit.rev }}{% else %}Beitrag{% endif %}</span>
+      <span class="muted tiny">{% if hit.kind == "revision" %}{{ t("sources.library.revision", rev=hit.rev) }}{% else %}{{ t("sources.library.post") }}{% endif %}</span>
       {%- elif hit.kind == "quote" %}
       <a href="/quelle?title={{ hit.title_id }}&amp;quote={{ hit.quote_id }}{{ at_q }}{{ lq_tail }}#zitat-{{ hit.quote_id }}" data-hit="source">{{ hit.label }}</a>
-      <span class="muted tiny">Zitat · @{{ hit.key }}</span>
+      <span class="muted tiny">{{ t("sources.library.quote_key", key=hit.key) }}</span>
       {%- elif hit.kind == "highlight" %}
       <a href="/quelle?title={{ hit.title_id }}{% if hit.quote_id %}&amp;quote={{ hit.quote_id }}{% endif %}&amp;highlight={{ hit.highlight_id }}{{ at_q }}{{ lq_tail }}#hervorhebung-{{ hit.highlight_id }}" data-hit="source">{{ hit.label }}</a>
-      <span class="muted tiny">Hervorhebung · @{{ hit.key }}</span>
+      <span class="muted tiny">{{ t("sources.library.highlight_key", key=hit.key) }}</span>
       {%- else %}
       <a href="/quelle?title={{ hit.title_id }}{{ at_q }}{{ lq_tail }}" data-hit="source">{{ hit.label }}</a>
-      <span class="muted tiny">Titel · @{{ hit.key }}</span>
+      <span class="muted tiny">{{ t("sources.library.title_key", key=hit.key) }}</span>
       {%- endif %}
       <div class="library-snippet small">{{ hit.snippet | safe }}</div>
     </li>
   {%- else %}
-    <li class="muted small">Keine Treffer.</li>
+    <li class="muted small">{{ t("sources.library.no_hits") }}</li>
   {%- endfor %}
   </ul>
 </div>
@@ -133,52 +133,52 @@
 {#- Round 15: Bibles (box and hit groups „Bibel“/„Kommentar“), only with the context `bibles`. #}
 {% include "fragments/literature_bibles.html" ignore missing %}
 <div class="library-titles">
-{%- for t in library %}
-  <details class="library-title" id="lit-{{ t.key }}" data-key="{{ t.key }}"{% if t.key in hit_keys %} open{% endif %}>
+{%- for lit in library %}
+  <details class="library-title" id="lit-{{ lit.key }}" data-key="{{ lit.key }}"{% if lit.key in hit_keys %} open{% endif %}>
     <summary>
       <span class="library-label">
-        {%- if t.authors %}<span class="library-authors">{{ t.authors }}</span>: {% endif -%}
-        <cite>{{ t.title }}</cite>{% if t.year %} ({{ t.year }}){% endif -%}
+        {%- if lit.authors %}<span class="library-authors">{{ lit.authors }}</span>: {% endif -%}
+        <cite>{{ lit.title }}</cite>{% if lit.year %} ({{ lit.year }}){% endif -%}
       </span>
-      <code class="library-key tiny">@{{ t.key }}</code>
+      <code class="library-key tiny">@{{ lit.key }}</code>
     </summary>
     <div class="library-body">
-      {%- if t.publisher or t.place %}
-      <div class="muted tiny">{{ t.place }}{% if t.place and t.publisher %}: {% endif %}{{ t.publisher }}</div>
+      {%- if lit.publisher or lit.place %}
+      <div class="muted tiny">{{ lit.place }}{% if lit.place and lit.publisher %}: {% endif %}{{ lit.publisher }}</div>
       {%- endif %}
-      {%- for q in t.quotes %}
+      {%- for q in lit.quotes %}
       <blockquote class="library-quote">
         <p>{{ q.text }}</p>
-        <footer class="muted tiny">{% if q.page %}{{ q.page }} · {% endif %}<a href="/quelle?title={{ t.id }}&amp;quote={{ q.id }}{{ at_q }}{{ lq_tail }}#zitat-{{ q.id }}">in der Quelle</a></footer>
+        <footer class="muted tiny">{% if q.page %}{{ q.page }} · {% endif %}<a href="/quelle?title={{ lit.id }}&amp;quote={{ q.id }}{{ at_q }}{{ lq_tail }}#zitat-{{ q.id }}">{{ t("sources.library.in_source") }}</a></footer>
       </blockquote>
       {%- else %}
-      <p class="muted small">Noch keine Zitate.</p>
+      <p class="muted small">{{ t("sources.library.no_quotes") }}</p>
       {%- endfor %}
-      {%- set marks = t.highlights | default([]) | rejectattr("status", "eq", "rejected") | list %}
+      {%- set marks = lit.highlights | default([]) | rejectattr("status", "eq", "rejected") | list %}
       {%- if marks %}
       <ul class="library-highlights">
         {%- for h in marks %}
         <li class="highlight kind-{{ h.kind }}" data-status="{{ h.status }}">
-          <a href="/quelle?title={{ t.id }}{% if h.quote_id %}&amp;quote={{ h.quote_id }}{% endif %}&amp;highlight={{ h.id }}{{ at_q }}{{ lq_tail }}#hervorhebung-{{ h.id }}">{{ kind_labels[h.kind] }}</a>{% if h.status == "proposed" %} <span class="badge primary">Vorschlag</span>{% endif %}:
+          <a href="/quelle?title={{ lit.id }}{% if h.quote_id %}&amp;quote={{ h.quote_id }}{% endif %}&amp;highlight={{ h.id }}{{ at_q }}{{ lq_tail }}#hervorhebung-{{ h.id }}">{{ kind_labels[h.kind] }}</a>{% if h.status == "proposed" %} <span class="badge primary">{{ t("sources.library.proposal") }}</span>{% endif %}:
           <span class="highlight-text">{{ h.text }}</span>
           {%- if h.note %} <span class="muted tiny">– {{ h.note }}</span>{% endif %}
         </li>
         {%- endfor %}
       </ul>
       {%- endif %}
-      {%- if t.note %}
-      <p class="muted tiny">{{ t.note }}</p>
+      {%- if lit.note %}
+      <p class="muted tiny">{{ lit.note }}</p>
       {%- endif %}
-      {%- if t.url is startingwith("https://") or t.url is startingwith("http://") %}
-      <a class="library-url tiny" href="{{ t.url }}" rel="noopener noreferrer">{{ t.url }}</a>
+      {%- if lit.url is startingwith("https://") or lit.url is startingwith("http://") %}
+      <a class="library-url tiny" href="{{ lit.url }}" rel="noopener noreferrer">{{ lit.url }}</a>
       {%- endif %}
-      <a class="library-open tiny" href="/quelle?title={{ t.id }}{{ at_q }}{{ lq_tail }}">Dokumentansicht</a>
+      <a class="library-open tiny" href="/quelle?title={{ lit.id }}{{ at_q }}{{ lq_tail }}">{{ t("sources.library.document_view") }}</a>
     </div>
   </details>
 {%- else %}
-  <p class="muted small library-empty">Noch keine Titel.</p>
+  <p class="muted small library-empty">{{ t("sources.library.no_titles") }}</p>
 {%- endfor %}
-  <p class="muted small library-none" hidden>Keine passenden Titel.</p>
+  <p class="muted small library-none" hidden>{{ t("sources.library.no_matching") }}</p>
 </div>
 {#- Round 23a: box „Bilder des Werks“ for the search on the workspace page (library_images_html, finished HTML from
     literature::image_hits_box); /literatur and literature.render set their box themselves (images_html). #}

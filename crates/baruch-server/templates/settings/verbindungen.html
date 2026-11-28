@@ -20,6 +20,7 @@
     rag.status.index.stale (only if > 0, data-index-stale).
     Round 24: MultiGPT no longer has an address as a default (empty); the address field then shows the placeholder
     https://multigpt.example/mcp/ (only an example, is never stored or requested). -#}
+{%- set model_account = "baruch/model-<id>" -%}
 <section class="settings-page connections-page" data-settings-page-body="verbindungen">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
@@ -27,13 +28,10 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <p class="muted small">Adressen und Einstellungen liegen in SQLite (für alle Werke), Schlüssel, Token und Passwörter
-    nur im Schlüsselbund des Systems (Dienst <code>baruch</code>). Hier steht nur, ob ein Geheimnis hinterlegt ist;
-    eine Eingabe ersetzt es. „Verbindung prüfen“ fragt die Gegenstelle einmal (höchstens 10 s) und merkt sich das
-    Ergebnis.</p>
+  <p class="muted small">{{ t("settings.connections.intro_html") }}</p>
   {%- for c in connections %}
   <section class="connection" id="{{ c.kind }}" data-connection="{{ c.kind }}">
-    <h3 class="connection-title">{{ c.title }}{% if c.default %} <span class="badge">Vorgabe</span>{% endif %}</h3>
+    <h3 class="connection-title">{{ c.title }}{% if c.default %} <span class="badge">{{ t("settings.connections.default_badge") }}</span>{% endif %}</h3>
     {%- if c.error %}
     <p class="notice error small" role="alert">{{ c.error }}</p>
     {%- endif %}
@@ -61,15 +59,15 @@
       </label>
       {%- endfor %}
       {%- if c.account %}
-      <label class="connection-field"><span>{% if c.kind == "pgvector" %}Passwort{% elif c.kind == "multigpt" %}Token{% else %}Schlüssel{% endif %}</span>
-        <input type="password" name="secret" autocomplete="new-password" placeholder="leer = unverändert">
-        <span class="muted tiny">Schlüsselbund <code>baruch/{{ c.account }}</code>:
-          <strong class="secret-state" data-secret="{{ c.secret or 'unbekannt' }}">{% if c.secret %}{{ c.secret }}{% else %}unbekannt{% endif %}</strong>
+      <label class="connection-field"><span>{% if c.kind == "pgvector" %}{{ t("settings.connections.password") }}{% elif c.kind == "multigpt" %}Token{% else %}{{ t("settings.connections.key") }}{% endif %}</span>
+        <input type="password" name="secret" autocomplete="new-password" placeholder="{{ t("settings.connections.secret_placeholder") }}">
+        <span class="muted tiny">{{ t("settings.connections.keyring_html", account=c.account) }}
+          <strong class="secret-state" data-secret="{{ c.secret or 'unbekannt' }}">{% if c.secret %}{{ c.secret }}{% else %}{{ t("settings.connections.unknown") }}{% endif %}</strong>
           {%- if c.secret_error %} – {{ c.secret_error }}{% endif %}
-          {%- if c.secret_for %} – <span class="secret-elsewhere" data-secret-for>gilt nur für <code>{{ c.secret_for }}</code>, nicht für die jetzige Adresse; zum Senden an sie neu eintragen</span>{% endif %}</span>
+          {%- if c.secret_for %} – <span class="secret-elsewhere" data-secret-for>{{ t("settings.connections.secret_for_html", secret_for=c.secret_for) }}</span>{% endif %}</span>
       </label>
       {%- endif %}
-      <div class="connection-actions"><button class="btn primary" type="submit">Speichern</button></div>
+      <div class="connection-actions"><button class="btn primary" type="submit">{{ t("common.save") }}</button></div>
     </form>
     <div class="connection-row">
       {%- if c.checkable %}
@@ -77,7 +75,7 @@
         <input type="hidden" name="method" value="connection.check">
         <input type="hidden" name="kind" value="{{ c.kind }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <button class="btn" type="submit">Verbindung prüfen</button>
+        <button class="btn" type="submit">{{ t("settings.connections.check") }}</button>
       </form>
       {%- endif %}
       {%- if c.account and c.secret == "hinterlegt" %}
@@ -85,14 +83,14 @@
         <input type="hidden" name="method" value="connection.delete_secret">
         <input type="hidden" name="kind" value="{{ c.kind }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich entfernen</label>
-        <button class="btn danger" type="submit">Geheimnis entfernen</button>
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.connections.really_remove") }}</label>
+        <button class="btn danger" type="submit">{{ t("settings.connections.remove_secret") }}</button>
       </form>
       {%- endif %}
     </div>
     {%- if c.check %}
     <div class="connection-check {% if c.check.ok %}ok{% else %}failed{% endif %}" data-check="{% if c.check.ok %}ok{% else %}failed{% endif %}">
-      <strong>{% if c.check.ok %}✓ geprüft{% else %}✗ fehlgeschlagen{% endif %}</strong>
+      <strong>{% if c.check.ok %}{{ t("settings.connections.checked") }}{% else %}{{ t("settings.connections.failed") }}{% endif %}</strong>
       <span class="muted tiny">{{ c.check.at }}</span>
       <div>{{ c.check.message }}</div>
       {%- for line in c.check.lines %}
@@ -101,23 +99,23 @@
       {%- if c.check.personas %}
       <ul class="connection-personas small" data-personas>
         {%- for p in c.check.personas %}
-        <li data-persona-model="{{ p.state }}"><code>{{ p.handle }}</code> {{ p.model }}{% if not p.active %} <span class="muted">(inaktiv)</span>{% endif %}:
-          {% if p.state == "bekannt" %}<span class="model-known">✓ bei Eliezer</span>
-          {%- elif p.state == "alias" %}<span class="model-alias">Alias → {{ p.target }}</span>
-          {%- else %}<span class="model-unknown">unbekannt bei Eliezer{% if p.target %} (auch Alias {{ p.target }}){% endif %}</span>{% endif %}</li>
+        <li data-persona-model="{{ p.state }}"><code>{{ p.handle }}</code> {{ p.model }}{% if not p.active %} <span class="muted">{{ t("settings.connections.inactive") }}</span>{% endif %}:
+          {% if p.state == "bekannt" %}<span class="model-known">{{ t("settings.connections.model_known") }}</span>
+          {%- elif p.state == "alias" %}<span class="model-alias">{{ t("settings.connections.model_alias", target=p.target) }}</span>
+          {%- else %}<span class="model-unknown">{{ t("settings.connections.model_unknown") }}{% if p.target %} {{ t("settings.connections.model_also_alias", target=p.target) }}{% endif %}</span>{% endif %}</li>
         {%- endfor %}
       </ul>
       {%- endif %}
     </div>
     {%- elif c.checkable %}
-    <p class="muted tiny">Noch nicht geprüft.</p>
+    <p class="muted tiny">{{ t("settings.connections.not_checked") }}</p>
     {%- endif %}
     {%- if c.probe %}
     <form class="connection-probe" method="post" action="/einstellungen/verbindungen/act" data-probe>
       <input type="hidden" name="method" value="model.probe">
       <input type="hidden" name="kind" value="{{ c.kind }}">
       {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-      <label class="connection-field"><span>Kurztest mit Modell</span>
+      <label class="connection-field"><span>{{ t("settings.connections.probe_model") }}</span>
         {%- if c.probe.options %}
         <select name="model" required>
           {%- for m in c.probe.options %}
@@ -125,18 +123,18 @@
           {%- endfor %}
         </select>
         {%- else %}
-        <input type="text" name="model" required placeholder="Modellname bei Eliezer">
+        <input type="text" name="model" required placeholder="{{ t("settings.connections.probe_placeholder") }}">
         {%- endif %}
-        <span class="muted tiny">Schickt „Antworte nur mit: OK“ (höchstens 16 Token) durch die Warteschlange; lädt Eliezer das Modell erst, kann das dauern.{% if not c.probe.listed %} Liste aus den Modellen der Personas; „Verbindung prüfen“ holt die Liste von Eliezer.{% endif %}</span>
+        <span class="muted tiny">{{ t("settings.connections.probe_help") }}{% if not c.probe.listed %} {{ t("settings.connections.probe_list_hint") }}{% endif %}</span>
       </label>
-      <div class="connection-actions"><button class="btn" type="submit">Kurztest</button></div>
+      <div class="connection-actions"><button class="btn" type="submit">{{ t("settings.connections.probe") }}</button></div>
     </form>
     {%- if c.probe.last %}
     <div class="connection-check {% if c.probe.last.ok %}ok{% else %}failed{% endif %}" data-probe-result="{% if c.probe.last.ok %}ok{% else %}failed{% endif %}">
-      <strong>{% if c.probe.last.ok %}✓ Kurztest{% else %}✗ Kurztest fehlgeschlagen{% endif %}</strong>
+      <strong>{% if c.probe.last.ok %}{{ t("settings.connections.probe_ok") }}{% else %}{{ t("settings.connections.probe_failed") }}{% endif %}</strong>
       <span class="muted tiny">{{ c.probe.last.at }} · {{ c.probe.last.ms }} ms · {{ c.probe.last.model }}</span>
       {%- if c.probe.last.ok %}
-      <div>Antwort: „{{ c.probe.last.reply }}“</div>
+      <div>{{ t("settings.connections.reply", reply=c.probe.last.reply) }}</div>
       {%- else %}
       <div>{{ c.probe.last.message }}</div>
       {%- endif %}
@@ -160,18 +158,15 @@
       check {ok, message, at, lines}, probe {ok, at, ms, model, reply, message}, options}], kinds [{kind, title}],
       error}. #}
   <section class="connection" id="modelle" data-connection="modelle" data-model-connections>
-    <h3 class="connection-title">Modell-Verbindungen</h3>
-    <p class="muted small">Je Persona wählt Einstellungen → Assistenten eine dieser Verbindungen (Vorgabe: Eliezer).
-      „extern“ heißt: Die Verbindung verlässt diesen Rechner bzw. das eigene Netz. Über eine externe Verbindung geht
-      Buchtext nur für Personas, die dafür ausdrücklich freigegeben sind (Vorgabe: nicht freigegeben). Die Adresse von
-      Eliezer steht oben bei „Eliezer (Modell-Backend)“.</p>
+    <h3 class="connection-title">{{ t("settings.connections.models_title") }}</h3>
+    <p class="muted small">{{ t("settings.connections.models_help") }}</p>
     {%- if models.error %}
     <p class="notice error small" role="alert">{{ models.error }}</p>
     {%- endif %}
     {%- for m in models.connections %}
     <article class="model-connection" id="modell-{{ m.id }}" data-model-connection="{{ m.id }}" data-locality="{{ m.locality }}">
       <h4 class="small">{{ m.name }} <span class="badge">{{ m.kind_title }}</span> <span class="badge{% if m.external %} warning{% endif %}" data-locality-badge>{{ m.locality }}</span>
-        {%- if m.personas %} <span class="muted tiny">genutzt von {{ m.personas | join(", ") }}</span>{% endif %}</h4>
+        {%- if m.personas %} <span class="muted tiny">{{ t("settings.connections.used_by", personas=m.personas | join(", ")) }}</span>{% endif %}</h4>
       {%- if m.locality_warning %}
       <p class="notice error small" role="alert" data-locality-warning>{{ m.locality_warning }}</p>
       {%- endif %}
@@ -182,29 +177,29 @@
         <label class="connection-field"><span>Name</span><input type="text" name="name" value="{{ m.name }}" required maxlength="80"></label>
         {%- if m.eliezer %}
         <input type="hidden" name="kind" value="eliezer">
-        <p class="muted tiny">Adresse: <code>{{ m.url }}</code> (Einstellung oben bei Eliezer)</p>
+        <p class="muted tiny">{{ t("settings.connections.eliezer_url_html", url=m.url) }}</p>
         {%- else %}
-        <label class="connection-field"><span>Art</span>
+        <label class="connection-field"><span>{{ t("settings.connections.kind") }}</span>
           <select name="kind">
             {%- for k in models.kinds %}<option value="{{ k.kind }}"{% if k.kind == m.kind %} selected{% endif %}>{{ k.title }}</option>{% endfor %}
           </select></label>
-        <label class="connection-field"><span>Adresse</span><input type="url" name="url" value="{{ m.url }}" required></label>
+        <label class="connection-field"><span>{{ t("settings.connections.address") }}</span><input type="url" name="url" value="{{ m.url }}" required></label>
         {%- endif %}
-        <label class="check small"><input type="checkbox" name="external" value="1"{% if m.external %} checked{% endif %}> extern (verlässt diesen Rechner bzw. das eigene Netz)</label>
-        <div class="connection-actions"><button class="btn primary" type="submit">Speichern</button></div>
+        <label class="check small"><input type="checkbox" name="external" value="1"{% if m.external %} checked{% endif %}> {{ t("settings.connections.external") }}</label>
+        <div class="connection-actions"><button class="btn primary" type="submit">{{ t("common.save") }}</button></div>
       </form>
       {%- if not m.eliezer %}
       <form class="connection-form" method="post" action="/einstellungen/modelle/act">
         <input type="hidden" name="action" value="secret">
         <input type="hidden" name="id" value="{{ m.id }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <label class="connection-field"><span>Schlüssel</span>
-          <input type="password" name="secret" autocomplete="new-password" placeholder="neuer Schlüssel" required>
-          <span class="muted tiny">Schlüsselbund <code>baruch/{{ m.account }}</code>:
-            <strong class="secret-state" data-secret="{{ m.secret or 'unbekannt' }}">{% if m.secret %}{{ m.secret }}{% else %}unbekannt{% endif %}</strong>
-            {%- if m.secret_for %} – <span class="secret-elsewhere" data-secret-for>gilt nur für <code>{{ m.secret_for }}</code>, nicht für die jetzige Adresse; zum Senden an sie neu eintragen</span>{% endif %}</span>
+        <label class="connection-field"><span>{{ t("settings.connections.key") }}</span>
+          <input type="password" name="secret" autocomplete="new-password" placeholder="{{ t("settings.connections.new_key") }}" required>
+          <span class="muted tiny">{{ t("settings.connections.keyring_html", account=m.account) }}
+            <strong class="secret-state" data-secret="{{ m.secret or 'unbekannt' }}">{% if m.secret %}{{ m.secret }}{% else %}{{ t("settings.connections.unknown") }}{% endif %}</strong>
+            {%- if m.secret_for %} – <span class="secret-elsewhere" data-secret-for>{{ t("settings.connections.secret_for_html", secret_for=m.secret_for) }}</span>{% endif %}</span>
         </label>
-        <div class="connection-actions"><button class="btn" type="submit">Schlüssel hinterlegen</button></div>
+        <div class="connection-actions"><button class="btn" type="submit">{{ t("settings.connections.store_key") }}</button></div>
       </form>
       {%- endif %}
       <div class="connection-row">
@@ -212,15 +207,15 @@
           <input type="hidden" name="action" value="check">
           <input type="hidden" name="id" value="{{ m.id }}">
           {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-          <button class="btn" type="submit">Verbindung prüfen</button>
+          <button class="btn" type="submit">{{ t("settings.connections.check") }}</button>
         </form>
         {%- if not m.eliezer and m.secret == "hinterlegt" %}
         <form class="connection-delete" method="post" action="/einstellungen/modelle/act">
           <input type="hidden" name="action" value="delete_secret">
           <input type="hidden" name="id" value="{{ m.id }}">
           {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-          <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich entfernen</label>
-          <button class="btn danger" type="submit">Schlüssel entfernen</button>
+          <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.connections.really_remove") }}</label>
+          <button class="btn danger" type="submit">{{ t("settings.connections.remove_key") }}</button>
         </form>
         {%- endif %}
         {%- if not m.eliezer %}
@@ -228,14 +223,14 @@
           <input type="hidden" name="action" value="delete">
           <input type="hidden" name="id" value="{{ m.id }}">
           {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-          <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich löschen (Personas fallen auf Eliezer zurück)</label>
-          <button class="btn danger" type="submit">Verbindung löschen</button>
+          <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.connections.really_delete") }}</label>
+          <button class="btn danger" type="submit">{{ t("settings.connections.delete") }}</button>
         </form>
         {%- endif %}
       </div>
       {%- if m.check %}
       <div class="connection-check {% if m.check.ok %}ok{% else %}failed{% endif %}" data-model-check="{% if m.check.ok %}ok{% else %}failed{% endif %}">
-        <strong>{% if m.check.ok %}✓ geprüft{% else %}✗ fehlgeschlagen{% endif %}</strong> <span class="muted tiny">{{ m.check.at }}</span>
+        <strong>{% if m.check.ok %}{{ t("settings.connections.checked") }}{% else %}{{ t("settings.connections.failed") }}{% endif %}</strong> <span class="muted tiny">{{ m.check.at }}</span>
         <div>{{ m.check.message }}</div>
         {%- for line in m.check.lines %}<div class="small">{{ line }}</div>{% endfor %}
       </div>
@@ -245,91 +240,89 @@
         <input type="hidden" name="action" value="probe">
         <input type="hidden" name="id" value="{{ m.id }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <label class="connection-field"><span>Kurztest mit Modell</span>
+        <label class="connection-field"><span>{{ t("settings.connections.probe_model") }}</span>
           {%- if m.options %}
           <select name="model" required>{% for o in m.options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}</select>
           {%- else %}
-          <input type="text" name="model" required placeholder="Modellname">
+          <input type="text" name="model" required placeholder="{{ t("settings.connections.model_name") }}">
           {%- endif %}
-          <span class="muted tiny">Schickt nur „Antworte nur mit: OK“ (kein Buchtext); geht darum auch über eine externe Verbindung.</span>
+          <span class="muted tiny">{{ t("settings.connections.probe_help_external") }}</span>
         </label>
-        <div class="connection-actions"><button class="btn" type="submit">Kurztest</button></div>
+        <div class="connection-actions"><button class="btn" type="submit">{{ t("settings.connections.probe") }}</button></div>
       </form>
       {%- endif %}
       {%- if m.probe and not m.eliezer %}
       <div class="connection-check {% if m.probe.ok %}ok{% else %}failed{% endif %}" data-probe-result="{% if m.probe.ok %}ok{% else %}failed{% endif %}">
-        <strong>{% if m.probe.ok %}✓ Kurztest{% else %}✗ Kurztest fehlgeschlagen{% endif %}</strong>
+        <strong>{% if m.probe.ok %}{{ t("settings.connections.probe_ok") }}{% else %}{{ t("settings.connections.probe_failed") }}{% endif %}</strong>
         <span class="muted tiny">{{ m.probe.at }} · {{ m.probe.ms }} ms · {{ m.probe.model }}</span>
-        {%- if m.probe.ok %}<div>Antwort: „{{ m.probe.reply }}“</div>{% else %}<div>{{ m.probe.message }}</div>{% endif %}
+        {%- if m.probe.ok %}<div>{{ t("settings.connections.reply", reply=m.probe.reply) }}</div>{% else %}<div>{{ m.probe.message }}</div>{% endif %}
       </div>
       {%- endif %}
     </article>
     {%- endfor %}
     <details class="model-connection-new" id="modell-neu">
-      <summary>Neue Modell-Verbindung</summary>
+      <summary>{{ t("settings.connections.new_title") }}</summary>
       <form class="connection-form" method="post" action="/einstellungen/modelle/act">
         <input type="hidden" name="action" value="save">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-        <label class="connection-field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="z. B. Ollama im Keller"></label>
-        <label class="connection-field"><span>Art</span>
+        <label class="connection-field"><span>Name</span><input type="text" name="name" required maxlength="80" placeholder="{{ t("settings.connections.name_placeholder") }}"></label>
+        <label class="connection-field"><span>{{ t("settings.connections.kind") }}</span>
           <select name="kind">{% for k in models.kinds %}<option value="{{ k.kind }}"{% if k.kind == "ollama" %} selected{% endif %}>{{ k.title }}</option>{% endfor %}</select></label>
-        <label class="connection-field"><span>Adresse</span><input type="url" name="url" required placeholder="http://127.0.0.1:11434"></label>
-        <label class="connection-field"><span>Lage</span>
+        <label class="connection-field"><span>{{ t("settings.connections.address") }}</span><input type="url" name="url" required placeholder="http://127.0.0.1:11434"></label>
+        <label class="connection-field"><span>{{ t("settings.connections.locality") }}</span>
           <select name="external">
-            <option value="auto" selected>nach der Adresse (nicht erkennbar lokal → extern)</option>
-            <option value="1">extern (verlässt diesen Rechner bzw. das eigene Netz)</option>
-            <option value="0">lokal (dieser Rechner bzw. das eigene Netz)</option>
+            <option value="auto" selected>{{ t("settings.connections.locality_auto") }}</option>
+            <option value="1">{{ t("settings.connections.external") }}</option>
+            <option value="0">{{ t("settings.connections.local") }}</option>
           </select></label>
-        <p class="muted tiny">„Nach der Adresse“: Lokal sind nur Loopback, private Adressen (10.…, 172.16–31.…, 192.168.…), Rechnernamen ohne Punkt und Namen unter .local, .lan, .internal, .home.arpa; alles andere wird extern.</p>
-        <p class="muted tiny">Den Schlüssel (falls nötig) danach bei der Verbindung hinterlegen; er liegt im Schlüsselbund unter <code>baruch/model-&lt;id&gt;</code> und gilt nur für diese Adresse.</p>
-        <div class="connection-actions"><button class="btn primary" type="submit">Anlegen</button></div>
+        <p class="muted tiny">{{ t("settings.connections.locality_help") }}</p>
+        <p class="muted tiny">{{ t("settings.connections.key_later_html", model_account=model_account) }}</p>
+        <div class="connection-actions"><button class="btn primary" type="submit">{{ t("settings.connections.create") }}</button></div>
       </form>
     </details>
   </section>
   <section class="connection" id="rag" data-connection="rag">
-    <h3 class="connection-title">RAG-Wege des Werks</h3>
+    <h3 class="connection-title">{{ t("settings.connections.rag_title") }}</h3>
     {%- if rag %}
     <form class="connection-form" method="post" action="/einstellungen/verbindungen/act">
       <input type="hidden" name="method" value="connection.rag_set">
       <input type="hidden" name="work" value="{{ rag.work }}">
-      <p class="muted small">Für „{{ rag.title }}“ gelten diese Wege{% if rag.default %} (Vorgabe){% endif %}; ohne Haken nur
-        die Volltextsuche.</p>
+      <p class="muted small">{{ t("settings.connections.rag_for", title=rag.title) }}{% if rag.default %} {{ t("settings.connections.rag_default") }}{% endif %}{{ t("settings.connections.rag_fulltext") }}</p>
       {%- for w in rag.ways %}
       <label class="small"><input type="checkbox" name="way_{{ w.name }}" value="1"{% if w.checked %} checked{% endif %}> {{ w.label }}</label>
       {%- endfor %}
-      <div class="connection-actions"><button class="btn primary" type="submit">Wege speichern</button></div>
+      <div class="connection-actions"><button class="btn primary" type="submit">{{ t("settings.connections.rag_save") }}</button></div>
     </form>
     {%- for set in rag.collections %}
     <form class="connection-form rag-collections" method="post" action="/einstellungen/verbindungen/act" data-collections="{{ set.way }}">
       <input type="hidden" name="method" value="connection.collections_set">
       <input type="hidden" name="work" value="{{ rag.work }}">
       <input type="hidden" name="way" value="{{ set.way }}">
-      <h4 class="rag-subtitle">Sammlungen: {{ set.label }}</h4>
-      <p class="muted small">Nur die angehakten Sammlungen durchsucht die Bedeutungssuche für dieses Werk; ohne Sammlung bleibt
-        {{ set.label }} aus.{% if not set.on %} {{ set.label }} ist für dieses Werk gerade nicht als Weg gewählt.{% endif %}</p>
+      <h4 class="rag-subtitle">{{ t("settings.connections.collections", label=set.label) }}</h4>
+      <p class="muted small">{{ t("settings.connections.collections_help", label=set.label) }}{% if not set.on %} {{ t("settings.connections.collections_off", label=set.label) }}{% endif %}</p>
       {%- if not set.checked_at %}
-      <p class="muted small" data-collections-hint>Erst „Verbindung prüfen“, dann erscheinen die Sammlungen.</p>
+      <p class="muted small" data-collections-hint>{{ t("settings.connections.collections_hint") }}</p>
       {%- else %}
-      <p class="muted tiny">Gemeldet bei der Prüfung {{ set.checked_at }}.</p>
+      <p class="muted tiny">{{ t("settings.connections.collections_checked", checked_at=set.checked_at) }}</p>
       {%- endif %}
       {%- if set.options %}
       <div class="rag-collection-list">
         {%- for o in set.options %}
         <label class="small"><input type="checkbox" name="collection" value="{{ o.name }}"{% if o.checked %} checked{% endif %}> {{ o.name }}
           {%- if o.count is not none %} <span class="muted tiny">({{ o.count }} {{ set.unit }})</span>{% endif %}
-          {%- if o.gone %} <span class="badge warning" data-gone>nicht mehr gemeldet</span>{% endif %}</label>
+          {%- if o.gone %} <span class="badge warning" data-gone>{{ t("settings.connections.gone") }}</span>{% endif %}</label>
         {%- endfor %}
       </div>
       {%- endif %}
-      <label class="connection-field"><span>Sammlung hinzufügen</span>
-        <input type="text" name="collection_new" maxlength="200" placeholder="Name der Sammlung">
-        <span class="muted tiny">eine Zeile, höchstens 200 Zeichen; höchstens 100 Sammlungen</span>
+      <label class="connection-field"><span>{{ t("settings.connections.collection_add") }}</span>
+        <input type="text" name="collection_new" maxlength="200" placeholder="{{ t("settings.connections.collection_placeholder") }}">
+        <span class="muted tiny">{{ t("settings.connections.collection_limits") }}</span>
       </label>
-      <div class="connection-actions"><button class="btn" type="submit">Sammlungen speichern</button></div>
+      <div class="connection-actions"><button class="btn" type="submit">{{ t("settings.connections.collections_save") }}</button></div>
     </form>
     {%- endfor %}
     <div class="rag-status" data-rag-status>
-      <h4 class="rag-subtitle">Status der Wege</h4>
+      <h4 class="rag-subtitle">{{ t("settings.connections.status_title") }}</h4>
       {%- if rag.status.ok %}
       <ul class="rag-ways small">
         {%- for w in rag.status.ways %}
@@ -338,36 +331,35 @@
       </ul>
       {%- set i = rag.status.index %}
       <dl class="rag-index small" data-rag-index>
-        <dt>Ordner</dt><dd><code>{{ i.dir }}</code></dd>
-        <dt>Einträge</dt><dd>{{ i.entries }}</dd>
-        <dt>Modell/Dimension</dt><dd>{% if i.model %}{{ i.model }}{% if i.dimension %} · {{ i.dimension }}{% endif %}{% else %}noch nicht aufgebaut{% endif %}</dd>
-        <dt>Eingestellt</dt><dd>{{ i.configured_model }}</dd>
-        <dt>Zuletzt aufgebaut</dt><dd>{% if i.built %}{{ i.built }}{% else %}nie{% endif %}</dd>
-        <dt>Ausstehend</dt><dd>{{ i.pending }}</dd>
+        <dt>{{ t("settings.connections.index_dir") }}</dt><dd><code>{{ i.dir }}</code></dd>
+        <dt>{{ t("settings.connections.index_entries") }}</dt><dd>{{ i.entries }}</dd>
+        <dt>{{ t("settings.connections.index_model") }}</dt><dd>{% if i.model %}{{ i.model }}{% if i.dimension %} · {{ i.dimension }}{% endif %}{% else %}{{ t("settings.connections.index_not_built") }}{% endif %}</dd>
+        <dt>{{ t("settings.connections.index_configured") }}</dt><dd>{{ i.configured_model }}</dd>
+        <dt>{{ t("settings.connections.index_built") }}</dt><dd>{% if i.built %}{{ i.built }}{% else %}{{ t("settings.connections.index_never") }}{% endif %}</dd>
+        <dt>{{ t("settings.connections.index_pending") }}</dt><dd>{{ i.pending }}</dd>
         {%- if i.stale %}
-        <dt>Liegengeblieben</dt><dd class="rag-stale" data-index-stale="{{ i.stale }}">{{ i.stale }} {% if i.stale == 1 %}Auftrag{% else %}Aufträge{% endif %} liegengeblieben – erneuter Versuch nach einer Änderung oder „Index neu aufbauen“</dd>
+        <dt>{{ t("settings.connections.index_stale") }}</dt><dd class="rag-stale" data-index-stale="{{ i.stale }}">{{ t("settings.connections.stale", count=i.stale) }}</dd>
         {%- endif %}
         {%- if i.problem %}
-        <dt>Problem</dt><dd class="rag-problem">{{ i.problem }}</dd>
+        <dt>{{ t("settings.connections.index_problem") }}</dt><dd class="rag-problem">{{ i.problem }}</dd>
         {%- endif %}
       </dl>
       {%- else %}
-      <p class="muted small" data-rag-status-missing>Kein Status: {{ rag.status.message }} Die Wortlaut-Suche (FTS) geht weiter.</p>
+      <p class="muted small" data-rag-status-missing>{{ t("settings.connections.no_status", message=rag.status.message) }}</p>
       {%- endif %}
     </div>
     <form class="connection-form rag-reindex" method="post" action="/einstellungen/verbindungen/act" data-reindex>
       <input type="hidden" name="method" value="rag.reindex">
       <input type="hidden" name="work" value="{{ rag.work }}">
-      <h4 class="rag-subtitle">Index neu aufbauen</h4>
-      <p class="muted small">Verwirft den lokalen Index (LanceDB) dieses Werks und baut ihn im Hintergrund neu auf; der Buchtext
-        bleibt unberührt.</p>
+      <h4 class="rag-subtitle">{{ t("settings.connections.reindex") }}</h4>
+      <p class="muted small">{{ t("settings.connections.reindex_help") }}</p>
       <div class="connection-actions">
-        <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich neu aufbauen</label>
-        <button class="btn" type="submit">Index neu aufbauen</button>
+        <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.connections.really_reindex") }}</label>
+        <button class="btn" type="submit">{{ t("settings.connections.reindex") }}</button>
       </div>
     </form>
     {%- else %}
-    <p class="muted small">Kein Werk gewählt; die RAG-Wege gelten je Werk.</p>
+    <p class="muted small">{{ t("settings.connections.no_work") }}</p>
     {%- endif %}
   </section>
 </section>

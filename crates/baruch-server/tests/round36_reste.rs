@@ -376,7 +376,13 @@ async fn open_permissions_of_an_existing_data_folder_are_reported_and_never_chan
 fn the_former_name_in_the_token_list_does_not_break_inside_the_name() {
     let template = include_str!("../templates/settings/mcp.html");
     assert!(
-        template.contains("<span class=\"muted tiny token-former\">(früher <code>{{ t.legacy }}</code>)</span>"),
+        template.contains(
+            "<span class=\"muted tiny token-former\">{{ t(\"settings.mcp.legacy_html\", legacy=tok.legacy) }}</span>"
+        ) && baruch_server::i18n::t(
+            baruch_server::i18n::Lang::De,
+            "settings.mcp.legacy_html",
+            &[("legacy", "@mcp:x".into())]
+        ) == "(früher <code>@mcp:x</code>)",
         "die Klammer „(früher @mcp:…)“ trägt die Klasse token-former"
     );
     let css = include_str!("../static/settings.css");
