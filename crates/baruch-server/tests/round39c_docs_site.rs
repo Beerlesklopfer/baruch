@@ -61,7 +61,7 @@ fn value<'a>(entry: &'a [(String, String)], key: &str) -> Option<&'a str> {
 }
 
 #[test]
-fn both_main_menus_lead_to_the_english_documentation() {
+fn both_main_menus_lead_to_the_documentation() {
     let toml = repo_file("site/hugo.toml");
     let english = menu_entries(&toml, "languages.en.menus.main");
     let entry = english.iter().find(|e| value(e, "name") == Some("\"Documentation\"")).unwrap_or_else(|| {
@@ -74,18 +74,25 @@ fn both_main_menus_lead_to_the_english_documentation() {
     );
     assert_eq!(value(entry, "weight"), Some("60"), "weight 60 puts the entry after \"MCP and assistants\" (50)");
 
+    // Round 39d: the German menu leads to the German section (/docs/, generated from docs/de/), no longer to the
+    // English one by address.
     let german = menu_entries(&toml, "languages.de.menus.main");
+    assert!(
+        !german.iter().any(|e| value(e, "name") == Some("\"Dokumentation (englisch)\"")),
+        "Round 39d replaced the entry „Dokumentation (englisch)“: there is a German section now, so the entry must not \
+         promise English"
+    );
     let entry = german
         .iter()
-        .find(|e| value(e, "name") == Some("\"Dokumentation (englisch)\""))
-        .unwrap_or_else(|| panic!("the German main menu has „Dokumentation (englisch)“ (contract §2.5): {german:?}"));
+        .find(|e| value(e, "name") == Some("\"Dokumentation\""))
+        .unwrap_or_else(|| panic!("the German main menu has „Dokumentation“ (Round 39d): {german:?}"));
     assert_eq!(
-        value(entry, "url"),
-        Some("\"/en/docs/\""),
-        "there is no German documentation page; the German entry points to the English section by address (a pageRef \
-         would look for a German page and find none)"
+        value(entry, "pageRef"),
+        Some("\"/docs\""),
+        "the German section is a page of the German site, so the entry names it by pageRef like the English one (an \
+         address would not be marked as current below /docs/)"
     );
-    assert_eq!(value(entry, "pageRef"), None, "url and pageRef together would be ambiguous");
+    assert_eq!(value(entry, "url"), None, "url and pageRef together would be ambiguous");
     assert_eq!(value(entry, "weight"), Some("60"), "same place as in the English menu");
 }
 

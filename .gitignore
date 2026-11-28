@@ -6,5 +6,7 @@ target/
 site/public/
 site/resources/
 site/generated/
+site/generated-de/
 site/.hugo_build.lock
 .hugo_build.lock
+__pycache__/

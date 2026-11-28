@@ -10,10 +10,14 @@
 # Checks:
 #   1. params.version in hugo.toml = version in Cargo.toml (scripts/version.sh) – otherwise the site advertises
 #      a version that does not exist, and the download links point into the void.
-#   1a. Developer documentation (Round 39c): if the site has the generator ORDNER/tools/docs_pages.py, it runs first
-#      (`python3 -I`, sources docs/*.md of this repository) and writes ORDNER/generated/docs/, which hugo.toml mounts
-#      as English content (/en/docs/). A finding of the generator (dead relative link, missing anchor) stops here.
-#      The output is not checked in (.gitignore) and is rebuilt on every run, so the pages never fall behind docs/.
+#   1a. Developer documentation (Round 39c, German Round 39d): if the site has the generator
+#      ORDNER/tools/docs_pages.py, it runs first for both languages (`python3 -I`, sources docs/*.md and docs/de/
+#      of this repository) and writes ORDNER/generated/docs/ (English, /en/docs/) and ORDNER/generated-de/docs/
+#      (German, /docs/), which hugo.toml mounts as content. A finding of the generator (dead relative link, missing
+#      anchor, a German heading without the English id, a missing German file) stops here. The output is not
+#      checked in (.gitignore) and is rebuilt on every run, so the pages never fall behind docs/.
+#      Before it, scripts/check-doc-lag.py (informational, never stops the run) shows which German document follows
+#      an older commit of its English original than the one that last changed it.
 #   2. `hugo --minify --panicOnWarning -s ORDNER` without a warning.
 #   3. public/index.html is there; public/CNAME names exactly baruch.bernau.family (GitHub Pages). For every
 #      further language with content (content/en, Round 39b) public/<lang>/index.html is there as well – otherwise
@@ -25,8 +29,9 @@
 #      dropped. One run covers both languages (German in the root, English under public/en/): <html lang> per
 #      language, pictures of English pages from /bilder/en/, every language switch resolves, /bedienung/ only German.
 #      Round 39c: also no link into the generator output and, under /en/docs/, no link to a docs source on GitHub.
-#   3b. With the generator, public/en/docs/index.html and the page of every source it lists (--list) are there –
-#      otherwise the mount in hugo.toml is missing and the menu entry "Documentation" would point nowhere.
+#   3b. With the generator, public/en/docs/index.html, public/docs/index.html and the page of every source it
+#      lists (--list, both languages) are there – otherwise a mount in hugo.toml is missing and the menu entry
+#      "Documentation"/"Dokumentation" would point nowhere.
 #   The hugo build itself stops for a help picture (hilfebild) or a screenshot (bild) that is missing in the
 #   language of the page (errorf in the shortcodes, Round 39b).
 #   4. with --apt: public/apt/dists/stable/Release and at least one package under public/apt/pool/.
@@ -71,7 +76,11 @@ fi
 
 docs_generator="$site/tools/docs_pages.py"
 if [ -f "$docs_generator" ]; then
-    "$python" -I "$docs_generator" --site "$site" --repo "$root"
+    # Informational: a German document behind its English original is shown, not an error (only --strict fails).
+    if [ -f "$root/scripts/check-doc-lag.py" ]; then
+        "$python" -I "$root/scripts/check-doc-lag.py" || true
+    fi
+    "$python" -I "$docs_generator" --site "$site" --repo "$root" --lang all
 fi
 
 rm -rf "$site/public"
@@ -85,9 +94,9 @@ for lang in en; do
     fi
 done
 if [ -f "$docs_generator" ]; then
-    for address in /en/docs/ $("$python" -I "$docs_generator" --list | cut -f2); do
+    for address in /en/docs/ /docs/ $("$python" -I "$docs_generator" --list --lang all | cut -f2); do
         if [ ! -s "$site/public${address}index.html" ]; then
-            echo "ci-site.sh: public${address}index.html fehlt (Mount generated/ in hugo.toml, site/tools/docs_pages.py?)." >&2
+            echo "ci-site.sh: public${address}index.html fehlt (Mount generated/ or generated-de/ in hugo.toml, site/tools/docs_pages.py?)." >&2
             exit 1
         fi
     done

@@ -13,8 +13,8 @@ theme = "baruch"
 defaultContentLanguage = "de"
 defaultContentLanguageInSubdir = false
 # No tags, categories or feeds: the site consists of seven fixed pages and the section Hilfe (help, one start page
-# and one page per topic), in each language; English also has the section docs (developer documentation,
-# generated, Round 39c).
+# and one page per topic), in each language, and the section docs (developer documentation, generated: English in
+# Round 39c, German in Round 39d).
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = false
 enableGitInfo = false
@@ -57,11 +57,11 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
       name = "MCP und Assistenten"
       pageRef = "/mcp"
       weight = 50
-    # The developer documentation exists only in English (generated from docs/, Round 39c); the German menu points
-    # to the English section by address, so there is no German page and no German twin.
+    # The developer documentation is generated from docs/de/ (Round 39d, German translation; before, the entry led
+    # to the English section by address). pageRef marks the entry as current on every page below /docs/.
     [[languages.de.menus.main]]
-      name = "Dokumentation (englisch)"
-      url = "/en/docs/"
+      name = "Dokumentation"
+      pageRef = "/docs"
       weight = 60
     [[languages.de.menus.footer]]
       name = "Lizenz"
@@ -125,11 +125,13 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
   [markup.goldmark.renderer]
     unsafe = false
 
-# Content per language and the generated developer documentation (Round 39c). Hugo turns `contentDir` into mounts,
-# but as soon as one content mount is configured the defaults are gone, so all three are named here: content/de for
-# German, content/en for English, and generated/ (written by site/tools/docs_pages.py from docs/*.md, gitignored)
-# for English only, which gives /en/docs/. scripts/ci-site.sh runs the generator before Hugo; a plain `hugo` without
-# it builds the site without the section (ci-site.sh then stops: public/en/docs/index.html is missing).
+# Content per language and the generated developer documentation (Rounds 39c and 39d). Hugo turns `contentDir` into
+# mounts, but as soon as one content mount is configured the defaults are gone, so all of them are named here:
+# content/de for German, content/en for English, generated/ (written by site/tools/docs_pages.py from docs/*.md,
+# gitignored) for English, which gives /en/docs/, and generated-de/ (the same generator, from docs/de/) for German,
+# which gives /docs/ with the same slugs, so that the language switch resolves. scripts/ci-site.sh runs the
+# generator before Hugo; a plain `hugo` without it builds the site without the sections (ci-site.sh then stops:
+# public/docs/index.html or public/en/docs/index.html is missing).
 [module]
   [[module.mounts]]
     source = "content/de"
@@ -146,3 +148,8 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
     target = "content"
     [module.mounts.sites.matrix]
       languages = ["en"]
+  [[module.mounts]]
+    source = "generated-de"
+    target = "content"
+    [module.mounts.sites.matrix]
+      languages = ["de"]

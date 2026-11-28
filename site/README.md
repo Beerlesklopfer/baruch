@@ -10,16 +10,16 @@ Hugo from 0.158 is needed (the key `locale` and the language key `label`), the p
 theme uses no SCSS and no image processing.
 
 ```sh
-python3 -I site/tools/docs_pages.py         # developer documentation from docs/*.md to site/generated/docs/
+python3 -I site/tools/docs_pages.py         # developer documentation: docs/*.md to site/generated/docs/, docs/de/ to site/generated-de/docs/
 hugo --minify --panicOnWarning -s site      # from the main folder; output in site/public/
 sh scripts/ci-site.sh                       # both steps plus every check, as the CI does
 ```
 
-Without the first step Hugo builds the site without the section `/en/docs/` (and the menu entry "Documentation"
-points nowhere); `scripts/ci-site.sh` runs it first and stops if the pages are missing afterwards.
+Without the first step Hugo builds the site without the sections `/en/docs/` and `/docs/` (and the menu entries
+"Documentation" and "Dokumentation" point nowhere); `scripts/ci-site.sh` runs it first and stops if the pages are missing afterwards.
 
 `--panicOnWarning` turns every warning into an error; the CI checks the same way. `site/public/`,
-`site/resources/`, `site/generated/` and `.hugo_build.lock` are in `.gitignore` and are never checked in.
+`site/resources/`, `site/generated/`, `site/generated-de/` and `.hugo_build.lock` are in `.gitignore` and are never checked in.
 
 After the build `scripts/site-check.py` checks the output (Python standard library only, no network):
 
@@ -84,6 +84,7 @@ The site is German and English (user decision 2026-11-27, Round 39b).
 | `static/bilder/hilfe/` | pictures of the help: `<name>.png`, next to it optionally `<name>-dunkel.png` for the dark system; English ones under `static/bilder/en/hilfe/` |
 | `tools/` | invented work and script for the screenshots, generator of the developer documentation (`tools/README.md`) |
 | `generated/` | output of `tools/docs_pages.py` (`generated/docs/`), mounted as English content: `/en/docs/`; not checked in, rebuilt on every build |
+| `generated-de/` | the same generator from `docs/de/` (`generated-de/docs/`), mounted as German content: `/docs/`; not checked in, rebuilt on every build |
 
 ## Source for usage and operation
 
@@ -162,9 +163,11 @@ the navigation of the help scroll sideways at phone width and hides the navigati
   and breaks the build with `--panicOnWarning`), and `label` for the language name shown in the switch (the older
   `languageName` likewise).
 
-## Developer documentation (generated, Round 39c)
+## Developer documentation (generated, Rounds 39c and 39d)
 
-The developer documentation in `docs/` is published in English under `/en/docs/`. There is **no hand-kept copy**:
+The developer documentation in `docs/` is published in English under `/en/docs/`, its German translation in
+`docs/de/` (Round 39d) under `/docs/` (German is the default language, so no language folder), with the same slugs,
+so that the language switch of every page resolves. There is **no hand-kept copy**:
 `tools/docs_pages.py` (Python standard library only, run with `python3 -I`) generates one page per source on every
 build, `scripts/ci-site.sh` runs it before Hugo, and `.github/workflows/pages.yml` needs no step of its own.
 
@@ -206,11 +209,25 @@ build, `scripts/ci-site.sh` runs it before Hugo, and `.github/workflows/pages.ym
   browser's find (Ctrl+F) working over the whole architecture, and every GitHub anchor maps 1:1. The table of
   contents of a page with more than 40 entries starts closed.
 - **Checks:** `scripts/site-check.py` checks links and anchors of the section like every page, plus: no link into
-  the generator output (`site/generated`, `/generated/`) and, under `/en/docs/`, no link to one of the nine sources
-  on GitHub. `python3 -I site/tools/docs_pages.py --selbsttest` checks the generator; `scripts/ci-selftest.sh` runs
+  the generator output (`site/generated`, `site/generated-de`, `/generated/`, `/generated-de/`) and, under `/en/docs/`
+  and `/docs/`, no link to one of the nine sources on GitHub; the language switch of a page under `/docs/` must lead to
+  the same page under `/en/docs/`. `python3 -I site/tools/docs_pages.py --selbsttest` checks the generator; `scripts/ci-selftest.sh` runs
   it and checks that `ci-site.sh` calls it.
-- **Menu:** English "Documentation" (`pageRef = "/docs"`), German "Dokumentation (englisch)" (`url = "/en/docs/"`,
-  there is no German page), both weight 60. Theme strings `docs_*` in `i18n/`.
+- **Menu:** English "Documentation" and German "Dokumentation", both `pageRef = "/docs"` and weight 60. Theme strings
+  `docs_*` in `i18n/` (both languages).
+- **German section (Round 39d):** source `docs/de/<Name>.md`; the architecture exists only as the four parts
+  `docs/de/Architektur.part<N>.md` (no joined file in git, so that merges stay conflict free), which the generator
+  joins in numeric order with one blank line. Line 1 of every file is the header comment
+  `<!-- translation-of: docs/<Name>.md source-commit: <hash> -->` (parts add ` part: <N>`); the generator drops it.
+  **The English file under `docs/` is the source of truth.** Every heading of a German file carries an explicit id
+  `{#<English anchor>}` (`python3 -I scripts/docs-anchors.py FILE` lists the anchors, `--check GERMAN ENGLISH` verifies
+  a translation); the generator fails (exit 1, nothing written) if a German heading has no explicit id, if the
+  sequence of levels and ids differs from the English file, if a link anchor is not an id of its target, if a link
+  leaves the German section for the English original, or if a German file or part is missing. Relative links resolve
+  against `docs/de/`. Output `site/generated-de/docs/`, mounted as content of the language `de`, not checked in
+  (`.gitignore`). `python3 -I scripts/check-doc-lag.py` (informational, called by `ci-site.sh`, exit 1 only with
+  `--strict`) names every German file whose header commit is older than the last change of its English source.
+  `docs/de/` is the allowed-German area of `scripts/check-doc-language.py` and of `tests/round38_doku.rs`.
 - **Writing in `docs/`:** ordinary Markdown as on GitHub. Avoid a line inside a paragraph that starts with `>`,
   `#`, `- ` or `1. ` (it starts a new block on GitHub and on the site alike).
 

@@ -407,3 +407,152 @@ fn the_developer_docs_describe_the_work_language() {
         }
     }
 }
+
+// ---- Round 39d: the German translations under docs/de/ (task site_de) -----------------------------------------------
+
+/// The folder whose Markdown files are German by design. Keep in sync with `GERMAN_AREA` in
+/// `scripts/check-doc-language.py`; `AGENTS.md` names both.
+const GERMAN_AREA: &str = "docs/de/";
+
+/// The nine translated documents with the number of parts of their German file (the architecture is kept in four
+/// parts so that merges stay conflict free; there is no joined `docs/de/Architektur.md` in git).
+const GERMAN_DOCS: [(&str, u32); 9] = [
+    ("Bedienung", 1),
+    ("Architektur", 4),
+    ("RPC", 1),
+    ("MCP", 1),
+    ("Austauschformat", 1),
+    ("WYSIWYG", 1),
+    ("Betrieb", 1),
+    ("Verteilung", 1),
+    ("Plan", 1),
+];
+
+/// Common German words without umlauts: the same list as `HINT_WORDS` in `scripts/check-doc-language.py`.
+const HINT_WORDS: [&str; 12] =
+    [" und ", " der ", " die ", " das ", " nicht ", " ist ", " mit ", " wird ", " oder ", " auch ", " eine ", " sich "];
+
+/// The files the German folder must hold: one per document, four parts for the architecture.
+fn expected_german_files() -> Vec<String> {
+    GERMAN_DOCS
+        .iter()
+        .flat_map(|(document, parts)| {
+            if *parts == 1 {
+                vec![format!("{document}.md")]
+            } else {
+                (1..=*parts).map(|n| format!("{document}.part{n}.md")).collect()
+            }
+        })
+        .collect()
+}
+
+fn german_folder_files() -> Vec<String> {
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..").join(GERMAN_AREA);
+    let mut files: Vec<String> = std::fs::read_dir(&folder)
+        .unwrap_or_else(|e| panic!("{}: {e}", folder.display()))
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".md"))
+        .collect();
+    files.sort();
+    files
+}
+
+#[test]
+fn the_german_area_is_the_same_in_the_script_and_in_the_test() {
+    let script = repo_file("scripts/check-doc-language.py");
+    assert!(
+        script.contains(&format!("GERMAN_AREA = \"{GERMAN_AREA}\"")),
+        "scripts/check-doc-language.py names the same allowed-German folder as this test: a different prefix would \
+         exempt other files or check the translations as English"
+    );
+    let rules = repo_file("AGENTS.md");
+    assert!(
+        rules.contains("`docs/de/` is German by design") && rules.contains("`scripts/check-doc-lag.py`"),
+        "AGENTS.md states the rule for docs/de/ (German by design, lag check) – the rule is what the two checks follow"
+    );
+    assert!(
+        FILES.iter().all(|(file, _)| !file.starts_with(GERMAN_AREA)),
+        "FILES holds English files; the German area is exempt from the English-prose test, never listed in it"
+    );
+}
+
+#[test]
+fn nothing_below_docs_outside_the_german_area_is_unchecked() {
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs");
+    for entry in std::fs::read_dir(&folder).unwrap_or_else(|e| panic!("{}: {e}", folder.display())) {
+        let name = entry.expect("a directory entry").file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".md") {
+            continue;
+        }
+        let path = format!("docs/{name}");
+        assert!(
+            FILES.iter().any(|(file, _)| *file == path) || HISTORY.contains(&path.as_str()),
+            "{path} is a Markdown file of docs/ outside docs/de/: it is either English (listed in FILES, so that the \
+             check for German prose applies) or a history file (HISTORY). A new file must be listed – otherwise the \
+             German exemption of docs/de/ would quietly widen to it"
+        );
+    }
+}
+
+#[test]
+fn every_german_file_carries_the_translation_header() {
+    // D3: line 1 `<!-- translation-of: docs/<Name>.md source-commit: <hash> -->`, parts add ` part: <N>`.
+    let header = regex::Regex::new(
+        r"^<!-- translation-of: docs/([A-Za-z]+)\.md source-commit: [0-9a-f]{7,40}(?: part: ([0-9]+))? -->$",
+    )
+    .expect("the header pattern is valid");
+    for name in german_folder_files() {
+        let text = repo_file(&format!("{GERMAN_AREA}{name}"));
+        let first = text.lines().next().unwrap_or("");
+        let found = header.captures(first).unwrap_or_else(|| {
+            panic!(
+                "{GERMAN_AREA}{name}: line 1 is the header comment of D3 (the generator drops it, the lag check reads \
+                 it): {first}"
+            )
+        });
+        let stem = name.trim_end_matches(".md");
+        let (document, part) = match stem.split_once(".part") {
+            Some((document, part)) => (document, Some(part)),
+            None => (stem, None),
+        };
+        assert_eq!(&found[1], document, "{GERMAN_AREA}{name}: the header names the document the file translates");
+        assert_eq!(
+            found.get(2).map(|m| m.as_str()),
+            part,
+            "{GERMAN_AREA}{name}: only the parts of the architecture carry `part: <N>`, and the number is the file's"
+        );
+        assert_eq!(text.lines().nth(1), Some(""), "{GERMAN_AREA}{name}: line 2 is blank (D3)");
+    }
+}
+
+#[test]
+fn the_nine_documents_exist_in_german_and_contain_german() {
+    // Strict on purpose: the integrator runs this after all translations are merged.
+    let present = german_folder_files();
+    let expected = expected_german_files();
+    for file in &expected {
+        assert!(present.contains(file), "{GERMAN_AREA}{file} exists: the nine developer documents are translated");
+        let text = repo_file(&format!("{GERMAN_AREA}{file}"));
+        let hits = text
+            .lines()
+            .filter(|line| {
+                let padded = format!(" {} ", line.to_lowercase());
+                HINT_WORDS.iter().any(|word| padded.contains(word))
+            })
+            .count();
+        assert!(
+            hits >= 20,
+            "{GERMAN_AREA}{file} is German: {hits} lines with common German words (at least 20 expected); an English \
+             copy under docs/de/ would pass every other check"
+        );
+    }
+    for file in &present {
+        assert!(
+            expected.contains(file),
+            "docs/de/{file} is one of the nine documents or a part of the architecture, nothing else: there is no \
+             joined docs/de/Architektur.md in git (D1), the generator, the lag check and the language check \
+             concatenate the parts, so that merges stay conflict free"
+        );
+    }
+}
