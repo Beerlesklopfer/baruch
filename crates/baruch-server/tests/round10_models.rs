@@ -53,7 +53,9 @@ async fn use_mock(server: &common::Server, mock: &MockEliezer) {
 
 async fn page(server: &common::Server, pairs: &[(&str, &str)]) -> String {
     let q: BTreeMap<String, String> = pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
-    render_connections(&server.state, None, &q).await.expect("Seite Verbindungen")
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, render_connections(&server.state, None, &q))
+        .await
+        .expect("Seite Verbindungen")
 }
 
 /// Excerpt of the page: the connection `kind` (up to the next one).

@@ -3,13 +3,13 @@
     HTML from the page). The same div is supplied by ?fragment=1 and settings.render for the popup.
     Context: slug, storage, pages [{slug, title, current}], work, body. -#}
 <div class="settings-frame" data-settings-frame data-page="{{ slug }}">
-  <nav class="settings-nav" aria-label="Einstellungen">
+  <nav class="settings-nav" aria-label="{{ t("settings.frame.nav_label") }}">
   {%- for p in pages %}
     <a href="/einstellungen/{{ p.slug }}{% if work %}?work={{ work }}{% endif %}" data-settings-page="{{ p.slug }}"{% if p.current %} aria-current="page"{% endif %}>{{ p.title }}</a>
   {%- endfor %}
   </nav>
   <div class="settings-body">
-    <p class="settings-storage">Gespeichert: {{ storage }}</p>
+    <p class="settings-storage">{{ t("settings.frame.storage", storage=storage) }}</p>
     {{ body|safe }}
   </div>
 </div>

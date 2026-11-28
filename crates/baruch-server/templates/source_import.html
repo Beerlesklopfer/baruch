@@ -6,14 +6,14 @@
     kind_label, rows [{src, line, part_hint, chars, sample}], values {target, title, author}, error, back_url.
     Contents from the file (titles, text samples, warnings) are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
-{% block title %}PDF oder EPUB importieren – Baruch{% endblock %}
-{% block page_title %}PDF oder EPUB importieren{% endblock %}
+{% block title %}{{ t("sources.import.window_title") }}{% endblock %}
+{% block page_title %}{{ t("sources.import.title") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/werke">Werke</a>
-    {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("sources.import.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("sources.import.back_group") }}">
+    <a class="btn" href="/werke">{{ t("sources.import.works") }}</a>
+    {%- if back_url %}<a class="btn" href="{{ back_url }}">{{ t("sources.import.back_to_work") }}</a>{% endif %}
   </div></details>
 {% endblock %}
 {% block body %}
@@ -31,76 +31,73 @@
     <input type="hidden" name="draft" value="{{ retry_local.draft }}">
     <input type="hidden" name="way" value="local">
     <input type="hidden" name="title" value="{{ form.title }}">
-    <p>MultiGPT hat „{{ retry_local.file_name }}“ nicht gelesen; Baruch wechselt nicht von selbst den Weg.</p>
-    <button class="btn primary" type="submit">Lokal lesen</button>
-    <span class="muted small">pdftotext auf diesem Rechner; die Datei liegt noch bereit, nichts ist angelegt.</span>
+    <p>{{ t("sources.import.multigpt_failed", file_name=retry_local.file_name) }}</p>
+    <button class="btn primary" type="submit">{{ t("sources.import.read_local") }}</button>
+    <span class="muted small">{{ t("sources.import.read_local_help") }}</span>
   </form>
   {%- endif %}
   <form class="source-import-form" action="/werke/import/quelle/vorschau" method="post" enctype="multipart/form-data">
-    <h1 class="pane-title">Datei lesen</h1>
-    <p class="muted small">Baruch liest die Datei und schlägt eine Gliederung vor. Angelegt wird erst, wenn du die
-      Gliederung in der Vorschau bestätigst – als Werk, als Quelle der Bibliothek oder beides.</p>
-    <label>Datei (.pdf oder .epub, höchstens {{ max_mib }} MiB)
+    <h1 class="pane-title">{{ t("sources.import.read_file") }}</h1>
+    <p class="muted small">{{ t("sources.import.intro") }}</p>
+    <label>{{ t("sources.import.file", max_mib=max_mib) }}
       <input type="file" name="file" accept=".pdf,.epub,application/pdf,application/epub+zip"{% if not retry_local %} required{% endif %}>
     </label>
     <fieldset class="source-import-way">
-      <legend>Weg (nur PDF; EPUB liest Baruch immer selbst)</legend>
-      <label><input type="radio" name="way" value="auto"{% if form.way == "auto" or not form.way %} checked{% endif %}> automatisch
-        <span class="muted small">(MultiGPT, wenn eingerichtet, eine Sammlung gewählt und Hochladen angekreuzt ist; sonst lokal)</span></label>
-      <label><input type="radio" name="way" value="local"{% if form.way == "local" %} checked{% endif %}> lokal
-        <span class="muted small">(pdftotext auf diesem Rechner, nichts verlässt ihn)</span></label>
-      <label><input type="radio" name="way" value="multigpt"{% if form.way == "multigpt" %} checked{% endif %}{% if not multigpt_configured %} disabled{% endif %}> über MultiGPT
-        <span class="muted small">{% if multigpt_configured %}(Inhaltsverzeichnis von MultiGPT){% else %}(keine Verbindung eingerichtet: Einstellungen → Verbindungen){% endif %}</span></label>
+      <legend>{{ t("sources.import.way") }}</legend>
+      <label><input type="radio" name="way" value="auto"{% if form.way == "auto" or not form.way %} checked{% endif %}> {{ t("sources.import.way_auto") }}
+        <span class="muted small">{{ t("sources.import.way_auto_help") }}</span></label>
+      <label><input type="radio" name="way" value="local"{% if form.way == "local" %} checked{% endif %}> {{ t("sources.import.way_local") }}
+        <span class="muted small">{{ t("sources.import.way_local_help") }}</span></label>
+      <label><input type="radio" name="way" value="multigpt"{% if form.way == "multigpt" %} checked{% endif %}{% if not multigpt_configured %} disabled{% endif %}> {{ t("sources.import.way_multigpt") }}
+        <span class="muted small">{% if multigpt_configured %}{{ t("sources.import.way_multigpt_help") }}{% else %}{{ t("sources.import.way_multigpt_missing") }}{% endif %}</span></label>
     </fieldset>
-    <label>Sammlung in MultiGPT
+    <label>{{ t("sources.import.collection") }}
       <input type="text" name="collection" value="{{ form.collection }}" maxlength="200" autocomplete="off">
     </label>
     <label class="source-import-upload"><input type="checkbox" name="upload" value="1"{% if form.upload %} checked{% endif %}>
-      in MultiGPT hochladen (Sammlung {% if form.collection %}„{{ form.collection }}“{% else %}oben eintragen{% endif %})</label>
-    <label>Titel <span class="muted small">(leer: aus der Datei)</span>
+      {% if form.collection %}{{ t("sources.import.upload_named", collection=form.collection) }}{% else %}{{ t("sources.import.upload_unnamed") }}{% endif %}</label>
+    <label>{{ t("sources.import.title_field") }} <span class="muted small">{{ t("sources.import.title_empty") }}</span>
       <input type="text" name="title" value="{{ form.title }}" autocomplete="off">
     </label>
-    <button class="btn primary" type="submit">Lesen und Gliederung zeigen</button>
+    <button class="btn primary" type="submit">{{ t("sources.import.read_submit") }}</button>
   </form>
-  <p class="muted small">Typst-Datei statt PDF? <a href="/werke/neu">Neues Werk / Importieren …</a></p>
+  <p class="muted small">{{ t("sources.import.typst_instead") }} <a href="/werke/neu">{{ t("sources.import.new_work") }}</a></p>
 
   {%- else %}
   <section class="source-import-preview" data-draft="{{ preview.draft }}">
-    <h1 class="pane-title">Vorschau: {{ preview.file_name }}</h1>
-    <p class="source-import-way" data-way="{{ preview.way }}"><strong>Weg: {{ way_label }}</strong> ({{ kind_label }}{% if preview.pages %}, {{ preview.pages }} Seite{% if preview.pages != 1 %}n{% endif %}{% endif %}) – {{ preview.way_reason }}</p>
+    <h1 class="pane-title">{{ t("sources.import.preview", file_name=preview.file_name) }}</h1>
+    <p class="source-import-way" data-way="{{ preview.way }}">{{ t("sources.import.way_line_html", way_label=way_label, kind_label=kind_label) }}{% if preview.pages %}{{ t("sources.import.pages", count=preview.pages) }}{% endif %}) – {{ preview.way_reason }}</p>
     {%- if preview.document %}
-    <p class="muted small">In MultiGPT: Sammlung „{{ preview.document.collection }}“, Dokument <code>{{ preview.document.id }}</code>.</p>
+    <p class="muted small">{{ t("sources.import.document_html", collection=preview.document.collection, id=preview.document.id) }}</p>
     {%- endif %}
     {%- if preview.warnings %}
-    <ul class="source-import-warnings" aria-label="Hinweise">
+    <ul class="source-import-warnings" aria-label="{{ t("sources.import.hints") }}">
       {%- for w in preview.warnings %}
       <li data-code="{{ w.code }}"><code>{{ w.code }}</code> {{ w.message }}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
     {%- if preview.skipped %}
-    <ul class="source-import-skipped" aria-label="Übersprungene Bilder">
+    <ul class="source-import-skipped" aria-label="{{ t("sources.import.skipped") }}">
       {%- for s in preview.skipped %}
-      <li>Bild übersprungen: <code>{{ s.path }}</code> – {{ s.reason }}</li>
+      <li>{{ t("sources.import.skipped_image_html", path=s.path, reason=s.reason) }}</li>
       {%- endfor %}
     </ul>
     {%- endif %}
     {%- if preview.assets %}
-    <p class="muted small">{{ preview.assets | length }} Bild(er) kommen mit ins Werk.</p>
+    <p class="muted small">{{ t("sources.import.assets", assets=preview.assets | length) }}</p>
     {%- endif %}
 
     <form class="source-import-apply" action="/werke/import/quelle/uebernehmen" method="post">
       <input type="hidden" name="draft" value="{{ preview.draft }}">
-      <h2 class="pane-title">Gliederung prüfen</h2>
-      <p class="muted small">Je Zeile ein Punkt: <code>= Titel</code> Kapitel, <code>== Titel</code> Abschnitt,
-        <code>=== Titel</code> Unterabschnitt; <code>= Teil: Titel</code> macht einen Teil. Zeile leeren = Punkt
-        streichen (sein Text geht an den vorigen Punkt). Die Reihenfolge bleibt wie in der Datei.</p>
+      <h2 class="pane-title">{{ t("sources.import.check_outline") }}</h2>
+      <p class="muted small">{{ t("sources.import.outline_help_html") }}</p>
       <ol class="source-import-outline">
         {%- for r in rows %}
         <li>
           <input type="hidden" name="src" value="{{ r.src }}">
-          <input type="text" name="line" value="{{ r.line }}" aria-label="Punkt {{ loop.index }}" class="source-import-line">
-          <span class="muted tiny">{{ r.chars }} Zeichen{% if r.part_hint %} · möglicher Teil – als Teil nur mit „= Teil: …“{% endif %}</span>
+          <input type="text" name="line" value="{{ r.line }}" aria-label="{{ t("sources.import.item", index=loop.index) }}" class="source-import-line">
+          <span class="muted tiny">{{ t("sources.import.chars", chars=r.chars) }}{% if r.part_hint %} {{ t("sources.import.part_hint") }}{% endif %}</span>
           {%- if r.sample %}
           <p class="source-import-sample muted small">{{ r.sample }}</p>
           {%- endif %}
@@ -108,19 +105,19 @@
         {%- endfor %}
       </ol>
       <fieldset class="source-import-target">
-        <legend>Übernehmen als</legend>
-        <label><input type="radio" name="target" value="work"{% if values.target == "work" or not values.target %} checked{% endif %}> Werk</label>
-        <label><input type="radio" name="target" value="library"{% if values.target == "library" %} checked{% endif %}> Quelle der Bibliothek</label>
-        <label><input type="radio" name="target" value="both"{% if values.target == "both" %} checked{% endif %}> beides</label>
+        <legend>{{ t("sources.import.adopt_as") }}</legend>
+        <label><input type="radio" name="target" value="work"{% if values.target == "work" or not values.target %} checked{% endif %}> {{ t("sources.import.as_work") }}</label>
+        <label><input type="radio" name="target" value="library"{% if values.target == "library" %} checked{% endif %}> {{ t("sources.import.as_library") }}</label>
+        <label><input type="radio" name="target" value="both"{% if values.target == "both" %} checked{% endif %}> {{ t("sources.import.as_both") }}</label>
       </fieldset>
-      <label>Titel <input type="text" name="title" value="{{ values.title }}" required></label>
-      <label>Autor <input type="text" name="author" value="{{ values.author }}"></label>
-      <button class="btn primary" type="submit">Übernehmen</button>
+      <label>{{ t("sources.import.title_field") }} <input type="text" name="title" value="{{ values.title }}" required></label>
+      <label>{{ t("sources.import.author") }} <input type="text" name="author" value="{{ values.author }}"></label>
+      <button class="btn primary" type="submit">{{ t("sources.import.adopt") }}</button>
     </form>
     <form class="source-import-discard" action="/werke/import/quelle/verwerfen" method="post">
       <input type="hidden" name="draft" value="{{ preview.draft }}">
-      <button class="btn" type="submit">Verwerfen</button>
-      <span class="muted small">löscht den Entwurf; nichts wird angelegt.</span>
+      <button class="btn" type="submit">{{ t("sources.import.discard") }}</button>
+      <span class="muted small">{{ t("sources.import.discard_help") }}</span>
     </form>
   </section>
   {%- endif %}

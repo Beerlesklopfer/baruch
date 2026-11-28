@@ -3,44 +3,39 @@
     are never prefilled. If the request does not come from the own machine (allowed = false, status 403), the page shows
     only the explanation – no form.
     Context: name, display, error (text or none), allowed (bool), min, max (length of the password). -#}
+{%- set password_cmd = "baruch-server passwort <" ~ t("accounts.cmd_name") ~ ">" -%}
 <!doctype html>
 <html lang="{{ ui_lang() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Konten einrichten – Baruch</title>
+  <title>{{ t("accounts.setup.window_title") }}</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css">
 </head>
 <body class="konto-seite">
 <main class="konto-karte">
-  <h1 class="pane-title">Baruch – Konten einrichten</h1>
+  <h1 class="pane-title">{{ t("accounts.setup.heading") }}</h1>
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   {%- if allowed %}
-  <p>Das erste Konto gehört dem <strong>Autor</strong>. Sobald es besteht, verlangt Baruch eine Anmeldung – auch an
-    diesem Rechner. Danach lassen sich unter Einstellungen → Konten Lektoren anlegen und je Werk freigeben.</p>
-  <p class="muted small">Ohne Konten bleibt Baruch offen wie bisher. Wer nur allein am eigenen Rechner schreibt,
-    braucht keine Konten.</p>
+  <p>{{ t("accounts.setup.first_html") }}</p>
+  <p class="muted small">{{ t("accounts.setup.without") }}</p>
   <form class="konto-form" method="post" action="/einrichten">
-    <label>Name (zum Anmelden) <input type="text" name="name" value="{{ name }}" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
-    <label>Anzeigename (freiwillig) <input type="text" name="display" value="{{ display }}" maxlength="80" autocomplete="name"></label>
-    <label>Passwort ({{ min }} bis {{ max }} Zeichen) <input type="password" name="password" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
-    <label>Passwort wiederholen <input type="password" name="password2" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
-    <button class="btn primary" type="submit">Konto anlegen</button>
-    <a class="btn" href="/">Abbrechen</a>
+    <label>{{ t("accounts.setup.name") }} <input type="text" name="name" value="{{ name }}" maxlength="40" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus></label>
+    <label>{{ t("accounts.setup.display") }} <input type="text" name="display" value="{{ display }}" maxlength="80" autocomplete="name"></label>
+    <label>{{ t("accounts.setup.password", min=min, max=max) }} <input type="password" name="password" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <label>{{ t("accounts.setup.password_repeat") }} <input type="password" name="password2" autocomplete="new-password" minlength="{{ min }}" maxlength="{{ max }}" required></label>
+    <button class="btn primary" type="submit">{{ t("accounts.setup.create") }}</button>
+    <a class="btn" href="/">{{ t("common.cancel") }}</a>
   </form>
-  <p class="muted small">Das Passwort speichert Baruch nur als Prüfwert (Argon2id), nie im Klartext. Geht es verloren,
-    setzt am Rechner, auf dem Baruch läuft, der Befehl <code>baruch-server passwort &lt;Name&gt;</code> ein neues.</p>
+  <p class="muted small">{{ t("accounts.setup.hash_html", password_cmd=password_cmd) }}</p>
   {%- else %}
-  <p class="notice error" role="alert">Das erste Konto lässt sich nur am eigenen Rechner einrichten.</p>
-  <p>Diese Anfrage kam von einem anderen Rechner oder über einen vorgeschalteten Server (Reverse-Proxy). Von dort
-    aus legt Baruch kein Autor-Konto an – sonst könnte der Erste, der die Seite erreicht, die Schreibwerkstatt
-    übernehmen.</p>
-  <p class="muted">Einrichten geht am Rechner, auf dem Baruch läuft: dort im Browser Baruch direkt öffnen
-    (zum Beispiel <code>http://127.0.0.1:8765/einrichten</code>, nicht über den Namen des Proxys).</p>
-  <p><a class="btn" href="/">Zurück</a></p>
+  <p class="notice error" role="alert">{{ t("accounts.setup.local_only") }}</p>
+  <p>{{ t("accounts.setup.remote") }}</p>
+  <p class="muted">{{ t("accounts.setup.how_html") }}</p>
+  <p><a class="btn" href="/">{{ t("common.back") }}</a></p>
   {%- endif %}
 </main>
 </body>

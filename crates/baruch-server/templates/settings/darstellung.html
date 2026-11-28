@@ -12,38 +12,38 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h3 class="pane-title">Darstellung</h3>
+  <h3 class="pane-title">{{ t("settings.display.title") }}</h3>
   <form class="settings-form" method="post" action="/einstellungen/darstellung/act">
     {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
     <fieldset>
-      <legend>Thema</legend>
-      {{- choice("theme", "system", "Wie das System", theme) }}
-      {{- choice("theme", "light", "Hell", theme) }}
-      {{- choice("theme", "dark", "Dunkel", theme) }}
+      <legend>{{ t("settings.display.theme") }}</legend>
+      {{- choice("theme", "system", t("settings.display.theme_system"), theme) }}
+      {{- choice("theme", "light", t("settings.display.theme_light"), theme) }}
+      {{- choice("theme", "dark", t("settings.display.theme_dark"), theme) }}
     </fieldset>
     <fieldset>
-      <legend>Editor beim Öffnen</legend>
-      {{- choice("editor", "satz", "Satzbild", editor) }}
-      {{- choice("editor", "quelltext", "Quelltext (Typst)", editor) }}
+      <legend>{{ t("settings.display.editor") }}</legend>
+      {{- choice("editor", "satz", t("settings.display.editor_satz"), editor) }}
+      {{- choice("editor", "quelltext", t("settings.display.editor_source"), editor) }}
     </fieldset>
     <fieldset>
-      <legend>Vorschläge im Lesefluss anfangs</legend>
-      {{- choice("pv", "open", "aufgeklappt", pv) }}
-      {{- choice("pv", "closed", "eingeklappt (außer dem gezeigten)", pv) }}
+      <legend>{{ t("settings.display.pv") }}</legend>
+      {{- choice("pv", "open", t("settings.display.pv_open"), pv) }}
+      {{- choice("pv", "closed", t("settings.display.pv_closed"), pv) }}
     </fieldset>
     <fieldset>
-      <legend>Offener Bereich rechts</legend>
-      {{- choice("accordion", "personas", "Assistenten", accordion) }}
-      {{- choice("accordion", "revisions", "Fassungen", accordion) }}
-      {{- choice("accordion", "chat", "Abschnitts-Chat", accordion) }}
+      <legend>{{ t("settings.display.accordion") }}</legend>
+      {{- choice("accordion", "personas", t("settings.display.accordion_personas"), accordion) }}
+      {{- choice("accordion", "revisions", t("settings.display.accordion_revisions"), accordion) }}
+      {{- choice("accordion", "chat", t("settings.display.accordion_chat"), accordion) }}
     </fieldset>
-    <p><button class="btn primary" type="submit">Speichern</button></p>
+    <p><button class="btn primary" type="submit">{{ t("common.save") }}</button></p>
   </form>
   <form class="settings-form" method="post" action="/einstellungen/darstellung/act">
     {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
     <input type="hidden" name="reset_widths" value="1">
-    <p class="small">Spaltenbreiten: links {% if left %}{{ left }}{% else %}Vorgabe{% endif %}, rechts {% if right %}{{ right }}{% else %}Vorgabe{% endif %}.
-      <button class="btn" type="submit">Spaltenbreiten zurücksetzen</button></p>
+    <p class="small">{{ t("settings.display.widths", left=(left if left else t("settings.display.width_default")), right=(right if right else t("settings.display.width_default"))) }}
+      <button class="btn" type="submit">{{ t("settings.display.reset_widths") }}</button></p>
   </form>
   {#- R39A-S1 lang-form begin #}
   {#- Round 39a: language of the interface, an own form to POST /einstellungen/sprache (cookie and the own setting),
@@ -60,6 +60,5 @@
     <p><button class="btn primary" type="submit">{{ t("common.save") }}</button></p>
   </form>
   {#- R39A-S1 lang-form end #}
-  <p class="muted tiny">Diese Werte stehen nur in diesem Browser (Cookies <code>baruch_theme</code>, <code>baruch_editor</code>,
-    <code>baruch_pv</code>, <code>baruch_accordion</code>, <code>baruch_left</code>/<code>baruch_right</code>); ein anderer Browser hat seine eigenen.</p>
+  <p class="muted tiny">{{ t("settings.display.cookies_html") }}</p>
 </section>

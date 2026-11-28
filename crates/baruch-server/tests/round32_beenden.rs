@@ -79,7 +79,7 @@ async fn ended(running: &mut Running, limit: Duration) -> Result<Duration, ()> {
 #[tokio::test]
 async fn the_page_asks_first_and_works_as_a_plain_form() {
     let mut running = run(Duration::from_secs(5), "").await;
-    let answer = client().get(running.url("/beenden")).send().await.unwrap();
+    let answer = client().get(running.url("/beenden")).header(header::ACCEPT_LANGUAGE, "de").send().await.unwrap();
     assert_eq!(answer.status(), StatusCode::OK, "vom eigenen Rechner (Loopback, Host ist die Adresse): die Rückfrage");
     let html = answer.text().await.unwrap();
     assert!(html.contains("Soll Baruch auf diesem Rechner beendet werden?"), "die Seite fragt, bevor etwas geschieht");
@@ -102,6 +102,7 @@ async fn the_page_asks_first_and_works_as_a_plain_form() {
     let html = client()
         .get(running.url("/beenden"))
         .header(header::COOKIE, format!("baruch_work={work}"))
+        .header(header::ACCEPT_LANGUAGE, "de")
         .send()
         .await
         .unwrap()
@@ -118,7 +119,13 @@ async fn the_page_asks_first_and_works_as_a_plain_form() {
 async fn under_a_proxy_name_the_page_explains_and_offers_no_form() {
     const NAME: &str = "baruch.example.org";
     let mut running = run(Duration::from_secs(5), NAME).await;
-    let answer = client().get(running.url("/beenden")).header(header::HOST, NAME).send().await.unwrap();
+    let answer = client()
+        .get(running.url("/beenden"))
+        .header(header::HOST, NAME)
+        .header(header::ACCEPT_LANGUAGE, "de")
+        .send()
+        .await
+        .unwrap();
     assert_eq!(
         answer.status(),
         StatusCode::FORBIDDEN,

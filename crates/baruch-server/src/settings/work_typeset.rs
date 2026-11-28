@@ -905,7 +905,7 @@ mod tests {
 
     #[test]
     fn the_offer_names_line_and_text_of_the_template_rule() {
-        let html = render(&view(true, false), None);
+        let html = crate::i18n::sync_scope(crate::i18n::Lang::De, || render(&view(true, false), None));
         assert!(html.contains("action=\"/einstellungen/werk/satz/vorlage\""), "Formular der Übernahme: {html}");
         assert!(html.contains("Zeile 1"), "Zeile der Regel: {html}");
         assert!(html.contains("pagebreak(weak: true, to: &quot;odd&quot;)"), "Text der Regel (maskiert): {html}");

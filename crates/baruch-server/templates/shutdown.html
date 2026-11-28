@@ -3,36 +3,28 @@
     through the name of a reverse proxy), the page shows only the explanation with status 403 – no form.
     Context: settings (settings.work: the work opened last, target of „Abbrechen“), allowed (bool). -#}
 {% extends "base.html" %}
-{% block title %}Baruch beenden – Baruch{% endblock %}
-{% block page_title %}Baruch beenden{% endblock %}
+{% block title %}{{ t("system.shutdown.window_title") }}{% endblock %}
+{% block page_title %}{{ t("system.shutdown.title") }}{% endblock %}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("system.shutdown.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("system.shutdown.back_group") }}">
+    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">{{ t("system.shutdown.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page shutdown-page">
-  <h1 class="pane-title">Baruch beenden</h1>
+  <h1 class="pane-title">{{ t("system.shutdown.title") }}</h1>
   {%- if allowed %}
-  <p>Soll Baruch auf diesem Rechner beendet werden?</p>
-  <p class="muted">Gespeicherte Texte stehen bereits in der Datenbank und im Git-Spiegel; es geht nichts verloren.
-    Ungespeicherte Eingaben in anderen Fenstern vorher speichern. Laufende Antworten gehen noch zu Ende (höchstens
-    zehn Sekunden), ein offener Live-Chat wird
-    danach getrennt. Danach ist Baruch nicht mehr erreichbar, bis es neu gestartet wird (Startmenü, Programme,
-    <code>baruch</code> im Terminal oder der eingerichtete Dienst).</p>
+  <p>{{ t("system.shutdown.question") }}</p>
+  <p class="muted">{{ t("system.shutdown.help_html") }}</p>
   <form class="shutdown-form" method="post" action="/beenden" data-shutdown-form>
-    <button class="btn danger" type="submit">Baruch beenden</button>
-    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Abbrechen</a>
+    <button class="btn danger" type="submit">{{ t("system.shutdown.submit") }}</button>
+    <a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">{{ t("common.cancel") }}</a>
   </form>
   {%- else %}
-  <p class="notice error" role="alert">Baruch lässt sich nur am eigenen Rechner beenden.</p>
-  <p>Diese Anfrage kam von einem anderen Rechner oder über den Namen eines vorgeschalteten Servers
-    (Reverse-Proxy). Von dort aus beendet Baruch sich nicht – sonst könnte jeder, der die Seite erreicht, die
-    Schreibwerkstatt abschalten.</p>
-  <p class="muted">Beenden geht am Rechner, auf dem Baruch läuft: dort im Browser
-    <code>http://127.0.0.1:8765/beenden</code> öffnen (bzw. die Adresse, unter der Baruch dort lauscht), oder den
-    Dienst anhalten (<code>systemctl --user stop baruch</code>).</p>
-  <p><a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">Zurück</a></p>
+  <p class="notice error" role="alert">{{ t("system.shutdown.local_only") }}</p>
+  <p>{{ t("system.shutdown.remote") }}</p>
+  <p class="muted">{{ t("system.shutdown.how_html") }}</p>
+  <p><a class="btn" href="/{% if settings.work %}?work={{ settings.work }}{% endif %}">{{ t("common.back") }}</a></p>
   {%- endif %}
 </main>
 {% endblock %}

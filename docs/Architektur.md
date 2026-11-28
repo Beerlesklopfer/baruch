@@ -6361,6 +6361,46 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
 
 #### templates_3
 
+- **Converted (28 templates):** the settings pages (`settings.html`, `settings/frame.html`, `settings/darstellung.html`
+  outside the S1 block `lang-form`, `assistenten`, `daten`, `konten`, `mcp`, `quellen`, `verbindungen`, `werk`,
+  `werk_satz`), the account pages (`anmelden.html`, `einrichten.html`, `konto.html`, `mitwirkende.html`), the system
+  pages (`about.html`, `shutdown.html`, `shutdown_done.html`, `sync.html`, `consent.html`) and sources, literature and
+  web evidence (`source.html`, `source_import.html`, `source_multigpt.html`, `literature.html`,
+  `literature_bible.html`, `fragments/literature_bibles.html`, `fragments/library.html`, `websearch_evidence.html`).
+  Their lines in `scripts/i18n-literal-allow.txt` are gone (none left, no `# reason` line needed).
+- **Catalogs:** `settings` (keys `settings.<page>.…`: `page`, `frame`, `display`, `assistants`, `data`, `accounts`,
+  `mcp`, `sources`, `connections`, `work`, `typeset`), `accounts` (`sign_in`, `setup`, `mine`, `contributors`,
+  `cmd_name`), `system` (`about`, `shutdown`, `shutdown_done`, `sync`, `consent`) and `sources` (`source`, `import`,
+  `multigpt`, `literature`, `bible`, `bibles`, `library`, `evidence`); about 860 keys, en and de in the same order.
+  The comment `# templates/<file>` in the catalogs names the template a block of keys belongs to.
+- **Patterns:** words that only changed with a number (`Sekunde/Sekunden`, `Auftrag/Aufträge`, `Dokument/Dokumente`,
+  `Seite/Seiten`, `schwacher/schwache Treffer`, „hat 1 Abschnitt / haben n Abschnitte“) became one key with a Fluent
+  number selector (`count=…`). Placeholders inside code (`<Name>`, `<Token>`, `<IP>`, `@mcp:<name>`,
+  `baruch/model-<id>`, `sword-cipher:<modul>`, „Baruch: <Werktitel>“) are built in the template with `{% set %}` and
+  handed to the text as an argument, so that no catalog text carries `<` outside the allowed tags; the command lines
+  in `settings/mcp.html` stay literal code outside `t()` after the sentence that introduces them. Macro arguments
+  (`choice(…)`, `num(…)`, `sub(…)`), default texts (`a.last_login or …`, `| default(…)`) and the labels of the dict
+  `kind_labels` are `t()` calls; comparison values (`"fixed"`, `"Lektor"`, `"bekannt"`, …) and `data-*` states
+  stay as they were.
+- **Loop variables named `t`:** a loop variable `t` hides the function `t()` inside its loop; `settings/mcp.html`
+  (tokens, now `tok`) and `fragments/library.html` (titles, now `lit`) were renamed. Other templates still use `t`
+  as a loop variable (`threads.html`, `glossary.html`, `karte_gliederung.html`, `index_page.html`, `outline.html`,
+  `fragments/findings_panel.html`, `fragments/post_item.html`); their owners have to rename it before calling `t()`
+  inside those loops.
+- **Escaping:** a text from `t()` is auto-escaped like every value, so `/`, `"` and `'` inside a sentence appear as
+  `&#x2f;`, `&quot;`, `&#x27;` in the HTML (the browser shows the same text); assertions on raw HTML with these
+  characters compare the escaped form.
+- **Older tests:** tests that render these templates outside a request (direct calls of `render_connections`,
+  `render_sources`, `accounts_html`, `members_html`, `account_html`, `login_page`, `setup_page` and two unit tests
+  in `connections/pages.rs`, `settings/work_typeset.rs`) now render inside `i18n::scope`/`sync_scope(Lang::De, …)`;
+  `round32_beenden` asks its real process with `Accept-Language: de`; `round36_reste` checks the key call and the
+  German catalog text instead of the template source; the test of `baruch-library`, which renders
+  `fragments/library.html` in a bare environment, registers a small `t()` that reads `locales/de/sources.ftl`.
+- **Open:** the page names of the settings navigation, the storage note („Gespeichert: …“), notices and errors handed
+  over from Rust (`settings/*.rs`, `konten_ui`, `sync`, `websearch`) stay German until messages_2/messages_1;
+  `tests/round39a_templates_3.rs` renders every page of the task in en and de (with and without accounts, own machine
+  and remote for setting up and quitting, the consent dialog).
+
 #### widgets
 
 #### messages_1

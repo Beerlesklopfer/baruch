@@ -8,14 +8,14 @@
     title, preferred, accessed, quote, verdict, verdict_label, library_title, library_href, can_adopt}],
     notice?, error?. -#}
 {% extends "base.html" %}
-{% block title %}Belege der Websuche – Baruch{% endblock %}
-{% block page_title %}Belege der Websuche{% endblock %}
+{% block title %}{{ t("sources.evidence.window_title") }}{% endblock %}
+{% block page_title %}{{ t("sources.evidence.title") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
   {%- if back %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back }}">Zum Abschnitt</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("sources.evidence.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("sources.evidence.back_group") }}">
+    <a class="btn" href="{{ back }}">{{ t("sources.evidence.to_section") }}</a>
   </div></details>
   {%- endif %}
 {% endblock %}
@@ -27,13 +27,11 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Belege zu Beitrag {{ post }}</h1>
+  <h1 class="pane-title">{{ t("sources.evidence.heading", post=post) }}</h1>
   {%- if post_body %}
   <blockquote class="websearch-post"><div class="post-author">{{ post_author }}</div><div class="post-body">{{ post_body }}</div></blockquote>
   {%- endif %}
-  <p class="muted small">Die Websuche von @belege ruft jede Seite ab, bevor sie genannt wird. Baruch prüft jedes
-    Zitat gegen den abgerufenen Text: „belegt“ heißt, der Wortlaut steht so auf der Seite. Nur belegte Zitate
-    lassen sich in die Autorenbibliothek übernehmen (Titel, Adresse, Zitat, Hervorhebung).</p>
+  <p class="muted small">{{ t("sources.evidence.intro") }}</p>
   {%- if evidence %}
   <ol class="websearch-evidence">
   {%- for e in evidence %}
@@ -41,15 +39,15 @@
       <div class="websearch-head">
         <strong>[{{ e.label }}]</strong>
         <a href="{{ e.url }}" rel="noopener noreferrer" target="_blank">{{ e.title }}</a>
-        {%- if e.preferred %} <span class="badge primary">bevorzugte Quelle</span>{% endif %}
+        {%- if e.preferred %} <span class="badge primary">{{ t("sources.evidence.preferred") }}</span>{% endif %}
       </div>
-      <div class="muted tiny websearch-url">{{ e.url }} · abgerufen am {{ e.accessed }}</div>
+      <div class="muted tiny websearch-url">{{ t("sources.evidence.accessed", url=e.url, accessed=e.accessed) }}</div>
       {%- if e.quote %}
-      <blockquote class="websearch-quote">„{{ e.quote }}“</blockquote>
+      <blockquote class="websearch-quote">{{ t("sources.evidence.quote", quote=e.quote) }}</blockquote>
       {%- endif %}
-      <div class="small">Prüfung: <span class="badge{% if e.verdict == "belegt" %} success{% elif e.verdict == "nicht_belegt" %} warning{% endif %}">{{ e.verdict_label }}</span></div>
+      <div class="small">{{ t("sources.evidence.check") }} <span class="badge{% if e.verdict == "belegt" %} success{% elif e.verdict == "nicht_belegt" %} warning{% endif %}">{{ e.verdict_label }}</span></div>
       {%- if e.library_href %}
-      <p class="small"><a href="{{ e.library_href }}">In der Bibliothek (Titel {{ e.library_title }})</a></p>
+      <p class="small"><a href="{{ e.library_href }}">{{ t("sources.evidence.in_library", library_title=e.library_title) }}</a></p>
       {%- elif e.can_adopt %}
       <form class="websearch-adopt" method="post" action="/websuche/act">
         <input type="hidden" name="action" value="adopt">
@@ -57,14 +55,14 @@
         {%- if work %}<input type="hidden" name="work" value="{{ work.id }}">{% endif %}
         {%- if key %}<input type="hidden" name="key" value="{{ key }}">{% endif %}
         <input type="hidden" name="post" value="{{ post }}">
-        <button class="btn primary" type="submit">In die Bibliothek</button>
+        <button class="btn primary" type="submit">{{ t("sources.evidence.adopt") }}</button>
       </form>
       {%- endif %}
     </li>
   {%- endfor %}
   </ol>
   {%- else %}
-  <p class="muted">Zu diesem Beitrag gibt es keine Belege der Websuche.</p>
+  <p class="muted">{{ t("sources.evidence.none") }}</p>
   {%- endif %}
 </main>
 {% endblock %}

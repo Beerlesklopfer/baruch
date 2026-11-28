@@ -5,18 +5,18 @@
     Context: settings, work {id, title}, accounts_exist, members [{account, name, display, handle, role, granted,
     active}], candidates [{account, name, display, handle}], notice, error, load_error (text or none). -#}
 {% extends "base.html" %}
-{% block title %}Mitwirkende · {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}Mitwirkende · {{ work.title }}{% endblock %}
+{% block title %}{{ t("accounts.contributors.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("accounts.contributors.page_title", title=work.title) }}{% endblock %}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
-    <a class="btn" href="/einstellungen/konten?work={{ work.id }}" title="Konten anlegen, sperren, Passwort zurücksetzen">Einstellungen → Konten</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("accounts.contributors.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("accounts.contributors.back_group") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("accounts.contributors.back_to_work") }}</a>
+    <a class="btn" href="/einstellungen/konten?work={{ work.id }}" title="{{ t("accounts.contributors.accounts_title") }}">{{ t("accounts.contributors.settings_accounts") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page konto-page">
-  <h1 class="pane-title">Mitwirkende an „{{ work.title }}“</h1>
+  <h1 class="pane-title">{{ t("accounts.contributors.heading", title=work.title) }}</h1>
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
@@ -24,33 +24,31 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   {%- if not accounts_exist %}
-  <p>Baruch läuft ohne Konten – es gibt niemanden, dem das Werk freigegeben werden könnte.</p>
-  <p><a class="btn primary" href="/einrichten">Konten einrichten…</a></p>
+  <p>{{ t("accounts.contributors.no_accounts") }}</p>
+  <p><a class="btn primary" href="/einrichten">{{ t("accounts.contributors.set_up") }}</a></p>
   {%- elif load_error %}
-  <p class="notice error" role="alert">Die Freigaben lassen sich nicht lesen: {{ load_error }}</p>
+  <p class="notice error" role="alert">{{ t("accounts.contributors.load_error", load_error=load_error) }}</p>
   {%- else %}
-  <p class="muted">Der Autor sieht und bearbeitet jedes Werk. Ein Lektor sieht nur freigegebene Werke und schreibt dort
-    Vorschläge, Beiträge und Befunde unter seiner Herkunft. Eine entzogene Freigabe wirkt bei der nächsten Anfrage;
-    was der Lektor geschrieben hat, bleibt im Werk.</p>
-  <h2 class="pane-title">Freigegeben für</h2>
+  <p class="muted">{{ t("accounts.contributors.help") }}</p>
+  <h2 class="pane-title">{{ t("accounts.contributors.granted_to") }}</h2>
   {%- if members %}
   <table class="works-table konto-table">
     <thead>
-      <tr><th scope="col">Name</th><th scope="col">Anzeigename</th><th scope="col">Herkunft</th><th scope="col">Rolle</th><th scope="col">Freigegeben am</th><th scope="col"><span class="visually-hidden">Aktionen</span></th></tr>
+      <tr><th scope="col">Name</th><th scope="col">{{ t("accounts.contributors.col_display") }}</th><th scope="col">{{ t("accounts.contributors.col_origin") }}</th><th scope="col">{{ t("accounts.contributors.col_role") }}</th><th scope="col">{{ t("accounts.contributors.col_granted") }}</th><th scope="col"><span class="visually-hidden">{{ t("accounts.contributors.col_actions") }}</span></th></tr>
     </thead>
     <tbody>
     {%- for m in members %}
       <tr data-member="{{ m.account }}">
-        <td>{{ m.name }}{% if not m.active %} <span class="badge warning" title="Das Konto ist gesperrt und kann sich nicht anmelden">gesperrt</span>{% endif %}</td>
+        <td>{{ m.name }}{% if not m.active %} <span class="badge warning" title="{{ t("accounts.contributors.locked_title") }}">{{ t("accounts.contributors.locked") }}</span>{% endif %}</td>
         <td>{{ m.display or "–" }}</td>
         <td><code>{{ m.handle }}</code></td>
-        <td>{% if m.role == "lektor" %}Lektor{% else %}{{ m.role }}{% endif %}</td>
+        <td>{% if m.role == "lektor" %}{{ t("accounts.contributors.lector") }}{% else %}{{ m.role }}{% endif %}</td>
         <td class="small">{{ m.granted }}</td>
         <td class="works-actions">
           <form method="post" action="/werke/{{ work.id }}/mitwirkende/act">
             <input type="hidden" name="action" value="revoke">
             <input type="hidden" name="account" value="{{ m.account }}">
-            <button class="btn danger" type="submit" title="{{ m.name }} sieht das Werk danach nicht mehr">Entziehen</button>
+            <button class="btn danger" type="submit" title="{{ t("accounts.contributors.revoke_title", name=m.name) }}">{{ t("accounts.contributors.revoke") }}</button>
           </form>
         </td>
       </tr>
@@ -58,22 +56,22 @@
     </tbody>
   </table>
   {%- else %}
-  <p class="muted">Noch für niemanden freigegeben.</p>
+  <p class="muted">{{ t("accounts.contributors.nobody") }}</p>
   {%- endif %}
-  <h2 class="pane-title">Freigeben</h2>
+  <h2 class="pane-title">{{ t("accounts.contributors.grant_title") }}</h2>
   {%- if candidates %}
   <form class="konto-form konto-grant" method="post" action="/werke/{{ work.id }}/mitwirkende/act">
     <input type="hidden" name="action" value="grant">
-    <label>Lektor <select name="account" required>
+    <label>{{ t("accounts.contributors.lector") }} <select name="account" required>
       {%- for c in candidates %}
       <option value="{{ c.account }}">{{ c.name }}{% if c.display %} – {{ c.display }}{% endif %} ({{ c.handle }})</option>
       {%- endfor %}
     </select></label>
-    <button class="btn primary" type="submit">Freigeben</button>
+    <button class="btn primary" type="submit">{{ t("accounts.contributors.grant") }}</button>
   </form>
   {%- else %}
-  <p class="muted">Kein weiteres Lektor-Konto ohne Freigabe. Lektoren legt der Autor unter
-    <a href="/einstellungen/konten?work={{ work.id }}">Einstellungen → Konten</a> an.</p>
+  <p class="muted">{{ t("accounts.contributors.no_candidates") }}
+    <a href="/einstellungen/konten?work={{ work.id }}">{{ t("accounts.contributors.settings_accounts") }}</a> {{ t("accounts.contributors.no_candidates_end") }}</p>
   {%- endif %}
   {%- endif %}
 </main>

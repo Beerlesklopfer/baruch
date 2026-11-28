@@ -4,29 +4,6 @@
 # Each task removes the lines of its own files when it translates them (goal: none left); a line for a proper name
 # or a quotation stays only with a "# reason" comment above it. A line the finder no longer sees fails the test.
 
-crates/baruch-server/templates/about.html	(auf der Webseite, braucht das Internet)
-crates/baruch-server/templates/about.html	) – erst der Klick ruft sie im Browser auf. Aktualisiert wird von Hand mit einem neuen Paket von dort; nur wer Baruch unter Debian oder Ubuntu über das APT-Repository bezieht, bekommt neue Versionen mit
-crates/baruch-server/templates/about.html	, die jedes Paket mitbringt:
-crates/baruch-server/templates/about.html	; der Pfad gilt nur, solange Baruch läuft.
-crates/baruch-server/templates/about.html	Alle Daten liegen in diesem Ordner des Benutzers, nie im Installationsverzeichnis. Kein Paket legt dort etwas an, und das Entfernen von Baruch löscht dort nichts. Größe, Spiegel der Werke und Sicherung:
-crates/baruch-server/templates/about.html	Baruch fragt nie von sich aus im Netz nach neuen Versionen. Wer nachsehen will, öffnet selbst die
-crates/baruch-server/templates/about.html	Baruch ist eine freie Schreibwerkstatt für Bücher und Predigten. Es läuft auf dem eigenen Rechner, die Daten bleiben dort.
-crates/baruch-server/templates/about.html	Das Programm enthält Rust-Bibliotheken Dritter. Namen, Versionen, Lizenzen und Lizenztexte stehen in der Datei
-crates/baruch-server/templates/about.html	Einstellungen → Daten
-crates/baruch-server/templates/about.html	Hilfe mit Bildern:
-crates/baruch-server/templates/about.html	Neben diesem Programm liegt die Datei nicht (aus dem Quelltext gebaut oder an einen anderen Ort kopiert). Im Quelltext erzeugt sie
-crates/baruch-server/templates/about.html	Neue Versionen
-crates/baruch-server/templates/about.html	Zurück
-crates/baruch-server/templates/about.html	Zurück zum Werk
-crates/baruch-server/templates/about.html	Über Baruch
-crates/baruch-server/templates/about.html	Über Baruch – Baruch Über Baruch
-crates/baruch-server/templates/about.html	– GNU Affero General Public License, Version 3 oder (nach Wahl) jede spätere Version. Baruch kommt ohne jede Gewährleistung.
-crates/baruch-server/templates/about.html	– der Quelltext genau dieser Version steht dort beim Tag
-crates/baruch-server/templates/about.html	– im eingehängten AppImage
-crates/baruch-server/templates/anmelden.html	Passwort vergessen? Der Autor setzt es unter Einstellungen → Konten neu. Hat der Autor selbst es vergessen, hilft am Rechner, auf dem Baruch läuft, der Befehl
-crates/baruch-server/templates/anmelden.html	Schon angemeldet?
-crates/baruch-server/templates/anmelden.html	Zu viele Fehlversuche. Bitte Sekunde Sekunden warten und dann erneut versuchen.
-crates/baruch-server/templates/anmelden.html	– nach einem Link von außen (E-Mail, andere Seite) fragt Baruch einmal nach; der Klick hier genügt dann.
 crates/baruch-server/templates/asset.html	, · geändert
 crates/baruch-server/templates/asset.html	Alle Bilder
 crates/baruch-server/templates/asset.html	Bild löschen
@@ -210,17 +187,6 @@ crates/baruch-server/templates/befunde.html	viele offene Befunde
 crates/baruch-server/templates/befunde.html	vor dem
 crates/baruch-server/templates/befunde.html	älter als
 crates/baruch-server/templates/befunde.html	– „ “ · (Vorschlag , von , offen ) – Notiz:
-crates/baruch-server/templates/consent.html	Ansehen und entscheiden
-crates/baruch-server/templates/consent.html	Begründung:
-crates/baruch-server/templates/consent.html	Gliederung nach Ihrer Zustimmung:
-crates/baruch-server/templates/consent.html	Keine Vorschau:
-crates/baruch-server/templates/consent.html	Später entscheiden
-crates/baruch-server/templates/consent.html	Zustimmung nötig:
-crates/baruch-server/templates/consent.html	Zustimmung zur Gliederung
-crates/baruch-server/templates/consent.html	möchte die Gliederung umstellen: . Anträge der Assistenten warten auf Ihre Zustimmung. Ohne Ihre Zustimmung ändert sich nichts.
-crates/baruch-server/templates/consent.html	möchte im Werk „ “: .
-crates/baruch-server/templates/consent.html	neu
-crates/baruch-server/templates/consent.html	wandert unter den neuen Teil
 crates/baruch-server/templates/cover.html	/werke/ /umschlag#anordnung
 crates/baruch-server/templates/cover.html	Anordnung der Blöcke
 crates/baruch-server/templates/cover.html	Anordnung zurücksetzen
@@ -286,18 +252,6 @@ crates/baruch-server/templates/docx_import.html	verfolgte Änderungen als offene
 crates/baruch-server/templates/docx_import.html	Änderungen und Kommentare werden nie zur aktuellen Fassung.
 crates/baruch-server/templates/docx_import.html	Übernehmen
 crates/baruch-server/templates/docx_import.html	Übernommen:
-crates/baruch-server/templates/einrichten.html	, nicht über den Namen des Proxys).
-crates/baruch-server/templates/einrichten.html	. Sobald es besteht, verlangt Baruch eine Anmeldung – auch an diesem Rechner. Danach lassen sich unter Einstellungen → Konten Lektoren anlegen und je Werk freigeben.
-crates/baruch-server/templates/einrichten.html	Abbrechen
-crates/baruch-server/templates/einrichten.html	Das Passwort speichert Baruch nur als Prüfwert (Argon2id), nie im Klartext. Geht es verloren, setzt am Rechner, auf dem Baruch läuft, der Befehl
-crates/baruch-server/templates/einrichten.html	Das erste Konto gehört dem
-crates/baruch-server/templates/einrichten.html	Das erste Konto lässt sich nur am eigenen Rechner einrichten.
-crates/baruch-server/templates/einrichten.html	Diese Anfrage kam von einem anderen Rechner oder über einen vorgeschalteten Server (Reverse-Proxy). Von dort aus legt Baruch kein Autor-Konto an – sonst könnte der Erste, der die Seite erreicht, die Schreibwerkstatt übernehmen.
-crates/baruch-server/templates/einrichten.html	Einrichten geht am Rechner, auf dem Baruch läuft: dort im Browser Baruch direkt öffnen (zum Beispiel
-crates/baruch-server/templates/einrichten.html	Name (zum Anmelden)
-crates/baruch-server/templates/einrichten.html	Ohne Konten bleibt Baruch offen wie bisher. Wer nur allein am eigenen Rechner schreibt, braucht keine Konten.
-crates/baruch-server/templates/einrichten.html	Zurück
-crates/baruch-server/templates/einrichten.html	ein neues.
 crates/baruch-server/templates/epub_check.html	, braucht Java) und lädt nie etwas herunter. Ein Lauf dauert einige Sekunden.
 crates/baruch-server/templates/epub_check.html	EPUB prüfen
 crates/baruch-server/templates/epub_check.html	EPUB prüfen – – Baruch : EPUB prüfen buch
@@ -696,23 +650,6 @@ crates/baruch-server/templates/fragments/lektor_tree.html	Sprechdauer bei Wörte
 crates/baruch-server/templates/fragments/lektor_tree.html	Vorschlag Vorschläge
 crates/baruch-server/templates/fragments/lektor_tree.html	ganze Gliederung
 crates/baruch-server/templates/fragments/lektor_tree.html	offene Vorschläge
-crates/baruch-server/templates/fragments/library.html	Bedeutungs-Treffer für „ “
-crates/baruch-server/templates/fragments/library.html	Keine Treffer.
-crates/baruch-server/templates/fragments/library.html	Keine passenden Titel.
-crates/baruch-server/templates/fragments/library.html	Noch keine Titel.
-crates/baruch-server/templates/fragments/library.html	Noch keine Zitate.
-crates/baruch-server/templates/fragments/library.html	Nur schwache Treffer.
-crates/baruch-server/templates/fragments/library.html	Revision Beitrag
-crates/baruch-server/templates/fragments/library.html	Suchen
-crates/baruch-server/templates/fragments/library.html	Treffer für „ “
-crates/baruch-server/templates/fragments/library.html	Vorschlag
-crates/baruch-server/templates/fragments/library.html	Werk und Literatur durchsuchen
-crates/baruch-server/templates/fragments/library.html	Werk und Literatur durchsuchen …
-crates/baruch-server/templates/fragments/library.html	in der Quelle
-crates/baruch-server/templates/fragments/library.html	zu prüfen
-crates/baruch-server/templates/fragments/library.html	· Ähnlichkeit %
-crates/baruch-server/templates/fragments/literature_bibles.html	Einstellungen → Quellen
-crates/baruch-server/templates/fragments/literature_bibles.html	Weitere Treffer auf der Bibelseite.
 crates/baruch-server/templates/fragments/post_item.html	Befunde aus diesem Beitrag anlegen; der Beitrag bleibt unverändert
 crates/baruch-server/templates/fragments/post_item.html	Beitrag
 crates/baruch-server/templates/fragments/post_item.html	Beitrag als „> …“ in die Antwort
@@ -1123,49 +1060,6 @@ crates/baruch-server/templates/karte_gliederung.html	Äste der Mindmap
 crates/baruch-server/templates/karte_gliederung.html	– Einfall wählen –
 crates/baruch-server/templates/karte_gliederung.html	– bitte wählen –
 crates/baruch-server/templates/karte_gliederung.html	– kein Bezug –
-crates/baruch-server/templates/konto.html	Als Lektor liest du die freigegebenen Werke und schreibst Vorschläge für Fassungen, Beiträge im Abschnitts-Chat und Befunde. Übernehmen, ändern und löschen kann nur der Autor.
-crates/baruch-server/templates/konto.html	Baruch läuft ohne Konten: Alles ist offen wie bisher, eine Anmeldung gibt es nicht.
-crates/baruch-server/templates/konto.html	Danach sind alle anderen Sitzungen dieses Kontos abgemeldet.
-crates/baruch-server/templates/konto.html	Einstellungen → Konten
-crates/baruch-server/templates/konto.html	Freigegebene Werke Werke
-crates/baruch-server/templates/konto.html	Konten braucht nur, wer Lektoren mitlesen lassen oder Baruch über einen Proxy erreichbar machen will. Das erste Konto gehört dem Autor.
-crates/baruch-server/templates/konto.html	Neues Passwort ( bis Zeichen)
-crates/baruch-server/templates/konto.html	Neues Passwort wiederholen
-crates/baruch-server/templates/konto.html	Noch kein Werk freigegeben. Der Autor gibt Werke einzeln frei (Seite „Mitwirkende“ des Werks).
-crates/baruch-server/templates/konto.html	Noch kein Werk.
-crates/baruch-server/templates/konto.html	Passwort ändern
-crates/baruch-server/templates/konto.html	Zurück
-crates/baruch-server/templates/konto.html	Zurück zum Werk
-crates/baruch-server/templates/konto.html	am eigenen Rechner, ohne Anmeldung (Einstellungen → Konten: „Am eigenen Rechner ohne Anmeldung“).
-crates/baruch-server/templates/konto.html	– unter diesem Namen stehen deine Vorschläge, Beiträge und Befunde im Werk und im Git-Spiegel.
-crates/baruch-server/templates/literature.html	Zurück
-crates/baruch-server/templates/literature.html	Zurück zum Werk
-crates/baruch-server/templates/literature_bible.html	(Werk)
-crates/baruch-server/templates/literature_bible.html	(kein Text im Modul)
-crates/baruch-server/templates/literature_bible.html	(keine deutsche Stelle: )
-crates/baruch-server/templates/literature_bible.html	Buch
-crates/baruch-server/templates/literature_bible.html	Buch und Kapitel
-crates/baruch-server/templates/literature_bible.html	Bücher
-crates/baruch-server/templates/literature_bible.html	Einstellungen → Quellen
-crates/baruch-server/templates/literature_bible.html	Frage an die Persona
-crates/baruch-server/templates/literature_bible.html	Im Wortlaut suchen
-crates/baruch-server/templates/literature_bible.html	Kapitel
-crates/baruch-server/templates/literature_bible.html	Keine Treffer.
-crates/baruch-server/templates/literature_bible.html	Nur die ersten Treffer (Grenze erreicht).
-crates/baruch-server/templates/literature_bible.html	Suchen
-crates/baruch-server/templates/literature_bible.html	Treffer für „ “
-crates/baruch-server/templates/literature_bible.html	Was sagt diese Stelle zu meinem Abschnitt?
-crates/baruch-server/templates/literature_bible.html	Wörter im Bibeltext
-crates/baruch-server/templates/literature_bible.html	Zitieren (Vorschlag im Abschnitt)
-crates/baruch-server/templates/literature_bible.html	Zitieren und „an Persona geben“ brauchen einen Abschnitt: die Literatur aus einem Abschnitt heraus öffnen.
-crates/baruch-server/templates/literature_bible.html	Zurück
-crates/baruch-server/templates/literature_bible.html	Zurück zum Werk
-crates/baruch-server/templates/literature_bible.html	gelesen in der Zählung des Moduls:
-crates/baruch-server/templates/literature_bible.html	keine Angabe in der conf
-crates/baruch-server/templates/literature_bible.html	nächstes Kapitel →
-crates/baruch-server/templates/literature_bible.html	Öffnen
-crates/baruch-server/templates/literature_bible.html	„ “ in das Feld „Stelle“
-crates/baruch-server/templates/literature_bible.html	← voriges Kapitel
 crates/baruch-server/templates/marking.html	, Fassung (aktuell ist Fassung ) . Eine Registermarke ist Buchtext: „Marke setzen“ legt eine neue Fassung an. Glossarbegriffe ändern den Text nicht.
 crates/baruch-server/templates/marking.html	: › (siehe: ) (siehe auch: )
 crates/baruch-server/templates/marking.html	Abschnitt
@@ -1181,20 +1075,8 @@ crates/baruch-server/templates/marking.html	Wort aus dem Abschnitt
 crates/baruch-server/templates/marking.html	Zurück
 crates/baruch-server/templates/marking.html	Zurück zum Abschnitt
 crates/baruch-server/templates/marking.html	Übernehmen
-crates/baruch-server/templates/mitwirkende.html	Baruch läuft ohne Konten – es gibt niemanden, dem das Werk freigegeben werden könnte.
-crates/baruch-server/templates/mitwirkende.html	Das Konto ist gesperrt und kann sich nicht anmelden
-crates/baruch-server/templates/mitwirkende.html	Der Autor sieht und bearbeitet jedes Werk. Ein Lektor sieht nur freigegebene Werke und schreibt dort Vorschläge, Beiträge und Befunde unter seiner Herkunft. Eine entzogene Freigabe wirkt bei der nächsten Anfrage; was der Lektor geschrieben hat, bleibt im Werk.
-crates/baruch-server/templates/mitwirkende.html	Die Freigaben lassen sich nicht lesen:
-crates/baruch-server/templates/mitwirkende.html	Einstellungen → Konten
-crates/baruch-server/templates/mitwirkende.html	Freigegeben für
-crates/baruch-server/templates/mitwirkende.html	Kein weiteres Lektor-Konto ohne Freigabe. Lektoren legt der Autor unter
-crates/baruch-server/templates/mitwirkende.html	Konten anlegen, sperren, Passwort zurücksetzen
-crates/baruch-server/templates/mitwirkende.html	Mitwirkende an „ “
-crates/baruch-server/templates/mitwirkende.html	Mitwirkende · – Baruch Mitwirkende · buch
-crates/baruch-server/templates/mitwirkende.html	Noch für niemanden freigegeben.
-crates/baruch-server/templates/mitwirkende.html	Zurück
-crates/baruch-server/templates/mitwirkende.html	Zurück zum Werk
-crates/baruch-server/templates/mitwirkende.html	sieht das Werk danach nicht mehr
+# reason: name of the ribbon tab (block band_tab), not shown text
+crates/baruch-server/templates/mitwirkende.html	buch
 crates/baruch-server/templates/notes.html	Je Abschnitt Überschrift, Zeitmarke aus dem Zeitwächter, Stichpunkte und Bibelstellen. Stichpunkte: eigene Kommentarzeilen „// Stichwort: …“, sonst hervorgehobene Stellen (*…*), sonst der erste Satz jedes Absatzes; höchstens sechs Punkte zu je höchstens 160 Zeichen.
 crates/baruch-server/templates/notes.html	Keine Abschnitte.
 crates/baruch-server/templates/notes.html	Keine Stichpunkte.
@@ -1361,400 +1243,16 @@ crates/baruch-server/templates/search.html	als Abschnitt wählen
 crates/baruch-server/templates/search.html	gezeigte Fassung
 crates/baruch-server/templates/search.html	öffnen
 crates/baruch-server/templates/search.html	„ “ → „ “ in Abschnitt Abschnitten (je eine neue Fassung von dir, ein Commit im Spiegel).
-crates/baruch-server/templates/settings.html	Einstellungen · – Baruch Einstellungen · ansicht
-crates/baruch-server/templates/settings.html	Werke
-crates/baruch-server/templates/settings.html	Zurück
-crates/baruch-server/templates/settings.html	Zurück zum Werk
-crates/baruch-server/templates/settings/assistenten.html	(keine Meldung der Gegenstelle; es gilt die Einstellung)
-crates/baruch-server/templates/settings/assistenten.html	. Modellnamen lassen sich frei eintragen.
-crates/baruch-server/templates/settings/assistenten.html	Abbrechen
-crates/baruch-server/templates/settings/assistenten.html	Abschnitts-Chat: was die Personas mitbekommen
-crates/baruch-server/templates/settings/assistenten.html	Bibel-Belege aus SWORD mitgeben (Wortlaut der Werk-Bibel, gewählte Kommentare und Lexika)
-crates/baruch-server/templates/settings/assistenten.html	Bis zu fünf Treffer aus den Wegen des Werks (Einstellungen → Verbindungen) gehen als Daten mit, nummeriert [R1] … [R5]; darf nur diese als Quelle nennen. Anweisungen in den Treffern befolgt die Persona nicht. Nur für @belege und den Lektor.
-crates/baruch-server/templates/settings/assistenten.html	Buchtext an eine externe Verbindung schicken (Freigabe für )
-crates/baruch-server/templates/settings/assistenten.html	Chat nur Abschnitt (dazu Titel und Gliederung des Werks)
-crates/baruch-server/templates/settings/assistenten.html	Das Kürzel (@handle) ist fest; über es sprechen Chat und MCP die Persona an.
-crates/baruch-server/templates/settings/assistenten.html	Den eigenen Rollen-Prompt von verwerfen und wieder die Vorgabe verwenden?
-crates/baruch-server/templates/settings/assistenten.html	Die aktiven Personas nutzen verschiedene Modelle ( ). Jedes Modell braucht eigenen Grafikspeicher (VRAM); Wechsel laden das Modell neu.
-crates/baruch-server/templates/settings/assistenten.html	Es gibt noch keine Personas.
-crates/baruch-server/templates/settings/assistenten.html	Es gilt schon die Farbe der Palette.
-crates/baruch-server/templates/settings/assistenten.html	Es gilt schon die Vorgabe.
-crates/baruch-server/templates/settings/assistenten.html	Farbe der Palette
-crates/baruch-server/templates/settings/assistenten.html	Farbe zurück zur Vorgabe der Palette
-crates/baruch-server/templates/settings/assistenten.html	Jede Persona erscheint in ihrer Farbe: in der Liste der Assistenten, im Abschnitts-Chat, in den Fassungen und bei ihren Vorschlägen im Buchtext. Ohne eigene Wahl gilt die Vorgabe aus der Palette (nach der Reihenfolge der Personas). Hintergründe werden so aufgehellt bzw. abgedunkelt, dass der Text in beiden Themen gut lesbar bleibt.
-crates/baruch-server/templates/settings/assistenten.html	Kürzel
-crates/baruch-server/templates/settings/assistenten.html	Modell „ “ ist unbekannt bei Eliezer.
-crates/baruch-server/templates/settings/assistenten.html	Modellliste nicht verfügbar: Modellnamen lassen sich frei eintragen.
-crates/baruch-server/templates/settings/assistenten.html	Modellliste noch nicht abgefragt: Beim Laden der Seite fragt Baruch keine Gegenstelle.
-crates/baruch-server/templates/settings/assistenten.html	MultiGPT ist nicht eingerichtet (Einstellungen → Verbindungen); ohne Adresse sucht nicht im Web.
-crates/baruch-server/templates/settings/assistenten.html	Persona „ “ gibt es nicht; gezeigt wird die erste.
-crates/baruch-server/templates/settings/assistenten.html	Rollen-Prompt (eigener) (Vorgabe aus dem Programm; Speichern ohne Änderung lässt die Vorgabe)
-crates/baruch-server/templates/settings/assistenten.html	Speichern
-crates/baruch-server/templates/settings/assistenten.html	Treffer der Bedeutungssuche als Belege mitgeben
-crates/baruch-server/templates/settings/assistenten.html	Verbindungen richtet Einstellungen → Verbindungen → Modell-Verbindungen ein. „extern“ verlässt diesen Rechner bzw. das eigene Netz; ohne Freigabe schickt Baruch keinen Buchtext dorthin (Vorgabe: keine Freigabe).
-crates/baruch-server/templates/settings/assistenten.html	Versuch seit 2026-11-06: alle Personas auf einem Modell
-crates/baruch-server/templates/settings/assistenten.html	Was das Haus verlässt: Die Suchanfrage ist die Frage bzw. beim Prüfen der Anfang des Abschnitts (höchstens 200 Zeichen unveröffentlichter Buchtext); sie geht über MultiGPT an die Suchmaschine.
-crates/baruch-server/templates/settings/assistenten.html	Zu den Bibelstellen im Text gehen Wortlaut, Kommentare und Lexikon-Artikel als Daten mit (lokal, aus den SWORD-Modulen; Auswahl je Werk unter Einstellungen → Werk), nummeriert [S1] …; Anweisungen darin befolgt die Persona nicht. Nur für @belege (Vorgabe an) und den Lektor (Vorgabe aus) ; hier: Vorgabe an .
-crates/baruch-server/templates/settings/assistenten.html	Zuerst die bevorzugten Quellen (Einstellungen → Quellen, die ersten drei über „site:“), dann das allgemeine Web; höchstens acht Treffer, davon vier abgerufene Seiten, alles zusammen höchstens 30 s. nennt nur abgerufene Seiten als [W1] … [W4]. Baruch prüft jedes Zitat gegen den abgerufenen Text, kennzeichnet „(nicht belegt)“ und setzt die Quellenzeile mit Abrufdatum selbst. Belegte Zitate lassen sich auf der Belegseite in die Bibliothek übernehmen. Vorgabe: aus.
-crates/baruch-server/templates/settings/assistenten.html	automatisch nach Kontext (aktive Persona mit dem größten Kontext)
-crates/baruch-server/templates/settings/assistenten.html	das ganze Kapitel (bei einer Predigt die ganze Predigt; Vorgabe)
-crates/baruch-server/templates/settings/assistenten.html	fest gewählt größter Kontext
-crates/baruch-server/templates/settings/assistenten.html	im Web recherchieren (über MultiGPT:
-crates/baruch-server/templates/settings/assistenten.html	keiner (keine Persona ist aktiv)
-crates/baruch-server/templates/settings/assistenten.html	oder als Text
-crates/baruch-server/templates/settings/assistenten.html	und
-crates/baruch-server/templates/settings/assistenten.html	Übernehmen
-crates/baruch-server/templates/settings/assistenten.html	– fest gewählt ( ist nicht aktiv, darum gilt der größte Kontext) automatisch die aktive Persona mit dem größten Kontext .
-crates/baruch-server/templates/settings/assistenten.html	„ “ ist extern und für nicht freigegeben: Aufträge an werden abgelehnt, es geht nichts hinaus.
-crates/baruch-server/templates/settings/darstellung.html	); ein anderer Browser hat seine eigenen.
-crates/baruch-server/templates/settings/darstellung.html	Diese Werte stehen nur in diesem Browser (Cookies
-crates/baruch-server/templates/settings/darstellung.html	Editor beim Öffnen
-crates/baruch-server/templates/settings/darstellung.html	Fassungen
-crates/baruch-server/templates/settings/darstellung.html	Spaltenbreiten zurücksetzen
-crates/baruch-server/templates/settings/darstellung.html	Speichern
-crates/baruch-server/templates/settings/darstellung.html	Vorschläge im Lesefluss anfangs
-crates/baruch-server/templates/settings/darstellung.html	Wie das System
-crates/baruch-server/templates/settings/darstellung.html	eingeklappt (außer dem gezeigten)
-crates/baruch-server/templates/settings/daten.html	( Bytes, symbolische Verknüpfungen nicht mitgezählt)
-crates/baruch-server/templates/settings/daten.html	(neben dem Datenordner). Sicherung angelegt (neben dem Datenordner).
-crates/baruch-server/templates/settings/daten.html	), und lädt nie etwas herunter. Absoluter Pfad mit der Endung .jar; leer lassen entfernt die Einstellung.
-crates/baruch-server/templates/settings/daten.html	Das eingestellte epubcheck.jar gibt es nicht mehr:
-crates/baruch-server/templates/settings/daten.html	Der Name geht beim Austausch zwischen Instanzen als Herkunft mit (z. B. „Arbeitszimmer“ oder „Laptop“). Höchstens Zeichen, keine Zeilenumbrüche; leer lassen setzt ihn zurück.
-crates/baruch-server/templates/settings/daten.html	EPUBCheck nicht gefunden
-crates/baruch-server/templates/settings/daten.html	EPUBCheck prüft ein EPUB nach den Regeln der W3C-Gemeinschaft. Baruch nimmt „epubcheck“ aus dem PATH, sonst ein epubcheck.jar unter dem Pfad hier (mit
-crates/baruch-server/templates/settings/daten.html	Einstellung für EPUBCheck gespeichert.
-crates/baruch-server/templates/settings/daten.html	Es gibt noch kein Werk.
-crates/baruch-server/templates/settings/daten.html	Git-Spiegel je Werk
-crates/baruch-server/templates/settings/daten.html	Größe
-crates/baruch-server/templates/settings/daten.html	Kopiert den ganzen Datenordner (Datenbank als stimmiger Stand, Spiegel, Einfälle) in einen neuen Ordner
-crates/baruch-server/templates/settings/daten.html	Name der Instanz
-crates/baruch-server/templates/settings/daten.html	Name der Instanz gespeichert: .
-crates/baruch-server/templates/settings/daten.html	Namen speichern
-crates/baruch-server/templates/settings/daten.html	Pfad speichern
-crates/baruch-server/templates/settings/daten.html	Pfad zum epubcheck.jar
-crates/baruch-server/templates/settings/daten.html	Werk
-crates/baruch-server/templates/settings/daten.html	java nicht im PATH (für ein epubcheck.jar nötig)
-crates/baruch-server/templates/settings/daten.html	neben dem Datenordner. Nichts wird überschrieben.
-crates/baruch-server/templates/settings/daten.html	noch keiner
-crates/baruch-server/templates/settings/daten.html	Über Baruch
-crates/baruch-server/templates/settings/frame.html	Einstellungen
-crates/baruch-server/templates/settings/konten.html	(Reiter Buch → Mitwirkende) . Das Passwort gibst du dem Lektor selbst weiter; er kann es unter „Mein Konto“ ändern.
-crates/baruch-server/templates/settings/konten.html	) bleibt vergeben, damit alte Vorschläge, Beiträge und Befunde eindeutig bleiben. Das letzte aktive Autor-Konto lässt sich nicht sperren.
-crates/baruch-server/templates/settings/konten.html	) und an den Kopfzeilen
-crates/baruch-server/templates/settings/konten.html	. Ein Proxy, der den
-crates/baruch-server/templates/settings/konten.html	: Alles ist offen wie bisher, eine Anmeldung gibt es nicht. Das genügt, solange nur du am eigenen Rechner schreibst.
-crates/baruch-server/templates/settings/konten.html	Alle Sitzungen dieses Kontos enden
-crates/baruch-server/templates/settings/konten.html	Auch am eigenen Rechner anmelden
-crates/baruch-server/templates/settings/konten.html	Baruch läuft
-crates/baruch-server/templates/settings/konten.html	Der Autor schreibt als „Autor“
-crates/baruch-server/templates/settings/konten.html	Die Konten lassen sich nicht lesen:
-crates/baruch-server/templates/settings/konten.html	Ein Reverse-Proxy verbindet sich ebenfalls über 127.0.0.1. Baruch erkennt ihn an seinem Rechnernamen (
-crates/baruch-server/templates/settings/konten.html	Ein neues Konto ist immer ein Lektor und sieht zunächst kein Werk. Freigegeben wird je Werk auf der Seite „Mitwirkende“ :
-crates/baruch-server/templates/settings/konten.html	Konten braucht, wer Lektoren mitarbeiten lassen oder Baruch über einen Proxy erreichbar machen will. Das erste Konto gehört dem Autor und lässt sich nur am eigenen Rechner anlegen. Sobald es besteht, verlangen Seiten, Formulare und
-crates/baruch-server/templates/settings/konten.html	Konten verwaltet nur der Autor.
-crates/baruch-server/templates/settings/konten.html	Konten werden nie gelöscht, nur gesperrt: Die Herkunft (
-crates/baruch-server/templates/settings/konten.html	Mit diesem Konto bist du angemeldet
-crates/baruch-server/templates/settings/konten.html	Name (zum Anmelden, höchstens 40 Zeichen)
-crates/baruch-server/templates/settings/konten.html	Neues Passwort für ( bis Zeichen)
-crates/baruch-server/templates/settings/konten.html	Passwort vergessen? Am Rechner, auf dem Baruch läuft:
-crates/baruch-server/templates/settings/konten.html	Passwort zurücksetzen …
-crates/baruch-server/templates/settings/konten.html	Vorsicht mit einem Proxy auf demselben Rechner:
-crates/baruch-server/templates/settings/konten.html	bleibt bei seinen Tokens.
-crates/baruch-server/templates/settings/konten.html	eine Anmeldung – auch an diesem Rechner (das lässt sich danach hier wieder ausschalten).
-crates/baruch-server/templates/settings/konten.html	eingeschaltet – am eigenen Rechner gelten Autorrechte ohne Passwort ausgeschaltet – auch am eigenen Rechner ist eine Anmeldung nötig (Vorgabe)
-crates/baruch-server/templates/settings/konten.html	kann sich danach nicht mehr anmelden; offene Sitzungen enden sofort. Was das Konto geschrieben hat, bleibt.
-crates/baruch-server/templates/settings/konten.html	liest ein neues Passwort von der Eingabe und beendet alle Sitzungen des Kontos.
-crates/baruch-server/templates/settings/konten.html	noch nie
-crates/baruch-server/templates/settings/konten.html	umschreibt und keine dieser Kopfzeilen setzt, sähe aus wie der eigene Rechner – dann hätte jeder Besucher Autorrechte. Nur einschalten, wenn kein solcher Proxy vor Baruch steht.
-crates/baruch-server/templates/settings/konten.html	und
-crates/baruch-server/templates/settings/mcp.html	(behält den Autor von vor Runde 23:
-crates/baruch-server/templates/settings/mcp.html	(früher
-crates/baruch-server/templates/settings/mcp.html	) bleibt der Zugang ohne Token.
-crates/baruch-server/templates/settings/mcp.html	), und der andere Rechner spricht ihn über die IP-Adresse an, nicht über einen Namen.
-crates/baruch-server/templates/settings/mcp.html	); alle anderen Seiten bleiben dem eigenen Rechner vorbehalten. Dafür muss Baruch auf einer Adresse im Netz lauschen (
-crates/baruch-server/templates/settings/mcp.html	, den Token statt
-crates/baruch-server/templates/settings/mcp.html	: klein, Umlaute umschrieben (ü → ue), Sonderzeichen als „-“, höchstens 32 Zeichen. Ein Name, der denselben Autor ergäbe wie ein vorhandener oder widerrufener Token oder mit
-crates/baruch-server/templates/settings/mcp.html	Auf dem anderen Rechner (Adresse dieses Rechners im Netz statt
-crates/baruch-server/templates/settings/mcp.html	Aus dem Namen wird der Autor
-crates/baruch-server/templates/settings/mcp.html	Baruch spricht nur HTTP ohne Verschlüsselung – Token und Texte gehen im Klartext durchs Netz. Nur im eigenen, vertrauenswürdigen Netz verwenden. Verschlüsselt und unter einem Rechnernamen geht es nur über einen Reverse-Proxy mit TLS (
-crates/baruch-server/templates/settings/mcp.html	Beiträge und Vorschläge dieses Zugangs stehen unter
-crates/baruch-server/templates/settings/mcp.html	In Claude Code (den Token statt
-crates/baruch-server/templates/settings/mcp.html	Mit einem Token nimmt
-crates/baruch-server/templates/settings/mcp.html	Neuer Token (nur jetzt sichtbar)
-crates/baruch-server/templates/settings/mcp.html	Neuer Token „ “
-crates/baruch-server/templates/settings/mcp.html	Noch kein Token erzeugt.
-crates/baruch-server/templates/settings/mcp.html	Nur über Loopback (127.0.0.1 bzw. ::1) ohne Token erreichbar. In Claude Code:
-crates/baruch-server/templates/settings/mcp.html	Schützt der Proxy den Zugang mit einer eigenen Anmeldung (etwa Basic-Auth), muss er
-crates/baruch-server/templates/settings/mcp.html	Seit dem Start hat sich noch kein Client angemeldet (MCP
-crates/baruch-server/templates/settings/mcp.html	Sie erreichen Baruch über einen Reverse-Proxy (erlaubter Rechnername,
-crates/baruch-server/templates/settings/mcp.html	Token widerrufen. Er gilt ab sofort nicht mehr.
-crates/baruch-server/templates/settings/mcp.html	Tokens für andere Rechner
-crates/baruch-server/templates/settings/mcp.html	Verbundene Clients seit dem Start
-crates/baruch-server/templates/settings/mcp.html	an, auch vom eigenen Rechner. Unten einen Token erzeugen, dann in Claude Code (den Token statt
-crates/baruch-server/templates/settings/mcp.html	begänne, wird abgelehnt. Ein Client ohne Token, dessen Name einem Token gehört, schreibt als
-crates/baruch-server/templates/settings/mcp.html	davon ausnehmen oder die Kopfzeile
-crates/baruch-server/templates/settings/mcp.html	gehört einem anderen Token)
-crates/baruch-server/templates/settings/mcp.html	noch nie
-crates/baruch-server/templates/settings/mcp.html	nur mit Token
-crates/baruch-server/templates/settings/mcp.html	unverändert durchreichen – sonst kommt der Token nicht an. Direkt auf diesem Rechner (
-crates/baruch-server/templates/settings/mcp.html	– nur jetzt sichtbar. Baruch speichert nur seinen Hash; wer ihn verliert, erzeugt einen neuen.
-crates/baruch-server/templates/settings/quellen.html	) auch den Wortlaut eines Zitats. Baruch liest SWORD-Module (zText, RawText; Kompression ZIP, LZSS, BZIP2, XZ) in ihrer eigenen Verszählung und bildet deutsche Stellen darauf ab. Verschlüsselte Module werden lesbar, sobald der Schlüssel des Herausgebers unten hinterlegt ist. Ein Modulordner enthält
-crates/baruch-server/templates/settings/quellen.html	), ändern kann sie nur der Mensch.
-crates/baruch-server/templates/settings/quellen.html	); er steht nie in einer Seite, Antwort oder Meldung.
-crates/baruch-server/templates/settings/quellen.html	: Titel, Adresse, Notiz, in dieser Reihenfolge. Die Liste gilt für alle Werke; Assistenten lesen sie über MCP (
-crates/baruch-server/templates/settings/quellen.html	Bevorzugte Quellen für
-crates/baruch-server/templates/settings/quellen.html	Bibel des Werks „ “
-crates/baruch-server/templates/settings/quellen.html	Bibel wählen
-crates/baruch-server/templates/settings/quellen.html	Den Schlüssel gibt der Herausgeber des Moduls (z. B. nach dem Kauf). Baruch prüft ihn am ersten Eintrag und legt ihn nur im Schlüsselbund ab (Konto
-crates/baruch-server/templates/settings/quellen.html	Gewählt ist „ “, aber dieses Modul steht in keinem Modulordner; der Wortlaut bleibt ungeprüft.
-crates/baruch-server/templates/settings/quellen.html	Keine Module (Bibeln, Kommentare, Lexika) in den Modulordnern gefunden.
-crates/baruch-server/templates/settings/quellen.html	Löschen
-crates/baruch-server/templates/settings/quellen.html	Mit einer gewählten Bibel prüft die Stellenprüfung (@schrift,
-crates/baruch-server/templates/settings/quellen.html	Neue Quelle
-crates/baruch-server/templates/settings/quellen.html	Noch keine Quellen.
-crates/baruch-server/templates/settings/quellen.html	Ordner speichern
-crates/baruch-server/templates/settings/quellen.html	Schlüssel
-crates/baruch-server/templates/settings/quellen.html	Schlüssel entfernen
-crates/baruch-server/templates/settings/quellen.html	Schlüssel ersetzen Schlüssel prüfen und hinterlegen
-crates/baruch-server/templates/settings/quellen.html	Schlüssel verschlüsselter Module
-crates/baruch-server/templates/settings/quellen.html	Speichern
-crates/baruch-server/templates/settings/quellen.html	Verschlüsselung
-crates/baruch-server/templates/settings/quellen.html	erst mit Schlüssel ja nein –
-crates/baruch-server/templates/settings/quellen.html	gesperrt – Schlüssel fehlt entsperrt – Schlüssel hinterlegt (Schlüssel in der conf) –
-crates/baruch-server/templates/settings/quellen.html	keine (Wortlaut ungeprüft)
+# reason: name of the ribbon tab (block band_tab) next to the title separator, not shown text
+crates/baruch-server/templates/settings.html	· ansicht
+# reason: page id in data-settings-page-body, not shown text
 crates/baruch-server/templates/settings/quellen.html	quellen
-crates/baruch-server/templates/settings/quellen.html	und
-crates/baruch-server/templates/settings/quellen.html	wirklich löschen
-crates/baruch-server/templates/settings/quellen.html	– Schlüssel hinterlegt steht in der conf fehlt
-crates/baruch-server/templates/settings/quellen.html	„ “ nach oben
-crates/baruch-server/templates/settings/quellen.html	„ “ nach unten
-crates/baruch-server/templates/settings/verbindungen.html	(Einstellung oben bei Eliezer)
-crates/baruch-server/templates/settings/verbindungen.html	). Hier steht nur, ob ein Geheimnis hinterlegt ist; eine Eingabe ersetzt es. „Verbindung prüfen“ fragt die Gegenstelle einmal (höchstens 10 s) und merkt sich das Ergebnis.
-crates/baruch-server/templates/settings/verbindungen.html	, nicht für die jetzige Adresse; zum Senden an sie neu eintragen
-crates/baruch-server/templates/settings/verbindungen.html	Adressen und Einstellungen liegen in SQLite (für alle Werke), Schlüssel, Token und Passwörter nur im Schlüsselbund des Systems (Dienst
-crates/baruch-server/templates/settings/verbindungen.html	Antwort: „ “
-crates/baruch-server/templates/settings/verbindungen.html	Auftrag Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index neu aufbauen“
-crates/baruch-server/templates/settings/verbindungen.html	Den Schlüssel (falls nötig) danach bei der Verbindung hinterlegen; er liegt im Schlüsselbund unter
-crates/baruch-server/templates/settings/verbindungen.html	Einträge
-crates/baruch-server/templates/settings/verbindungen.html	Erst „Verbindung prüfen“, dann erscheinen die Sammlungen.
-crates/baruch-server/templates/settings/verbindungen.html	Für „ “ gelten diese Wege (Vorgabe) ; ohne Haken nur die Volltextsuche.
-crates/baruch-server/templates/settings/verbindungen.html	Gemeldet bei der Prüfung .
-crates/baruch-server/templates/settings/verbindungen.html	Index neu aufbauen
-crates/baruch-server/templates/settings/verbindungen.html	Je Persona wählt Einstellungen → Assistenten eine dieser Verbindungen (Vorgabe: Eliezer). „extern“ heißt: Die Verbindung verlässt diesen Rechner bzw. das eigene Netz. Über eine externe Verbindung geht Buchtext nur für Personas, die dafür ausdrücklich freigegeben sind (Vorgabe: nicht freigegeben). Die Adresse von Eliezer steht oben bei „Eliezer (Modell-Backend)“.
-crates/baruch-server/templates/settings/verbindungen.html	Kein Status: Die Wortlaut-Suche (FTS) geht weiter.
-crates/baruch-server/templates/settings/verbindungen.html	Kein Werk gewählt; die RAG-Wege gelten je Werk.
-crates/baruch-server/templates/settings/verbindungen.html	Kurztest mit Modell
-crates/baruch-server/templates/settings/verbindungen.html	Modellname bei Eliezer
-crates/baruch-server/templates/settings/verbindungen.html	Name der Sammlung
-crates/baruch-server/templates/settings/verbindungen.html	Neue Modell-Verbindung
-crates/baruch-server/templates/settings/verbindungen.html	Noch nicht geprüft.
-crates/baruch-server/templates/settings/verbindungen.html	Nur die angehakten Sammlungen durchsucht die Bedeutungssuche für dieses Werk; ohne Sammlung bleibt aus. ist für dieses Werk gerade nicht als Weg gewählt.
-crates/baruch-server/templates/settings/verbindungen.html	Passwort Token Schlüssel
-crates/baruch-server/templates/settings/verbindungen.html	Sammlung hinzufügen
-crates/baruch-server/templates/settings/verbindungen.html	Sammlungen speichern
-crates/baruch-server/templates/settings/verbindungen.html	Schickt nur „Antworte nur mit: OK“ (kein Buchtext); geht darum auch über eine externe Verbindung.
-crates/baruch-server/templates/settings/verbindungen.html	Schickt „Antworte nur mit: OK“ (höchstens 16 Token) durch die Warteschlange; lädt Eliezer das Modell erst, kann das dauern. Liste aus den Modellen der Personas; „Verbindung prüfen“ holt die Liste von Eliezer.
-crates/baruch-server/templates/settings/verbindungen.html	Schlüssel
-crates/baruch-server/templates/settings/verbindungen.html	Schlüssel entfernen
-crates/baruch-server/templates/settings/verbindungen.html	Schlüssel hinterlegen
-crates/baruch-server/templates/settings/verbindungen.html	Schlüsselbund
-crates/baruch-server/templates/settings/verbindungen.html	Speichern
-crates/baruch-server/templates/settings/verbindungen.html	Status der Wege
-crates/baruch-server/templates/settings/verbindungen.html	Verbindung löschen
-crates/baruch-server/templates/settings/verbindungen.html	Verbindung prüfen
-crates/baruch-server/templates/settings/verbindungen.html	Verwirft den lokalen Index (LanceDB) dieses Werks und baut ihn im Hintergrund neu auf; der Buchtext bleibt unberührt.
-crates/baruch-server/templates/settings/verbindungen.html	Wege speichern
-crates/baruch-server/templates/settings/verbindungen.html	eine Zeile, höchstens 200 Zeichen; höchstens 100 Sammlungen
-crates/baruch-server/templates/settings/verbindungen.html	extern (verlässt diesen Rechner bzw. das eigene Netz)
-crates/baruch-server/templates/settings/verbindungen.html	gilt nur für
-crates/baruch-server/templates/settings/verbindungen.html	leer = unverändert
-crates/baruch-server/templates/settings/verbindungen.html	lokal (dieser Rechner bzw. das eigene Netz)
-crates/baruch-server/templates/settings/verbindungen.html	nach der Adresse (nicht erkennbar lokal → extern)
-crates/baruch-server/templates/settings/verbindungen.html	neuer Schlüssel
-crates/baruch-server/templates/settings/verbindungen.html	nicht mehr gemeldet
-crates/baruch-server/templates/settings/verbindungen.html	unbekannt bei Eliezer (auch Alias )
-crates/baruch-server/templates/settings/verbindungen.html	und gilt nur für diese Adresse.
-crates/baruch-server/templates/settings/verbindungen.html	wirklich löschen (Personas fallen auf Eliezer zurück)
-crates/baruch-server/templates/settings/verbindungen.html	wirklich neu aufbauen
-crates/baruch-server/templates/settings/verbindungen.html	· noch nicht aufgebaut
-crates/baruch-server/templates/settings/verbindungen.html	„Nach der Adresse“: Lokal sind nur Loopback, private Adressen (10.…, 172.16–31.…, 192.168.…), Rechnernamen ohne Punkt und Namen unter .local, .lan, .internal, .home.arpa; alles andere wird extern.
-crates/baruch-server/templates/settings/verbindungen.html	✓ bei Eliezer
-crates/baruch-server/templates/settings/verbindungen.html	✓ geprüft ✗ fehlgeschlagen
-crates/baruch-server/templates/settings/werk.html	( gesprochene Wörter) · Ziel min ·
-crates/baruch-server/templates/settings/werk.html	(nicht lesbar: )
-crates/baruch-server/templates/settings/werk.html	), Größe 6 bis 48 pt und Satzbreite 6 bis 60 cm mit Einheit pt, mm, cm oder em, Farben als
-crates/baruch-server/templates/settings/werk.html	. Eingeschaltet lädt der nächste Abgleich die aktuellen Fassungen dieses Werks als ein Dokument je Kapitel in die Sammlung „ “.
-crates/baruch-server/templates/settings/werk.html	. Gilt nur für das Satzbild im Browser – der Satz mit Typst, PDF und Export folgen weiter der Werkvorlage. Gespeichert nur in der Datenbank, nicht im Git-Spiegel und nicht im Austauschformat.
-crates/baruch-server/templates/settings/werk.html	Abgleich mit MultiGPT
-crates/baruch-server/templates/settings/werk.html	Alle Marken aufheben (wieder alle Fassungen zeigen)
-crates/baruch-server/templates/settings/werk.html	Alles aus der Vorlage
-crates/baruch-server/templates/settings/werk.html	Auswahl speichern
-crates/baruch-server/templates/settings/werk.html	Eigene aktuelle Fassung beim Speichern fortschreiben (statt jedes Mal eine neue Fassung)
-crates/baruch-server/templates/settings/werk.html	Es gibt noch kein Werk.
-crates/baruch-server/templates/settings/werk.html	Farbe der Überschriften
-crates/baruch-server/templates/settings/werk.html	Fassungen
-crates/baruch-server/templates/settings/werk.html	Fassungen speichern
-crates/baruch-server/templates/settings/werk.html	Gewählte Kommentare erscheinen zu einer Stelle in der Literatur (Bibel aufschlagen) und in der Suche als Gruppe „Kommentar“; @belege und – wenn eingeschaltet – der Lektor bekommen sie als Belege [S1] … (lokal, nichts verlässt den Rechner). Lizenzvermerke der Module werden immer mit angezeigt.
-crates/baruch-server/templates/settings/werk.html	In dieser Sprache antworten die Assistenten. Die Sprache der Oberfläche ändert sich dadurch nicht.
-crates/baruch-server/templates/settings/werk.html	Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT
-crates/baruch-server/templates/settings/werk.html	Keine Kommentare in den Modulordnern (Einstellungen → Quellen → Bibeln).
-crates/baruch-server/templates/settings/werk.html	Keine Lexika in den Modulordnern (Einstellungen → Quellen → Bibeln).
-crates/baruch-server/templates/settings/werk.html	Kommentare und Lexika
-crates/baruch-server/templates/settings/werk.html	Leer = aus der Werkvorlage (grau: ihr Wert). Schrift als Liste wie in CSS (
-crates/baruch-server/templates/settings/werk.html	Minuten vergangen sind (0 = keine Zeitgrenze)
-crates/baruch-server/templates/settings/werk.html	Neue Fassung ab einer Änderung von mehr als
-crates/baruch-server/templates/settings/werk.html	Neue Fassung, wenn seit dem letzten Speichern
-crates/baruch-server/templates/settings/werk.html	Neues Werk anlegen oder importieren …
-crates/baruch-server/templates/settings/werk.html	Predigtzeit speichern
-crates/baruch-server/templates/settings/werk.html	Satzbild speichern
-crates/baruch-server/templates/settings/werk.html	Schrift der Überschriften
-crates/baruch-server/templates/settings/werk.html	Schriftgröße
-crates/baruch-server/templates/settings/werk.html	Setzt in jedem Abschnitt die Marke auf die letzte Fassung vor diesem Tag (höchstens auf die aktuelle); ersetzte und verworfene Fassungen darunter stehen dann hinter dem Schalter „n ältere Fassungen zeigen“. Die aktuelle Fassung und offene Vorschläge bleiben immer sichtbar; nichts wird gelöscht. Vorhandene Marken werden ersetzt. Zurzeit hat 1 Abschnitt haben Abschnitte eine Marke.
-crates/baruch-server/templates/settings/werk.html	Speichern
-crates/baruch-server/templates/settings/werk.html	Vorgabe Wörter je Minute; Zielzeit leer = keine. Predigten zeigen ihre Zeiten immer Bücher zeigen Zeiten nur mit Zielzeit – in der Gliederung und im Editorkopf. Typst-Markup, Überschriften, Kommentare und Fußnoten zählen nicht mit. Gespeichert nur in der Datenbank, nicht im Git-Spiegel.
-crates/baruch-server/templates/settings/werk.html	Vorgabe: an, %, min – also keine Grenze, Speichern schreibt immer fort wie in einer Textverarbeitung. Eine neue Fassung entsteht außerdem immer, wenn „Als neue Fassung speichern“ gewählt ist, die aktuelle Fassung von einer Persona stammt (auch ein übernommener Vorschlag), auf einer anderen als der aktuellen Fassung bearbeitet oder die Überschrift bzw. Gliederung geändert wurde. Jede Fortschreibung ist ein Commit im Git-Spiegel und steht im Verlauf der Fassung (dort auch „Bis hier zurück“). Personas legen immer neue Fassungen (Vorschläge) an. Gespeichert nur in der Datenbank, nicht im Austauschformat.
-crates/baruch-server/templates/settings/werk.html	Wörter je Minute
-crates/baruch-server/templates/settings/werk.html	Zielzeit überschritten um
-crates/baruch-server/templates/settings/werk.html	Zum Abgleich (Werkzeuge → Abgleichen)
+# reason: state value of data-sync-upload, not shown text
 crates/baruch-server/templates/settings/werk.html	aus
-crates/baruch-server/templates/settings/werk.html	keine
+# reason: page id in data-settings-page-body, not shown text
 crates/baruch-server/templates/settings/werk.html	werk
-crates/baruch-server/templates/settings/werk.html	wie die Schrift
-crates/baruch-server/templates/settings/werk.html	Ältere Fassungen ausblenden
-crates/baruch-server/templates/settings/werk.html	Ältere Fassungen ausblenden bis
-crates/baruch-server/templates/settings/werk.html	– je Kapitel ein Dokument in der Sammlung „ “ ( Kapitel hochgeladen , zuletzt ).
-crates/baruch-server/templates/settings/werk_satz.html	(alle vier oder keiner)
-crates/baruch-server/templates/settings/werk_satz.html	(keine Häkchen = keine Registerseiten)
-crates/baruch-server/templates/settings/werk_satz.html	Als Einstellung übernehmen
-crates/baruch-server/templates/settings/werk_satz.html	Bundsteg: Zugabe am Innenrand für die Bindung – was in Falz und Leim verschwindet, damit der Text nicht in die Buchmitte rutscht. Er kommt zum Innenrand hinzu.
-crates/baruch-server/templates/settings/werk_satz.html	Datum („Stand …“, Tag der Ausgabe)
-crates/baruch-server/templates/settings/werk_satz.html	Die Werkvorlage regelt den Kapitelanfang selbst (Zeile ):
-crates/baruch-server/templates/settings/werk_satz.html	Ganzes Werk im Satz ansehen
-crates/baruch-server/templates/settings/werk_satz.html	Hebt die erste Erwähnung eines Glossarbegriffs (oder einer Variante) je Kapitel im Satz hervor, mit Verweis aufs Glossar, wenn es eine Glossarseite gibt.
-crates/baruch-server/templates/settings/werk_satz.html	Höhe
-crates/baruch-server/templates/settings/werk_satz.html	Ja, alle Satz-Einstellungen zurücksetzen (dann gilt wieder nur die Werkvorlage)
-crates/baruch-server/templates/settings/werk_satz.html	Ja, „Kapitelanfang: “ übernehmen und die Zeile aus der Werkvorlage entfernen (neue Fassung der Vorlage)
-crates/baruch-server/templates/settings/werk_satz.html	Kapitel und Teile
-crates/baruch-server/templates/settings/werk_satz.html	Keine – alles kommt aus der Werkvorlage.
-crates/baruch-server/templates/settings/werk_satz.html	Kolumnentitel: die Kopfzeile über dem Text, hier der Werktitel oder der Titel des laufenden Kapitels (nie auf Kapitelanfangs-, Teil- und Leerseiten).
-crates/baruch-server/templates/settings/werk_satz.html	Maß
-crates/baruch-server/templates/settings/werk_satz.html	Regeln für den Buchsatz mit Typst – Satz-Vorschau, Buch-PDF, Umschlag und Export. „aus der Werkvorlage“ bzw. ein leeres Feld heißt: Baruch setzt dafür keine Regel, es gilt, was die Werkvorlage (oder Typst) vorgibt. Das Satzbild im Editor bleibt davon unberührt (Block „Satzbild“). Gespeichert von . Noch keine Satz-Einstellungen gespeichert.
-crates/baruch-server/templates/settings/werk_satz.html	Register und Glossar
-crates/baruch-server/templates/settings/werk_satz.html	Rückseite der Teil-Seite leer
-crates/baruch-server/templates/settings/werk_satz.html	Satz-Vorschau, Buch-PDF und Stichwortzettel bekommen ein helles Wasserzeichen, das EPUB einen Hinweis auf der Titelseite und „(Entwurf)“ im Titel. Export und Spiegel bleiben unverändert. Beim Herunterladen geht es auch einmalig ohne diese Einstellung („Als Entwurf herunterladen“).
-crates/baruch-server/templates/settings/werk_satz.html	Schrift und Absatz
-crates/baruch-server/templates/settings/werk_satz.html	Schusterjunge: die erste Zeile eines Absatzes allein unten auf einer Seite; Hurenkind: die letzte Zeile eines Absatzes allein oben auf der nächsten Seite. „ein“ lässt Typst solche einzelnen Zeilen vermeiden.
-crates/baruch-server/templates/settings/werk_satz.html	Seite und Ränder
-crates/baruch-server/templates/settings/werk_satz.html	Seitenzahlen, Kolumnentitel, Fußnoten
-crates/baruch-server/templates/settings/werk_satz.html	Speichern
-crates/baruch-server/templates/settings/werk_satz.html	Ungespeicherte Werte – „Speichern“ übernimmt sie.
-crates/baruch-server/templates/settings/werk_satz.html	Vorgabe für das Häkchen „mit Seitenzahl“ im Dialog „Verweis“ des Editors; keine Satz-Regel.
-crates/baruch-server/templates/settings/werk_satz.html	Vorschau mit Mustertext: Seiten , Fehler , Warnungen .
-crates/baruch-server/templates/settings/werk_satz.html	Wasserzeichen „Entwurf“ in den Ausgaben
-crates/baruch-server/templates/settings/werk_satz.html	Zurücksetzen
-crates/baruch-server/templates/settings/werk_satz.html	Zählung
-crates/baruch-server/templates/settings/werk_satz.html	auch auf dem Umschlag-PDF (die Druckprüfung warnt dann)
-crates/baruch-server/templates/settings/werk_satz.html	aus
-crates/baruch-server/templates/settings/werk_satz.html	aus der Werkvorlage
-crates/baruch-server/templates/settings/werk_satz.html	außen
-crates/baruch-server/templates/settings/werk_satz.html	ein
-crates/baruch-server/templates/settings/werk_satz.html	keine
-crates/baruch-server/templates/settings/werk_satz.html	nein (ausdrücklich gespeichert)
-crates/baruch-server/templates/settings/werk_satz.html	nur eigenes Format
-crates/baruch-server/templates/settings/werk_satz.html	z. B. Fassungen von heute
-crates/baruch-server/templates/settings/werk_satz.html	– das entspricht „ “. Als Einstellung ist er hier sichtbar und umschaltbar.
-crates/baruch-server/templates/settings/werk_satz.html	„Vorschau“ setzt einen erfundenen Mustertext (ein Teil, drei Kapitel mit Fußnoten) mit der Werkvorlage und den Werten oben, ohne sie zu speichern.
-crates/baruch-server/templates/shutdown.html	Abbrechen
-crates/baruch-server/templates/shutdown.html	Baruch lässt sich nur am eigenen Rechner beenden.
-crates/baruch-server/templates/shutdown.html	Beenden geht am Rechner, auf dem Baruch läuft: dort im Browser
-crates/baruch-server/templates/shutdown.html	Diese Anfrage kam von einem anderen Rechner oder über den Namen eines vorgeschalteten Servers (Reverse-Proxy). Von dort aus beendet Baruch sich nicht – sonst könnte jeder, der die Seite erreicht, die Schreibwerkstatt abschalten.
-crates/baruch-server/templates/shutdown.html	Gespeicherte Texte stehen bereits in der Datenbank und im Git-Spiegel; es geht nichts verloren. Ungespeicherte Eingaben in anderen Fenstern vorher speichern. Laufende Antworten gehen noch zu Ende (höchstens zehn Sekunden), ein offener Live-Chat wird danach getrennt. Danach ist Baruch nicht mehr erreichbar, bis es neu gestartet wird (Startmenü, Programme,
-crates/baruch-server/templates/shutdown.html	Soll Baruch auf diesem Rechner beendet werden?
-crates/baruch-server/templates/shutdown.html	Zurück
-crates/baruch-server/templates/shutdown.html	Zurück zum Werk
-crates/baruch-server/templates/shutdown.html	im Terminal oder der eingerichtete Dienst).
-crates/baruch-server/templates/shutdown.html	öffnen (bzw. die Adresse, unter der Baruch dort lauscht), oder den Dienst anhalten (
-crates/baruch-server/templates/shutdown_done.html	Baruch ist beendet
-crates/baruch-server/templates/shutdown_done.html	Gespeicherte Texte liegen in der Datenbank und im Git-Spiegel. Zum Weiterarbeiten Baruch neu starten.
-crates/baruch-server/templates/source.html	Die Persona antwortet im Abschnitts-Chat
-crates/baruch-server/templates/source.html	Frage an die Persona
-crates/baruch-server/templates/source.html	Markierten Text hier einfügen …
-crates/baruch-server/templates/source.html	Noch keine Zitate.
-crates/baruch-server/templates/source.html	Teil von , Ende noch unbekannt · Fundstellen markiert
-crates/baruch-server/templates/source.html	Was sagt dieser Text zu meinem Abschnitt?
-crates/baruch-server/templates/source.html	Zitieren (Vorschlag im Abschnitt)
-crates/baruch-server/templates/source.html	Zurück
-crates/baruch-server/templates/source.html	Zurück zum Werk
-crates/baruch-server/templates/source.html	nächster Teil →
-crates/baruch-server/templates/source.html	Ähnliches suchen
-crates/baruch-server/templates/source.html	– Quelle – Baruch Quelle · pruefen
-crates/baruch-server/templates/source_import.html	(Inhaltsverzeichnis von MultiGPT) (keine Verbindung eingerichtet: Einstellungen → Verbindungen)
-crates/baruch-server/templates/source_import.html	(MultiGPT, wenn eingerichtet, eine Sammlung gewählt und Hochladen angekreuzt ist; sonst lokal)
-crates/baruch-server/templates/source_import.html	(leer: aus der Datei)
-crates/baruch-server/templates/source_import.html	(pdftotext auf diesem Rechner, nichts verlässt ihn)
-crates/baruch-server/templates/source_import.html	Abschnitt,
-crates/baruch-server/templates/source_import.html	Baruch liest die Datei und schlägt eine Gliederung vor. Angelegt wird erst, wenn du die Gliederung in der Vorschau bestätigst – als Werk, als Quelle der Bibliothek oder beides.
-crates/baruch-server/templates/source_import.html	Bild übersprungen:
-crates/baruch-server/templates/source_import.html	Bild(er) kommen mit ins Werk.
-crates/baruch-server/templates/source_import.html	Datei (.pdf oder .epub, höchstens MiB)
-crates/baruch-server/templates/source_import.html	Gliederung prüfen
-crates/baruch-server/templates/source_import.html	In MultiGPT: Sammlung „ “, Dokument
-crates/baruch-server/templates/source_import.html	Je Zeile ein Punkt:
-crates/baruch-server/templates/source_import.html	Kapitel,
-crates/baruch-server/templates/source_import.html	Lesen und Gliederung zeigen
-crates/baruch-server/templates/source_import.html	MultiGPT hat „ “ nicht gelesen; Baruch wechselt nicht von selbst den Weg.
-crates/baruch-server/templates/source_import.html	Neues Werk / Importieren …
-crates/baruch-server/templates/source_import.html	PDF oder EPUB importieren – Baruch PDF oder EPUB importieren
-crates/baruch-server/templates/source_import.html	Quelle der Bibliothek
-crates/baruch-server/templates/source_import.html	Weg (nur PDF; EPUB liest Baruch immer selbst)
-crates/baruch-server/templates/source_import.html	Werk
-crates/baruch-server/templates/source_import.html	Werke
-crates/baruch-server/templates/source_import.html	Zeichen · möglicher Teil – als Teil nur mit „= Teil: …“
-crates/baruch-server/templates/source_import.html	Zurück
-crates/baruch-server/templates/source_import.html	Zurück zum Werk
-crates/baruch-server/templates/source_import.html	in MultiGPT hochladen (Sammlung „ “ oben eintragen )
-crates/baruch-server/templates/source_import.html	löscht den Entwurf; nichts wird angelegt.
-crates/baruch-server/templates/source_import.html	macht einen Teil. Zeile leeren = Punkt streichen (sein Text geht an den vorigen Punkt). Die Reihenfolge bleibt wie in der Datei.
-crates/baruch-server/templates/source_import.html	pdftotext auf diesem Rechner; die Datei liegt noch bereit, nichts ist angelegt.
-crates/baruch-server/templates/source_import.html	Übernehmen
-crates/baruch-server/templates/source_import.html	Übernehmen als
-crates/baruch-server/templates/source_import.html	Übersprungene Bilder
-crates/baruch-server/templates/source_import.html	über MultiGPT
-crates/baruch-server/templates/source_multigpt.html	Frage an die Persona
-crates/baruch-server/templates/source_multigpt.html	In der Bibliothek:
-crates/baruch-server/templates/source_multigpt.html	In die Bibliothek übernehmen
-crates/baruch-server/templates/source_multigpt.html	Quelle am Beitrag: – kein Titel der Bibliothek nötig.
-crates/baruch-server/templates/source_multigpt.html	Teil von , Ende noch unbekannt · Fundstellen markiert
-crates/baruch-server/templates/source_multigpt.html	Text (höchstens Zeichen; auf die wichtige Stelle kürzen)
-crates/baruch-server/templates/source_multigpt.html	Was sagt dieser Text zu meinem Abschnitt?
-crates/baruch-server/templates/source_multigpt.html	Zurück
-crates/baruch-server/templates/source_multigpt.html	Zurück zum Werk
-crates/baruch-server/templates/source_multigpt.html	legt einen Titel an, verknüpft mit diesem Dokument (Volltext und Prüfung von Hervorhebungen)
-crates/baruch-server/templates/source_multigpt.html	nächster Teil →
-crates/baruch-server/templates/source_multigpt.html	„An Persona geben“ braucht einen Abschnitt: die Literatur aus einem Abschnitt heraus öffnen.
-crates/baruch-server/templates/sync.html	( Dokument Dokumente bei MultiGPT)
-crates/baruch-server/templates/sync.html	Abgleich mit MultiGPT
-crates/baruch-server/templates/sync.html	Abgleich mit MultiGPT – Baruch Abgleich mit MultiGPT pruefen
-crates/baruch-server/templates/sync.html	Baruch lädt die aktuellen Fassungen der Werke mit Schalter „nach MultiGPT hochladen“ hoch (ein Dokument je Kapitel) und holt die gewählten Sammlungen als lokale Kopie, die auch offline durchsuchbar ist. Nur dieser Knopf startet den Abgleich; Fehler erscheinen hier als Hinweis, lokal geht nichts verloren.
-crates/baruch-server/templates/sync.html	Der Abgleich läuft gerade …
-crates/baruch-server/templates/sync.html	Einstellungen → Verbindungen
-crates/baruch-server/templates/sync.html	Es gibt noch kein Werk.
-crates/baruch-server/templates/sync.html	Gewählte Sammlungen (lokale Kopie, offline suchbar)
-crates/baruch-server/templates/sync.html	Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT
-crates/baruch-server/templates/sync.html	Keine Sammlung gewählt.
-crates/baruch-server/templates/sync.html	MultiGPT ist noch nicht eingerichtet:
-crates/baruch-server/templates/sync.html	Noch nie abgeglichen.
-crates/baruch-server/templates/sync.html	Sammlungen übernehmen
-crates/baruch-server/templates/sync.html	Vorgabe: aus. Eingeschaltet geht beim nächsten Abgleich je Kapitel ein Dokument mit den aktuellen Fassungen in die Sammlung „Baruch: &lt;Werktitel&gt;“; geänderte Kapitel werden ersetzt.
-crates/baruch-server/templates/sync.html	Werke nach MultiGPT hochladen
-crates/baruch-server/templates/sync.html	Zurück
-crates/baruch-server/templates/sync.html	Zurück zum Werk
+# reason: state value of data-sync-upload, not shown text
 crates/baruch-server/templates/sync.html	aus
-crates/baruch-server/templates/sync.html	mit Hinweisen
-crates/baruch-server/templates/sync.html	unverändert:
-crates/baruch-server/templates/sync.html	zuletzt abgeglichen (begonnen , nicht beendet) –
-crates/baruch-server/templates/sync.html	– hochladen an, Sammlung „ “, Kapitel , zuletzt
-crates/baruch-server/templates/sync.html	– hochladen aus ( Kapitel liegen noch in „ “)
 crates/baruch-server/templates/thread.html	@lektor … bzw. „Lektor, …“ ruft eine Persona · RFC … bzw. @alle ruft alle
 crates/baruch-server/templates/thread.html	Alle Fäden
 crates/baruch-server/templates/thread.html	Beiträge des Fadens
@@ -1810,17 +1308,6 @@ crates/baruch-server/templates/variants.html	die übrigen Varianten verwerfen
 crates/baruch-server/templates/variants.html	gegenüber Variante (Fassung )
 crates/baruch-server/templates/variants.html	Übrige Varianten außer verwerfen
 crates/baruch-server/templates/variants.html	Übrige verwerfen
-crates/baruch-server/templates/websearch_evidence.html	Belege der Websuche – Baruch Belege der Websuche
-crates/baruch-server/templates/websearch_evidence.html	Belege zu Beitrag
-crates/baruch-server/templates/websearch_evidence.html	Die Websuche von @belege ruft jede Seite ab, bevor sie genannt wird. Baruch prüft jedes Zitat gegen den abgerufenen Text: „belegt“ heißt, der Wortlaut steht so auf der Seite. Nur belegte Zitate lassen sich in die Autorenbibliothek übernehmen (Titel, Adresse, Zitat, Hervorhebung).
-crates/baruch-server/templates/websearch_evidence.html	In der Bibliothek (Titel )
-crates/baruch-server/templates/websearch_evidence.html	In die Bibliothek
-crates/baruch-server/templates/websearch_evidence.html	Prüfung:
-crates/baruch-server/templates/websearch_evidence.html	Zu diesem Beitrag gibt es keine Belege der Websuche.
-crates/baruch-server/templates/websearch_evidence.html	Zum Abschnitt
-crates/baruch-server/templates/websearch_evidence.html	Zurück
-crates/baruch-server/templates/websearch_evidence.html	bevorzugte Quelle
-crates/baruch-server/templates/websearch_evidence.html	„ “
 crates/baruch-server/templates/work_delete.html	) und eine neue Nummer. Ist nach dem Löschen kein Werk mehr da, legt Baruch kein Beispielwerk neu an.
 crates/baruch-server/templates/work_delete.html	; dort bleibt jeder Text in der Git-Historie lesbar. Über
 crates/baruch-server/templates/work_delete.html	Der Git-Spiegel

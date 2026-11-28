@@ -36,7 +36,9 @@ async fn fails(server: &common::Server, method: &str, params: Value, code: i64) 
 
 async fn page(server: &common::Server, work: Option<i64>, pairs: &[(&str, &str)]) -> String {
     let q = pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
-    render_connections(&server.state, work, &q).await.expect("Seite Verbindungen")
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, render_connections(&server.state, work, &q))
+        .await
+        .expect("Seite Verbindungen")
 }
 
 fn section<'a>(html: &'a str, kind: &str) -> &'a str {

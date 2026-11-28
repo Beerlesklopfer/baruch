@@ -33,7 +33,7 @@
       description, notice, supported, problem, checked, missing}], error}); form to
       POST /einstellungen/werk/bibeln (method=bible.set_work_sources, repeated fields commentary, lexicon). #}
   <div class="settings-block settings-sword" id="kommentare">
-    <h3>Kommentare und Lexika</h3>
+    <h3>{{ t("settings.work.commentaries_lexicons") }}</h3>
     {%- if sword.error %}
     <p class="notice error small" role="alert">{{ sword.error }}</p>
     {%- endif %}
@@ -41,62 +41,60 @@
       <input type="hidden" name="method" value="bible.set_work_sources">
       <input type="hidden" name="work" value="{{ work }}">
       <fieldset>
-        <legend class="small">Kommentare</legend>
+        <legend class="small">{{ t("settings.work.commentaries") }}</legend>
         {%- for m in sword.commentaries %}
         <label class="check small" data-commentary-choice="{{ m.module }}"><input type="checkbox" name="commentary" value="{{ m.module }}"{% if m.checked %} checked{% endif %}{% if not m.supported and not m.checked %} disabled{% endif %}> {{ m.module }}{% if m.description %} – {{ m.description }}{% endif %}
-          {%- if m.problem %} <span class="muted tiny">(nicht lesbar: {{ m.problem }})</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
+          {%- if m.problem %} <span class="muted tiny">{{ t("settings.work.not_readable", problem=m.problem) }}</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
         {%- else %}
-        <p class="muted tiny">Keine Kommentare in den Modulordnern (Einstellungen → Quellen → Bibeln).</p>
+        <p class="muted tiny">{{ t("settings.work.no_commentaries") }}</p>
         {%- endfor %}
       </fieldset>
       <fieldset>
-        <legend class="small">Lexika</legend>
+        <legend class="small">{{ t("settings.work.lexicons") }}</legend>
         {%- for m in sword.lexicons %}
         <label class="check small" data-lexicon-choice="{{ m.module }}"><input type="checkbox" name="lexicon" value="{{ m.module }}"{% if m.checked %} checked{% endif %}{% if not m.supported and not m.checked %} disabled{% endif %}> {{ m.module }}{% if m.description %} – {{ m.description }}{% endif %}
-          {%- if m.problem %} <span class="muted tiny">(nicht lesbar: {{ m.problem }})</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
+          {%- if m.problem %} <span class="muted tiny">{{ t("settings.work.not_readable", problem=m.problem) }}</span>{% elif m.notice %} <span class="muted tiny">({{ m.notice }})</span>{% endif %}</label>
         {%- else %}
-        <p class="muted tiny">Keine Lexika in den Modulordnern (Einstellungen → Quellen → Bibeln).</p>
+        <p class="muted tiny">{{ t("settings.work.no_lexicons") }}</p>
         {%- endfor %}
       </fieldset>
-      <button class="btn" type="submit">Auswahl speichern</button>
-      <p class="muted tiny">Gewählte Kommentare erscheinen zu einer Stelle in der Literatur (Bibel aufschlagen) und in der
-        Suche als Gruppe „Kommentar“; @belege und – wenn eingeschaltet – der Lektor bekommen sie als Belege [S1] … (lokal,
-        nichts verlässt den Rechner). Lizenzvermerke der Module werden immer mit angezeigt.</p>
+      <button class="btn" type="submit">{{ t("settings.work.save_selection") }}</button>
+      <p class="muted tiny">{{ t("settings.work.modules_help") }}</p>
     </form>
   </div>
   {#- Round 38: block "Werksprache" (language {code, error?}); form to POST /einstellungen/werk/sprache (fields work,
       language). The personas answer in the work language; the language of the user interface stays as it is. #}
   <div class="settings-block settings-language" id="sprache">
-    <h3>Werksprache</h3>
+    <h3>{{ t("settings.work.language_title") }}</h3>
     {%- if language.error %}
     <p class="notice error small" role="alert">{{ language.error }}</p>
     {%- endif %}
     <form method="post" action="/einstellungen/werk/sprache">
       <input type="hidden" name="work" value="{{ work }}">
-      <label class="small">Werksprache <select name="language">
-        <option value="de"{% if language.code == "de" %} selected{% endif %}>Deutsch</option>
-        <option value="en"{% if language.code == "en" %} selected{% endif %}>Englisch</option>
+      <label class="small">{{ t("settings.work.language") }} <select name="language">
+        <option value="de"{% if language.code == "de" %} selected{% endif %}>{{ t("settings.work.language_de") }}</option>
+        <option value="en"{% if language.code == "en" %} selected{% endif %}>{{ t("settings.work.language_en") }}</option>
       </select></label>
-      <button class="btn" type="submit">Speichern</button>
-      <p class="muted tiny">In dieser Sprache antworten die Assistenten. Die Sprache der Oberfläche ändert sich dadurch nicht.</p>
+      <button class="btn" type="submit">{{ t("common.save") }}</button>
+      <p class="muted tiny">{{ t("settings.work.language_help") }}</p>
     </form>
   </div>
   {#- Round 16b (time guard): block „Predigtzeit“ (timing {words_per_minute, target_minutes?, total_clock, words,
       over_clock?, sermon, default_wpm, error?}); form to POST /einstellungen/werk/zeit (method=work.timing_set).
       SQLite only, not in the mirror. #}
   <div class="settings-block settings-timing" id="zeit">
-    <h3>Predigtzeit</h3>
+    <h3>{{ t("settings.work.timing_title") }}</h3>
     {%- if timing.error %}
     <p class="notice error small" role="alert">{{ timing.error }}</p>
     {%- endif %}
-    <p class="small" data-timing-summary>Sprechdauer jetzt ≈ <strong>{{ timing.total_clock }}</strong> ({{ timing.words }} gesprochene Wörter){% if timing.target_minutes %} · Ziel {{ timing.target_minutes }} min{% endif %}{% if timing.over_clock %} · <span class="badge warning" role="alert">Zielzeit überschritten um {{ timing.over_clock }}</span>{% endif %}</p>
+    <p class="small" data-timing-summary>{{ t("settings.work.timing_summary_html", total_clock=timing.total_clock, words=timing.words) }}{% if timing.target_minutes %} {{ t("settings.work.timing_target", target_minutes=timing.target_minutes) }}{% endif %}{% if timing.over_clock %} · <span class="badge warning" role="alert">{{ t("settings.work.timing_over", over_clock=timing.over_clock) }}</span>{% endif %}</p>
     <form method="post" action="/einstellungen/werk/zeit">
       <input type="hidden" name="method" value="work.timing_set">
       <input type="hidden" name="work" value="{{ work }}">
-      <label class="small">Wörter je Minute <input type="number" name="words_per_minute" min="60" max="250" step="1" value="{{ timing.words_per_minute }}" required></label>
-      <label class="small">Zielzeit in Minuten <input type="number" name="target_minutes" min="1" max="240" step="1" value="{{ timing.target_minutes if timing.target_minutes else '' }}" placeholder="keine"></label>
-      <button class="btn" type="submit">Predigtzeit speichern</button>
-      <p class="muted tiny">Vorgabe {{ timing.default_wpm }} Wörter je Minute; Zielzeit leer = keine. {% if timing.sermon %}Predigten zeigen ihre Zeiten immer{% else %}Bücher zeigen Zeiten nur mit Zielzeit{% endif %} – in der Gliederung und im Editorkopf. Typst-Markup, Überschriften, Kommentare und Fußnoten zählen nicht mit. Gespeichert nur in der Datenbank, nicht im Git-Spiegel.</p>
+      <label class="small">{{ t("settings.work.wpm") }} <input type="number" name="words_per_minute" min="60" max="250" step="1" value="{{ timing.words_per_minute }}" required></label>
+      <label class="small">{{ t("settings.work.target_minutes") }} <input type="number" name="target_minutes" min="1" max="240" step="1" value="{{ timing.target_minutes if timing.target_minutes else '' }}" placeholder="{{ t("settings.work.target_none") }}"></label>
+      <button class="btn" type="submit">{{ t("settings.work.timing_save") }}</button>
+      <p class="muted tiny">{{ t("settings.work.timing_default", default_wpm=timing.default_wpm) }} {% if timing.sermon %}{{ t("settings.work.timing_sermon") }}{% else %}{{ t("settings.work.timing_book") }}{% endif %} {{ t("settings.work.timing_where") }}</p>
     </form>
   </div>
   {#- Round 18c (typeset view per work): block „Satzbild“ (sheet {settings, template, empty, error?}); form to
@@ -104,30 +102,27 @@
       value of the template). SQLite only, not in the mirror; applies only to the typeset view in the browser, never to
       Typst/PDF. #}
   <div class="settings-block settings-sheet" id="satzbild">
-    <h3>Satzbild</h3>
+    <h3>{{ t("settings.work.sheet_title") }}</h3>
     {%- if sheet.error %}
     <p class="notice error small" role="alert">{{ sheet.error }}</p>
     {%- endif %}
     <form class="sheet-settings-form" method="post" action="/einstellungen/werk/satzbild">
       <input type="hidden" name="method" value="work.sheet_set">
       <input type="hidden" name="work" value="{{ work }}">
-      <label class="small">Schrift <input type="text" name="font" maxlength="200" value="{{ sheet.settings.font or '' }}" placeholder="{{ sheet.template.font or 'Vorgabe: Libertinus Serif, Georgia, serif' }}"></label>
-      <label class="small">Schrift der Überschriften <input type="text" name="heading_font" maxlength="200" value="{{ sheet.settings.heading_font or '' }}" placeholder="{{ sheet.template.heading_font or 'wie die Schrift' }}"></label>
-      <label class="small">Schriftgröße <input type="text" name="size" maxlength="16" value="{{ sheet.settings.size or '' }}" placeholder="{{ sheet.template.size or '11pt' }}"></label>
-      <label class="small">Satzbreite <input type="text" name="width" maxlength="16" value="{{ sheet.settings.width or '' }}" placeholder="{{ sheet.template.width or '14.8cm' }}"></label>
-      <label class="small">Textfarbe <input type="text" name="fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.fill or '' }}" placeholder="{{ sheet.template.fill or '#rrggbb' }}"></label>
-      <label class="small">Farbe der Überschriften <input type="text" name="heading_fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.heading_fill or '' }}" placeholder="{{ sheet.template.heading_fill or '#rrggbb' }}"></label>
-      <label class="small">Blattfarbe <input type="text" name="background" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.background or '' }}" placeholder="#f4f1ea (hell)"></label>
+      <label class="small">{{ t("settings.work.font") }} <input type="text" name="font" maxlength="200" value="{{ sheet.settings.font or '' }}" placeholder="{{ sheet.template.font or t("settings.work.font_default") }}"></label>
+      <label class="small">{{ t("settings.work.heading_font") }} <input type="text" name="heading_font" maxlength="200" value="{{ sheet.settings.heading_font or '' }}" placeholder="{{ sheet.template.heading_font or t("settings.work.heading_font_default") }}"></label>
+      <label class="small">{{ t("settings.work.size") }} <input type="text" name="size" maxlength="16" value="{{ sheet.settings.size or '' }}" placeholder="{{ sheet.template.size or '11pt' }}"></label>
+      <label class="small">{{ t("settings.work.width") }} <input type="text" name="width" maxlength="16" value="{{ sheet.settings.width or '' }}" placeholder="{{ sheet.template.width or '14.8cm' }}"></label>
+      <label class="small">{{ t("settings.work.fill") }} <input type="text" name="fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.fill or '' }}" placeholder="{{ sheet.template.fill or '#rrggbb' }}"></label>
+      <label class="small">{{ t("settings.work.heading_fill") }} <input type="text" name="heading_fill" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.heading_fill or '' }}" placeholder="{{ sheet.template.heading_fill or '#rrggbb' }}"></label>
+      <label class="small">{{ t("settings.work.background") }} <input type="text" name="background" maxlength="7" pattern="#[0-9A-Fa-f]{6}" value="{{ sheet.settings.background or '' }}" placeholder="{{ t("settings.work.background_placeholder") }}"></label>
       <div class="sheet-settings-actions">
-        <button class="btn" type="submit">Satzbild speichern</button>
+        <button class="btn" type="submit">{{ t("settings.work.sheet_save") }}</button>
         {%- if not sheet.empty %}
-        <button class="btn" type="submit" name="reset" value="1" formnovalidate>Alles aus der Vorlage</button>
+        <button class="btn" type="submit" name="reset" value="1" formnovalidate>{{ t("settings.work.sheet_reset") }}</button>
         {%- endif %}
       </div>
-      <p class="muted tiny">Leer = aus der Werkvorlage (grau: ihr Wert). Schrift als Liste wie in CSS (<code>"Erfundene Antiqua", Georgia, serif</code>),
-        Größe 6 bis 48 pt und Satzbreite 6 bis 60 cm mit Einheit pt, mm, cm oder em, Farben als <code>#rrggbb</code>. Gilt nur für das
-        Satzbild im Browser – der Satz mit Typst, PDF und Export folgen weiter der Werkvorlage. Gespeichert nur in der Datenbank,
-        nicht im Git-Spiegel und nicht im Austauschformat.</p>
+      <p class="muted tiny">{{ t("settings.work.sheet_help_html") }}</p>
     </form>
   </div>
 {{ typeset|safe }}
@@ -136,66 +131,58 @@
       POST /einstellungen/werk/fassungen (method=revision.policy_set, handler in src/revisions.rs). SQLite only, not in
       the exchange format; every change is a log commit in the Git mirror. #}
   <div class="settings-block settings-revisions" id="fassungen">
-    <h3>Fassungen</h3>
+    <h3>{{ t("settings.work.revisions_title") }}</h3>
     {%- if revisions.error %}
     <p class="notice error small" role="alert">{{ revisions.error }}</p>
     {%- endif %}
     <form class="revision-policy-form" method="post" action="/einstellungen/werk/fassungen">
       <input type="hidden" name="method" value="revision.policy_set">
       <input type="hidden" name="work" value="{{ work }}">
-      <label class="inline small"><input type="checkbox" name="amend" value="1"{% if revisions.amend %} checked{% endif %}> Eigene aktuelle Fassung beim Speichern fortschreiben (statt jedes Mal eine neue Fassung)</label>
-      <label class="small">Neue Fassung ab einer Änderung von mehr als <input type="number" name="max_change_percent" min="{{ revisions.percent_min }}" max="{{ revisions.percent_max }}" step="1" value="{{ revisions.max_change_percent }}" required> Prozent</label>
-      <label class="small">Neue Fassung, wenn seit dem letzten Speichern <input type="number" name="new_after_minutes" min="{{ revisions.minutes_min }}" max="{{ revisions.minutes_max }}" step="1" value="{{ revisions.new_after_minutes }}" required> Minuten vergangen sind (0 = keine Zeitgrenze)</label>
-      <button class="btn" type="submit">Fassungen speichern</button>
-      <p class="muted tiny">Vorgabe: an, {{ revisions.default_percent }} %, {{ revisions.default_minutes }} min – also keine Grenze, Speichern schreibt immer fort wie in einer Textverarbeitung. Eine neue
-        Fassung entsteht außerdem immer, wenn „Als neue Fassung speichern“ gewählt ist, die aktuelle Fassung von einer
-        Persona stammt (auch ein übernommener Vorschlag), auf einer anderen als der aktuellen Fassung bearbeitet oder die
-        Überschrift bzw. Gliederung geändert wurde. Jede Fortschreibung ist ein Commit im Git-Spiegel und steht im Verlauf
-        der Fassung (dort auch „Bis hier zurück“). Personas legen immer neue Fassungen (Vorschläge) an. Gespeichert nur in
-        der Datenbank, nicht im Austauschformat.</p>
+      <label class="inline small"><input type="checkbox" name="amend" value="1"{% if revisions.amend %} checked{% endif %}> {{ t("settings.work.amend") }}</label>
+      <label class="small">{{ t("settings.work.percent_before") }} <input type="number" name="max_change_percent" min="{{ revisions.percent_min }}" max="{{ revisions.percent_max }}" step="1" value="{{ revisions.max_change_percent }}" required> {{ t("settings.work.percent_after") }}</label>
+      <label class="small">{{ t("settings.work.minutes_before") }} <input type="number" name="new_after_minutes" min="{{ revisions.minutes_min }}" max="{{ revisions.minutes_max }}" step="1" value="{{ revisions.new_after_minutes }}" required> {{ t("settings.work.minutes_after") }}</label>
+      <button class="btn" type="submit">{{ t("settings.work.revisions_save") }}</button>
+      <p class="muted tiny">{{ t("settings.work.revisions_help", default_percent=revisions.default_percent, default_minutes=revisions.default_minutes) }}</p>
     </form>
     {#- 0.9.0 (user 2026-11-24): hide older revisions across the work (revisions.folds = sections with a mark,
         revisions.fold_error); form to POST /einstellungen/werk/fassungen/ausblenden (src/revision_fold.rs). #}
     <form class="revision-fold-form" method="post" action="/einstellungen/werk/fassungen/ausblenden" id="fassungen-ausblenden">
       <input type="hidden" name="work" value="{{ work }}">
-      <h4 class="small">Ältere Fassungen ausblenden</h4>
+      <h4 class="small">{{ t("settings.work.fold_title") }}</h4>
       {%- if revisions.fold_error %}
       <p class="notice error small" role="alert">{{ revisions.fold_error }}</p>
       {%- endif %}
-      <label class="small">Ältere Fassungen ausblenden bis <input type="date" name="date" required></label>
-      <button class="btn" type="submit" name="do" value="fold">Ausblenden</button>
-      <p class="muted tiny">Setzt in jedem Abschnitt die Marke auf die letzte Fassung vor diesem Tag (höchstens auf die
-        aktuelle); ersetzte und verworfene Fassungen darunter stehen dann hinter dem Schalter „n ältere Fassungen
-        zeigen“. Die aktuelle Fassung und offene Vorschläge bleiben immer sichtbar; nichts wird gelöscht. Vorhandene
-        Marken werden ersetzt. Zurzeit {% if revisions.folds == 1 %}hat 1 Abschnitt{% else %}haben {{ revisions.folds }} Abschnitte{% endif %} eine Marke.</p>
+      <label class="small">{{ t("settings.work.fold_until") }} <input type="date" name="date" required></label>
+      <button class="btn" type="submit" name="do" value="fold">{{ t("settings.work.fold") }}</button>
+      <p class="muted tiny">{{ t("settings.work.fold_help") }} {{ t("settings.work.folds_now", count=revisions.folds) }}</p>
     </form>
     {%- if revisions.folds %}
     <form method="post" action="/einstellungen/werk/fassungen/ausblenden">
       <input type="hidden" name="work" value="{{ work }}">
       <input type="hidden" name="do" value="clear">
-      <button class="btn" type="submit">Alle Marken aufheben (wieder alle Fassungen zeigen)</button>
+      <button class="btn" type="submit">{{ t("settings.work.fold_clear") }}</button>
     </form>
     {%- endif %}
   </div>
   <div class="settings-block settings-sync" id="abgleich">
-    <h3>Abgleich mit MultiGPT</h3>
+    <h3>{{ t("settings.work.sync_title") }}</h3>
     <form method="post" action="/abgleich/act">
       <input type="hidden" name="action" value="upload">
       <input type="hidden" name="work" value="{{ work }}">
       <input type="hidden" name="back" value="/einstellungen/werk?work={{ work }}">
       {%- if sync.upload %}
-      <p data-sync-upload="an">Nach MultiGPT hochladen: <strong>an</strong> – je Kapitel ein Dokument in der Sammlung „{{ sync.collection }}“ ({{ sync.documents }} Kapitel hochgeladen{% if sync.synced %}, zuletzt {{ sync.synced }}{% endif %}).</p>
-      <button class="btn" type="submit">Hochladen ausschalten</button>
+      <p data-sync-upload="an">{{ t("settings.work.sync_on_html", collection=sync.collection, documents=sync.documents) }}{% if sync.synced %}{{ t("settings.work.sync_last", synced=sync.synced) }}{% endif %}).</p>
+      <button class="btn" type="submit">{{ t("settings.work.sync_switch_off") }}</button>
       {%- else %}
-      <p data-sync-upload="aus">Nach MultiGPT hochladen: <strong>aus</strong>. Eingeschaltet lädt der nächste Abgleich die aktuellen Fassungen dieses Werks als ein Dokument je Kapitel in die Sammlung „{{ sync.collection }}“.</p>
+      <p data-sync-upload="aus">{{ t("settings.work.sync_off_html", collection=sync.collection) }}</p>
       <input type="hidden" name="on" value="1">
-      <label class="inline"><input type="checkbox" name="confirm" value="1" required> Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT</label>
-      <button class="btn" type="submit">Hochladen einschalten</button>
+      <label class="inline"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.work.sync_confirm") }}</label>
+      <button class="btn" type="submit">{{ t("settings.work.sync_switch_on") }}</button>
       {%- endif %}
     </form>
-    <p class="muted"><a href="/abgleich?work={{ work }}">Zum Abgleich (Werkzeuge → Abgleichen)</a></p>
+    <p class="muted"><a href="/abgleich?work={{ work }}">{{ t("settings.work.sync_link") }}</a></p>
   </div>
   {%- else %}
-  <p class="muted">Es gibt noch kein Werk. <a href="/werke/neu">Neues Werk anlegen oder importieren …</a></p>
+  <p class="muted">{{ t("settings.work.no_works") }} <a href="/werke/neu">{{ t("settings.work.new_work") }}</a></p>
   {%- endif %}
 </section>

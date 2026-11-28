@@ -5,6 +5,7 @@
     sources.delete (confirm=1), sources.create. Works without JavaScript. Context: notice, error,
     sources [{id, title, url, note, position}], count, work, usage (Round 13: how the web search of @belege uses the
     list, connections::sources::USAGE). -#}
+{%- set cipher_account = "sword-cipher:<" ~ t("settings.sources.cipher_module") ~ ">" -%}
 <section class="settings-page sources-page" data-settings-page-body="quellen">
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
@@ -12,8 +13,7 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <p class="muted small">Bevorzugte Quellen für <code>@belege</code>: Titel, Adresse, Notiz, in dieser Reihenfolge. Die Liste gilt
-    für alle Werke; Assistenten lesen sie über MCP (<code>sources_list</code>), ändern kann sie nur der Mensch.</p>
+  <p class="muted small">{{ t("settings.sources.intro_html") }}</p>
   <p class="muted tiny" data-usage>{{ usage }}</p>
   <div id="quellen">
   {%- if sources %}
@@ -30,44 +30,44 @@
           <input type="hidden" name="method" value="sources.move">
           <input type="hidden" name="id" value="{{ s.id }}">
           {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-          <button class="btn" type="submit" name="direction" value="up" aria-label="„{{ s.title }}“ nach oben"{% if s.position == 1 %} disabled{% endif %}>↑</button>
-          <button class="btn" type="submit" name="direction" value="down" aria-label="„{{ s.title }}“ nach unten"{% if s.position == count %} disabled{% endif %}>↓</button>
+          <button class="btn" type="submit" name="direction" value="up" aria-label="{{ t("settings.sources.up", title=s.title) }}"{% if s.position == 1 %} disabled{% endif %}>↑</button>
+          <button class="btn" type="submit" name="direction" value="down" aria-label="{{ t("settings.sources.down", title=s.title) }}"{% if s.position == count %} disabled{% endif %}>↓</button>
         </form>
         <details class="source-edit">
-          <summary class="btn">Bearbeiten</summary>
+          <summary class="btn">{{ t("settings.sources.edit") }}</summary>
           <form class="source-form" method="post" action="/einstellungen/quellen/act">
             <input type="hidden" name="method" value="sources.update">
             <input type="hidden" name="id" value="{{ s.id }}">
             {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-            <label class="connection-field"><span>Titel</span><input type="text" name="title" value="{{ s.title }}" maxlength="200" required></label>
-            <label class="connection-field"><span>Adresse</span><input type="url" name="url" value="{{ s.url }}" maxlength="2000" required></label>
-            <label class="connection-field"><span>Notiz</span><textarea name="note" rows="2" maxlength="4000">{{ s.note }}</textarea></label>
-            <div class="connection-actions"><button class="btn primary" type="submit">Speichern</button></div>
+            <label class="connection-field"><span>{{ t("settings.sources.title_field") }}</span><input type="text" name="title" value="{{ s.title }}" maxlength="200" required></label>
+            <label class="connection-field"><span>{{ t("settings.sources.address") }}</span><input type="url" name="url" value="{{ s.url }}" maxlength="2000" required></label>
+            <label class="connection-field"><span>{{ t("settings.sources.note") }}</span><textarea name="note" rows="2" maxlength="4000">{{ s.note }}</textarea></label>
+            <div class="connection-actions"><button class="btn primary" type="submit">{{ t("common.save") }}</button></div>
           </form>
         </details>
         <form class="source-delete" method="post" action="/einstellungen/quellen/act">
           <input type="hidden" name="method" value="sources.delete">
           <input type="hidden" name="id" value="{{ s.id }}">
           {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-          <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich löschen</label>
-          <button class="btn danger" type="submit">Löschen</button>
+          <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.sources.really_delete") }}</label>
+          <button class="btn danger" type="submit">{{ t("common.delete") }}</button>
         </form>
       </div>
     </li>
   {%- endfor %}
   </ol>
   {%- else %}
-  <p class="muted">Noch keine Quellen.</p>
+  <p class="muted">{{ t("settings.sources.none") }}</p>
   {%- endif %}
   </div>
   <form class="source-form source-new" id="quelle-neu" method="post" action="/einstellungen/quellen/act">
-    <h3 class="connection-title">Neue Quelle</h3>
+    <h3 class="connection-title">{{ t("settings.sources.new") }}</h3>
     <input type="hidden" name="method" value="sources.create">
     {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-    <label class="connection-field"><span>Titel</span><input type="text" name="title" maxlength="200" required></label>
-    <label class="connection-field"><span>Adresse</span><input type="url" name="url" maxlength="2000" placeholder="https://…" required></label>
-    <label class="connection-field"><span>Notiz</span><textarea name="note" rows="2" maxlength="4000"></textarea></label>
-    <div class="connection-actions"><button class="btn primary" type="submit">Anlegen</button></div>
+    <label class="connection-field"><span>{{ t("settings.sources.title_field") }}</span><input type="text" name="title" maxlength="200" required></label>
+    <label class="connection-field"><span>{{ t("settings.sources.address") }}</span><input type="url" name="url" maxlength="2000" placeholder="https://…" required></label>
+    <label class="connection-field"><span>{{ t("settings.sources.note") }}</span><textarea name="note" rows="2" maxlength="4000"></textarea></label>
+    <div class="connection-actions"><button class="btn primary" type="submit">{{ t("settings.sources.create") }}</button></div>
   </form>
   {#- Bibles (SWORD, 2026-11-06): module directories, Bibles found, Bible of the work. Context bibles = bible.modules
       plus dirs_text, work_title, chosen_missing. Forms bible.set_dirs and bible.set_work. Round 17c: column
@@ -75,23 +75,18 @@
       and per encrypted module the forms bible.cipher_key_set (field key, type=password) and
       bible.cipher_key_delete (mandatory checkbox confirm). -#}
   <div class="bibles" id="bibeln">
-    <h3 class="connection-title">Bibeln (SWORD)</h3>
-    <p class="muted small">Mit einer gewählten Bibel prüft die Stellenprüfung (@schrift, <code>scripture_check</code>)
-      auch den Wortlaut eines Zitats. Baruch liest SWORD-Module (zText, RawText; Kompression ZIP, LZSS, BZIP2, XZ) in
-      ihrer eigenen Verszählung und bildet deutsche Stellen darauf ab. Verschlüsselte Module werden lesbar, sobald
-      der Schlüssel des Herausgebers unten hinterlegt ist. Ein Modulordner enthält <code>mods.d/</code> und
-      <code>modules/</code>.</p>
+    <h3 class="connection-title">{{ t("settings.sources.bibles") }}</h3>
+    <p class="muted small">{{ t("settings.sources.bibles_help_html") }}</p>
     <form class="source-form" method="post" action="/einstellungen/quellen/act">
       <input type="hidden" name="method" value="bible.set_dirs">
       {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-      <label class="connection-field"><span>Modulordner (je Zeile einer, in dieser Reihenfolge)</span>
+      <label class="connection-field"><span>{{ t("settings.sources.dirs") }}</span>
         <textarea name="dirs" rows="3" maxlength="21000" spellcheck="false">{{ bibles.dirs_text }}</textarea></label>
-      <p class="muted tiny">{% if bibles.default_dirs %}Vorgabe: <code>$SWORD_PATH</code>, <code>~/.sword</code>,
-        <code>/usr/share/sword</code>.{% else %}Eigene Liste.{% endif %}</p>
+      <p class="muted tiny">{% if bibles.default_dirs %}{{ t("settings.sources.dirs_default_html") }}{% else %}{{ t("settings.sources.dirs_own") }}{% endif %}</p>
       <div class="connection-actions">
-        <button class="btn primary" type="submit">Ordner speichern</button>
+        <button class="btn primary" type="submit">{{ t("settings.sources.dirs_save") }}</button>
         {%- if not bibles.default_dirs %}
-        <button class="btn" type="submit" name="reset" value="1">Vorgabe</button>
+        <button class="btn" type="submit" name="reset" value="1">{{ t("settings.sources.dirs_reset") }}</button>
         {%- endif %}
       </div>
     </form>
@@ -102,44 +97,42 @@
     {%- endif %}
     {%- if bibles.modules %}
     <table class="bible-list">
-      <thead><tr><th>Modul</th><th>Art</th><th>Beschreibung</th><th>Versifikation</th><th>Lizenz (laut conf)</th><th>Verschlüsselung</th><th>Lesbar</th></tr></thead>
+      <thead><tr><th>{{ t("settings.sources.col_module") }}</th><th>{{ t("settings.sources.col_kind") }}</th><th>{{ t("settings.sources.col_description") }}</th><th>{{ t("settings.sources.col_versification") }}</th><th>{{ t("settings.sources.col_license") }}</th><th>{{ t("settings.sources.col_cipher") }}</th><th>{{ t("settings.sources.col_readable") }}</th></tr></thead>
       <tbody>
       {%- for m in bibles.modules %}
         <tr data-bible="{{ m.module }}" data-kind="{{ m.kind or 'bible' }}">
           <td><code>{{ m.module }}</code>{% if m.lang %} <span class="muted tiny">{{ m.lang }}</span>{% endif %}</td>
-          <td class="small">{% if m.kind == "commentary" %}Kommentar{% elif m.kind == "lexicon" %}Lexikon{% else %}Bibel{% endif %}</td>
+          <td class="small">{% if m.kind == "commentary" %}{{ t("settings.sources.kind_commentary") }}{% elif m.kind == "lexicon" %}{{ t("settings.sources.kind_lexicon") }}{% else %}{{ t("settings.sources.kind_bible") }}{% endif %}</td>
           <td>{{ m.description }}</td>
           <td>{{ m.versification }}</td>
           <td class="small">{{ m.license }}</td>
-          <td class="small" data-cipher="{{ m.cipher or 'none' }}">{% if m.cipher == "locked" %}gesperrt – Schlüssel fehlt{% elif m.cipher == "unlocked" %}entsperrt{% if m.key_stored %} – Schlüssel hinterlegt{% else %} (Schlüssel in der conf){% endif %}{% else %}–{% endif %}</td>
-          <td>{% if m.supported and m.cipher == "locked" %}erst mit Schlüssel{% elif m.supported %}ja{% else %}nein – {{ m.problem }}{% endif %}</td>
+          <td class="small" data-cipher="{{ m.cipher or 'none' }}">{% if m.cipher == "locked" %}{{ t("settings.sources.cipher_locked") }}{% elif m.cipher == "unlocked" %}{{ t("settings.sources.cipher_unlocked") }}{% if m.key_stored %} {{ t("settings.sources.cipher_key_stored") }}{% else %} {{ t("settings.sources.cipher_key_conf") }}{% endif %}{% else %}–{% endif %}</td>
+          <td>{% if m.supported and m.cipher == "locked" %}{{ t("settings.sources.readable_with_key") }}{% elif m.supported %}{{ t("settings.sources.readable_yes") }}{% else %}{{ t("settings.sources.readable_no", problem=m.problem) }}{% endif %}</td>
         </tr>
       {%- endfor %}
       </tbody>
     </table>
     {%- if bibles.sealed %}
     <div class="bible-ciphers" id="bibel-schluessel">
-      <h4 class="small">Schlüssel verschlüsselter Module</h4>
-      <p class="muted tiny">Den Schlüssel gibt der Herausgeber des Moduls (z. B. nach dem Kauf). Baruch prüft ihn am ersten
-        Eintrag und legt ihn nur im Schlüsselbund ab (Konto <code>sword-cipher:&lt;modul&gt;</code>); er steht nie in einer
-        Seite, Antwort oder Meldung.</p>
+      <h4 class="small">{{ t("settings.sources.keys_title") }}</h4>
+      <p class="muted tiny">{{ t("settings.sources.keys_help_html", cipher_account=cipher_account) }}</p>
       <ul class="cipher-list">
       {%- for m in bibles.modules %}{% if m.cipher and m.cipher != "none" %}
-        <li data-cipher-module="{{ m.module }}"><code>{{ m.module }}</code> – Schlüssel {% if m.key_stored %}hinterlegt{% elif m.cipher == "unlocked" %}steht in der conf{% else %}fehlt{% endif %}
+        <li data-cipher-module="{{ m.module }}">{{ t("settings.sources.key_of_html", module=m.module) }} {% if m.key_stored %}{{ t("settings.sources.key_stored") }}{% elif m.cipher == "unlocked" %}{{ t("settings.sources.key_in_conf") }}{% else %}{{ t("settings.sources.key_missing") }}{% endif %}
           <form class="source-form inline" method="post" action="/einstellungen/quellen/act">
             <input type="hidden" name="method" value="bible.cipher_key_set">
             <input type="hidden" name="module" value="{{ m.module }}">
             {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-            <label class="small">Schlüssel <input type="password" name="key" maxlength="255" autocomplete="off" required spellcheck="false"></label>
-            <button class="btn" type="submit">{% if m.key_stored %}Schlüssel ersetzen{% else %}Schlüssel prüfen und hinterlegen{% endif %}</button>
+            <label class="small">{{ t("settings.sources.key") }} <input type="password" name="key" maxlength="255" autocomplete="off" required spellcheck="false"></label>
+            <button class="btn" type="submit">{% if m.key_stored %}{{ t("settings.sources.key_replace") }}{% else %}{{ t("settings.sources.key_check_store") }}{% endif %}</button>
           </form>
           {%- if m.key_stored %}
           <form class="source-form inline" method="post" action="/einstellungen/quellen/act">
             <input type="hidden" name="method" value="bible.cipher_key_delete">
             <input type="hidden" name="module" value="{{ m.module }}">
             {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
-            <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich entfernen</label>
-            <button class="btn danger" type="submit">Schlüssel entfernen</button>
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.sources.really_remove") }}</label>
+            <button class="btn danger" type="submit">{{ t("settings.sources.key_remove") }}</button>
           </form>
           {%- endif %}
         </li>
@@ -148,22 +141,22 @@
     </div>
     {%- endif %}
     {%- else %}
-    <p class="muted">Keine Module (Bibeln, Kommentare, Lexika) in den Modulordnern gefunden.</p>
+    <p class="muted">{{ t("settings.sources.no_modules") }}</p>
     {%- endif %}
     <form class="source-form" method="post" action="/einstellungen/quellen/act">
       <input type="hidden" name="method" value="bible.set_work">
       <input type="hidden" name="work" value="{{ bibles.work }}">
-      <label class="connection-field"><span>Bibel des Werks „{{ bibles.work_title }}“</span>
+      <label class="connection-field"><span>{{ t("settings.sources.work_bible", work_title=bibles.work_title) }}</span>
         <select name="module">
-          <option value=""{% if not bibles.work_bible %} selected{% endif %}>keine (Wortlaut ungeprüft)</option>
+          <option value=""{% if not bibles.work_bible %} selected{% endif %}>{{ t("settings.sources.no_bible") }}</option>
           {%- for m in bibles.modules %}{% if m.supported and (m.kind or "bible") == "bible" %}
           <option value="{{ m.module }}"{% if m.module == bibles.work_bible %} selected{% endif %}>{{ m.module }} – {{ m.description }} ({{ m.versification }})</option>
           {%- endif %}{% endfor %}
         </select></label>
       {%- if bibles.chosen_missing %}
-      <p class="notice error small" role="alert">Gewählt ist „{{ bibles.work_bible }}“, aber dieses Modul steht in keinem Modulordner; der Wortlaut bleibt ungeprüft.</p>
+      <p class="notice error small" role="alert">{{ t("settings.sources.chosen_missing", work_bible=bibles.work_bible) }}</p>
       {%- endif %}
-      <div class="connection-actions"><button class="btn primary" type="submit">Bibel wählen</button></div>
+      <div class="connection-actions"><button class="btn primary" type="submit">{{ t("settings.sources.choose_bible") }}</button></div>
     </form>
   </div>
 </section>

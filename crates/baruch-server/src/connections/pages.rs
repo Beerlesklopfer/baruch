@@ -1248,15 +1248,15 @@ mod tests {
 
     #[test]
     fn stale_jobs_show_only_when_there_are_some() {
-        let none = page_with_stale(0);
+        let none = crate::i18n::sync_scope(crate::i18n::Lang::De, || page_with_stale(0));
         assert!(!none.contains("liegengeblieben"), "ohne liegengebliebene Aufträge kein Hinweis: {none}");
-        let two = page_with_stale(2);
+        let two = crate::i18n::sync_scope(crate::i18n::Lang::De, || page_with_stale(2));
         assert!(
             two.contains("2 Aufträge liegengeblieben – erneuter Versuch nach einer Änderung oder „Index neu aufbauen“"),
             "Zahl und Weg zum erneuten Versuch genannt: {two}"
         );
         assert!(two.contains("data-index-stale=\"2\""), "maschinenlesbar für Tests und Widgets: {two}");
-        let one = page_with_stale(1);
+        let one = crate::i18n::sync_scope(crate::i18n::Lang::De, || page_with_stale(1));
         assert!(one.contains("1 Auftrag liegengeblieben"), "Einzahl bei einem Auftrag: {one}");
     }
 }

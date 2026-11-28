@@ -2,14 +2,14 @@
     drawn completely in crate::settings) in the page. The header comes from base.html (blocks
     page_title, page_actions). Context: settings, work {id, title, author}?, frame (HTML), title. -#}
 {% extends "base.html" %}
-{% block title %}Einstellungen · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Einstellungen{% if work %} · {{ work.title }}{% endif %}{% endblock %}
+{% block title %}{{ t("settings.page.window_title", title=title) }}{% endblock %}
+{% block page_title %}{{ t("settings.page.heading") }}{% if work %} · {{ work.title }}{% endif %}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Ansicht“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}ansicht{% endblock %}
 {% block band_ansicht %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    {% if work %}<a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>{% else %}<a class="btn" href="/werke">Werke</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("settings.page.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("settings.page.back_group") }}">
+    {% if work %}<a class="btn" href="/?work={{ work.id }}">{{ t("settings.page.back_to_work") }}</a>{% else %}<a class="btn" href="/werke">{{ t("settings.page.works") }}</a>{% endif %}
   </div></details>
 {% endblock %}
 {% block body %}

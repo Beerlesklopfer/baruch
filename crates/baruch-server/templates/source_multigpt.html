@@ -9,15 +9,15 @@
     form „An Persona geben“ (POST /literatur/act, action=persona, without an adopted title).
     „In die Bibliothek übernehmen“ (POST /literatur/act, action=adopt) exists only here, for the human. -#}
 {% extends "base.html" %}
-{% block title %}{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %} – Volltext – Baruch{% endblock %}
-{% block page_title %}Volltext · {{ work.title }}{% endblock %}
+{% block title %}{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %} {{ t("sources.multigpt.window_title_end") }}{% endblock %}
+{% block page_title %}{{ t("sources.multigpt.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ literature_url }}">Literatur</a>
-    <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("sources.multigpt.back_group") }}</summary><div class="band-items" role="group" aria-label="{{ t("sources.multigpt.back_group") }}">
+    <a class="btn" href="{{ literature_url }}">{{ t("sources.multigpt.literature") }}</a>
+    <a class="btn" href="{{ work_url }}" data-back>{{ t("sources.multigpt.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -29,14 +29,14 @@
     <header class="source-head">
       <h1><cite>{% if fulltext.available %}{{ fulltext.title }}{% else %}{{ document }}{% endif %}</cite></h1>
       <p class="muted small">
-        MultiGPT{% if collection %} · Sammlung {{ collection }}{% endif %} · Dokument <code>{{ document }}</code>
-        {%- if section %} · Fundstelle laut MultiGPT: {{ section }}{% endif %}
+        MultiGPT{% if collection %} {{ t("sources.multigpt.collection", collection=collection) }}{% endif %} {{ t("sources.multigpt.document_html", document=document) }}
+        {%- if section %} {{ t("sources.multigpt.section", section=section) }}{% endif %}
       </p>
       {%- if fulltext.available and fulltext.url %}
       <a class="library-url small" href="{{ fulltext.url }}" rel="noopener noreferrer">{{ fulltext.url }}</a>
       {%- endif %}
       {%- if linked %}
-      <p class="small" data-linked="{{ linked.id }}">In der Bibliothek: <a href="{{ linked.url }}"><cite>{{ linked.title }}</cite></a> <code>@{{ linked.key }}</code></p>
+      <p class="small" data-linked="{{ linked.id }}">{{ t("sources.multigpt.in_library") }} <a href="{{ linked.url }}"><cite>{{ linked.title }}</cite></a> <code>@{{ linked.key }}</code></p>
       {%- else %}
       <form method="post" action="/literatur/act" class="source-adopt">
         <input type="hidden" name="action" value="adopt">
@@ -45,49 +45,49 @@
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
-        <button class="btn" type="submit">In die Bibliothek übernehmen</button>
-        <span class="muted tiny">legt einen Titel an, verknüpft mit diesem Dokument (Volltext und Prüfung von Hervorhebungen)</span>
+        <button class="btn" type="submit">{{ t("sources.multigpt.adopt") }}</button>
+        <span class="muted tiny">{{ t("sources.multigpt.adopt_help") }}</span>
       </form>
       {%- endif %}
     </header>
 
-    <section class="source-fulltext" id="volltext" aria-label="Volltext">
-      <h2 class="pane-title">Volltext</h2>
+    <section class="source-fulltext" id="volltext" aria-label="{{ t("sources.multigpt.fulltext") }}">
+      <h2 class="pane-title">{{ t("sources.multigpt.fulltext") }}</h2>
       {%- if not fulltext.available %}
-      <p class="notice small" role="status" data-fulltext="missing">{{ fulltext.reason }}{% if fulltext.load_url %} <a href="{{ fulltext.load_url }}">Volltext laden</a>{% endif %}</p>
+      <p class="notice small" role="status" data-fulltext="missing">{{ fulltext.reason }}{% if fulltext.load_url %} <a href="{{ fulltext.load_url }}">{{ t("sources.multigpt.load_fulltext") }}</a>{% endif %}</p>
       {%- else %}
       {%- if fulltext.message %}
       <p class="notice small" role="status" data-fulltext-origin="{{ fulltext.origin }}">{{ fulltext.message }}</p>
       {%- endif %}
-      <p class="muted tiny" data-part="{{ fulltext.part }}">Teil {{ fulltext.part }}{% if fulltext.parts %} von {{ fulltext.parts }}{% elif fulltext.more %}, Ende noch unbekannt{% endif %}{% if fulltext.marks %} · {{ fulltext.marks }} Fundstellen markiert{% endif %}</p>
+      <p class="muted tiny" data-part="{{ fulltext.part }}">{{ t("sources.multigpt.part", part=fulltext.part) }}{% if fulltext.parts %} {{ t("sources.multigpt.part_of", parts=fulltext.parts) }}{% elif fulltext.more %}{{ t("sources.multigpt.end_unknown") }}{% endif %}{% if fulltext.marks %} {{ t("sources.multigpt.marks", marks=fulltext.marks) }}{% endif %}</p>
       <div class="fulltext-text" data-fulltext="{{ fulltext.origin }}"{% if fulltext.offset is not none %} data-offset="{{ fulltext.offset }}"{% endif %}>
         {%- for p in fulltext.pieces %}{% if p.mark %}<mark class="fulltext-mark">{{ p.text }}</mark>{% else %}{{ p.text }}{% endif %}{% endfor -%}
       </div>
-      <nav class="fulltext-nav small" aria-label="Teile des Volltexts">
-        {%- if fulltext.prev_url %}<a href="{{ fulltext.prev_url }}" rel="prev" data-part-link="prev">← vorheriger Teil</a>{% endif %}
-        {%- if fulltext.next_url %}<a href="{{ fulltext.next_url }}" rel="next" data-part-link="next">nächster Teil →</a>{% endif %}
+      <nav class="fulltext-nav small" aria-label="{{ t("sources.multigpt.parts_nav") }}">
+        {%- if fulltext.prev_url %}<a href="{{ fulltext.prev_url }}" rel="prev" data-part-link="prev">{{ t("sources.multigpt.prev_part") }}</a>{% endif %}
+        {%- if fulltext.next_url %}<a href="{{ fulltext.next_url }}" rel="next" data-part-link="next">{{ t("sources.multigpt.next_part") }}</a>{% endif %}
       </nav>
       {%- endif %}
     </section>
 
-    <section class="source-give" id="an-persona" aria-label="An Persona geben">
-      <h2 class="pane-title">An Persona geben</h2>
+    <section class="source-give" id="an-persona" aria-label="{{ t("sources.multigpt.to_persona") }}">
+      <h2 class="pane-title">{{ t("sources.multigpt.to_persona") }}</h2>
       {%- if not has_key %}
-      <p class="muted small" data-give="no-key">„An Persona geben“ braucht einen Abschnitt: die Literatur aus einem Abschnitt heraus öffnen.</p>
+      <p class="muted small" data-give="no-key">{{ t("sources.multigpt.needs_section") }}</p>
       {%- else %}
       <form method="post" action="/literatur/act" class="source-form" data-give="multigpt">
         {%- for f in place_fields %}
         <input type="hidden" name="{{ f.name }}" value="{{ f.value }}">
         {%- endfor %}
         <input type="hidden" name="source" value="{{ give_source }}">
-        <label class="wide">Text (höchstens {{ max_persona_text }} Zeichen; auf die wichtige Stelle kürzen)
+        <label class="wide">{{ t("sources.multigpt.text", max_persona_text=max_persona_text) }}
           <textarea name="text" rows="6" maxlength="{{ max_persona_text }}" required>{{ give_text }}</textarea></label>
         <label>Persona <select name="persona">
           {%- for p in personas | default([]) %}<option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>{% endfor %}
         </select></label>
-        <label class="wide">Frage an die Persona <input type="text" name="question" maxlength="1000" placeholder="Was sagt dieser Text zu meinem Abschnitt?"></label>
-        <button class="btn" type="submit" name="action" value="persona">An Persona geben</button>
-        <p class="muted tiny">Quelle am Beitrag: {{ give_source }} – kein Titel der Bibliothek nötig.</p>
+        <label class="wide">{{ t("sources.multigpt.question") }} <input type="text" name="question" maxlength="1000" placeholder="{{ t("sources.multigpt.question_placeholder") }}"></label>
+        <button class="btn" type="submit" name="action" value="persona">{{ t("sources.multigpt.to_persona") }}</button>
+        <p class="muted tiny">{{ t("sources.multigpt.give_source", give_source=give_source) }}</p>
       </form>
       {%- endif %}
     </section>

@@ -423,7 +423,9 @@ async fn login_and_setup_show_error_wait_and_status_as_given() {
         error: Some("Name oder Passwort stimmt nicht.".into()),
         retry_after: Some(8),
     };
-    let response = konten_ui::login_page(StatusCode::TOO_MANY_REQUESTS, &view);
+    let response = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        konten_ui::login_page(StatusCode::TOO_MANY_REQUESTS, &view)
+    });
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS, "der Status kommt vom Aufrufer (429 in der Sperre)");
     let page = body_of(response).await;
     assert!(
@@ -438,12 +440,17 @@ async fn login_and_setup_show_error_wait_and_status_as_given() {
     assert!(!page.contains("<b>"), "nichts aus dem Namen wird Markup");
     assert_password_fields(&page, &[("password", "current-password")], "Anmeldeseite mit Fehler");
     let one = LoginView { retry_after: Some(1), error: None, ..view };
-    let page = body_of(konten_ui::login_page(StatusCode::TOO_MANY_REQUESTS, &one)).await;
+    let page = body_of(baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        konten_ui::login_page(StatusCode::TOO_MANY_REQUESTS, &one)
+    }))
+    .await;
     assert!(page.contains("Bitte 1 Sekunde warten"), "eine Sekunde steht in der Einzahl da");
 
     let setup =
         SetupView { name: NASTY.into(), display: "Jörg & Co".into(), error: Some("Zu kurz.".into()), allowed: true };
-    let response = konten_ui::setup_page(StatusCode::UNPROCESSABLE_ENTITY, &setup);
+    let response = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        konten_ui::setup_page(StatusCode::UNPROCESSABLE_ENTITY, &setup)
+    });
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY, "Status wie übergeben");
     let page = body_of(response).await;
     let form = form_with(&page, "name=\"password2\"");
@@ -1013,7 +1020,8 @@ fn sample_accounts() -> AccountsView {
 
 #[test]
 fn the_accounts_page_lists_accounts_and_offers_every_action_of_the_contract() {
-    let page = accounts_html(&sample_accounts()).expect("Seite Konten");
+    let page = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || accounts_html(&sample_accounts()))
+        .expect("Seite Konten");
     for head in ["Name", "Anzeigename", "Art", "Herkunft", "Aktiv", "Letzte Anmeldung"] {
         assert!(page.contains(&format!("<th scope=\"col\">{head}</th>")), "Spalte {head}");
     }
@@ -1062,15 +1070,20 @@ fn the_accounts_page_lists_accounts_and_offers_every_action_of_the_contract() {
     assert!(page.contains("href=\"/werke/4/mitwirkende\""), "Verweis auf die Mitwirkenden des Werks");
     assert_plain_forms(&page, "Einstellungen → Konten");
 
-    let on = accounts_html(&AccountsView { local_open: true, ..sample_accounts() }).unwrap();
+    let on = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        accounts_html(&AccountsView { local_open: true, ..sample_accounts() })
+    })
+    .unwrap();
     let switch = form_with(&on, "name=\"action\" value=\"local_open\"");
     assert!(switch.contains("name=\"open\" value=\"0\""), "eingeschaltet bietet die Seite das Ausschalten an (open=0)");
     assert!(on.contains("data-local-open=\"1\""), "und nennt den Stand");
 
-    let failed = accounts_html(&AccountsView {
-        accounts: Vec::new(),
-        load_error: Some("Datenbank gesperrt".into()),
-        ..sample_accounts()
+    let failed = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        accounts_html(&AccountsView {
+            accounts: Vec::new(),
+            load_error: Some("Datenbank gesperrt".into()),
+            ..sample_accounts()
+        })
     })
     .unwrap();
     assert!(
@@ -1078,7 +1091,10 @@ fn the_accounts_page_lists_accounts_and_offers_every_action_of_the_contract() {
         "scheitert das Lesen, sagt die Seite es, statt eine leere Liste vorzutäuschen"
     );
 
-    let denied = accounts_html(&AccountsView { allowed: false, ..sample_accounts() }).unwrap();
+    let denied = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        accounts_html(&AccountsView { allowed: false, ..sample_accounts() })
+    })
+    .unwrap();
     assert!(
         denied.contains("Konten verwaltet nur der Autor.") && !denied.contains("<form") && !denied.contains("joerg"),
         "ohne volle Rechte zeigt die Seite weder Liste noch Formulare"
@@ -1103,7 +1119,10 @@ async fn the_members_page_lists_shares_and_offers_grant_and_revoke() {
     }));
     assert!(view.load_error.is_none(), "die Antwort von member.list in der Form des Vertrags ist lesbar");
     view.notice = Some("Das Werk ist für das Konto freigegeben.".into());
-    let page = members_html(&view, &Settings::from_cookie_header(None)).expect("Seite Mitwirkende");
+    let page = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        members_html(&view, &Settings::from_cookie_header(None))
+    })
+    .expect("Seite Mitwirkende");
     assert!(page.contains("Mitwirkende an „Das Feldbuch“"), "die Seite nennt das Werk");
     assert_eq!(page.matches("<tr data-member=").count(), 2, "zwei Freigaben, zwei Zeilen");
     assert!(page.contains(NASTY_ESCAPED) && !page.contains("<b>"), "Namen sind maskiert");
@@ -1140,7 +1159,10 @@ async fn the_members_page_lists_shares_and_offers_grant_and_revoke() {
     let mut broken =
         MembersView { work: 4, title: "Das Feldbuch".into(), accounts_exist: true, ..MembersView::default() };
     broken.fill(&json!({ "members": "kaputt" }));
-    let page = members_html(&broken, &Settings::from_cookie_header(None)).unwrap();
+    let page = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        members_html(&broken, &Settings::from_cookie_header(None))
+    })
+    .unwrap();
     assert!(
         page.contains("Die Freigaben lassen sich nicht lesen") && !page.contains("/mitwirkende/act"),
         "eine unlesbare Antwort wird als Fehler gezeigt, nicht als leere Liste"
@@ -1173,7 +1195,10 @@ async fn my_account_shows_role_handle_works_password_form_and_logout() {
     let Who::Account(identity) = lektor_account() else { unreachable!() };
     let mut view = AccountView::of(&identity);
     view.works = vec![AccountWork { id: 4, title: NASTY.into() }];
-    let page = account_html(&view, &Settings::from_cookie_header(None)).expect("Mein Konto");
+    let page = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        account_html(&view, &Settings::from_cookie_header(None))
+    })
+    .expect("Mein Konto");
     assert!(page.contains("<dd data-konto-name>Erika</dd>"), "Name des Kontos");
     assert!(page.contains("<dd data-konto-rolle>Lektor</dd>"), "Rolle");
     assert!(page.contains(&format!("<code>{HANDLE}</code>")), "die Herkunft, unter der ein Lektor schreibt");
@@ -1192,11 +1217,17 @@ async fn my_account_shows_role_handle_works_password_form_and_logout() {
     assert!(page.contains("<form class=\"konto-form\" method=\"post\" action=\"/abmelden\">"), "Abmelden als Formular");
     assert_plain_forms(main_of(&page), "Mein Konto");
 
-    let empty = account_html(&AccountView::of(&identity), &Settings::from_cookie_header(None)).unwrap();
+    let empty = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        account_html(&AccountView::of(&identity), &Settings::from_cookie_header(None))
+    })
+    .unwrap();
     assert!(empty.contains("Noch kein Werk freigegeben."), "ohne Freigabe sagt die Seite, woran es liegt");
 
     let Who::Account(author) = author_account() else { unreachable!() };
-    let page = account_html(&AccountView::of(&author), &Settings::from_cookie_header(None)).unwrap();
+    let page = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        account_html(&AccountView::of(&author), &Settings::from_cookie_header(None))
+    })
+    .unwrap();
     assert!(
         page.contains("<dd data-konto-rolle>Autor</dd>") && !page.contains("@lektorat:"),
         "der Autor hat keine Herkunft"

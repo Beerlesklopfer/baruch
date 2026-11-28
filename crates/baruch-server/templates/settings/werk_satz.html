@@ -20,7 +20,7 @@
 {%- macro select(name, id, options, current, label, help=none) %}
   <label class="typeset-field small" data-typeset-field="{{ id }}">{{ label }}
     <select name="{{ name }}"{% if help %} aria-describedby="{{ help }}"{% endif %}>
-      <option value=""{% if not current %} selected{% endif %}>aus der Werkvorlage</option>
+      <option value=""{% if not current %} selected{% endif %}>{{ t("settings.typeset.from_template") }}</option>
       {%- for o in options %}
       <option value="{{ o.id }}"{% if current == o.id %} selected{% endif %}>{{ o.label }}</option>
       {%- endfor %}
@@ -37,20 +37,18 @@
 {%- macro onoff(name, current, label, help=none) %}
   <label class="typeset-field small" data-typeset-field="{{ name }}">{{ label }}
     <select name="{{ name }}"{% if help %} aria-describedby="{{ help }}"{% endif %}>
-      <option value=""{% if not current %} selected{% endif %}>aus der Werkvorlage</option>
-      <option value="on"{% if current == "on" %} selected{% endif %}>ein</option>
-      <option value="off"{% if current == "off" %} selected{% endif %}>aus</option>
+      <option value=""{% if not current %} selected{% endif %}>{{ t("settings.typeset.from_template") }}</option>
+      <option value="on"{% if current == "on" %} selected{% endif %}>{{ t("settings.typeset.on") }}</option>
+      <option value="off"{% if current == "off" %} selected{% endif %}>{{ t("settings.typeset.off") }}</option>
     </select></label>
 {%- endmacro %}
 {%- macro num(name, current, label, placeholder, unit, help=none) %}
   <label class="typeset-num small">{{ label }} <input type="text" inputmode="decimal" name="{{ name }}" maxlength="12" size="6" value="{{ current or '' }}" placeholder="{{ placeholder }}"{% if help %} aria-describedby="{{ help }}"{% endif %}>{% if unit %} <span class="muted">{{ unit }}</span>{% endif %}</label>
 {%- endmacro %}
 <div class="settings-block settings-typeset" id="satz">
-  <h3>Satz</h3>
-  <p class="muted tiny">Regeln für den Buchsatz mit Typst – Satz-Vorschau, Buch-PDF, Umschlag und Export. „aus der Werkvorlage“ bzw.
-    ein leeres Feld heißt: Baruch setzt dafür keine Regel, es gilt, was die Werkvorlage (oder Typst) vorgibt. Das Satzbild im
-    Editor bleibt davon unberührt (Block „Satzbild“).
-    {%- if set %} Gespeichert{% if updated %} {{ updated }}{% endif %}{% if updated_by %} von {{ updated_by }}{% endif %}.{% else %} Noch keine Satz-Einstellungen gespeichert.{% endif %}</p>
+  <h3>{{ t("settings.typeset.title") }}</h3>
+  <p class="muted tiny">{{ t("settings.typeset.intro") }}
+    {%- if set %} {{ t("settings.typeset.saved") }}{% if updated %} {{ updated }}{% endif %}{% if updated_by %} {{ t("settings.typeset.saved_by", updated_by=updated_by) }}{% endif %}.{% else %} {{ t("settings.typeset.never_saved") }}{% endif %}</p>
   {%- for m in errors["form"] or [] %}
   <p class="notice error small" role="alert" data-typeset-error="form">{{ m }}</p>
   {%- endfor %}
@@ -58,111 +56,105 @@
   <p class="notice small" data-typeset-warning>{{ w }}</p>
   {%- endfor %}
   {%- if unsaved and not errors %}
-  <p class="notice small" role="status">Ungespeicherte Werte – „Speichern“ übernimmt sie.</p>
+  <p class="notice small" role="status">{{ t("settings.typeset.unsaved") }}</p>
   {%- endif %}
   {%- if template_rule %}
   <form class="typeset-adopt" method="post" action="/einstellungen/werk/satz/vorlage" data-typeset-adopt>
     <input type="hidden" name="work" value="{{ work }}">
-    <p class="small">Die Werkvorlage regelt den Kapitelanfang selbst (Zeile {{ template_rule.line }}):
-      <code>{{ template_rule.text }}</code> – das entspricht „{{ template_rule.chapter_start }}“. Als Einstellung ist er
-      hier sichtbar und umschaltbar.</p>
+    <p class="small">{{ t("settings.typeset.template_rule_html", line=template_rule.line, text=template_rule.text, chapter_start=template_rule.chapter_start) }}</p>
     {{- notes("template_rule", errors["template_rule"], hints["template_rule"]) }}
-    <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, „Kapitelanfang: {{ template_rule.chapter_start }}“ übernehmen und die Zeile aus der Werkvorlage entfernen (neue Fassung der Vorlage)</label>
-    <button class="btn" type="submit">Als Einstellung übernehmen</button>
+    <label class="check small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.typeset.adopt_confirm", chapter_start=template_rule.chapter_start) }}</label>
+    <button class="btn" type="submit">{{ t("settings.typeset.adopt") }}</button>
   </form>
   {%- endif %}
   <form class="typeset-form" method="post" action="/einstellungen/werk/satz" data-widget="typeset-settings" data-work="{{ work }}">
     <input type="hidden" name="work" value="{{ work }}">
     <fieldset>
-      <legend class="small">Kapitel und Teile</legend>
+      <legend class="small">{{ t("settings.typeset.chapters") }}</legend>
       {{- select("chapter_start", "chapter_start", opts.chapter_start, v.chapter_start, labels.chapter_start) }}
       {{- notes("chapter_start", errors["chapter_start"], hints["chapter_start"]) }}
       {{- select("part_side", "part_page", opts.part_side, v.part_side, labels.part_page) }}
-      <label class="check small"><input type="checkbox" name="part_blank_back" value="1"{% if v.part_blank_back == "1" %} checked{% endif %}> Rückseite der Teil-Seite leer</label>
+      <label class="check small"><input type="checkbox" name="part_blank_back" value="1"{% if v.part_blank_back == "1" %} checked{% endif %}> {{ t("settings.typeset.part_blank_back") }}</label>
       {{- notes("part_page", errors["part_page"], hints["part_page"]) }}
     </fieldset>
     <fieldset>
-      <legend class="small">Seite und Ränder</legend>
+      <legend class="small">{{ t("settings.typeset.page") }}</legend>
       {{- select("page_format", "page_format", opts.page_format, v.page_format, labels.page_format) }}
       <span class="typeset-pair">
-      {{- num("page_width_mm", v.page_width_mm, "Breite", "nur eigenes Format", "mm") }}
-      {{- num("page_height_mm", v.page_height_mm, "Höhe", "nur eigenes Format", "mm") }}
+      {{- num("page_width_mm", v.page_width_mm, t("settings.typeset.width"), t("settings.typeset.custom_only"), "mm") }}
+      {{- num("page_height_mm", v.page_height_mm, t("settings.typeset.height"), t("settings.typeset.custom_only"), "mm") }}
       </span>
       {{- notes("page_format", errors["page_format"], hints["page_format"]) }}
-      <span class="typeset-field small" data-typeset-field="margins">{{ labels.margins }} <span class="muted tiny">(alle vier oder keiner)</span></span>
+      <span class="typeset-field small" data-typeset-field="margins">{{ labels.margins }} <span class="muted tiny">{{ t("settings.typeset.all_or_none") }}</span></span>
       <span class="typeset-pair">
-      {{- num("margin_inside_mm", v.margin_inside_mm, "innen", "Vorlage", "mm") }}
-      {{- num("margin_outside_mm", v.margin_outside_mm, "außen", "Vorlage", "mm") }}
-      {{- num("margin_top_mm", v.margin_top_mm, "oben", "Vorlage", "mm") }}
-      {{- num("margin_bottom_mm", v.margin_bottom_mm, "unten", "Vorlage", "mm") }}
-      {{- num("binding_mm", v.binding_mm, "Bundsteg", "0", "mm", "typeset-help-binding") }}
+      {{- num("margin_inside_mm", v.margin_inside_mm, t("settings.typeset.inside"), t("settings.typeset.template"), "mm") }}
+      {{- num("margin_outside_mm", v.margin_outside_mm, t("settings.typeset.outside"), t("settings.typeset.template"), "mm") }}
+      {{- num("margin_top_mm", v.margin_top_mm, t("settings.typeset.top"), t("settings.typeset.template"), "mm") }}
+      {{- num("margin_bottom_mm", v.margin_bottom_mm, t("settings.typeset.bottom"), t("settings.typeset.template"), "mm") }}
+      {{- num("binding_mm", v.binding_mm, t("settings.typeset.binding"), "0", "mm", "typeset-help-binding") }}
       </span>
-      <span class="muted tiny typeset-help" id="typeset-help-binding">Bundsteg: Zugabe am Innenrand für die Bindung – was in
-        Falz und Leim verschwindet, damit der Text nicht in die Buchmitte rutscht. Er kommt zum Innenrand hinzu.</span>
+      <span class="muted tiny typeset-help" id="typeset-help-binding">{{ t("settings.typeset.binding_help") }}</span>
       {{- notes("margins", errors["margins"], hints["margins"]) }}
     </fieldset>
     <fieldset>
-      <legend class="small">Schrift und Absatz</legend>
-      <label class="typeset-field small" data-typeset-field="font">{{ labels.font }} <input type="text" name="font" maxlength="200" value="{{ v.font or '' }}" placeholder="Vorlage (Typst: Libertinus Serif)"></label>
+      <legend class="small">{{ t("settings.typeset.font_paragraph") }}</legend>
+      <label class="typeset-field small" data-typeset-field="font">{{ labels.font }} <input type="text" name="font" maxlength="200" value="{{ v.font or '' }}" placeholder="{{ t("settings.typeset.font_placeholder") }}"></label>
       {{- notes("font", errors["font"], hints["font"]) }}
-      <span class="typeset-field small" data-typeset-field="font_size_pt">{{- num("font_size_pt", v.font_size_pt, labels.font_size_pt, "Vorlage (Typst: 11)", "pt") }}</span>
+      <span class="typeset-field small" data-typeset-field="font_size_pt">{{- num("font_size_pt", v.font_size_pt, labels.font_size_pt, t("settings.typeset.size_placeholder"), "pt") }}</span>
       {{- notes("font_size_pt", errors["font_size_pt"], hints["font_size_pt"]) }}
-      <span class="typeset-field small" data-typeset-field="leading_em">{{- num("leading_em", v.leading_em, labels.leading_em, "Vorlage (Typst: 0,65)", "em") }}</span>
+      <span class="typeset-field small" data-typeset-field="leading_em">{{- num("leading_em", v.leading_em, labels.leading_em, t("settings.typeset.leading_placeholder"), "em") }}</span>
       {{- notes("leading_em", errors["leading_em"], hints["leading_em"]) }}
       {{- select("paragraph", "paragraph", opts.paragraph, v.paragraph, labels.paragraph) }}
-      {{- num("paragraph_em", v.paragraph_em, "Maß", "Einzug 1, Abstand 0,5", "em") }}
+      {{- num("paragraph_em", v.paragraph_em, t("settings.typeset.measure"), t("settings.typeset.measure_placeholder"), "em") }}
       {{- notes("paragraph", errors["paragraph"], hints["paragraph"]) }}
       {{- onoff("justify", v.justify, labels.justify) }}
       {{- notes("justify", errors["justify"], hints["justify"]) }}
       {{- onoff("hyphenate", v.hyphenate, labels.hyphenate) }}
       {{- notes("hyphenate", errors["hyphenate"], hints["hyphenate"]) }}
-      <label class="typeset-field small" data-typeset-field="lang">{{ labels.lang }} <input type="text" name="lang" maxlength="6" size="6" value="{{ v.lang or '' }}" placeholder="Vorlage (z. B. de)"></label>
+      <label class="typeset-field small" data-typeset-field="lang">{{ labels.lang }} <input type="text" name="lang" maxlength="6" size="6" value="{{ v.lang or '' }}" placeholder="{{ t("settings.typeset.lang_placeholder") }}"></label>
       {{- notes("lang", errors["lang"], hints["lang"]) }}
       {{- onoff("widows_orphans", v.widows_orphans, labels.widows_orphans, "typeset-help-widows") }}
-      <span class="muted tiny typeset-help" id="typeset-help-widows">Schusterjunge: die erste Zeile eines Absatzes allein
-        unten auf einer Seite; Hurenkind: die letzte Zeile eines Absatzes allein oben auf der nächsten Seite. „ein“ lässt
-        Typst solche einzelnen Zeilen vermeiden.</span>
+      <span class="muted tiny typeset-help" id="typeset-help-widows">{{ t("settings.typeset.widows_help") }}</span>
       {{- notes("widows_orphans", errors["widows_orphans"], hints["widows_orphans"]) }}
     </fieldset>
     <fieldset>
-      <legend class="small">Seitenzahlen, Kolumnentitel, Fußnoten</legend>
+      <legend class="small">{{ t("settings.typeset.numbers_heads_notes") }}</legend>
       {{- select("page_number_position", "page_numbers", opts.page_number_position, v.page_number_position, labels.page_numbers) }}
-      {{- sub("page_number_start", opts.page_number_start, v.page_number_start, "Zählung") }}
+      {{- sub("page_number_start", opts.page_number_start, v.page_number_start, t("settings.typeset.counting")) }}
       {{- notes("page_numbers", errors["page_numbers"], hints["page_numbers"]) }}
       {{- select("running_head", "running_head", opts.running_head, v.running_head, labels.running_head, "typeset-help-head") }}
-      <span class="muted tiny typeset-help" id="typeset-help-head">Kolumnentitel: die Kopfzeile über dem Text, hier der
-        Werktitel oder der Titel des laufenden Kapitels (nie auf Kapitelanfangs-, Teil- und Leerseiten).</span>
+      <span class="muted tiny typeset-help" id="typeset-help-head">{{ t("settings.typeset.head_help") }}</span>
       {{- notes("running_head", errors["running_head"], hints["running_head"]) }}
       {{- select("footnote_numbering", "footnotes", opts.footnote_numbering, v.footnote_numbering, labels.footnotes) }}
-      {{- sub("footnote_restart", opts.footnote_restart, v.footnote_restart, "Zählung") }}
+      {{- sub("footnote_restart", opts.footnote_restart, v.footnote_restart, t("settings.typeset.counting")) }}
       {{- notes("footnotes", errors["footnotes"], hints["footnotes"]) }}
     </fieldset>
     <fieldset>
-      <legend class="small">Querverweise</legend>
+      <legend class="small">{{ t("settings.typeset.xrefs") }}</legend>
       {{- onoff("xref_with_page", v.xref_with_page, labels.xref_with_page) }}
-      <span class="muted tiny">Vorgabe für das Häkchen „mit Seitenzahl“ im Dialog „Verweis“ des Editors; keine Satz-Regel.</span>
+      <span class="muted tiny">{{ t("settings.typeset.xref_help") }}</span>
       {{- notes("xref_with_page", errors["xref_with_page"], hints["xref_with_page"]) }}
     </fieldset>
     {#- Round 31c: index and glossary at the end of the book. No checkboxes = no index pages; the order of the
         checkboxes (chosen ones first) is the typesetting order. Messages of TypesetSettings::validate stand at the
         field. #}
     <fieldset class="typeset-index">
-      <legend class="small">Register und Glossar</legend>
+      <legend class="small">{{ t("settings.typeset.index_glossary") }}</legend>
       <label class="typeset-field small" data-typeset-field="glossary_page">{{ labels.glossary_page }}
         <select name="glossary_page">
-          <option value=""{% if not v.glossary_page %} selected{% endif %}>keine</option>
+          <option value=""{% if not v.glossary_page %} selected{% endif %}>{{ t("settings.typeset.none") }}</option>
           {%- for o in opts.glossary_page %}
           <option value="{{ o.id }}"{% if v.glossary_page == o.id %} selected{% endif %}>{{ o.label }}</option>
           {%- endfor %}
         </select></label>
       {{- notes("glossary_page", errors["glossary_page"], hints["glossary_page"]) }}
-      <span class="typeset-field small" data-typeset-field="index_pages" id="typeset-index-label">{{ labels.index_pages }} <span class="muted tiny">(keine Häkchen = keine Registerseiten)</span></span>
+      <span class="typeset-field small" data-typeset-field="index_pages" id="typeset-index-label">{{ labels.index_pages }} <span class="muted tiny">{{ t("settings.typeset.no_index_pages") }}</span></span>
       <span class="typeset-index-registers" role="group" aria-labelledby="typeset-index-label">
         {%- for r in index_registers %}
         <label class="check small"><input type="checkbox" name="index_register" value="{{ r.slug }}"{% if r.checked %} checked{% endif %}> {{ r.title }}</label>
         {%- endfor %}
       </span>
-      <label class="typeset-sub small">Spalten
+      <label class="typeset-sub small">{{ t("settings.typeset.columns") }}
         <select name="index_columns">
           {%- for n in index_columns %}
           <option value="{{ n }}"{% if (v.index_columns or default_index_columns|string) == n|string %} selected{% endif %}>{{ n }}</option>
@@ -173,67 +165,63 @@
           appears only if it is stored, so that „Speichern“ does not change it silently. #}
       <label class="typeset-field small" data-typeset-field="glossary_first_mention">{{ labels.glossary_first_mention }}
         <select name="glossary_first_mention" aria-describedby="typeset-help-first">
-          <option value=""{% if not v.glossary_first_mention %} selected{% endif %}>nein</option>
-          <option value="on"{% if v.glossary_first_mention == "on" %} selected{% endif %}>ja</option>
+          <option value=""{% if not v.glossary_first_mention %} selected{% endif %}>{{ t("settings.typeset.no") }}</option>
+          <option value="on"{% if v.glossary_first_mention == "on" %} selected{% endif %}>{{ t("settings.typeset.yes") }}</option>
           {%- if v.glossary_first_mention == "off" %}
-          <option value="off" selected>nein (ausdrücklich gespeichert)</option>
+          <option value="off" selected>{{ t("settings.typeset.no_explicit") }}</option>
           {%- endif %}
         </select></label>
-      <span class="muted tiny typeset-help" id="typeset-help-first">Hebt die erste Erwähnung eines Glossarbegriffs (oder einer
-        Variante) je Kapitel im Satz hervor, mit Verweis aufs Glossar, wenn es eine Glossarseite gibt.</span>
+      <span class="muted tiny typeset-help" id="typeset-help-first">{{ t("settings.typeset.first_mention_help") }}</span>
       {{- notes("glossary_first_mention", errors["glossary_first_mention"], hints["glossary_first_mention"]) }}
     </fieldset>
     {#- Round 22: draft as a watermark – only in the outputs (typeset preview, book PDF, cue sheet, on request
         cover PDF; EPUB with a note), never in the export/mirror and without a line in the rule block. #}
     <fieldset class="typeset-draft" id="entwurf">
       <legend class="small">{{ labels.draft }}</legend>
-      <label class="check small" data-typeset-field="draft"><input type="checkbox" name="draft" value="1"{% if v.draft == "1" %} checked{% endif %} aria-describedby="typeset-help-draft"> Wasserzeichen „Entwurf“ in den Ausgaben</label>
-      <span class="muted tiny typeset-help" id="typeset-help-draft">Satz-Vorschau, Buch-PDF und Stichwortzettel bekommen ein
-        helles Wasserzeichen, das EPUB einen Hinweis auf der Titelseite und „(Entwurf)“ im Titel. Export und Spiegel
-        bleiben unverändert. Beim Herunterladen geht es auch einmalig ohne diese Einstellung („Als Entwurf herunterladen“).</span>
-      <label class="typeset-sub small">Text <input type="text" name="draft_text" maxlength="{{ draft_defaults.max_text }}" size="16" value="{{ v.draft_text or draft_defaults.text }}"></label>
-      <label class="typeset-sub small">Zusatz <input type="text" name="draft_note" maxlength="{{ draft_defaults.max_note }}" size="28" value="{{ v.draft_note or '' }}" placeholder="z. B. Fassungen von heute"></label>
-      <label class="check small"><input type="checkbox" name="draft_date" value="1"{% if v.draft_date == "1" %} checked{% endif %}> Datum („Stand …“, Tag der Ausgabe)</label>
-      <label class="typeset-sub small">Deckkraft <input type="number" name="draft_opacity" min="{{ draft_defaults.min_opacity }}" max="{{ draft_defaults.max_opacity }}" step="1" value="{{ v.draft_opacity or draft_defaults.opacity }}"> <span class="muted">%</span></label>
-      {{- sub("draft_placement", opts.draft_placement, v.draft_placement or "diagonal", "Lage") }}
-      <label class="check small"><input type="checkbox" name="draft_cover" value="1"{% if v.draft_cover == "1" %} checked{% endif %}> auch auf dem Umschlag-PDF (die Druckprüfung warnt dann)</label>
+      <label class="check small" data-typeset-field="draft"><input type="checkbox" name="draft" value="1"{% if v.draft == "1" %} checked{% endif %} aria-describedby="typeset-help-draft"> {{ t("settings.typeset.draft_watermark") }}</label>
+      <span class="muted tiny typeset-help" id="typeset-help-draft">{{ t("settings.typeset.draft_help") }}</span>
+      <label class="typeset-sub small">{{ t("settings.typeset.draft_text") }} <input type="text" name="draft_text" maxlength="{{ draft_defaults.max_text }}" size="16" value="{{ v.draft_text or draft_defaults.text }}"></label>
+      <label class="typeset-sub small">{{ t("settings.typeset.draft_note") }} <input type="text" name="draft_note" maxlength="{{ draft_defaults.max_note }}" size="28" value="{{ v.draft_note or '' }}" placeholder="{{ t("settings.typeset.draft_note_placeholder") }}"></label>
+      <label class="check small"><input type="checkbox" name="draft_date" value="1"{% if v.draft_date == "1" %} checked{% endif %}> {{ t("settings.typeset.draft_date") }}</label>
+      <label class="typeset-sub small">{{ t("settings.typeset.draft_opacity") }} <input type="number" name="draft_opacity" min="{{ draft_defaults.min_opacity }}" max="{{ draft_defaults.max_opacity }}" step="1" value="{{ v.draft_opacity or draft_defaults.opacity }}"> <span class="muted">%</span></label>
+      {{- sub("draft_placement", opts.draft_placement, v.draft_placement or "diagonal", t("settings.typeset.draft_placement")) }}
+      <label class="check small"><input type="checkbox" name="draft_cover" value="1"{% if v.draft_cover == "1" %} checked{% endif %}> {{ t("settings.typeset.draft_cover") }}</label>
       {{- notes("draft", errors["draft"], hints["draft"]) }}
     </fieldset>
     <div class="typeset-actions">
-      <button class="btn" type="submit" name="action" value="preview" data-typeset-preview-button>Vorschau</button>
-      <button class="btn primary" type="submit" name="action" value="save">Speichern</button>
-      <a class="small" href="{{ satz_url|safe }}">Ganzes Werk im Satz ansehen</a>
+      <button class="btn" type="submit" name="action" value="preview" data-typeset-preview-button>{{ t("settings.typeset.preview") }}</button>
+      <button class="btn primary" type="submit" name="action" value="save">{{ t("common.save") }}</button>
+      <a class="small" href="{{ satz_url|safe }}">{{ t("settings.typeset.whole_work") }}</a>
     </div>
     <details class="typeset-rules">
-      <summary class="small">Erzeugte Typst-Regeln{% if unsaved %} (ungespeicherte Werte){% endif %}</summary>
+      <summary class="small">{{ t("settings.typeset.rules") }}{% if unsaved %} {{ t("settings.typeset.rules_unsaved") }}{% endif %}</summary>
       {%- if rules %}
       <pre class="small" data-typeset-rules>{{ rules }}</pre>
       {%- else %}
-      <p class="muted small" data-typeset-rules>Keine – alles kommt aus der Werkvorlage.</p>
+      <p class="muted small" data-typeset-rules>{{ t("settings.typeset.no_rules") }}</p>
       {%- endif %}
     </details>
   </form>
   <div class="typeset-preview" data-typeset-preview aria-live="polite">
     {%- if preview %}
-    <p class="small" data-typeset-preview-info>Vorschau mit Mustertext: {{ preview.pages }} Seiten{% if preview.errors %}, {{ preview.errors }} Fehler{% endif %}{% if preview.warnings %}, {{ preview.warnings }} Warnungen{% endif %}.</p>
+    <p class="small" data-typeset-preview-info>{{ t("settings.typeset.preview_pages", pages=preview.pages) }}{% if preview.errors %}{{ t("settings.typeset.preview_errors", errors=preview.errors) }}{% endif %}{% if preview.warnings %}{{ t("settings.typeset.preview_warnings", warnings=preview.warnings) }}{% endif %}.</p>
     {%- for d in preview.diagnostics %}
     <p class="typeset-diagnostic small {{ d.severity }}">{{ d.message }}</p>
     {%- endfor %}
     <div class="typeset-pages">
       {%- for url in preview.urls %}
-      <img src="{{ url|safe }}" alt="Vorschau Seite {{ loop.index }}" loading="lazy">
+      <img src="{{ url|safe }}" alt="{{ t("settings.typeset.preview_alt", index=loop.index) }}" loading="lazy">
       {%- endfor %}
     </div>
     {%- else %}
-    <p class="muted tiny">„Vorschau“ setzt einen erfundenen Mustertext (ein Teil, drei Kapitel mit Fußnoten) mit der Werkvorlage und
-      den Werten oben, ohne sie zu speichern.</p>
+    <p class="muted tiny">{{ t("settings.typeset.preview_help") }}</p>
     {%- endif %}
   </div>
   <form class="typeset-reset" method="post" action="/einstellungen/werk/satz">
     <input type="hidden" name="work" value="{{ work }}">
     <input type="hidden" name="action" value="reset">
     {{- notes("reset", errors["reset"], hints["reset"]) }}
-    <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, alle Satz-Einstellungen zurücksetzen (dann gilt wieder nur die Werkvorlage)</label>
-    <button class="btn" type="submit">Zurücksetzen</button>
+    <label class="check small"><input type="checkbox" name="confirm" value="1" required> {{ t("settings.typeset.reset_confirm") }}</label>
+    <button class="btn" type="submit">{{ t("settings.typeset.reset") }}</button>
   </form>
 </div>
