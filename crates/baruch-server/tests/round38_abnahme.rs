@@ -272,9 +272,12 @@ fn the_tools_and_records_of_the_round_are_in_place() {
         "the self-test of the comment check runs with the CI self-test"
     );
 
-    // CHANGELOG: the section of the round names every part, under the heading the release tests look for.
+    // CHANGELOG: the section of the round names every part, under the release heading (0.9.1 since its release).
     let changelog = read("CHANGELOG.md");
-    let unreleased = changelog.split("## Unveröffentlicht").nth(1).expect("the heading of unreleased changes stays");
+    let unreleased = changelog
+        .split("## 0.9.1")
+        .nth(1)
+        .expect("the heading of the release 0.9.1 stays (the work of Round 38 went into it)");
     let section = unreleased
         .split("### English as the primary language (Round 38)")
         .nth(1)

@@ -19,7 +19,7 @@ Website: <https://baruch.bernau.family>
 > are quoted in German, with an English explanation where needed. Book outputs follow the language of the work, not
 > the language of the interface.
 
-**Status:** version 0.9.0. Baruch is used daily for a real book and for sermons. There are packages
+**Status:** version 0.9.1. Baruch is used daily for a real book and for sermons. There are packages
 for Debian and Ubuntu (also through an APT repository), an AppImage, and unsigned packages for macOS and
 Windows; interfaces may still change (see [Status and limits](#status-and-limits), changes in
 [CHANGELOG.md](CHANGELOG.md)).
@@ -62,7 +62,7 @@ Windows; interfaces may still change (see [Status and limits](#status-and-limits
 
 ### Installing
 
-The packages are on the [release page](https://github.com/Beerlesklopfer/baruch/releases/tag/v0.9.0), together
+The packages are on the [release page](https://github.com/Beerlesklopfer/baruch/releases/tag/v0.9.1), together
 with `SHA256SUMS` for comparison. The website <https://baruch.bernau.family/> walks through the installation
 step by step; all details are in [docs/Verteilung.md](docs/Verteilung.md).
 
@@ -98,11 +98,11 @@ signed release only comes about when the value here, on the website and in `docs
 
 | System | File | Installing |
 |---|---|---|
-| Debian, Ubuntu (amd64) | `baruch_0.9.0-1_amd64.deb` | `sudo apt install ./baruch_0.9.0-1_amd64.deb` |
-| Linux in general (x86_64) | `Baruch-0.9.0-x86_64.AppImage` | `chmod +x Baruch-0.9.0-x86_64.AppImage`, then start it |
-| macOS, Apple Silicon | `Baruch-0.9.0-macos-arm64.dmg` | open, drag Baruch to "Applications" (unsigned) |
-| macOS, Intel | `Baruch-0.9.0-macos-x86_64.dmg` | as above (unsigned) |
-| Windows (x64) | `Baruch-0.9.0-x64.msi` | run it (unsigned, SmartScreen warns) |
+| Debian, Ubuntu (amd64) | `baruch_0.9.1-1_amd64.deb` | `sudo apt install ./baruch_0.9.1-1_amd64.deb` |
+| Linux in general (x86_64) | `Baruch-0.9.1-x86_64.AppImage` | `chmod +x Baruch-0.9.1-x86_64.AppImage`, then start it |
+| macOS, Apple Silicon | `Baruch-0.9.1-macos-arm64.dmg` | open, drag Baruch to "Applications" (unsigned) |
+| macOS, Intel | `Baruch-0.9.1-macos-x86_64.dmg` | as above (unsigned) |
+| Windows (x64) | `Baruch-0.9.1-x64.msi` | run it (unsigned, SmartScreen warns) |
 
 The packages for macOS are signed and notarized by Apple (since 0.9.0), the package for Windows is **not
 signed**; both have not yet been tried on a real device. How to start them is described in
@@ -469,7 +469,7 @@ builds the packages, continues the APT repository and delivers website and repos
 
 ## Status and limits
 
-- **Version 0.9.0** – the first with packages. All functions described above are finished; what has happened
+- **Version 0.9.1** – English and German interface, English website with developer documentation. 0.9.0 was the first with packages. All functions described above are finished; what has happened
   since the beginning is in [CHANGELOG.md](CHANGELOG.md), what is open in
   [docs/Backlog.md](docs/Backlog.md), the timeline in [docs/Fahrplan.md](docs/Fahrplan.md).
 - **Packages:** the `.deb` and the AppImage have been built and started on Debian 13. The packages for macOS

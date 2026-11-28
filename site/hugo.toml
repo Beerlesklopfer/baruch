@@ -24,7 +24,7 @@ enableGitInfo = false
 [params]
 # Version of the linked packages. The only source of the version is Cargo.toml ([workspace.package] version);
 # whoever changes it there updates this value (only the user sets the version).
-version = "0.9.0"
+version = "0.9.1"
 repo = "https://github.com/Beerlesklopfer/baruch"
 # Fingerprint of the APT archive key. Empty = the site shows the placeholder notice.
 # Entered only by the user (never fetched from the net, never guessed).

@@ -559,7 +559,7 @@ checksum = "be5eb007b7cacc6c660343e96f650fedf4b5a77512399eb952ca6642cf8d13f7"
 
 [[package]]
 name = "baruch-core"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "serde",
  "similar",
@@ -567,7 +567,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-docx"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-typst",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-epub"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-typst",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-exchange"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-typst",
  "base64 0.22.1",
@@ -608,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-gitmirror"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "gix",
  "tempfile",
@@ -617,7 +617,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-lancedb"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-rag",
  "futures-util",
@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-library"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "minijinja",
  "serde",
@@ -646,7 +646,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-llm"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "base64 0.22.1",
  "futures-util",
@@ -658,7 +658,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-rag"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -666,7 +666,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-render"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-typst",
@@ -683,7 +683,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-scripture"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-server"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "argon2",
  "axum",
@@ -738,7 +738,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-store"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-exchange",
@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-sword"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-scripture",
  "bzip2",
@@ -770,7 +770,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-typst"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-scripture",
@@ -782,7 +782,7 @@ dependencies = [
 
 [[package]]
 name = "baruch-wysiwyg"
-version = "0.9.0"
+version = "0.9.1"
 dependencies = [
  "baruch-core",
  "baruch-typst",

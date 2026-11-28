@@ -8,6 +8,10 @@ Alle nennenswerten Änderungen an Baruch, die neueste Version zuerst. Die Versio
 
 ## Unveröffentlicht
 
+Nothing yet.
+
+## 0.9.1
+
 ### Developer documentation on the website, help gaps, rest of the interface literals (Round 39c)
 
 - **Developer documentation on the website:** `/en/docs/` with nine pages (usage, architecture, RPC, MCP, exchange
