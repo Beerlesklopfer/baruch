@@ -1,29 +1,32 @@
-# Webseite von Baruch (https://baruch.bernau.family/). Bauen und Vorschau: site/README.md.
-# Ausliefern macht die CI (GitHub Pages), nie von Hand.
+# Website of Baruch (https://baruch.bernau.family/). Building and preview: site/README.md.
+# Deployment is done by the CI (GitHub Pages), never by hand.
 baseURL = "https://baruch.bernau.family/"
-# Vertrag R24 §1 nennt `languageCode = "de"`; hugo ab 0.158 meldet den Schlüssel als veraltet (mit --panicOnWarning ein
-# Abbruch) und verlangt `locale`. Gleiche Wirkung: <html lang="de">.
+# Contract R24 §1 names `languageCode = "de"`; hugo from 0.158 reports the key as deprecated (an abort with
+# --panicOnWarning) and asks for `locale`. Same effect: <html lang="de">. Each language sets its own locale below.
 locale = "de"
 title = "Baruch"
 theme = "baruch"
-# Mehrsprachig vorbereitet (Nutzerentscheidung 2026-11-27: Oberfläche und Hilfe Deutsch und Englisch): Inhalte je
-# Sprache unter content/<sprache>/. Deutsch bleibt Vorgabe ohne Unterordner in der Adresse, die Adressen der Seite
-# ändern sich also nicht. Englisch (content/en/, Adressen unter /en/) ergänzt die Lokalisierungsrunde.
+# Multilingual (user decision 2026-11-27: interface and help in German and English, Round 39b): content per language
+# under content/<language>/. German stays the default without a subfolder in the address, so the German addresses
+# do not change; English (content/en/) lives under /en/ with the same relative paths (Hugo pairs translations by
+# path).
 defaultContentLanguage = "de"
 defaultContentLanguageInSubdir = false
-# Keine Schlagwörter, Kategorien oder Feeds: Die Seite besteht aus sieben festen Seiten und dem Abschnitt Hilfe
-# (content/de/hilfe/, eine Startseite und je Thema eine Seite).
+# No tags, categories or feeds: the site consists of seven fixed pages and the section Hilfe (help, one start page
+# and one page per topic), in each language.
 disableKinds = ["taxonomy", "term", "rss"]
 enableRobotsTXT = false
 enableGitInfo = false
 
+# Read by scripts/ci-site.sh and crates/baruch-server/tests/round24_abnahme.rs: keep these four keys here, at the top
+# level, as `key = "value"` lines.
 [params]
-# Version der verlinkten Pakete. Einzige Quelle der Version ist Cargo.toml ([workspace.package] version);
-# diesen Wert zieht nach, wer dort die Version ändert (nur der Nutzer legt sie fest).
+# Version of the linked packages. The only source of the version is Cargo.toml ([workspace.package] version);
+# whoever changes it there updates this value (only the user sets the version).
 version = "0.9.0"
 repo = "https://github.com/Beerlesklopfer/baruch"
-# Fingerabdruck des APT-Archivschlüssels. Leer = die Seite zeigt den Platzhalter-Hinweis.
-# Trägt nur der Nutzer ein (nicht aus dem Netz holen, nicht raten).
+# Fingerprint of the APT archive key. Empty = the site shows the placeholder notice.
+# Entered only by the user (never fetched from the net, never guessed).
 aptFingerprint = "BEBD FEF8 F980 2EC5 8A90  B818 9A9C 9199 6BB8 8DB4"
 description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buchsatz mit Typst und Assistenten, die nur vorschlagen. AGPL-3.0, läuft auf dem eigenen Rechner."
 
@@ -32,43 +35,81 @@ description = "Freie Schreibwerkstatt für Bücher und Predigten: Fassungen, Buc
     contentDir = "content/de"
     locale = "de"
     weight = 1
+    label = "Deutsch"
 
-[menus]
-  [[menus.main]]
-    name = "Funktionen"
-    pageRef = "/funktionen"
-    weight = 10
-  [[menus.main]]
-    name = "Installation"
-    pageRef = "/installation"
-    weight = 20
-  [[menus.main]]
-    name = "Hilfe"
-    pageRef = "/hilfe"
-    weight = 30
-  [[menus.main]]
-    name = "Betrieb"
-    pageRef = "/betrieb"
-    weight = 40
-  [[menus.main]]
-    name = "MCP und Assistenten"
-    pageRef = "/mcp"
-    weight = 50
-  [[menus.footer]]
-    name = "Lizenz"
-    pageRef = "/lizenz"
-    weight = 10
-  [[menus.footer]]
-    name = "Impressum"
-    pageRef = "/impressum"
-    weight = 20
+    [[languages.de.menus.main]]
+      name = "Funktionen"
+      pageRef = "/funktionen"
+      weight = 10
+    [[languages.de.menus.main]]
+      name = "Installation"
+      pageRef = "/installation"
+      weight = 20
+    [[languages.de.menus.main]]
+      name = "Hilfe"
+      pageRef = "/hilfe"
+      weight = 30
+    [[languages.de.menus.main]]
+      name = "Betrieb"
+      pageRef = "/betrieb"
+      weight = 40
+    [[languages.de.menus.main]]
+      name = "MCP und Assistenten"
+      pageRef = "/mcp"
+      weight = 50
+    [[languages.de.menus.footer]]
+      name = "Lizenz"
+      pageRef = "/lizenz"
+      weight = 10
+    [[languages.de.menus.footer]]
+      name = "Impressum"
+      pageRef = "/impressum"
+      weight = 20
+
+  [languages.en]
+    contentDir = "content/en"
+    locale = "en"
+    weight = 2
+    label = "English"
+
+    [languages.en.params]
+      description = "Free writing workshop for books and sermons: revisions, book typesetting with Typst and assistants that only suggest. AGPL-3.0, runs on your own computer."
+
+    [[languages.en.menus.main]]
+      name = "Features"
+      pageRef = "/funktionen"
+      weight = 10
+    [[languages.en.menus.main]]
+      name = "Installation"
+      pageRef = "/installation"
+      weight = 20
+    [[languages.en.menus.main]]
+      name = "Help"
+      pageRef = "/hilfe"
+      weight = 30
+    [[languages.en.menus.main]]
+      name = "Operation"
+      pageRef = "/betrieb"
+      weight = 40
+    [[languages.en.menus.main]]
+      name = "MCP and assistants"
+      pageRef = "/mcp"
+      weight = 50
+    [[languages.en.menus.footer]]
+      name = "Licence"
+      pageRef = "/lizenz"
+      weight = 10
+    [[languages.en.menus.footer]]
+      name = "Legal notice"
+      pageRef = "/impressum"
+      weight = 20
 
 [markup]
   [markup.highlight]
-    # Kein Syntax-Hervorheber: Codeblöcke bleiben schlichtes <pre><code>.
+    # No syntax highlighter: code blocks stay plain <pre><code>.
     codeFences = false
   [markup.tableOfContents]
-    # Inhaltsverzeichnis der Hilfeseiten (und der Seiten mit `inhalt: true`): Überschriften der Ebenen 2 und 3.
+    # Table of contents of the help pages (and of the pages with `inhalt: true`): headings of levels 2 and 3.
     startLevel = 2
     endLevel = 3
     ordered = false

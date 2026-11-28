@@ -1,13 +1,13 @@
 {{ define "main" }}
 {{- /*
-  Eine Seite der Hilfe: links (auf dem Telefon oben, waagerecht rollbar) alle Seiten des Abschnitts mit der
-  aktuellen markiert, dann Titel, Vorspann, Inhaltsverzeichnis aus den Überschriften, Text und unten
-  „vorige/nächste Seite“ in der Reihenfolge der Gewichte. Alles ohne JavaScript.
+  A page of the help: on the left (on the phone on top, scrollable sideways) all pages of the section with the
+  current one marked, then title, lead, table of contents from the headings, text and at the bottom
+  "previous/next page" in the order of the weights. All without JavaScript.
 */ -}}
 {{- $seite := . -}}
 {{- $alle := .Parent.RegularPages.ByWeight -}}
 <div class="rand hilfe">
-  <nav class="hilfe-nav" aria-label="Seiten der Hilfe">
+  <nav class="hilfe-nav" aria-label="{{ T "seiten_der_hilfe" }}">
     <p class="hilfe-nav-titel"><a href="{{ .Parent.RelPermalink }}">{{ .Parent.Title }}</a></p>
     <ul>
       {{- range $alle }}
@@ -24,7 +24,7 @@
     </header>
     {{- if in .TableOfContents "<li" }}
     <details class="hilfe-inhalt" open>
-      <summary>Auf dieser Seite</summary>
+      <summary>{{ T "auf_dieser_seite" }}</summary>
       {{ .TableOfContents }}
     </details>
     {{- end }}
@@ -36,12 +36,12 @@
       {{- else if not $danach }}{{ $danach = . }}
       {{- end }}
     {{- end }}
-    <nav class="hilfe-weiter" aria-label="Vorige und nächste Seite">
+    <nav class="hilfe-weiter" aria-label="{{ T "vorige_und_naechste" }}">
       {{- with $davor }}
-      <a class="hilfe-zurueck" rel="prev" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">Vorige Seite</span> {{ .Title }}</a>
+      <a class="hilfe-zurueck" rel="prev" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">{{ T "vorige_seite" }}</span> {{ .Title }}</a>
       {{- end }}
       {{- with $danach }}
-      <a class="hilfe-vor" rel="next" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">Nächste Seite</span> {{ .Title }}</a>
+      <a class="hilfe-vor" rel="next" href="{{ .RelPermalink }}"><span class="hilfe-weiter-wort">{{ T "naechste_seite" }}</span> {{ .Title }}</a>
       {{- end }}
     </nav>
   </article>

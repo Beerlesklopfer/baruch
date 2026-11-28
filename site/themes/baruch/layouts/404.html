@@ -1,9 +1,9 @@
 {{ define "main" }}
 <article class="rand text">
   <header class="seitenkopf">
-    <h1>Seite nicht gefunden</h1>
-    <p class="vorspann">Unter dieser Adresse gibt es nichts.</p>
+    <h1>{{ T "nicht_gefunden" }}</h1>
+    <p class="vorspann">{{ T "nicht_gefunden_text" }}</p>
   </header>
-  <p><a href="{{ "/" | relURL }}">Zur Startseite</a></p>
+  <p><a href="{{ "/" | relLangURL }}">{{ T "zur_startseite" }}</a></p>
 </article>
 {{ end }}

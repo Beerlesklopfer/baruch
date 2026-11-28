@@ -1,3 +1,67 @@
-# Hugo i18n of the theme, English (Round 39b, interface S1). Keys `[id]` with `other = "…"`; de.toml has the same keys.
+# Hugo i18n of the theme, English (Round 39b). Keys `[id]` with `other = "…"`; de.toml has the same keys.
 [hilfebild_gross]
 other = "Open the picture in full size"
+
+# baseof.html
+[claim_vorgabe]
+other = "Free writing workshop"
+[zum_inhalt]
+other = "Skip to content"
+
+# _partials/kopf.html
+[hauptmenue]
+other = "Main menu"
+[quellcode]
+other = "Source code"
+[sprache_seite_titel]
+other = "This page in German"
+[sprache_start_titel]
+other = "Home page in German (this page has no German version)"
+
+# _partials/fuss.html
+[fuss_freie_software]
+other = "free software under the"
+[fuss_quellcode]
+other = "Source code on GitHub"
+[rechtliches]
+other = "Legal"
+[fuss_ohne]
+other = "This site works without JavaScript, cookies, counters and third-party fonts."
+
+# home.html
+[version]
+other = "Version"
+[installieren]
+other = "Install"
+[was_baruch_kann]
+other = "What Baruch can do"
+[auftakt_bild_alt]
+other = "The workspace of Baruch: on the left the outline of a sample work, in the middle a section as it will be typeset, on the right assistants, revisions and chat."
+[auftakt_bild_titel]
+other = "The workspace: outline, text in the typeset view, assistants and revisions – here with an invented sample work."
+
+# page.html, hilfe/page.html
+[platzhalter]
+other = "Placeholder."
+[platzhalter_text]
+other = "This page has not been filled in yet; the operator of the site enters the details."
+[auf_dieser_seite]
+other = "On this page"
+
+# section.html, hilfe/page.html
+[seiten_der_hilfe]
+other = "Pages of the help"
+[vorige_und_naechste]
+other = "Previous and next page"
+[vorige_seite]
+other = "Previous page"
+[naechste_seite]
+other = "Next page"
+
+# 404.html
+[nicht_gefunden]
+other = "Page not found"
+[nicht_gefunden_text]
+other = "There is nothing at this address."
+[zur_startseite]
+other = "To the home page"

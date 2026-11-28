@@ -1,3 +1,68 @@
-# Hugo i18n of the theme, German (Round 39b, interface S1). Keys `[id]` with `other = "…"`; en.toml has the same keys.
+# Hugo i18n of the theme, German (Round 39b). Keys `[id]` with `other = "…"`; en.toml has the same keys.
+# The German values are the wording the layouts carried before Round 39b, verbatim.
 [hilfebild_gross]
 other = "Bild in voller Größe öffnen"
+
+# baseof.html
+[claim_vorgabe]
+other = "Freie Schreibwerkstatt"
+[zum_inhalt]
+other = "Zum Inhalt"
+
+# _partials/kopf.html
+[hauptmenue]
+other = "Hauptmenü"
+[quellcode]
+other = "Quellcode"
+[sprache_seite_titel]
+other = "Diese Seite auf Englisch"
+[sprache_start_titel]
+other = "Startseite auf Englisch (diese Seite gibt es noch nicht auf Englisch)"
+
+# _partials/fuss.html
+[fuss_freie_software]
+other = "freie Software unter der"
+[fuss_quellcode]
+other = "Quellcode auf GitHub"
+[rechtliches]
+other = "Rechtliches"
+[fuss_ohne]
+other = "Diese Seite kommt ohne JavaScript, Cookies, Zähler und fremde Schriften aus."
+
+# home.html
+[version]
+other = "Version"
+[installieren]
+other = "Installieren"
+[was_baruch_kann]
+other = "Was Baruch kann"
+[auftakt_bild_alt]
+other = "Der Arbeitsplatz von Baruch: links die Gliederung eines Beispielwerks, in der Mitte ein Abschnitt so, wie er gesetzt wird, rechts Assistenten, Fassungen und Chat."
+[auftakt_bild_titel]
+other = "Der Arbeitsplatz: Gliederung, Text im Satzbild, Assistenten und Fassungen – hier mit einem erfundenen Beispielwerk."
+
+# page.html, hilfe/page.html
+[platzhalter]
+other = "Platzhalter."
+[platzhalter_text]
+other = "Diese Seite ist noch nicht ausgefüllt; die Angaben trägt der Betreiber der Seite ein."
+[auf_dieser_seite]
+other = "Auf dieser Seite"
+
+# section.html, hilfe/page.html
+[seiten_der_hilfe]
+other = "Seiten der Hilfe"
+[vorige_und_naechste]
+other = "Vorige und nächste Seite"
+[vorige_seite]
+other = "Vorige Seite"
+[naechste_seite]
+other = "Nächste Seite"
+
+# 404.html
+[nicht_gefunden]
+other = "Seite nicht gefunden"
+[nicht_gefunden_text]
+other = "Unter dieser Adresse gibt es nichts."
+[zur_startseite]
+other = "Zur Startseite"

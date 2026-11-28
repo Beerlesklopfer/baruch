@@ -1,18 +1,31 @@
 <!DOCTYPE html>
-{{- /* Grundgerüst aller Seiten. Kein JavaScript, keine fremden Adressen: Stil und Symbol liegen im Theme. */ -}}
+{{- /*
+  Skeleton of every page. No JavaScript, no third-party addresses: style and icon live in the theme.
+  Language (Round 39b): <html lang> is the locale of the page's language; every translation of the page (Hugo pairs
+  them by path, content/de and content/en) is announced as <link rel="alternate" hreflang>, the default language
+  (German) also as x-default. Theme strings come from i18n/<lang>.toml.
+*/ -}}
 <html lang="{{ site.Language.Locale | default "de" }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ if .IsHome }}{{ site.Title }} – {{ .Params.claim | default "Freie Schreibwerkstatt" }}{{ else }}{{ .Title }} – {{ site.Title }}{{ end }}</title>
+  <title>{{ if .IsHome }}{{ site.Title }} – {{ .Params.claim | default (T "claim_vorgabe") }}{{ else }}{{ .Title }} – {{ site.Title }}{{ end }}</title>
   <meta name="description" content="{{ .Description | default site.Params.description }}">
   <meta name="referrer" content="no-referrer">
   <link rel="canonical" href="{{ .Permalink }}">
+  {{- if .IsTranslated }}
+  {{- range .AllTranslations }}
+  <link rel="alternate" hreflang="{{ .Language.Locale }}" href="{{ .Permalink }}">
+  {{- if eq .Language.Locale hugo.Sites.Default.Language.Locale }}
+  <link rel="alternate" hreflang="x-default" href="{{ .Permalink }}">
+  {{- end }}
+  {{- end }}
+  {{- end }}
   <link rel="icon" type="image/svg+xml" href="{{ "favicon.svg" | relURL }}">
   <link rel="stylesheet" href="{{ "css/baruch.css" | relURL }}">
 </head>
 <body>
-  <a class="skip" href="#inhalt">Zum Inhalt</a>
+  <a class="skip" href="#inhalt">{{ T "zum_inhalt" }}</a>
   {{ partial "kopf.html" . }}
   <main id="inhalt">
     {{ block "main" . }}{{ end }}

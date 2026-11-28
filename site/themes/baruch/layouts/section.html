@@ -1,8 +1,8 @@
 {{ define "main" }}
 {{- /*
-  Startseite eines Abschnitts (die Hilfe): Titel, Vorspann (description), Text, danach die Seiten des Abschnitts
-  nach Gewicht (weight) als Liste mit ihrem Vorspann. Eine Suche gibt es bewusst nicht: Sie ginge nur mit
-  JavaScript oder über eine fremde Adresse.
+  Start page of a section (the help): title, lead (description), text, then the pages of the section by weight as a
+  list with their lead. There is deliberately no search: it would only work with JavaScript or through a
+  third-party address.
 */ -}}
 <article class="rand text hilfe-start">
   <header class="seitenkopf">
@@ -12,7 +12,7 @@
     {{- end }}
   </header>
   {{ .Content }}
-  <nav aria-label="Seiten der Hilfe">
+  <nav aria-label="{{ T "seiten_der_hilfe" }}">
     <ol class="hilfe-seiten">
       {{- range .Pages.ByWeight }}
       <li>

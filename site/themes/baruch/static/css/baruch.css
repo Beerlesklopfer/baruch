@@ -143,6 +143,10 @@ a:focus-visible, .knopf:focus-visible { outline: 3px solid var(--siegel); outlin
 /* aria-current="page" auf der Seite selbst, "true" auf den Unterseiten eines Abschnitts (Hilfe). */
 .menue a[aria-current] { border-bottom-color: var(--siegel); color: var(--siegel); }
 .menue a.aussen::after { content: " ↗"; color: var(--leise); }
+/* Language switch (Round 39b): a plain link to the translation, set apart from the menu by a thin line. */
+.menue .sprache { padding-left: 1.3rem; border-left: 1px solid var(--linie); }
+.menue .sprache a { color: var(--leise); }
+.menue .sprache a:hover { color: var(--tinte); }
 
 /* Auftakt der Startseite */
 

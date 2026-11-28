@@ -1,135 +1,169 @@
-# Webseite
+# Website
 
-Quelle der Webseite `https://baruch.bernau.family/`, gebaut mit [Hugo](https://gohugo.io). Diese Datei beschreibt
-nur das **lokale Bauen und die Vorschau**. Ausgeliefert wird die Seite ausschließlich von der CI (GitHub Pages,
-`.github/workflows/`, beschrieben in `docs/Verteilung.md`) – niemand lädt von Hand etwas hoch.
+Source of the website `https://baruch.bernau.family/`, built with [Hugo](https://gohugo.io). This file describes
+only **building locally and the preview**. The site is deployed exclusively by the CI (GitHub Pages,
+`.github/workflows/`, described in `docs/Verteilung.md`) – nobody uploads anything by hand.
 
-## Bauen
+## Building
 
-Hugo ab 0.146 genügt, die einfache Fassung (nicht „extended“): Das Theme nutzt kein SCSS und keine
-Bildverarbeitung.
-
-```sh
-hugo --minify --panicOnWarning -s site      # aus dem Hauptordner; Ausgabe in site/public/
-```
-
-`--panicOnWarning` macht jede Warnung zum Fehler; so prüft auch die CI. `site/public/`, `site/resources/` und
-`.hugo_build.lock` stehen in `.gitignore` und werden nie eingecheckt.
-
-Nach dem Bau prüft `scripts/site-check.py` die Ausgabe (nur Python-Standardbibliothek, kein Netz):
+Hugo from 0.158 is needed (the key `locale` and the language key `label`), the plain edition (not "extended"): the
+theme uses no SCSS and no image processing.
 
 ```sh
-python3 scripts/site-check.py               # über site/public; Exit 1 mit der Liste der Fundstellen
-python3 scripts/site-check.py --selbsttest  # prüft das Skript an einem erfundenen Mini-Baum
+hugo --minify --panicOnWarning -s site      # from the main folder; output in site/public/
 ```
 
-Es meldet tote interne Links und Anker (`/apt/` ausgenommen), Bilder ohne alt-Text, JavaScript, fremde Adressen
-für Stil, Schrift oder Bild, Links auf `docs/Bedienung.md` oder `docs/Betrieb.md` bei GitHub, Links zu github.com
-im Text der Hilfe und eine fehlende Weiterleitung von `/bedienung/` auf `/hilfe/`. `scripts/ci-site.sh` ruft es
-nach dem Hugo-Bau auf; die CI scheitert also an einem toten Link.
+`--panicOnWarning` turns every warning into an error; the CI checks the same way. `site/public/`,
+`site/resources/` and `.hugo_build.lock` are in `.gitignore` and are never checked in.
 
-## Vorschau
+After the build `scripts/site-check.py` checks the output (Python standard library only, no network):
 
 ```sh
-hugo server -s site --bind 127.0.0.1 --port 1313     # http://127.0.0.1:1313/
+python3 scripts/site-check.py               # over site/public; exit 1 with the list of findings
+python3 scripts/site-check.py --selbsttest  # checks the script on an invented mini tree
 ```
 
-Die Vorschau lädt die Seite bei Änderungen neu und fügt dafür ein eigenes Skript ein (nur in der Vorschau; die
-gebaute Seite enthält kein JavaScript).
+It reports dead internal links and anchors (`/apt/` excepted), images without alt text, JavaScript, third-party
+addresses for style, font or image, links to `docs/Bedienung.md` or `docs/Betrieb.md` on GitHub, links to
+github.com in the text of the help and a missing redirect from `/bedienung/` to `/hilfe/`. `scripts/ci-site.sh`
+calls it after the Hugo build; so the CI fails on a dead link, in either language.
 
-## Aufbau
+## Preview
 
-| Pfad | Inhalt |
+```sh
+hugo server -s site --bind 127.0.0.1 --port 1313     # http://127.0.0.1:1313/ and http://127.0.0.1:1313/en/
+```
+
+The preview reloads the page on changes and inserts a script of its own for that (only in the preview; the built
+site contains no JavaScript).
+
+## Languages
+
+The site is German and English (user decision 2026-11-27, Round 39b).
+
+- **German** is the default language and has no subfolder in the address: `content/de/` → `/`, `/hilfe/…`. The
+  German addresses have not changed since Round 24.
+- **English** lives in `content/en/` → `/en/`, `/en/hilfe/…`. Every English page has **exactly the same relative
+  file name** as its German original (Hugo pairs translations by path), the same `{#anchor}` ids, the same
+  `weight` and the same non-text front matter (`inhalt`, `platzhalter`, `ohne_bild`, …); `title`, `description`,
+  `claim` and `lead` are English. English pages carry **no `aliases`** (the old address `/bedienung/` stays
+  German only).
+- **Links in English pages** go to `/en/…/` with the German anchors (`/en/installation/#bibeln-einrichten`); static
+  files (`/apt/…`) and external links stay as they are.
+- **Interface words** quoted in the English help are the values of `crates/baruch-server/locales/en/*.ftl` for
+  the key whose German value the German page quotes. English prose uses straight quotation marks or bold for them:
+  the test `round39b_hilfe_en` rejects „ and “ (and German letters) in English prose; inline code is exempt.
+- **Pictures:** German `static/bilder/<file>` and `static/bilder/hilfe/<name>.png`, English
+  `static/bilder/en/<file>` and `static/bilder/en/hilfe/<name>.png`. Shortcode calls in English pages use the same
+  `name`/`datei` with an English `alt` and `titel`; the partial `bildpfad.html` picks the folder of the language.
+- **Theme strings** (menu labels aside) come from `themes/baruch/i18n/de.toml` and `en.toml` (`{{ T "key" }}`); the
+  German values are the wording the layouts carried before, verbatim. Menus and the English site description are
+  per language in `hugo.toml` (`[languages.<lang>.menus]`, `[languages.en.params]`).
+- **Language switch:** a plain link in the header (`_partials/kopf.html`) to the translation of the page
+  (`.Translations`), or to the home page of the other language if the page has no translation. `baseof.html`
+  announces every translation as `<link rel="alternate" hreflang>` (German also as `x-default`); `<html lang>` is
+  the locale of the language.
+
+## Structure
+
+| Path | Content |
 |---|---|
-| `hugo.toml` | Adresse, Menüs und die Werte `version`, `repo`, `aptFingerprint` |
-| `content/de/` | Inhalte auf Deutsch (Vorgabesprache, Adressen ohne `/de/`; Englisch kommt nach `content/en/`): die sieben festen Seiten: Start (`_index.md`), Funktionen, Installation, Betrieb, MCP und Assistenten, Lizenz, Impressum |
-| `content/de/hilfe/` | der Abschnitt **Hilfe**: Startseite (`_index.md`, übernimmt mit `aliases` die alte Adresse `/bedienung/`) und je Thema eine Seite, geordnet nach `weight` |
-| `data/hilfebilder.toml` | die Liste aller Bilder der Hilfe (Name, Seite, was das Bild zeigt); nur Namen von dort gelten im Shortcode `hilfebild` |
-| `themes/baruch/` | das Theme, vollständig im Repository: Vorlagen (`layouts/`), ein Stylesheet, das Symbol |
-| `static/CNAME` | der Rechnername für GitHub Pages |
-| `static/bilder/` | Bildschirmfotos für Startseite und Funktionen (1400×860, dazu `arbeitsplatz-laptop.png` in 1366×768); die Seite baut auch ohne sie |
-| `static/bilder/hilfe/` | Bilder der Hilfe: `<name>.png`, daneben wahlweise `<name>-dunkel.png` für das dunkle System |
-| `tools/` | erfundenes Werk und Skript für die Bildschirmfotos (`tools/README.md`) |
+| `hugo.toml` | address, languages with their menus, and the values `version`, `repo`, `aptFingerprint`, `description` under the top-level `[params]` (read by `scripts/ci-site.sh` and `tests/round24_abnahme.rs`) |
+| `content/de/` | German content (default language, addresses without `/de/`): the seven fixed pages: start (`_index.md`), Funktionen, Installation, Betrieb, MCP und Assistenten, Lizenz, Impressum |
+| `content/de/hilfe/` | the section **Hilfe** (help): start page (`_index.md`, takes over the old address `/bedienung/` with `aliases`) and one page per topic, ordered by `weight` |
+| `content/en/`, `content/en/hilfe/` | the English translations under the same file names, addresses under `/en/` |
+| `data/hilfebilder.toml` | the list of all pictures of the help (name, page, what the picture shows); only names from there are valid in the shortcode `hilfebild` |
+| `themes/baruch/` | the theme, completely in the repository: layouts (`layouts/`), theme strings (`i18n/`), one stylesheet, the icon |
+| `static/CNAME` | the host name for GitHub Pages |
+| `static/bilder/` | screenshots for the home page and Features (1400×860, plus `arbeitsplatz-laptop.png` in 1366×768); English ones under `static/bilder/en/`; the site builds without them |
+| `static/bilder/hilfe/` | pictures of the help: `<name>.png`, next to it optionally `<name>-dunkel.png` for the dark system; English ones under `static/bilder/en/hilfe/` |
+| `tools/` | invented work and script for the screenshots (`tools/README.md`) |
 
-## Quelle für Bedienung und Betrieb
+## Source for usage and operation
 
-Seit Runde 37 ist **die Webseite die Quelle**: `content/de/hilfe/**` ist die einzige Beschreibung für Anwender,
-`content/de/betrieb.md` die einzige für Betreiber. `docs/Bedienung.md` und `docs/Betrieb.md` im Repository sind nur
-noch der Einstieg: Verweis auf die Webseite, „Wo steht was“, Stand der Prüfung, Offenes und technische
-Anmerkungen (Adressen, Cookie-Namen, Grenzen der Prüfung) – **keine Bedienschritte in beiden Dateien**.
+Since Round 37 **the website is the source**: `content/de/hilfe/**` (and its English translation) is the only
+description for users, `content/de/betrieb.md` the only one for operators. `docs/Bedienung.md` and `docs/Betrieb.md`
+in the repository are only the entry point: reference to the website, "where is what", state of checking, open
+points and technical remarks (addresses, cookie names, limits of the checks) – **no usage steps in either file**.
 
-- „Bedienung nachziehen“ heißt: die Hilfeseite im selben Commit ändern; „Betrieb nachziehen“: `content/betrieb.md`.
-- Die **Ersteinrichtung** steht nur einmal: Bibeln in `installation.md` (`#bibeln-einrichten`), Assistenten,
-  MultiGPT und KI-Programme in `mcp.md` (`#assistenten-einrichten`, `#multigpt-einrichten`, `#mcp-clients`). Die
-  Hilfe beschreibt die Seiten und Felder und verweist dorthin.
-- Die Seiten verweisen untereinander nur mit gewöhnlichen Links ab `/` auf Seiten oder auf feste Anker
-  (`[Text](/hilfe/konten/#lektoren)`), nicht mit `relref`. Feste Anker bleiben stehen, auch wenn eine Überschrift
-  sich ändert.
-- Der Shortcode `doku` (Link ins Repository) bleibt für Dateien, die wirklich nur dort stehen: `LICENSE`,
+- "Update the usage docs" means: change the help page in the same commit – the German page and its English
+  translation; "update operation": `content/de/betrieb.md` and `content/en/betrieb.md`.
+- The **first setup** is described only once: Bibles in `installation.md` (`#bibeln-einrichten`), assistants,
+  MultiGPT and AI programs in `mcp.md` (`#assistenten-einrichten`, `#multigpt-einrichten`, `#mcp-clients`). The help
+  describes the pages and fields and links there.
+- Pages link to each other only with ordinary links from `/` to pages or to fixed anchors
+  (`[Text](/hilfe/konten/#lektoren)`, English `[Text](/en/hilfe/konten/#lektoren)`), not with `relref`. Fixed
+  anchors stay, even when a heading changes.
+- The shortcode `doku` (link into the repository) stays for files that really exist only there: `LICENSE`,
   `README.md`, `docs/Verteilung.md`, `docs/RPC.md`, `docs/MCP.md`, `docs/Architektur.md`.
 
-## Schreiben
+## Writing
 
-- **Alltagssprache.** Fachwörter ersetzen oder beim ersten Vorkommen in einem Halbsatz erklären (Fassung statt
-  Revision, Assistent statt Persona, Bedeutungssuche statt RAG; MCP, Reverse-Proxy, Token, SWORD, Typst,
-  Git-Spiegel, Cookie). Keine Rundennummern, keine Dateinamen des Quelltexts, keine Routen – außer Adressen, die
-  man wirklich eintippt (`http://127.0.0.1:8765/`).
-- **Tasten für beide Welten:** `{{< taste "Strg+S" "⌘S" >}}` ergibt „Strg+S (Mac: ⌘S)“. Was am Mac gilt, aus dem
-  Code belegen; sonst ehrlich „am Mac ungeprüft“.
-- **Kein rohes HTML** in Markdown (`unsafe = false`), auch keine HTML-Kommentare – sie brechen den Bau ab.
-- **Jede Überschrift trägt einen festen Anker** in Kleinbuchstaben und ASCII: `## Sicherung {#sicherung}`.
-- **Geprüftes und Angenommenes trennen:** Was niemand erprobt hat (macOS, Windows, ein echter Proxy), bleibt als
-  „nicht geprüft“ gekennzeichnet.
-- **Keine echten Namen, Werke oder Daten.** Das Beispielwerk der Bilder ist erfunden.
-- Kopf einer Seite: `title`, `description` (ein Satz; erscheint als Vorspann und in der Liste der Hilfe), in der
-  Hilfe `weight`; `inhalt: true` setzt auf einer festen Seite ein Inhaltsverzeichnis unter den Vorspann (die
-  Hilfeseiten haben es immer).
+- **Everyday language.** Replace technical terms or explain them in a half sentence where they first appear
+  (German: Fassung instead of Revision, Assistent instead of Persona, Bedeutungssuche instead of RAG; English:
+  revision, assistant, semantic search; MCP, reverse proxy, token, SWORD, Typst, Git mirror, cookie). No round
+  numbers, no file names of the source code, no routes – except addresses one really types
+  (`http://127.0.0.1:8765/`).
+- **Keys for both worlds:** `{{< taste "Strg+S" "⌘S" >}}` gives "Strg+S (Mac: ⌘S)" (English pages:
+  `{{< taste "Ctrl+S" "⌘S" >}}`). Prove from the code what applies on the Mac; otherwise say honestly "unchecked on
+  the Mac".
+- **No raw HTML** in Markdown (`unsafe = false`), no HTML comments either – they break the build.
+- **Every heading carries a fixed anchor** in lower case and ASCII: `## Sicherung {#sicherung}`; the English page
+  keeps the German anchor (`## Backup {#sicherung}`).
+- **Separate the checked from the assumed:** what nobody has tried (macOS, Windows, a real proxy) stays marked as
+  "not checked".
+- **No real names, works or data.** The sample work of the pictures is invented.
+- Head of a page: `title`, `description` (one sentence; appears as the lead and in the list of the help), in the
+  help `weight`; `inhalt: true` puts a table of contents under the lead on a fixed page (the help pages always have
+  it).
 
-## Vorlagen
+## Layouts
 
-| Vorlage | für |
+| Layout | for |
 |---|---|
-| `layouts/baseof.html`, `_partials/kopf.html`, `_partials/fuss.html` | Grundgerüst, Kopfzeile mit Hauptmenü, Fußzeile. Im Hauptmenü ist ein Eintrag auch auf den Unterseiten seines Abschnitts markiert (`aria-current="true"`, auf der Seite selbst `"page"`) |
-| `layouts/home.html` | Startseite |
-| `layouts/page.html` | feste Seiten |
-| `layouts/section.html` | Startseite der Hilfe: Liste der Seiten nach `weight` mit `description` |
-| `layouts/hilfe/page.html` | Seiten der Hilfe: Navigation des Abschnitts (aktuelle Seite markiert), Inhaltsverzeichnis aus den Überschriften der Ebenen 2 und 3 (`markup.tableOfContents` in `hugo.toml`), „vorige/nächste Seite“ |
+| `layouts/baseof.html`, `_partials/kopf.html`, `_partials/fuss.html` | skeleton (with `hreflang` alternates), header with main menu and language switch, footer. In the main menu an entry is also marked on the subpages of its section (`aria-current="true"`, on the page itself `"page"`) |
+| `layouts/home.html` | home page (picture through `_partials/bildpfad.html`) |
+| `layouts/page.html` | fixed pages |
+| `layouts/section.html` | start page of the help: list of the pages by `weight` with `description` |
+| `layouts/hilfe/page.html` | pages of the help: navigation of the section (current page marked), table of contents from the headings of levels 2 and 3 (`markup.tableOfContents` in `hugo.toml`), "previous/next page" |
+| `layouts/404.html` | page not found (one per language: `/404.html`, `/en/404.html`) |
 
-Eine **Suche** gibt es bewusst nicht: Sie ginge nur mit JavaScript oder über eine fremde Adresse. Das Stylesheet
-(`static/css/baruch.css`) folgt mit `prefers-color-scheme` dem hellen oder dunklen System, lässt Tabellen und die
-Navigation der Hilfe auf Telefonbreite waagerecht rollen und blendet im Druck die Navigation aus.
+There is deliberately no **search**: it would only work with JavaScript or through a third-party address. The
+stylesheet (`static/css/baruch.css`) follows the light or dark system with `prefers-color-scheme`, lets tables and
+the navigation of the help scroll sideways at phone width and hides the navigation in print.
 
-## Regeln
+## Rules
 
-- **Keine fremden Adressen:** keine Skripte, Schriften, Stile oder Bilder von anderen Rechnern, keine Zähler,
-  keine Cookies. Schriften sind Systemschriften. Verlinkt werden nur die eigene Seite, das Repository und, im
-  Fließtext, was der Text nennt.
-- **Ohne JavaScript:** Die Seite enthält keines.
-- **Deutsch**, Bezeichner in den Vorlagen ebenfalls deutsch (es ist Inhalt, kein Programm).
-- **Version:** `params.version` in `hugo.toml` bestimmt alle Dateinamen und Links der Seite Installation
-  (Shortcodes `download`, `datei`, `release`). Einzige Quelle der Version ist `Cargo.toml`; wer sie dort ändert,
-  zieht `hugo.toml` nach. Versionsnummern legt nur der Nutzer fest.
-- **Fingerabdruck:** `params.aptFingerprint` ist leer, bis der Nutzer den Fingerabdruck des Archivschlüssels
-  einträgt. Leer zeigt die Seite Installation einen sichtbaren Platzhalter-Hinweis. Nicht aus dem Netz holen,
-  nicht raten.
-- **Impressum:** Die Angaben in `content/impressum.md` trägt nur der Betreiber ein. Eine Seite mit
-  `platzhalter: true` im Kopf wird sichtbar als Platzhalter markiert.
-- **Warnungen beim Bau:** `scripts/ci-site.sh` warnt (ohne abzubrechen), solange der Fingerabdruck leer ist oder
-  eine Seite `platzhalter: true` trägt. Der Fingerabdruck steht außerdem in `README.md` und
-  `docs/Verteilung.md`; `scripts/ci-fingerprint.sh` prüft, dass alle drei Stellen übereinstimmen, und ein
-  signiertes Release scheitert, wenn er fehlt oder nicht zum Schlüssel passt.
-- **Sprache in `hugo.toml`:** `locale = "de"`. Der ältere Schlüssel `languageCode` ist seit Hugo 0.158 veraltet
-  und bricht mit `--panicOnWarning` den Bau ab.
+- **No third-party addresses:** no scripts, fonts, styles or pictures from other servers, no counters, no cookies.
+  Fonts are system fonts. Links go only to the site itself, the repository and, in the running text, what the text
+  names.
+- **Without JavaScript:** the site contains none.
+- **Identifiers in the layouts** (classes, i18n keys, partial names) are German, as before (it is content, not a
+  program); comments in the layouts are English.
+- **Version:** `params.version` in `hugo.toml` determines all file names and links of the Installation page
+  (shortcodes `download`, `datei`, `release`). The only source of the version is `Cargo.toml`; whoever changes it
+  there updates `hugo.toml`. Only the user sets version numbers.
+- **Fingerprint:** `params.aptFingerprint` stays empty until the user enters the fingerprint of the archive key.
+  Empty, the Installation page shows a visible placeholder notice. Do not fetch it from the net, do not guess.
+- **Legal notice:** the details in `content/de/impressum.md` (and its English translation) are entered only by the
+  operator. A page with `platzhalter: true` in its head is visibly marked as a placeholder.
+- **Warnings during the build:** `scripts/ci-site.sh` warns (without aborting) as long as the fingerprint is empty
+  or a page carries `platzhalter: true`. The fingerprint also stands in `README.md` and `docs/Verteilung.md`;
+  `scripts/ci-fingerprint.sh` checks that all three places agree, and a signed release fails if it is missing or
+  does not fit the key.
+- **Language keys in `hugo.toml`:** `locale` per language (the older `languageCode` is deprecated since Hugo 0.158
+  and breaks the build with `--panicOnWarning`), and `label` for the language name shown in the switch (the older
+  `languageName` likewise).
 
 ## Shortcodes
 
-| Aufruf | Ergebnis |
+| Call | Result |
 |---|---|
-| `{{< bild datei="satz.png" alt="…" titel="…" >}}` | Bild aus `static/bilder/` (Startseite, Funktionen); fehlt die Datei, nichts |
-| `{{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}` | Bild der Hilfe aus `static/bilder/hilfe/<name>.png`, bei dunklem System `<name>-dunkel.png`, falls vorhanden. `name` muss in `data/hilfebilder.toml` stehen, `alt` ist Pflicht (sonst bricht der Bau ab); `titel` ist die Unterschrift, `breite` die größte Anzeigebreite in Pixeln. Fehlt die Datei, nichts. Der Shortcode ist eingefroren: Änderungen nur durch den Integrator |
-| `{{< taste "Strg+S" "⌘S" >}}` | Tastenangabe „Strg+S (Mac: ⌘S)“; ohne zweiten Wert nur die erste Taste |
-| `{{< download "Baruch-VERSION-x64.msi" >}}` | Link auf die Datei des Release (`VERSION` wird ersetzt) |
-| `{{< datei "Baruch-VERSION-x64.msi" >}}` | nur der Dateiname, für Befehle |
-| `{{< release >}}` | Link auf die Release-Seite der Version |
-| `{{< doku "docs/MCP.md" "MCP" >}}` | Link auf eine Datei im Repository (Zweig `main`); nicht für Bedienung und Betrieb, siehe oben |
-| `{{< fingerabdruck >}}` | Fingerabdruck des Archivschlüssels oder der Platzhalter-Hinweis |
+| `{{< bild datei="satz.png" alt="…" titel="…" >}}` | picture from `static/bilder/` (home page, Features); if the file is missing, nothing |
+| `{{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}` | picture of the help from `static/bilder/hilfe/<name>.png`, with a dark system `<name>-dunkel.png` if present. `name` must be in `data/hilfebilder.toml`, `alt` is mandatory (otherwise the build aborts); `titel` is the caption, `breite` the largest display width in pixels. If the file is missing, nothing. The shortcode is frozen: changes only by the integrator |
+| `{{< taste "Strg+S" "⌘S" >}}` | key "Strg+S (Mac: ⌘S)"; without a second value only the first key |
+| `{{< download "Baruch-VERSION-x64.msi" >}}` | link to the file of the release (`VERSION` is replaced) |
+| `{{< datei "Baruch-VERSION-x64.msi" >}}` | only the file name, for commands |
+| `{{< release >}}` | link to the release page of the version; English pages pass the text: `{{< release "release page" >}}` |
+| `{{< doku "docs/MCP.md" "MCP" >}}` | link to a file in the repository (branch `main`); not for usage and operation, see above |
+| `{{< fingerabdruck >}}` | fingerprint of the archive key or the placeholder notice |
