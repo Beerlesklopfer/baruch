@@ -419,8 +419,8 @@ async fn the_module_note_reaches_mcp_the_check_page_and_the_belege_facts() {
     let tool = mcp(&server, "scripture_check", json!({ "work": work, "key": key })).await;
     let result = &tool["result"]["structuredContent"];
     assert!(
-        result["module_note"].as_str().is_some_and(|n| n.contains("Wortfragmente")),
-        "Begründung: MCP scripture_check trägt denselben Hinweis wie RPC: {tool}"
+        result["module_note"].as_str().is_some_and(|n| n.contains("word fragments")),
+        "Begründung: MCP (always English since Round 39c) scripture_check trägt denselben Hinweis wie RPC: {tool}"
     );
     assert_eq!(result["refs"][0]["module_spacing"], true, "Begründung: Leerraum-Treffer auch über MCP: {tool}");
 

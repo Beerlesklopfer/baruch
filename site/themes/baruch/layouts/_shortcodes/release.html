@@ -1,4 +1,4 @@
 {{- /* Link auf die Release-Seite der Version aus params.version: {{< release >}} bzw. {{< release "Text" >}} */ -}}
 {{- $version := site.Params.version -}}
-<a href="{{ site.Params.repo }}/releases/tag/v{{ $version }}" rel="noopener">{{ .Get 0 | default (printf "Release-Seite v%s" $version) }}</a>
+<a href="{{ site.Params.repo }}/releases/tag/v{{ $version }}" rel="noopener">{{ .Get 0 | default (printf (i18n "shortcode_release_page") $version) }}</a>
 {{- /**/ -}}

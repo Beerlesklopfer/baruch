@@ -155,12 +155,48 @@ pub fn scheme_text(lang: Lang, text: &str) -> String {
     text.to_owned()
 }
 
-/// The refusal of a scheme in `lang`: the missing own pattern is translated; the other checks of the pattern
-/// language come from `baruch-typst` in German and stay as they are (open, see docs/Backlog.md).
+/// The German refusals of the pattern language of `baruch-typst` (`Numbering::parse_spec`), recognised by their
+/// wording (Round 39c; the crate keeps its German messages): key of the catalog, regex with the captured arguments.
+fn pattern_refusals() -> &'static [(&'static str, &'static str, regex::Regex)] {
+    static REFUSALS: OnceLock<Vec<(&'static str, &'static str, regex::Regex)>> = OnceLock::new();
+    const COUNTER: &str = r"braucht ein Zählzeichen \(1, a, A, i, I oder \*\), z\. B\. „1\.1“ oder „I\.“\.";
+    REFUSALS.get_or_init(|| {
+        [
+            (
+                "settings_msg.numbering.err_mix",
+                "spec",
+                r"^„(.+?)“: „\|“ \(Tiefe\) und „;“ \(Muster je Ebene\) lassen sich nicht mischen; eine Ebene ohne Nummer bleibt in der Liste einfach leer\.$".to_owned(),
+            ),
+            ("settings_msg.numbering.err_level", "level,part", format!(r"^Ebene (\d+) \(„(.*?)“\) {COUNTER}$")),
+            (
+                "settings_msg.numbering.err_depth",
+                "spec",
+                r"^„(.+?)“: Hinter „\|“ steht die Zahl der nummerierten Ebenen \(1 bis 6\), z\. B\. „I\|1“\.$".to_owned(),
+            ),
+            ("settings_msg.numbering.err_counter", "pattern", format!(r"^Das Muster „(.*?)“ {COUNTER}$")),
+        ]
+        .into_iter()
+        .map(|(key, names, source)| {
+            (key, names, regex::Regex::new(&format!("(?s){source}")).expect("valid refusal pattern"))
+        })
+        .collect()
+    })
+}
+
+/// The refusal of a scheme in `lang`: the missing own pattern and the checks of the pattern language (which
+/// `baruch-typst` words in German, German output stays verbatim) are translated; anything else stays as it is.
 pub fn scheme_message(lang: Lang, message: &str) -> String {
     let missing = baruch_typst::scheme::Numbering::of_scheme(NumberingScheme::Custom, None, "").err();
     if missing.as_deref() == Some(message) {
         return i18n::t(lang, "outline.scheme.custom_missing", &[]);
+    }
+    for (key, names, regex) in pattern_refusals() {
+        let Some(found) = regex.captures(message) else { continue };
+        let values: Vec<String> =
+            (1..=names.split(',').count()).map(|i| found.get(i).map_or("", |m| m.as_str()).to_owned()).collect();
+        let args: Vec<(&str, i18n::Arg<'_>)> =
+            names.split(',').zip(&values).map(|(name, value)| (name, i18n::Arg::from(value))).collect();
+        return i18n::t(lang, key, &args);
     }
     message.to_owned()
 }

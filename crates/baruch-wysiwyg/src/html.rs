@@ -13,6 +13,14 @@ use baruch_core::WorkLanguage;
 pub(crate) struct Env<'a> {
     pub(crate) images: &'a dyn Fn(&str) -> Option<ImageRef>,
     pub(crate) lang: WorkLanguage,
+    /// Tooltip text of a cross reference from the label of its target (Round 39c: the words belong to the
+    /// interface language, which this crate does not know; the server passes its own, see [`render_html_titled`]).
+    pub(crate) xref_title: &'a dyn Fn(&str) -> String,
+}
+
+/// The German tooltip of a cross reference (what the crate wrote before Round 39c).
+pub(crate) fn german_xref_title(label: &str) -> String {
+    format!("Querverweis auf {label} (Strg+Klick: springen)")
 }
 
 /// HTML of a text: per block `<div class="ws-block" data-b="i" data-kind="…">` (heading with
@@ -41,7 +49,19 @@ pub fn render_html_with(doc: &Doc, images: &dyn Fn(&str) -> Option<ImageRef>) ->
 /// Like [`render_html_with`] in the work language `lang` (Round 39b): the page number addition of a cross reference
 /// shows the page abbreviation of the work language (`, p. …` in an English work).
 pub fn render_html_in(doc: &Doc, images: &dyn Fn(&str) -> Option<ImageRef>, lang: WorkLanguage) -> String {
-    let env = Env { images, lang };
+    render_html_titled(doc, images, lang, &german_xref_title)
+}
+
+/// Like [`render_html_in`] with the tooltip text of a cross reference in the language of the interface (Round 39c):
+/// `xref_title` gets the label of the target (for example `<k3>`) and returns the whole `title` text; it is
+/// is written as it is (a label like `<k3>` is no user text). [`render_html_in`] uses the German text.
+pub fn render_html_titled(
+    doc: &Doc,
+    images: &dyn Fn(&str) -> Option<ImageRef>,
+    lang: WorkLanguage,
+    xref_title: &dyn Fn(&str) -> String,
+) -> String {
+    let env = Env { images, lang, xref_title };
     let mut out = String::new();
     for (index, block) in doc.blocks.iter().enumerate() {
         render_block(&mut out, block, Some(index), env);
@@ -374,10 +394,9 @@ fn render_inlines(out: &mut String, inlines: &[Inline], env: Env) {
                 // Round 30a: cross-reference as a block; the link text is editable, target and page number addition are
                 // not (Ctrl+click jumps, a click opens „Öffnen | Bearbeiten“ in the widget).
                 out.push_str(&format!(
-                    "<span class=\"ws-xref\" data-key=\"{key}\" data-page=\"{}\" title=\"Querverweis auf {} \
-                     (Strg+Klick: springen)\">",
+                    "<span class=\"ws-xref\" data-key=\"{key}\" data-page=\"{}\" title=\"{}\">",
                     if *page { "1" } else { "0" },
-                    baruch_typst::xref::key_label(*key)
+                    (env.xref_title)(&baruch_typst::xref::key_label(*key))
                 ));
                 render_inlines(out, c, env);
                 if *page {
@@ -512,7 +531,7 @@ pub fn diff_html_in(
     images: &dyn Fn(&str) -> Option<ImageRef>,
     lang: WorkLanguage,
 ) -> String {
-    let env = Env { images, lang };
+    let env = Env { images, lang, xref_title: &german_xref_title };
     let old = parse(base).blocks;
     let new = parse(proposal).blocks;
     let key = |b: &Block| b.raw.trim_end().to_owned();

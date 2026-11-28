@@ -6914,3 +6914,50 @@ key in `book.ftl`). `draft_today()` stays and returns the German form. `draft_ru
 and a German work (rule of the watermark, EPUB note). Existing tests that compared German sentences through constants
 (`round12_lancedb.rs`, `round19_index.rs`) read them in German through `i18n::sync_scope(Lang::De, …)`; the unit tests
 of `archive.rs` and the TLS warning of `pgvector.rs` run in the German scope.
+
+## Round 39c – reste_2
+
+Crate messages, presets in the work language, shortcode words and catalog wording. Everything German stays byte for
+byte; English is new.
+
+- **Presets in the work language.** `baruch_store::NewWork` has `pub language: WorkLanguage` (re-exported as
+  `crate::WorkLanguage`). `create_work`, `create_work_with_text` and `create_work_with_bible` write it to
+  `work.language` (column of migration 0055, no new migration) and take the preset titles from the book catalog:
+  keys `book.preset.*` at the end of `crates/baruch-core/locales/{en,de}/book.ftl` (German = the old words).
+  `sermon_outline_in(lang)` and `sermon_text_title_in(lang)` give the items; `SERMON_OUTLINE` and `SERMON_TEXT_TITLE`
+  stay (German) for compatibility. The sermon text lands in the item whose title equals `sermon_text_title_in(lang)`
+  (the first). RPC `work.create` takes the optional `language` (`de`|`en`, default `de`; anything else -32602,
+  `works_msg.rpc.language_invalid`); the form `/werke/neu` has the select `language` preselected with
+  `i18n::current()`, a missing field means `de`. The number words of the outline scheme (`Scheme::Sermon`) are not part
+  of the preset (the provisional number stored at creation is recalculated by the scheme).
+- **Store texts.** `store_text::PATTERN_KEYS` grew by 66 keys: persona checks, request refusals, ideas, idea
+  connections and the typeset-settings validation of `baruch-typst`. Measured list first (script over
+  `baruch-store/src` and `baruch-typst/src/typeset`: literal fragments of the German catalog text found in the
+  source; the German text of a key is checked against the source when it is written). Still German (reported, not
+  reachable from a form or only through rare paths): `exchange_apply.rs` import report lines (about 70 texts),
+  `glossary.rs` and `index` refusals (about 20), `outline.rs` heading checks with level words (`Die Fassung bringt
+  Ebene … mit`, `level_word` stays German), `replace.rs` skip reasons (`ReplaceSkip.reason`), `cover_blocks.rs`
+  field errors (`Umschlag-Block „…“, Feld …`), `sheet.rs` (`Satzbild: …`), `load.rs`/`seed.rs`/`typeset.rs`
+  integrity messages (technical, not user input) and `amend.rs`/`write.rs` notes of the mirror.
+- **Bible notes.** The word-fragment note of `bibles::module_note` is cached as data (`FragmentFacts`), not as a text,
+  so the cache is independent of a language. `module_note` writes the interface language (`reference_msg.bibles.*`,
+  used by `scripture.check` JSON), `module_note_in(bible, WorkLanguage)` the work language (`book.scripture.fragment_*`,
+  used by the facts block and the closing note of a persona answer). `scripture.check` refusals use
+  `reference_msg.scripture.*`. `bibles::CIPHER_KEY_WRONG` stays German because `connections/pages.rs` compares it by
+  value (file not owned by this task).
+- **Typeset settings and numbering.** `typeset_settings::field_label` (interface language, subfields name their field)
+  and `conflict_message` replace the German label and message of the crate in `work.typeset_get`/MCP `typeset_settings`.
+  `numbering::scheme_message` recognises the four pattern refusals of `baruch_typst::scheme::Numbering::parse_spec` by
+  regex and maps them to `settings_msg.numbering.err_*`; the crate keeps its German messages (no message codes were
+  needed). `cover_print::name` uses `cover_layout::kind_label_in(i18n::current(), kind)`.
+- **Tooltip of a cross reference.** `baruch_wysiwyg::render_html_titled(doc, images, lang, xref_title)` takes the
+  function that writes the whole `title`; `render_html_in` (signature unchanged) uses the German text. The server passes
+  `wysiwyg::xref_title` (`reference_msg.xref.tooltip`) at its two call sites (`wysiwyg.rs`, `view.rs`). The diff
+  functions keep the German tooltip.
+- **Shortcodes.** `fingerabdruck.html`, `release.html` and `taste.html` take their words from `shortcode_*` keys of
+  `site/themes/baruch/i18n/{en,de}.toml`; the German values are the old words (checked: `hugo` output of the German
+  site is identical to the build before). The placeholder `FINGERABDRUCK-TRÄGT-DER-NUTZER-EIN` is a marker that
+  `scripts/ci-fingerprint.sh` looks for and is not translated.
+- **Catalog wording (English).** Persona and role are „Lector“ in the interface texts; `Exchange: Write out`/`Exchange:
+  Read in` aligned (button, heading, link); „revisions“ instead of „versions“ in `settings.work.fold_*`; the bold and
+  italic buttons of the ribbon read `B` and `I` in English (`editor.toolbar.*_glyph`, German `F`, `K`).

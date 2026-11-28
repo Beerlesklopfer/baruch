@@ -13,7 +13,16 @@ async fn open() -> (tempfile::TempDir, Store) {
 
 async fn create(store: &Store, title: &str, kind: WorkKind) -> WorkId {
     let preset = if kind == WorkKind::Sermon { Preset::Sermon } else { Preset::Book };
-    let new = NewWork { title, author: "Tilda Rohr", kind, preset, subtitle: "", audience: "", bible: "" };
+    let new = NewWork {
+        title,
+        author: "Tilda Rohr",
+        kind,
+        preset,
+        subtitle: "",
+        audience: "",
+        bible: "",
+        language: Default::default(),
+    };
     store.create_work(&new, "Autor").await.unwrap().work
 }
 

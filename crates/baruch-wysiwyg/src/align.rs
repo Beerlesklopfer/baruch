@@ -213,7 +213,7 @@ pub fn hunk_html_in(
     image: &dyn Fn(&str) -> Option<ImageRef>,
     lang: WorkLanguage,
 ) -> String {
-    let env = Env { images: image, lang };
+    let env = Env { images: image, lang, xref_title: &crate::html::german_xref_title };
     let old = parse(base).blocks;
     let new = parse(proposal).blocks;
     let clip = |range: &Range<usize>, len: usize| range.start.min(len)..range.end.min(len);

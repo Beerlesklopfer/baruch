@@ -51,6 +51,12 @@
         <option value="sermon"{% if f.preset == "sermon" %} selected{% endif %}>{{ t('layout.work_new.preset_sermon') }}</option>
       </select>
     </label>
+    <label>{{ t('layout.work_new.language') }}
+      <select name="language" title="{{ t('layout.work_new.language_title') }}">
+        <option value="de"{% if f.language == "de" %} selected{% endif %}>{{ t('layout.work_new.language_de') }}</option>
+        <option value="en"{% if f.language == "en" %} selected{% endif %}>{{ t('layout.work_new.language_en') }}</option>
+      </select>
+    </label>
     <fieldset class="work-sermon">
       <legend>{{ t('layout.work_new.sermon_only') }}</legend>
       <label>{{ t('layout.work_new.sermon_text') }} <span class="muted small">{{ t('layout.work_new.sermon_text_hint') }}</span>

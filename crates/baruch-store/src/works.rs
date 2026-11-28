@@ -60,6 +60,9 @@ pub struct NewWork<'a> {
     pub audience: &'a str,
     /// Bible translation.
     pub bible: &'a str,
+    /// Work language (Round 39c): written to `work.language` (migration 0055); the titles of the preset chapters
+    /// (`book.preset.*` of the book catalog) are taken in this language. German reproduces the former literals.
+    pub language: baruch_core::WorkLanguage,
 }
 
 /// What [`Store::update_work`] is to change; `None` = stays.
@@ -176,16 +179,37 @@ pub const SERMON_OUTLINE: &[(&str, bool)] = &[
     ("Ausblick", true),
 ];
 
+/// Title of the item that carries the sermon text in the language of the work (Round 39c). German is
+/// [`SERMON_TEXT_TITLE`].
+pub fn sermon_text_title_in(lang: baruch_core::WorkLanguage) -> String {
+    baruch_core::book_text::book_t(lang, "book.preset.sermon_text", &[])
+}
+
+/// Outline of a new sermon in the language of the work (Round 39c): like [`SERMON_OUTLINE`] with the titles from
+/// the book catalog (`book.preset.*`). German is [`SERMON_OUTLINE`], word for word.
+pub fn sermon_outline_in(lang: baruch_core::WorkLanguage) -> Vec<(String, bool)> {
+    let t = |key: &str| baruch_core::book_text::book_t(lang, key, &[]);
+    vec![
+        (sermon_text_title_in(lang), false),
+        (t("book.preset.sermon_introduction"), true),
+        (t("book.preset.sermon_observation"), true),
+        (t("book.preset.sermon_interpretation"), true),
+        (t("book.preset.sermon_assurance"), true),
+        (t("book.preset.sermon_application"), false),
+        (t("book.preset.sermon_outlook"), true),
+    ]
+}
+
 /// Chapters or sermon parts of a new work: title and "with number".
-fn preset_chapters(preset: Preset) -> &'static [(&'static str, bool)] {
+fn preset_chapters(preset: Preset, lang: baruch_core::WorkLanguage) -> Vec<(String, bool)> {
     match preset {
-        Preset::Book => &[("Erstes Kapitel", true)],
-        Preset::Sermon => SERMON_OUTLINE,
+        Preset::Book => vec![(baruch_core::book_text::book_t(lang, "book.preset.first_chapter", &[]), true)],
+        Preset::Sermon => sermon_outline_in(lang),
     }
 }
 
 /// Outline scheme of a new work (`work.numbering_scheme`) and the number per item after this scheme.
-fn preset_numbers(preset: Preset, chapters: &[(&str, bool)]) -> (&'static str, Vec<String>) {
+fn preset_numbers(preset: Preset, chapters: &[(String, bool)]) -> (&'static str, Vec<String>) {
     match preset {
         // As before: scheme from the work template, provisional number 1, 2, … (the template counts "1.1").
         Preset::Book => ("template", (1..=chapters.len()).map(|n| n.to_string()).collect()),
@@ -466,12 +490,13 @@ impl Store {
         title_free(&mut tx, &key, None).await?;
         let slug = import::free_slug(&mut tx, &slug(&title)).await?;
         let template = preset_template(new.preset, &title, &author);
-        let chapters = preset_chapters(new.preset);
-        let (scheme, numbers) = preset_numbers(new.preset, chapters);
+        let chapters = preset_chapters(new.preset, new.language);
+        let sermon_title = sermon_text_title_in(new.language);
+        let (scheme, numbers) = preset_numbers(new.preset, &chapters);
         let work: WorkId = sqlx::query_scalar(
             "INSERT INTO work (slug, kind, title, author, template, title_key, subtitle, audience, bible, \
-                               numbering_scheme) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
+                               numbering_scheme, language) \
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
         )
         .bind(&slug)
         .bind(words::work_kind(new.kind))
@@ -483,6 +508,7 @@ impl Store {
         .bind(one_line(new.audience))
         .bind(one_line(new.bible))
         .bind(scheme)
+        .bind(new.language.as_str())
         .fetch_one(&mut *tx)
         .await?;
         insert_template_revision(&mut tx, work, 1, &template, human, CREATED_NOTE).await?;
@@ -506,7 +532,7 @@ impl Store {
                 .execute(&mut *tx)
                 .await?;
             let body = match sermon_text.map(str::trim).filter(|t| !t.is_empty()) {
-                Some(text) if new.preset == Preset::Sermon && *chapter == SERMON_TEXT_TITLE => {
+                Some(text) if new.preset == Preset::Sermon && *chapter == sermon_title => {
                     format!("= {chapter}\n\n{}\n\n", text.replace("\r\n", "\n"))
                 }
                 _ => format!("= {chapter}\n\n"),

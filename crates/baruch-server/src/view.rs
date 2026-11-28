@@ -1047,7 +1047,7 @@ fn ready_sheet(body: &str, ctx: &ProposalContext<'_>) -> Option<String> {
         return None;
     }
     let doc = baruch_wysiwyg::parse(body);
-    Some(baruch_wysiwyg::render_html_in(&doc, &|p| ctx.image(p), ctx.lang))
+    Some(baruch_wysiwyg::render_html_titled(&doc, &|p| ctx.image(p), ctx.lang, &crate::wysiwyg::xref_title))
 }
 
 /// A revision in the small tree view (indented by `based_on`).

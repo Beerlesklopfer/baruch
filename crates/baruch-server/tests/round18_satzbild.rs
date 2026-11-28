@@ -286,7 +286,9 @@ async fn sections_over_64_kib_get_no_ready_satzbild_but_the_widget_can_fetch_it(
     // Round 39a: the widget catalog in the page head (every widget text) does not count as the section's text.
     let catalog = baruch_server::i18n::widget_catalog_json(baruch_server::i18n::Lang::De).len();
     assert!(
-        page.len() - catalog < 2 * long.len() + 64 * 1024,
+        // Round 39c: the page carries the dialog of the new-work form (with the select of the work language), so the
+        // slack of the fixed page parts is 68 KiB instead of 64 KiB; the text still must not stand in it twice.
+        page.len() - catalog < 2 * long.len() + 68 * 1024,
         "der Text steht nur einmal im HTML (Textfeld): {} Bytes",
         page.len()
     );

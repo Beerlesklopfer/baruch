@@ -508,8 +508,18 @@ pub const FRAGMENT_SAMPLE_TIME: Duration = Duration::from_secs(2);
 
 type NoteKey = (PathBuf, String, Option<SystemTime>);
 
-fn note_cache() -> &'static Mutex<HashMap<NoteKey, Option<String>>> {
-    static CACHE: OnceLock<Mutex<HashMap<NoteKey, Option<String>>>> = OnceLock::new();
+/// What the sample found out about a module; the text of the note is made from it in the language of the caller
+/// (Round 39c), so the cache does not depend on a language.
+#[derive(Clone)]
+struct FragmentFacts {
+    module: String,
+    suspects: usize,
+    pairs: usize,
+    examples: Vec<String>,
+}
+
+fn note_cache() -> &'static Mutex<HashMap<NoteKey, Option<FragmentFacts>>> {
+    static CACHE: OnceLock<Mutex<HashMap<NoteKey, Option<FragmentFacts>>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -518,6 +528,16 @@ fn note_cache() -> &'static Mutex<HashMap<NoteKey, Option<String>>> {
 /// [`FRAGMENT_SAMPLE_VERSES`] verses (at most [`FRAGMENT_SAMPLE_TIME`]); the result stays in memory per conf file
 /// and modification time. Blocking (reads the module); a read error yields no note.
 pub fn module_note(bible: &Bible) -> Option<String> {
+    module_facts(bible).map(|facts| fragment_text(&facts))
+}
+
+/// Like [`module_note`], in the work language (book catalog `book.scripture.fragment_*`): for the facts block and
+/// the closing note of a persona answer, which follow the language of the work, not that of the interface.
+pub fn module_note_in(bible: &Bible, lang: baruch_core::WorkLanguage) -> Option<String> {
+    module_facts(bible).map(|facts| fragment_text_in(&facts, lang))
+}
+
+fn module_facts(bible: &Bible) -> Option<FragmentFacts> {
     let modified = std::fs::metadata(&bible.info.conf_file).and_then(|m| m.modified()).ok();
     let key = (bible.info.conf_file.clone(), bible.info.name.clone(), modified);
     if let Some(note) = note_cache().lock().expect("Zwischenspeicher der Modulhinweise").get(&key) {
@@ -539,7 +559,7 @@ pub fn module_note(bible: &Bible) -> Option<String> {
     }
     MODULE_NOTE_RUNS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     let note = match bible.sample_texts(FRAGMENT_SAMPLE_VERSES, Instant::now() + FRAGMENT_SAMPLE_TIME) {
-        Ok((sample, _)) => fragment_note(&bible.info.name, &sample),
+        Ok((sample, _)) => fragment_facts(&bible.info.name, &sample),
         Err(_) => None,
     };
     let mut map = note_cache().lock().expect("Zwischenspeicher der Modulhinweise");
@@ -557,18 +577,61 @@ pub fn module_note_runs() -> usize {
 
 static MODULE_NOTE_RUNS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
-/// Note text from a sample (public for tests): `None` if the module is inconspicuous.
+/// Note text from a sample (public for tests): `None` if the module is inconspicuous. The text is in the current
+/// interface language (`i18n::current()`; German keeps the old wording).
 pub fn fragment_note(module: &str, sample: &[String]) -> Option<String> {
+    fragment_facts(module, sample).map(|facts| fragment_text(&facts))
+}
+
+fn fragment_facts(module: &str, sample: &[String]) -> Option<FragmentFacts> {
     let survey = wording::fragment_survey(sample.iter().map(String::as_str));
     if !survey.fragmented() {
         return None;
     }
-    let examples = survey.examples.iter().map(|e| format!("„{e}“")).collect::<Vec<_>>().join(", ");
-    Some(format!(
-        "Modul {module} hat auffällig viele Wortfragmente ({} von {} Wortpaaren, z. B. {examples}) – vermutlich \
-         Silbentrennreste; Baruch vergleicht den Wortlaut darum auch ohne Leerraum.",
-        survey.suspects, survey.pairs
-    ))
+    Some(FragmentFacts {
+        module: module.to_owned(),
+        suspects: survey.suspects,
+        pairs: survey.pairs,
+        examples: survey.examples,
+    })
+}
+
+fn fragment_text_in(facts: &FragmentFacts, lang: baruch_core::WorkLanguage) -> String {
+    use baruch_core::book_text::book_t;
+    let examples = facts
+        .examples
+        .iter()
+        .map(|e| book_t(lang, "book.scripture.fragment_example", &[("example", e.as_str())]))
+        .collect::<Vec<_>>()
+        .join(", ");
+    book_t(
+        lang,
+        "book.scripture.fragment_note",
+        &[
+            ("module", facts.module.as_str()),
+            ("suspects", &facts.suspects.to_string()),
+            ("pairs", &facts.pairs.to_string()),
+            ("examples", &examples),
+        ],
+    )
+}
+
+fn fragment_text(facts: &FragmentFacts) -> String {
+    let examples = facts
+        .examples
+        .iter()
+        .map(|e| tc("reference_msg.bibles.fragment_example", &[("example", e.as_str().into())]))
+        .collect::<Vec<_>>()
+        .join(", ");
+    tc(
+        "reference_msg.bibles.fragment_note",
+        &[
+            ("module", facts.module.as_str().into()),
+            ("suspects", facts.suspects.into()),
+            ("pairs", facts.pairs.into()),
+            ("examples", examples.into()),
+        ],
+    )
 }
 
 /// Note on the Bible of a choice (only for a readable Bible).

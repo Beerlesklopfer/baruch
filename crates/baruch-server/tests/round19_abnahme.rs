@@ -672,7 +672,7 @@ async fn a_module_with_hyphen_remnants_confirms_the_quote_warns_and_mal_keeps_bo
     let tool = mcp_tool(&server, &s, "scripture_check", json!({ "work": work, "key": key })).await;
     let result = &tool["result"]["structuredContent"];
     assert!(
-        result["module_note"].as_str().is_some_and(|n| n.contains("Wortfragmente")),
-        "Begründung: MCP scripture_check trägt denselben Hinweis: {tool}"
+        result["module_note"].as_str().is_some_and(|n| n.contains("word fragments")),
+        "Begründung: MCP (always English since Round 39c) scripture_check trägt denselben Hinweis: {tool}"
     );
 }

@@ -210,7 +210,7 @@ pub use uuids::{Instance, MAX_INSTANCE_NAME_CHARS, new_uuid};
 pub use variants::VariantInfo;
 pub use works::{
     DeletedWork, NewWork, Preset, RestoredWork, RetiredWork, SERMON_OUTLINE, SERMON_TEXT_TITLE, TemplateRevision,
-    WorkEdit, WorkMeta, WorkUpdate, title_key,
+    WorkEdit, WorkMeta, WorkUpdate, sermon_outline_in, sermon_text_title_in, title_key,
 };
 
 pub type WorkId = i64;

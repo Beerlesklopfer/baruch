@@ -110,3 +110,17 @@ book.websearch.not_supported = (not supported)
 book.websearch.unknown_source = (unknown source)
 book.websearch.not_fetched = (not fetched)
 book.websearch.check_note = check reference: not supported
+
+# Titles of the preset chapters of a new work (Round 39c; the work language decides, see Store::create_work)
+book.preset.first_chapter = First chapter
+book.preset.sermon_text = Sermon text
+book.preset.sermon_introduction = Introduction
+book.preset.sermon_observation = Observation on the text
+book.preset.sermon_interpretation = Interpretation
+book.preset.sermon_assurance = Assurance
+book.preset.sermon_application = Application
+book.preset.sermon_outlook = Outlook
+
+# Note on a Bible module with many word fragments (facts block and closing note of a persona answer, Round 39c)
+book.scripture.fragment_example = “{ $example }”
+book.scripture.fragment_note = Module { $module } has strikingly many word fragments ({ $suspects } of { $pairs } word pairs, e.g. { $examples }) – probably hyphenation remnants; Baruch therefore also compares the wording without whitespace.

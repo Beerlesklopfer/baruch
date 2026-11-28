@@ -106,3 +106,17 @@ book.websearch.not_supported = (nicht belegt)
 book.websearch.unknown_source = (unbekannte Quelle)
 book.websearch.not_fetched = (nicht abgerufen)
 book.websearch.check_note = Angabe prüfen: nicht belegt
+
+# Titles of the preset chapters of a new work (Round 39c; the work language decides, see Store::create_work)
+book.preset.first_chapter = Erstes Kapitel
+book.preset.sermon_text = Predigttext
+book.preset.sermon_introduction = Hinführung
+book.preset.sermon_observation = Beobachtung am Text
+book.preset.sermon_interpretation = Deutung
+book.preset.sermon_assurance = Zuspruch
+book.preset.sermon_application = Anwendung
+book.preset.sermon_outlook = Ausblick
+
+# Note on a Bible module with many word fragments (facts block and closing note of a persona answer, Round 39c)
+book.scripture.fragment_example = „{ $example }“
+book.scripture.fragment_note = Modul { $module } hat auffällig viele Wortfragmente ({ $suspects } von { $pairs } Wortpaaren, z. B. { $examples }) – vermutlich Silbentrennreste; Baruch vergleicht den Wortlaut darum auch ohne Leerraum.

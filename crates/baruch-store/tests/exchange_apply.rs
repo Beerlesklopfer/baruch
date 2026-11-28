@@ -285,6 +285,7 @@ async fn a_taken_title_is_refused_and_a_title_of_ones_own_works() {
         subtitle: "",
         audience: "",
         bible: "",
+        language: Default::default(),
     };
     let first = store.create_work(&new, "Anna").await.unwrap().work;
     let doc = sample_document();

@@ -537,6 +537,7 @@ async fn migration_0007_keeps_every_row_and_column_and_makes_ids_autoincrement()
         subtitle: "",
         audience: "",
         bible: "",
+        language: Default::default(),
     };
     let created = store.create_work(&new, "Autor").await.unwrap();
     assert_eq!(created.work, 3, "AUTOINCREMENT: nach dem Löschen von Werk 2 bekommt das neue Werk 3, nicht 2");

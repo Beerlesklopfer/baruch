@@ -20,6 +20,7 @@ works_msg.import.choose_other_title = Please enter a different title below and c
 # Checks of the RPC methods work.*.
 works_msg.rpc.kind_invalid = kind: expected “book” or “sermon”, not “{ $other }”
 works_msg.rpc.preset_invalid = preset: expected “book” or “sermon”, not “{ $other }”
+works_msg.rpc.language_invalid = language: expected “de” or “en”, not “{ $other }”
 works_msg.rpc.work_missing = work missing: which work? (work id, a number)
 works_msg.rpc.zip_via_archive = A ZIP archive goes through work.import_archive (content as Base64).
 works_msg.rpc.not_zip = “{ $base }” is not a ZIP archive; work.import_archive only takes .zip.

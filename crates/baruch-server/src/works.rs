@@ -55,7 +55,7 @@ use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use baruch_core::WorkKind;
 use baruch_gitmirror::{CommitRequest, MirrorFile, Signature};
-use baruch_store::{DeletedWork, NewWork, Preset, StoreError, WorkEdit, WorkId, title_key};
+use baruch_store::{DeletedWork, NewWork, Preset, StoreError, WorkEdit, WorkId, WorkLanguage, title_key};
 use minijinja::value::Serde;
 use minijinja::{Environment, Value, context};
 use serde::Deserialize;
@@ -121,6 +121,8 @@ struct CreateParams {
     subtitle: Option<String>,
     audience: Option<String>,
     bible: Option<String>,
+    /// Work language `de` | `en` (Round 39c); missing or empty = `de`. The preset titles follow it.
+    language: Option<String>,
     /// Sermon text as a reference (only for a sermon, Round 16a).
     text_ref: Option<String>,
     /// SWORD Bible for the sermon text (empty: Bible of `from_work`, otherwise of the default work).
@@ -189,6 +191,16 @@ fn kind_param(value: Option<&str>) -> Result<Option<WorkKind>, RpcError> {
         Some("book") => Ok(Some(WorkKind::Book)),
         Some("sermon") => Ok(Some(WorkKind::Sermon)),
         Some(other) => Err(invalid(tc("works_msg.rpc.kind_invalid", &[("other", other.into())]))),
+    }
+}
+
+/// Work language of `work.create` (Round 39c): `de` | `en`; missing or empty = German (so existing callers keep
+/// their German preset titles); anything else → -32602.
+fn language_param(value: Option<&str>) -> Result<WorkLanguage, RpcError> {
+    match value.map(str::trim) {
+        None | Some("") => Ok(WorkLanguage::De),
+        Some(code) => WorkLanguage::parse(code)
+            .ok_or_else(|| invalid(tc("works_msg.rpc.language_invalid", &[("other", code.into())]))),
     }
 }
 
@@ -443,6 +455,7 @@ fn given(value: Option<&str>) -> Option<&str> {
 async fn create(state: &AppState, p: &CreateParams) -> Result<serde_json::Value, RpcError> {
     let kind = kind_param(p.kind.as_deref())?;
     let preset = preset_param(p.preset.as_deref())?;
+    let language = language_param(p.language.as_deref())?;
     let (kind, preset) = match (kind, preset) {
         (Some(kind), Some(preset)) => (kind, preset),
         (Some(WorkKind::Sermon), None) => (WorkKind::Sermon, Preset::Sermon),
@@ -465,6 +478,7 @@ async fn create(state: &AppState, p: &CreateParams) -> Result<serde_json::Value,
         subtitle: p.subtitle.as_deref().unwrap_or(""),
         audience: p.audience.as_deref().unwrap_or(""),
         bible: p.bible.as_deref().unwrap_or(""),
+        language,
     };
     let held = state.write_lock.lock().await;
     let created = state
@@ -1206,6 +1220,8 @@ struct NewForm {
     subtitle: String,
     audience: String,
     bible: String,
+    /// Work language `de` | `en`; empty = the current interface language is preselected (Round 39c).
+    language: String,
     upload_title: String,
     text_ref: String,
     module: String,
@@ -1239,9 +1255,12 @@ async fn new_page_response(
     state: &AppState,
     headers: &HeaderMap,
     status: StatusCode,
-    form: NewForm,
+    mut form: NewForm,
     error: Option<String>,
 ) -> Response {
+    if form.language.is_empty() {
+        form.language = crate::i18n::current().code().to_owned();
+    }
     let ctx = context! {
         settings => page_settings(headers), form => Value::from(Serde(form)), error => error,
         back_url => back_url(state).await, max_mib => MAX_SOURCE_BYTES / (1024 * 1024),
@@ -1663,6 +1682,8 @@ struct ActForm {
     subtitle: Option<String>,
     audience: Option<String>,
     bible: Option<String>,
+    /// Work language of a new work (`create`, Round 39c); missing = `de`.
+    language: Option<String>,
     template: Option<String>,
     note: Option<String>,
     confirm_title: Option<String>,
@@ -1687,6 +1708,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
                 subtitle: form.subtitle.clone(),
                 audience: form.audience.clone(),
                 bible: form.bible.clone(),
+                language: form.language.clone(),
                 text_ref: form.text_ref.clone(),
                 module: form.module.clone(),
                 from_work: form.from_work.as_deref().map(str::trim).and_then(|w| w.parse().ok()),
@@ -1702,6 +1724,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
                         subtitle: p.subtitle.unwrap_or_default(),
                         audience: p.audience.unwrap_or_default(),
                         bible: p.bible.unwrap_or_default(),
+                        language: p.language.unwrap_or_default(),
                         upload_title: String::new(),
                         text_ref: p.text_ref.unwrap_or_default(),
                         module: p.module.unwrap_or_default(),

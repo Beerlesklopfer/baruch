@@ -204,6 +204,9 @@ Per help page, what is deliberately missing there. Interfaces in detail: `docs/R
   `#quote(block: true, attribution: [Joh 3,16 (Modul)])[…]`; missing verses are reported by `sermon_text.missing`; an
   invalid reference answers with status 422 without JavaScript. On `/werke/neu` with an empty Bible the default work holds,
   in the dialog the shown work.
+  Round 39c: the form has a select „Werksprache“ (`language`, German or English) that is preselected with the current
+  interface language; the choice is the work language and decides the words of the preset chapters („Erstes Kapitel“ or
+  „First chapter“, the seven sermon parts). A form without the field (and `work.create` without `language`) means German.
 - **Unique titles:** message `Es gibt schon ein Werk „…“ (slug).` If two works had the same
   title before the update, one of them gets a new one at the first start: the seeded sample work its sample title again, otherwise the
   younger one „<Titel> (2)“. Folder names, mirrors and texts stay.

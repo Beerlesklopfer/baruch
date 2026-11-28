@@ -152,3 +152,10 @@ reference_msg.replace.confirm = Please confirm the replacement (confirm: true).
 reference_msg.replace.replacement_missing = replacement: replacement text missing (empty is allowed).
 reference_msg.replace.undo_confirm = Please confirm the undo (confirm: true).
 reference_msg.replace.batch_missing = batch: number of the replacement missing.
+
+# Round 39c: notes and refusals of the Bible checks (src/bibles.rs, src/scripture.rs)
+reference_msg.bibles.fragment_example = “{ $example }”
+reference_msg.bibles.fragment_note = Module { $module } has strikingly many word fragments ({ $suspects } of { $pairs } word pairs, e.g. { $examples }) – probably hyphenation remnants; Baruch therefore also compares the wording without whitespace.
+reference_msg.scripture.text_missing = text missing (reference or running text)
+reference_msg.scripture.text_too_long = text: at most { $max } characters
+reference_msg.xref.tooltip = Cross reference to { $target } (Ctrl+click: jump)
