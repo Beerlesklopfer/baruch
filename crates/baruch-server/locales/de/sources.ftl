@@ -15,7 +15,11 @@ sources.source.load_fulltext = Volltext laden
 sources.source.part = Teil { $part }
 sources.source.part_of = von { $parts }
 sources.source.end_unknown = , Ende noch unbekannt
-sources.source.marks = · { $marks } Fundstellen markiert
+sources.source.marks =
+    · { $marks } { $marks ->
+        [one] Fundstelle
+       *[other] Fundstellen
+    } markiert
 sources.source.parts_nav = Teile des Volltexts
 sources.source.prev_part = ← vorheriger Teil
 sources.source.next_part = nächster Teil →
@@ -110,7 +114,11 @@ sources.multigpt.load_fulltext = Volltext laden
 sources.multigpt.part = Teil { $part }
 sources.multigpt.part_of = von { $parts }
 sources.multigpt.end_unknown = , Ende noch unbekannt
-sources.multigpt.marks = · { $marks } Fundstellen markiert
+sources.multigpt.marks =
+    · { $marks } { $marks ->
+        [one] Fundstelle
+       *[other] Fundstellen
+    } markiert
 sources.multigpt.parts_nav = Teile des Volltexts
 sources.multigpt.prev_part = ← vorheriger Teil
 sources.multigpt.next_part = nächster Teil →

@@ -195,7 +195,10 @@ async fn missing_verses_are_counted_and_the_present_ones_are_still_quoted() {
         (Some(true), Some(2), Some(1)),
         "Joh 3,17 fehlt im Modul: gemeldet, die beiden anderen Verse stehen da: {text}"
     );
-    assert!(text["notice"].as_str().unwrap().contains("fehlen"), "deutscher Hinweis auf die Lücke: {text}");
+    assert!(
+        text["notice"].as_str().unwrap().contains("1 Vers fehlt"),
+        "German notice of the gap, singular for one verse: {text}"
+    );
 }
 
 #[tokio::test]

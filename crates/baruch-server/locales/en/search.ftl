@@ -62,7 +62,11 @@ search.page.hits_other = matches
 search.page.truncated = Showing { $shown } of { $total } matches.
 search.page.timed_out = The search took longer than 2 s and was stopped; the list is incomplete.
 search.page.no_hits = No matches.
-search.page.preview_heading = Preview: “{ $q }” → “{ $replacement }” · { $total } matches · { $range_label }
+search.page.preview_heading =
+    Preview: “{ $q }” → “{ $replacement }” · { $total } { $total ->
+        [one] match
+       *[other] matches
+    } · { $range_label }
 search.page.preview_timed_out = The search took longer than 2 s; replacing only works with a smaller range.
 search.page.preview_truncated = The preview does not show all sections (at most 500 whole sections with at most 2000 places together); please narrow the search or the range.
 search.page.preview_rev = Revision { $base_rev }, { $count }

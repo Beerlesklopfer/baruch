@@ -156,7 +156,14 @@ ideas.map.clear_filter = Clear filter
 ideas.map.findings_note = Findings layer: number “k open” per part and chapter (open findings including sections); branches with { $count } or more open ones are highlighted.
 ideas.map.all_findings = All findings
 ideas.map.filter_words = Filter: { $words }
-ideas.map.stats = { $ideas } ideas · { $links } links ·
+ideas.map.stats =
+    { $ideas } { $ideas ->
+        [one] idea
+       *[other] ideas
+    } · { $links } { $links ->
+        [one] link
+       *[other] links
+    } ·
 ideas.map.in_cloud = { $count } in the cloud
 ideas.map.name_groups_hint = The lector (or the chosen persona) proposes a name for each group of near ideas; it becomes a keyword only when you accept it
 ideas.map.name_groups = Name groups (assistant)

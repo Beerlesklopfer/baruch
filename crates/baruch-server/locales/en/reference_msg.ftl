@@ -94,8 +94,16 @@ reference_msg.map.mapped = in { $name }: { $target }
 reference_msg.map.rule = (rule: { $rules })
 reference_msg.map.truncated = – shortened to { $max } verses
 reference_msg.map.no_book = the book { $abbr } does not exist in { $name }
-reference_msg.map.chapters = { $abbr } has only { $count } chapters in { $name }
-reference_msg.map.verses = { $abbr } { $chapter } has only { $count } verses in { $name }
+reference_msg.map.chapters =
+    { $abbr } has only { $count } { $count ->
+        [one] chapter
+       *[other] chapters
+    } in { $name }
+reference_msg.map.verses =
+    { $abbr } { $chapter } has only { $count } { $count ->
+        [one] verse
+       *[other] verses
+    } in { $name }
 reference_msg.map.end_before_start = { $abbr }: end before the start
 
 # Text search and replace (search/*).

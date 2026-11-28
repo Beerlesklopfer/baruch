@@ -30,7 +30,11 @@ import_msg.docx.heading_deleted = { $who } hat die Überschrift „{ $heading }�
 import_msg.docx.lost_comments = { $count } Kommentar(e) ohne auffindbare Stelle im Text stehen am ersten Abschnitt.
 import_msg.docx.image_skipped = Bild „{ $path }“ übersprungen: { $reason }.
 import_msg.docx.mirror = Der Git-Spiegel ließ sich nicht schreiben: { $detail }
-import_msg.docx.unaligned_work = Das Werk hat { $work } Abschnitte, die Datei { $file }; Vorschläge und Beiträge ließen sich nicht zuordnen und sind nicht angelegt.
+import_msg.docx.unaligned_work =
+    Das Werk hat { $work } { $work ->
+        [one] Abschnitt
+       *[other] Abschnitte
+    }, die Datei { $file }; Vorschläge und Beiträge ließen sich nicht zuordnen und sind nicht angelegt.
 import_msg.docx.not_docx = „{ $file }“ ist keine Word-Datei (.docx); das alte Format .doc bitte in Word als .docx speichern.
 import_msg.docx.read_aborted = Lesen abgebrochen: { $detail }
 import_msg.docx.draft_unknown = Entwurf „{ $id }“ gibt es nicht (verworfen, schon übernommen oder älter als 24 Stunden); die Datei bitte neu lesen.

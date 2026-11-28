@@ -36,7 +36,11 @@ assist_msg.solution.picks_missing = picks missing: choose at least one solution
 assist_msg.solution.finding_elsewhere = Finding { $id } does not belong to this section.
 assist_msg.solution.finding_without_post = The finding comes from no post of this section.
 assist_msg.solution.post_missing = post missing (post with the solutions) – or finding
-assist_msg.solution.no_such_solution = Solution { $pick } does not exist ({ $count } solutions).
+assist_msg.solution.no_such_solution =
+    Solution { $pick } does not exist ({ $count } { $count ->
+        [one] solution
+       *[other] solutions
+    }).
 assist_msg.solution.only_step = It names only a step, no new wording.
 assist_msg.solution.quote_not_in = The quotation “{ $quote }” is not in revision { $rev }.
 assist_msg.solution.not_adoptable = Solution { $pick } cannot be adopted: { $why }

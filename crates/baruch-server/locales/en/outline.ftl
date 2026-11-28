@@ -12,7 +12,11 @@ outline.page.back_to_work = Back to the work
 outline.page.heading = Outline of “{ $title }”
 outline.page.intro = This page is the fallback without JavaScript; with JavaScript everything happens in the tree on the left (drag and drop, context menu, double click or F2 to rename). Every change is a commit in the Git mirror. If level or title change, the section gets a new revision that differs only in the heading line. Assistants at most create new items; renaming, moving, changing the level and deleting they only request – you decide that below in the requests.
 outline.page.total = Total time
-outline.page.total_words = ({ $words } words, { $words_per_minute } words per minute)
+outline.page.total_words =
+    ({ $words } { $words ->
+        [one] word
+       *[other] words
+    }, { $words_per_minute } words per minute)
 outline.page.target = · Target time
 outline.page.over = Warning: target time exceeded by { $over_clock }
 outline.page.within = · within the limit
@@ -25,7 +29,11 @@ outline.page.col_count = Count, edit
 outline.page.findings_children = including sub-items
 outline.page.findings_own = ({ $findings_own } on the item itself)
 outline.page.findings_open = { $count } open
-outline.page.words = { $words } words
+outline.page.words =
+    { $words } { $words ->
+        [one] word
+       *[other] words
+    }
 outline.page.start_clock = from { $start_clock }
 outline.page.before = Before “{ $up_title }”
 outline.page.up = Up

@@ -77,14 +77,28 @@ export.word_import.part_prefix = Part:
 export.word_import.part = Part
 export.word_import.level = Level { $level }
 export.word_import.unnumbered = without a number
-export.word_import.chars = { $count } characters
+export.word_import.chars =
+    { $count } { $count ->
+        [one] character
+       *[other] characters
+    }
 export.word_import.apply = Adopt
 export.word_import.changes_as_proposals = create tracked changes as open proposals
 export.word_import.comments_as_posts = create comments as posts
 export.word_import.adopt = Adopt as a work
 export.word_import.discard_hint = deletes the draft; nothing is created.
 export.word_import.adopted = Adopted: { $title }
-export.word_import.report = The work has been created: { $sections } sections, { $proposals } open proposals, { $posts } posts. Something stood out while adopting:
+export.word_import.report =
+    The work has been created: { $sections } { $sections ->
+        [one] section
+       *[other] sections
+    }, { $proposals } open { $proposals ->
+        [one] proposal
+       *[other] proposals
+    }, { $posts } { $posts ->
+        [one] post
+       *[other] posts
+    }. Something stood out while adopting:
 
 # EPUB pages (epub_check.html, fragments/epub_check_panel.html, epub_preview.html).
 export.epub.download = Download EPUB

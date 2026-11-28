@@ -76,8 +76,16 @@ findings.page.cell_missing = Abschnitt { $key } gibt es in diesem Werk nicht (me
 findings.page.cell_in = Befunde in
 findings.page.back_to_matrix = Zurück zur ganzen Matrix
 findings.page.cell_empty = Keine Befunde in dieser Zelle.
-findings.page.old_label = Offen, älter als { $days } Tage
-findings.page.old_heading = Offen, älter als { $days } Tage ({ $count })
+findings.page.old_label =
+    Offen, älter als { $days } { $days ->
+        [one] Tag
+       *[other] Tage
+    }
+findings.page.old_heading =
+    Offen, älter als { $days } { $days ->
+        [one] Tag
+       *[other] Tage
+    } ({ $count })
 findings.page.show = Zeigen
 findings.page.old_truncated = Es gibt { $total } offene Befunde, die älter sind; gezeigt sind die { $limit } neuesten davon. Die älteren stehen in der Matrix (Zelle anklicken) oder erscheinen mit einer größeren Zahl bei „älter als … Tage“.
 findings.page.old_none = Keine offenen Befunde, die älter sind.
@@ -154,7 +162,11 @@ findings.block.more = weitere Möglichkeiten (verschieben …)
 
 # Accordion "Befunde" of the work page (fragments/findings_panel.html).
 findings.panel.title = Befunde
-findings.panel.open_hint = { $count } offene Befunde in diesem Abschnitt
+findings.panel.open_hint =
+    { $count } { $count ->
+        [one] offener Befund
+       *[other] offene Befunde
+    } in diesem Abschnitt
 findings.panel.pending_hint = offene Vorschläge der Assistenten
 findings.panel.pending = { $count } { $count ->
     [one] Vorschlag

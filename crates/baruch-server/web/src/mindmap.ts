@@ -385,13 +385,25 @@ register("mindmap", (stage) => {
       return;
     }
     const args = { title: n.title, count: n.children };
-    const withChildren = n.children > 0;
-    if (!window.confirm(t(withChildren ? "widget.mindmap.delete_question_children" : "widget.mindmap.delete_question", args))) return;
+    // Singular and plural are two keys (widget texts have no selectors); a complete literal at each call site.
+    const question =
+      n.children === 0
+        ? "widget.mindmap.delete_question"
+        : n.children === 1
+          ? "widget.mindmap.delete_question_children_one"
+          : "widget.mindmap.delete_question_children_other";
+    const deleted =
+      n.children === 0
+        ? "widget.mindmap.deleted"
+        : n.children === 1
+          ? "widget.mindmap.deleted_children_one"
+          : "widget.mindmap.deleted_children_other";
+    if (!window.confirm(t(question, args))) return;
     const idea = n.idea;
     void act(async () => {
       await call("idea.delete", { id: idea, confirm: true });
       undo = { label: t("widget.mindmap.undo_delete"), run: () => call("idea.restore", { id: idea }) };
-      return { message: t(withChildren ? "widget.mindmap.deleted_children" : "widget.mindmap.deleted", args), select: n.cloud ? "w" : n.parent };
+      return { message: t(deleted, args), select: n.cloud ? "w" : n.parent };
     });
   }
 
@@ -427,7 +439,13 @@ register("mindmap", (stage) => {
       return;
     }
     const args = { title: n.title, count: n.children };
-    move(n, { cloud: true }, t(n.children > 0 ? "widget.mindmap.to_cloud_children" : "widget.mindmap.to_cloud", args));
+    const message =
+      n.children === 0
+        ? "widget.mindmap.to_cloud"
+        : n.children === 1
+          ? "widget.mindmap.to_cloud_children_one"
+          : "widget.mindmap.to_cloud_children_other";
+    move(n, { cloud: true }, t(message, args));
   }
 
   function isInside(target: Info, n: Info): boolean {

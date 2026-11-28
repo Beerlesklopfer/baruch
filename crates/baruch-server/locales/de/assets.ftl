@@ -27,7 +27,11 @@ assets.list.assign = Zuordnen
 assets.list.search = Suchen
 assets.list.search_placeholder = Name, Bildunterschrift oder Alternativtext
 assets.list.search_label = Bilder suchen
-assets.list.found = { $count } von { $total } Bildern für „{ $query }“
+assets.list.found =
+    { $count } von { $total } { $total ->
+        [one] Bild
+       *[other] Bildern
+    } für „{ $query }“
 assets.list.show_all = alle zeigen
 assets.list.col_preview = Vorschau
 assets.list.col_revision = Fassung
@@ -70,7 +74,11 @@ assets.one.delete_revision_heading = Fassung { $number } löschen
 assets.one.delete_revision_confirm = Fassung { $number } wirklich löschen
 assets.one.delete_revision = Fassung löschen
 assets.one.delete_image = Bild löschen
-assets.one.delete_image_hint = Löscht { $name } mit allen { $count } Fassungen und Pfaden. Der Inhalt bleibt im Git-Spiegel lesbar.
+assets.one.delete_image_hint =
+    Löscht { $name } mit { $count ->
+        [one] seiner { $count } Fassung
+       *[other] allen { $count } Fassungen
+    } und Pfaden. Der Inhalt bleibt im Git-Spiegel lesbar.
 assets.one.delete_image_confirm = { $name } wirklich löschen
 
 # Requests of the assistants about images (fragments/asset_requests.html).

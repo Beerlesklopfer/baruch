@@ -87,11 +87,19 @@ system.sync.never = Never synced.
 system.sync.works_title = Upload works to MultiGPT
 system.sync.works_help = Default: off. When switched on, the next sync puts one document per chapter with the current versions into the collection “{ $collection_pattern }”; changed chapters are replaced.
 system.sync.work_title_placeholder = work title
-system.sync.upload_on = – upload on, collection “{ $collection }”, { $documents } chapters
+system.sync.upload_on =
+    – upload on, collection “{ $collection }”, { $documents } { $documents ->
+        [one] chapter
+       *[other] chapters
+    }
 system.sync.last_synced = , last { $synced }
 system.sync.switch_off = Switch upload off
 system.sync.upload_off = – upload off
-system.sync.still_there = ({ $documents } chapters are still in “{ $collection }”)
+system.sync.still_there =
+    ({ $documents } { $documents ->
+        [one] chapter is
+       *[other] chapters are
+    } still in “{ $collection }”)
 system.sync.confirm = Yes, the current versions of this work may go to MultiGPT
 system.sync.switch_on = Switch upload on
 system.sync.no_works = There is no work yet.

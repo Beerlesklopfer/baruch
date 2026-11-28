@@ -67,7 +67,11 @@ view_msg.consent.page_too_large = Error: page too large
 
 # Editor (wysiwyg.rs).
 view_msg.wysiwyg.chapter_unknown = unknown (numbering of the template not readable)
-view_msg.wysiwyg.image_list = List of { $count } images, index chapter { $offset }; chapter counter { $at } lies outside
+view_msg.wysiwyg.image_list =
+    List of { $count } { $count ->
+        [one] image
+       *[other] images
+    }, index chapter { $offset }; chapter counter { $at } lies outside
 
 # Speaking time (timing.rs).
 view_msg.timing.whole_number = { $name }: whole number expected

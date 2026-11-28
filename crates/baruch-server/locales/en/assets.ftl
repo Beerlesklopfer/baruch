@@ -27,7 +27,11 @@ assets.list.assign = Assign
 assets.list.search = Search
 assets.list.search_placeholder = Name, caption or alternative text
 assets.list.search_label = Search images
-assets.list.found = { $count } of { $total } images for “{ $query }”
+assets.list.found =
+    { $count } of { $total } { $total ->
+        [one] image
+       *[other] images
+    } for “{ $query }”
 assets.list.show_all = show all
 assets.list.col_preview = Preview
 assets.list.col_revision = Revision
@@ -70,7 +74,11 @@ assets.one.delete_revision_heading = Delete revision { $number }
 assets.one.delete_revision_confirm = Really delete revision { $number }
 assets.one.delete_revision = Delete revision
 assets.one.delete_image = Delete image
-assets.one.delete_image_hint = Deletes { $name } with all { $count } revisions and paths. The content stays readable in the Git mirror.
+assets.one.delete_image_hint =
+    Deletes { $name } with { $count ->
+        [one] its { $count } revision
+       *[other] all { $count } revisions
+    } and paths. The content stays readable in the Git mirror.
 assets.one.delete_image_confirm = Really delete { $name }
 
 # Requests of the assistants about images (fragments/asset_requests.html).

@@ -6310,6 +6310,14 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
   `_html` may carry markup, exactly `<code> <strong> <em> <kbd> <br>` without attributes (`i18n::MARKUP_TAGS`);
   `t()` escapes everything else and the arguments. `widget.*` texts only with simple `{ $name }`. A key is always a
   complete string literal at its call site (the checks find it there).
+- **Counts (follow-up of Round 39a):** a text with a count needs its singular. Server and template texts use a Fluent
+  selector on the count (`{ $count -> [one] … *[other] … }`, numbers passed as numbers; a template passes a number
+  as a number), in English and – where the German word changes – in German too; a code path that already picks a
+  separate singular key (`view_msg.menu.one_section`) keeps it. Widget texts have no selectors, so they are a pair
+  `…_one`/`…_other` and the widget picks one with `=== 1`, both keys as literals (`widget.search.total_*`,
+  `widget.typeset_settings.preview_*`, `widget.mindmap.*_children_*`). Guard: `tests/round39a_plurals.rs`
+  (`every_counted_english_text_has_a_singular`) scans every English value for a counted plural noun without a
+  selector; the exceptions (fixed limits, context lengths, counts that are always above 1) are listed with reasons.
 - **Lookup (`src/i18n.rs`):** one concurrent bundle per language, built once without isolation marks (no
   U+2068/U+2069 in HTML); `t(lang, key, args)` → text of the language, else the English text, else the key;
   `tc(key, args)` = `t(current(), …)`; `exists(key)`; `t_html` for markup keys. Arguments are `i18n::Arg`

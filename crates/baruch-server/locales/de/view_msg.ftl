@@ -67,7 +67,11 @@ view_msg.consent.page_too_large = Fehler: Seite zu groß
 
 # Editor (wysiwyg.rs).
 view_msg.wysiwyg.chapter_unknown = unbekannt (Nummerierung der Vorlage nicht lesbar)
-view_msg.wysiwyg.image_list = Liste mit { $count } Bildern, Index Kapitel { $offset }; Kapitelzähler { $at } liegt außerhalb
+view_msg.wysiwyg.image_list =
+    Liste mit { $count } { $count ->
+        [one] Bild
+       *[other] Bildern
+    }, Index Kapitel { $offset }; Kapitelzähler { $at } liegt außerhalb
 
 # Speaking time (timing.rs).
 view_msg.timing.whole_number = { $name }: ganze Zahl erwartet

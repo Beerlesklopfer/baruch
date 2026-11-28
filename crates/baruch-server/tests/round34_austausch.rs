@@ -716,8 +716,8 @@ async fn foreign_input_is_refused_with_a_clear_message_and_no_crash() {
     let (status, html) = preview(&b.server, work, &zip_of(&[("content.json", long.as_bytes())])).await;
     assert_eq!(status, StatusCode::OK, "überlange Texte sind kein Grund zur Ablehnung: {html}");
     assert!(
-        html.contains("1 Titel waren länger als 200 Zeichen und wurden gekürzt")
-            && html.contains("1 Notiz(en) waren länger als 4000 Zeichen und wurden gekürzt"),
+        html.contains("1 Titel war länger als 200 Zeichen und wurde gekürzt")
+            && html.contains("1 Notiz war länger als 4000 Zeichen und wurde gekürzt"),
         "die Vorschau nennt die Kürzungen (warnings): {html}"
     );
     let tree = hidden_tree(&html);

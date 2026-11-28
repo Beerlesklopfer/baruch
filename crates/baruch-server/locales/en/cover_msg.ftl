@@ -3,7 +3,11 @@
 # the same order with the German wording.
 
 # Measuring the cover from the typeset book (cover.rs).
-cover_msg.measure.typeset_errors = The typeset book has { $errors } errors; without typeset pages there is no page size for the cover (messages under /werke/{ $work }/satz).
+cover_msg.measure.typeset_errors =
+    The typeset book has { $errors } { $errors ->
+        [one] error
+       *[other] errors
+    }; without typeset pages there is no page size for the cover (messages under /werke/{ $work }/satz).
 cover_msg.measure.page_size = Page size of the first book page not readable
 cover_msg.measure.block_heights = Block heights: { $error }
 cover_msg.measure.timeout = The cover blocks cannot be typeset: Typst did not finish after { $seconds } seconds (time limit).

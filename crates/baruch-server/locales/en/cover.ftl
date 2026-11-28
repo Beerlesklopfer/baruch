@@ -15,7 +15,12 @@ cover.page.page_title = { $title }: cover
 cover.page.download = Download
 cover.page.pdf = Cover PDF
 cover.page.heading = Cover
-cover.page.facts = Total { $width } × { $height } mm · page { $page_width } × { $page_height } mm · spine { $spine } mm = { $book_pages } book pages ({ $sheets } sheets) × { $sheet_mm } mm per sheet
+cover.page.facts =
+    Total { $width } × { $height } mm · page { $page_width } × { $page_height } mm · spine { $spine } mm = { $book_pages } { $book_pages ->
+        [one] book page ({ $sheets } sheets)
+        [2] book pages ({ $sheets } sheet)
+       *[other] book pages ({ $sheets } sheets)
+    } × { $sheet_mm } mm per sheet
 cover.page.facts_cover_pages = (the { $count } cover pages in the typesetting do not count)
 cover.page.facts_bleed = · bleed { $bleed } mm
 cover.page.caption = On the left the back, in the middle the spine, on the right the front; outside the bleed.

@@ -91,7 +91,11 @@ system.sync.upload_on = – hochladen an, Sammlung „{ $collection }“, { $doc
 system.sync.last_synced = , zuletzt { $synced }
 system.sync.switch_off = Hochladen ausschalten
 system.sync.upload_off = – hochladen aus
-system.sync.still_there = ({ $documents } Kapitel liegen noch in „{ $collection }“)
+system.sync.still_there =
+    ({ $documents } { $documents ->
+        [one] Kapitel liegt
+       *[other] Kapitel liegen
+    } noch in „{ $collection }“)
 system.sync.confirm = Ja, die aktuellen Fassungen dieses Werks dürfen nach MultiGPT
 system.sync.switch_on = Hochladen einschalten
 system.sync.no_works = Es gibt noch kein Werk.

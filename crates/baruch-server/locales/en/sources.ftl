@@ -15,7 +15,11 @@ sources.source.load_fulltext = Load full text
 sources.source.part = Part { $part }
 sources.source.part_of = of { $parts }
 sources.source.end_unknown = , end not known yet
-sources.source.marks = · { $marks } places marked
+sources.source.marks =
+    · { $marks } { $marks ->
+        [one] place
+       *[other] places
+    } marked
 sources.source.parts_nav = Parts of the full text
 sources.source.prev_part = ← previous part
 sources.source.next_part = next part →
@@ -82,7 +86,11 @@ sources.import.assets = { $assets } image(s) come along into the work.
 sources.import.check_outline = Check outline
 sources.import.outline_help_html = One item per line: <code>= Title</code> chapter, <code>== Title</code> section, <code>=== Title</code> subsection; <code>= Teil: Title</code> makes a part. Emptying a line removes the item (its text goes to the previous item). The order stays as in the file.
 sources.import.item = Item { $index }
-sources.import.chars = { $chars } characters
+sources.import.chars =
+    { $chars } { $chars ->
+        [one] character
+       *[other] characters
+    }
 sources.import.part_hint = · possible part – as a part only with “= Teil: …”
 sources.import.adopt_as = Take over as
 sources.import.as_work = Work
@@ -110,7 +118,11 @@ sources.multigpt.load_fulltext = Load full text
 sources.multigpt.part = Part { $part }
 sources.multigpt.part_of = of { $parts }
 sources.multigpt.end_unknown = , end not known yet
-sources.multigpt.marks = · { $marks } places marked
+sources.multigpt.marks =
+    · { $marks } { $marks ->
+        [one] place
+       *[other] places
+    } marked
 sources.multigpt.parts_nav = Parts of the full text
 sources.multigpt.prev_part = ← previous part
 sources.multigpt.next_part = next part →
@@ -172,7 +184,11 @@ sources.bible.books = Books
 sources.bible.book_chapter = Book and chapter
 sources.bible.book = Book
 sources.bible.open_chapter = Open
-sources.bible.chapters = { $chapters } chapters
+sources.bible.chapters =
+    { $chapters } { $chapters ->
+        [one] chapter
+       *[other] chapters
+    }
 
 # templates/fragments/literature_bibles.html
 sources.bibles.bible = Bible

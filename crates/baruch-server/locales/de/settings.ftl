@@ -388,7 +388,11 @@ settings.work.language_de = Deutsch
 settings.work.language_en = Englisch
 settings.work.language_help = In dieser Sprache antworten die Assistenten. Die Sprache der Oberfläche ändert sich dadurch nicht.
 settings.work.timing_title = Predigtzeit
-settings.work.timing_summary_html = Sprechdauer jetzt ≈ <strong>{ $total_clock }</strong> ({ $words } gesprochene Wörter)
+settings.work.timing_summary_html =
+    Sprechdauer jetzt ≈ <strong>{ $total_clock }</strong> ({ $words } { $words ->
+        [one] gesprochenes Wort
+       *[other] gesprochene Wörter
+    })
 settings.work.timing_target = · Ziel { $target_minutes } min
 settings.work.timing_over = Zielzeit überschritten um { $over_clock }
 settings.work.wpm = Wörter je Minute
@@ -504,9 +508,17 @@ settings.typeset.whole_work = Ganzes Werk im Satz ansehen
 settings.typeset.rules = Erzeugte Typst-Regeln
 settings.typeset.rules_unsaved = (ungespeicherte Werte)
 settings.typeset.no_rules = Keine – alles kommt aus der Werkvorlage.
-settings.typeset.preview_pages = Vorschau mit Mustertext: { $pages } Seiten
+settings.typeset.preview_pages =
+    Vorschau mit Mustertext: { $pages } { $pages ->
+        [one] Seite
+       *[other] Seiten
+    }
 settings.typeset.preview_errors = , { $errors } Fehler
-settings.typeset.preview_warnings = , { $warnings } Warnungen
+settings.typeset.preview_warnings =
+    , { $warnings } { $warnings ->
+        [one] Warnung
+       *[other] Warnungen
+    }
 settings.typeset.preview_alt = Vorschau Seite { $index }
 settings.typeset.preview_help = „Vorschau“ setzt einen erfundenen Mustertext (ein Teil, drei Kapitel mit Fußnoten) mit der Werkvorlage und den Werten oben, ohne sie zu speichern.
 settings.typeset.reset_confirm = Ja, alle Satz-Einstellungen zurücksetzen (dann gilt wieder nur die Werkvorlage)

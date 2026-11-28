@@ -432,8 +432,8 @@ mod tests {
                 "ein Knoten ohne Titel bekommt einen (ein Einfall braucht einen)"
             );
             let all = tree.warnings.join(" | ");
-            assert!(all.contains("1 Titel waren länger"), "Hinweis auf gekürzte Titel: {all}");
-            assert!(all.contains("1 Notiz(en) waren länger"), "Hinweis auf gekürzte Notizen: {all}");
+            assert!(all.contains("1 Titel war länger"), "a count of 1 reads singular (gekürzte Titel): {all}");
+            assert!(all.contains("1 Notiz war länger"), "a count of 1 reads singular (gekürzte Notizen): {all}");
             assert!(all.contains("ohne Titel"), "Hinweis auf Knoten ohne Titel: {all}");
             assert!(all.contains("Schlagwörter gekürzt"), "Hinweis auf gekürzte Schlagwörter: {all}");
             let again = check(tree.clone()).unwrap();

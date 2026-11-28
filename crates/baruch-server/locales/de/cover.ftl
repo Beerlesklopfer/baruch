@@ -15,7 +15,11 @@ cover.page.page_title = { $title }: Umschlag
 cover.page.download = Herunterladen
 cover.page.pdf = Umschlag-PDF
 cover.page.heading = Umschlag
-cover.page.facts = Gesamt { $width } × { $height } mm · Seite { $page_width } × { $page_height } mm · Rücken { $spine } mm = { $book_pages } Buchseiten ({ $sheets } Blatt) × { $sheet_mm } mm je Blatt
+cover.page.facts =
+    Gesamt { $width } × { $height } mm · Seite { $page_width } × { $page_height } mm · Rücken { $spine } mm = { $book_pages } { $book_pages ->
+        [one] Buchseite
+       *[other] Buchseiten
+    } ({ $sheets } Blatt) × { $sheet_mm } mm je Blatt
 cover.page.facts_cover_pages = (die { $count } Umschlagseiten im Satz zählen nicht)
 cover.page.facts_bleed = · Beschnitt { $bleed } mm
 cover.page.caption = Links die Rückseite, in der Mitte der Rücken, rechts die Vorderseite; außen der Beschnitt.

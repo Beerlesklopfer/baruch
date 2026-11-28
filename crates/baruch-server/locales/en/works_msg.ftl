@@ -35,8 +35,16 @@ works_msg.sermon.passage_problem = Sermon text “{ $input }”: { $problem }
 works_msg.sermon.no_bible = No SWORD Bible set up (Settings → Sources → Bibles); only the reference is there.
 works_msg.sermon.module_missing = Bible module { $name } not found in any module folder; only the reference is there.
 works_msg.sermon.module_error = Bible module { $name }: { $error }; only the reference is there.
-works_msg.sermon.passage_missing = The passage is missing in the Bible module { $name } ({ $missing } verses); only the reference is there.
-works_msg.sermon.verses_missing = { $missing } verses are missing in the Bible module { $name }; the wording is incomplete.
+works_msg.sermon.passage_missing =
+    The passage is missing in the Bible module { $name } ({ $missing } { $missing ->
+        [one] verse
+       *[other] verses
+    }); only the reference is there.
+works_msg.sermon.verses_missing =
+    { $missing } { $missing ->
+        [one] verse is
+       *[other] verses are
+    } missing in the Bible module { $name }; the wording is incomplete.
 works_msg.sermon.truncated = Only the first { $max } verses inserted.
 works_msg.sermon.only_sermon_preset = A sermon text exists only with the skeleton “Sermon”.
 

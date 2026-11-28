@@ -58,7 +58,11 @@ ideas_msg.map.object = Parameters as an object expected
 ideas_msg.map.links_scope = idea.links: give exactly one of work and idea
 ideas_msg.near.off = Nearness switched off.
 ideas_msg.near.capped = The map shows { $count } ideas; nearness is computed only for the first { $max } (by number).
-ideas_msg.near.ready = Nearness from stored embeddings ({ $have } of { $count } ideas embedded) and equal keywords; from { $threshold }, at most { $limit } per idea.
+ideas_msg.near.ready =
+    Nearness from stored embeddings ({ $have } of { $count } { $count ->
+        [one] idea
+       *[other] ideas
+    } embedded) and equal keywords; from { $threshold }, at most { $limit } per idea.
 ideas_msg.near.failed = The nearness could not be computed ({ $error }).
 ideas_msg.import.no_node = The file contains no node; nothing created.
 ideas_msg.import.too_many = The mind map has { $count } nodes; at most { $max } can be imported. Nothing created.
@@ -108,10 +112,26 @@ ideas_msg.import.too_large = The file is larger than { $mib } MiB; Baruch does n
 ideas_msg.import.links_lost = { $count } relation(s) not adopted: one end is missing in the file, is the main topic, or both ends are the same node.
 ideas_msg.import.too_much_text = The mind map carries more than { $mib } MiB of text; Baruch does not import that much.
 ideas_msg.import.only_root = Apart from the main topic the file contains no nodes; there is nothing to import.
-ideas_msg.import.cut_titles = { $count } titles were longer than { $max } characters and were shortened.
-ideas_msg.import.cut_notes = { $count } note(s) were longer than { $max } characters and were shortened.
-ideas_msg.import.untitled = { $count } nodes without a title are now called “{ $untitled }”.
-ideas_msg.import.cut_words = For { $count } nodes keywords were shortened (at most { $max } per node, { $chars } characters each).
+ideas_msg.import.cut_titles =
+    { $count ->
+        [one] { $count } title was longer than { $max } characters and was shortened.
+       *[other] { $count } titles were longer than { $max } characters and were shortened.
+    }
+ideas_msg.import.cut_notes =
+    { $count ->
+        [one] { $count } note was longer than { $max } characters and was shortened.
+       *[other] { $count } notes were longer than { $max } characters and were shortened.
+    }
+ideas_msg.import.untitled =
+    { $count ->
+        [one] { $count } node without a title is now called “{ $untitled }”.
+       *[other] { $count } nodes without a title are now called “{ $untitled }”.
+    }
+ideas_msg.import.cut_words =
+    For { $count } { $count ->
+        [one] node
+       *[other] nodes
+    } keywords were shortened (at most { $max } per node, { $chars } characters each).
 ideas_msg.import.links_dropped = { $count } relation(s) not adopted (invalid or too many).
 ideas_msg.outline_notice.moved = Moved.
 ideas_msg.outline_notice.deleted = Idea deleted (with its sub-nodes).

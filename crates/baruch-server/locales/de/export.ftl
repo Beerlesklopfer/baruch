@@ -84,7 +84,17 @@ export.word_import.comments_as_posts = Kommentare als Beiträge anlegen
 export.word_import.adopt = Als Werk übernehmen
 export.word_import.discard_hint = löscht den Entwurf; nichts wird angelegt.
 export.word_import.adopted = Übernommen: { $title }
-export.word_import.report = Das Werk ist angelegt: { $sections } Abschnitte, { $proposals } offene Vorschläge, { $posts } Beiträge. Beim Übernehmen ist etwas aufgefallen:
+export.word_import.report =
+    Das Werk ist angelegt: { $sections } { $sections ->
+        [one] Abschnitt
+       *[other] Abschnitte
+    }, { $proposals } { $proposals ->
+        [one] offener Vorschlag
+       *[other] offene Vorschläge
+    }, { $posts } { $posts ->
+        [one] Beitrag
+       *[other] Beiträge
+    }. Beim Übernehmen ist etwas aufgefallen:
 
 # EPUB pages (epub_check.html, fragments/epub_check_panel.html, epub_preview.html).
 export.epub.download = EPUB herunterladen

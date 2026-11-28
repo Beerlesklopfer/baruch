@@ -95,7 +95,11 @@ reference_msg.map.rule = (Regel: { $rules })
 reference_msg.map.truncated = – gekürzt auf { $max } Verse
 reference_msg.map.no_book = das Buch { $abbr } gibt es in { $name } nicht
 reference_msg.map.chapters = { $abbr } hat in { $name } nur { $count } Kapitel
-reference_msg.map.verses = { $abbr } { $chapter } hat in { $name } nur { $count } Verse
+reference_msg.map.verses =
+    { $abbr } { $chapter } hat in { $name } nur { $count } { $count ->
+        [one] Vers
+       *[other] Verse
+    }
 reference_msg.map.end_before_start = { $abbr }: Ende vor dem Anfang
 
 # Text search and replace (search/*).

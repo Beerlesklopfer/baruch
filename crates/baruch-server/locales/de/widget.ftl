@@ -169,15 +169,18 @@ widget.mindmap.created = Einfall angelegt. Titel eingeben, Enter übernimmt.
 widget.mindmap.undo_unlink = Beziehung lösen
 widget.mindmap.unlinked = Beziehung gelöst.
 widget.mindmap.delete_only_ideas = Löschen lassen sich nur Einfälle; Teile und Kapitel ändert die Gliederung (Antrag).
-widget.mindmap.delete_question_children = Einfall „{ $title }“ samt { $count } Unterknoten löschen? (wiederherstellbar)
+widget.mindmap.delete_question_children_one = Einfall „{ $title }“ samt { $count } Unterknoten löschen? (wiederherstellbar)
+widget.mindmap.delete_question_children_other = Einfall „{ $title }“ samt { $count } Unterknoten löschen? (wiederherstellbar)
 widget.mindmap.delete_question = Einfall „{ $title }“ löschen? (wiederherstellbar)
 widget.mindmap.undo_delete = Löschen
-widget.mindmap.deleted_children = Einfall „{ $title }“ samt { $count } Unterknoten gelöscht.
+widget.mindmap.deleted_children_one = Einfall „{ $title }“ samt { $count } Unterknoten gelöscht.
+widget.mindmap.deleted_children_other = Einfall „{ $title }“ samt { $count } Unterknoten gelöscht.
 widget.mindmap.deleted = Einfall „{ $title }“ gelöscht.
 widget.mindmap.undo_move = Umhängen
 widget.mindmap.cloud_only_ideas = In die Wolke legen lassen sich nur Einfälle.
 widget.mindmap.already_cloud = Dieser Einfall liegt schon in der Wolke.
-widget.mindmap.to_cloud_children = „{ $title }“ samt { $count } Unterknoten liegt jetzt in der Wolke.
+widget.mindmap.to_cloud_children_one = „{ $title }“ samt { $count } Unterknoten liegt jetzt in der Wolke.
+widget.mindmap.to_cloud_children_other = „{ $title }“ samt { $count } Unterknoten liegt jetzt in der Wolke.
 widget.mindmap.to_cloud = „{ $title }“ liegt jetzt in der Wolke.
 widget.mindmap.main_topic = „{ $title }“ ist jetzt Hauptthema am Werk.
 widget.mindmap.not_below_itself = Ein Einfall lässt sich nicht unter seinen eigenen Unterknoten hängen.
@@ -293,7 +296,8 @@ widget.search.find = Suchen
 widget.search.replace = Ersetzen
 widget.search.word = Wort
 widget.search.preview_replace = Vorschau und Ersetzen …
-widget.search.total = { $count } Treffer · { $range }
+widget.search.total_one = { $count } Treffer · { $range }
+widget.search.total_other = { $count } Treffer · { $range }
 widget.search.cut_off = (abgebrochen nach 2 s)
 
 # settings.ts
@@ -338,9 +342,12 @@ widget.typeset_settings.page_format_both = Seitenformat: Breite und Höhe angebe
 widget.typeset_settings.margins_all = Ränder: alle vier Ränder angeben oder alle leer
 widget.typeset_settings.draft_unknown = Entwurf: unbekannte Wahl „{ $value }“
 widget.typeset_settings.server_status = Server antwortet { $status }
-widget.typeset_settings.preview_pages = Vorschau mit Mustertext: { $count } Seiten
-widget.typeset_settings.preview_errors = { $count } Fehler
-widget.typeset_settings.preview_warnings = { $count } Warnungen
+widget.typeset_settings.preview_pages_one = Vorschau mit Mustertext: { $count } Seite
+widget.typeset_settings.preview_pages_other = Vorschau mit Mustertext: { $count } Seiten
+widget.typeset_settings.preview_errors_one = { $count } Fehler
+widget.typeset_settings.preview_errors_other = { $count } Fehler
+widget.typeset_settings.preview_warnings_one = { $count } Warnung
+widget.typeset_settings.preview_warnings_other = { $count } Warnungen
 widget.typeset_settings.preview_page = Vorschau Seite { $page }
 
 # variants.ts

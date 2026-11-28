@@ -34,7 +34,11 @@ editor.page.current_suffix = , aktuell
 editor.page.next = Nächste Fassung (Alt+→)
 editor.page.fold_skip_title = Ausgeblendete Fassungen beim Blättern wieder überspringen
 editor.page.fold_skip = { $hidden } ältere verbergen ▾
-editor.page.fold_show_title = { $hidden } ältere Fassungen zeigen (bis Fassung { $cutoff } ausgeblendet)
+editor.page.fold_show_title =
+    { $hidden } { $hidden ->
+        [one] ältere Fassung
+       *[other] ältere Fassungen
+    } zeigen (bis Fassung { $cutoff } ausgeblendet)
 editor.page.fold_hidden = (+ { $hidden } ausgeblendet) ▸
 editor.page.fold_here_title = Alle älteren ersetzten und verworfenen Fassungen unter Fassung { $number } ausblenden (nichts wird gelöscht)
 editor.page.fold_here = bis hier ausblenden
@@ -114,7 +118,11 @@ editor.toolbar.next_title = Nächste Fassung (Alt+→)
 editor.toolbar.next_last = Nächste Fassung (dies ist die letzte)
 editor.toolbar.fold_skip_title = Ausgeblendete Fassungen beim Blättern wieder überspringen
 editor.toolbar.fold_skip = { $hidden } ältere verbergen ▾
-editor.toolbar.fold_show_title = { $hidden } ältere Fassungen zeigen (bis Fassung { $cutoff } ausgeblendet)
+editor.toolbar.fold_show_title =
+    { $hidden } { $hidden ->
+        [one] ältere Fassung
+       *[other] ältere Fassungen
+    } zeigen (bis Fassung { $cutoff } ausgeblendet)
 editor.toolbar.fold_hidden = (+ { $hidden } ausgeblendet) ▸
 editor.toolbar.propose_title = Den Text als Vorschlag einreichen (entscheiden kann nur der Autor)
 editor.toolbar.propose = Vorschlagen
@@ -392,7 +400,11 @@ editor.lektor_side.amends_title = Verlauf der Fortschreibungen
 editor.lektor_side.amends = Stand { $amend_seq } · Verlauf
 editor.lektor_side.author_decides = Welche Fassung gilt, entscheidet der Autor. Dein Weg ist „Vorschlagen“ unter dem Text.
 editor.lektor_side.findings = Befunde
-editor.lektor_side.findings_open_title = { $open } offene Befunde in diesem Abschnitt
+editor.lektor_side.findings_open_title =
+    { $open } { $open ->
+        [one] offener Befund
+       *[other] offene Befunde
+    } in diesem Abschnitt
 editor.lektor_side.findings_open = { $open } offen
 editor.lektor_side.findings_total = { $total } insgesamt
 editor.lektor_side.findings_all = Alle Befunde dieses Abschnitts

@@ -183,6 +183,7 @@ mod round39a_i18n;
 mod round39a_messages_1;
 mod round39a_messages_2;
 mod round39a_pages;
+mod round39a_plurals;
 mod round39a_templates_1;
 mod round39a_templates_2;
 mod round39a_templates_3;

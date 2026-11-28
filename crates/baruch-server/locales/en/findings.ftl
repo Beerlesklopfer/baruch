@@ -76,8 +76,16 @@ findings.page.cell_missing = Section { $key } does not exist in this work (any m
 findings.page.cell_in = Findings in
 findings.page.back_to_matrix = Back to the whole matrix
 findings.page.cell_empty = No findings in this cell.
-findings.page.old_label = Open, older than { $days } days
-findings.page.old_heading = Open, older than { $days } days ({ $count })
+findings.page.old_label =
+    Open, older than { $days } { $days ->
+        [one] day
+       *[other] days
+    }
+findings.page.old_heading =
+    Open, older than { $days } { $days ->
+        [one] day
+       *[other] days
+    } ({ $count })
 findings.page.show = Show
 findings.page.old_truncated = There are { $total } open findings that are older; shown are the { $limit } newest of them. The older ones are in the matrix (click a cell) or appear with a larger number at “older than … days”.
 findings.page.old_none = No open findings that are older.
@@ -154,7 +162,11 @@ findings.block.more = more options (move …)
 
 # Accordion "Befunde" of the work page (fragments/findings_panel.html).
 findings.panel.title = Findings
-findings.panel.open_hint = { $count } open findings in this section
+findings.panel.open_hint =
+    { $count } open { $count ->
+        [one] finding
+       *[other] findings
+    } in this section
 findings.panel.pending_hint = open proposals of the assistants
 findings.panel.pending = { $count ->
     [one] { $count } proposal

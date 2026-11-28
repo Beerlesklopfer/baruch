@@ -40,8 +40,16 @@ reference.scripture.no_bible = The work has no Bible: the wording stays unchecke
 reference.scripture.settings_sources = Settings → Sources
 reference.scripture.bad_bible = The Bible of the work cannot be read: { $problem } ·
 reference.scripture.licence = Licence (according to conf): { $notice }
-reference.scripture.matches = { $count } matches
-reference.scripture.differs = { $count } differs
+reference.scripture.matches =
+    { $count } { $count ->
+        [one] match
+       *[other] matches
+    }
+reference.scripture.differs =
+    { $count } { $count ->
+        [one] differs
+       *[other] differ
+    }
 reference.scripture.other = { $count } other
 reference.scripture.col_place = Reference
 reference.scripture.col_quote = Quotation in the text

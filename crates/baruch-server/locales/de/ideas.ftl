@@ -156,7 +156,14 @@ ideas.map.clear_filter = Filter aufheben
 ideas.map.findings_note = Ebene Befunde: Zahl „k offen“ je Teil und Kapitel (offene Befunde samt Abschnitten); Äste mit { $count } oder mehr offenen sind hervorgehoben.
 ideas.map.all_findings = Alle Befunde
 ideas.map.filter_words = Filter: { $words }
-ideas.map.stats = { $ideas } Einfälle · { $links } Verbindungen ·
+ideas.map.stats =
+    { $ideas } { $ideas ->
+        [one] Einfall
+       *[other] Einfälle
+    } · { $links } { $links ->
+        [one] Verbindung
+       *[other] Verbindungen
+    } ·
 ideas.map.in_cloud = { $count } in der Wolke
 ideas.map.name_groups_hint = Der Lektor (bzw. die gewählte Persona) schlägt für jede Gruppe naher Einfälle einen Namen vor; Schlagwort wird er erst, wenn du ihn übernimmst
 ideas.map.name_groups = Gruppen benennen (Assistent)

@@ -48,7 +48,11 @@ sync_msg.tool.no_title_param = { $tool } nennt im inputSchema keinen Parameter f
 sync_msg.tool.no_text_param = { $tool } nennt im inputSchema keinen Parameter für den Text.
 sync_msg.tool.list_unreadable = list_documents: Antwort nicht lesbar (weder structuredContent noch JSON in content).
 sync_msg.tool.no_list = list_documents: keine Dokumentliste in der Antwort (documents, items …).
-sync_msg.tool.no_ids = list_documents: { $count } Einträge ohne Dokument-ID; Format nicht lesbar.
+sync_msg.tool.no_ids =
+    list_documents: { $count } { $count ->
+        [one] Eintrag
+       *[other] Einträge
+    } ohne Dokument-ID; Format nicht lesbar.
 
 # Notes of a run: fetching (download.rs).
 sync_msg.download.not_read = Sammlung „{ $collection }“ nicht gelesen: { $detail }

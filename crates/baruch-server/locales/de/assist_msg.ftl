@@ -36,7 +36,11 @@ assist_msg.solution.picks_missing = picks fehlt: mindestens eine Lösung wählen
 assist_msg.solution.finding_elsewhere = Befund { $id } gehört nicht zu diesem Abschnitt.
 assist_msg.solution.finding_without_post = Der Befund stammt aus keinem Beitrag dieses Abschnitts.
 assist_msg.solution.post_missing = post fehlt (Beitrag mit den Lösungen) – oder finding (Befund)
-assist_msg.solution.no_such_solution = Lösung { $pick } gibt es nicht ({ $count } Lösungen).
+assist_msg.solution.no_such_solution =
+    Lösung { $pick } gibt es nicht ({ $count } { $count ->
+        [one] Lösung
+       *[other] Lösungen
+    }).
 assist_msg.solution.only_step = Sie nennt nur einen Schritt, keine neue Formulierung.
 assist_msg.solution.quote_not_in = Das Zitat „{ $quote }“ steht nicht in Fassung { $rev }.
 assist_msg.solution.not_adoptable = Lösung { $pick } ist nicht übernehmbar: { $why }

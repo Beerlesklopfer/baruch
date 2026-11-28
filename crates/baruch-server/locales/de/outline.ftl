@@ -12,7 +12,11 @@ outline.page.back_to_work = Zurück zum Werk
 outline.page.heading = Gliederung von „{ $title }“
 outline.page.intro = Diese Seite ist der Rückfall ohne JavaScript; mit JavaScript geschieht alles im Baum links (Ziehen und Ablegen, Kontextmenü, Doppelklick bzw. F2 zum Umbenennen). Jede Änderung ist ein Commit im Git-Spiegel. Ändern sich Ebene oder Titel, bekommt der Abschnitt eine neue Fassung, die sich nur in der Überschriftszeile unterscheidet. Assistenten legen höchstens neue Punkte an; Umbenennen, Verschieben, Umstufen und Löschen beantragen sie nur – das entscheiden Sie unten bei den Anträgen.
 outline.page.total = Gesamtzeit
-outline.page.total_words = ({ $words } Wörter, { $words_per_minute } Wörter je Minute)
+outline.page.total_words =
+    ({ $words } { $words ->
+        [one] Wort
+       *[other] Wörter
+    }, { $words_per_minute } Wörter je Minute)
 outline.page.target = · Zielzeit
 outline.page.over = Warnung: Zielzeit um { $over_clock } überschritten
 outline.page.within = · im Rahmen
@@ -25,7 +29,11 @@ outline.page.col_count = Zählen, Bearbeiten
 outline.page.findings_children = samt Unterpunkten
 outline.page.findings_own = ({ $findings_own } am Punkt selbst)
 outline.page.findings_open = { $count } offen
-outline.page.words = { $words } Wörter
+outline.page.words =
+    { $words } { $words ->
+        [one] Wort
+       *[other] Wörter
+    }
 outline.page.start_clock = ab { $start_clock }
 outline.page.before = Vor „{ $up_title }“
 outline.page.up = Nach oben

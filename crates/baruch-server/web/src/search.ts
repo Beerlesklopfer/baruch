@@ -304,7 +304,9 @@ async function replaceInText(bar: Bar, one: boolean): Promise<void> {
     if (bar.selection) toggleSelection(bar, false);
     // Make it visible in the typeset view: switch to the source text (the text is still unsaved).
     if (sheetOpen(bar)) editorRoot(bar)?.querySelector<HTMLButtonElement>("[data-ws-mode=quelltext]")?.click();
-    toast(one ? t("widget.search.replaced_one") : t("widget.search.replaced_many", { count: section.hits.length }));
+    // A section with a single hit reads “Replaced” too, never “1 places replaced”.
+    const single = one || section.hits.length === 1;
+    toast(single ? t("widget.search.replaced_one") : t("widget.search.replaced_many", { count: section.hits.length }));
     await runFind(bar);
   } catch (error) {
     toast(String((error as Error).message ?? error));
@@ -406,7 +408,10 @@ async function workSearch(panel: HTMLElement): Promise<void> {
       range: "work",
     });
     summary.textContent =
-      t("widget.search.total", { count: result.total, range: result.range_label }) +
+      t(result.total === 1 ? "widget.search.total_one" : "widget.search.total_other", {
+        count: result.total,
+        range: result.range_label,
+      }) +
       (result.timed_out ? ` ${t("widget.search.cut_off")}` : "");
     tree.replaceChildren();
     let group: HTMLUListElement | null = null;

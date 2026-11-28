@@ -289,9 +289,16 @@ function paragraph(text: string, className: string): HTMLParagraphElement {
 
 function showPreview(box: HTMLElement, answer: PreviewAnswer): void {
   const parts: Node[] = [];
-  let info = t("widget.typeset_settings.preview_pages", { count: answer.pages });
-  if (answer.errors) info += `, ${t("widget.typeset_settings.preview_errors", { count: answer.errors })}`;
-  if (answer.warnings) info += `, ${t("widget.typeset_settings.preview_warnings", { count: answer.warnings })}`;
+  // Singular and plural are two keys each (widget texts have no selectors).
+  const pagesKey =
+    answer.pages === 1 ? "widget.typeset_settings.preview_pages_one" : "widget.typeset_settings.preview_pages_other";
+  const errorsKey =
+    answer.errors === 1 ? "widget.typeset_settings.preview_errors_one" : "widget.typeset_settings.preview_errors_other";
+  const warningsKey =
+    answer.warnings === 1 ? "widget.typeset_settings.preview_warnings_one" : "widget.typeset_settings.preview_warnings_other";
+  let info = t(pagesKey, { count: answer.pages });
+  if (answer.errors) info += `, ${t(errorsKey, { count: answer.errors })}`;
+  if (answer.warnings) info += `, ${t(warningsKey, { count: answer.warnings })}`;
   const head = paragraph(`${info}.`, "small");
   head.dataset.typesetPreviewInfo = "";
   parts.push(head);

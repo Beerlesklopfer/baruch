@@ -58,7 +58,11 @@ ideas_msg.map.object = Parameter als Objekt erwartet
 ideas_msg.map.links_scope = idea.links: genau eins von work und idea angeben
 ideas_msg.near.off = Nähe ausgeschaltet.
 ideas_msg.near.capped = Die Karte zeigt { $count } Einfälle; die Nähe ist nur für die ersten { $max } (nach Nummer) berechnet.
-ideas_msg.near.ready = Nähe aus gespeicherten Einbettungen ({ $have } von { $count } Einfällen eingebettet) und gleichen Schlagwörtern; ab { $threshold }, höchstens { $limit } je Einfall.
+ideas_msg.near.ready =
+    Nähe aus gespeicherten Einbettungen ({ $have } von { $count } { $count ->
+        [one] Einfall
+       *[other] Einfällen
+    } eingebettet) und gleichen Schlagwörtern; ab { $threshold }, höchstens { $limit } je Einfall.
 ideas_msg.near.failed = Die Nähe ließ sich nicht berechnen ({ $error }).
 ideas_msg.import.no_node = Die Datei enthält keinen Knoten; nichts angelegt.
 ideas_msg.import.too_many = Die Mindmap hat { $count } Knoten; einlesen lassen sich höchstens { $max }. Nichts angelegt.
@@ -108,9 +112,21 @@ ideas_msg.import.too_large = Die Datei ist größer als { $mib } MiB; so große 
 ideas_msg.import.links_lost = { $count } Beziehung(en) nicht übernommen: Ein Ende fehlt in der Datei, ist das Hauptthema oder beide Enden sind derselbe Knoten.
 ideas_msg.import.too_much_text = Die Mindmap trägt mehr als { $mib } MiB Text; so viel liest Baruch nicht ein.
 ideas_msg.import.only_root = Die Datei enthält außer dem Hauptthema keine Knoten; es gibt nichts einzulesen.
-ideas_msg.import.cut_titles = { $count } Titel waren länger als { $max } Zeichen und wurden gekürzt.
-ideas_msg.import.cut_notes = { $count } Notiz(en) waren länger als { $max } Zeichen und wurden gekürzt.
-ideas_msg.import.untitled = { $count } Knoten ohne Titel heißen jetzt „{ $untitled }“.
+ideas_msg.import.cut_titles =
+    { $count ->
+        [one] { $count } Titel war länger als { $max } Zeichen und wurde gekürzt.
+       *[other] { $count } Titel waren länger als { $max } Zeichen und wurden gekürzt.
+    }
+ideas_msg.import.cut_notes =
+    { $count ->
+        [one] { $count } Notiz war länger als { $max } Zeichen und wurde gekürzt.
+       *[other] { $count } Notizen waren länger als { $max } Zeichen und wurden gekürzt.
+    }
+ideas_msg.import.untitled =
+    { $count ->
+        [one] { $count } Knoten ohne Titel heißt jetzt „{ $untitled }“.
+       *[other] { $count } Knoten ohne Titel heißen jetzt „{ $untitled }“.
+    }
 ideas_msg.import.cut_words = Bei { $count } Knoten wurden Schlagwörter gekürzt (höchstens { $max } je Knoten, je { $chars } Zeichen).
 ideas_msg.import.links_dropped = { $count } Beziehung(en) nicht übernommen (ungültig oder zu viele).
 ideas_msg.outline_notice.moved = Umgehängt.

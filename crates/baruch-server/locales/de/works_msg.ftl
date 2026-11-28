@@ -35,8 +35,16 @@ works_msg.sermon.passage_problem = Predigttext „{ $input }“: { $problem }
 works_msg.sermon.no_bible = Keine SWORD-Bibel eingerichtet (Einstellungen → Quellen → Bibeln); nur die Stellenangabe steht da.
 works_msg.sermon.module_missing = Bibelmodul { $name } in keinem Modulordner gefunden; nur die Stellenangabe steht da.
 works_msg.sermon.module_error = Bibelmodul { $name }: { $error }; nur die Stellenangabe steht da.
-works_msg.sermon.passage_missing = Die Stelle fehlt im Bibelmodul { $name } ({ $missing } Verse); nur die Stellenangabe steht da.
-works_msg.sermon.verses_missing = { $missing } Verse fehlen im Bibelmodul { $name }; der Wortlaut ist unvollständig.
+works_msg.sermon.passage_missing =
+    Die Stelle fehlt im Bibelmodul { $name } ({ $missing } { $missing ->
+        [one] Vers
+       *[other] Verse
+    }); nur die Stellenangabe steht da.
+works_msg.sermon.verses_missing =
+    { $missing } { $missing ->
+        [one] Vers fehlt
+       *[other] Verse fehlen
+    } im Bibelmodul { $name }; der Wortlaut ist unvollständig.
 works_msg.sermon.truncated = Nur die ersten { $max } Verse eingefügt.
 works_msg.sermon.only_sermon_preset = Einen Predigttext gibt es nur beim Grundgerüst „Predigt“.
 

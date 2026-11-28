@@ -388,7 +388,11 @@ settings.work.language_de = German
 settings.work.language_en = English
 settings.work.language_help = The assistants answer in this language. The language of the interface does not change through it.
 settings.work.timing_title = Sermon time
-settings.work.timing_summary_html = Speaking time now ≈ <strong>{ $total_clock }</strong> ({ $words } spoken words)
+settings.work.timing_summary_html =
+    Speaking time now ≈ <strong>{ $total_clock }</strong> ({ $words } spoken { $words ->
+        [one] word
+       *[other] words
+    })
 settings.work.timing_target = · target { $target_minutes } min
 settings.work.timing_over = Target time exceeded by { $over_clock }
 settings.work.wpm = Words per minute
@@ -432,7 +436,11 @@ settings.work.folds_now =
     }
 settings.work.fold_clear = Remove all marks (show all versions again)
 settings.work.sync_title = Sync with MultiGPT
-settings.work.sync_on_html = Upload to MultiGPT: <strong>on</strong> – one document per chapter in the collection “{ $collection }” ({ $documents } chapters uploaded
+settings.work.sync_on_html =
+    Upload to MultiGPT: <strong>on</strong> – one document per chapter in the collection “{ $collection }” ({ $documents } { $documents ->
+        [one] chapter
+       *[other] chapters
+    } uploaded
 settings.work.sync_last = , last { $synced }
 settings.work.sync_switch_off = Switch upload off
 settings.work.sync_off_html = Upload to MultiGPT: <strong>off</strong>. When switched on, the next sync uploads the current versions of this work as one document per chapter into the collection “{ $collection }”.
@@ -504,9 +512,21 @@ settings.typeset.whole_work = View the whole work typeset
 settings.typeset.rules = Generated Typst rules
 settings.typeset.rules_unsaved = (unsaved values)
 settings.typeset.no_rules = None – everything comes from the work template.
-settings.typeset.preview_pages = Preview with sample text: { $pages } pages
-settings.typeset.preview_errors = , { $errors } errors
-settings.typeset.preview_warnings = , { $warnings } warnings
+settings.typeset.preview_pages =
+    Preview with sample text: { $pages } { $pages ->
+        [one] page
+       *[other] pages
+    }
+settings.typeset.preview_errors =
+    , { $errors } { $errors ->
+        [one] error
+       *[other] errors
+    }
+settings.typeset.preview_warnings =
+    , { $warnings } { $warnings ->
+        [one] warning
+       *[other] warnings
+    }
 settings.typeset.preview_alt = Preview page { $index }
 settings.typeset.preview_help = “Preview” typesets an invented sample text (one part, three chapters with footnotes) with the work template and the values above, without saving them.
 settings.typeset.reset_confirm = Yes, reset all typesetting settings (then only the work template applies again)

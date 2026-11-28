@@ -34,7 +34,11 @@ editor.page.current_suffix = , current
 editor.page.next = Next revision (Alt+→)
 editor.page.fold_skip_title = Skip hidden revisions again when paging
 editor.page.fold_skip = Hide { $hidden } older ▾
-editor.page.fold_show_title = Show { $hidden } older revisions (hidden up to revision { $cutoff })
+editor.page.fold_show_title =
+    Show { $hidden } older { $hidden ->
+        [one] revision
+       *[other] revisions
+    } (hidden up to revision { $cutoff })
 editor.page.fold_hidden = (+ { $hidden } hidden) ▸
 editor.page.fold_here_title = Hide all older replaced and rejected revisions below revision { $number } (nothing is deleted)
 editor.page.fold_here = hide up to here
@@ -114,7 +118,11 @@ editor.toolbar.next_title = Next revision (Alt+→)
 editor.toolbar.next_last = Next revision (this is the last)
 editor.toolbar.fold_skip_title = Skip hidden revisions again when paging
 editor.toolbar.fold_skip = Hide { $hidden } older ▾
-editor.toolbar.fold_show_title = Show { $hidden } older revisions (hidden up to revision { $cutoff })
+editor.toolbar.fold_show_title =
+    Show { $hidden } older { $hidden ->
+        [one] revision
+       *[other] revisions
+    } (hidden up to revision { $cutoff })
 editor.toolbar.fold_hidden = (+ { $hidden } hidden) ▸
 editor.toolbar.propose_title = Submit the text as a proposal (only the author can decide)
 editor.toolbar.propose = Propose
@@ -392,7 +400,11 @@ editor.lektor_side.amends_title = History of the continuations
 editor.lektor_side.amends = State { $amend_seq } · history
 editor.lektor_side.author_decides = The author decides which revision applies. Your way is “Propose” below the text.
 editor.lektor_side.findings = Findings
-editor.lektor_side.findings_open_title = { $open } open findings in this section
+editor.lektor_side.findings_open_title =
+    { $open } open { $open ->
+        [one] finding
+       *[other] findings
+    } in this section
 editor.lektor_side.findings_open = { $open } open
 editor.lektor_side.findings_total = { $total } in total
 editor.lektor_side.findings_all = All findings of this section

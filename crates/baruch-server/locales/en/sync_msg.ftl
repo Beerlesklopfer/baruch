@@ -48,7 +48,11 @@ sync_msg.tool.no_title_param = { $tool } names no parameter for the title in the
 sync_msg.tool.no_text_param = { $tool } names no parameter for the text in the inputSchema.
 sync_msg.tool.list_unreadable = list_documents: answer not readable (neither structuredContent nor JSON in content).
 sync_msg.tool.no_list = list_documents: no document list in the answer (documents, items …).
-sync_msg.tool.no_ids = list_documents: { $count } entries without a document id; format not readable.
+sync_msg.tool.no_ids =
+    list_documents: { $count } { $count ->
+        [one] entry
+       *[other] entries
+    } without a document id; format not readable.
 
 # Notes of a run: fetching (download.rs).
 sync_msg.download.not_read = Collection “{ $collection }” not read: { $detail }

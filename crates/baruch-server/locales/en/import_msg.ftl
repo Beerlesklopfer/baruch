@@ -30,7 +30,11 @@ import_msg.docx.heading_deleted = { $who } deleted the heading “{ $heading }�
 import_msg.docx.lost_comments = { $count } comment(s) without a findable place in the text stand at the first section.
 import_msg.docx.image_skipped = Image “{ $path }” skipped: { $reason }.
 import_msg.docx.mirror = The Git mirror could not be written: { $detail }
-import_msg.docx.unaligned_work = The work has { $work } sections, the file { $file }; proposals and posts could not be assigned and are not created.
+import_msg.docx.unaligned_work =
+    The work has { $work } { $work ->
+        [one] section
+       *[other] sections
+    }, the file { $file }; proposals and posts could not be assigned and are not created.
 import_msg.docx.not_docx = “{ $file }” is not a Word file (.docx); please save the old format .doc as .docx in Word.
 import_msg.docx.read_aborted = Reading aborted: { $detail }
 import_msg.docx.draft_unknown = Draft “{ $id }” does not exist (discarded, already taken over or older than 24 hours); please read the file again.
