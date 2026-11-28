@@ -5,6 +5,10 @@
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
+- **Round 39d PM close (2026-11-28):** full run after `cargo clean -p` of all workspace crates: exit 0, 3814 passed,
+  0 failed (server binary 1767), `grep -rn "STUB:" crates` 5. Two low review findings open (dead quoted English
+  heading titles, one wrapped line in `docs/de/MCP.md`; Backlog). Round worktrees removed, branches kept. Tag
+  `v0.9.1` already on `4b2bfb1` (local and origin); nothing pushed.
 - **Round 39d "German developer docs" integrated** (2026-11-28, integrator, on `development`; S1 `c2fb812`; branches
   `team/r39d-docs_de_1` `c5ae77f`, `-docs_de_2` `d798feb`, `-docs_de_3` `745404b`, `-architektur_de_1` `a230b27`,
   `-architektur_de_2` `19d2526`, `-site_de` `c253af6`, merged with `--no-ff`, no conflicts). Delivered: `docs/de/` with

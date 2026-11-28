@@ -1903,6 +1903,11 @@ check and checks for both languages (see CHANGELOG "Unveröffentlicht").
 - **Open:** three table oddities of the English `docs/RPC.md` (blank line in the Images table before `asset.search`,
   one in the `revision.propose` table, one table header split across two lines) belong in the English source.
 - **Open:** Architektur part headers carry `source-commit: 4d3148c`; refresh with the next change of the English file.
+- **Open (low, PM review):** in the German files the quoted English heading titles without a file name are dead
+  titles (about 50 places: RPC 32, MCP 6, Verteilung 4, WYSIWYG 3, Bedienung 2, Betrieb 2, Austauschformat 1); the
+  last paragraph of `docs/de/MCP.md` wraps differently (one line over 120 characters).
+- **PM close (2026-11-28):** full run after `cargo clean -p`: exit 0, 3814 passed, 0 failed (server binary 1767).
+  Tag `v0.9.1` already exists on `4b2bfb1` locally and on origin; nothing pushed.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
