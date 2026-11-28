@@ -812,7 +812,11 @@ async fn the_findings_page_marks_status_forms_for_the_author_and_offers_the_lekt
     insert_account(&desk.server, "joerg", "joerg", "author").await;
     let uri = format!("/werke/{}/befunde?key={}", desk.work, desk.key);
 
-    let (status, page) = page_as(&desk.server, baruch_server::findings::page::pages(), &uri, lektor_account()).await;
+    let (status, page) = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        page_as(&desk.server, baruch_server::findings::page::pages(), &uri, lektor_account()),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "die Befundseite zeichnet sich für einen Lektor");
     let form = form_with(&page, "name=\"method\" value=\"finding.add\"");
     assert!(
@@ -858,7 +862,11 @@ async fn the_work_list_of_a_lektor_has_no_author_buttons_and_says_when_nothing_i
     insert_account(&desk.server, "joerg", "joerg", "author").await;
     insert_account(&desk.server, "Erika", "erika", "lektor").await;
     // No grant in work_member: the Lektor sees no work.
-    let (status, page) = page_as(&desk.server, baruch_server::works::pages(), "/werke", lektor_account()).await;
+    let (status, page) = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        page_as(&desk.server, baruch_server::works::pages(), "/werke", lektor_account()),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "die Werkliste zeichnet sich für einen Lektor");
     assert!(
         page.contains("<p class=\"muted nur-lektor\">Noch kein Werk freigegeben."),

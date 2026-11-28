@@ -10,26 +10,26 @@
     node_href, idea_href, hit, ghost, open_findings, descendants, select, chosen, closed, children}.
     Texts of the ideas are data: only escaped (autoescape). -#}
 {% extends "base.html" %}
-{% block title %}Mindmap (Gliederungsansicht) · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Mindmap · Gliederungsansicht · {{ title }}{% endblock %}
+{% block title %}{{ t("ideas.outline.window_title", title=title) }}{% endblock %}
+{% block page_title %}{{ t("ideas.outline.page_title", title=title) }}{% endblock %}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Ansicht</summary><div class="band-items" role="group" aria-label="Ansicht">
-    <a class="btn" href="{{ map_href }}" title="Die Mindmap als Bild">Mindmap</a>
-    <a class="btn" href="{{ here }}" aria-current="page">Gliederungsansicht</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_view") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_view") }}">
+    <a class="btn" href="{{ map_href }}" title="{{ t("ideas.outline.map_hint") }}">{{ t("ideas.mindmap") }}</a>
+    <a class="btn" href="{{ here }}" aria-current="page">{{ t("ideas.outline_view") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
-    <a class="btn" href="{{ outputs.xmind }}" title="XMind-Datei">.xmind</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_output") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_output") }}">
+    <a class="btn" href="{{ outputs.xmind }}" title="{{ t("ideas.outline.xmind_file") }}">.xmind</a>
     <a class="btn" href="{{ outputs.mm }}" title="FreeMind/Freeplane">.mm</a>
     <a class="btn" href="{{ outputs.svg }}">.svg</a>
     <a class="btn" href="{{ outputs.pdf }}">.pdf</a>
     <a class="btn" href="{{ outputs.md }}" title="Markdown">.md</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Einlesen</summary><div class="band-items" role="group" aria-label="Einlesen">
-    <a class="btn" href="{{ import_href }}" title="Mindmap aus XMind, FreeMind oder Freeplane einlesen">Einlesen …</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_read_in") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_read_in") }}">
+    <a class="btn" href="{{ import_href }}" title="{{ t("ideas.outline.read_in_hint") }}">{{ t("ideas.outline.read_in") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ ideas_href }}">Einfälle</a>
-    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ ideas_href }}">{{ t("ideas.list.heading") }}</a>
+    <a class="btn" href="{{ workspace }}">{{ t("ideas.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -42,7 +42,7 @@
       <input type="hidden" name="id" value="{{ undo }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
       {%- if chosen %}<input type="hidden" name="wahl" value="{{ chosen }}">{% endif %}
-      <button class="btn small" type="submit">Wiederherstellen</button>
+      <button class="btn small" type="submit">{{ t("ideas.restore") }}</button>
     </form>
     {%- endif %}
     {%- if restore %}
@@ -50,7 +50,7 @@
       <input type="hidden" name="method" value="idea.restore">
       <input type="hidden" name="id" value="{{ restore }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-      <button class="btn small" type="submit">Rückgängig</button>
+      <button class="btn small" type="submit">{{ t("ideas.map.undo") }}</button>
     </form>
     {%- endif %}
   </div>
@@ -59,60 +59,59 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
 
-  <form class="mmg-filter" method="get" action="/werke/{{ work.id }}/karte/gliederung" role="search" aria-label="Mindmap filtern">
-    <label>Status
+  <form class="mmg-filter" method="get" action="/werke/{{ work.id }}/karte/gliederung" role="search" aria-label="{{ t("ideas.map.filter_label") }}">
+    <label>{{ t("ideas.list.status") }}
       <select name="status">
-        <option value="all"{% if filter.status == "all" %} selected{% endif %}>alle</option>
-        <option value="open"{% if filter.status == "open" %} selected{% endif %}>offen</option>
-        <option value="done"{% if filter.status == "done" %} selected{% endif %}>verarbeitet</option>
+        <option value="all"{% if filter.status == "all" %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="open"{% if filter.status == "open" %} selected{% endif %}>{{ t("ideas.open") }}</option>
+        <option value="done"{% if filter.status == "done" %} selected{% endif %}>{{ t("ideas.done") }}</option>
       </select></label>
-    <label>Schlagwort <input type="text" name="word" value="{{ filter.word }}" size="14"></label>
-    <label>Herkunft
+    <label>{{ t("ideas.list.keyword") }} <input type="text" name="word" value="{{ filter.word }}" size="14"></label>
+    <label>{{ t("ideas.idea.origin") }}
       <select name="origin">
-        <option value=""{% if not filter.origin %} selected{% endif %}>alle</option>
-        <option value="human"{% if filter.origin == "human" %} selected{% endif %}>Mensch</option>
+        <option value=""{% if not filter.origin %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="human"{% if filter.origin == "human" %} selected{% endif %}>{{ t("ideas.map.origin_human") }}</option>
         <option value="persona"{% if filter.origin == "persona" %} selected{% endif %}>Persona</option>
         <option value="mcp"{% if filter.origin == "mcp" %} selected{% endif %}>MCP</option>
       </select></label>
-    <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="16"></label>
-    <button class="btn" type="submit">Anwenden</button>
-    {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte/gliederung">Filter aufheben</a>{% endif %}
+    <label>{{ t("ideas.list.search") }} <input type="search" name="q" value="{{ filter.q }}" size="16"></label>
+    <button class="btn" type="submit">{{ t("ideas.map.apply_filter") }}</button>
+    {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte/gliederung">{{ t("ideas.map.clear_filter") }}</a>{% endif %}
   </form>
 
   {#- Forms of the chosen node. #}
   {%- if panel %}
-  <section class="mmg-panel" id="wahl" aria-label="Gewählter Knoten" data-chosen="{{ panel.id }}">
-    <h2 class="pane-title">Gewählt: {{ panel.title }}</h2>
+  <section class="mmg-panel" id="wahl" aria-label="{{ t("ideas.outline.chosen_node") }}" data-chosen="{{ panel.id }}">
+    <h2 class="pane-title">{{ t("ideas.outline.chosen", title=panel.title) }}</h2>
     {%- if panel.kind != "idea" %}
-    <p class="muted small">Teile und Kapitel gehören zur Gliederung des Werks: Umbenennen, Verschieben und Löschen
-      gibt es nur dort. Hier lässt sich ein Einfall anhängen.</p>
+    <p class="muted small">{{ t("ideas.outline.structure_hint") }}</p>
     {%- if panel.key %}
     <form class="mmg-form" method="post" action="{{ act }}" data-form="child">
       <input type="hidden" name="method" value="idea.create">
       <input type="hidden" name="key" value="{{ panel.key }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Unterknoten (Titel) <input type="text" name="title" maxlength="200" size="30"></label>
-      <label>Schlagwörter <input type="text" name="words" size="20" placeholder="mit Komma getrennt"></label>
-      <button class="btn" type="submit">Unterknoten anlegen</button>
+      <label>{{ t("ideas.outline.child_title") }} <input type="text" name="title" maxlength="200" size="30"></label>
+      <label>{{ t("ideas.list.keywords") }} <input type="text" name="words" size="20" placeholder="{{ t("ideas.outline.comma_separated") }}"></label>
+      <button class="btn" type="submit">{{ t("ideas.outline.add_child") }}</button>
     </form>
     {%- endif %}
     {%- else %}
-    <p class="muted small">Hängt unter: {{ panel.parent_title }}{% if panel.descendants %} · {{ panel.descendants }} Unterknoten{% endif %}</p>
+    <p class="muted small">{{ t("ideas.outline.hangs_under", parent=panel.parent_title) }}{% if panel.descendants %} · {{ t("ideas.outline.children_count", count=panel.descendants) }}{% endif %}</p>
     <div class="mmg-forms">
     <form class="mmg-form" method="post" action="{{ act }}" data-form="rename">
       <input type="hidden" name="method" value="idea.update">
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Titel <input type="text" name="title" value="{{ panel.own_title }}" placeholder="{{ panel.title }}" maxlength="200" size="30"></label>
-      <button class="btn" type="submit">Umbenennen</button>
+      <label>{{ t("ideas.outline.title") }} <input type="text" name="title" value="{{ panel.own_title }}" placeholder="{{ panel.title }}" maxlength="200" size="30"></label>
+      <button class="btn" type="submit">{{ t("ideas.map.rename") }}</button>
     </form>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="child">
       <input type="hidden" name="method" value="idea.create">
       <input type="hidden" name="parent" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Unterknoten (Titel) <input type="text" name="title" maxlength="200" size="30"></label>
-      <label>Schlagwörter <input type="text" name="words" size="20" placeholder="mit Komma getrennt"></label>
-      <button class="btn" type="submit">Unterknoten anlegen</button>
+      <label>{{ t("ideas.outline.child_title") }} <input type="text" name="title" maxlength="200" size="30"></label>
+      <label>{{ t("ideas.list.keywords") }} <input type="text" name="words" size="20" placeholder="{{ t("ideas.outline.comma_separated") }}"></label>
+      <button class="btn" type="submit">{{ t("ideas.outline.add_child") }}</button>
     </form>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="sibling">
       <input type="hidden" name="method" value="idea.create">
@@ -121,22 +120,22 @@
       {%- if panel.sibling_before %}<input type="hidden" name="before" value="{{ panel.sibling_before }}">{% endif %}
       {%- if panel.main_topic %}<input type="hidden" name="ort" value="werk">{% endif %}
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Geschwister (Titel) <input type="text" name="title" maxlength="200" size="30"></label>
-      <label>Schlagwörter <input type="text" name="words" size="20" placeholder="mit Komma getrennt"></label>
-      <button class="btn" type="submit">Geschwister anlegen</button>
+      <label>{{ t("ideas.outline.sibling_title") }} <input type="text" name="title" maxlength="200" size="30"></label>
+      <label>{{ t("ideas.list.keywords") }} <input type="text" name="words" size="20" placeholder="{{ t("ideas.outline.comma_separated") }}"></label>
+      <button class="btn" type="submit">{{ t("ideas.outline.add_sibling") }}</button>
     </form>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="move">
       <input type="hidden" name="method" value="idea.move">
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>{% if panel.in_cloud %}In die Mindmap unter{% else %}Umhängen unter{% endif %}
+      <label>{% if panel.in_cloud %}{{ t("ideas.outline.into_map_under") }}{% else %}{{ t("ideas.outline.move_under") }}{% endif %}
         <select name="ziel" required>
-          <option value="">– bitte wählen –</option>
-          {%- for t in panel.targets %}
-          <option value="{{ t.value }}"{% if t.here %} disabled{% endif %}>{{ t.label }}{% if t.here %} (hier){% endif %}</option>
+          <option value="">{{ t("ideas.outline.please_choose") }}</option>
+          {%- for target in panel.targets %}
+          <option value="{{ target.value }}"{% if target.here %} disabled{% endif %}>{{ target.label }}{% if target.here %} {{ t("ideas.outline.here") }}{% endif %}</option>
           {%- endfor %}
         </select></label>
-      <button class="btn" type="submit">{% if panel.in_cloud %}In die Mindmap hängen{% else %}Umhängen{% endif %}</button>
+      <button class="btn" type="submit">{% if panel.in_cloud %}{{ t("ideas.outline.hang_into_map") }}{% else %}{{ t("ideas.outline.move") }}{% endif %}</button>
     </form>
     {%- if not panel.main_topic %}
     <form class="mmg-form" method="post" action="{{ act }}" data-form="main">
@@ -144,7 +143,7 @@
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="ziel" value="w">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <button class="btn" type="submit" title="Hängt den Einfall als eigenen Hauptast direkt ans Werk; seine Unterknoten bleiben an ihm">Als Hauptthema ans Werk</button>
+      <button class="btn" type="submit" title="{{ t("ideas.outline.main_topic_hint") }}">{{ t("ideas.idea.to_main_topic") }}</button>
     </form>
     {%- endif %}
     {%- if not panel.in_cloud %}
@@ -153,19 +152,19 @@
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="ziel" value="wolke">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <button class="btn" type="submit" title="Löst den Einfall von Elternknoten und Bezug; seine Unterknoten bleiben an ihm">In die Wolke</button>
-      {%- if panel.descendants %}<span class="muted small">mit {{ panel.descendants }} Unterknoten</span>{% endif %}
+      <button class="btn" type="submit" title="{{ t("ideas.outline.cloud_hint") }}">{{ t("ideas.map.to_cloud") }}</button>
+      {%- if panel.descendants %}<span class="muted small">{{ t("ideas.outline.with_children", count=panel.descendants) }}</span>{% endif %}
     </form>
     {%- endif %}
     {%- if panel.up or panel.down is not none %}
     <div class="mmg-form" data-form="order">
-      <span>Reihenfolge</span>
+      <span>{{ t("ideas.outline.order") }}</span>
       {%- if panel.up %}
       <form class="mmg-inline" method="post" action="{{ act }}">
         <input type="hidden" name="method" value="idea.move"><input type="hidden" name="id" value="{{ panel.idea }}">
         <input type="hidden" name="before" value="{{ panel.up }}">
         <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-        <button class="btn small" type="submit">nach oben</button>
+        <button class="btn small" type="submit">{{ t("ideas.outline.up") }}</button>
       </form>
       {%- endif %}
       {%- if panel.down is not none %}
@@ -173,7 +172,7 @@
         <input type="hidden" name="method" value="idea.move"><input type="hidden" name="id" value="{{ panel.idea }}">
         <input type="hidden" name="before" value="{{ panel.down }}">
         <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-        <button class="btn small" type="submit">nach unten</button>
+        <button class="btn small" type="submit">{{ t("ideas.outline.down") }}</button>
       </form>
       {%- endif %}
     </div>
@@ -182,39 +181,39 @@
       <input type="hidden" name="method" value="idea.update">
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Bezug (Link zum Abschnitt)
+      <label>{{ t("ideas.outline.reference") }}
         <select name="key">
-          <option value="">– kein Bezug –</option>
+          <option value="">{{ t("ideas.outline.no_reference") }}</option>
           {%- for c in panel.chapters %}
           <option value="{{ c.key }}"{% if c.here %} selected{% endif %}>{{ c.label }}</option>
           {%- endfor %}
         </select></label>
-      <button class="btn" type="submit">Bezug setzen</button>
+      <button class="btn" type="submit">{{ t("ideas.outline.set_reference") }}</button>
     </form>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="link">
       <input type="hidden" name="method" value="idea.link">
       <input type="hidden" name="from" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-      <label>Verbinden mit
+      <label>{{ t("ideas.outline.link_with") }}
         <select name="to" required>
-          <option value="">– Einfall wählen –</option>
+          <option value="">{{ t("ideas.outline.choose_idea") }}</option>
           {%- for o in panel.others %}<option value="{{ o.id }}">{{ o.label }}</option>{% endfor %}
         </select></label>
-      <label>Art
+      <label>{{ t("ideas.outline.kind") }}
         <select name="kind">
           {%- for k in panel.kinds %}<option value="{{ k.value }}">{{ k.label }}</option>{% endfor %}
         </select></label>
-      <label>Beschriftung <input type="text" name="note" maxlength="500" size="20"></label>
-      <button class="btn" type="submit">Verbinden</button>
+      <label>{{ t("ideas.outline.caption") }} <input type="text" name="note" maxlength="500" size="20"></label>
+      <button class="btn" type="submit">{{ t("ideas.map.link") }}</button>
     </form>
     {%- if panel.links %}
     <ul class="mmg-links" data-form="links">
       {%- for l in panel.links %}
-      <li>{{ l.arrow }} {{ l.other_label }} <span class="muted small">(Einfall {{ l.other }}, {{ l.kind_label }}{% if l.note %}: {{ l.note }}{% endif %})</span>
+      <li>{{ l.arrow }} {{ l.other_label }} <span class="muted small">({{ t("ideas.idea_number", id=l.other) }}, {{ l.kind_label }}{% if l.note %}: {{ l.note }}{% endif %})</span>
         <form class="mmg-inline" method="post" action="{{ act }}">
           <input type="hidden" name="method" value="idea.unlink"><input type="hidden" name="id" value="{{ l.id }}">
           <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung"><input type="hidden" name="wahl" value="{{ panel.id }}">
-          <button class="btn small" type="submit">Lösen</button>
+          <button class="btn small" type="submit">{{ t("ideas.idea.unlink") }}</button>
         </form></li>
       {%- endfor %}
     </ul>
@@ -223,8 +222,8 @@
       <input type="hidden" name="method" value="idea.delete">
       <input type="hidden" name="id" value="{{ panel.idea }}">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-      <button class="btn danger" type="submit">Löschen</button>
-      <span class="muted small">{% if panel.descendants %}samt {{ panel.descendants }} Unterknoten; {% endif %}wiederherstellbar (unten bei „Gelöschte Einfälle“).</span>
+      <button class="btn danger" type="submit">{{ t("common.delete") }}</button>
+      <span class="muted small">{% if panel.descendants %}{{ t("ideas.outline.delete_with_children", count=panel.descendants) }} {% endif %}{{ t("ideas.outline.delete_restorable") }}</span>
     </form>
     </div>
     {%- endif %}
@@ -232,17 +231,17 @@
   {%- endif %}
 
   <div class="mmg-columns">
-  <section class="mmg-tree" aria-label="Äste der Mindmap">
+  <section class="mmg-tree" aria-label="{{ t("ideas.outline.branches") }}">
     <h2 class="pane-title">{{ title }}</h2>
     {%- if not branches %}
-    <p class="muted">Die Mindmap hat noch keine Äste: Das Werk hat keine Kapitel und kein Hauptthema.</p>
+    <p class="muted">{{ t("ideas.outline.no_branches") }}</p>
     {%- endif %}
     <form class="mmg-form" method="post" action="{{ act }}" data-form="new-main">
       <input type="hidden" name="method" value="idea.create">
       <input type="hidden" name="ort" value="werk">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-      <label>Neues Hauptthema (Titel) <input type="text" name="title" maxlength="200" size="24"></label>
-      <button class="btn" type="submit" title="Eigener Hauptast direkt am Werk">Hauptthema anlegen</button>
+      <label>{{ t("ideas.outline.new_main_title") }} <input type="text" name="title" maxlength="200" size="24"></label>
+      <button class="btn" type="submit" title="{{ t("ideas.outline.new_main_hint") }}">{{ t("ideas.outline.add_main") }}</button>
     </form>
     <ul class="mmg-list">
     {%- for n in branches recursive %}
@@ -251,12 +250,12 @@
         <span class="mmg-title">{{ n.title }}</span>
         {%- if n.has_note %} <span class="mmg-note-mark" title="{{ n.note }}">✎</span>{% endif %}
         {%- if n.words %} <span class="muted small">{{ n.words }}</span>{% endif %}
-        {%- if n.done %} <span class="muted small">(verarbeitet)</span>{% endif %}
-        {%- if n.section %} <a class="small" href="{{ n.section_href }}" title="Zum Abschnitt">→ {{ n.section }}</a>{% endif %}
-        {%- if n.node_href %} <a class="small" href="{{ n.node_href }}" title="Zum Abschnitt im Werk">Abschnitt</a>{% endif %}
-        {%- if n.open_findings %} <span class="mmg-findings small">{{ n.open_findings }} offene Befunde</span>{% endif %}
+        {%- if n.done %} <span class="muted small">{{ t("ideas.outline.done_mark") }}</span>{% endif %}
+        {%- if n.section %} <a class="small" href="{{ n.section_href }}" title="{{ t("ideas.outline.to_section") }}">→ {{ n.section }}</a>{% endif %}
+        {%- if n.node_href %} <a class="small" href="{{ n.node_href }}" title="{{ t("ideas.outline.to_section_in_work") }}">{{ t("ideas.outline.section") }}</a>{% endif %}
+        {%- if n.open_findings %} <span class="mmg-findings small">{{ t("ideas.outline.open_findings", count=n.open_findings) }}</span>{% endif %}
         {%- if n.children and n.descendants %} <span class="muted small">± {{ n.descendants }}</span>{% endif %}
-        <a class="btn small mmg-select" href="{{ n.select }}"{% if n.chosen %} aria-current="true"{% endif %}>{% if n.kind == "idea" %}Bearbeiten{% else %}Wählen{% endif %}</a>
+        <a class="btn small mmg-select" href="{{ n.select }}"{% if n.chosen %} aria-current="true"{% endif %}>{% if n.kind == "idea" %}{{ t("ideas.idea.edit") }}{% else %}{{ t("ideas.outline.choose") }}{% endif %}</a>
         {%- if n.children %}</summary>
         <ul class="mmg-list">{{ loop(n.children) }}</ul>
         </details>{% endif %}
@@ -265,20 +264,18 @@
     </ul>
   </section>
 
-  <aside class="mmg-cloud" aria-label="Wolke" id="wolke">
-    <h2 class="pane-title">Wolke <span class="mmg-count" data-cloud-count="{{ cloud_count }}">{{ cloud_count }} in der Wolke</span></h2>
-    <p class="muted small">Einfälle ohne Platz in der Mindmap. „Bearbeiten“ wählt einen Einfall; mit „In die Mindmap
-      unter …“ oder „Als Hauptthema ans Werk“ bekommt er seinen Platz, mit „In die Wolke“ kommt ein Knoten hierher
-      zurück.</p>
+  <aside class="mmg-cloud" aria-label="{{ t("ideas.cloud") }}" id="wolke">
+    <h2 class="pane-title">{{ t("ideas.cloud") }} <span class="mmg-count" data-cloud-count="{{ cloud_count }}">{{ t("ideas.map.in_cloud", count=cloud_count) }}</span></h2>
+    <p class="muted small">{{ t("ideas.outline.cloud_intro") }}</p>
     <form class="mmg-form" method="post" action="{{ act }}" data-form="new">
       <input type="hidden" name="method" value="idea.create">
       <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-      <label>Neuer Einfall (Titel) <input type="text" name="title" maxlength="200" size="24"></label>
-      <label>Schlagwörter <input type="text" name="words" size="18" placeholder="mit Komma getrennt"></label>
-      <button class="btn" type="submit">In die Wolke legen</button>
+      <label>{{ t("ideas.outline.new_idea_title") }} <input type="text" name="title" maxlength="200" size="24"></label>
+      <label>{{ t("ideas.list.keywords") }} <input type="text" name="words" size="18" placeholder="{{ t("ideas.outline.comma_separated") }}"></label>
+      <button class="btn" type="submit">{{ t("ideas.idea.to_cloud") }}</button>
     </form>
     {%- if not cloud %}
-    <p class="muted">Die Wolke ist leer.</p>
+    <p class="muted">{{ t("ideas.outline.cloud_empty") }}</p>
     {%- endif %}
     <ul class="mmg-list">
     {%- for c in cloud %}
@@ -286,14 +283,14 @@
         <span class="mmg-title">{{ c.node.title }}</span>
         {%- if c.node.has_note %} <span class="mmg-note-mark" title="{{ c.node.note }}">✎</span>{% endif %}
         {%- if c.node.words %} <span class="muted small">{{ c.node.words }}</span>{% endif %}
-        <a class="btn small mmg-select" href="{{ c.node.select }}">Bearbeiten</a>
+        <a class="btn small mmg-select" href="{{ c.node.select }}">{{ t("ideas.idea.edit") }}</a>
         {%- if c.hint %}
         <form class="mmg-hint" method="post" action="{{ act }}">
           <input type="hidden" name="method" value="idea.move"><input type="hidden" name="id" value="{{ c.node.idea }}">
           <input type="hidden" name="ziel" value="i:{{ c.hint.partner }}">
           <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-          <span class="small">passt zu Ast „{{ c.hint.branch }}“ (nahe bei „{{ c.hint.partner_title }}“)</span>
-          <button class="btn small" type="submit">Dort einhängen</button>
+          <span class="small">{{ t("ideas.outline.fits_branch", branch=c.hint.branch, partner=c.hint.partner_title) }}</span>
+          <button class="btn small" type="submit">{{ t("ideas.outline.hang_there") }}</button>
         </form>
         {%- endif %}
         {%- if c.node.children %}
@@ -301,7 +298,7 @@
         {%- for n in c.node.children recursive %}
           <li class="mmg-node mmg-idea{% if n.chosen %} mmg-chosen{% endif %}" id="{{ n.anchor }}" data-node="{{ n.id }}">
             <span class="mmg-title">{{ n.title }}</span>
-            <a class="btn small mmg-select" href="{{ n.select }}">Bearbeiten</a>
+            <a class="btn small mmg-select" href="{{ n.select }}">{{ t("ideas.idea.edit") }}</a>
             {%- if n.children %}<ul class="mmg-list">{{ loop(n.children) }}</ul>{% endif %}
           </li>
         {%- endfor %}
@@ -313,9 +310,9 @@
   </aside>
   </div>
 
-  <section class="mmg-relations" aria-label="Beziehungen">
-    <h2 class="pane-title">Beziehungen</h2>
-    {%- if not links %}<p class="muted">Keine.</p>{% endif %}
+  <section class="mmg-relations" aria-label="{{ t("ideas.outline.relations") }}">
+    <h2 class="pane-title">{{ t("ideas.outline.relations") }}</h2>
+    {%- if not links %}<p class="muted">{{ t("ideas.outline.none") }}</p>{% endif %}
     <ul class="mmg-links">
       {%- for l in links %}
       <li{% if l.contradiction %} class="mmg-contradiction"{% endif %} data-link="{{ l.id }}"><a href="{{ l.from_select }}">{{ l.from }}</a> {{ l.arrow }} <a href="{{ l.to_select }}">{{ l.to }}</a>
@@ -323,30 +320,30 @@
         <form class="mmg-inline" method="post" action="{{ act }}">
           <input type="hidden" name="method" value="idea.unlink"><input type="hidden" name="id" value="{{ l.id }}">
           <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-          <button class="btn small" type="submit">Lösen</button>
+          <button class="btn small" type="submit">{{ t("ideas.idea.unlink") }}</button>
         </form></li>
       {%- endfor %}
     </ul>
-    <h2 class="pane-title">Widersprüche</h2>
+    <h2 class="pane-title">{{ t("ideas.map.contradictions") }}</h2>
     <ul class="mmg-links" data-list="contradictions">
       {%- for l in links if l.contradiction %}
       <li class="mmg-contradiction">{{ l.from }} ↔ {{ l.to }}{% if l.note %} <span class="muted small">{{ l.note }}</span>{% endif %}</li>
       {%- else %}
-      <li class="muted">Keine.</li>
+      <li class="muted">{{ t("ideas.outline.none") }}</li>
       {%- endfor %}
     </ul>
   </section>
 
-  <section class="mmg-deleted" aria-label="Gelöschte Einfälle">
-    <h2 class="pane-title">Gelöschte Einfälle</h2>
-    {%- if not deleted %}<p class="muted">Keine.</p>{% endif %}
+  <section class="mmg-deleted" aria-label="{{ t("ideas.outline.deleted") }}">
+    <h2 class="pane-title">{{ t("ideas.outline.deleted") }}</h2>
+    {%- if not deleted %}<p class="muted">{{ t("ideas.outline.none") }}</p>{% endif %}
     <ul class="mmg-links">
       {%- for d in deleted %}
-      <li>{{ d.label }} <span class="muted small">(Einfall {{ d.id }}{% if d.at %}, gelöscht {{ d.at }}{% endif %})</span>
+      <li>{{ d.label }} <span class="muted small">({{ t("ideas.idea_number", id=d.id) }}{% if d.at %}{{ t("ideas.outline.deleted_at", date=d.at) }}{% endif %})</span>
         <form class="mmg-inline" method="post" action="{{ act }}">
           <input type="hidden" name="method" value="idea.restore"><input type="hidden" name="id" value="{{ d.id }}">
           <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="seite" value="gliederung">
-          <button class="btn small" type="submit">Wiederherstellen</button>
+          <button class="btn small" type="submit">{{ t("ideas.restore") }}</button>
         </form></li>
       {%- endfor %}
     </ul>

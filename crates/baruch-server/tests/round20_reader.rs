@@ -396,10 +396,13 @@ async fn the_preview_has_a_place_for_the_check_panel_of_epub_pruefung() {
         slot.contains("<h2 class=\"pane-title\" id=\"epub-check-title\">Prüfung</h2>"),
         "Überschrift vorhanden: {slot}"
     );
-    let panel = baruch_server::epub_check::preview_panel(
-        &server.state,
-        work,
-        &baruch_epub::readers::required().collect::<Vec<_>>(),
+    let panel = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::epub_check::preview_panel(
+            &server.state,
+            work,
+            &baruch_epub::readers::required().collect::<Vec<_>>(),
+        ),
     )
     .await;
     if panel.is_empty() {

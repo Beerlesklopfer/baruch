@@ -13,42 +13,42 @@
     [{group, ideas [{id, href, label}], words, proposal {name, persona, model, at} | none}] (Round 19b), notice,
     undo, error. -#}
 {% extends "base.html" %}
-{% block title %}Mindmap · {{ title }} – Baruch{% endblock %}
-{% block page_title %}Mindmap · {{ title }}{% endblock %}
+{% block title %}{{ t("ideas.map.window_title", title=title) }}{% endblock %}
+{% block page_title %}{{ t("ideas.map.page_title", title=title) }}{% endblock %}
 {#- Round 33/34 (ribbon): actions of the page as groups in the tab „Start“ (details/summary with ordinary links, usable
 without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Knoten</summary><div class="band-items" role="group" aria-label="Knoten">
-    <a class="btn" href="{{ gliederung }}" data-mm-action="child" title="Unterknoten anlegen (Tab) – ohne JavaScript in der Gliederungsansicht">Unterknoten</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="sibling" title="Geschwisterknoten anlegen (Enter) – ohne JavaScript in der Gliederungsansicht">Geschwister</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="rename" title="Gewählten Einfall umbenennen (F2, Doppelklick) – ohne JavaScript in der Gliederungsansicht">Umbenennen</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="delete" title="Gewählten Einfall samt Unterknoten löschen (Entf), wiederherstellbar – ohne JavaScript in der Gliederungsansicht">Löschen</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="link" title="Beziehung vom gewählten Einfall zum nächsten gewählten ziehen (Alt+L) – ohne JavaScript in der Gliederungsansicht">Verbinden</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="cloud" title="Gewählten Einfall samt Unterknoten in die Wolke legen – ohne JavaScript in der Gliederungsansicht">In die Wolke</a>
-    <a class="btn" href="{{ gliederung }}" data-mm-action="undo" title="Letzte Aktion auf der Mindmap zurücknehmen (Strg+Z) – ohne JavaScript in der Gliederungsansicht">Rückgängig</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_node") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_node") }}">
+    <a class="btn" href="{{ gliederung }}" data-mm-action="child" title="{{ t("ideas.map.child_hint") }}">{{ t("ideas.map.child") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="sibling" title="{{ t("ideas.map.sibling_hint") }}">{{ t("ideas.map.sibling") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="rename" title="{{ t("ideas.map.rename_hint") }}">{{ t("ideas.map.rename") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="delete" title="{{ t("ideas.map.delete_hint") }}">{{ t("common.delete") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="link" title="{{ t("ideas.map.link_hint") }}">{{ t("ideas.map.link") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="cloud" title="{{ t("ideas.map.cloud_hint") }}">{{ t("ideas.map.to_cloud") }}</a>
+    <a class="btn" href="{{ gliederung }}" data-mm-action="undo" title="{{ t("ideas.map.undo_hint") }}">{{ t("ideas.map.undo") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Ansicht</summary><div class="band-items" role="group" aria-label="Ansicht">
-    <a class="btn" href="{{ open_all }}" data-mm-zu title="Alle Äste aufklappen">Alles aufklappen</a>
-    <a class="btn" href="{{ close_all }}" data-mm-zu title="Alle Hauptäste zuklappen">Alles zuklappen</a>
-    <a class="btn{% if filter.near %} active{% endif %}" href="{{ near_toggle }}" title="Nähe: gepunktete Linien zwischen ähnlichen Einfällen und der Vorschlag „passt zu Ast …“ in der Wolke">Nähe {% if filter.near %}ausblenden{% else %}zeigen{% endif %}</a>
-    <a class="btn im-findings-toggle{% if filter.findings %} active{% endif %}" href="{{ findings_toggle }}" title="Ebene Befunde: offene Befunde als Zahl am Kapitelast">{% if filter.findings %}Ebene Befunde ausblenden{% else %}Ebene Befunde einblenden{% endif %}</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_view") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_view") }}">
+    <a class="btn" href="{{ open_all }}" data-mm-zu title="{{ t("ideas.map.open_all_hint") }}">{{ t("ideas.map.open_all") }}</a>
+    <a class="btn" href="{{ close_all }}" data-mm-zu title="{{ t("ideas.map.close_all_hint") }}">{{ t("ideas.map.close_all") }}</a>
+    <a class="btn{% if filter.near %} active{% endif %}" href="{{ near_toggle }}" title="{{ t("ideas.map.near_hint") }}">{% if filter.near %}{{ t("ideas.map.near_hide") }}{% else %}{{ t("ideas.map.near_show") }}{% endif %}</a>
+    <a class="btn im-findings-toggle{% if filter.findings %} active{% endif %}" href="{{ findings_toggle }}" title="{{ t("ideas.map.findings_hint") }}">{% if filter.findings %}{{ t("ideas.map.findings_hide") }}{% else %}{{ t("ideas.map.findings_show") }}{% endif %}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Ausgabe</summary><div class="band-items" role="group" aria-label="Ausgabe">
-    <a class="btn" href="{{ outputs.xmind }}" download title="Mindmap für XMind">XMind</a>
-    <a class="btn" href="{{ outputs.mm }}" download title="Mindmap für FreeMind und Freeplane">FreeMind</a>
-    <a class="btn" href="{{ outputs.svg }}" title="Mindmap als SVG-Grafik">SVG</a>
-    <a class="btn" href="{{ outputs.pdf }}" download title="Mindmap als PDF">PDF</a>
-    <a class="btn" href="{{ outputs.md }}" title="Baum, Beziehungen und Widersprüche als Markdown">Markdown</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_output") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_output") }}">
+    <a class="btn" href="{{ outputs.xmind }}" download title="{{ t("ideas.map.out_xmind") }}">XMind</a>
+    <a class="btn" href="{{ outputs.mm }}" download title="{{ t("ideas.map.out_mm") }}">FreeMind</a>
+    <a class="btn" href="{{ outputs.svg }}" title="{{ t("ideas.map.out_svg") }}">SVG</a>
+    <a class="btn" href="{{ outputs.pdf }}" download title="{{ t("ideas.map.out_pdf") }}">PDF</a>
+    <a class="btn" href="{{ outputs.md }}" title="{{ t("ideas.map.out_md") }}">Markdown</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Einlesen</summary><div class="band-items" role="group" aria-label="Einlesen">
-    <a class="btn" href="{{ einlesen }}" title="Eine Mindmap aus XMind (.xmind) oder FreeMind/Freeplane (.mm) einlesen – mit Vorschau">Datei einlesen …</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.map.group_read_in") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.map.group_read_in") }}">
+    <a class="btn" href="{{ einlesen }}" title="{{ t("ideas.map.read_in_hint") }}">{{ t("ideas.map.read_in") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Gliederungsansicht</summary><div class="band-items" role="group" aria-label="Gliederungsansicht">
-    <a class="btn" href="{{ gliederung }}" title="Die Mindmap als verschachtelte Liste mit Formularen (ohne JavaScript bedienbar)">Gliederungsansicht</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("ideas.outline_view") }}</summary><div class="band-items" role="group" aria-label="{{ t("ideas.outline_view") }}">
+    <a class="btn" href="{{ gliederung }}" title="{{ t("ideas.map.outline_view_hint") }}">{{ t("ideas.outline_view") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ ideas_href }}">Einfälle</a>
-    <a class="btn" href="{{ workspace }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ ideas_href }}">{{ t("ideas.list.heading") }}</a>
+    <a class="btn" href="{{ workspace }}">{{ t("ideas.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -60,7 +60,7 @@ without JavaScript). #}
       <input type="hidden" name="method" value="idea.link_restore">
       <input type="hidden" name="id" value="{{ undo }}">
       <input type="hidden" name="back" value="{{ back }}">
-      <button class="btn small" type="submit">Wiederherstellen</button>
+      <button class="btn small" type="submit">{{ t("ideas.restore") }}</button>
     </form>
     {%- endif %}
   </div>
@@ -69,104 +69,101 @@ without JavaScript). #}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
 
-  <form class="im-filter" method="get" action="/werke/{{ work.id }}/karte" role="search" aria-label="Mindmap filtern">
-    <label>Status
+  <form class="im-filter" method="get" action="/werke/{{ work.id }}/karte" role="search" aria-label="{{ t("ideas.map.filter_label") }}">
+    <label>{{ t("ideas.list.status") }}
       <select name="status">
-        <option value="all"{% if filter.status == "all" %} selected{% endif %}>alle</option>
-        <option value="open"{% if filter.status == "open" %} selected{% endif %}>offen</option>
-        <option value="done"{% if filter.status == "done" %} selected{% endif %}>verarbeitet</option>
+        <option value="all"{% if filter.status == "all" %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="open"{% if filter.status == "open" %} selected{% endif %}>{{ t("ideas.open") }}</option>
+        <option value="done"{% if filter.status == "done" %} selected{% endif %}>{{ t("ideas.done") }}</option>
       </select></label>
-    <label>Schlagwort <input type="text" name="word" value="{{ filter.word }}" size="14" list="im-words"></label>
+    <label>{{ t("ideas.list.keyword") }} <input type="text" name="word" value="{{ filter.word }}" size="14" list="im-words"></label>
     <datalist id="im-words">
       {%- for w in words %}<option value="{{ w }}">{% endfor %}
     </datalist>
-    <label>Herkunft
+    <label>{{ t("ideas.idea.origin") }}
       <select name="origin">
-        <option value=""{% if not filter.origin %} selected{% endif %}>alle</option>
-        <option value="human"{% if filter.origin == "human" %} selected{% endif %}>Mensch</option>
+        <option value=""{% if not filter.origin %} selected{% endif %}>{{ t("ideas.list.all") }}</option>
+        <option value="human"{% if filter.origin == "human" %} selected{% endif %}>{{ t("ideas.map.origin_human") }}</option>
         <option value="persona"{% if filter.origin == "persona" %} selected{% endif %}>Persona</option>
         <option value="mcp"{% if filter.origin == "mcp" %} selected{% endif %}>MCP</option>
       </select></label>
-    <label>Suche <input type="search" name="q" value="{{ filter.q }}" size="16" placeholder="Wörter hervorheben"></label>
+    <label>{{ t("ideas.list.search") }} <input type="search" name="q" value="{{ filter.q }}" size="16" placeholder="{{ t("ideas.map.search_placeholder") }}"></label>
     {#- An unchecked checkbox sends nothing: the hidden near=0 before it then applies (the last value wins). #}
     <input type="hidden" name="near" value="0">
-    <label class="inline"><input type="checkbox" name="near" value="1"{% if filter.near %} checked{% endif %}> Nähe zeigen</label>
+    <label class="inline"><input type="checkbox" name="near" value="1"{% if filter.near %} checked{% endif %}> {{ t("ideas.map.near_show") }}</label>
     <input type="hidden" name="befunde" value="0">
-    <label class="inline"><input type="checkbox" name="befunde" value="1"{% if filter.findings %} checked{% endif %}> Ebene Befunde</label>
+    <label class="inline"><input type="checkbox" name="befunde" value="1"{% if filter.findings %} checked{% endif %}> {{ t("ideas.map.findings_layer") }}</label>
     {%- for k in filter.open %}
     <input type="hidden" name="open" value="{{ k }}">
     {%- endfor %}
     {%- if zu %}<input type="hidden" name="zu" value="{{ zu }}">{% endif %}
-    <button class="btn" type="submit">Anwenden</button>
-    {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte">Filter aufheben</a>{% endif %}
+    <button class="btn" type="submit">{{ t("ideas.map.apply_filter") }}</button>
+    {%- if filter.words %}<a class="btn" href="/werke/{{ work.id }}/karte">{{ t("ideas.map.clear_filter") }}</a>{% endif %}
   </form>
-  {%- if filter.findings %}<p class="muted small im-findings-note" role="note">Ebene Befunde: Zahl „k offen“ je Teil und Kapitel (offene Befunde samt Abschnitten); Äste mit {{ many_findings }} oder mehr offenen sind hervorgehoben. <a href="{{ findings_href }}">Alle Befunde</a></p>{% endif %}
-  {%- if filter.words %}<p class="muted small im-filter-words">Filter: {{ filter.words }}</p>{% endif %}
+  {%- if filter.findings %}<p class="muted small im-findings-note" role="note">{{ t("ideas.map.findings_note", count=many_findings) }} <a href="{{ findings_href }}">{{ t("ideas.map.all_findings") }}</a></p>{% endif %}
+  {%- if filter.words %}<p class="muted small im-filter-words">{{ t("ideas.map.filter_words", words=filter.words) }}</p>{% endif %}
 
   <div class="mm-stage{% if not filter.near %} mm-hide-near{% endif %}{% if filter.findings %} mm-findings-layer{% endif %}" data-widget="mindmap" data-work="{{ work.id }}" data-bild="{{ bild }}" data-back="{{ back }}" data-zu="{{ zu }}" data-wahl="{{ wahl }}" data-gliederung="{{ gliederung }}">
     <div class="mm-toolbar" data-mm-toolbar>
-      <span class="muted small mm-stats">{{ stats.ideas }} Einfälle · {{ stats.links }} Verbindungen · <span class="mm-cloud-counter" data-mm-cloud-count="{{ stats.cloud }}">{{ stats.cloud }} in der Wolke</span></span>
+      <span class="muted small mm-stats">{{ t("ideas.map.stats", ideas=stats.ideas, links=stats.links) }} <span class="mm-cloud-counter" data-mm-cloud-count="{{ stats.cloud }}">{{ t("ideas.map.in_cloud", count=stats.cloud) }}</span></span>
       <span class="grow"></span>
       {#- Round 19b: the assistant proposes names for the groups (only in memory); only the human can accept (below). #}
       <form class="im-inline" method="post" action="{{ act }}" data-im-name-groups>
         <input type="hidden" name="method" value="idea.map_groups_name">
         <input type="hidden" name="back" value="{{ back }}">
-        <button class="btn small" type="submit" title="Der Lektor (bzw. die gewählte Persona) schlägt für jede Gruppe naher Einfälle einen Namen vor; Schlagwort wird er erst, wenn du ihn übernimmst">Gruppen benennen (Assistent)</button>
+        <button class="btn small" type="submit" title="{{ t("ideas.map.name_groups_hint") }}">{{ t("ideas.map.name_groups") }}</button>
       </form>
     </div>
     {%- if near_note %}<p class="muted small im-near-note" role="status">{{ near_note }}</p>{% endif %}
     <div class="mm-canvas" data-mm-canvas>{{ svg }}</div>
     <p class="mm-status small" data-mm-status role="status" aria-live="polite"></p>
   </div>
-  <p class="muted small mm-hint">Ohne JavaScript: „−“ und „+ n“ am Knoten klappen den Ast, „§“ führt zum Abschnitt, der Titel zum Einfall.
-    Anlegen, Umbenennen, Umhängen („in die Mindmap unter …“, „in die Wolke“) und Löschen stehen als Formulare in der
-    <a href="{{ gliederung }}">Gliederungsansicht</a>. In der Wolke unter dem Baum liegen die Einfälle ohne Platz.</p>
+  <p class="muted small mm-hint">{{ t("ideas.map.nojs_hint") }}
+    <a href="{{ gliederung }}">{{ t("ideas.outline_view") }}</a>{{ t("ideas.map.nojs_hint_after") }}</p>
 
-  <p class="im-legend small" aria-label="Legende der Beziehungen">
-    <span class="im-key im-key-leads_to">führt weiter (durchgezogen, Pfeil)</span>
-    <span class="im-key im-key-belongs_to">gehört zu (gestrichelt, Pfeil)</span>
-    <span class="im-key im-key-example_of">Beispiel für (gepunktet, Pfeil)</span>
-    <span class="im-key im-key-contradicts">widerspricht (rot, Strich-Punkt, ohne Pfeil)</span>
-    <span class="im-key im-key-near">Nähe „nah“ (fein gepunktet, nur angezeigt)</span>
+  <p class="im-legend small" aria-label="{{ t("ideas.map.legend") }}">
+    <span class="im-key im-key-leads_to">{{ t("ideas.map.key_leads_to") }}</span>
+    <span class="im-key im-key-belongs_to">{{ t("ideas.map.key_belongs_to") }}</span>
+    <span class="im-key im-key-example_of">{{ t("ideas.map.key_example_of") }}</span>
+    <span class="im-key im-key-contradicts">{{ t("ideas.map.key_contradicts") }}</span>
+    <span class="im-key im-key-near">{{ t("ideas.map.key_near") }}</span>
   </p>
 
-  <section class="im-clusters" id="karte-gruppen" aria-label="Gruppen">
-    <h2 class="pane-title">Gruppen</h2>
-    <p class="muted small">Eine Gruppe sind Einfälle, die über die Nähe zusammenhängen (mindestens zwei). „Gruppen benennen
-      (Assistent)“ holt Namen als Vorschlag; sie bleiben nur bis zum nächsten Neustart von Baruch. Schlagwort an den Einfällen
-      wird ein Name erst, wenn du ihn übernimmst (ein Commit je Einfall).</p>
+  <section class="im-clusters" id="karte-gruppen" aria-label="{{ t("ideas.map.groups") }}">
+    <h2 class="pane-title">{{ t("ideas.map.groups") }}</h2>
+    <p class="muted small">{{ t("ideas.map.groups_hint") }}</p>
     {%- if clusters %}
     <ul class="im-cluster-list">
       {%- for c in clusters %}
       <li class="im-cluster" id="karte-gruppe-{{ c.group }}" data-group="{{ c.group }}">
-        <span class="im-cluster-head"><strong>{{ c.group }}</strong>: {% for i in c.ideas %}<a href="{{ i.href }}">Einfall {{ i.id }}</a>{% if i.label %} ({{ i.label }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>
-        {%- if c.words %}<span class="muted small"> – Schlagwörter: {{ c.words }}</span>{% endif %}
+        <span class="im-cluster-head"><strong>{{ c.group }}</strong>: {% for i in c.ideas %}<a href="{{ i.href }}">{{ t("ideas.idea_number", id=i.id) }}</a>{% if i.label %} ({{ i.label }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+        {%- if c.words %}<span class="muted small"> {{ t("ideas.map.group_words", words=c.words) }}</span>{% endif %}
         {%- if c.proposal %}
         <div class="im-proposal" data-group-proposal>
-          <span>Vorschlag von <code>{{ c.proposal.persona }}</code> <span class="muted tiny">({{ c.proposal.model }}, {{ c.proposal.at }})</span>: <strong>„{{ c.proposal.name }}“</strong></span>
+          <span>{{ t("ideas.map.proposal_by") }} <code>{{ c.proposal.persona }}</code> <span class="muted tiny">({{ c.proposal.model }}, {{ c.proposal.at }})</span>: <strong>{{ t("ideas.map.proposal_name", name=c.proposal.name) }}</strong></span>
           <form class="im-inline" method="post" action="{{ act }}">
             <input type="hidden" name="method" value="idea.map_group_accept">
             <input type="hidden" name="group" value="{{ c.group }}">
             <input type="hidden" name="back" value="{{ back }}">
-            <label class="small">Name <input type="text" name="name" value="{{ c.proposal.name }}" maxlength="40" size="18" required></label>
-            <button class="btn small primary" type="submit" title="Den Namen als Schlagwort an jeden Einfall der Gruppe setzen">Übernehmen</button>
+            <label class="small">{{ t("ideas.map.name") }} <input type="text" name="name" value="{{ c.proposal.name }}" maxlength="40" size="18" required></label>
+            <button class="btn small primary" type="submit" title="{{ t("ideas.map.accept_hint") }}">{{ t("ideas.map.accept") }}</button>
           </form>
           <form class="im-inline" method="post" action="{{ act }}">
             <input type="hidden" name="method" value="idea.map_group_dismiss">
             <input type="hidden" name="group" value="{{ c.group }}">
             <input type="hidden" name="back" value="{{ back }}">
-            <button class="btn small" type="submit">Verwerfen</button>
+            <button class="btn small" type="submit">{{ t("ideas.map.dismiss") }}</button>
           </form>
         </div>
         {%- else %}
         <details class="im-forms">
-          <summary class="small">Selbst benennen …</summary>
+          <summary class="small">{{ t("ideas.map.name_self") }}</summary>
           <form class="im-form" method="post" action="{{ act }}">
             <input type="hidden" name="method" value="idea.map_group_accept">
             <input type="hidden" name="group" value="{{ c.group }}">
             <input type="hidden" name="back" value="{{ back }}">
-            <label>Name <input type="text" name="name" maxlength="40" size="18" required></label>
-            <button class="btn small" type="submit">Als Schlagwort setzen</button>
+            <label>{{ t("ideas.map.name") }} <input type="text" name="name" maxlength="40" size="18" required></label>
+            <button class="btn small" type="submit">{{ t("ideas.map.set_keyword") }}</button>
           </form>
         </details>
         {%- endif %}
@@ -174,29 +171,29 @@ without JavaScript). #}
       {%- endfor %}
     </ul>
     {%- elif filter.near %}
-    <p class="muted small">Keine Gruppen: Keine zwei gezeigten Einfälle sind einander nah.</p>
+    <p class="muted small">{{ t("ideas.map.no_groups") }}</p>
     {%- else %}
-    <p class="muted small">Die Nähe ist ausgeschaltet; Gruppen gibt es nur mit „Nähe zeigen“.</p>
+    <p class="muted small">{{ t("ideas.map.near_off") }}</p>
     {%- endif %}
   </section>
 
-  <section class="im-contradictions" aria-label="Widersprüche">
-    <h2 class="pane-title">Widersprüche</h2>
+  <section class="im-contradictions" aria-label="{{ t("ideas.map.contradictions") }}">
+    <h2 class="pane-title">{{ t("ideas.map.contradictions") }}</h2>
     {%- if contradictions %}
     <ul class="im-links">
       {%- for c in contradictions %}
-      <li class="im-link-item im-kind-contradicts"><a href="{{ c.a_href }}">Einfall {{ c.a }}</a>{% if c.a_label %} ({{ c.a_label }}){% endif %} ↔ <a href="{{ c.b_href }}">Einfall {{ c.b }}</a>{% if c.b_label %} ({{ c.b_label }}){% endif %} <strong>widerspricht</strong>{% if c.note %} – „{{ c.note }}“{% endif %}
+      <li class="im-link-item im-kind-contradicts"><a href="{{ c.a_href }}">{{ t("ideas.idea_number", id=c.a) }}</a>{% if c.a_label %} ({{ c.a_label }}){% endif %} ↔ <a href="{{ c.b_href }}">{{ t("ideas.idea_number", id=c.b) }}</a>{% if c.b_label %} ({{ c.b_label }}){% endif %} <strong>{{ t("ideas.map.contradicts") }}</strong>{% if c.note %} {{ t("ideas.idea.link_note", note=c.note) }}{% endif %}
         <form class="im-inline" method="post" action="{{ act }}">
           <input type="hidden" name="method" value="idea.unlink">
           <input type="hidden" name="id" value="{{ c.id }}">
           <input type="hidden" name="back" value="{{ back }}">
-          <button class="btn small" type="submit">Lösen</button>
+          <button class="btn small" type="submit">{{ t("ideas.idea.unlink") }}</button>
         </form>
       </li>
       {%- endfor %}
     </ul>
     {%- else %}
-    <p class="muted small">Keine Widersprüche verzeichnet. Zwei Einfälle verbindet „Verbinden“ mit der Art „widerspricht“.</p>
+    <p class="muted small">{{ t("ideas.map.no_contradictions") }}</p>
     {%- endif %}
   </section>
 </main>

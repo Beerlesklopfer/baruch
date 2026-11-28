@@ -8,61 +8,50 @@
     registers (Round 31)},
     back, baruch_name, xml_name, version, namespace. -#}
 {% extends "base.html" %}
-{% block title %}Austausch – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Austausch{% endblock %}
+{% block title %}{{ t("export.exchange.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("export.exchange.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back|safe }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ back|safe }}">{{ t("export.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page exchange-page" data-work="{{ work.id }}">
-  <h1 class="pane-title">Austausch: Ausgeben</h1>
-  <p>Die Austauschdatei trägt das <strong>ganze Werk</strong> zu einer anderen Baruch-Instanz: Angaben, Buchangaben
-    samt Umschlag, Werkvorlage, die Gliederung mit <strong>allen Fassungen</strong> und der Markierung „aktuell“,
-    Beiträge, Einfälle (auch gelöschte), die Gedankenkarte (Verbindungen zwischen Einfällen und gemerkte Lagen),
-    Fäden, Bilder mit allen Fassungen, Satz-Einstellungen, das Glossar (auch Vorschläge) mit den eigenen Registern
-    und die Grabsteine gelöschter Teile.
-    Jedes Stück hat eine weltweit eindeutige Kennung (UUID); so erkennt die andere Instanz beim Einlesen, was sie
-    schon kennt, und fügt nur hinzu, was fehlt.</p>
-  <p class="muted small">Nicht in der Datei: Schlüssel und Token, Verbindungen zu Diensten (Modelle, MultiGPT,
-    pgvector), Personas samt Modellen (nur ihre
-    Namen als Herkunft), offene Anträge und Registervorschläge, Belege der Websuche, Bibel-, Kommentar- und Literaturtexte (nur
-    Modulnamen und Stellen), Suchindex und die Autorenbibliothek.</p>
+  <h1 class="pane-title">{{ t("export.exchange.heading") }}</h1>
+  <p>{{ t("export.exchange.intro_html") }}</p>
+  <p class="muted small">{{ t("export.exchange.not_in_file") }}</p>
 
-  <section class="exchange-downloads" aria-label="Herunterladen">
-    <p><a class="btn primary" href="/werke/{{ work.id }}/austausch.baruch" download="{{ baruch_name }}">Austauschdatei herunterladen (.baruch)</a>
-      <span class="muted small">{{ baruch_name }} – ZIP mit <code>werk.xml</code>, den Bildern als eigene Dateien und
-      einem Manifest mit Prüfsummen. Für alle Werke.</span></p>
-    <p><a class="btn" href="/werke/{{ work.id }}/austausch.xml" download="{{ xml_name }}">Nur XML herunterladen (.baruch.xml)</a>
-      <span class="muted small">{{ xml_name }} – eine einzige XML-Datei, Bilder als Base64 darin. Gut lesbar,
-      für kleine Werke.</span></p>
+  <section class="exchange-downloads" aria-label="{{ t("export.exchange.downloads") }}">
+    <p><a class="btn primary" href="/werke/{{ work.id }}/austausch.baruch" download="{{ baruch_name }}">{{ t("export.exchange.download_baruch") }}</a>
+      <span class="muted small">{{ t("export.exchange.baruch_hint_html", name=baruch_name) }}</span></p>
+    <p><a class="btn" href="/werke/{{ work.id }}/austausch.xml" download="{{ xml_name }}">{{ t("export.exchange.download_xml") }}</a>
+      <span class="muted small">{{ t("export.exchange.xml_hint", name=xml_name) }}</span></p>
   </section>
 
-  <section class="exchange-facts" aria-label="Umfang">
-    <h2 class="pane-title">Umfang</h2>
+  <section class="exchange-facts" aria-label="{{ t("export.exchange.scope") }}">
+    <h2 class="pane-title">{{ t("export.exchange.scope") }}</h2>
     <ul>
-      <li>{{ counts.nodes }} {% if counts.nodes == 1 %}Gliederungspunkt{% else %}Gliederungspunkte{% endif %} mit {{ counts.revisions }} {% if counts.revisions == 1 %}Fassung{% else %}Fassungen{% endif %} und {{ counts.posts }} {% if counts.posts == 1 %}Beitrag{% else %}Beiträgen{% endif %}</li>
-      <li>{{ counts.template_revisions }} {% if counts.template_revisions == 1 %}Fassung{% else %}Fassungen{% endif %} der Werkvorlage</li>
-      <li>{{ counts.ideas }} {% if counts.ideas == 1 %}Einfall{% else %}Einfälle{% endif %}{% if counts.deleted_ideas %} (davon {{ counts.deleted_ideas }} gelöscht){% endif %}</li>
-      <li>{{ counts.threads }} {% if counts.threads == 1 %}Faden{% else %}Fäden{% endif %} mit {{ counts.thread_posts }} {% if counts.thread_posts == 1 %}Beitrag{% else %}Beiträgen{% endif %}</li>
-      <li>{{ counts.findings }} {% if counts.findings == 1 %}Befund{% else %}Befunde{% endif %} (davon {{ counts.open_findings }} offen) und {{ counts.post_versions }} {% if counts.post_versions == 1 %}alte Beitragsfassung{% else %}alte Beitragsfassungen{% endif %}</li>
-      <li>{{ counts.assets }} {% if counts.assets == 1 %}Bild{% else %}Bilder{% endif %} mit {{ counts.asset_revisions }} {% if counts.asset_revisions == 1 %}Fassung{% else %}Fassungen{% endif %}</li>
-      <li>Gedankenkarte: {{ counts.links }} {% if counts.links == 1 %}Verbindung{% else %}Verbindungen{% endif %}{% if counts.deleted_links %} (davon {{ counts.deleted_links }} gelöscht){% endif %} und {{ counts.positions }} {% if counts.positions == 1 %}gemerkte Lage{% else %}gemerkte Lagen{% endif %}</li>
-      {% if counts.typeset %}<li>Satz-Einstellungen: {{ counts.typeset_fields|join(", ") }}</li>{% endif %}
-      {% if counts.glossary_terms or counts.registers %}<li>Glossar: {{ counts.glossary_terms }} {% if counts.glossary_terms == 1 %}Begriff{% else %}Begriffe{% endif %}{% if counts.proposed_terms %} (davon {{ counts.proposed_terms }} vorgeschlagen){% endif %}, {{ counts.registers }} {% if counts.registers == 1 %}eigenes Register{% else %}eigene Register{% endif %}</li>{% endif %}
-      <li>{{ counts.tombstones }} {% if counts.tombstones == 1 %}Grabstein{% else %}Grabsteine{% endif %} gelöschter Teile</li>
+      <li>{{ t("export.exchange.count_nodes", nodes=counts.nodes, revisions=counts.revisions, posts=counts.posts) }}</li>
+      <li>{{ t("export.exchange.count_template", count=counts.template_revisions) }}</li>
+      <li>{{ t("export.exchange.count_ideas", count=counts.ideas) }}{% if counts.deleted_ideas %} {{ t("export.exchange.of_them_deleted", count=counts.deleted_ideas) }}{% endif %}</li>
+      <li>{{ t("export.exchange.count_threads", threads=counts.threads, posts=counts.thread_posts) }}</li>
+      <li>{{ t("export.exchange.count_findings", findings=counts.findings, open=counts.open_findings, versions=counts.post_versions) }}</li>
+      <li>{{ t("export.exchange.count_assets", assets=counts.assets, revisions=counts.asset_revisions) }}</li>
+      <li>{{ t("export.exchange.count_links", count=counts.links) }}{% if counts.deleted_links %} {{ t("export.exchange.of_them_deleted", count=counts.deleted_links) }}{% endif %} {{ t("export.exchange.count_positions", count=counts.positions) }}</li>
+      {% if counts.typeset %}<li>{{ t("export.exchange.typeset", fields=counts.typeset_fields|join(", ")) }}</li>{% endif %}
+      {% if counts.glossary_terms or counts.registers %}<li>{{ t("export.exchange.count_terms", count=counts.glossary_terms) }}{% if counts.proposed_terms %} {{ t("export.exchange.of_them_proposed", count=counts.proposed_terms) }}{% endif %}{{ t("export.exchange.count_registers", count=counts.registers) }}</li>{% endif %}
+      <li>{{ t("export.exchange.count_tombstones", count=counts.tombstones) }}</li>
     </ul>
-    <p class="muted small">Werk-Kennung <code>{{ work.uuid }}</code> · Instanz {{ instance.label }}
-      {%- if instance.named %} (<code>{{ instance.uuid }}</code>){% endif %} · Format <code>{{ namespace }}</code>,
-      Version {{ version }}</p>
+    <p class="muted small">{{ t("export.exchange.work_id") }} <code>{{ work.uuid }}</code> · {{ t("export.exchange.instance", label=instance.label) }}
+      {%- if instance.named %} (<code>{{ instance.uuid }}</code>){% endif %} · {{ t("export.exchange.format") }} <code>{{ namespace }}</code>,
+      {{ t("export.exchange.version", version=version) }}</p>
   </section>
 
-  <p>Eine Datei einer anderen Instanz übernehmen: <a href="/austausch/einlesen?work={{ work.id }}">Austausch: Einlesen…</a>
-    (mit Vorschau; Baruch löscht und überschreibt dabei nie etwas).</p>
-  <p class="muted small">Auch über die Kommandozeile: <code>baruch-server export {{ work.slug }} --baruch {{ baruch_name }}</code>.</p>
+  <p>{{ t("export.exchange.read_in_before") }} <a href="/austausch/einlesen?work={{ work.id }}">{{ t("export.exchange.read_in_link") }}</a>
+    {{ t("export.exchange.read_in_after") }}</p>
+  <p class="muted small">{{ t("export.exchange.cli") }} <code>baruch-server export {{ work.slug }} --baruch {{ baruch_name }}</code>.</p>
 </main>
 {% endblock %}

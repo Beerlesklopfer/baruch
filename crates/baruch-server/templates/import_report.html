@@ -2,25 +2,25 @@
     what was not taken over verbatim (notes with line) and which images were skipped (with reason).
     Usable without JavaScript. Context: settings, report (ImportReport), work_url. -#}
 {% extends "base.html" %}
-{% block title %}Import: {{ report.title }} – Baruch{% endblock %}
-{% block page_title %}Import-Bericht{% endblock %}
+{% block title %}{{ t("works.import.window_title", title=report.title) }}{% endblock %}
+{% block page_title %}{{ t("works.import.page_title") }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Weiter</summary><div class="band-items" role="group" aria-label="Weiter">
-    <a class="btn" href="/werke">Werke</a>
-    <a class="btn primary" href="{{ work_url|safe }}">Zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("works.import.next") }}</summary><div class="band-items" role="group" aria-label="{{ t("works.import.next") }}">
+    <a class="btn" href="/werke">{{ t("works.list.heading") }}</a>
+    <a class="btn primary" href="{{ work_url|safe }}">{{ t("works.import.to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page import-report">
-  <h1 class="pane-title">„{{ report.title }}“ ist angelegt</h1>
-  <p>{{ report.nodes }} Abschnitt{% if report.nodes != 1 %}e{% endif %}, {{ report.assets|length }} Bild{% if report.assets|length != 1 %}er{% endif %} übernommen.
-    {%- if report.mirror %} Der Git-Spiegel ließ sich nicht schreiben: {{ report.mirror }}{% endif %}</p>
+  <h1 class="pane-title">{{ t("works.import.heading", title=report.title) }}</h1>
+  <p>{{ t("works.import.taken_over", nodes=report.nodes, images=report.assets|length) }}
+    {%- if report.mirror %} {{ t("works.import.mirror_failed", reason=report.mirror) }}{% endif %}</p>
   {%- if report.skipped %}
   <section class="import-skipped" aria-labelledby="import-skipped-title">
-    <h2 class="pane-title" id="import-skipped-title">Übersprungene Bilder ({{ report.skipped|length }})</h2>
-    <p class="muted small">Der Text nennt sie weiter; auf der Seite „Bilder“ lassen sie sich später mit ihrem Pfad anlegen.</p>
+    <h2 class="pane-title" id="import-skipped-title">{{ t("works.import.skipped", count=report.skipped|length) }}</h2>
+    <p class="muted small">{{ t("works.import.skipped_hint") }}</p>
     <ul class="import-list">
       {%- for s in report.skipped %}
       <li><code>{{ s.path }}</code> – {{ s.reason }}</li>
@@ -30,14 +30,14 @@
   {%- endif %}
   {%- if report.warnings %}
   <section class="import-warnings" aria-labelledby="import-warnings-title">
-    <h2 class="pane-title" id="import-warnings-title">Hinweise ({{ report.warnings|length }})</h2>
+    <h2 class="pane-title" id="import-warnings-title">{{ t("works.import.warnings", count=report.warnings|length) }}</h2>
     <ul class="import-list">
       {%- for w in report.warnings %}
-      <li data-code="{{ w.code }}">{% if w.line %}<span class="import-line">Zeile {{ w.line }}:</span> {% endif %}{{ w.message }} <span class="muted small">({{ w.code }})</span></li>
+      <li data-code="{{ w.code }}">{% if w.line %}<span class="import-line">{{ t("works.import.line", line=w.line) }}</span> {% endif %}{{ w.message }} <span class="muted small">({{ w.code }})</span></li>
       {%- endfor %}
     </ul>
   </section>
   {%- endif %}
-  <p><a class="btn primary" href="{{ work_url|safe }}">Werk öffnen</a></p>
+  <p><a class="btn primary" href="{{ work_url|safe }}">{{ t("works.import.open_work") }}</a></p>
 </main>
 {% endblock %}

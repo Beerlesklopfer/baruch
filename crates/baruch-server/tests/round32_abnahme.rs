@@ -421,7 +421,8 @@ async fn a_throwaway_server_takes_word_gives_word_and_quits_cleanly() {
     assert_eq!(answer.status(), 303, "das Hochladen leitet auf die Vorschau um");
     let preview = location(&answer);
     assert!(preview.starts_with("/werke/import/word?draft="), "Ziel ist die Vorschau des Entwurfs: {preview}");
-    let page = client.get(process.at(&preview)).send().await.unwrap().text().await.unwrap();
+    let page =
+        client.get(process.at(&preview)).header("Accept-Language", "de").send().await.unwrap().text().await.unwrap();
     for shown in ["Ankunft", "Der Deich", "Die Schleuse", "@word:erika-beispiel", "@word:joerg-mueller"] {
         assert!(page.contains(shown), "die Vorschau zeigt Gliederung und Bearbeiter, hier „{shown}“");
     }

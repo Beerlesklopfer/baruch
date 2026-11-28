@@ -332,7 +332,11 @@ async fn the_preview_panel_is_a_finished_fragment_with_summary_and_reader_warnin
     let server = common::open().await;
     let work = server.import_garden().await.work;
     let kindle = profile("kindle").unwrap();
-    let html = baruch_server::epub_check::preview_panel(&server.state, work, &[kindle]).await;
+    let html = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::epub_check::preview_panel(&server.state, work, &[kindle]),
+    )
+    .await;
     assert!(html.contains("EPUB-Prüfung") && html.contains("data-epub-check-summary"), "Zusammenfassung: {html}");
     assert!(html.contains(kindle.name), "der Reader steht im Bericht: {html}");
     assert!(html.contains("Send to Kindle"), "Kindle geht über Send to Kindle (Hinweis je Reader): {html}");

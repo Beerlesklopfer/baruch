@@ -10,17 +10,17 @@
     back (only there): return after „Übernehmen“ as a hidden field; „Vorschau“ then goes to
     /einstellungen/werk instead of this page. -#}
 {% extends "base.html" %}
-{% block title %}Gliederungsschema – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}Gliederungsschema · {{ work.title }}{% endblock %}
+{% block title %}{{ t("works.numbering.window_title", title=work.title) }}{% endblock %}
+{% block page_title %}{{ t("works.numbering.page_title", title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
-    <a class="btn" href="/werke/{{ work.id }}/bearbeiten">Werk ändern</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("works.numbering.see_also") }}</summary><div class="band-items" role="group" aria-label="{{ t("works.numbering.see_also") }}">
+    <a class="btn" href="/werke/{{ work.id }}/bearbeiten">{{ t("works.edit.heading") }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t("works.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -34,61 +34,53 @@
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <h1 class="pane-title">Gliederungsschema von „{{ work.title }}“</h1>
-  <p class="small">Jetzt: <strong>{{ current.scheme_label }}</strong>
-    {%- if current.scheme == "template" %} ({% if current.effective %}Muster „{{ current.effective }}“{% else %}keine Nummern{% endif %}
-    {%- if current.template is none %}, die Vorlage setzt keins – Vorgabe „1.1“{% endif %})
-    {%- elif current.scheme == "custom" %} („{{ current.custom }}“){% endif %}.</p>
-  <p class="muted small">Das Schema gilt für die Gliederung, den Kopf des Editors, den Export, den Satz und den
-    Git-Spiegel (<code>main.typ</code>). Bei „Aus der Werkvorlage“ bleibt die Vorlage im Export unverändert; sonst
-    folgt ihr eine Zeile <code>#set heading(numbering: …)</code>, die gespeicherte Vorlage bleibt, wie sie ist.
-    Teile zählen eigen, Kapitel über Teile hinweg fortlaufend; Punkte ohne Nummer zählen nicht mit und stehen im
-    Export als <code>#heading(…, numbering: none)</code>.</p>
+  <h1 class="pane-title">{{ t("works.numbering.heading", title=work.title) }}</h1>
+  <p class="small">{{ t("works.numbering.now_html", label=current.scheme_label) }}
+    {%- if current.scheme == "template" %} ({% if current.effective %}{{ t("works.numbering.pattern", pattern=current.effective) }}{% else %}{{ t("works.numbering.no_numbers") }}{% endif %}
+    {%- if current.template is none %}{{ t("works.numbering.template_sets_none") }}{% endif %})
+    {%- elif current.scheme == "custom" %} {{ t("works.numbering.custom", pattern=current.custom) }}{% endif %}.</p>
+  <p class="muted small">{{ t("works.numbering.explain_html") }}</p>
   </header>
 
   <form class="numbering-choice" method="post" action="/werke/nummerierung/act">
     <input type="hidden" name="work" value="{{ work.id }}">
     {%- if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
     <fieldset class="scheme-list">
-      <legend class="pane-title">Schema wählen</legend>
+      <legend class="pane-title">{{ t("works.numbering.choose") }}</legend>
       {%- for s in schemes %}
       <div class="scheme-option{% if s.checked %} checked{% endif %}" id="schema-{{ s.id }}">
         <label class="scheme-label">
           <input type="radio" name="scheme" value="{{ s.id }}"{% if s.checked %} checked{% endif %}>
           <span class="scheme-name">{{ s.label }}</span>
-          {%- if s.current %} <span class="badge success">gilt jetzt</span>{% endif %}
+          {%- if s.current %} <span class="badge success">{{ t("works.numbering.in_force") }}</span>{% endif %}
           <span class="muted small scheme-example">{{ s.example }}</span>
         </label>
         {%- if s.id == "custom" %}
-        <label class="small scheme-custom">Eigenes Muster
+        <label class="small scheme-custom">{{ t("works.numbering.custom_label") }}
           <input type="text" name="custom" value="{{ custom }}" placeholder="I.;A.;1.;a)" size="18" spellcheck="false"></label>
-        <p class="muted tiny scheme-hint">Mustersprache: ein Typst-Muster für alle Ebenen („1.1“, „I.1“, „1.a)“),
-          mit „|k“ nur die Ebenen 1 bis k („I|1“ = nur Kapitel römisch) oder je Ebene ein Muster, getrennt durch
-          „;“ („I.;A.;1.;a);aa)“; ein Muster mit einem Zählzeichen zeigt nur die eigene Zahl, ein leeres keine).
-          Zählzeichen: 1, a, A, i, I, *; „aa“ = verdoppelter Buchstabe (aa, bb, cc).</p>
+        <p class="muted tiny scheme-hint">{{ t("works.numbering.custom_hint") }}</p>
         {%- endif %}
         {%- if s.error %}
         <p class="muted tiny scheme-error">{{ s.error }}</p>
         {%- else %}
-        <ol class="scheme-preview" aria-label="Vorschau {{ s.label }}">
+        <ol class="scheme-preview" aria-label="{{ t("works.numbering.preview_of", label=s.label) }}">
           {%- for p in s.preview %}
           <li class="level-{{ p.level }}">{% if p.number %}<span class="num">{{ p.number }}</span>{% endif %}{{ p.title }}</li>
           {%- endfor %}
-          {%- if s.more %}<li class="muted tiny">… und {{ s.more }} weitere</li>{% endif %}
+          {%- if s.more %}<li class="muted tiny">{{ t("works.numbering.more", count=s.more) }}</li>{% endif %}
         </ol>
         {%- endif %}
       </div>
       {%- endfor %}
     </fieldset>
     {%- if rule %}
-    <p class="small">Im Export steht dann hinter der Werkvorlage: <code class="scheme-rule">{{ rule }}</code></p>
+    <p class="small">{{ t("works.numbering.rule") }} <code class="scheme-rule">{{ rule }}</code></p>
     {%- endif %}
     <p class="numbering-buttons">
-      <button class="btn" type="submit" formmethod="get" formaction="{% if back %}/einstellungen/werk{% else %}/werke/{{ work.id }}/nummerierung{% endif %}">Vorschau</button>
-      <button class="btn primary" type="submit">Übernehmen</button>
+      <button class="btn" type="submit" formmethod="get" formaction="{% if back %}/einstellungen/werk{% else %}/werke/{{ work.id }}/nummerierung{% endif %}">{{ t("works.numbering.preview") }}</button>
+      <button class="btn primary" type="submit">{{ t("works.numbering.apply") }}</button>
     </p>
-    <p class="muted tiny">„Vorschau“ zeigt das gewählte Schema und das eigene Muster nur an; erst „Übernehmen“
-      ändert die Nummern (ein Commit im Git-Spiegel).</p>
+    <p class="muted tiny">{{ t("works.numbering.buttons_hint") }}</p>
   </form>
 {%- endblock %}
 </main>

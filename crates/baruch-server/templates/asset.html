@@ -6,15 +6,15 @@
     Round 21c: replacing with the checkbox „Endung anpassen“ (rename): another format gets the new extension, all
     paths stay with the image. -#}
 {% extends "base.html" %}
-{% block title %}{{ asset.name }} – Bilder – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Bild {{ asset.name }}{% endblock %}
+{% block title %}{{ t("assets.one.window_title", name=asset.name) }}{% endblock %}
+{% block page_title %}{{ t("assets.one.page_title", title=work.title, name=asset.name) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/werke/{{ work.id }}/bilder">Alle Bilder</a>
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="/werke/{{ work.id }}/bilder">{{ t("assets.one.all_images") }}</a>
+    <a class="btn" href="/?work={{ work.id }}">{{ t("assets.back_to_work") }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -25,34 +25,34 @@
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
-  <h1 class="pane-title">{{ asset.name }} · Fassung {{ revision.number }}{% if revision.current %} (aktuell){% endif %}</h1>
+  <h1 class="pane-title">{{ t("assets.one.heading", name=asset.name, number=revision.number) }}{% if revision.current %} {{ t("assets.one.current_mark") }}{% endif %}</h1>
   <div class="asset-detail">
     <figure class="asset-preview">
       <img src="{{ revision.file_href }}" alt="{{ revision.alt }}">
       {%- if revision.caption %}<figcaption>{{ revision.caption }}</figcaption>{% endif %}
     </figure>
     <dl class="asset-facts">
-      <dt>Typ</dt><dd>{{ revision.kind }} ({{ revision.mime }}), gespeichert als {% if revision.encoding == "svg" %}SVG-Text{% else %}Base64{% endif %}</dd>
-      <dt>Größe</dt><dd>{{ revision.size }}</dd>
+      <dt>{{ t("assets.kind") }}</dt><dd>{{ revision.kind }} ({{ revision.mime }}), {{ t("assets.one.stored_as") }} {% if revision.encoding == "svg" %}{{ t("assets.one.svg_text") }}{% else %}Base64{% endif %}</dd>
+      <dt>{{ t("assets.size") }}</dt><dd>{{ revision.size }}</dd>
       <dt>SHA-256</dt><dd><code class="small">{{ revision.sha256 }}</code></dd>
-      <dt>Von</dt><dd>{{ revision.author }}, {{ revision.created }}{% if revision.edited %} · geändert {{ revision.edited }}{% endif %}</dd>
-      <dt>Pfade</dt><dd>{% for p in asset.paths %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">keiner</span>{% endfor %}</dd>
-      <dt>Datei</dt><dd><a href="{{ revision.file_href }}">öffnen</a></dd>
+      <dt>{{ t("assets.one.by") }}</dt><dd>{{ revision.author }}, {{ revision.created }}{% if revision.edited %} · {{ t("assets.one.changed", date=revision.edited) }}{% endif %}</dd>
+      <dt>{{ t("assets.paths") }}</dt><dd>{% for p in asset.paths %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">{{ t("assets.no_path") }}</span>{% endfor %}</dd>
+      <dt>{{ t("assets.one.file") }}</dt><dd><a href="{{ revision.file_href }}">{{ t("assets.one.open") }}</a></dd>
       {#- Round 11: cover of the work (the form is served by „cover“, POST /werke/umschlag/act). #}
-      <dt>Umschlag</dt><dd>{% if asset.is_cover %}<span class="badge primary">Umschlag</span>{% else %}<form method="post" action="/werke/umschlag/act"><input type="hidden" name="work" value="{{ work.id }}"><input type="hidden" name="action" value="set"><input type="hidden" name="name" value="{{ asset.name }}"><input type="hidden" name="back" value="/werke/{{ work.id }}/bilder"><button class="btn">Als Umschlag</button></form>{% endif %}</dd>
+      <dt>{{ t("assets.cover") }}</dt><dd>{% if asset.is_cover %}<span class="badge primary">{{ t("assets.cover") }}</span>{% else %}<form method="post" action="/werke/umschlag/act"><input type="hidden" name="work" value="{{ work.id }}"><input type="hidden" name="action" value="set"><input type="hidden" name="name" value="{{ asset.name }}"><input type="hidden" name="back" value="/werke/{{ work.id }}/bilder"><button class="btn">{{ t("assets.as_cover") }}</button></form>{% endif %}</dd>
     </dl>
   </div>
 
   <section class="asset-revisions">
-    <h2 class="pane-title">Fassungen</h2>
+    <h2 class="pane-title">{{ t("assets.one.revisions") }}</h2>
     <ul class="template-list">
     {%- for r in revisions %}
       <li>
-        <a href="{{ r.href }}"{% if r.shown %} aria-current="true"{% endif %}>Fassung {{ r.number }}</a>
-        {%- if r.current %} <strong>aktuell</strong>{% endif %}
+        <a href="{{ r.href }}"{% if r.shown %} aria-current="true"{% endif %}>{{ t("assets.one.revision", number=r.number) }}</a>
+        {%- if r.current %} <strong>{{ t("assets.one.current") }}</strong>{% endif %}
         <span class="muted small">· {{ r.kind }}, {{ r.size }} · {{ r.author }}, {{ r.created }}
-          {%- if r.based_on %} · auf Fassung {{ r.based_on }}{% endif %}
-          {%- if r.edited %} · geändert {{ r.edited }}{% endif %}
+          {%- if r.based_on %} · {{ t("assets.one.based_on", number=r.based_on) }}{% endif %}
+          {%- if r.edited %} · {{ t("assets.one.changed", date=r.edited) }}{% endif %}
           {%- if r.note %} · {{ r.note }}{% endif %}</span>
         {%- if not r.current %}
         <form class="inline-form" action="/werke/bilder/act" method="post">
@@ -60,7 +60,7 @@
           <input type="hidden" name="work" value="{{ work.id }}">
           <input type="hidden" name="name" value="{{ asset.name }}">
           <input type="hidden" name="rev" value="{{ r.number }}">
-          <button class="btn" type="submit">Aktuell machen</button>
+          <button class="btn" type="submit">{{ t("assets.one.make_current") }}</button>
         </form>
         {%- endif %}
       </li>
@@ -69,59 +69,56 @@
   </section>
 
   <form class="work-form" action="/werke/bilder/act" method="post">
-    <h2 class="pane-title">Fassung {{ revision.number }} beschreiben</h2>
+    <h2 class="pane-title">{{ t("assets.one.describe", number=revision.number) }}</h2>
     <input type="hidden" name="action" value="update">
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="name" value="{{ asset.name }}">
     <input type="hidden" name="rev" value="{{ revision.number }}">
     <div class="work-fields">
-      <label>Bildunterschrift <input type="text" name="caption" value="{{ revision.caption }}"></label>
-      <label>Alternativtext <input type="text" name="alt" value="{{ revision.alt }}"></label>
-      <label>Notiz <input type="text" name="note" value="{{ revision.note }}"></label>
-      <label>Pfade des Bilds in Vorlage und Text (einer je Zeile)
+      <label>{{ t("assets.caption") }} <input type="text" name="caption" value="{{ revision.caption }}"></label>
+      <label>{{ t("assets.alt") }} <input type="text" name="alt" value="{{ revision.alt }}"></label>
+      <label>{{ t("assets.note") }} <input type="text" name="note" value="{{ revision.note }}"></label>
+      <label>{{ t("assets.one.paths_field") }}
         <textarea name="paths" rows="3" placeholder="/bilder/{{ asset.name }}">{{ paths_text }}</textarea>
       </label>
     </div>
-    <button class="btn primary" type="submit">Speichern</button>
+    <button class="btn primary" type="submit">{{ t("common.save") }}</button>
   </form>
 
   <form class="work-form" action="/werke/bilder/hochladen" method="post" enctype="multipart/form-data">
-    <h2 class="pane-title">Ersetzen (neue Fassung)</h2>
+    <h2 class="pane-title">{{ t("assets.one.replace") }}</h2>
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="name" value="{{ asset.name }}">
-    <label>Neue Datei ({{ asset.kind }}, höchstens {{ max_mib }} MiB; ein anderes Format nur mit „Endung anpassen“)
+    <label>{{ t("assets.one.new_file", kind=asset.kind, mib=max_mib) }}
       <input type="file" name="file" required>
     </label>
-    <label>Notiz <input type="text" name="note"></label>
-    <label class="check"><input type="checkbox" name="as_base64" value="1"> SVG als Base64 speichern</label>
-    <label class="check"><input type="checkbox" name="rename" value="1"> Endung anpassen, wenn die Datei ein anderes
-      Format hat (z. B. PNG statt SVG: das Bild heißt dann mit neuer Endung, alle Pfade bleiben, der Text bleibt
-      unverändert)</label>
-    <button class="btn" type="submit">Hochladen</button>
-    <p class="muted small">Die neue Fassung wird sofort aktuell; die bisherigen bleiben und lassen sich zurückschalten.</p>
+    <label>{{ t("assets.note") }} <input type="text" name="note"></label>
+    <label class="check"><input type="checkbox" name="as_base64" value="1"> {{ t("assets.one.as_base64") }}</label>
+    <label class="check"><input type="checkbox" name="rename" value="1"> {{ t("assets.one.rename") }}</label>
+    <button class="btn" type="submit">{{ t("assets.upload") }}</button>
+    <p class="muted small">{{ t("assets.one.replace_hint") }}</p>
   </form>
 
   {%- if not revision.current %}
   <form class="work-form" action="/werke/bilder/act" method="post">
-    <h2 class="pane-title">Fassung {{ revision.number }} löschen</h2>
+    <h2 class="pane-title">{{ t("assets.one.delete_revision_heading", number=revision.number) }}</h2>
     <input type="hidden" name="action" value="delete">
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="name" value="{{ asset.name }}">
     <input type="hidden" name="rev" value="{{ revision.number }}">
-    <label class="check"><input type="checkbox" name="confirm" value="1" required> Fassung {{ revision.number }} wirklich löschen</label>
-    <button class="btn danger" type="submit">Fassung löschen</button>
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ t("assets.one.delete_revision_confirm", number=revision.number) }}</label>
+    <button class="btn danger" type="submit">{{ t("assets.one.delete_revision") }}</button>
   </form>
   {%- endif %}
 
   <form class="work-form" action="/werke/bilder/act" method="post">
-    <h2 class="pane-title">Bild löschen</h2>
+    <h2 class="pane-title">{{ t("assets.one.delete_image") }}</h2>
     <input type="hidden" name="action" value="remove">
     <input type="hidden" name="work" value="{{ work.id }}">
     <input type="hidden" name="name" value="{{ asset.name }}">
-    <p class="muted small">Löscht {{ asset.name }} mit allen {{ asset.revisions }} Fassungen und Pfaden. Der Inhalt bleibt im
-      Git-Spiegel lesbar.</p>
-    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ asset.name }} wirklich löschen</label>
-    <button class="btn danger" type="submit">Bild löschen</button>
+    <p class="muted small">{{ t("assets.one.delete_image_hint", name=asset.name, count=asset.revisions) }}</p>
+    <label class="check"><input type="checkbox" name="confirm" value="1" required> {{ t("assets.one.delete_image_confirm", name=asset.name) }}</label>
+    <button class="btn danger" type="submit">{{ t("assets.one.delete_image") }}</button>
   </form>
 </main>
 {% endblock %}

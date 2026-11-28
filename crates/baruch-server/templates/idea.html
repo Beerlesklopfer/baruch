@@ -7,15 +7,15 @@
     Round 34 (mind map): idea.title, idea.parent/parent_href, idea.main_topic, idea.cloud; form „Platz in der
     Mindmap“ (idea.move: below an idea, into the cloud, as a main topic onto the work). -#}
 {% extends "base.html" %}
-{% block title %}Einfall {{ idea.id }} – Baruch{% endblock %}
-{% block page_title %}Einfall {{ idea.id }}{% endblock %}
+{% block title %}{{ t("ideas.idea.window_title", id=idea.id) }}{% endblock %}
+{% block page_title %}{{ t("ideas.idea_number", id=idea.id) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ list_href }}">Alle Einfälle</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t("common.back") }}</summary><div class="band-items" role="group" aria-label="{{ t("common.back") }}">
+    <a class="btn" href="{{ list_href }}">{{ t("ideas.idea.all_ideas") }}</a>
     {%- if idea.work_href %}
-    <a class="btn" href="{{ idea.work_href }}">Zum Werk</a>
+    <a class="btn" href="{{ idea.work_href }}">{{ t("ideas.to_work") }}</a>
     {%- endif %}
   </div></details>
 {% endblock %}
@@ -29,108 +29,108 @@
   {%- endif %}
   <article class="idea-card{% if not idea.open %} done{% endif %}{% if idea.deleted %} deleted{% endif %}" data-origin="{{ idea.origin_kind }}">
     <header class="idea-card-head">
-      <h1 class="pane-title">Einfall {{ idea.id }}{% if idea.title %}: <span class="idea-node-title">{{ idea.title }}</span>{% endif %}</h1>
+      <h1 class="pane-title">{{ t("ideas.idea_number", id=idea.id) }}{% if idea.title %}: <span class="idea-node-title">{{ idea.title }}</span>{% endif %}</h1>
       {%- for w in idea.words %}<span class="badge primary">{{ w }}</span>{% endfor %}
       <span class="grow"></span>
-      {%- if idea.deleted %}<span class="badge warning">gelöscht {{ idea.deleted }}</span>
-      {%- elif idea.open %}<span class="badge warning">offen</span>
-      {%- else %}<span class="badge success">verarbeitet{% if idea.done_label %} als {{ idea.done_label }}{% endif %}{% if idea.done_ref %} ({{ idea.done_ref }}){% endif %}</span>{% endif %}
+      {%- if idea.deleted %}<span class="badge warning">{{ t("ideas.deleted_at", date=idea.deleted) }}</span>
+      {%- elif idea.open %}<span class="badge warning">{{ t("ideas.open") }}</span>
+      {%- else %}<span class="badge success">{{ t("ideas.done") }}{% if idea.done_label %} {{ t("ideas.done_as", label=idea.done_label) }}{% endif %}{% if idea.done_ref %} ({{ idea.done_ref }}){% endif %}</span>{% endif %}
     </header>
     {%- if idea.note %}<p class="idea-note">{{ idea.note }}</p>{% endif %}
     {%- if idea.quote %}<blockquote class="idea-quote">{{ idea.quote }}</blockquote>{% endif %}
     <dl class="idea-facts small">
-      <dt>Werk</dt><dd>{% if idea.work_title %}{{ idea.work_title }}{% else %}ohne Werk{% endif %}</dd>
-      {%- if idea.key is not none %}<dt>Bezug</dt><dd>{% if idea.node_href %}<a href="{{ idea.node_href }}">Abschnitt „{{ idea.node_title }}“</a>{% else %}Abschnitt „{{ idea.node_title }}“{% endif %} (key {{ idea.key }})</dd>{% endif %}
-      {%- if idea.work is not none %}<dt>Mindmap</dt><dd class="idea-place">{% if idea.parent is not none %}Unterknoten von <a href="{{ idea.parent_href }}">Einfall {{ idea.parent }}</a>{% elif idea.key is not none %}am Kapitel des Bezugs{% elif idea.main_topic %}Hauptthema am Werk{% else %}in der Wolke (ohne Platz){% endif %}</dd>{% endif %}
-      {%- if idea.source %}<dt>Quelle</dt><dd>{{ idea.source }}</dd>{% endif %}
-      {%- if idea.bible %}<dt>Bibelstelle</dt><dd>{{ idea.bible }}</dd>{% endif %}
-      <dt>Herkunft</dt><dd>{{ idea.origin }} · {{ idea.created }}</dd>
-      <dt>Geändert</dt><dd>{{ idea.updated }}</dd>
+      <dt>{{ t("ideas.work") }}</dt><dd>{% if idea.work_title %}{{ idea.work_title }}{% else %}{{ t("ideas.without_work") }}{% endif %}</dd>
+      {%- if idea.key is not none %}<dt>{{ t("ideas.reference") }}</dt><dd>{% if idea.node_href %}<a href="{{ idea.node_href }}">{{ t("ideas.section_quoted", title=idea.node_title) }}</a>{% else %}{{ t("ideas.section_quoted", title=idea.node_title) }}{% endif %} (key {{ idea.key }})</dd>{% endif %}
+      {%- if idea.work is not none %}<dt>{{ t("ideas.mindmap") }}</dt><dd class="idea-place">{% if idea.parent is not none %}{{ t("ideas.idea.child_of") }} <a href="{{ idea.parent_href }}">{{ t("ideas.idea_number", id=idea.parent) }}</a>{% elif idea.key is not none %}{{ t("ideas.idea.at_chapter") }}{% elif idea.main_topic %}{{ t("ideas.idea.main_topic") }}{% else %}{{ t("ideas.idea.in_cloud") }}{% endif %}</dd>{% endif %}
+      {%- if idea.source %}<dt>{{ t("ideas.source") }}</dt><dd>{{ idea.source }}</dd>{% endif %}
+      {%- if idea.bible %}<dt>{{ t("ideas.bible") }}</dt><dd>{{ idea.bible }}</dd>{% endif %}
+      <dt>{{ t("ideas.idea.origin") }}</dt><dd>{{ idea.origin }} · {{ idea.created }}</dd>
+      <dt>{{ t("ideas.idea.changed") }}</dt><dd>{{ idea.updated }}</dd>
     </dl>
   </article>
 
   {#- Round 25: links to other ideas; „Lösen“ goes to the form of the idea map of the work
       (restorable, the map then offers „Wiederherstellen“). #}
-  <section class="work-form idea-links" aria-label="Verbindungen">
-    <h2 class="pane-title">Verbindungen</h2>
+  <section class="work-form idea-links" aria-label="{{ t("ideas.idea.links") }}">
+    <h2 class="pane-title">{{ t("ideas.idea.links") }}</h2>
     {%- if links %}
     <ul class="idea-link-list">
       {%- for l in links %}
-      <li class="idea-link idea-link-{{ l.kind }}">{{ l.arrow }} <a href="{{ l.other_href }}">Einfall {{ l.other }}</a>{% if l.other_words %} ({{ l.other_words }}){% endif %} <strong>{{ l.kind_label }}</strong>{% if l.note %} – „{{ l.note }}“{% endif %}
+      <li class="idea-link idea-link-{{ l.kind }}">{{ l.arrow }} <a href="{{ l.other_href }}">{{ t("ideas.idea_number", id=l.other) }}</a>{% if l.other_words %} ({{ l.other_words }}){% endif %} <strong>{{ l.kind_label }}</strong>{% if l.note %} {{ t("ideas.idea.link_note", note=l.note) }}{% endif %}
         {%- if map_act %}
         <form class="idea-link-form" method="post" action="{{ map_act }}">
           <input type="hidden" name="method" value="idea.unlink">
           <input type="hidden" name="id" value="{{ l.id }}">
-          <button class="btn" type="submit" title="Verbindung lösen (wiederherstellbar)">Lösen</button>
+          <button class="btn" type="submit" title="{{ t("ideas.idea.unlink_hint") }}">{{ t("ideas.idea.unlink") }}</button>
         </form>
         {%- endif %}
       </li>
       {%- endfor %}
     </ul>
     {%- else %}
-    <p class="muted small">Keine Verbindungen.</p>
+    <p class="muted small">{{ t("ideas.idea.no_links") }}</p>
     {%- endif %}
-    {%- if map_href %}<p class="small"><a class="idea-map-link" href="{{ map_href }}">In der Mindmap verbinden …</a></p>{% endif %}
+    {%- if map_href %}<p class="small"><a class="idea-map-link" href="{{ map_href }}">{{ t("ideas.idea.link_in_map") }}</a></p>{% endif %}
   </section>
 
   {%- if idea.deleted %}
   <form class="work-form" method="post" action="/einfaelle/act">
     <input type="hidden" name="method" value="idea.restore">
     <input type="hidden" name="id" value="{{ idea.id }}">
-    <p>Der Einfall ist gelöscht. Wiederherstellen bringt ihn zurück in Liste, Suche und Spiegel.</p>
-    <button class="btn primary" type="submit">Wiederherstellen</button>
+    <p>{{ t("ideas.idea.deleted_hint") }}</p>
+    <button class="btn primary" type="submit">{{ t("ideas.restore") }}</button>
   </form>
   {%- else %}
   <form class="work-form" method="post" action="/einfaelle/act">
-    <h2 class="pane-title">Bearbeiten</h2>
+    <h2 class="pane-title">{{ t("ideas.idea.edit") }}</h2>
     <input type="hidden" name="method" value="idea.update">
     <input type="hidden" name="id" value="{{ idea.id }}">
     <div class="work-fields">
-      <label>Titel (Knoten der Mindmap) <input type="text" name="title" maxlength="200" value="{{ idea.title }}"></label>
-      <label>Schlagwörter (durch Komma getrennt; Titel oder Schlagwort ist Pflicht) <input type="text" name="words" value="{{ idea.words_text }}"></label>
-      <label>Werk
+      <label>{{ t("ideas.list.new_title") }} <input type="text" name="title" maxlength="200" value="{{ idea.title }}"></label>
+      <label>{{ t("ideas.list.new_words") }} <input type="text" name="words" value="{{ idea.words_text }}"></label>
+      <label>{{ t("ideas.work") }}
         <select name="work">
-          <option value="none"{% if idea.work is none %} selected{% endif %}>ohne Werk</option>
+          <option value="none"{% if idea.work is none %} selected{% endif %}>{{ t("ideas.without_work") }}</option>
           {%- for w in works %}
           <option value="{{ w.id }}"{% if w.selected %} selected{% endif %}>{{ w.title }}</option>
           {%- endfor %}
         </select></label>
-      <label>Bezug
+      <label>{{ t("ideas.reference") }}
         <select name="key">
-          <option value=""{% if idea.key is none %} selected{% endif %}>ohne Abschnitt</option>
+          <option value=""{% if idea.key is none %} selected{% endif %}>{{ t("ideas.idea.without_section") }}</option>
           {%- for n in nodes %}
           <option value="{{ n.key }}"{% if n.selected %} selected{% endif %}>{{ n.label }}</option>
           {%- endfor %}
         </select></label>
-      <label>Status
+      <label>{{ t("ideas.list.status") }}
         <select name="status">
-          <option value="open"{% if idea.open %} selected{% endif %}>offen</option>
-          <option value="done"{% if not idea.open %} selected{% endif %}>verarbeitet</option>
+          <option value="open"{% if idea.open %} selected{% endif %}>{{ t("ideas.open") }}</option>
+          <option value="done"{% if not idea.open %} selected{% endif %}>{{ t("ideas.done") }}</option>
         </select></label>
-      <label>Quelle <input type="text" name="source" maxlength="200" value="{{ idea.source }}"></label>
-      <label>Bibelstelle <input type="text" name="bible" maxlength="200" value="{{ idea.bible }}"></label>
+      <label>{{ t("ideas.source") }} <input type="text" name="source" maxlength="200" value="{{ idea.source }}"></label>
+      <label>{{ t("ideas.bible") }} <input type="text" name="bible" maxlength="200" value="{{ idea.bible }}"></label>
     </div>
-    <label>Gedanke <textarea name="note" rows="4" maxlength="4000">{{ idea.note }}</textarea></label>
-    <label>Markierter Text <textarea name="quote" rows="3" maxlength="4000">{{ idea.quote }}</textarea></label>
-    <button class="btn primary" type="submit">Speichern</button>
+    <label>{{ t("ideas.thought") }} <textarea name="note" rows="4" maxlength="4000">{{ idea.note }}</textarea></label>
+    <label>{{ t("ideas.quote") }} <textarea name="quote" rows="3" maxlength="4000">{{ idea.quote }}</textarea></label>
+    <button class="btn primary" type="submit">{{ t("common.save") }}</button>
   </form>
 
   {#- Round 34: place in the mind map, without JavaScript (idea.move). The sub-nodes move along. #}
   {%- if idea.work is not none %}
-  <section class="work-form idea-place-forms" aria-label="Platz in der Mindmap">
-    <h2 class="pane-title">Platz in der Mindmap</h2>
+  <section class="work-form idea-place-forms" aria-label="{{ t("ideas.idea.place") }}">
+    <h2 class="pane-title">{{ t("ideas.idea.place") }}</h2>
     <form class="idea-place-form" method="post" action="/einfaelle/act">
       <input type="hidden" name="method" value="idea.move">
       <input type="hidden" name="id" value="{{ idea.id }}">
-      <label>In die Mindmap unter Einfall Nr. <input type="number" name="parent" min="1" required{% if idea.parent is not none %} value="{{ idea.parent }}"{% endif %}></label>
-      <button class="btn" type="submit">Einhängen</button>
+      <label>{{ t("ideas.idea.under_number") }} <input type="number" name="parent" min="1" required{% if idea.parent is not none %} value="{{ idea.parent }}"{% endif %}></label>
+      <button class="btn" type="submit">{{ t("ideas.idea.hang_in") }}</button>
     </form>
     {%- if not idea.cloud %}
     <form class="idea-place-form" method="post" action="/einfaelle/act">
       <input type="hidden" name="method" value="idea.move">
       <input type="hidden" name="id" value="{{ idea.id }}">
       <input type="hidden" name="cloud" value="1">
-      <button class="btn" type="submit" title="Löst Elternknoten und Bezug; die Unterknoten bleiben am Einfall">In die Wolke legen</button>
+      <button class="btn" type="submit" title="{{ t("ideas.idea.to_cloud_hint") }}">{{ t("ideas.idea.to_cloud") }}</button>
     </form>
     {%- endif %}
     {%- if idea.cloud or idea.parent is not none %}
@@ -140,27 +140,27 @@
       <input type="hidden" name="parent" value="none">
       <input type="hidden" name="key" value="none">
       <input type="hidden" name="cloud" value="0">
-      <button class="btn" type="submit">Als Hauptthema ans Werk</button>
+      <button class="btn" type="submit">{{ t("ideas.idea.to_main_topic") }}</button>
     </form>
     {%- endif %}
-    <p class="muted small">Ohne Platz liegt ein Einfall in der Wolke neben der Mindmap. Einhängen, Lösen und Ordnen geht auch in der Mindmap selbst.</p>
+    <p class="muted small">{{ t("ideas.idea.place_hint") }}</p>
   </section>
   {%- endif %}
 
   <form class="work-form" method="post" action="/einfaelle/act">
-    <h2 class="pane-title">Verarbeiten</h2>
+    <h2 class="pane-title">{{ t("ideas.idea.process") }}</h2>
     <input type="hidden" name="method" value="idea.process">
     <input type="hidden" name="id" value="{{ idea.id }}">
     <fieldset class="idea-uses">
-      <legend class="small">Daraus wird</legend>
-      <label><input type="radio" name="as" value="outline" checked> ein neuer Gliederungspunkt</label>
-      <label><input type="radio" name="as" value="post"> ein Beitrag im Abschnitts-Chat</label>
-      <label><input type="radio" name="as" value="note"> eine Notiz am Abschnitt</label>
-      <label><input type="radio" name="as" value="persona"> ein Auftrag an eine Persona <span class="muted small">(ihre Antwort wird ein Beitrag im Abschnitts-Chat)</span></label>
+      <legend class="small">{{ t("ideas.idea.becomes") }}</legend>
+      <label><input type="radio" name="as" value="outline" checked> {{ t("ideas.idea.as_outline") }}</label>
+      <label><input type="radio" name="as" value="post"> {{ t("ideas.idea.as_post") }}</label>
+      <label><input type="radio" name="as" value="note"> {{ t("ideas.idea.as_note") }}</label>
+      <label><input type="radio" name="as" value="persona"> {{ t("ideas.idea.as_persona") }} <span class="muted small">{{ t("ideas.idea.as_persona_hint") }}</span></label>
     </fieldset>
     {%- if personas %}
     {#- Round 15: persona for the job (without JavaScript; default the lector of the work). #}
-    <label>Persona für den Auftrag
+    <label>{{ t("ideas.idea.persona") }}
       <select name="persona">
         {%- for p in personas %}
         <option value="{{ p.handle }}"{% if p.selected %} selected{% endif %}>{{ p.name }} ({{ p.handle }})</option>
@@ -169,33 +169,32 @@
     {%- endif %}
     {%- if nodes %}
     <div class="work-fields">
-      <label>Abschnitt (Ziel bzw. Ort des Beitrags)
+      <label>{{ t("ideas.idea.target_section") }}
         <select name="key">
           {%- for n in nodes %}
           <option value="{{ n.key }}"{% if n.selected %} selected{% endif %}>{{ n.label }}</option>
           {%- endfor %}
         </select></label>
-      <label>Neuer Punkt
+      <label>{{ t("ideas.idea.new_item") }}
         <select name="place">
-          <option value="after" selected>dahinter</option>
-          <option value="before">davor</option>
-          <option value="into">darunter</option>
+          <option value="after" selected>{{ t("ideas.idea.after") }}</option>
+          <option value="before">{{ t("ideas.idea.before") }}</option>
+          <option value="into">{{ t("ideas.idea.into") }}</option>
         </select></label>
-      <label>Titel des neuen Punkts <input type="text" name="title" maxlength="200" value="{{ title_default }}"></label>
+      <label>{{ t("ideas.idea.new_item_title") }} <input type="text" name="title" maxlength="200" value="{{ title_default }}"></label>
     </div>
-    <button class="btn primary" type="submit">Verarbeiten</button>
+    <button class="btn primary" type="submit">{{ t("ideas.idea.process") }}</button>
     {%- else %}
-    <p class="muted small">Ein Einfall ohne Werk lässt sich erst verarbeiten, wenn er einem Werk zugeordnet ist.</p>
+    <p class="muted small">{{ t("ideas.idea.needs_work") }}</p>
     {%- endif %}
   </form>
 
   <form class="work-form" method="post" action="/einfaelle/act">
-    <h2 class="pane-title">Löschen</h2>
+    <h2 class="pane-title">{{ t("common.delete") }}</h2>
     <input type="hidden" name="method" value="idea.delete">
     <input type="hidden" name="id" value="{{ idea.id }}">
-    <label class="inline"><input type="checkbox" name="confirm" value="1" required> Ja, diesen Einfall löschen
-      (wiederherstellbar unter „Gelöschte“ und über den Git-Spiegel)</label>
-    <button class="btn danger" type="submit">Löschen</button>
+    <label class="inline"><input type="checkbox" name="confirm" value="1" required> {{ t("ideas.idea.delete_confirm") }}</label>
+    <button class="btn danger" type="submit">{{ t("common.delete") }}</button>
   </form>
   {%- endif %}
 </main>

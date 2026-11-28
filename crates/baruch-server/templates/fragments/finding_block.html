@@ -13,14 +13,14 @@
 {%- set c = card %}
 <div class="fb fb-kind-{{ c.kind }} fb-{{ c.status }}" data-finding="{{ c.id }}" data-status="{{ c.status }}">
   <div class="fb-head small">
-    <span class="fb-kind" title="Art: {{ c.kind_label }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
-    <a class="fd-ref" href="{{ c.url }}" title="Befund {{ c.id }} einzeln">{{ c.ref }}</a>
-    <span class="fb-status badge" title="Status: {{ c.status_label }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
+    <span class="fb-kind" title="{{ t("findings.card.kind_is", label=c.kind_label) }}"><span aria-hidden="true">{{ c.kind_sign }}</span> {{ c.kind_label }}</span>
+    <a class="fd-ref" href="{{ c.url }}" title="{{ t("findings.card.single", id=c.id) }}">{{ c.ref }}</a>
+    <span class="fb-status badge" title="{{ t("findings.card.status_is", label=c.status_label) }}"><span aria-hidden="true">{{ c.status_sign }}</span> {{ c.status_words }}</span>
   </div>
   <div class="fb-body">{% if body is not none %}{{ body | safe }}{% else %}{{ c.body_html | safe }}{% endif %}</div>
   {%- if c.quote_check %}<p class="fb-check tiny muted">{{ c.quote_check }}</p>{% endif %}
   {%- if c.solution_views %}
-  <form class="fb-solutions" method="post" action="/loesungen/act" aria-label="Lösungen zu Befund {{ c.ref }}">
+  <form class="fb-solutions" method="post" action="/loesungen/act" aria-label="{{ t("findings.card.solutions_label", ref=c.ref) }}">
     <input type="hidden" name="method" value="solution.adopt">
     <input type="hidden" name="work" value="{{ c.work }}">
     <input type="hidden" name="key" value="{{ c.key }}">
@@ -30,62 +30,62 @@
       {%- for s in c.solution_views %}
       <li class="sol-item{% if s.adoptable %} adoptable{% endif %}">
         {%- if s.adoptable %}<label><input type="checkbox" name="picks" value="{{ s.index }}"{% if loop.length == 1 %} checked{% endif %}> {% endif %}
-        {%- if s.replacement %}<span class="sol-instead">statt „{{ s.quote }}“</span> <span class="sol-better">besser „{{ s.replacement }}“</span>
-        {%- else %}<span class="sol-step">Schritt: {{ s.step }}</span>{% if s.quote %} <span class="muted">(bei „{{ s.quote }}“)</span>{% endif %}{% endif %}
+        {%- if s.replacement %}<span class="sol-instead">{{ t("findings.card.instead", quote=s.quote) }}</span> <span class="sol-better">{{ t("findings.card.better", replacement=s.replacement) }}</span>
+        {%- else %}<span class="sol-step">{{ t("findings.card.step", step=s.step) }}</span>{% if s.quote %} <span class="muted">{{ t("findings.card.at_quote", quote=s.quote) }}</span>{% endif %}{% endif %}
         {%- if s.adoptable %}</label>{% endif %}
       </li>
       {%- endfor %}
     </ul>
-    {%- if c.adoptable and c.key is not none %}<button class="btn small primary" type="submit">Als Vorschlag übernehmen</button>{% endif %}
+    {%- if c.adoptable and c.key is not none %}<button class="btn small primary" type="submit">{{ t("findings.card.adopt_as_proposal") }}</button>{% endif %}
   </form>
   {%- elif c.kind == "critical" %}
-  <p class="fb-nosolution tiny muted">ohne Lösungsvorschlag</p>
+  <p class="fb-nosolution tiny muted">{{ t("findings.card.no_solution") }}</p>
   {%- endif %}
   {%- if c.pending_json and c.pending_json.question %}
   {#- Round 22: query of the persona about a finished finding (finding.decide, only the human). With JavaScript
       the widget „findings“ sends the forms through RPC (without reloading), without JavaScript they go to
       /werke/befunde/act. #}
-  <div class="fb-question small" data-widget="findings" data-finding-question role="group" aria-label="Rückfrage zu Befund {{ c.ref }}">
-    <p><span class="badge primary">Rückfrage</span> {{ c.pending_json.actor_label }}: <strong>{% if c.pending_json.note %}{{ c.pending_json.note }}{% else %}Befund {{ c.id }} scheint erledigt – als erledigt markieren?{% endif %}</strong></p>
+  <div class="fb-question small" data-widget="findings" data-finding-question role="group" aria-label="{{ t("findings.card.question_label", ref=c.ref) }}">
+    <p><span class="badge primary">{{ t("findings.card.question") }}</span> {{ c.pending_json.actor_label }}: <strong>{% if c.pending_json.note %}{{ c.pending_json.note }}{% else %}{{ t("findings.card.question_default", id=c.id) }}{% endif %}</strong></p>
     <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
       <input type="hidden" name="method" value="finding.decide"><input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="entry" value="{{ c.pending_json.id }}">
       <input type="hidden" name="confirm" value="1">{% if c.back %}<input type="hidden" name="back" value="{{ c.back }}">{% endif %}
-      <button class="btn small success" type="submit">Ja, erledigt</button>
+      <button class="btn small success" type="submit">{{ t("findings.card.yes_done") }}</button>
     </form>
     <form class="fd-inline" method="post" action="/werke/befunde/act" data-finding-form>
       <input type="hidden" name="method" value="finding.decide"><input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="entry" value="{{ c.pending_json.id }}">
       <input type="hidden" name="confirm" value="0">{% if c.back %}<input type="hidden" name="back" value="{{ c.back }}">{% endif %}
-      <button class="btn small" type="submit">Nein, noch offen</button>
+      <button class="btn small" type="submit">{{ t("findings.card.no_open") }}</button>
     </form>
   </div>
   {%- endif %}
   {%- if c.status == "open" and c.key is not none %}
   <details class="fb-actions small">
-    <summary>Status setzen …</summary>
+    <summary>{{ t("findings.card.set_status") }}</summary>
     {%- for r in c.revisions %}{% if r.current %}
-    <form class="fd-inline" method="post" action="/werke/befunde/act" aria-label="Befund {{ c.ref }} übernommen">
+    <form class="fd-inline" method="post" action="/werke/befunde/act" aria-label="{{ t("findings.card.adopted_label", ref=c.ref) }}">
       <input type="hidden" name="method" value="finding.set_status"><input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="status" value="adopted">
       <input type="hidden" name="rev" value="{{ r.number }}">{% if c.back %}<input type="hidden" name="back" value="{{ c.back }}">{% endif %}
-      <button class="btn small success" type="submit">✓ übernommen in Fassung {{ r.number }}</button>
+      <button class="btn small success" type="submit">{{ t("findings.block.adopted_in_rev", number=r.number) }}</button>
     </form>
     {%- endif %}{% endfor %}
-    <form class="fd-inline" method="post" action="/werke/befunde/act" aria-label="Befund {{ c.ref }} erledigt">
+    <form class="fd-inline" method="post" action="/werke/befunde/act" aria-label="{{ t("findings.card.done_label", ref=c.ref) }}">
       <input type="hidden" name="method" value="finding.set_status"><input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="status" value="done">
       {%- if c.back %}<input type="hidden" name="back" value="{{ c.back }}">{% endif %}
-      <button class="btn small" type="submit">= erledigt</button>
+      <button class="btn small" type="submit">{{ t("findings.block.done") }}</button>
     </form>
-    <form class="fd-form" method="post" action="/werke/befunde/act" aria-label="Befund {{ c.ref }} verwerfen">
+    <form class="fd-form" method="post" action="/werke/befunde/act" aria-label="{{ t("findings.card.reject_label", ref=c.ref) }}">
       <input type="hidden" name="method" value="finding.set_status"><input type="hidden" name="work" value="{{ c.work }}">
       <input type="hidden" name="id" value="{{ c.id }}"><input type="hidden" name="status" value="rejected">
       {%- if c.back %}<input type="hidden" name="back" value="{{ c.back }}">{% endif %}
-      <label class="small">✗ verworfen, weil <input type="text" name="reason" maxlength="2000" required></label>
-      <button class="btn small" type="submit">Verwerfen</button>
+      <label class="small">{{ t("findings.block.rejected_because") }} <input type="text" name="reason" maxlength="2000" required></label>
+      <button class="btn small" type="submit">{{ t("findings.card.reject") }}</button>
     </form>
-    <a class="tiny" href="{{ c.url }}">weitere Möglichkeiten (verschieben …)</a>
+    <a class="tiny" href="{{ c.url }}">{{ t("findings.block.more") }}</a>
   </details>
   {%- endif %}
 </div>

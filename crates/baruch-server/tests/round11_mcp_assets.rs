@@ -409,7 +409,12 @@ async fn the_panel_lists_open_requests_with_forms_and_decided_ones_with_reason()
     let rejected =
         server.rpc("asset.request_decide", json!({ "work": work, "id": closed, "decision": "reject" })).await;
     assert!(rejected["result"].is_object(), "{rejected}");
-    let html = baruch_server::asset_requests::panel(&server.state, work).await.unwrap();
+    let html = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::asset_requests::panel(&server.state, work),
+    )
+    .await
+    .unwrap();
     assert!(html.contains("id=\"antraege\""), "Abschnitt #antraege für die Seite „Bilder“");
     assert!(html.contains("(1 offen)"), "Zahl der offenen: {html}");
     assert!(html.contains(&format!("id=\"bildantrag-{open}\"")), "offener Antrag mit Anker");
