@@ -3043,2224 +3043,2260 @@ Seite, Kopfzeile in schmalen Fenstern und die Kanten der Gedankenkarte.
 
 <!-- R38c split: architektur_1 above, architektur_2 below -->
 
-## Runde 18b – Konstrukte
+## Round 18b – Constructs
 
-**Satzbild (`crates/baruch-wysiwyg`):** Neue Blockarten `Enum` (Aufzählung `1.`, `start`) und `Terms` (Begriffsliste,
-`Term {term, desc}`), `List`/`Enum` mit `depths` (Tiefe je Punkt, geschachtelt; `#[serde(default)]`, ohne Schachtelung
-nicht geschrieben – alte JSON bleibt gültig); neue Inlines `Linebreak`, `Link {url, c?}`, `Ref {target,
-supplement?}`. Das Zerlegen in Stücke (`parse.rs`) kennt Zeilenarten für Aufzählung und Begriff; ein Listen-Stück
-umfasst eingerückte Punkte und Folgezeilen, `list()` bestimmt die Tiefe über einen Stapel der Zeichenspalten und
-lehnt Unsicheres ab (Insel). `scan::skip_escape` behandelt `\` vor Leerraum als Umbruch (ein Zeichen), damit ein
-Zeilenende dahinter die logische Zeile beendet. `emit.rs` schreibt kanonisch (zwei Leerzeichen je Ebene, fortlaufende
-Nummern, `\:` im Begriff, `#ref(<…>)` vor Zeichen des Ziels, `\ ` vor schließenden Zeichen). `Edit::Raw {replaces,
-raw}` ersetzt den Quelltext eines Blocks wörtlich (im Rumpf mit dessen Einzug), `WysiwygError::NewPart` verbietet
-neue oder umgewandelte Teile. `image_paths` liefert alle Bildpfade einer Insel; `html.rs` zeigt alle. Eingefroren
-blieben `render_block`/`escape` (genutzt von `align.rs`) und die `pub use`-Zeilen von `style`/`align`.
+**Typeset view (`crates/baruch-wysiwyg`):** New block kinds `Enum` (numbered list `1.`, `start`) and `Terms` (term
+list, `Term {term, desc}`), `List`/`Enum` with `depths` (depth per item, nested; `#[serde(default)]`, not written
+without nesting – old JSON stays valid); new inlines `Linebreak`, `Link {url, c?}`, `Ref {target, supplement?}`.
+Splitting into pieces (`parse.rs`) knows line kinds for numbered items and terms; a list piece covers indented items
+and continuation lines, `list()` determines the depth with a stack of character columns and refuses anything
+uncertain (island). `scan::skip_escape` treats `\` before whitespace as a line break (one character), so that a line
+end after it ends the logical line. `emit.rs` writes canonically (two spaces per level, consecutive numbers, `\:` in
+the term, `#ref(<…>)` before characters of the target, `\ ` before closing characters). `Edit::Raw {replaces, raw}`
+replaces the source of a block literally (in the body with its indentation), `WysiwygError::NewPart` forbids new or
+converted parts. `image_paths` returns all image paths of an island; `html.rs` shows all of them. Frozen were
+`render_block`/`escape` (used by `align.rs`) and the `pub use` lines of `style`/`align`.
 
-**Server:** `wysiwyg::image_ref` nimmt die Normalform ohne führendes `/`; `rpc.rs` (`revision.update`) wandelt
-Markdown-Überschriften um wie `revision.save`. Der Teil-Block im Kapiteltext ist festgelegt (siehe
-`docs/WYSIWYG.md` „Teile und ohne Nummer“): Satzbild lehnt ab, `outline.save` nur nach Bestätigung (`split`).
+**Server:** `wysiwyg::image_ref` takes the normal form without a leading `/`; `rpc.rs` (`revision.update`) converts
+Markdown headings like `revision.save`. The part block in the chapter text is fixed (see `docs/WYSIWYG.md` „Teile
+und ohne Nummer“): the typeset view refuses, `outline.save` only after confirmation (`split`).
 
-**Widget (`web/src/wysiwyg.ts`):** liest und schreibt die neuen Konstrukte (verschachtelte `<ul>/<ol>`, `<dl>`,
-`span.ws-linebreak`, `a.ws-link`, `button.ws-ref`), öffnet Inseln per Doppelklick an Ort und Stelle (`editIsland`,
-`data-edited` → `{replaces, raw}`), führt `baruch:ws-command` aus (`runCommand`, merkt die letzte Auswahl im Satzbild)
-und beantwortet `baruch:ws-caret` (`caretPlace`: zwei `wysiwyg.serialize`, Text und Präfix bis zum Block am Cursor).
-`guardHeadingMerge` überspringt `.pv` (`blockNeighbour`), `applyStyle` übernimmt ein vorhandenes
-`style#ws-style[data-work=W]` ohne RPC. `ws_command.ts` ist unverändert.
+**Widget (`web/src/wysiwyg.ts`):** reads and writes the new constructs (nested `<ul>/<ol>`, `<dl>`,
+`span.ws-linebreak`, `a.ws-link`, `button.ws-ref`), opens islands in place by double click (`editIsland`,
+`data-edited` → `{replaces, raw}`), runs `baruch:ws-command` (`runCommand`, remembers the last selection in the
+typeset view) and answers `baruch:ws-caret` (`caretPlace`: two `wysiwyg.serialize`, text and prefix up to the block
+at the cursor). `guardHeadingMerge` skips `.pv` (`blockNeighbour`), `applyStyle` takes over an existing
+`style#ws-style[data-work=W]` without RPC. `ws_command.ts` is unchanged.
 
-**Lektor-Reste (`src/assist`):**
-- Ausgelassene Teile: `context::Frame::environment` schreibt aufeinanderfolgende ausgelassene Teile in **eine** Zeile
-  (`--- nicht mitgegeben (…): A; B; C ---`, `context::OMITTED_HEAD`). Die Planung zählt dafür je Folge einmal
-  `chunk::OMITTED_OVERHEAD` (100) und je weiterem Teil nur Titel + `chunk::OMITTED_ITEM` (2), ebenso die Untergrenze
-  `floor_violation`. Folge: Ein Kapitel mit 10 Abschnitten zu je 3000 Zeichen passt bei 4096 Tokens jetzt gestückelt
-  (gemessen: kein Aufruf über dem Budget, `round18_lektor.rs`), wo Baruch vorher ehrlich ablehnte.
-- Zwischenspeicher der Zusammenfassungen: `assist::summary_cache()` (prozessweit, `VecDeque`, höchstens
-  `SUMMARY_CACHE_MAX` = 256 Einträge, älteste fallen heraus, keine Migration). Schlüssel: Datenordner, Modell und
-  SHA-256 über den ganzen Aufruf (Regel samt Wortgrenze, Werktitel, Bezeichnung des Teils, Text, `max_tokens`) – also
-  „Modell + Text“ und alles, was die Antwort sonst ändert. Leere Antworten und Fehler werden nicht gespeichert.
-- „An Persona geben“ auf `/quelle/multigpt`: Formular `action=persona` an `/literatur/act` (wie die Bibelseite),
-  vorbelegt mit dem Text des gezeigten Teils (höchstens 4000 Zeichen), Quelle „MultiGPT: Titel (Dokument …)“, ohne
-  Titel der Bibliothek; ohne Abschnitt nur ein Hinweis.
-- Retry im Strom: neues Ereignis `piece {persona, index, count}` vor jedem weiteren Stück eines gestückelten Auftrags
-  (nach dem trennenden Delta, `Progress::Piece`); `assist.ts` beginnt dort einen neuen Teil des vorläufigen Beitrags,
-  `retry` leert nur diesen. Der Endtext kam schon vorher mit `done` richtig.
+**Lector leftovers (`src/assist`):**
+- Omitted parts: `context::Frame::environment` writes consecutive omitted parts in **one** line
+  (`--- nicht mitgegeben (…): A; B; C ---`, `context::OMITTED_HEAD`). The planning counts
+  `chunk::OMITTED_OVERHEAD` (100) once per run for this and only title + `chunk::OMITTED_ITEM` (2) for each further
+  part, and so does the lower bound `floor_violation`. Consequence: a chapter with 10 sections of 3000 characters each
+  now fits in pieces at 4096 tokens (measured: no call above the budget, `round18_lektor.rs`), where Baruch honestly
+  refused before.
+- Cache of the summaries: `assist::summary_cache()` (process-wide, `VecDeque`, at most `SUMMARY_CACHE_MAX` = 256
+  entries, the oldest drop out, no migration). Key: data folder, model and SHA-256 over the whole call (rule including
+  the word limit, work title, name of the part, text, `max_tokens`) – that is "model + text" and everything else that
+  changes the answer. Empty answers and errors are not stored.
+- „An Persona geben“ on `/quelle/multigpt`: form `action=persona` to `/literatur/act` (like the Bible page),
+  prefilled with the text of the shown part (at most 4000 characters), source „MultiGPT: Titel (Dokument …)“, without
+  the title of the library; without a section only a hint.
+- Retry in the stream: new event `piece {persona, index, count}` before each further piece of a job in pieces (after
+  the separating delta, `Progress::Piece`); `assist.ts` starts a new part of the provisional post there, `retry`
+  empties only that one. The final text already arrived correctly with `done` before.
 
-## Runde 18c – Satzbild je Werk
+## Round 18c – Typeset view per work
 
-- **Store** (`crates/baruch-store/src/sheet.rs`, Migration `0044_work_sheet.sql`): Tabelle `work_sheet` (eine Zeile je
-  Werk, `ON DELETE CASCADE`, CHECK auf Längen bzw. `#`+6 Zeichen; neue Tabelle, kein Umbau, darum nicht in
+- **Store** (`crates/baruch-store/src/sheet.rs`, migration `0044_work_sheet.sql`): table `work_sheet` (one row per
+  work, `ON DELETE CASCADE`, CHECK on lengths or `#`+6 characters; a new table, no rebuild, hence not in
   `FOREIGN_KEYS_OFF`), `SheetSettings` (`font`, `heading_font`, `size`, `fill`, `heading_fill`, `background`,
-  `width`; `None` = aus der Vorlage), `Store::sheet_settings` (ohne Zeile leer) und `set_sheet_settings` (ganze Zeile,
-  alles leer löscht sie). Geprüft wird vor dem Schreiben (`SheetSettings::normalized`): Schriftlisten höchstens
-  `MAX_SHEET_FONT_CHARS` = 200 Zeichen aus Namen mit Buchstaben, Ziffern, Leerzeichen, `- _ .` (auch paarig in
-  Anführungszeichen) – nie `< > ; { } \` oder Steuerzeichen; Längen `pt|mm|cm|em` (Größe 6–48 pt, Breite 6–60 cm,
-  `em` = 12 pt); Farben `#rrggbb`. Kein Spiegel, keine uuid, nicht im Austauschformat (Rest). Tests
+  `width`; `None` = from the template), `Store::sheet_settings` (empty without a row) and `set_sheet_settings` (whole
+  row, all empty deletes it). Checked before writing (`SheetSettings::normalized`): font lists at most
+  `MAX_SHEET_FONT_CHARS` = 200 characters of names with letters, digits, spaces, `- _ .` (also paired in quotation
+  marks) – never `< > ; { } \` or control characters; lengths `pt|mm|cm|em` (size 6–48 pt, width 6–60 cm,
+  `em` = 12 pt); colours `#rrggbb`. No mirror, no uuid, not in the exchange format (leftover). Tests
   `tests/{sheet,migration_0044}.rs`.
-- **Darstellung** (`baruch-wysiwyg/src/style.rs`): `SheetStyle.background` (neu; nie aus der Vorlage) →
-  `--ws-background`; `sheet_style_over(vorlage, einstellungen)`; `safe` lässt seit 18c `_` zu und nur paarige
-  Anführungszeichen. Server `src/sheet.rs`: `sheet_style_for` = `sheet_style_over(sheet_style(work_template),
-  einstellungen)` für `wysiwyg.style`, `view.rs` (`ViewExtras.sheet_css` → `<style id="ws-style" data-work>` in
-  `fragments/editor.html`) und RPC `work.sheet`/`work.sheet_set`; `sheet_css_for` ersetzt zur Sicherheit jedes `<`.
-  `static/sheet.css` (direkt nach `wysiwyg.css`): Blattfarbe und `::highlight(literatur-fundstelle)`. Formular
-  `POST /einstellungen/werk/satzbild` und Block „Satzbild“ in `settings/work.rs` / `templates/settings/werk.html`.
-  Typst, PDF und Export lesen `work_sheet` nie (Test: Quelle, Stand und PDF byte-gleich).
-- **Lange Abschnitte:** `view::READY_SHEET_MAX` = 64 KiB; darüber kein vorab gesetztes Satzbild (`ready_sheet`).
-- **Bild an der Cursorstelle** (`src/assets.rs`): `Place` (`end|start|block:<n>|offset:<n>`), `insert_figure_at`
-  (rein: nie vor/in die Überschrift, Zeilengrenze, Inseln/Szenen/Listen als Ganzes, Leerzeilen davor und dahinter),
-  `image_places` (Auswahl ohne JavaScript). Store `save_human_with_asset_path`: Pfad und Fassung in einer
-  Transaktion (`BEGIN IMMEDIATE`), ein Spiegel-Commit. Widget `web/src/sheet.ts` („sheet-tools“ am
-  `details[data-image-insert]`): Stelle über `baruch:ws-caret` (am Editor-Formular mit `bubbles`, Antwort von
-  `wysiwyg.ts`) bzw. `selectionStart`; ohne Antwort `baruch:serialize-text` und Ende. Es frischt außerdem `#ws-style`
-  nach `baruch:settings-changed` über `work.sheet` auf.
-- **Vorschläge:** `align.rs` `split_changed` (Wort-Dice ≥ 0,5, monotone Paarung, nur bei ungleich vielen Blöcken);
-  Zeilen-Diff ohne Leerraum am Ende (`view.rs`); Leiste `div.pv-bar-editor[data-pv-bar]` vor dem Lesefluss
-  (`proposals.html`, `proposals.css` mit `order: -1`/`sticky`, `proposals.ts`).
-- **Literatur** (`web/src/literature.ts`): Fundstelle bei offenem Satzbild über die CSS Custom Highlight API
-  (`literatur-fundstelle`), kein DOM-Eingriff; öffnet das Satzbild erst, wird nach `data-ws-open` markiert.
-- **Verhaltenstest** `tests/round18_satzbild.rs`: Node 20 mit eigenem kleinen DOM-Nachbau (im Test als Text), die
-  übersetzten `SCRIPTS` in einem Temp-Ordner, `fetch` nachgebaut; ohne `node` „ÜBERSPRUNGEN“.
+- **Rendering** (`baruch-wysiwyg/src/style.rs`): `SheetStyle.background` (new; never from the template) →
+  `--ws-background`; `sheet_style_over(vorlage, einstellungen)`; since 18c `safe` allows `_` and only paired quotation
+  marks. Server `src/sheet.rs`: `sheet_style_for` = `sheet_style_over(sheet_style(work_template), einstellungen)` for
+  `wysiwyg.style`, `view.rs` (`ViewExtras.sheet_css` → `<style id="ws-style" data-work>` in
+  `fragments/editor.html`) and RPC `work.sheet`/`work.sheet_set`; `sheet_css_for` replaces every `<` for safety.
+  `static/sheet.css` (directly after `wysiwyg.css`): sheet colour and `::highlight(literatur-fundstelle)`. Form
+  `POST /einstellungen/werk/satzbild` and block „Satzbild“ in `settings/work.rs` / `templates/settings/werk.html`.
+  Typst, PDF and export never read `work_sheet` (test: source, state and PDF byte-identical).
+- **Long sections:** `view::READY_SHEET_MAX` = 64 KiB; above it no pre-rendered typeset view (`ready_sheet`).
+- **Image at the cursor position** (`src/assets.rs`): `Place` (`end|start|block:<n>|offset:<n>`), `insert_figure_at`
+  (pure: never before/into the heading, line boundary, islands/scenes/lists as a whole, empty lines before and after),
+  `image_places` (choice without JavaScript). Store `save_human_with_asset_path`: path and revision in one transaction
+  (`BEGIN IMMEDIATE`), one mirror commit. Widget `web/src/sheet.ts` („sheet-tools“ on `details[data-image-insert]`):
+  position via `baruch:ws-caret` (on the editor form with `bubbles`, answer from `wysiwyg.ts`) or `selectionStart`;
+  without an answer `baruch:serialize-text` and the end. It also refreshes `#ws-style` after
+  `baruch:settings-changed` via `work.sheet`.
+- **Proposals:** `align.rs` `split_changed` (word Dice ≥ 0.5, monotone pairing, only for unequal numbers of blocks);
+  line diff without trailing whitespace (`view.rs`); bar `div.pv-bar-editor[data-pv-bar]` before the reading flow
+  (`proposals.html`, `proposals.css` with `order: -1`/`sticky`, `proposals.ts`).
+- **Literature** (`web/src/literature.ts`): the passage found is marked with the CSS Custom Highlight API while the
+  typeset view is open (`literatur-fundstelle`), no DOM intervention; if it opens the typeset view first, it is marked
+  after `data-ws-open`.
+- **Behaviour test** `tests/round18_satzbild.rs`: Node 20 with its own small DOM mock (as text in the test), the
+  compiled `SCRIPTS` in a temp folder, `fetch` mocked; without `node` „ÜBERSPRUNGEN“.
 
-## Integration Runde 18
+## Integration of Round 18
 
-- Zusammengeführt mit `--no-ff` in der Reihenfolge `team/konstrukte` → `team/satzbild-werk` → `team/menueband`, ohne
-  Konflikte (Dateibesitz nach Vertrag R18).
-- `main.rs` ruft beim Start von `serve` `typeset::warm_fonts()` (Schriftsuche im Hintergrund, nach `rag::catch_up`).
-- Fremde Zusicherungen nachgezogen: `migration_0040.rs`/`migration_0041.rs` nehmen die neue Tabelle `work_sheet`
-  (0044) aus dem Vergleich der Schemaobjekte und der Verweise auf `work` aus; `round15_nachbesserung.rs` prüft die
-  ehrliche Ablehnung jetzt bei 3000 statt 4096 Tokens, weil ausgelassene Teile seit 18b eine Zeile teilen und der
-  alte Fall passt (gemessen in `round18_lektor.rs`); `round18_menueband.rs` liest `details[data-image-insert]` mit
-  dem Widget `sheet-tools` aus 18c.
-- `docs/RPC.md`: Ereignis `piece` und das Verwerfen nur des laufenden Stücks bei `retry` im Strom `/assistenten/stream`.
-- Abnahme `tests/round18_abnahme.rs`: ein erfundenes Werk mit Szene, Arbeitsauftrag, Fußnote, Zitat, Aufzählung,
-  Begriffsliste, geschachtelter Liste, Umbruch, Link, Verweis, zwei Bildern in einem Block und einer Insel. Jeder Block,
-  den das Widget nach einer Bearbeitung neu schickt, bleibt bei kanonischem Text byte-gleich; die Insel wird an Ort
-  und Stelle geändert; Formate der Vorlage im Menüband und ein ohne JavaScript gespeicherter Knopftext als Szene;
-  Satzbild-Einstellungen im HTML vor jedem Skript und nach einem Neustart; Bild an der Cursorstelle; fremde Seiten
-  lösen keinen Satz aus, „Satz abbrechen“ ohne laufenden Satz meldet `abgebrochen=0`.
-- Sichtprüfung (Firefox headless, Wegwerf-Server, erfundenes Werk; Bilder unter `.claude/sicht/r18/`), behoben:
-  - Unter 900 px blieben die gestapelten Bereiche bei `minmax(16em, auto)` 16em hoch (die Arbeitsfläche hat eine feste
-    Höhe, es gibt keinen freien Platz zum Wachsen); der Editor (85vh) ragte unter „Assistenten“. Jetzt
-    `grid-auto-rows: max-content`, Gliederung und Assistenten zwischen 16em und 85vh (`static/app.css`).
-  - Beschriftungen der Gedankenkarte liegen jetzt über den Knoten (`g.im-edge-labels` als letzte Gruppe,
-    `pointer-events: none`): bei kurzen Kanten zwischen nahen Einfällen verschwand „Beispiel für“ unter den Kreisen.
+- Merged with `--no-ff` in the order `team/konstrukte` → `team/satzbild-werk` → `team/menueband`, without conflicts
+  (file ownership by contract R18).
+- `main.rs` calls `typeset::warm_fonts()` at the start of `serve` (font search in the background, after
+  `rag::catch_up`).
+- Assertions of others updated: `migration_0040.rs`/`migration_0041.rs` exclude the new table `work_sheet` (0044) from
+  the comparison of the schema objects and of the references to `work`; `round15_nachbesserung.rs` now checks the
+  honest refusal at 3000 instead of 4096 tokens, because omitted parts share one line since 18b and the old case fits
+  (measured in `round18_lektor.rs`); `round18_menueband.rs` reads `details[data-image-insert]` with the widget
+  `sheet-tools` from 18c.
+- `docs/RPC.md`: event `piece` and discarding only the running piece on `retry` in the stream `/assistenten/stream`.
+- Acceptance `tests/round18_abnahme.rs`: an invented work with scene, work assignment, footnote, quotation, numbered
+  list, term list, nested list, line break, link, reference, two images in one block and an island. Every block that
+  the widget sends anew after an edit stays byte-identical for canonical text; the island is changed in place; formats
+  of the template in the ribbon and a button text saved without JavaScript as a scene; typeset view settings in the
+  HTML before every script and after a restart; image at the cursor position; other pages trigger no typesetting,
+  „Satz abbrechen“ without a running typesetting reports `abgebrochen=0`.
+- Visual check (Firefox headless, throwaway server, invented work; images under `.claude/sicht/r18/`), fixed:
+  - Below 900 px the stacked areas stayed 16em high with `minmax(16em, auto)` (the workspace has a fixed height,
+    there is no free space to grow); the editor (85vh) reached under „Assistenten“. Now `grid-auto-rows: max-content`,
+    outline and assistants between 16em and 85vh (`static/app.css`).
+  - Labels of the idea map now lie above the nodes (`g.im-edge-labels` as the last group, `pointer-events: none`):
+    with short edges between close ideas, „Beispiel für“ disappeared under the circles.
 
-## Runde 27
+## Round 27
 
-Umschlag-Editor und Impressum in der Werkvorlage. Schnittstelle (S1): Typen in `baruch_typst::cover_layout`
-(`CoverBlock`, `CoverBlockKind`, `CoverFace`, `CoverLayout`, `CoverGeometry`, Grenzen gleich den CHECKs),
-`TemplateFunctions`, `BOOK_DICT` und Platzhalter in `baruch_typst::cover`, `font_families`/`has_font_family` in
-`baruch-render`, Migration 0045 (`cover_block`, Grabsteinart `cover_block`, Anschriften in `work_book`, Antragsart
-`cover_layout`), Store `cover_blocks.rs`, Server `cover_layout.rs`, `cover_print.rs`, `mcp/cover.rs`, Widget
-`cover_editor.ts`.
+Cover editor and imprint in the work template. Interface (S1): types in `baruch_typst::cover_layout` (`CoverBlock`,
+`CoverBlockKind`, `CoverFace`, `CoverLayout`, `CoverGeometry`, limits equal to the CHECKs), `TemplateFunctions`,
+`BOOK_DICT` and placeholders in `baruch_typst::cover`, `font_families`/`has_font_family` in `baruch-render`,
+migration 0045 (`cover_block`, tombstone kind `cover_block`, addresses in `work_book`, request kind `cover_layout`),
+store `cover_blocks.rs`, server `cover_layout.rs`, `cover_print.rs`, `mcp/cover.rs`, widget `cover_editor.ts`.
 
-### 27a – Daten (umschlag-daten)
+### 27a – Data (umschlag-daten)
 
-- **Store `cover_blocks.rs`** (Migration 0045, keine weitere Migration; 0046 blieb unbenutzt):
-  `check_cover_block` prüft einen Block nach den Grenzen aus `baruch_typst::cover_layout` (gleich den CHECKs) und
-  bringt ihn in Normalform (Farbe klein, leere Schrift = `None`, Rücken ohne Laufrichtung = `down`, Arten mit eigenem
-  Text ohne Text = `""`, CRLF → LF). Schriftnamen nach der Regel der Satzbild-Schriften (`sheet::check_font`, hier
-  ein einzelner Familienname). Verstöße sind `StoreError::Asset(String)` (RPC -32602) mit Art und Feld – `Refused`
-  trägt nur feste Texte und gäbe `REFUSED`; eine eigene Fehlerart hätte `lib.rs` geändert (Integrator).
-  `set_cover_blocks` schreibt je Art mit `INSERT … ON CONFLICT (work_id, kind) DO UPDATE`: ein geänderter Block
-  behält Zeile und uuid (kein Grabstein, im Austausch derselbe Block). `reset_cover_blocks` löscht je Zeile (Trigger
-  `cover_block_uuid_tombstone`) und setzt den Titelbereich über `book::read`/`book::write` in derselben Transaktion
-  (`BEGIN IMMEDIATE`). `Store::cover_layout_fingerprint` = SHA-256 über das JSON der Blöcke in Art-Reihenfolge
-  (`expected_layout` der Anträge).
-- **Anschriften** (`book.rs`): zwei weitere Textfelder in `TEXT_FIELDS` (mehrzeilig, 500 Zeichen), gelesen und
-  geschrieben wie die übrigen; die S1-Ablehnung ist weg. Das Formular und `work.meta.set` verdrahtet R27c.
-- **Anträge** (`asset_requests.rs`): `AssetOp::CoverLayout` mit `params` `{blocks, expected_layout}`; beim Antrag
-  werden die Blöcke geprüft und normalisiert (so findet der Doppel-Vergleich über `params` gleiche Anträge),
-  `expected_layout` leer = der Store trägt den Fingerabdruck ein; ein Antrag, der nichts ändern würde, wird
-  abgelehnt.
-- **Server `cover_layout.rs`**: `parse_blocks` liest Blöcke feldweise aus JSON (Fehler mit Art und Feld; serde allein
-  nennt bei einem falschen Typ das Feld nicht), RPC wie `docs/RPC.md` „Anordnung“. Commits über eine eigene
-  `commit`-Hilfe (Muster `cover::commit`, dazu Trailer eines bestätigten Antrags wie `mirror::AssetBy::Confirmed`), so
-  bleibt `mirror.rs` unberührt. Für den Rumpf „vorher → nachher“ eines erstmals gespeicherten Blocks setzt
-  `defaults` den Umschlag (`build_wrap_for`, Zwischenspeicher des Satzes) und nimmt `default_blocks` – außerhalb
-  der Schreibsperre; ohne Seitenmaß „neu (…)“. `decide_request` vergleicht den Fingerabdruck unter der Schreibsperre,
-  sonst `stale`; ein beim Bestätigen ungültiger Block (`Asset`/`Refused`) macht den Antrag ebenfalls `stale`.
-  `asset_requests::request_json` zeigt bei `cover_layout` je Block eine Zeile (`block_lines`) und verweist auf die
-  Umschlagseite.
-- **MCP `mcp/cover.rs`**: `cover_layout` = `layout_view`, bei `REFUSED` (kein Seitenmaß) die gespeicherten Blöcke mit
-  `geometry: null`; `cover_layout_set` füllt fehlende Felder aus dem wirksamen Block und legt den Antrag an.
-- **Austausch Unterversion 3** (`baruch-exchange`, `model.rs` diesmal von umschlag-daten): `FORMAT_VERSION = 3`,
-  `ExchangeCoverBlock` (+ Aufzählungen mit deutschen XML-Wörtern), `ExchangeBook.publisher_address`,
-  `printer_address`, `cover_blocks`, `ExchangeWork.sheet` (`ExchangeSheet`), Grabsteinart `CoverBlock`
-  (`umschlag-block`, `since_version` 3). Leser: neue Teile erst ab `version >= 3` (wie `<karte>` ab 2), sonst
-  `unknown`. Prüfung in `read/check.rs` (`check_cover`). XSD `docs/schema/baruch-werk-1-u3.xsd` = u2 plus `Satzbild`,
-  Anschriften (im Schema optional, damit u2-Dateien gelten), `Umschlag`/`UmschlagBlock`, `GrabsteinArt`
-  `umschlag-block`; u2- und v1-XSD eingefroren (SHA-256-Test). Store: `exchange_dump` (Blöcke, Anschriften,
-  `work_sheet`; Blöcke ohne `work_book` → Buchangaben mit Vorgaben), `exchange_apply` (`new_cover`, `merge_cover`:
-  lokal gewinnt je Art, Grabstein → „hier gelöscht“; `merge_sheet`; Satzbild aus der Datei nur nach
-  `SheetSettings::normalized`, sonst „Nicht übernommen“). Das Beispielwerk `sample.rs` trägt drei Blöcke, Anschriften,
-  Satzbild und einen Grabstein `umschlag-block`.
-- **Tests:** Store `tests/cover_blocks.rs`, `exchange_apply.rs`, `exchange_dump.rs` (Rundreise im Store, Abgleich),
-  Austausch `tests/{read,write,xsd}.rs`, Server `tests/round27_daten.rs` (RPC, Commits, MCP-Antrag bis zum
-  Bestätigen/Veralten/Ablehnen, zwei Instanzen mit XSD-Prüfung).
+- **Store `cover_blocks.rs`** (migration 0045, no further migration; 0046 stayed unused): `check_cover_block` checks a
+  block against the limits from `baruch_typst::cover_layout` (equal to the CHECKs) and brings it into normal form
+  (colour lower case, empty font = `None`, spine without direction = `down`, kinds with their own text without text =
+  `""`, CRLF → LF). Font names follow the rule of the typeset view fonts (`sheet::check_font`, here a single family
+  name). Violations are `StoreError::Asset(String)` (RPC -32602) with kind and field – `Refused` carries only fixed
+  texts and would give `REFUSED`; an error kind of its own would have changed `lib.rs` (integrator).
+  `set_cover_blocks` writes per kind with `INSERT … ON CONFLICT (work_id, kind) DO UPDATE`: a changed block keeps row
+  and uuid (no tombstone, the same block in the exchange). `reset_cover_blocks` deletes row by row (trigger
+  `cover_block_uuid_tombstone`) and sets the title area via `book::read`/`book::write` in the same transaction
+  (`BEGIN IMMEDIATE`). `Store::cover_layout_fingerprint` = SHA-256 over the JSON of the blocks in kind order
+  (`expected_layout` of the requests).
+- **Addresses** (`book.rs`): two more text fields in `TEXT_FIELDS` (multi-line, 500 characters), read and written like
+  the others; the S1 refusal is gone. R27c wires the form and `work.meta.set`.
+- **Requests** (`asset_requests.rs`): `AssetOp::CoverLayout` with `params` `{blocks, expected_layout}`; on the request
+  the blocks are checked and normalised (so the duplicate comparison over `params` finds equal requests),
+  `expected_layout` empty = the store enters the fingerprint; a request that would change nothing is refused.
+- **Server `cover_layout.rs`**: `parse_blocks` reads blocks field by field from JSON (errors with kind and field;
+  serde alone does not name the field for a wrong type), RPC as in `docs/RPC.md` „Anordnung“. Commits through a
+  `commit` helper of its own (pattern `cover::commit`, plus the trailer of a confirmed request like
+  `mirror::AssetBy::Confirmed`), so `mirror.rs` stays untouched. For the body "before → after" of a block saved for
+  the first time, `defaults` typesets the cover (`build_wrap_for`, cache of the typesetting) and takes `default_blocks`
+  – outside the write lock; without a page size "neu (…)". `decide_request` compares the fingerprint under the write
+  lock, otherwise `stale`; a block that is invalid at confirmation (`Asset`/`Refused`) makes the request `stale` as
+  well. `asset_requests::request_json` shows one line per block for `cover_layout` (`block_lines`) and points to the
+  cover page.
+- **MCP `mcp/cover.rs`**: `cover_layout` = `layout_view`, on `REFUSED` (no page size) the stored blocks with
+  `geometry: null`; `cover_layout_set` fills missing fields from the effective block and creates the request.
+- **Exchange minor version 3** (`baruch-exchange`, `model.rs` this time by umschlag-daten): `FORMAT_VERSION = 3`,
+  `ExchangeCoverBlock` (+ enumerations with German XML words), `ExchangeBook.publisher_address`, `printer_address`,
+  `cover_blocks`, `ExchangeWork.sheet` (`ExchangeSheet`), tombstone kind `CoverBlock` (`umschlag-block`,
+  `since_version` 3). Reader: new parts only from `version >= 3` (like `<karte>` from 2), otherwise `unknown`. Check in
+  `read/check.rs` (`check_cover`). XSD `docs/schema/baruch-werk-1-u3.xsd` = u2 plus `Satzbild`, addresses (optional in
+  the schema, so that u2 files are valid), `Umschlag`/`UmschlagBlock`, `GrabsteinArt` `umschlag-block`; u2 and v1 XSD
+  frozen (SHA-256 test). Store: `exchange_dump` (blocks, addresses, `work_sheet`; blocks without `work_book` → book
+  details with defaults), `exchange_apply` (`new_cover`, `merge_cover`: local wins per kind, tombstone → „hier
+  gelöscht“; `merge_sheet`; typeset view from the file only after `SheetSettings::normalized`, otherwise „Nicht
+  übernommen“). The sample work `sample.rs` carries three blocks, addresses, typeset view settings and a tombstone
+  `umschlag-block`.
+- **Tests:** store `tests/cover_blocks.rs`, `exchange_apply.rs`, `exchange_dump.rs` (round trip in the store,
+  reconciliation), exchange `tests/{read,write,xsd}.rs`, server `tests/round27_daten.rs` (RPC, commits, MCP request up
+  to confirmation/staleness/refusal, two instances with XSD check).
 
-### 27b – Satz (umschlag-satz)
+### 27b – Typesetting (umschlag-satz)
 
-- **Blöcke in Typst** (`baruch_typst::cover`): `frame_parts` und `wrap_source` setzen mit einer nicht leeren
-  `layout` je sichtbarem Block mit Inhalt `place(top + left, dx, dy, block(width, {set text(size, fill, weight|style,
-  font); set par(leading, justify, first-line-indent: 0pt, …); set align(…); Inhalt}))`; `dx/dy` = Schnittkante der
-  Fläche (`CoverGeometry::face_origin`, im Buch die Seite selbst mit Rand 0) + (x, y), mit Vorzeichen. Rücken:
-  `rotate(±90deg, reflow: true, …)`, die linke obere Ecke des gedrehten Rahmens bei (x, y). Schatten =
-  `fill: black.transparentize(50%)` mit `outset`, Verlauf = senkrechter Verlauf 0 → 35 % → 0 % Schwarz; `outset`
-  ändert die Lage nicht. Hintergründe (Bild, dunkle Flächen) bleiben, der alte Titelblock, die alte Rückseite und das
-  Rückenetikett entfallen. Nutzertexte und Schriftnamen nur über `typst_string`; Farben nur `white`, `DARK` oder
-  `rgb("#rrggbb")` nach Prüfung.
-- **Vorgabeblöcke** (`cover_layout::default_blocks`): ahmen das alte Bild nach (Autor/Titel/Untertitel bei 10 %
-  Rand im Titelbereich, Rückentext ab 6 mm mit 0,45 × Rückenbreite, höchstens 11 pt; Rückseite mit 14 mm Rand,
-  Strichcode unten rechts), alle Werte innerhalb der CHECKs von 0045. `effective_blocks` mischt gespeicherte und
-  Vorgabeblöcke. `wrap_source` ergänzt fehlende Arten selbst (es kennt die Maße), `frame_parts` setzt nur die Blöcke,
-  die der Server übergibt – der Server ergänzt sie vorher mit der **Seitengröße der Werkvorlage** (Vorlage plus
-  `#hide[x]` gesetzt, erste Seite gemessen, je Stand zwischengespeichert), denn der Rahmen entsteht vor dem Buchsatz.
-- **Byte-gleich ohne Anordnung**: Goldstände aus dem Stand S1 vor der ersten Änderung – `frame_parts`/`wrap_source`
-  in `baruch-typst/tests/data/cover_r26/` (zehn bzw. sechs Fälle), Stand der Satzquelle und SHA-256 des Umschlag-PDF
-  für sechs Fälle in `baruch-server/tests/round27_satz.rs` (ohne, Titelei, beides, Umschlag, Rücken unter/über 6 mm).
-- **Höhen** (`server::cover::block_heights`): `cover::block_measure_source` setzt je Block eine Seite
-  `width = Blockbreite, height: auto, margin: 0pt`; die Seitenhöhen (`baruch_render::page_sizes_pt`, aus dem SVG-Kopf)
-  sind die Blockhöhen in Leserichtung. Blöcke ohne Inhalt: 0. Gemessen mit den aufgelösten Schriften.
-- **Schriften** (`baruch_render::font_families`): `FontStore` merkt sich die Zahl der eingebetteten Schriften (sie
-  stehen vorn); je Familie `normal` (aufrecht < 600), `bold` (aufrecht ≥ 600), `italic` (kursiv/schräg).
-  `server::cover::resolve_fonts` ersetzt eine fehlende Schrift: im Buch durch nichts (die Vorlage gilt), im
-  Umschlag-PDF und beim Messen durch die Schrift der Werkvorlage (`baruch_wysiwyg::template_font`: erste
-  Schrift aus dem letzten `#set text(font: …)` auf oberster Ebene wie bei `sheet_style` und in Typst; Kommentare,
-  Raw-Text, `#show …: set text(…)`, `#show: …`-Rümpfe und Funktionsrümpfe zählen nicht), sofern vorhanden. So stehen Blöcke in beiden PDFs mit derselben Schrift.
-- **Server** (`cover.rs`, Bereich Satz): `build_wrap` = `build_wrap_for(None)` = gespeicherte Anordnung; Umschlag-PDF
-  und `cover_source` nutzen sie. `frame` liest `cover_layout` und `template_functions` der Werkvorlage.
-- **Titelei aus der Werkvorlage**: `template_functions` (Erkennung wie `ribbon::defined_functions`, eigene Kopie, nur
-  `#let name(` mit Klammer). Mit mindestens einer Funktion (und eingeschalteter Titelei) schreibt `frame_parts` nach
-  `FRAME_MARK` einmal `book_dict` (`#let baruch_buch = (…)`, 23 Schlüssel nach Vertrag 1.6 plus `impressum_zeilen`,
-  nur String-Literale; Test liest das Wörterbuch zeilenweise und lässt nur Literale zu) und setzt
-  `plain_page("", "name(baruch_buch)")` an die Stelle der eingebauten Seite. `imprint_template()` (vier Funktionen,
-  die dasselbe setzen wie die eingebauten Seiten – Text je Seite mit `pdftotext` verglichen) und
-  `imprint_template_missing()` (hängt nur Fehlendes an, sonst `IMPRINT_COMPLETE`).
-- **Impressum**: `imprint_lines` nimmt die Anschriften nur auf, wenn sie gesetzt sind (Verlag nach der ©-Zeile,
-  Druckerei hinter „Druck:“) – ohne Anschriften byte-gleich.
-- **Druckprüfung** (`server::cover_print`): `cover_checks` nur mit eigener Anordnung (gespeichert bzw. Vorschau),
-  Rechtecke aus Lage und gemessener Höhe (Rücken gedreht), Codes `bleed`, `safety`, `barcode`, `spine`, `contrast`
-  (mittlere sRGB-Farbe aus 40 × 40 Stichproben im Rasterbild, Abbildung `fit: "cover"` auf Vorderseite samt
-  Beschnitt wie in `wrap_source`, Abdunklung 50 % bzw. 30 %, WCAG-Verhältnis < 3), `font`; dazu `imprint_checks`
-  (nur mit Titelei). Die Satz-Seite zeigt die Impressum-Warnungen in `#druckpruefung` (`typeset::imprint_warnings`).
-- **Lage gemessen** (`baruch-render/tests/cover_layout.rs`): Titel und Klappentext mit `pdftotext -bbox` in Buch- und
-  Umschlag-PDF, Abweichung relativ zur Schnittkante ≤ 0,5 mm; Rücken `down`/`up` (Reihenfolge der Wörter von oben
-  bzw. unten, Wörter im Rücken). Mit gespeicherter Anordnung über den Server misst es die Abnahme
+- **Blocks in Typst** (`baruch_typst::cover`): with a non-empty `layout`, `frame_parts` and `wrap_source` set, for
+  each visible block with content, `place(top + left, dx, dy, block(width, {set text(size, fill, weight|style, font);
+  set par(leading, justify, first-line-indent: 0pt, …); set align(…); Inhalt}))`; `dx/dy` = trim edge of the face
+  (`CoverGeometry::face_origin`, in the book the page itself with margin 0) + (x, y), with sign. Spine:
+  `rotate(±90deg, reflow: true, …)`, the top left corner of the rotated frame at (x, y). Shadow =
+  `fill: black.transparentize(50%)` with `outset`, gradient = vertical gradient 0 → 35 % → 0 % black; `outset` does
+  not change the position. Backgrounds (image, dark areas) stay; the old title block, the old back and the spine label
+  are dropped. User texts and font names only through `typst_string`; colours only `white`, `DARK` or
+  `rgb("#rrggbb")` after checking.
+- **Default blocks** (`cover_layout::default_blocks`): imitate the old picture (author/title/subtitle at 10 % margin in
+  the title area, spine text from 6 mm with 0.45 × spine width, at most 11 pt; back with 14 mm margin, barcode bottom
+  right), all values within the CHECKs of 0045. `effective_blocks` mixes stored and default blocks. `wrap_source` adds
+  missing kinds itself (it knows the dimensions), `frame_parts` sets only the blocks that the server passes – the
+  server completes them beforehand with the **page size of the work template** (template plus `#hide[x]` typeset,
+  first page measured, cached per state), because the frame is created before the book typesetting.
+- **Byte-identical without a layout**: golden states from state S1 before the first change – `frame_parts`/
+  `wrap_source` in `baruch-typst/tests/data/cover_r26/` (ten and six cases), state of the typesetting source and
+  SHA-256 of the cover PDF for six cases in `baruch-server/tests/round27_satz.rs` (none, front matter, both, cover,
+  spine below/above 6 mm).
+- **Heights** (`server::cover::block_heights`): `cover::block_measure_source` sets one page per block
+  `width = Blockbreite, height: auto, margin: 0pt`; the page heights (`baruch_render::page_sizes_pt`, from the SVG
+  head) are the block heights in reading direction. Blocks without content: 0. Measured with the resolved fonts.
+- **Fonts** (`baruch_render::font_families`): `FontStore` remembers the number of embedded fonts (they come first);
+  per family `normal` (upright < 600), `bold` (upright ≥ 600), `italic` (italic/oblique).
+  `server::cover::resolve_fonts` replaces a missing font: in the book by nothing (the template applies), in the cover
+  PDF and when measuring by the font of the work template (`baruch_wysiwyg::template_font`: first font from the last
+  `#set text(font: …)` at top level as with `sheet_style` and in Typst; comments, raw text, `#show …: set text(…)`,
+  `#show: …` bodies and function bodies do not count), if present. So blocks stand in the same font in both PDFs.
+- **Server** (`cover.rs`, area typesetting): `build_wrap` = `build_wrap_for(None)` = stored layout; the cover PDF and
+  `cover_source` use it. `frame` reads `cover_layout` and `template_functions` of the work template.
+- **Front matter from the work template**: `template_functions` (detection like `ribbon::defined_functions`, a copy of
+  its own, only `#let name(` with parenthesis). With at least one function (and front matter switched on),
+  `frame_parts` writes `book_dict` once after `FRAME_MARK` (`#let baruch_buch = (…)`, 23 keys by contract 1.6 plus
+  `impressum_zeilen`, only string literals; the test reads the dictionary line by line and allows only literals) and
+  puts `plain_page("", "name(baruch_buch)")` in place of the built-in page. `imprint_template()` (four functions that
+  set the same as the built-in pages – text per page compared with `pdftotext`) and `imprint_template_missing()`
+  (appends only what is missing, otherwise `IMPRINT_COMPLETE`).
+- **Imprint**: `imprint_lines` takes the addresses only if they are set (publisher after the © line, printer after
+  „Druck:“) – byte-identical without addresses.
+- **Print check** (`server::cover_print`): `cover_checks` only with a layout of its own (stored or preview), rectangles
+  from position and measured height (spine rotated), codes `bleed`, `safety`, `barcode`, `spine`, `contrast` (mean
+  sRGB colour from 40 × 40 samples in the raster image, illustration `fit: "cover"` on the front including bleed as in
+  `wrap_source`, darkening 50 % or 30 %, WCAG ratio < 3), `font`; plus `imprint_checks` (only with front matter). The
+  typesetting page shows the imprint warnings in `#druckpruefung` (`typeset::imprint_warnings`).
+- **Position measured** (`baruch-render/tests/cover_layout.rs`): title and blurb with `pdftotext -bbox` in book and
+  cover PDF, deviation relative to the trim edge ≤ 0.5 mm; spine `down`/`up` (order of the words from top or bottom,
+  words in the spine). With a stored layout through the server, the acceptance measures it
   (`tests/round27_abnahme.rs`).
 
 ### 27c – Editor (umschlag-widget)
 
-- **Seite** `GET /werke/{id}/umschlag` (`src/cover.rs`, Bereiche „Seiten“ und „Umschlag-Editor“): `editor_state` holt
-  `cover_layout::layout_view` (gespeichert) und mit Abfragefeldern `b.<kind>.<feld>` eine zweite Ansicht mit der
-  Vorschau darüber (`blocks_from_fields`: je genannte Art der wirksame Block, darauf die Felder, geprüft wie im Store
-  mit `check_cover_block`); der Satz der Vorschau läuft über `build_wrap_for` mit der gespeicherten Anordnung, je Art
-  durch die Vorschau ersetzt (wie in `layout_view`), das SVG darunter trägt dieselbe Abfrage. Nichts wird gespeichert.
-- **Lage** (`block_box`, Vertrag 1.2): Rahmen im Gesamtumschlag = Ursprung der Fläche (`CoverGeometry::face_origin`)
-  + (x, y); Breite × Höhe = `width_mm` × `height_mm`, auf dem Rücken gedreht (`height_mm` × `width_mm`). Die Vorlage
-  bekommt alle Lagen als Prozent der Umschlaggröße, darum braucht die Seite ohne JavaScript keine Rechnung im Browser.
-  **Hilfslinien** (`guides`): Beschnitt (Außenkante), Schnittkante, Sicherheitsabstand je Fläche (nur, wo die Fläche
-  breiter als zweimal der Abstand ist), zwei Rückenkanten, Mitte der Vorder- und Rückseite und der Höhe.
-- **Formulare** (`cover::writes()`, hinter `guard::same_origin`): `POST /werke/umschlag/anordnung` (`layout_act`:
-  `save` → `cover_layout::layout_set` mit allen Blöcken des Formulars, `quick` → `layout_reset([front], area)`,
-  `reset` → `layout_reset(faces)`) und `POST /werke/umschlag/impressum` (`imprint_act` → `imprint_adopt`). Erfolg →
-  303 auf `safe_back` mit `ok=…` (vor einem Anker, `with_code`); die Umschlagseite liest `hinweis` und `ok`. Ungültig
-  → 422 und dieselbe Seite mit der Eingabe (Zahlen mit Punkt, Unlesbares wie eingegeben) und der Meldung.
-- **RPC** im `call`-Teil: `cover.imprint_adopt` (Vorlage lesen, `imprint_template_missing`, dann
-  `works::call("work.update", {template})` – Sperre, Vorlagenfassung und Commit bleiben dort); `work.cover_pdf` hängt
-  `checks` aus `cover_print::cover_checks(work, None)` an; `work.meta.set` reicht `publisher_address` und
-  `printer_address` an den Store durch (`field_label` für Commit und Oberfläche).
-- **Widget** `web/src/cover_editor.ts` (`data-widget="cover-editor"`): liest `data-layout` (JSON von `cover.layout`),
-  nimmt die vom Server gerenderten Rahmen und Felder und hält beide gleich (`place`). Ziehen mit Zeigerfang, Breite
-  über die Griffe `start`/`end`, Einrasten (`snapDelta`, SNAP_MM 1,5 mm) an Schnittkante, Sicherheitsabstand und Mitte
-  der eigenen Fläche, Tastatur (STEP_MM 0,5, mit Umschalt 5; Strg+Pfeil Breite; Strg+Z, Strg+S), Rückgängig als
-  Stapel der Blockstände, „Hell/Dunkel“ für den gewählten Block, verzögerte Vorschau über `umschlag.svg?b.…`, Speichern
-  über `cover.layout_set` nur mit den geänderten Blöcken (ganze Blöcke ohne `stored`/`height_mm`), Schnellwahl und
-  Zurücksetzen über `cover.layout_reset` mit Neuladen. Rahmen tragen `aria-label` (Art, Fläche, Werte), die
-  Statuszeile ist `role=status`. Stil in `static/cover.css` nur mit den Farb-Tokens aus `app.css` (hell und dunkel).
-- **Test** `tests/round27_widget.rs`: Seite, Vorschau per GET (Store unverändert), Formulare (save/quick/reset, 422,
-  403), Anschriften, Impressum-Knopf, `checks`; das Widget läuft im eigenen Node-Nachbau des DOM auf dem HTML der Seite
-  (Ziehen, Griff, Pfeiltasten, Einrasten, Rückgängig, Hell/Dunkel, Feld, Speichern). Seit dem Zusammenführen prüfen
-  die Tests nur noch die Wirkung; ein Platzhalter „noch nicht umgesetzt“ ließe sie scheitern.
+- **Page** `GET /werke/{id}/umschlag` (`src/cover.rs`, areas "pages" and "cover editor"): `editor_state` fetches
+  `cover_layout::layout_view` (stored) and, with query fields `b.<kind>.<feld>`, a second view with the preview on top
+  (`blocks_from_fields`: for each named kind the effective block, the fields applied to it, checked as in the store
+  with `check_cover_block`); the typesetting of the preview runs through `build_wrap_for` with the stored layout,
+  replaced per kind by the preview (as in `layout_view`), the SVG below carries the same query. Nothing is stored.
+- **Position** (`block_box`, contract 1.2): frame in the whole cover = origin of the face
+  (`CoverGeometry::face_origin`) + (x, y); width × height = `width_mm` × `height_mm`, rotated on the spine
+  (`height_mm` × `width_mm`). The template gets all positions as percentages of the cover size, so the page needs no
+  calculation in the browser without JavaScript. **Guides** (`guides`): bleed (outer edge), trim edge, safety margin
+  per face (only where the face is wider than twice the margin), two spine edges, middle of front and back and of the
+  height.
+- **Forms** (`cover::writes()`, behind `guard::same_origin`): `POST /werke/umschlag/anordnung` (`layout_act`:
+  `save` → `cover_layout::layout_set` with all blocks of the form, `quick` → `layout_reset([front], area)`,
+  `reset` → `layout_reset(faces)`) and `POST /werke/umschlag/impressum` (`imprint_act` → `imprint_adopt`). Success →
+  303 to `safe_back` with `ok=…` (before an anchor, `with_code`); the cover page reads `hinweis` and `ok`. Invalid →
+  422 and the same page with the input (numbers with a point, unreadable values as entered) and the message.
+- **RPC** in the `call` part: `cover.imprint_adopt` (read the template, `imprint_template_missing`, then
+  `works::call("work.update", {template})` – lock, template revision and commit stay there); `work.cover_pdf` appends
+  `checks` from `cover_print::cover_checks(work, None)`; `work.meta.set` passes `publisher_address` and
+  `printer_address` through to the store (`field_label` for commit and user interface).
+- **Widget** `web/src/cover_editor.ts` (`data-widget="cover-editor"`): reads `data-layout` (JSON of `cover.layout`),
+  takes the frames and fields rendered by the server and keeps both equal (`place`). Dragging with pointer capture,
+  width via the handles `start`/`end`, snapping (`snapDelta`, SNAP_MM 1.5 mm) to trim edge, safety margin and middle of
+  its own face, keyboard (STEP_MM 0.5, with Shift 5; Ctrl+arrow width; Ctrl+Z, Ctrl+S), undo as a stack of block
+  states, „Hell/Dunkel“ for the selected block, delayed preview via `umschlag.svg?b.…`, saving via `cover.layout_set`
+  only with the changed blocks (whole blocks without `stored`/`height_mm`), quick choice and reset via
+  `cover.layout_reset` with reload. Frames carry `aria-label` (kind, face, values), the status line is `role=status`.
+  Style in `static/cover.css` only with the colour tokens from `app.css` (light and dark).
+- **Test** `tests/round27_widget.rs`: page, preview by GET (store unchanged), forms (save/quick/reset, 422, 403),
+  addresses, imprint button, `checks`; the widget runs in its own Node mock of the DOM on the HTML of the page
+  (dragging, handle, arrow keys, snapping, undo, light/dark, field, saving). Since the merge the tests check only the
+  effect; a placeholder „noch nicht umgesetzt“ would make them fail.
 
-### Integration und Abnahme (Integrator)
+### Integration and acceptance (integrator)
 
-- Zusammengeführt mit `--no-ff` in der Reihenfolge a → b → c ohne Konflikte. Nachgezogen: die Buchvorlage in
-  `baruch-store` (Unit-Test in `works.rs`, `tests/works.rs`: neue Bücher tragen `imprint_template()` und kennen alle
-  vier Titelei-Funktionen), `round27_daten.rs` (ein Block ohne Inhalt hat die gemessene Höhe 0), die
-  Platzhalter-Zweige in `round27_widget.rs` (entfernt) und der Commit-Rumpf beim Einlesen eines Austauschs
-  (`mirror::describe_exchange` zählt die Umschlag-Blöcke mit). Nach der Sichtprüfung: Rahmen in `static/cover.css`
-  nur noch schwach getönt (der markierte Block verdeckte hellen Titel auf dunklem Bild), und die Liste der
-  Druckprüfung in `templates/cover.html` nennt den Block nicht doppelt (die Meldungen beginnen schon mit ihm).
-- **Abnahme** `tests/round27_abnahme.rs`: ein erfundenes Werk (148 × 210 mm) mit PNG-Umschlag (dunkles oberes Drittel,
-  im Test erzeugt) und vollständigen Buchangaben mit Typst-Sonderzeichen. Titel ins obere Drittel, Autor nach unten,
-  Klappentext verschoben und schmaler, Freitext auf der Vorderseite: Vorschau per GET speichert nichts; das Formular
-  speichert dasselbe wie `cover.layout_set` auf einer zweiten Instanz; Vorschau-SVG und Satzquelle der Vorschau
-  (`baruch_render::stand`) gleichen dem gespeicherten Umschlag; `pdftotext -bbox` misst Titel, Freitext und Klappentext
-  in Umschlag- und Buch-PDF an derselben Stelle relativ zur Schnittkante (≤ 0,5 mm). Druckprüfung (Beschnitt,
-  Strichcode, Kontrast, fehlende Schrift mit Rückfall) auf der Seite ohne JavaScript und in `work.cover_pdf`.
-  Schnellwahl oben/Mitte/unten und Zurücksetzen mit Grabsteinen; danach setzen Buch und Umschlag byte-gleich wie vor
-  der ersten Anordnung. Eigene `impressum(buch)` in der Werkvorlage auf der Rückseite des Haupttitels mit den
-  Buchangaben wörtlich, der Knopf ergänzt die übrigen drei Funktionen (eine Vorlagenfassung, ein Commit) und lehnt
-  danach ab; fehlende Druckerei wird gewarnt. MCP liest und stellt nur einen Antrag; der Austausch (`.baruch`) trägt
-  Anordnung, Anschriften und Satzbild auf eine zweite Instanz, die den Umschlag aus derselben Quelle setzt.
+- Merged with `--no-ff` in the order a → b → c without conflicts. Updated: the book template in `baruch-store` (unit
+  test in `works.rs`, `tests/works.rs`: new books carry `imprint_template()` and know all four front matter
+  functions), `round27_daten.rs` (a block without content has the measured height 0), the placeholder branches in
+  `round27_widget.rs` (removed) and the commit body when reading an exchange (`mirror::describe_exchange` counts the
+  cover blocks too). After the visual check: frames in `static/cover.css` only faintly tinted now (the marked block
+  hid a light title on a dark image), and the list of the print check in `templates/cover.html` does not name the
+  block twice (the messages already begin with it).
+- **Acceptance** `tests/round27_abnahme.rs`: an invented work (148 × 210 mm) with a PNG cover (dark upper third,
+  created in the test) and complete book details with Typst special characters. Title into the upper third, author
+  down, blurb moved and narrower, free text on the front: preview by GET stores nothing; the form stores the same as
+  `cover.layout_set` on a second instance; preview SVG and typesetting source of the preview (`baruch_render::stand`)
+  equal the stored cover; `pdftotext -bbox` measures title, free text and blurb in cover and book PDF at the same
+  place relative to the trim edge (≤ 0.5 mm). Print check (bleed, barcode, contrast, missing font with fallback) on
+  the page without JavaScript and in `work.cover_pdf`. Quick choice top/middle/bottom and reset with tombstones;
+  afterwards book and cover typeset byte-identically as before the first layout. An own `impressum(buch)` in the work
+  template on the back of the main title with the book details literally; the button adds the other three functions
+  (one template revision, one commit) and refuses afterwards; a missing printer is warned about. MCP reads and only
+  makes a request; the exchange (`.baruch`) carries layout, addresses and typeset view settings to a second instance,
+  which typesets the cover from the same source.
 
-## Befunde (Runde 28)
+## Findings (Round 28)
 
-Schnittstelle R28-S1 (Integrator): Migration 0046 (`finding`, `finding_status`, `post_version`, Spalten `post.edited`
-und `chat_thread_post.edited`, Grabstein-Arten `finding`, `finding_status`, `post_version` mit Kaskaden-Triggern wie
-0042/0045), Store `src/findings.rs` (Typen, lesende Abfragen und `finding_insert` voll, Statuswege als Stub) und
-`src/post_edit.rs` (lesende Abfragen voll, Bearbeiten als Stub), Server `src/findings/{mod,parse,rpc,page,view}.rs`,
-`mcp/findings.rs`, `mcp/posts.rs`, `PostAction::Edit`, `mirror::describe_finding`/`record_finding`. Offene Stubs:
+Interface R28-S1 (integrator): migration 0046 (`finding`, `finding_status`, `post_version`, columns `post.edited` and
+`chat_thread_post.edited`, tombstone kinds `finding`, `finding_status`, `post_version` with cascade triggers like
+0042/0045), store `src/findings.rs` (types, reading queries and `finding_insert` in full, status paths as stub) and
+`src/post_edit.rs` (reading queries in full, editing as stub), server `src/findings/{mod,parse,rpc,page,view}.rs`,
+`mcp/findings.rs`, `mcp/posts.rs`, `PostAction::Edit`, `mirror::describe_finding`/`record_finding`. Open stubs:
 `grep -rn "STUB:" crates`.
 
-### Datenmodell, Zerlegen, Ähnlichkeit, Spiegel, Austausch u4 (befunde)
+### Data model, splitting, similarity, mirror, exchange u4 (befunde)
 
-- **Datenmodell (Migration 0046):** `finding` (Werk, Abschnitt `node_id` – bei Fäden und gelöschten Abschnitten NULL
-  –, Herkunft `post_id` oder `thread_post_id`, Stelle `position` eindeutig je Herkunft, Persona, Art, Text, Zitat,
-  Prüfvermerk, Status, Begründung, Fassung/Ziel als UUID ohne Fremdschlüssel, `similar_to`, `summary_of` als
-  JSON-Liste von UUIDs), `finding_status` (jede Änderung; Mensch `proposed = 0`, Assistent `proposed = 1` mit
-  `decision`), `post_version` (alte Fassungen, Bearbeiten selbst: chat-auftrag). Die Statusregeln stehen doppelt: als
-  CHECKs in der Datenbank und als Prüfung in `baruch_store::findings::resolve` (verständliche Meldung,
-  `StoreError::Finding` → -32602). Fassung und Ziel löst der Store beim Lesen über die UUID auf (`adopted_rev`,
-  `deferred`); fehlt die Fassung, bleibt die UUID, `adopted_rev` ist `None`.
-- **Schreibwege (Store):** `finding_set_status` (nur Mensch, eine Transaktion: Befund + Verlaufseintrag; gleicher
-  Stand → abgelehnt), `finding_propose_status` (nur Persona/MCP, nur adopted/deferred/done, kein Doppel offen;
-  der Befund ändert sich nicht), `finding_decide` (bestätigt/abgelehnt; veraltet, wenn nach dem Vorschlag ein
-  Eintrag des Menschen oder ein bestätigter Vorschlag kam, die Fassung bzw. das Ziel fehlt oder der Befund den
-  Status schon hat). Server `findings/rpc.rs`: `set_status`, `propose`, `decide` halten `write_lock` vom Schreiben
-  bis zum Commit, genau ein Commit über `mirror::record_finding` (`describe_finding`: Betreff „Befund <id>: …“,
-  Trailer `Baruch-Finding`, `Baruch-Action: finding-status|finding-propose|finding-decide`, `Baruch-Node`, bei
-  Vorschlägen `Persona`, bei Entscheidungen `Baruch-Proposer`).
-- **Zerlegen (`findings/parse.rs`):** zeilenweise; Gliederung „Was trägt/fehlt/stört“ setzt die Art der folgenden
-  Punkte, Marken gehen vor, Aufzählungen und (unter einer Gliederung) Absätze sind je ein Befund, eingerückte
-  Folgezeilen und Unterpunkte gehören dazu, eine Leerzeile schließt. „Kritisch:“ hinter einer kurzen Teil-Angabe
-  erkennt `assist::prompts::critical_finding` (dieselbe Regel wie die Prüfung). Prüfvermerke (`UNBACKED_NOTE`,
-  `ref_claims::IN_TEXT`/`INVALID`) wandern in `quote_check`, Vermerke von Baruch (`CUT_NOTE`, `TRUNCATED_NOTE`,
-  `CRITICAL_MISSING_NOTE`, „Komprimiert: …“) fallen weg. `ingest` nimmt nie die Schreibsperre (Aufrufer in
-  `assist::save` und `threads::answer` halten sie), schreibt nur über `Store::finding_insert` und übergeht Stellen,
-  die es zu diesem Beitrag schon gibt (wiederholbar). Kein Commit.
-- **Ähnlichkeit:** nur Text (`parse::similar`): Inhaltswörter, klein, als Mengen – Wörter ab drei Zeichen ohne
-  `STOPWORDS` (Artikel, Präpositionen samt „zur“/„zum“, Pronomen, Hilfsverben, Partikeln), dazu jede Zahl –, Dice-Maß
-  ab `SIMILARITY_THRESHOLD` = 0,8 (oder gleicher Text): Bei drei oder vier Inhaltswörtern trennt schon ein
-  abweichendes (0,67 bzw. 0,75), erst ab fünf darf eines abweichen. Vorher (0,6, mit Füllwörtern) galten „Der
-  Übergang zur Werft fehlt“ und „… zum Hafen fehlt“ als gleich, der neue Befund verschwand als angehängt. Kandidaten: nicht angehängte Befunde desselben Abschnitts aus
-  anderen Beiträgen – entschiedene vor offenen derselben Persona. Keine Einbettungen (R19a). Grenze: Umformulierungen
-  mit anderen Wörtern erkennt das nicht; der Mensch kann dann verwerfen bzw. die Persona bekommt die Entscheidungen
-  gerahmt (chat-auftrag).
-- **Nachtrag (`findings::backfill`):** beim Start von `serve` nach Migration und Spiegelabgleich, einmal je Datenbank
-  (`store_meta.findings_backfill`), nur Beiträge, deren Autor ein Handle aus `persona` ist (nicht „Autor“, nicht
-  `@mcp:…`); bricht bei einem Fehler ab, ohne den Merker zu setzen (der nächste Start macht weiter, vorhandene Stellen
-  werden übergangen).
-- **Spiegel:** `befunde.md` (`findings::mirror_files`, in `snapshot::files` nach den Einfällen) nur bei Befunden;
-  Gruppen in Baumreihenfolge (`snapshot::ordered_currents`), dann Fäden nach id, dann Befunde ohne Bezug; je Befund
-  Überschrift `[B<id>] Art · Status · Persona`, Text als Zitatblock, Zitat mit Prüfvermerk, Begründung, Fassung bzw.
-  Ziel, Anhang, Sammlung, offener Vorschlag, Herkunft und Verlauf. Nur Daten aus der Datenbank (deterministisch).
-- **Austausch u4:** `baruch-exchange` (Modell `ExchangeFinding`, `ExchangeFindingEntry`, `ExchangePostVersion`,
-  Wörter `ExchangeFindingKind`, `ExchangeFindingStatus`, `ExchangeDecision`, Grabsteinarten `befund`,
-  `befund-status`, `beitrag-fassung` seit 4), Schreiber (`<befunde>` am Ende, `geaendert` und `<alte-fassung>` an
-  Beiträgen), Leser (erst ab `version="4"`, davor unbekannt; Grabsteine ab 4), Prüfung (`check_findings`, Regeln wie
-  die CHECKs), XSD `baruch-werk-1-u4.xsd` (u3 eingefroren). Store `exchange_dump` (Verweise über UUIDs) und
-  `exchange_apply::apply_findings` (neu: alles mit Kennungen; abgleichen: unbekannte Befunde dazu, bekannte nie
-  überschreiben, belegte Stelle → Hinweis, `gleicht` nach allen Befunden), `insert_versions` für alte Fassungen.
-  Einzelheiten in `docs/Austauschformat.md`.
+- **Data model (migration 0046):** `finding` (work, section `node_id` – NULL for threads and deleted sections –,
+  origin `post_id` or `thread_post_id`, place `position` unique per origin, persona, kind, text, quotation, check note,
+  status, reason, revision/target as UUID without foreign key, `similar_to`, `summary_of` as a JSON list of UUIDs),
+  `finding_status` (every change; human `proposed = 0`, assistant `proposed = 1` with `decision`), `post_version` (old
+  revisions; the editing itself: chat-auftrag). The status rules exist twice: as CHECKs in the database and as a check
+  in `baruch_store::findings::resolve` (understandable message, `StoreError::Finding` → -32602). The store resolves
+  revision and target via the UUID when reading (`adopted_rev`, `deferred`); if the revision is missing, the UUID
+  stays and `adopted_rev` is `None`.
+- **Write paths (store):** `finding_set_status` (human only, one transaction: finding + history entry; same state →
+  refused), `finding_propose_status` (persona/MCP only, only adopted/deferred/done, no duplicate open; the finding does
+  not change), `finding_decide` (confirmed/refused; stale if after the proposal an entry of the human or a confirmed
+  proposal came, the revision or the target is missing, or the finding already has the status). Server
+  `findings/rpc.rs`: `set_status`, `propose`, `decide` hold `write_lock` from writing to the commit, exactly one commit
+  via `mirror::record_finding` (`describe_finding`: subject „Befund <id>: …“, trailer `Baruch-Finding`,
+  `Baruch-Action: finding-status|finding-propose|finding-decide`, `Baruch-Node`, for proposals `Persona`, for
+  decisions `Baruch-Proposer`).
+- **Splitting (`findings/parse.rs`):** line by line; the structure „Was trägt/fehlt/stört“ sets the kind of the
+  following items, markers take precedence, list items and (under a structure) paragraphs are one finding each,
+  indented continuation lines and sub-items belong to it, an empty line closes it. „Kritisch:“ after a short part
+  reference is recognised by `assist::prompts::critical_finding` (the same rule as the check). Check notes
+  (`UNBACKED_NOTE`, `ref_claims::IN_TEXT`/`INVALID`) move to `quote_check`, notes by Baruch (`CUT_NOTE`,
+  `TRUNCATED_NOTE`, `CRITICAL_MISSING_NOTE`, „Komprimiert: …“) are dropped. `ingest` never takes the write lock (the
+  callers in `assist::save` and `threads::answer` hold it), writes only via `Store::finding_insert` and skips places
+  that already exist for this post (repeatable). No commit.
+- **Similarity:** text only (`parse::similar`): content words, lower case, as sets – words of three characters and
+  more without `STOPWORDS` (articles, prepositions including „zur“/„zum“, pronouns, auxiliary verbs, particles), plus
+  every number –, Dice measure from `SIMILARITY_THRESHOLD` = 0.8 (or the same text): with three or four content words
+  a single differing one already separates (0.67 or 0.75), only from five on may one differ. Before (0.6, with filler
+  words) „Der Übergang zur Werft fehlt“ and „… zum Hafen fehlt“ counted as equal, and the new finding disappeared as
+  attached. Candidates: findings of the same section from other posts that are not attached – decided ones before open
+  ones of the same persona. No embeddings (R19a). Limit: this does not detect rephrasings with other words; the human
+  can then discard, or the persona gets the decisions framed (chat-auftrag).
+- **Backfill (`findings::backfill`):** at the start of `serve` after migration and mirror reconciliation, once per
+  database (`store_meta.findings_backfill`), only posts whose author is a handle from `persona` (not „Autor“, not
+  `@mcp:…`); aborts on an error without setting the flag (the next start continues, existing places are skipped).
+- **Mirror:** `befunde.md` (`findings::mirror_files`, in `snapshot::files` after the ideas) only when there are
+  findings; groups in tree order (`snapshot::ordered_currents`), then threads by id, then findings without a
+  reference; per finding a heading `[B<id>] Art · Status · Persona`, text as a quotation block, quotation with check
+  note, reason, revision or target, attachment, collection, open proposal, origin and history. Only data from the
+  database (deterministic).
+- **Exchange u4:** `baruch-exchange` (model `ExchangeFinding`, `ExchangeFindingEntry`, `ExchangePostVersion`, words
+  `ExchangeFindingKind`, `ExchangeFindingStatus`, `ExchangeDecision`, tombstone kinds `befund`, `befund-status`,
+  `beitrag-fassung` since 4), writer (`<befunde>` at the end, `geaendert` and `<alte-fassung>` on posts), reader (only
+  from `version="4"`, unknown before; tombstones from 4), check (`check_findings`, rules like the CHECKs), XSD
+  `baruch-werk-1-u4.xsd` (u3 frozen). Store `exchange_dump` (references via UUIDs) and
+  `exchange_apply::apply_findings` (new: everything with identifiers; reconcile: unknown findings added, known ones
+  never overwritten, occupied place → hint, `gleicht` after all findings), `insert_versions` for old revisions. Details
+  in `docs/Austauschformat.md`.
 
-### Übersicht und Anzeige (befund-uebersicht)
+### Overview and display (befund-uebersicht)
 
-- **Grenze der Listen:** `Store::finding_list` liefert höchstens `limit` (Vorgabe 500, höchstens 2000) und dann die
-  **neuesten** (`ORDER BY created DESC, id DESC`, umgedreht: weiter älteste zuerst) – Matrix, Entscheidungen im Prompt
-  und Ähnlichkeitskandidaten verlieren über der Grenze die ältesten, nicht die jüngsten. `Store::finding_count` zählt
-  mit demselben Filter ohne Grenze: `finding.list`/MCP `findings` melden `total` (alle) und `truncated`, die Matrix
-  `truncated` (Zahl aller, sonst `null`) und auf der Seite „Gekappt: …“. `finding.get` lädt Angehängte und Ursprünge
-  gezielt (`finding_attached_to`, `findings_by_uuid`).
-- **Zählregel an einer Stelle:** offen = `Store::finding_open_counts` (Vertrag §1.5). `findings::view::subtree_open`
-  summiert diese Zahlen über die Baumreihenfolge (Elternteil vor Kind) – daraus zeichnen Gliederung (`view.rs`,
-  `TreeItem.findings`), Editorkopf (`node.open_findings`), `/gliederung` (`outline.rs`, `entries_with`) und die
-  Gedankenkarte; `finding.matrix` nennt je Zeile `open_badge` aus denselben Zahlen und ohne Filter gilt `total.open ==
-  open_badge` (Test `round28_uebersicht.rs`). `menu.badges.open_findings` ist ihre Summe.
-- **`findings::view`:** `load` holt einmal je Seite die offenen Zahlen, alle Befunde des Werks (samt Lob und
-  angehängten, höchstens `VIEW_LIMIT` = 2000) und je Abschnitt mit übernommenen Befunden `findings_adopted_in` (für
-  den Fassungsbaum: `adopted_in`, offene Vorschläge: `proposed_for`). `card` baut das gemeinsame Bild eines Befunds
-  für Seite und Akkordeon (`finding_json` plus Zeichen, Abschnitt, Zeit, angehängte, Ursprünge eines Sammelvorschlags
-  über `summary_of`-UUIDs, offener Vorschlag in Worten, Fassungsauswahl). Status-Zeichen: ○ ✓ ✗ → =.
-- **`findings::page`:** `build_matrix` ist rein (testbar); Zeilen = Kapitel-Einheiten (nächster Vorfahre der Ebene
-  ≤ 1), Gruppen = Teile, „ohne Abschnitt“ am Ende. Die Seite hat eine eigene Vorlagen-Umgebung (`base.html`,
-  `befunde.html`, `fragments/findings_panel.html`); die Karten- und Formular-Makros stehen in
-  `fragments/findings_panel.html` und werden von `befunde.html` importiert (ohne `findings_panel` im Kontext zeichnet
-  die Vorlage selbst nichts). Formulare gehen über `findings::rpc::{parse_change, set_status, decide}` (Sperre und
-  Commit dort); die Seite nimmt selbst keine Sperre.
-- **Akkordeon:** `view.rs::findings_panel` filtert `FindingsView.findings` auf den gezeigten Abschnitt (offen bzw. mit
-  offenem Vorschlag, entschieden, Lob); `ViewExtras.findings` füllt `view::extras` mit `unwrap_or_default` (ein Fehler
-  beim Laden lässt die Arbeitsseite ohne Befunde stehen). Cookie `baruch_accordion=befunde` hält es offen.
-- **Gedankenkarte:** `MapFilter.findings` (Seite `befunde=1`, RPC `findings`), `MapNode.open_findings` und
-  `MapSection.open_findings` werden in `idea_map::build` wie die Einfälle über Anker und Vorfahren aufsummiert; `svg.rs`
-  setzt `im-many-findings` ab `findings::page::MANY_OPEN` (3) und schreibt „k offen“ als `<tspan class="im-findings">`
-  (DOM-Vertrag ergänzt, nicht geändert).
-- **Widget `findings`** (`web/src/findings.ts`): Statusformulare über RPC (danach `baruch:navigate` bzw. Neuladen des
-  Inhalts), auf der Seite Filter ohne Neuladen (fetch derselben Adresse, Tausch von `[data-findings-main]`,
-  `history.pushState`), Pfeiltasten in der Matrix. Ohne JavaScript bleibt alles bei Links, GET-Filtern und Formularen.
-- **MCP** (`mcp/findings.rs`): `findings` über `Store::finding_list`, `finding_propose_status` prüft Status und Felder
-  selbst und ruft `findings::rpc::propose` mit `tools::origin_of` (Persona nur ohne Token).
+- **Limit of the lists:** `Store::finding_list` returns at most `limit` (default 500, at most 2000), and then the
+  **newest** (`ORDER BY created DESC, id DESC`, reversed: still oldest first) – matrix, decisions in the prompt and
+  similarity candidates lose the oldest above the limit, not the youngest. `Store::finding_count` counts with the same
+  filter without a limit: `finding.list`/MCP `findings` report `total` (all) and `truncated`, the matrix `truncated`
+  (number of all, otherwise `null`) and on the page „Gekappt: …“. `finding.get` loads attached findings and origins
+  specifically (`finding_attached_to`, `findings_by_uuid`).
+- **Counting rule in one place:** open = `Store::finding_open_counts` (contract §1.5). `findings::view::subtree_open`
+  sums these numbers over the tree order (parent before child) – from that draw the outline (`view.rs`,
+  `TreeItem.findings`), the editor head (`node.open_findings`), `/gliederung` (`outline.rs`, `entries_with`) and the
+  idea map; `finding.matrix` names `open_badge` per row from the same numbers, and without a filter `total.open ==
+  open_badge` holds (test `round28_uebersicht.rs`). `menu.badges.open_findings` is their sum.
+- **`findings::view`:** `load` fetches once per page the open numbers, all findings of the work (including praise and
+  attached ones, at most `VIEW_LIMIT` = 2000) and, per section with adopted findings, `findings_adopted_in` (for the
+  revision tree: `adopted_in`, open proposals: `proposed_for`). `card` builds the common picture of a finding for page
+  and accordion (`finding_json` plus sign, section, time, attached findings, origins of a collective proposal via
+  `summary_of` UUIDs, open proposal in words, revision choice). Status signs: ○ ✓ ✗ → =.
+- **`findings::page`:** `build_matrix` is pure (testable); rows = chapter units (nearest ancestor of level ≤ 1),
+  groups = parts, „ohne Abschnitt“ at the end. The page has a template environment of its own (`base.html`,
+  `befunde.html`, `fragments/findings_panel.html`); the card and form macros stand in `fragments/findings_panel.html`
+  and are imported by `befunde.html` (without `findings_panel` in the context the template itself draws nothing).
+  Forms go through `findings::rpc::{parse_change, set_status, decide}` (lock and commit there); the page itself takes
+  no lock.
+- **Accordion:** `view.rs::findings_panel` filters `FindingsView.findings` to the shown section (open or with an open
+  proposal, decided, praise); `ViewExtras.findings` fills `view::extras` with `unwrap_or_default` (an error while
+  loading leaves the work page standing without findings). The cookie `baruch_accordion=befunde` keeps it open.
+- **Idea map:** `MapFilter.findings` (page `befunde=1`, RPC `findings`), `MapNode.open_findings` and
+  `MapSection.open_findings` are summed up in `idea_map::build` like the ideas over anchors and ancestors; `svg.rs`
+  sets `im-many-findings` from `findings::page::MANY_OPEN` (3) and writes „k offen“ as `<tspan class="im-findings">`
+  (DOM contract extended, not changed).
+- **Widget `findings`** (`web/src/findings.ts`): status forms via RPC (then `baruch:navigate` or a reload of the
+  content), on the page filters without reloading (fetch of the same address, swap of `[data-findings-main]`,
+  `history.pushState`), arrow keys in the matrix. Without JavaScript everything stays with links, GET filters and
+  forms.
+- **MCP** (`mcp/findings.rs`): `findings` via `Store::finding_list`, `finding_propose_status` checks status and fields
+  itself and calls `findings::rpc::propose` with `tools::origin_of` (persona only without a token).
 
-### Chat-Aufträge, Rahmen, Beitragsfassungen (chat-auftrag)
+### Chat jobs, frame, post revisions (chat-auftrag)
 
-- **Lektor als Begleiter** (`assist/prompts.rs`): `CRITICAL_HANDLES = ["nathan"]`; Nachforderung (`answer_call`) und
-  `CRITICAL_MISSING_NOTE` nur noch für Nathan. Die Vorgabe des Lektors besteht aus `LECTOR_RULE` (6: zuerst „Was
-  trägt:“ mit Zitat, höchstens zwei „Vorschlag:“, kritische Befunde erlaubt; mit derselben Ausnahme für neue
-  Fassungen wie `EVIDENCE_RULE`/`CRITICAL_RULE`, denn der System-Prompt hängt nicht vom Modus ab), `BACKING_RULE` (7: Belegpflicht, für jede
-  Rolle mit kritischen Befunden) und `COMPANION_RULE` (8–9: Chat, Entscheidungen, RFC); der Exeget hat
-  `EVIDENCE_RULE` + `BACKING_RULE`, Nathan `CRITICAL_RULE` + `BACKING_RULE` (wörtlich wie bisher). Die Regeln sind
-  knapp gehalten: Jedes Zeichen des Rollen-Prompts fehlt dem Kapitel im Kontext (`round18_lektor.rs` und
-  `round15_lektor.rs` messen die Grenzen). `mark_unbacked_criticals` gilt unverändert für alle.
-- **Rahmen** (`assist/context.rs`): `decision_lines` liest über `Store::finding_list` die Befunde des Abschnitts bzw.
-  der Kapitel-Einheiten mit Status übernommen, verworfen, verschoben, erledigt (ohne Lob, ohne angehängte), verworfene
-  zuerst, höchstens `MAX_DECISIONS` = 30 (darüber eine ehrliche Schlusszeile), je Zeile `- [B<id>] vom Autor verworfen
-  (@x zu Titel): <<<entscheidung „…“ (Begründung: …) >>> – nicht erneut melden`, entschärft wie `framed_line`.
-  Dazu im System `DECISIONS_RULE` (und `OTHERS_RULE`). Beim RFC rahmt `rfc_lines` die Antworten der anderen
-  (`<<<antwort … >>>`, Kopf `@x [B1] [B2]`) unter `RFC_TITLE`, der Auftrag bekommt `RFC_TASK`; die Beiträge dieser
-  Antworten fallen aus dem Chatverlauf (nicht doppelt). Der Chatverlauf (`RECENT_TITLE`) steht im Chat und beim
-  Schreibauftrag (`frame.as_order`, Auftrag mit `AS_ORDER_TASK`). Beim Kürzen fallen Antworten und Entscheidungen
-  zuletzt und nie still (`truncated`). `FOREIGN_KINDS` enthält `entscheidung` und `antwort`: Sie belegen keinen
-  „Kritisch:“-Befund (Korpus der Zitatprüfung ohne sie).
-- **Chat-Aufträge** (`assist/chat.rs`): `is_rfc` (erstes Wort „RFC“ oder „@alle“), `is_write_order` (erstes Wort nach
-  Erwähnungen und „bitte“ ist ein Imperativ aus `WRITE_VERBS`), `rfc_personas` (aktive Personas in ihrer Reihenfolge,
-  der Lektor nach `personas::rows_and_lector` herausgenommen). RFC: je Persona `run` im Modus Chat, die Antworten als
-  `FramedAnswer` (Text, Beitrag, Befund-ids aus `Outcome::findings`), zuletzt der Lektor mit
-  `OrderFrame { rfc_answers, rfc_summary: true }` (seine Befunde werden über `findings::ingest` Sammelbefunde).
-  Schreibauftrag: `run` im Modus `Propose` mit `frame.as_order`, danach unter der Schreibsperre der kurze Beitrag
-  `order_note(rev)` (keine Befund-Marke am Anfang, ergibt beim Zerlegen keinen Befund) und für jedes `[B<id>]` aus
-  Nachricht oder Vorschlag `findings::rpc::propose(… Adopted { rev } …)` (eigene Sperre und Commit; Fehler in
-  `notes`) – nur wenn `finding.key == order.key`: `rev` ist eine Nummer im Abschnitt des Auftrags, `resolve` sucht sie
-  aber im Abschnitt des Befunds; ein Befund aus einem anderen Abschnitt bekommt darum nur einen Hinweis in `notes`. Fäden (`threads.rs`) nutzen `is_rfc`/`rfc_personas`; `thread_call` nimmt die gerahmten Antworten,
-  `answer` zerlegt die Antwort des Lektors mit `summary = true`. Die Relay-Stufe von MCP entfällt beim RFC.
-- **Beitragsfassungen**: Store `post_edit.rs` (`post_edit`, `thread_post_edit`: eine Transaktion `BEGIN IMMEDIATE`,
-  alte Fassung als `post_version` mit `valid_from` = Anlage bzw. vorige Änderung, `edited` = `replaced`; leer,
-  mehr als 4000 Zeichen oder unverändert → `StoreError::PostEdit`). Server: `posts::edit` (RPC `post.edit`, Formular, MCP
-  `post_edit`) prüft unter der Schreibsperre, dass der Handelnde der Autor ist (Mensch „Autor“, MCP `@mcp:<name>`),
-  und schreibt genau einen Commit über `mirror::describe_post(…, PostAction::Edit, Some(&before), …)`;
-  `threads::edit_post` ohne Commit. Volltextindex: Trigger `post_fts_edit` (Bibliothek 0107, `AFTER UPDATE OF body ON
-  post`).
-- **Oberfläche**: `posts::visible_range` zeigt die neuesten `CHAT_PAGE_POSTS` = 50 (`view.rs` liefert `post_older`);
-  RPC `post.page` für das Nachladen. Seiten `/beitraege` und `/beitrag` (eigene Template-Umgebung in `posts.rs`,
-  Vorlagen `posts.html`, `post.html`). CSS: `app.css` begrenzt `.chat` (`max-height`, `overflow-y: auto`,
-  `user-select: text`) und stellt `.acc[data-section="chat"] .acc-body` von `overflow: hidden` auf `auto` – das war der
-  Blocker beim Kopieren und Scrollen (ohne begrenzte Höhe schnitt der Bereich ab; wo `::details-content` nicht
-  greift, reichte die Flex-Kette die Höhe nicht weiter). Bausteine in `chat.css`, Fäden in `threads.css`
-  (`.thread-scroll`). Widget `chat` (`web/src/chat.ts`): `enableCopy` (Clipboard-API, Rückfall `execCommand`),
-  Zitieren (`quoteLine`, einzeilig), „Neue Beiträge ↓“, „Ältere Beiträge“ über `post.page`; Widget `chat-page` für die
-  beiden Seiten, `threads.ts` nutzt `enableCopy`. Knöpfe, die nur mit JavaScript wirken, stehen mit `hidden` im HTML.
-- Grenze (ehrlich): Ein Schreibauftrag, der einen **neuen** Abschnitt verlangt („Erstelle ein Vorwort“), wird ein
-  Vorschlag für den gezeigten Abschnitt; das Anlegen neuer Abschnitte aus dem Chat heraus ist nicht umgesetzt (nur
-  über die Gliederung bzw. MCP `outline_add`) – Rest für den Backlog. Ob Kopieren im echten Browser vorher an etwas
-  anderem als dem abgeschnittenen Bereich scheiterte, ließ sich ohne Browser (Teamregel: kein Firefox) nicht
-  nachstellen; geprüft sind HTML, CSS und Skript.
+- **Lector as companion** (`assist/prompts.rs`): `CRITICAL_HANDLES = ["nathan"]`; the follow-up demand
+  (`answer_call`) and `CRITICAL_MISSING_NOTE` only for Nathan now. The default of the lector consists of `LECTOR_RULE`
+  (6: first „Was trägt:“ with a quotation, at most two „Vorschlag:“, critical findings allowed; with the same exception
+  for new revisions as `EVIDENCE_RULE`/`CRITICAL_RULE`, because the system prompt does not depend on the mode),
+  `BACKING_RULE` (7: duty to back claims, for every role with critical findings) and `COMPANION_RULE` (8–9: chat,
+  decisions, RFC); the exegete has `EVIDENCE_RULE` + `BACKING_RULE`, Nathan `CRITICAL_RULE` + `BACKING_RULE`
+  (literally as before). The rules are kept short: every character of the role prompt is missing for the chapter in
+  the context (`round18_lektor.rs` and `round15_lektor.rs` measure the limits). `mark_unbacked_criticals` applies
+  unchanged to all.
+- **Frame** (`assist/context.rs`): `decision_lines` reads via `Store::finding_list` the findings of the section or of
+  the chapter units with status adopted, discarded, deferred, done (without praise, without attached ones), discarded
+  first, at most `MAX_DECISIONS` = 30 (above that an honest closing line), per line `- [B<id>] vom Autor verworfen
+  (@x zu Titel): <<<entscheidung „…“ (Begründung: …) >>> – nicht erneut melden`, defused like `framed_line`. Plus
+  `DECISIONS_RULE` (and `OTHERS_RULE`) in the system part. With an RFC, `rfc_lines` frames the answers of the others
+  (`<<<antwort … >>>`, head `@x [B1] [B2]`) under `RFC_TITLE`, the job gets `RFC_TASK`; the posts of these answers drop
+  out of the chat history (not twice). The chat history (`RECENT_TITLE`) stands in the chat and with the writing job
+  (`frame.as_order`, job with `AS_ORDER_TASK`). When shortening, answers and decisions are dropped last and never
+  silently (`truncated`). `FOREIGN_KINDS` contains `entscheidung` and `antwort`: they do not back a „Kritisch:“
+  finding (corpus of the quotation check without them).
+- **Chat jobs** (`assist/chat.rs`): `is_rfc` (first word „RFC“ or „@alle“), `is_write_order` (the first word after
+  mentions and „bitte“ is an imperative from `WRITE_VERBS`), `rfc_personas` (active personas in their order, the lector
+  taken out by `personas::rows_and_lector`). RFC: per persona `run` in mode chat, the answers as `FramedAnswer` (text,
+  post, finding ids from `Outcome::findings`), last the lector with `OrderFrame { rfc_answers, rfc_summary: true }`
+  (his findings become collective findings via `findings::ingest`). Writing job: `run` in mode `Propose` with
+  `frame.as_order`, then under the write lock the short post `order_note(rev)` (no finding marker at the start, yields
+  no finding when splitting) and for each `[B<id>]` from message or proposal `findings::rpc::propose(… Adopted { rev }
+  …)` (own lock and commit; errors in `notes`) – only if `finding.key == order.key`: `rev` is a number in the section
+  of the job, but `resolve` looks for it in the section of the finding; a finding from another section therefore only
+  gets a hint in `notes`. Threads (`threads.rs`) use `is_rfc`/`rfc_personas`; `thread_call` takes the framed answers,
+  `answer` splits the answer of the lector with `summary = true`. The relay stage of MCP is dropped with an RFC.
+- **Post revisions**: store `post_edit.rs` (`post_edit`, `thread_post_edit`: one transaction `BEGIN IMMEDIATE`, old
+  revision as `post_version` with `valid_from` = creation or previous change, `edited` = `replaced`; empty, more than
+  4000 characters or unchanged → `StoreError::PostEdit`). Server: `posts::edit` (RPC `post.edit`, form, MCP
+  `post_edit`) checks under the write lock that the actor is the author (human „Autor“, MCP `@mcp:<name>`), and writes
+  exactly one commit via `mirror::describe_post(…, PostAction::Edit, Some(&before), …)`; `threads::edit_post` without a
+  commit. Full-text index: trigger `post_fts_edit` (library 0107, `AFTER UPDATE OF body ON post`).
+- **User interface**: `posts::visible_range` shows the newest `CHAT_PAGE_POSTS` = 50 (`view.rs` returns
+  `post_older`); RPC `post.page` for loading more. Pages `/beitraege` and `/beitrag` (template environment of their own
+  in `posts.rs`, templates `posts.html`, `post.html`). CSS: `app.css` limits `.chat` (`max-height`,
+  `overflow-y: auto`, `user-select: text`) and switches `.acc[data-section="chat"] .acc-body` from `overflow: hidden`
+  to `auto` – that was the blocker for copying and scrolling (without a limited height the area cut off; where
+  `::details-content` does not apply, the flex chain did not pass the height on). Building blocks in `chat.css`,
+  threads in `threads.css` (`.thread-scroll`). Widget `chat` (`web/src/chat.ts`): `enableCopy` (Clipboard API,
+  fallback `execCommand`), quoting (`quoteLine`, single-line), „Neue Beiträge ↓“, „Ältere Beiträge“ via `post.page`;
+  widget `chat-page` for the two pages, `threads.ts` uses `enableCopy`. Buttons that only work with JavaScript stand
+  in the HTML with `hidden`.
+- Limit (honest): a writing job that asks for a **new** section („Erstelle ein Vorwort“) becomes a proposal for the
+  shown section; creating new sections from the chat is not implemented (only through the outline or MCP
+  `outline_add`) – a leftover for the backlog. Whether copying in a real browser failed earlier on something other
+  than the cut-off area could not be reproduced without a browser (team rule: no Firefox); HTML, CSS and script are
+  checked.
 
-## Schnittstelle Runde 30 (R30-S1)
+## Interface of Round 30 (R30-S1)
 
-Gemeinsame Grundlage der drei Aufgaben von Runde 30 (Vertrag §1), danach füllt jeder nur seine Dateien:
+Common basis of the three tasks of Round 30 (contract §1), after which each fills only its own files:
 
-- Migration `0047_r30.sql` (reines Schema, eingefroren): Metadaten an `post` und `chat_thread_post` (`basis_rev`,
-  `basis_label`, `reply_to`, `repeat_of`, `relay_from`, `request`; Verweise mit ON DELETE SET NULL),
-  `finding.solutions`, `revision.variant_*` (Gruppe und Etikett beide oder keins, geprüft im Code), Tabelle
-  `replace_batch` (lokales Protokoll, keine uuid). Reserviert: Store 0048–0051, Bibliothek 0108/0109.
-- Store, voll umgesetzt: `Store::add_post_meta`/`post_meta*`/`thread_post_meta*` (`post_meta.rs`),
+- Migration `0047_r30.sql` (pure schema, frozen): metadata on `post` and `chat_thread_post` (`basis_rev`,
+  `basis_label`, `reply_to`, `repeat_of`, `relay_from`, `request`; references with ON DELETE SET NULL),
+  `finding.solutions`, `revision.variant_*` (group and label both or neither, checked in code), table `replace_batch`
+  (local log, no uuid). Reserved: store 0048–0051, library 0108/0109.
+- Store, fully implemented: `Store::add_post_meta`/`post_meta*`/`thread_post_meta*` (`post_meta.rs`),
   `Store::add_proposal_on`/`variant_group` (`variants.rs`, `write::add_proposal_on`), `Store::finding_set_solutions`,
-  `Store::replace_batch`; `replace_apply`/`replace_undo` sind Stubs (`StoreError::Replace` → RPC `-32000`).
-- Server-Haken: `assist::save` speichert Persona-Beiträge mit Metadaten (geprüfte Fassung, Auftrag, Verknüpfungen aus
-  `Order::links`); `assist::chat` wählt eine Prüfgrundlage für alle Personas (`basis::choose`), ruft
-  `variants::is_variants_order`/`run` und nach dem Lektor beim RFC `solutions::rfc_proposal`; `view::posts` hängt je
-  Beitrag `extra` (`chat_render::post_extra`) und `solutions` an, der Fassungsbaum `variant`
-  (`variants::revision_variant`); `mirror::record_request` spiegelt fertige Commit-Nachrichten der neuen Module.
-- Weiterleitung `search.*`, `xref.*`, `solution.*` in `rpc.rs`, Routen in `lib.rs` (schreibende hinter
-  `guard::same_origin`), MCP `text_search` und `solution_variants` (Stubs, `solution_variants` zählt zur Quote),
-  Menüeinträge unter Werkzeuge, leere Vorlagen-Makros (`search_bar`, `post_item`, `finding_block`, `post_solutions`,
-  `basis_select`) und TypeScript-Module (`search`, `search_keys`, `jump`, `xref`, `variants`).
+  `Store::replace_batch`; `replace_apply`/`replace_undo` are stubs (`StoreError::Replace` → RPC `-32000`).
+- Server hooks: `assist::save` stores persona posts with metadata (checked revision, job, links from `Order::links`);
+  `assist::chat` chooses one basis for all personas (`basis::choose`), calls `variants::is_variants_order`/`run` and,
+  after the lector with an RFC, `solutions::rfc_proposal`; `view::posts` attaches `extra` (`chat_render::post_extra`)
+  and `solutions` to each post, the revision tree `variant` (`variants::revision_variant`); `mirror::record_request`
+  mirrors finished commit messages of the new modules.
+- Forwarding of `search.*`, `xref.*`, `solution.*` in `rpc.rs`, routes in `lib.rs` (writing ones behind
+  `guard::same_origin`), MCP `text_search` and `solution_variants` (stubs, `solution_variants` counts towards the
+  quota), menu entries under tools, empty template macros (`search_bar`, `post_item`, `finding_block`,
+  `post_solutions`, `basis_select`) and TypeScript modules (`search`, `search_keys`, `jump`, `xref`, `variants`).
 
-## Suchen und Ersetzen (Runde 30a)
+## Search and replace (Round 30a)
 
 - **Server `src/search/`:**
-  - `mod.rs`: Typen (`SearchQuery`, `SearchHit`, `SearchResult`, `TextKind`, `SearchRange`, `RevChoice`), Bereiche
-    (`sections_in`: Abschnitt, Kapitel = nächster Kapitel-Vorfahr samt Unterpunkten, Teil, ab Abschnitt, Auswahl,
-    Werk, alle Werke), Text je Abschnitt (aktuelle bzw. gezeigte Fassung, ungespeicherter `text`, Auswahl in
-    UTF-16), `find`/`find_within` (Zeitgrenze als Parameter für Tests) und RPC-Weiterleitung.
-  - `scan.rs`: Textarten je Byte (`classify`): Überschriftstitel, Fußnoteninhalt, Zitate über
-    `crate::quotes::quote_spans`, Code (`#name`, Argumente, Schlüsselwortzeilen, Raw, Formeln, Kommentare, Labels,
-    `@verweis`), sonst Text. Ein Treffer über mehrere Arten zählt als die strengste (Code > Zitat > Fußnote >
-    Überschrift > Text). Dazu das Muster (`pattern`: Crate `regex`, `size_limit(1<<20)`, `dfa_size_limit(1<<22)`;
-    im Wortlaut-Modus findet jedes Sonderzeichen auch `\\x`), Treffer mit Ersatz (`find_in`; Regex:
-    `Captures::expand`, Wortlaut: `escape_literal`) und UTF-16-Umrechnung.
-  - `replace.rs`: `preview` (Diff je Abschnitt als HTML-Zeilen mit `<del>`/`<ins>`, alles maskiert, `body_after`),
-    `replace` und `undo` unter der Schreibsperre; je ein Commit über `mirror::record_request` mit
-    `Baruch-Action: replace` bzw. `replace-undo` und `Baruch-Replace: <id>`.
-  - `page.rs`: `GET /suche`, `POST /suche/act` (eigene Vorlagen-Umgebung `templates/search.html`).
-- **Ablauf beim Ersetzen:**
-  - Der Server sucht noch einmal auf der aktuellen Fassung. Die Reihenfolge der Treffer ist dieselbe wie in der
-    Vorschau, `skip` zählt in ihr.
-  - Er rechnet die neuen Texte und übergibt sie mit der Basis aus der Vorschau an `Store::replace_apply`.
-  - Der Store prüft in **einer** Transaktion je Abschnitt unter einem eigenen `SAVEPOINT`: Ist die aktuelle Fassung
-    noch die Basis, entsteht eine neue Fassung vom Menschen (`write::save_human`), danach folgt
-    `outline::check_current_heading`. Andere Ebene, weitere oder keine Überschrift → nur dieser Abschnitt wird
-    zurückgerollt und mit Grund übersprungen.
-  - Am Ende schreibt er eine Zeile `replace_batch` (Optionen als JSON, `items` = `[{key, prev_rev, new_rev}]`).
-- **Rückgängig:** `Store::replace_undo` schaltet je Eintrag mit `write::set_current` + `outline::follow_switched`
-  zurück, nur wenn `new_rev` noch aktuell ist, und setzt `undone`. `Store::replace_latest` liefert das jüngste offene
-  Ersetzen für `/suche`. `replace_batch` ist lokal: keine uuid, nicht im Austauschformat.
+  - `mod.rs`: types (`SearchQuery`, `SearchHit`, `SearchResult`, `TextKind`, `SearchRange`, `RevChoice`), ranges
+    (`sections_in`: section, chapter = nearest chapter ancestor including sub-items, part, from section, selection,
+    work, all works), text per section (current or shown revision, unsaved `text`, selection in UTF-16),
+    `find`/`find_within` (time limit as a parameter for tests) and RPC forwarding.
+  - `scan.rs`: text kinds per byte (`classify`): heading titles, footnote content, quotations via
+    `crate::quotes::quote_spans`, code (`#name`, arguments, keyword lines, raw, formulas, comments, labels,
+    `@verweis`), otherwise text. A hit across several kinds counts as the strictest (code > quotation > footnote >
+    heading > text). Plus the pattern (`pattern`: crate `regex`, `size_limit(1<<20)`, `dfa_size_limit(1<<22)`; in
+    wording mode every special character also finds `\\x`), hits with replacement (`find_in`; regex:
+    `Captures::expand`, wording: `escape_literal`) and UTF-16 conversion.
+  - `replace.rs`: `preview` (diff per section as HTML lines with `<del>`/`<ins>`, everything escaped, `body_after`),
+    `replace` and `undo` under the write lock; one commit each via `mirror::record_request` with
+    `Baruch-Action: replace` or `replace-undo` and `Baruch-Replace: <id>`.
+  - `page.rs`: `GET /suche`, `POST /suche/act` (template environment of its own, `templates/search.html`).
+- **Course of a replacement:**
+  - The server searches once more on the current revision. The order of the hits is the same as in the preview,
+    `skip` counts in it.
+  - It computes the new texts and passes them with the basis from the preview to `Store::replace_apply`.
+  - The store checks in **one** transaction per section under a `SAVEPOINT` of its own: if the current revision is
+    still the basis, a new revision by the human is created (`write::save_human`), followed by
+    `outline::check_current_heading`. Another level, further headings or none → only this section is rolled back and
+    skipped with a reason.
+  - At the end it writes one row `replace_batch` (options as JSON, `items` = `[{key, prev_rev, new_rev}]`).
+- **Undo:** `Store::replace_undo` switches back per entry with `write::set_current` + `outline::follow_switched`, only
+  if `new_rev` is still current, and sets `undone`. `Store::replace_latest` returns the youngest open replacement for
+  `/suche`. `replace_batch` is local: no uuid, not in the exchange format.
 - **Widgets:**
-  - `web/src/search_keys.ts`: reine Funktion `keyAction(e, ctx)`, unter Node geprüft.
-  - `web/src/search.ts`: Suchleiste `search-bar` aus `fragments/search_bar.html`, Werk-Seitenleiste, Listener am
-    Dokument in der Capture-Phase. Treffer im Satzbild über die CSS Custom Highlight API (`baruch-search`,
-    `baruch-search-current`). Der Ersatz im Abschnitt geht über `search.preview` mit `text=` und ändert nur das
-    Textfeld.
-  - Stil `static/search.css`.
-- **MCP** `text_search` (`src/mcp/search.rs`): `crate::search::find` mit Bereich `section|chapter|part|from|work`,
-  Vorgabe 100 Treffer, kein Schreibweg.
+  - `web/src/search_keys.ts`: pure function `keyAction(e, ctx)`, checked under Node.
+  - `web/src/search.ts`: search bar `search-bar` from `fragments/search_bar.html`, work sidebar, listeners on the
+    document in the capture phase. Hits in the typeset view via the CSS Custom Highlight API (`baruch-search`,
+    `baruch-search-current`). Replacement in the section goes through `search.preview` with `text=` and changes only
+    the text field.
+  - Style `static/search.css`.
+- **MCP** `text_search` (`src/mcp/search.rs`): `crate::search::find` with range `section|chapter|part|from|work`,
+  default 100 hits, no write path.
 
-## Querverweise (Runde 30a)
+## Cross-references (Round 30a)
 
-- **`baruch_typst::xref`** (rein):
-  - `label_heading`/`label_section` projizieren die Sprungmarke: ` <kN>` am Ende einer `=`-Zeile vor einem
-    Kommentar, bei eigenem Label (Teil, „ohne Nummer“, Label am Zeilenende oder allein darunter) die Ankerzeile
-    `#metadata("baruch-key") <kN>` darunter.
-  - `strip_key_label`/`strip_section`/`strip_key_labels` entfernen sie wieder.
-  - `find_xrefs` findet `#link(<kN>)[…]` samt Seitenzahl-Zusatz, `remap_keys` setzt Schlüssel um, `xref_snippet`
-    baut die Form.
-  - `part_anchors_for_typesetting` dient nur dem Satz mit Teil-Seiten, siehe unten.
+- **`baruch_typst::xref`** (pure):
+  - `label_heading`/`label_section` project the jump mark: ` <kN>` at the end of a `=` line before a comment; with a
+    label of its own (part, „ohne Nummer“, label at the end of the line or alone below it) the anchor line
+    `#metadata("baruch-key") <kN>` below it.
+  - `strip_key_label`/`strip_section`/`strip_key_labels` remove them again.
+  - `find_xrefs` finds `#link(<kN>)[…]` including the page number supplement, `remap_keys` rewrites keys,
+    `xref_snippet` builds the form.
+  - `part_anchors_for_typesetting` serves only typesetting with part pages, see below.
 - **Store:**
-  - `snapshot::export_parts` und `snapshot::files` setzen nach der Projektion „Nummer an/aus“ `label_section` ein.
-    Damit tragen Export, Export-Karte (byte-gleich), Spiegel und Satz die Sprungmarken, SQLite nicht.
-  - `import.rs` entfernt sie je Überschrift (`strip_section`), legt erst alle Knoten an und schreibt dann die Texte
-    mit `remap_keys` (alt → neue `node.id`). Die Prüfsumme gegen doppelten Import bleibt die der Datei.
-- **Anker eines Teils im Satz (Messung `baruch-render/tests/xref.rs`):**
-  - Die Teil-Regel (`part_page_rule`) bricht nach dem Teil um. Eine Ankerzeile hinter der Teil-Zeile läge darum auf
-    der Folgeseite, und `counter(page).at(<kN>)` nennte die falsche Seite.
-  - `typeset::part_pages` setzt deshalb im Satz `part_anchors_for_typesetting` ein. Die Ankerzeile wandert vor die
-    Teil-Zeile, mit eigenem `#pagebreak(weak: true, to: "odd")`. Der Umbruch der Regel entfällt danach, weil die Seite
-    nur den Anker trägt (gleiche Seitenzahl gemessen).
-  - Export und Spiegel bleiben bei der Ankerzeile darunter (ohne Teil-Regel liegt sie auf der Seite der
-    Überschrift). Zeilenzahl und Bytebereiche der Karte zieht `typeset::rewrite_sections` nach.
-- **Kaputte Verweise:**
-  - `xref::broken_in` meldet Verweise auf Schlüssel ohne aktuelle Fassung.
-  - `typeset::xref_safety` macht sie im Satz zum bloßen Linktext; sonst scheiterte der ganze Satz an „label does not
-    exist“.
-  - Die Druckprüfung (`typeset.html`, `li.typeset-xref`) nennt sie.
+  - `snapshot::export_parts` and `snapshot::files` insert `label_section` after the projection „Nummer an/aus“. So
+    export, export map (byte-identical), mirror and typesetting carry the jump marks, SQLite does not.
+  - `import.rs` removes them per heading (`strip_section`), first creates all nodes and then writes the texts with
+    `remap_keys` (old → new `node.id`). The checksum against a double import stays that of the file.
+- **Anchor of a part in typesetting (measurement `baruch-render/tests/xref.rs`):**
+  - The part rule (`part_page_rule`) breaks the page after the part. An anchor line after the part line would
+    therefore lie on the following page, and `counter(page).at(<kN>)` would name the wrong page.
+  - `typeset::part_pages` therefore inserts `part_anchors_for_typesetting` when typesetting. The anchor line moves
+    before the part line, with its own `#pagebreak(weak: true, to: "odd")`. The break of the rule is then dropped,
+    because the page carries only the anchor (same page number measured).
+  - Export and mirror keep the anchor line below (without the part rule it lies on the page of the heading).
+    `typeset::rewrite_sections` updates the line count and byte ranges of the map.
+- **Broken references:**
+  - `xref::broken_in` reports references to keys without a current revision.
+  - `typeset::xref_safety` turns them into plain link text when typesetting; otherwise the whole typesetting would
+    fail with "label does not exist".
+  - The print check (`typeset.html`, `li.typeset-xref`) names them.
 - **baruch-wysiwyg:**
-  - `Inline::Xref {key, c, page}`; `parse` erkennt `#link(<kN>)[…]` samt Zusatz mit demselben Schlüssel.
-  - `emit` schreibt `xref_snippet`, `render_html` einen `span.ws-xref` mit `data-key`/`data-page` und einen nicht
-    bearbeitbaren `span.ws-xref-page`.
-  - `wysiwyg.ts` liest den Block zurück (`t: "xref"`), fügt ihn über den Befehl `xref` (`ws_command.ts`) ein und
-    markiert `baruch:find` mit dem Highlight `baruch-find`.
+  - `Inline::Xref {key, c, page}`; `parse` recognises `#link(<kN>)[…]` including a supplement with the same key.
+  - `emit` writes `xref_snippet`, `render_html` a `span.ws-xref` with `data-key`/`data-page` and a non-editable
+    `span.ws-xref-page`.
+  - `wysiwyg.ts` reads the block back (`t: "xref"`), inserts it via the command `xref` (`ws_command.ts`) and marks
+    `baruch:find` with the highlight `baruch-find`.
 - **Server `src/xref.rs`:**
-  - `jump_url`, `check_marker` (Schlüssel, Zitat mit vereinheitlichtem Leerraum, `at` = Byte des Zitats);
-    `outline_mentions` (Zählnennungen über ein Muster mit Ordnungszahlen eins bis zwölf, römisch bis XXXIX,
-    arabisch und Nummern wie 2.3; Titel ab vier Zeichen als ganze Wörter mit Artikel, kürzere nur in
-    Anführungszeichen; eindeutig oder gar nicht, gezählt nur Punkte mit Nummer).
-  - `candidates_in` nimmt nur Fließtext (`search::scan::classify`), nicht in vorhandenen Verweisen, nicht den eigenen
-    Abschnitt.
-  - `convert` legt über `Store::save_human_on` eine Fassung auf `rev` an und spiegelt sie mit `mirror::record`.
-  - RPC `xref.*`, Seiten `/verweise` und `/verweise/act` (Vorlage `templates/xrefs.html`).
+  - `jump_url`, `check_marker` (key, quotation with normalised whitespace, `at` = byte of the quotation);
+    `outline_mentions` (counting mentions via a pattern with ordinal numbers one to twelve, Roman up to XXXIX, Arabic
+    and numbers like 2.3; titles from four characters as whole words with article, shorter ones only in quotation
+    marks; unique or not at all, counting only items with a number).
+  - `candidates_in` takes only running text (`search::scan::classify`), not inside existing references, not the own
+    section.
+  - `convert` creates a revision on `rev` via `Store::save_human_on` and mirrors it with `mirror::record`.
+  - RPC `xref.*`, pages `/verweise` and `/verweise/act` (template `templates/xrefs.html`).
 - **Widgets:**
-  - `jump.ts` (ohne Importe; reine Funktionen `pushJump`/`popJump`/`forwardJump`, `byteToUtf16`, `locate`, `findOf`
-    unter Node geprüft): `a[data-jump]`, Verlauf `sessionStorage` `baruch_jumps`, Sprungleiste,
-    `baruch:find {text, at}` nach dem Laden und nach `baruch:rendered`.
-  - `workspace.ts` meldet `baruch:rendered` nach jedem Neuzeichnen; Alt+← geht über `jumpBack()`, wenn Verlauf da ist.
-  - `xref.ts`: Dialog über `baruch:xref-open` aus `ribbon.ts`, `localStorage` `baruch_xref_page`, Strg+Klick und
-    „Öffnen | Bearbeiten“ (Menü fest im Dokument, nicht im Satzbild).
-  - Menüband `ribbon::formats` hat `cmd = "xref"`.
+  - `jump.ts` (without imports; pure functions `pushJump`/`popJump`/`forwardJump`, `byteToUtf16`, `locate`, `findOf`
+    checked under Node): `a[data-jump]`, history `sessionStorage` `baruch_jumps`, jump bar, `baruch:find {text, at}`
+    after loading and after `baruch:rendered`.
+  - `workspace.ts` reports `baruch:rendered` after every redraw; Alt+← goes through `jumpBack()` if there is history.
+  - `xref.ts`: dialog via `baruch:xref-open` from `ribbon.ts`, `localStorage` `baruch_xref_page`, Ctrl+click and
+    „Öffnen | Bearbeiten“ (menu fixed in the document, not in the typeset view).
+  - Ribbon `ribbon::formats` has `cmd = "xref"`.
 
-## Lösungsvorschläge und Varianten (Runde 30b)
+## Solution proposals and variants (Round 30b)
 
-- **Lösungsform** (`assist/solutions.rs`): `parse_solutions` liest `statt: „…“` + `besser: „…“`, `Schritt: …` und die
-  Kurzform `statt „…“ besser „…“` (auch mitten in einer Zeile, auch nummeriert); `is_solution_line` erkennt eine
-  Lösungszeile. `findings::parse::split_answer` hängt Lösungszeilen an den Befund darüber (gleich wie eingerückt, auch nach einer Leerzeile – erst eine andere Zeile schließt den Befund),
-  nimmt sie aus dem Befundtext und liest den Schlussblock „Mein Vorschlag:“ nicht als Befunde; `finding_spans` liefert
-  die Bytes je Befund samt Lösungszeilen (für die Blöcke im Chat, Runde 30c). `findings::ingest` speichert die
-  Lösungen je Befund (`Store::finding_set_solutions`, Spalte `finding.solutions` aus 0047); Fehler dort nur auf
-  stderr, der Befund bleibt.
-- **Lösungspflicht** (`assist/prompts.rs`, `assist/mod.rs`): `SOLUTION_RULE` steht in jeder Vorgabe.
-  `answer_call` fordert nach dem Pflichtbefund (Nathan) einmal je Auftrag nach, wenn `missing_solutions` > 0
-  (`Retries { critical, solution }`, Grund `SOLUTION_RETRY_REASON`); die zweite Antwort gilt nur, wenn ihr nicht mehr
-  Lösungen fehlen und sie den Pflichtbefund behält. `mark_missing_solutions` setzt danach „(ohne Lösungsvorschlag)“
-  ans Ende der ersten Zeile jedes kritischen Punkts ohne Lösung (vom Modell geschriebene Vermerke werden entfernt und
-  neu geprüft; idempotent). Abgeschnittene Antworten: weder Nachforderung noch Vermerk. Der Vermerk wandert beim
-  Zerlegen in `quote_check`.
-- **Übernehmbar und Einsetzen**: `locate` sucht das Zitat wörtlich, sonst mit beliebigem Leerraum (Regex nur aus
-  maskierten Wörtern, `size_limit`); `apply_solutions` setzt der Reihe nach je das erste Vorkommen ein und meldet ein
-  fehlendes Zitat. `post_solutions(body, shown)` ist der Haken in `view::posts` (`post.solutions`).
-- **RPC** `solution.*` (`assist/solutions.rs::call`, weitergeleitet von `rpc.rs`): `adopt` legt über
-  `Store::add_proposal_on` (Basis = gezeigte bzw. Prüfgrundlage des Beitrags `PostMeta::basis_rev`, beim Befund die
-  aktuelle) einen Vorschlag mit Herkunft der Persona an und schlägt über `findings::rpc::propose` „übernommen in
-  Fassung n“ vor (nur Befunde dieses Abschnitts). `reject_siblings` verwirft unter der Schreibsperre die übrigen
-  offenen Vorschläge der Gruppe (`Store::reject`, kein Spiegel-Commit, wie `revision.reject`). `compare` liefert je
-  Variante den Zeilen-Diff zur Basis und zu den übrigen als maskiertes HTML (`diff_html`, `baruch_core::line_diff`).
-  Seiten: `GET /varianten` (eigene Umgebung mit `base.html`, `variants.html`; ohne `key` bestimmt
-  `Store::variant_group_key` den Abschnitt) und `POST /loesungen/act` (Paare aus dem Formular, `picks`/`findings`
-  mehrfach, 303; Fehler → 200 mit `role="alert"`), hinter `guard::same_origin`.
-- **RFC** (`solutions::rfc_proposal`, Haken in `chat.rs`): `proposal_block` liest die Lösungen nach „Mein Vorschlag:“;
-  höchstens drei übernehmbare werden in die Prüfgrundlage eingesetzt, ein Vorschlag (Notiz „Mein Vorschlag von
-  @lektor (Beitrag n)“); `[B<id>]` im Block ergeben Statusvorschläge.
-- **Prüfgrundlage** (`assist/basis.rs`): `choose_in` wählt gezeigt/aktuell/n; „gezeigt“ auf einer aktuellen Fassung
-  nur mit Überschrift (`heading_only`) nimmt den neuesten Vorschlag mit Text, ausdrücklich „aktuell“ bleibt mit
-  Hinweis in der Kopfzeile. `assist/rpc.rs::order` liest `basis` für ask/review (propose nicht), `run_inputs` wählt
-  sie für Aufträge ohne Grundlage (MCP `ask_persona`, Fäden, Einfälle) – die Adresse bleibt ohne `rev`, solange die
-  aktuelle Fassung geprüft wird. `Outcome.basis` (JSON `basis` bei ask/review) und `PostMeta::basis_label` tragen sie.
-  Der Auftrag sagt bei einer Fassung nur mit Überschrift `HEADING_ONLY_TASK`.
-- **Kontext** (`assist/context.rs`): `outline_block` mit `[key:N]`; bei „Chat nur Abschnitt“ steht er als Umfeld da,
-  sonst kommt er (samt `JUMP_RULE` im System) nur dazu, wenn danach noch `OUTLINE_SLACK` Zeichen frei sind – er
-  verdrängt keinen Text und löst keine Stückelung aus. Fremde Befunde: der Lektor unter `FINDINGS_TITLE`, alle anderen
-  unter `KNOWN_TITLE` mit `KNOWN_RULE` (nicht kommentieren). `OrderFrame.relay` steht gerahmt und entschärft
-  (`relay_line`, Art `antwort`, zählt nicht zum Korpus) mit `RELAY_TASK`. `RFC_TASK` verlangt „Mein Vorschlag:“.
-- **Varianten** (`assist/variants.rs`): Lektor nach Einstellung, Befunde genannt (nur dieses Abschnitts) oder die
-  offenen des Abschnitts (ohne Lob, ohne angehängte), höchstens `MAX_VARIANT_FINDINGS`; ohne Befunde ehrliche
-  Ablehnung. Je Variante ein eigener `ModelCall` (System: Lektor-Prompt, `OTHERS_RULE`, `VARIANT_RULE`; Befunde mit
-  Lösungen gerahmt; Richtung `VARIANT_STYLES[k]` und die schon geschriebenen Zeilen), nacheinander über
-  `ask_model`. Passt der Abschnitt samt Antwort nicht in die Kontextlänge, gehen nur die betroffenen Absätze (Zitat
-  eines Befunds bzw. einer Lösung, nie die Überschrift) mit Marken `[[Absatz n]]` hinaus (`PARTIAL_RULE`); `splice`
-  setzt die Antwort ein. Gespeichert wird erst am Ende unter einer Sperre (`add_proposal_on` mit `VariantInfo`,
-  Gruppe `new_uuid`). Chat-Auftrag: `is_variants_order` (Wort „Varianten“, keine Frage). Fassungsbaum:
-  `revision_variant` (JSON mit `title`), Etiketten in `revtree.html`, „übrige verwerfen“ in `revisions.html`.
-- **Vorlagen**: `fragments/finding_block.html` (Befund als Block: Art mit Zeichen und Wort, Status mit Knöpfen an
-  `/werke/befunde/act`, Lösungen, „Als Vorschlag übernehmen“), `fragments/post_solutions.html` (Lösungen eines
-  Beitrags, „Lösungen umsetzen“), `fragments/basis_select.html` (in `assist_scope.html`). Die Karten
-  (`findings::view::card`) tragen dafür `body_html` (über `chat_render::markdown_html`), `solution_views`,
-  `adoptable`, `work`, `back`; die Matrix zählt `solved`/`unsolved`.
-- **Austausch Unterversion 5**: siehe `docs/Austauschformat.md` §6; `exchange_apply::apply_u5` setzt nach dem Einlesen
-  auf den neu angelegten Zeilen (ids über dem Stand vor dem Lauf) Varianten, Metadaten und Lösungen und ruft
-  `baruch_typst::xref::remap_keys` mit der Zuordnung `schluessel` der Datei → Kennung → Schlüssel hier. Beim Abgleich
-  (`apply_merge`, Schritt (c)/(d)) schlüsselt Baruch den Text einer Fassung **vor** dem Vergleich mit der hiesigen
-  um (dieselbe Zuordnung über alle Punkte des Werks): Eine Fassung, die sich nur in den Schlüsseln der Querverweise
-  unterscheidet, ist nicht abweichend; eine wirklich abweichende Fassung (abgeleitete Kennung) wird mit den hiesigen
-  Schlüsseln angelegt, denn `apply_u5` erreicht sie über die Kennung der Originalfassung nicht.
+- **Solution form** (`assist/solutions.rs`): `parse_solutions` reads `statt: „…“` + `besser: „…“`, `Schritt: …` and the
+  short form `statt „…“ besser „…“` (also in the middle of a line, also numbered); `is_solution_line` recognises a
+  solution line. `findings::parse::split_answer` attaches solution lines to the finding above (the same as indented,
+  also after an empty line – only another line closes the finding), takes them out of the finding text and does not
+  read the closing block „Mein Vorschlag:“ as findings; `finding_spans` returns the bytes per finding including
+  solution lines (for the blocks in the chat, Round 30c). `findings::ingest` stores the solutions per finding
+  (`Store::finding_set_solutions`, column `finding.solutions` from 0047); errors there only on stderr, the finding
+  stays.
+- **Duty to propose solutions** (`assist/prompts.rs`, `assist/mod.rs`): `SOLUTION_RULE` stands in every default.
+  `answer_call` asks again once per job after the mandatory finding (Nathan) if `missing_solutions` > 0
+  (`Retries { critical, solution }`, reason `SOLUTION_RETRY_REASON`); the second answer counts only if it lacks no more
+  solutions and keeps the mandatory finding. `mark_missing_solutions` then puts „(ohne Lösungsvorschlag)“ at the end of
+  the first line of every critical item without a solution (notes written by the model are removed and checked anew;
+  idempotent). Cut-off answers: neither a follow-up demand nor a note. The note moves into `quote_check` when
+  splitting.
+- **Adoptable and inserting**: `locate` looks for the quotation literally, otherwise with arbitrary whitespace (regex
+  only from escaped words, `size_limit`); `apply_solutions` inserts in order the first occurrence each and reports a
+  missing quotation. `post_solutions(body, shown)` is the hook in `view::posts` (`post.solutions`).
+- **RPC** `solution.*` (`assist/solutions.rs::call`, forwarded by `rpc.rs`): `adopt` creates via
+  `Store::add_proposal_on` (basis = shown revision or the basis of the post `PostMeta::basis_rev`, for a finding the
+  current one) a proposal with the origin of the persona and proposes via `findings::rpc::propose` „übernommen in
+  Fassung n“ (only findings of this section). `reject_siblings` discards under the write lock the other open proposals
+  of the group (`Store::reject`, no mirror commit, like `revision.reject`). `compare` returns per variant the line diff
+  to the basis and to the others as escaped HTML (`diff_html`, `baruch_core::line_diff`). Pages: `GET /varianten`
+  (environment of its own with `base.html`, `variants.html`; without `key`, `Store::variant_group_key` determines the
+  section) and `POST /loesungen/act` (pairs from the form, `picks`/`findings` multiple, 303; errors → 200 with
+  `role="alert"`), behind `guard::same_origin`.
+- **RFC** (`solutions::rfc_proposal`, hook in `chat.rs`): `proposal_block` reads the solutions after „Mein
+  Vorschlag:“; at most three adoptable ones are inserted into the basis, one proposal (note „Mein Vorschlag von
+  @lektor (Beitrag n)“); `[B<id>]` in the block yield status proposals.
+- **Basis** (`assist/basis.rs`): `choose_in` chooses shown/current/n; "shown" on a current revision with only a
+  heading (`heading_only`) takes the newest proposal with text, an explicit "current" stays with a hint in the head
+  line. `assist/rpc.rs::order` reads `basis` for ask/review (not propose), `run_inputs` chooses it for jobs without a
+  basis (MCP `ask_persona`, threads, ideas) – the address stays without `rev` as long as the current revision is
+  checked. `Outcome.basis` (JSON `basis` for ask/review) and `PostMeta::basis_label` carry it. For a revision with only
+  a heading, the job says `HEADING_ONLY_TASK`.
+- **Context** (`assist/context.rs`): `outline_block` with `[key:N]`; with „Chat nur Abschnitt“ it stands there as
+  surroundings, otherwise it (together with `JUMP_RULE` in the system part) is only added if afterwards `OUTLINE_SLACK`
+  characters are still free – it displaces no text and triggers no splitting into pieces. Findings of others: the
+  lector under `FINDINGS_TITLE`, all others under `KNOWN_TITLE` with `KNOWN_RULE` (do not comment). `OrderFrame.relay`
+  stands framed and defused (`relay_line`, kind `antwort`, does not count towards the corpus) with `RELAY_TASK`.
+  `RFC_TASK` asks for „Mein Vorschlag:“.
+- **Variants** (`assist/variants.rs`): lector by setting, findings named (only of this section) or the open ones of
+  the section (without praise, without attached ones), at most `MAX_VARIANT_FINDINGS`; without findings an honest
+  refusal. Per variant a `ModelCall` of its own (system: lector prompt, `OTHERS_RULE`, `VARIANT_RULE`; findings with
+  solutions framed; direction `VARIANT_STYLES[k]` and the lines already written), one after the other via `ask_model`.
+  If the section including the answer does not fit into the context length, only the affected paragraphs (quotation
+  of a finding or a solution, never the heading) go out with markers `[[Absatz n]]` (`PARTIAL_RULE`); `splice` inserts
+  the answer. Storing happens only at the end under one lock (`add_proposal_on` with `VariantInfo`, group `new_uuid`).
+  Chat job: `is_variants_order` (word „Varianten“, no question). Revision tree: `revision_variant` (JSON with `title`),
+  labels in `revtree.html`, „übrige verwerfen“ in `revisions.html`.
+- **Templates**: `fragments/finding_block.html` (finding as a block: kind with sign and word, status with buttons to
+  `/werke/befunde/act`, solutions, „Als Vorschlag übernehmen“), `fragments/post_solutions.html` (solutions of a post,
+  „Lösungen umsetzen“), `fragments/basis_select.html` (in `assist_scope.html`). For this the cards
+  (`findings::view::card`) carry `body_html` (via `chat_render::markdown_html`), `solution_views`, `adoptable`,
+  `work`, `back`; the matrix counts `solved`/`unsolved`.
+- **Exchange minor version 5**: see `docs/Austauschformat.md` §6; after reading, `exchange_apply::apply_u5` sets
+  variants, metadata and solutions on the newly created rows (ids above the state before the run) and calls
+  `baruch_typst::xref::remap_keys` with the mapping `schluessel` of the file → identifier → key here. When reconciling
+  (`apply_merge`, step (c)/(d)), Baruch rewrites the keys in the text of a revision **before** comparing it with the
+  local one (the same mapping over all items of the work): a revision that differs only in the keys of the
+  cross-references is not divergent; a really divergent revision (derived identifier) is created with the local keys,
+  because `apply_u5` does not reach it via the identifier of the original revision.
 
-## Chat: Wiederholen, Löschen, Anrede, Live, gegliederte Beiträge, Sprungmarken (Runde 30c)
+## Chat: retry, delete, address, live, structured posts, jump marks (Round 30c)
 
-**Daten.** Je Beitrag im Abschnitts-Chat (`post`) und im Faden (`chat_thread_post`) Metadaten aus Migration 0047
-(`baruch-store/src/post_meta.rs`): `basis_rev`/`basis_label` (geprüfte Fassung und Kopfzeile), `reply_to`,
-`repeat_of`, `relay_from` und `request` (`PostRequest {persona, mode, scope, text, rev}`, lokal, nicht im
-Austauschformat). Persona-Beiträge im Abschnitt schreibt `assist::save` über `Store::add_post_meta` (aus
-`Order::links`/`Order::basis`), im Faden `threads::answer` über `Store::thread_add_post_meta` (eine Transaktion,
-`scope = "thread"`, Auftragstext = Nachricht des Absenders). `Store::thread_post_delete` löscht einen Fadenbeitrag;
-Verweise darauf werden durch die Fremdschlüssel NULL (`ON DELETE SET NULL`), Verlauf und Befund-Verweise folgen 0046.
+**Data.** Per post in the section chat (`post`) and in the thread (`chat_thread_post`) metadata from migration 0047
+(`baruch-store/src/post_meta.rs`): `basis_rev`/`basis_label` (checked revision and head line), `reply_to`,
+`repeat_of`, `relay_from` and `request` (`PostRequest {persona, mode, scope, text, rev}`, local, not in the exchange
+format). `assist::save` writes persona posts in the section via `Store::add_post_meta` (from
+`Order::links`/`Order::basis`), `threads::answer` in the thread via `Store::thread_add_post_meta` (one transaction,
+`scope = "thread"`, job text = message of the sender). `Store::thread_post_delete` deletes a thread post; references
+to it become NULL through the foreign keys (`ON DELETE SET NULL`), history and finding references follow 0046.
 
-**Anrede und Relay** (`assist/chat.rs`): `addressed(message, personas)` = `@handle` überall plus Name/Handle ohne „@“
-am Satzanfang (Beitragsanfang, nach Zeilenumbruch, nach „.“/„!“/„?“ mit Leerraum) mit „,“/„:“; `mentions` bleibt für
-MCP-Relay und Bestand. `line_addresses(answer, personas)` = Anreden am Zeilenanfang einer Antwort (auch hinter
-Aufzählungszeichen und `**`, nicht in „> “-Zitaten). `chat()` sammelt die Antworten der ersten Runde und ruft danach je
-Anrede eine Relay-Antwort: `Order { mode: Chat, text: relay_text(..), asker: anredende Persona, frame.relay: deren Antwort
-gerahmt, links: {reply_to, relay_from} }`. Grenzen `MAX_RELAY_ANSWERS` (3), jede Persona einmal (`called` umfasst alle
-Gerufenen samt gescheiterten), eine Stufe, nicht bei RFC/Schreibauftrag. Fäden (`threads::chat`) nutzen dieselben
-Funktionen; das MCP-Relay aus Runde 15 (jede Erwähnung, Gesamtgrenze 3) bleibt daneben bestehen (seit der
-Nachbesserung nach R30 in derselben Stufe und ebenso gerahmt, siehe „Relay“ unter Runde 15), `mcp/tools.rs`
-`relay_section` rief im Abschnitt danach nur noch Personas, die nicht schon dran waren (seit Runde 23 entfernt: ein
-Relay-Weg `assist::chat::relay_targets`).
+**Address and relay** (`assist/chat.rs`): `addressed(message, personas)` = `@handle` anywhere plus name/handle without
+"@" at the start of a sentence (start of the post, after a line break, after "."/"!"/"?" with whitespace) with
+","/":"; `mentions` stays for the MCP relay and existing code. `line_addresses(answer, personas)` = addresses at the
+start of a line of an answer (also after list markers and `**`, not in "> " quotations). `chat()` collects the answers
+of the first round and then calls one relay answer per address: `Order { mode: Chat, text: relay_text(..), asker:
+anredende Persona, frame.relay: deren Antwort gerahmt, links: {reply_to, relay_from} }`. Limits `MAX_RELAY_ANSWERS`
+(3), each persona once (`called` covers all called personas including failed ones), one stage, not with an RFC or a
+writing job. Threads (`threads::chat`) use the same functions; the MCP relay from Round 15 (every mention, total limit
+3) stays beside it (since the follow-up after R30 in the same stage and framed the same way, see "Relay" under
+Round 15), `mcp/tools.rs` `relay_section` afterwards called in the section only personas that had not had their turn
+yet (removed since Round 23: one relay path `assist::chat::relay_targets`).
 
-**Wiederholen** (`posts::repeat`, `threads::repeat_post`): Auftrag aus `PostMeta::request` (Rückfall:
-`chat_render::repeat_fallback` bzw. `threads::thread_fallback` – vorangehender Beitrag eines Nicht-Persona-Autors),
-Prüfgrundlage über `assist::basis::choose`, Ausführung über `assist::run` bzw. `threads::answer` mit
-`links.repeat_of`. Danach `posts::propose_done`: offene, nicht-lobende Befunde des alten Beitrags, zu denen
-`findings::parse::split_answer(neue Antwort)` keinen `similar` liefert, bekommen über `findings::rpc::propose` den
-Vorschlag `Done` (Herkunft die Persona, je ein Commit). Verglichen wird der Text der neuen Antwort, nicht die neu
-angelegten Befunde – `findings::ingest` hängt Wiederholungen eines Befunds an den alten an (`similar_to`).
+**Retry** (`posts::repeat`, `threads::repeat_post`): job from `PostMeta::request` (fallback:
+`chat_render::repeat_fallback` or `threads::thread_fallback` – preceding post of a non-persona author), basis via
+`assist::basis::choose`, execution via `assist::run` or `threads::answer` with `links.repeat_of`. Then
+`posts::propose_done`: open, non-praising findings of the old post for which `findings::parse::split_answer(neue
+Antwort)` returns no `similar` get the proposal `Done` via `findings::rpc::propose` (origin the persona, one commit
+each). The text of the new answer is compared, not the newly created findings – `findings::ingest` attaches
+repetitions of a finding to the old one (`similar_to`).
 
-**Löschen:** Abschnitt wie bisher `posts::act(Op::Delete)` (ein Commit `post-delete`); Faden `threads::delete_post`
-unter der Schreibsperre mit `Actor::only_own` (MCP: `delete_post_as`), Commit über `mirror::record_request` mit
-`allow_empty` (Protokoll, der Baum ändert sich nicht).
+**Delete:** section as before `posts::act(Op::Delete)` (one commit `post-delete`); thread `threads::delete_post` under
+the write lock with `Actor::only_own` (MCP: `delete_post_as`), commit via `mirror::record_request` with `allow_empty`
+(log, the tree does not change).
 
-**Live** (`chat_live.rs`): prozessweite Tabellen im Arbeitsspeicher je (Werk, Abschnitt bzw. Faden): `typing()` /
-`typing_thread()` tragen ein und geben eine `TypingGuard`, deren `Drop` austrägt (Ende, Fehler oder Abbruch des Futures);
-`assist::run_inputs` und `threads::answer` halten sie während des Auftrags. `record_failure()` merkt gescheiterte Aufrufe
-(aus `chat::fail`, `routes::remember_failure` für Einzelaufträge, `threads::answer`, `posts::repeat`), höchstens fünf je
-Ort, zehn Minuten. `post.since`/`thread.since` rendern neue Beiträge mit denselben Makros wie die Seite
-(`fragments/post_item.html`: `post_entry` bzw. `thread_entry`, über `Environment::render_str`), dazu `typing_now` und
-`failures_now`. `web/src/chat.ts` (`startLive`) fragt alle 3 s bei offenem Akkordeon und sichtbarer Seite ab und sofort
-auf `baruch:chat-refresh` (assist.ts am Ende eines SSE-Stroms); threads.ts nutzt dieselbe Funktion.
+**Live** (`chat_live.rs`): process-wide tables in memory per (work, section or thread): `typing()` /
+`typing_thread()` register and return a `TypingGuard` whose `Drop` unregisters (end, error or cancellation of the
+future); `assist::run_inputs` and `threads::answer` hold it during the job. `record_failure()` remembers failed calls
+(from `chat::fail`, `routes::remember_failure` for single jobs, `threads::answer`, `posts::repeat`), at most five per
+place, ten minutes. `post.since`/`thread.since` render new posts with the same macros as the page
+(`fragments/post_item.html`: `post_entry` or `thread_entry`, via `Environment::render_str`), plus `typing_now` and
+`failures_now`. `web/src/chat.ts` (`startLive`) polls every 3 s while the accordion is open and the page is visible,
+and immediately on `baruch:chat-refresh` (assist.ts at the end of an SSE stream); threads.ts uses the same function.
 
-**Darstellung** (`chat_render.rs`): `markdown_html` (Signatur fest, auch für Befund-Akkordeon und Matrix) zerlegt in
-Blöcke (Absatz, Liste mit Unterpunkten, Zitat, Überschrift) und eine Fußzeile (Schlusshinweise von Baruch:
-`scripture::MARK_*`, `CUT_NOTE`, `TRUNCATED_NOTE`, „Komprimiert:“, `CRITICAL_MISSING_NOTE`); Inline nur `**`/`*`, alles
-über `bibles::html_escape`. `render_post` legt Links an Byte-Bereichen der Zeile an (Reihenfolge Marken → Einfall/Befund
-→ Bibelstellen → Zitate → `xref::outline_mentions`, keine Überschneidung) und maskiert den Rest; Sprungmarken prüft
-`xref::check_marker` (die Fassungsnummer nur für den eigenen Abschnitt, sonst die aktuelle), Sprünge baut
-`xref::jump_url` (`data-jump data-jump-origin="chat"`), Bibelstellen `baruch_scripture::scan` (nur `Valid`, Ziel
-`/literatur/bibel?work&ref`, die Seite wählt ohne `module` die Bibel des Werks). Befunde: `findings::parse::finding_spans`
-liefert Byte-Bereiche je Stelle; ein Bereich wird `Segment::Finding`, wenn zum Beitrag ein gespeicherter Befund dieser
-Stelle (`Finding::position`) gehört, seine Karte (`findings::view::card`) steht in `PostExtra::finding_cards` für das
-Makro `finding_block`. Der Chat ruft es als `finding_block(card, seg.html)` auf (Integrator Runde 30): Der Befundtext
-im Block ist dann das Segment mit den geprüften Links aus `post_html`, nicht noch einmal `card.body_html` – so steht
-der Text genau einmal da. `PostExtra::plain` = Klartext für „Kopieren“. `post_extra` (Haken aus `view::posts`) nimmt
-Befunde und Metadaten aus `ViewExtras`; die Seiten `/beitraege`, `/beitrag`, `/faden` und `post.since` laden beides
-selbst (`posts::page_extras`, `threads::entry_values`).
+**Rendering** (`chat_render.rs`): `markdown_html` (signature fixed, also for the findings accordion and the matrix)
+splits into blocks (paragraph, list with sub-items, quotation, heading) and a footer (closing notes by Baruch:
+`scripture::MARK_*`, `CUT_NOTE`, `TRUNCATED_NOTE`, „Komprimiert:“, `CRITICAL_MISSING_NOTE`); inline only `**`/`*`,
+everything via `bibles::html_escape`. `render_post` creates links at byte ranges of the line (order markers →
+idea/finding → Bible references → quotations → `xref::outline_mentions`, no overlap) and escapes the rest; jump marks
+are checked by `xref::check_marker` (the revision number only for the own section, otherwise the current one), jumps
+are built by `xref::jump_url` (`data-jump data-jump-origin="chat"`), Bible references by `baruch_scripture::scan`
+(only `Valid`, target `/literatur/bibel?work&ref`, without `module` the page chooses the Bible of the work). Findings:
+`findings::parse::finding_spans` returns byte ranges per place; a range becomes `Segment::Finding` if a stored finding
+of this place (`Finding::position`) belongs to the post, its card (`findings::view::card`) stands in
+`PostExtra::finding_cards` for the macro `finding_block`. The chat calls it as `finding_block(card, seg.html)`
+(integrator Round 30): the finding text in the block is then the segment with the checked links from `post_html`, not
+`card.body_html` once more – so the text stands there exactly once. `PostExtra::plain` = plain text for „Kopieren“.
+`post_extra` (hook from `view::posts`) takes findings and metadata from `ViewExtras`; the pages `/beitraege`,
+`/beitrag`, `/faden` and `post.since` load both themselves (`posts::page_extras`, `threads::entry_values`).
 
-**Vorlagen:** `fragments/post_item.html` mit den Makros `post_item(post)` (Kopf und Text, ohne Seitenkontext),
-`post_entry(post, at)` (ganzer Beitrag des Abschnitts-Chats samt ↻/✕/Verwalten, `at = {work, key, node, rev, view, lq,
-targets}`) und `thread_entry(e, at)` (`at = {work, thread}`); `assistants.html`, `thread.html`, `posts.html`,
-`post.html` binden sie ein. Die Makros `finding_block` und `post_solutions` (chat-loesungen) werden aus
-`post_item.html` heraus importiert.
+**Templates:** `fragments/post_item.html` with the macros `post_item(post)` (head and text, without page context),
+`post_entry(post, at)` (whole post of the section chat including ↻/✕/manage, `at = {work, key, node, rev, view, lq,
+targets}`) and `thread_entry(e, at)` (`at = {work, thread}`); `assistants.html`, `thread.html`, `posts.html`,
+`post.html` include them. The macros `finding_block` and `post_solutions` (chat-loesungen) are imported from within
+`post_item.html`.
 
-## Runde 29: Buchsatz in den Einstellungen
+## Round 29: Typesetting in the settings
 
-Schnittstelle R29-S1: Datenmodell `baruch_typst::typeset` (`model.rs` eingefroren: `TypesetSettings`, Grenzen,
-`validate`/`normalized`/`changed_fields`/`to_json`/`from_json`, `FIELDS`), Regel-, Vorlagen-, Vorschau- und
-EPUB-Funktionen als Stubs (`rules` liefert ""), Store-API `baruch_store::typeset` (Lesen ohne Zeile → `None`, Schreiben
-→ `StoreError::Typeset` „noch nicht umgesetzt“), Haken in `snapshot::head` (Regelblock hinter Werkvorlage, Schema- und
-Rückfall-Regeln; ohne Einstellungen byte-gleich), Server-Module `typeset_settings` (RPC `work.typeset_*`), `mcp::typeset`
-(Werkzeug `typeset_settings`, nur lesend), `settings::work_typeset` (Block „Satz“, Routen, `work.typeset_preview`) und
-`typeset::cached_page`. Reserviert: Store 0048 satz-daten, 0049 satz-typst, 0050 satz-oberflaeche, 0051 Integrator;
-Bibliothek 0108 satz-daten, 0109 Integrator.
+Interface R29-S1: data model `baruch_typst::typeset` (`model.rs` frozen: `TypesetSettings`, limits,
+`validate`/`normalized`/`changed_fields`/`to_json`/`from_json`, `FIELDS`), rule, template, preview and EPUB functions
+as stubs (`rules` returns ""), store API `baruch_store::typeset` (reading without a row → `None`, writing →
+`StoreError::Typeset` „noch nicht umgesetzt“), hook in `snapshot::head` (rule block after work template, schema and
+fallback rules; byte-identical without settings), server modules `typeset_settings` (RPC `work.typeset_*`),
+`mcp::typeset` (tool `typeset_settings`, read-only), `settings::work_typeset` (block „Satz“, routes,
+`work.typeset_preview`) and `typeset::cached_page`. Reserved: store 0048 satz-daten, 0049 satz-typst, 0050
+satz-oberflaeche, 0051 integrator; library 0108 satz-daten, 0109 integrator.
 
-### Daten (satz-daten)
+### Data (satz-daten)
 
-- **Migration 0048** (`crates/baruch-store/migrations/0048_work_typeset.sql`, einzige neue Store-Migration der Runde;
-  0049–0051 und Bibliothek 0108/0109 bleiben unbenutzt): Tabelle `work_typeset (work_id PRIMARY KEY → work ON DELETE
-  CASCADE, uuid, settings, updated, updated_by)` – höchstens eine Zeile je Werk, keine Zeile = keine
-  Satz-Einstellungen. `settings` ist das kanonische JSON von `TypesetSettings::to_json` (CHECK: JSON-Objekt, höchstens
-  16384 Zeichen; die genaue Prüfung macht `TypesetSettings::validate` im Code). `uuid` wie 0045/0046 (eindeutiger
-  Index, Fülltrigger `work_typeset_uuid_fill`, Grabstein-Trigger `work_typeset_uuid_tombstone`, Kaskaden-Trigger
-  `work_typeset_cascade_uuid_tombstone` vor dem Löschen eines Werks, damit der Grabstein die Werk-uuid kennt).
-  `uuid_tombstone` bekommt die Art `work_typeset` über den Umbau wie 0046 (sechzehn Grabstein-Trigger droppen,
-  temporäre Kopie, Tabelle mit erweitertem CHECK, Trigger wörtlich neu); kein `FOREIGN_KEYS_OFF`, weil kein
-  Fremdschlüssel auf `uuid_tombstone` zeigt (Beleg in `tests/migration_0048.rs`).
-- **Store** `baruch_store::typeset` (Vertrag §4): `work_typeset` (lesen; unbekanntes Werk → `UnknownWork`),
-  `set_work_typeset` (normalisieren, prüfen – ungültig → `StoreError::Typeset` mit allen Meldungen, nichts geändert;
-  gleiche Werte → kein Schreiben; leere Einstellungen = zurücksetzen; Ändern per Upsert, die uuid bleibt),
-  `reset_work_typeset` (Zeile löschen → Grabstein), `adopt_typeset_rule` (Einstellungen und neue Fassung der
-  Werkvorlage samt `work.template`/`work.updated` in einer Transaktion `BEGIN IMMEDIATE`; Vorlage mit Überschrift
-  oder unverändert → `Refused`) und `typeset_in` für den Haken in `snapshot::head`. Dort steht der Regelblock hinter
-  Werkvorlage, Schema- und Rückfall-Regeln – damit gleich in Export, Export-Karte, Spiegel (`main.typ`), Satz-Vorschau,
-  PDF und Umschlag; ohne Einstellungen ist der Export byte-gleich zum Stand R29-S1 (Golden
+- **Migration 0048** (`crates/baruch-store/migrations/0048_work_typeset.sql`, the only new store migration of the
+  round; 0049–0051 and library 0108/0109 stay unused): table `work_typeset (work_id PRIMARY KEY → work ON DELETE
+  CASCADE, uuid, settings, updated, updated_by)` – at most one row per work, no row = no typesetting settings.
+  `settings` is the canonical JSON of `TypesetSettings::to_json` (CHECK: JSON object, at most 16384 characters; the
+  exact check is done by `TypesetSettings::validate` in code). `uuid` like 0045/0046 (unique index, fill trigger
+  `work_typeset_uuid_fill`, tombstone trigger `work_typeset_uuid_tombstone`, cascade trigger
+  `work_typeset_cascade_uuid_tombstone` before deleting a work, so that the tombstone knows the work uuid).
+  `uuid_tombstone` gets the kind `work_typeset` through the rebuild like 0046 (drop sixteen tombstone triggers,
+  temporary copy, table with extended CHECK, triggers literally anew); no `FOREIGN_KEYS_OFF`, because no foreign key
+  points to `uuid_tombstone` (evidence in `tests/migration_0048.rs`).
+- **Store** `baruch_store::typeset` (contract §4): `work_typeset` (read; unknown work → `UnknownWork`),
+  `set_work_typeset` (normalise, check – invalid → `StoreError::Typeset` with all messages, nothing changed; same
+  values → no write; empty settings = reset; changing by upsert, the uuid stays), `reset_work_typeset` (delete the row
+  → tombstone), `adopt_typeset_rule` (settings and a new revision of the work template including
+  `work.template`/`work.updated` in one transaction `BEGIN IMMEDIATE`; template with a heading or unchanged →
+  `Refused`) and `typeset_in` for the hook in `snapshot::head`. There the rule block stands after work template,
+  schema and fallback rules – and so equally in export, export map, mirror (`main.typ`), typesetting preview, PDF and
+  cover; without settings the export is byte-identical to state R29-S1 (golden
   `crates/baruch-store/tests/data/satz_golden_*.typ`).
-- **Server** `crate::typeset_settings`: `load`/`view_json` (gemeinsam für RPC, MCP und den Block „Satz“; Hinweis auf
-  eine unbekannte Grundschrift über `baruch_render::font_families`), `save`/`reset`/`adopt_template_rule` unter der
-  Schreibsperre mit genau einem Spiegel-Commit je Änderung (`mirror::describe_typeset`/`record_typeset`, Trailer
-  `Baruch-Action: typeset-set|typeset-reset|typeset-adopt`, immer `allow_empty`); RPC `work.typeset_get|set|reset|
-  adopt_rule` (`docs/RPC.md`), MCP `typeset_settings` nur lesend (`crate::mcp::typeset`, `docs/MCP.md`).
-- **Austausch** Unterversion 6 (`docs/Austauschformat.md`, Abschnitt „Satz-Einstellungen“): `ExchangeTypeset` im
-  Modell (mit `TypesetSettings` aus `baruch-typst`, darum hängt `baruch-exchange` jetzt an `baruch-typst`), Wörter je
-  Feld in `baruch_exchange::typeset`, Grabsteinart `satz` ↔ `work_typeset`, XSD `docs/schema/baruch-werk-1-u6.xsd`.
-  `exchange_dump` schreibt die Zeile mit Kennung und letzter Änderung; `exchange_apply` legt sie beim neuen Einlesen
-  an und beim Abgleichen nur, wenn sie hier fehlt und kein Grabstein besteht – sonst Hinweis mit beiden Ständen, nie
-  überschreiben. Die Austauschseite zählt sie (`counts.typeset`, `typeset_fields`), die Vorschau des Einlesens nennt
-  „Satz-Einstellungen“ in der Liste der hinzukommenden Stücke.
+- **Server** `crate::typeset_settings`: `load`/`view_json` (common for RPC, MCP and the block „Satz“; hint about an
+  unknown base font via `baruch_render::font_families`), `save`/`reset`/`adopt_template_rule` under the write lock
+  with exactly one mirror commit per change (`mirror::describe_typeset`/`record_typeset`, trailer
+  `Baruch-Action: typeset-set|typeset-reset|typeset-adopt`, always `allow_empty`); RPC `work.typeset_get|set|reset|
+  adopt_rule` (`docs/RPC.md`), MCP `typeset_settings` read-only (`crate::mcp::typeset`, `docs/MCP.md`).
+- **Exchange** minor version 6 (`docs/Austauschformat.md`, section „Satz-Einstellungen“): `ExchangeTypeset` in the
+  model (with `TypesetSettings` from `baruch-typst`, which is why `baruch-exchange` now depends on `baruch-typst`),
+  words per field in `baruch_exchange::typeset`, tombstone kind `satz` ↔ `work_typeset`, XSD
+  `docs/schema/baruch-werk-1-u6.xsd`. `exchange_dump` writes the row with identifier and last change; `exchange_apply`
+  creates it on a new import, and when reconciling only if it is missing here and no tombstone exists – otherwise a
+  hint with both states, never overwrite. The exchange page counts it (`counts.typeset`, `typeset_fields`), the
+  preview of the import names „Satz-Einstellungen“ in the list of pieces being added.
 
-### Typst-Regeln (satz-typst)
+### Typst rules (satz-typst)
 
-- **Regelblock** `baruch_typst::typeset::rules(&s)` (`rules.rs`): "" ohne Einstellungen (auch wenn nur
-  `xref_with_page` gesetzt ist – der Schalter ändert keine Datei), sonst Zeile `// Baruch: Satz`, dann je Feld eine Zeile
-  in `FIELDS`-Reihenfolge, Ende mit `\n`. Der Store hängt ihn in `snapshot::head` hinter Werkvorlage, Schema- und
-  Rückfall-Regeln; Export, Export-Karte, Spiegel, Satz-Vorschau, Buch-PDF und Umschlag sehen damit dieselben Regeln.
-  `chapter_start` → Show-Regel `#show heading.where(level: 1): it => { pagebreak(weak: true[, to: "odd"]); it }`, also
-  genau die übernehmbare Vorlagenregel; sie gilt auch für Teil-Überschriften (`<baruch-part>`, im Export Ebene 1), damit
-  „Vorlagenregel übernehmen“ im Export den Umbruch vor Teilen nicht verliert (Befund R29, Test
-  `adopting_the_template_rule_keeps_every_heading_page_in_the_export_form`). Im Satz greift vor ihr die Teil-Regel;
-  `continuous` ist nur eine Kommentarzeile. `page_format`/`margins` → `#set page(width/height)` bzw. `margin: (inside: innen + Bundsteg, outside,
-  top, bottom)`; Schrift/Größe/Zeilenabstand/Blocksatz/Silbentrennung/Sprache/Schusterjungen → `#set text`/`#set par`;
-  Einzug → `first-line-indent` und Absatzabstand = Zeilenabstand (Typst-Vorgabe 0,65 em, sonst `leading_em`); Fußnoten
-  → `#set footnote(numbering: "1"|"*"|"a")` und je Kapitel `counter(footnote).update(0)` in einer Show-Regel.
-- **Seitenzahlen und Kolumnentitel** sind `context`-Kopf-/Fußzeilen mit den Hilfsfunktionen `baruch-satz-chapters`,
-  `baruch-satz-opening(p)` und `baruch-satz-quiet(p)` (Teil- und Leerseiten). „Ab dem ersten Kapitel“ setzt
-  `counter(page).update(1)` in den **Seitenhintergrund** der ersten Kapitelseite: Typst legt alles, was eine Show-Regel
-  liefert, zwischen Start- und Endmarke der Überschrift; eine Rücksetzung dort käme für `counter(page).at(<kN>)`
-  (Querverweis „S. n“) zu spät. Der Hintergrund steht im Seitenrahmen vor Kopfzeile und Inhalt (gemessen in
-  `baruch-render/tests/typeset_measure.rs`). `pagebreak(to: "odd")` und `inside`/`outside` zählen physische Seiten.
-- **Leerseiten erkennen:** Eine Show-Regel setzt vor jede Überschrift der Ebene 1 die Marke `<baruch-satz-end>` – vor den
-  Umbruch der Einstellung oder der Vorlage. Typst lässt abgeschlossene Marken vor dem Umbruch stehen und verschiebt nur
-  unabgeschlossene Startmarken (`migrate_unterminated_tags`); Seiten zwischen Marke und Überschrift sind leer. Steht vor
-  dem Umbruch nur die Marke, legt Typst sie an den Anfang der Folgeseite (Lage 0 pt) – auch das zählt als leer. Die
-  leere Rückseite einer Teil-Seite trägt `<baruch-satz-blank>`. Die Teil-Regel des Satzes greift vor dieser Show-Regel und
-  gibt `it` nicht zurück; sie setzt die Marke darum selbst, sobald es einen Regelblock gibt (`part_page_rule_for`, auch
-  ohne Einstellung `part_page` – Befund R29: sonst trug die Leerseite vor einem Teil Seitenzahl und Kolumnentitel; Test
-  `the_blank_page_before_a_second_part_stays_empty`). Ohne Satz-Einstellungen bleibt die Regel von Runde 14 byte-gleich.
-  Messtests erkennen Leerseiten am leeren Satzspiegel, nicht an einer ganz leeren Seite (sonst liefe eine Leerseite mit
-  falscher Zahl als Textseite durch).
-  Ohne Kapitelregel gibt es keinen Umbruch: Die Marke steht dann an derselben Stelle wie ihre Überschrift und folgt
-  ihr in der Abfrage; eine solche Marke zählt nicht (Integrator R29 – vorher galten alle Seiten bis zur nächsten
-  Überschrift als leer, ohne Seitenzahl und Kolumnentitel; Test
-  `without_a_chapter_rule_every_text_page_keeps_number_and_head`).
-- **Teil-Seiten:** `typeset::prepare` liest `state.store.work_typeset(work)` und setzt `part_page_rule_for(labels,
-  &settings)`: mit `part_page` = `part_page_rule_with(labels, Some(part))`, mit Regelblock ohne `part_page` = rechte Seite
-  ohne leere Rückseite (wie Runde 14) samt Marke `<baruch-satz-end>`, ohne Satz-Einstellungen byte-gleich zu
-  `marker::part_page_rule` (Stand und Seitenzahl wie vor Runde 29, Goldstand in `tests/round29_typst.rs`).
-- **Werkvorlage** (`template.rs`): gelesen wird eine Kopie ohne Kommentare (gleiche Bytestellen). `template_conflicts`
-  meldet je gesetztem Feld die Argumente von `set page|text|par|footnote(…)` (auch im Code von Vorlagenfunktionen) mit
-  Zeile und Text, Wirkung `overrides`; Show-Regeln auf Überschriften der Ebene 1 mit `pagebreak` gegen `chapter_start`
-  sind `ineffective`, außer die Vorlage will dasselbe oder nur eine neue Seite bei „rechte Seite“ (Typst wendet die
-  zuerst definierte Show-Regel zuletzt an, ihr Umbruch kommt also hinzu). `detect_chapter_break` erkennt nur Regeln, die
-  ausschließlich aus Umbruch und Überschrift bestehen (Leerraum, mehrzeilig, Code- oder Inhaltsblock, mit/ohne `weak`,
-  `to: "odd"` → rechte Seite, ohne `to` → neue Seite, `to: "even"` → nicht übernehmbar), damit `remove_rule` nichts
-  anderes entfernt.
-- **Satz-Seite:** `typeset::template_hints` liefert Konflikte und erkannte Regel für `#druckpruefung` (Link
+- **Rule block** `baruch_typst::typeset::rules(&s)` (`rules.rs`): "" without settings (also if only `xref_with_page`
+  is set – the switch changes no file), otherwise the line `// Baruch: Satz`, then one line per field in `FIELDS`
+  order, ending with `\n`. The store appends it in `snapshot::head` after work template, schema and fallback rules;
+  export, export map, mirror, typesetting preview, book PDF and cover thereby see the same rules.
+  `chapter_start` → show rule `#show heading.where(level: 1): it => { pagebreak(weak: true[, to: "odd"]); it }`, that
+  is exactly the adoptable template rule; it also applies to part headings (`<baruch-part>`, level 1 in the export), so
+  that „Vorlagenregel übernehmen“ does not lose the break before parts in the export (finding R29, test
+  `adopting_the_template_rule_keeps_every_heading_page_in_the_export_form`). In typesetting the part rule takes effect
+  before it; `continuous` is only a comment line. `page_format`/`margins` → `#set page(width/height)` or
+  `margin: (inside: innen + Bundsteg, outside, top, bottom)`; font/size/line spacing/justification/hyphenation/
+  language/widows → `#set text`/`#set par`; indentation → `first-line-indent` and paragraph spacing = line spacing
+  (Typst default 0.65 em, otherwise `leading_em`); footnotes → `#set footnote(numbering: "1"|"*"|"a")` and per chapter
+  `counter(footnote).update(0)` in a show rule.
+- **Page numbers and running heads** are `context` headers/footers with the helper functions `baruch-satz-chapters`,
+  `baruch-satz-opening(p)` and `baruch-satz-quiet(p)` (part and blank pages). „Ab dem ersten Kapitel“ sets
+  `counter(page).update(1)` into the **page background** of the first chapter page: Typst puts everything a show rule
+  returns between the start and end tag of the heading; a reset there would come too late for
+  `counter(page).at(<kN>)` (cross-reference „S. n“). The background stands in the page frame before header and content
+  (measured in `baruch-render/tests/typeset_measure.rs`). `pagebreak(to: "odd")` and `inside`/`outside` count physical
+  pages.
+- **Detecting blank pages:** a show rule puts the tag `<baruch-satz-end>` before every heading of level 1 – before the
+  break of the setting or of the template. Typst leaves closed tags before the break where they are and moves only
+  unclosed start tags (`migrate_unterminated_tags`); pages between tag and heading are blank. If only the tag stands
+  before the break, Typst puts it at the start of the following page (position 0 pt) – that counts as blank too. The
+  blank back of a part page carries `<baruch-satz-blank>`. The part rule of the typesetting takes effect before this
+  show rule and does not return `it`; it therefore sets the tag itself as soon as there is a rule block
+  (`part_page_rule_for`, also without the setting `part_page` – finding R29: otherwise the blank page before a part
+  carried page number and running head; test `the_blank_page_before_a_second_part_stays_empty`). Without typesetting
+  settings the rule of Round 14 stays byte-identical. Measuring tests detect blank pages by the empty type area, not
+  by a completely empty page (otherwise a blank page with a wrong number would pass as a text page).
+  Without a chapter rule there is no break: the tag then stands at the same place as its heading and follows it in the
+  query; such a tag does not count (integrator R29 – before, all pages up to the next heading counted as blank, without
+  page number and running head; test `without_a_chapter_rule_every_text_page_keeps_number_and_head`).
+- **Part pages:** `typeset::prepare` reads `state.store.work_typeset(work)` and sets `part_page_rule_for(labels,
+  &settings)`: with `part_page` = `part_page_rule_with(labels, Some(part))`, with a rule block without `part_page` =
+  right-hand page without a blank back (as in Round 14) including the tag `<baruch-satz-end>`, without typesetting
+  settings byte-identical to `marker::part_page_rule` (state and page number as before Round 29, golden state in
+  `tests/round29_typst.rs`).
+- **Work template** (`template.rs`): a copy without comments is read (same byte positions). `template_conflicts`
+  reports per set field the arguments of `set page|text|par|footnote(…)` (also in the code of template functions) with
+  line and text, effect `overrides`; show rules on headings of level 1 with `pagebreak` against `chapter_start` are
+  `ineffective`, unless the template wants the same or only a new page with "right-hand page" (Typst applies the show
+  rule defined first last, so its break is added). `detect_chapter_break` recognises only rules that consist solely of
+  break and heading (whitespace, multi-line, code or content block, with/without `weak`, `to: "odd"` → right-hand page,
+  without `to` → new page, `to: "even"` → not adoptable), so that `remove_rule` removes nothing else.
+- **Typesetting page:** `typeset::template_hints` returns conflicts and the recognised rule for `#druckpruefung` (link
   `/einstellungen/werk?work=W#satz`).
-- **Umschlag:** `cover::build_wrap` misst die erste Seite des Buchsatzes (also das Satz-Format) und zählt alle Seiten
-  samt Leerseiten für den Rücken. Für die Umschlagseiten im Buch misst `cover::frame` die Werkvorlage samt Regelblock
-  (`cover::page_template`); Blöcke ohne Schrift nehmen `cover::book_font` (Einstellung, sonst Werkvorlage), ebenso
-  `cover_layout::default_font` und die Druckprüfung des Umschlags.
-- **Vorschau** `preview_source(s, template, title)`: Vorlage, Regelblock, Teil-Regel (`part_page_rule_for`) und ein
-  erfundener Mustertext (ein Teil, drei Kapitel mit Abschnitten und je einer Fußnote, ≥ 6 Seiten A5).
-- **EPUB** `epub_style(&s)` (`epub.rs`): CSS für `section.baruch-chapter`/`section.baruch-part` (Umbrüche), `p` (Einzug
-  bzw. Abstand, Blocksatz, `hyphens`, `widows`/`orphans`), `body` (Schrift, Größe relativ zu 11 pt, Zeilenhöhe),
-  `ol.baruch-footnotes` (Zählung); `split_chapters` immer `true`, `lang`. Noch nirgends verdrahtet (R20a).
-- **Messhilfe** `baruch_render::page_texts(&Source) -> Option<Vec<Vec<PlacedText>>>`: je Seite die Textstücke (Text,
-  Grundlinie links in pt ab oben links, Breite, Größe, Schrift) mit den Transformationen der Gruppen. Typst setzt einen
-  Trennstrich als eigenes Stück mit dem Text U+00AD; Satzzeichen hängen ≈ 1,9 pt in den rechten Rand.
+- **Cover:** `cover::build_wrap` measures the first page of the book typesetting (that is the typesetting format) and
+  counts all pages including blank pages for the spine. For the cover pages in the book, `cover::frame` measures the
+  work template including the rule block (`cover::page_template`); blocks without a font take `cover::book_font`
+  (setting, otherwise work template), as do `cover_layout::default_font` and the print check of the cover.
+- **Preview** `preview_source(s, template, title)`: template, rule block, part rule (`part_page_rule_for`) and an
+  invented sample text (one part, three chapters with sections and one footnote each, ≥ 6 pages A5).
+- **EPUB** `epub_style(&s)` (`epub.rs`): CSS for `section.baruch-chapter`/`section.baruch-part` (breaks), `p`
+  (indentation or spacing, justification, `hyphens`, `widows`/`orphans`), `body` (font, size relative to 11 pt, line
+  height), `ol.baruch-footnotes` (numbering); `split_chapters` always `true`, `lang`. Not wired anywhere yet (R20a).
+- **Measuring aid** `baruch_render::page_texts(&Source) -> Option<Vec<Vec<PlacedText>>>`: per page the text pieces
+  (text, baseline left in pt from the top left, width, size, font) with the transformations of the groups. Typst sets a
+  hyphen as a piece of its own with the text U+00AD; punctuation hangs ≈ 1.9 pt into the right margin.
 
-### Oberfläche (satz-oberflaeche)
+### User interface (satz-oberflaeche)
 
-- `src/settings/work_typeset.rs`: Block „Satz“ (`block` → Vorlage `templates/settings/werk_satz.html`, Kontext aus
-  `block_context`, das nur `typeset_settings::TypesetView`, die Werkvorlage und das abgelehnte Formular braucht – so im
-  Unit-Test ohne Server zeichenbar), Formulare `act`/`adopt_act`, Vorschaubilder `preview_svg`, RPC
-  `work.typeset_preview` (`call`, gemeinsam mit der Formular-Vorschau über `preview`).
-- Formularfelder ↔ Einstellungen: `settings_from_form` (Vertrag §6.3) und die Umkehrung `form_from_settings`
-  (Rundreise-Test mit dem Vertragsbeispiel). Keine eigene Grenzprüfung: Zahlen, die keine sind, werden `NaN`, damit
-  `TypesetSettings::validate` sie mit derselben Meldung ablehnt wie über RPC; dazu kommen nur „unbekannte Wahl“ und
-  unvollständige Ränder. Meldungen sind `(Feld-id bzw. Unterfeld, Text)`; die Vorlage zeigt sie beim Feld (Kopf vor dem
-  Punkt), Konflikte aus `template_conflicts` ebenso (`data-typeset-error`, `data-typeset-hint`).
-- `Retry` (in `WorkRetry::Typeset`) trägt Eingabe, Meldungen und – nach `action=preview` – die `Preview`. Abgelehnte
-  Formulare und die Vorschau ohne JavaScript nutzen denselben Weg: `settings::work_retry_page` zeichnet die ganze Seite
-  „Werk“ (Status 422 bzw. 200), der Block zeigt dann die ungespeicherten Werte, ihre Regeln und Konflikte.
-- Vorschau: `preview_source` + `export_assets` → `typeset::compile` (Sperre `RUNS`, `COMPILE_TIMEOUT`, legt den Stand in
-  den Zwischenspeicher); `preview_svg` liest nur `typeset::cached_page` und startet nie einen Lauf (Schutz gegen
-  Satzläufe auf Zuruf fremder Seiten: `guard::cross_site_get` → 403).
-- Widget `web/src/typeset_settings.ts` („typeset-settings“ am Formular): `formToSettings` liest das Formular wie
-  `settings_from_form` (Test unter Node vergleicht beide), `debounce` (nachbaubare Zeitgeber) und `Newest`
-  (AbortController; verspätete Antworten werden verworfen). Der Knopf „Vorschau“ setzt sofort, ohne abzuschicken;
-  „Speichern“/„Zurücksetzen“ bleiben Formulare (im Popup schickt sie `settings.ts`).
-- `web/src/xref.ts`: `initialPage(vorhanden, Werk-Einstellung, Browser)`; der Dialog holt `work.typeset_get` und nimmt
-  `settings.xref_with_page`, solange das Häkchen unberührt ist; `localStorage` (`baruch_xref_page`, try/catch) nur bei
-  ungesetzter Werk-Einstellung.
-- Stil `static/typeset_settings.css` (in `STYLE`). Rücksprung-Hinweise `ok=satz|satz_zurueck|satz_vorlage` in
+- `src/settings/work_typeset.rs`: block „Satz“ (`block` → template `templates/settings/werk_satz.html`, context from
+  `block_context`, which needs only `typeset_settings::TypesetView`, the work template and the refused form – so it
+  can be drawn in a unit test without a server), forms `act`/`adopt_act`, preview images `preview_svg`, RPC
+  `work.typeset_preview` (`call`, shared with the form preview via `preview`).
+- Form fields ↔ settings: `settings_from_form` (contract §6.3) and the inverse `form_from_settings` (round trip test
+  with the contract example). No limit check of its own: numbers that are not numbers become `NaN`, so that
+  `TypesetSettings::validate` refuses them with the same message as via RPC; only "unknown choice" and incomplete
+  margins are added. Messages are `(field id or subfield, text)`; the template shows them at the field (head before
+  the point), and so it does with conflicts from `template_conflicts` (`data-typeset-error`, `data-typeset-hint`).
+- `Retry` (in `WorkRetry::Typeset`) carries input, messages and – after `action=preview` – the `Preview`. Refused forms
+  and the preview without JavaScript use the same path: `settings::work_retry_page` draws the whole page „Werk“
+  (status 422 or 200), the block then shows the unsaved values, their rules and conflicts.
+- Preview: `preview_source` + `export_assets` → `typeset::compile` (lock `RUNS`, `COMPILE_TIMEOUT`, puts the state
+  into the cache); `preview_svg` reads only `typeset::cached_page` and never starts a run (protection against
+  typesetting runs at the call of other pages: `guard::cross_site_get` → 403).
+- Widget `web/src/typeset_settings.ts` („typeset-settings“ on the form): `formToSettings` reads the form like
+  `settings_from_form` (a test under Node compares both), `debounce` (mockable timers) and `Newest` (AbortController;
+  late answers are discarded). The button „Vorschau“ typesets immediately without submitting;
+  „Speichern“/„Zurücksetzen“ stay forms (in the popup `settings.ts` submits them).
+- `web/src/xref.ts`: `initialPage(vorhanden, Werk-Einstellung, Browser)`; the dialog fetches `work.typeset_get` and
+  takes `settings.xref_with_page` as long as the checkbox is untouched; `localStorage` (`baruch_xref_page`, try/catch)
+  only when the work setting is unset.
+- Style `static/typeset_settings.css` (in `STYLE`). Return notices `ok=satz|satz_zurueck|satz_vorlage` in
   `settings/work.rs` (`notice`).
 
-### Integration (Runde 29)
+### Integration (Round 29)
 
-- Zusammenführung `team/satz-daten` → `team/satz-typst` → `team/satz-oberflaeche` mit `--no-ff`, ohne Konflikte.
-- Abnahme `crates/baruch-server/tests/round29_abnahme.rs` (erfundenes „Fährhausbuch“ mit Titelei, zwei Teilen, vier
-  Kapiteln, Fußnoten und Querverweis mit Seitenzahl): Formular → `work_typeset` → Haken `snapshot::head` → Satz und
-  Buch-PDF aus derselben Quelle (gleicher Stand), gemessen mit `baruch_render::page_texts` und `pdfinfo`/`pdftotext`
-  (A5, Kapitel rechts, Seitenzahlen außen ab dem ersten Kapitel auf jeder Textseite, Kolumnentitel, Bundsteg,
-  „S. n“), Umschlag-Seitenmaß und Rücken, jede Einstellung einzeln über den Server, Übernahme der Vorlagenregel
-  (Kapitelseiten vorher = nachher), Konflikt `#set page(paper: "a4")`, MCP nur lesend, Austausch u6 mit Grabstein über
-  drei Instanzen.
-- `typeset_settings::load` meldet zusätzlich `NO_DOCUMENT_TITLE`, wenn der Kolumnentitel „Werktitel“ gewählt ist, die
-  Werkvorlage aber kein `#set document(title: …)` hat (die Kolumne bliebe leer).
-- Austauschseite (`templates/exchange.html`) nennt die Satz-Einstellungen (`counts.typeset_fields`).
+- Merge `team/satz-daten` → `team/satz-typst` → `team/satz-oberflaeche` with `--no-ff`, without conflicts.
+- Acceptance `crates/baruch-server/tests/round29_abnahme.rs` (invented „Fährhausbuch“ with front matter, two parts,
+  four chapters, footnotes and a cross-reference with page number): form → `work_typeset` → hook `snapshot::head` →
+  typesetting and book PDF from the same source (same state), measured with `baruch_render::page_texts` and
+  `pdfinfo`/`pdftotext` (A5, chapters on the right, page numbers outside from the first chapter on every text page,
+  running heads, gutter, „S. n“), cover page size and spine, every setting individually through the server, adoption
+  of the template rule (chapter pages before = after), conflict `#set page(paper: "a4")`, MCP read-only, exchange u6
+  with a tombstone over three instances.
+- `typeset_settings::load` additionally reports `NO_DOCUMENT_TITLE` when the running head „Werktitel“ is chosen but
+  the work template has no `#set document(title: …)` (the running head would stay empty).
+- The exchange page (`templates/exchange.html`) names the typesetting settings (`counts.typeset_fields`).
 
-## Runde 19 – RAG-Pflege, Reste der Stellen
+## Round 19 – RAG maintenance, rest of the references
 
 ### R19a index
 
-Ohne Migration (Präfix im JSON der Verbindung, Sperrvermerk und Marke in `sync_state`). Einzelheiten unter
-„Bedeutungssuche“ (Dienst) und „Abgleich“:
+Without a migration (prefix in the JSON of the connection, lock note and marker in `sync_state`). Details under
+"Semantic search (Round 12, migrations 0031 and 0032)" (service) and in the section on syncing (`sync/`):
 
-- `rag/index.rs`: `Runtime` mit `enqueue` (laut, holt Liegengebliebenes zurück) und `enqueue_quiet` (Suche),
-  `stale()`, `wish_reset`/`reset_wished`/`apply_reset`, `unbound`; `process` → `Outcome {embedded, follow}`;
-  `sync` mit Bereichs-`replace`, Präfixen und Abbruch; `PREFIX_CHANGED`.
-- `rag/mod.rs`: `catch_up` ohne Einbetter bei eigenem Datenordner ohne gespeicherte Verbindung Eliezer
-  (`NO_EMBEDDER_OWN_DATA`), `index_info` mit `stale` und `stale_text`, `reindex_report` → `Reindexed {pending,
-  deferred}`, `answer_json` mit `weak`.
+- `rag/index.rs`: `Runtime` with `enqueue` (loud, fetches back what was left lying) and `enqueue_quiet` (search),
+  `stale()`, `wish_reset`/`reset_wished`/`apply_reset`, `unbound`; `process` → `Outcome {embedded, follow}`; `sync`
+  with range `replace`, prefixes and cancellation; `PREFIX_CHANGED`.
+- `rag/mod.rs`: `catch_up` without an embedder for an own data folder without a stored Eliezer connection
+  (`NO_EMBEDDER_OWN_DATA`), `index_info` with `stale` and `stale_text`, `reindex_report` → `Reindexed {pending,
+  deferred}`, `answer_json` with `weak`.
 - `baruch-lancedb`: `Scope::contains`, `Index::replace(scope, …)`, `IndexMeta.document_prefix`.
-- `sync/`: `Link::answered` (über `multigpt::Session::broken`), `Writer::blocks`/`chapter`/`restore`, Marke
-  `UPLOADING`, `Filler::number` liefert den gesetzten Wert, Vollständigkeit der Liste in `download::list`.
-- `connections/check.rs`: `multigpt` beendet die Sitzung mit `McpClient::delete` (nicht, wenn das gemeinsame
-  Zeitlimit von 10 s die Prüfung abbricht).
-- Offen: ältere Fassungen und Befunde im Index (Nutzerfrage 1), Kommentare/Befunde nach MultiGPT (Nutzerfrage
-  11); ob das echte MultiGPT eine Dokument-ID nennt und `limit` kappt, prüft der Nutzer.
+- `sync/`: `Link::answered` (via `multigpt::Session::broken`), `Writer::blocks`/`chapter`/`restore`, marker
+  `UPLOADING`, `Filler::number` returns the set value, completeness of the list in `download::list`.
+- `connections/check.rs`: `multigpt` ends the session with `McpClient::delete` (not if the common time limit of 10 s
+  aborts the check).
+- Open: older revisions and findings in the index (user question 1), comments/findings to MultiGPT (user question 11);
+  whether the real MultiGPT names a document id and caps `limit` is checked by the user.
 
 ### R19b pgvector
 
-Keine Migration (Präfixe im JSON der Verbindung, Gruppennamen-Vorschläge im Speicher, übernommene Namen werden
-Schlagwörter über `idea.update`).
+No migration (prefixes in the JSON of the connection, group name proposals in memory, adopted names become keywords
+via `idea.update`).
 
-- **pgvector** (`connections/pgvector.rs`, siehe „pgvector“ oben): alle Felder in SQL gekürzt, `quoted` verdoppelt
-  Anführungszeichen, `tls_warning`, Anfrage mit `query_prefix` eingebettet. `connections/config.rs`: `fields`
-  kennt `query_prefix` (pgvector, lancedb) und `document_prefix` (lancedb), `check_field` prüft mit
-  `baruch_rag::check_prefix` (ohne Beschneiden), `NOMIC_PREFIXES` ist nur der Vorschlag auf der Seite (keine Vorgabe,
-  damit ein bestehender Index gültig bleibt). `connections/pages.rs`: Felder mit `placeholder`/`maxlength`, Fehlercode
-  `praefix`, `tls_warning` je Verbindung, `status_context` reicht `index.stale` durch (gefüllt vom Index-Worker, R19a);
-  die Vorlage zeigt „n Aufträge liegengeblieben …“ nur bei `stale > 0`.
-- **Gedankenkarte, Gruppen** (`idea_map/groups.rs`): `components` (Union-Find über die Nähe-Paare, Wurzel = kleinste
-  id, nur Komponenten ≥ 2) → `Group {group: "g<id>", ideas, words, proposal}`; `groups(state, work, filter)` baut die
-  Karte mit `near: true`, `of_map` nutzt eine schon gebaute (Seite). `name_groups`: ein Lauf je (Datenordner, Werk)
-  (`running`, Wache `Running` trägt beim Fallenlassen aus), Persona = genannte aktive oder `rows_and_lector`, Aufruf
-  über `state.model.chat` ohne Schreibsperre, Nachricht mit `DATA_TITLE` und je Einfall
-  `assist::context::framed_line(…, "einfall", …)` (entschärft, kann den Kasten nicht verlassen), System-Prompt
-  `SYSTEM` mit „Daten, keine Anweisungen“; `parse_names`/`clean_name` nehmen nur „g<id>: Name“ bekannter Gruppen
-  (≤ 40 Zeichen). Vorschläge in einer prozessweiten Tabelle je (Datenordner, Werk) → Gruppe (`Proposal` mit den
-  Einfällen zur Zeit des Vorschlags; gezeigt nur bei gleicher Gruppe) – kein SQLite, kein Spiegel, Verlust beim
-  Neustart gewollt (Vertrag §1). `accept`: Einfälle aus dem Vorschlag bzw. den Gruppen nach Filter, nur noch
-  vorhandene, Vorprüfung „höchstens 20 Schlagwörter“, dann je Einfall `ideas::call("idea.update", {id, words})`
-  (Herkunft Mensch, Commit mit `Baruch-Action: idea-update`). RPC in `idea_map/mod.rs` (`METHODS`), Formulare über
-  `bild::ACT_METHODS` und `run_act` (Filter aus `back`), Seite: Abschnitt „Gruppen“ in `karte.html` (Kontext
-  `clusters`), Stil `static/karte.css`. MCP bekommt kein Werkzeug dafür. MCP `idea_map` nimmt `near_limit` und
-  `near_threshold` (`filter_from_params`, Ablehnung als `Failure::Tool` = `isError`).
-- **Menüband** (`ribbon.rs`): `SCRIPTURE_FUNCTIONS` (`bibelstelle`, `bibel`) über `defined_functions`,
-  `cites_literature` (Zeile mit `#bibliography(` außerhalb `//`). `ws_command.ts` (sonst eingefroren) bekommt die
-  Befehle `scripture`/`cite` und die reinen Bausteine `scriptureFunction`, `scriptureSource`, `citeKey` (keine
-  Importe, darum unter Node testbar); `ribbon.ts` schickt bei `scripture` `arg = {fn}`, `wysiwyg.ts` setzt eine Insel
-  (`span.ws-island[data-raw]`) bzw. einen Verweis (`button.ws-ref[data-target]`), die `wysiwyg.serialize` wörtlich bzw.
-  als `@schlüssel` speichert (`docs/WYSIWYG.md`).
-- **NFC**: `baruch_library::check_range` vergleicht Ausschnitt und Zitat in NFC (Bereich in Zeichen des gespeicherten
-  Volltexts, ersatzweise in Zeichen seiner NFC-Form); `websearch::verify::normalize` beginnt mit `nfc()` (Seite und
-  Zitat gehen beide hindurch). Crate `unicode-normalization` 0.1 (S1).
-- **Annahmen:** Die Funktion `#bibelstelle`/`#bibel` der Vorlage nimmt die Stelle als Inhalt `[…]`; das Literaturverzeichnis
-  steht als `#bibliography(` in der Vorlage (nicht in einer eingebundenen Datei). Beides ist ohne Typst erkannt
-  (`ribbon::code_lines`); seit Runde 23 zählen dabei Blockkommentare und die Klammertiefe (nur oberste Ebene), und
-  per `#import "datei.typ": name` eingeführte Funktionen zählen mit.
+- **pgvector** (`connections/pgvector.rs`, see "pgvector" above): all fields shortened in SQL, `quoted` doubles
+  quotation marks, `tls_warning`, query embedded with `query_prefix`. `connections/config.rs`: `fields` knows
+  `query_prefix` (pgvector, lancedb) and `document_prefix` (lancedb), `check_field` checks with
+  `baruch_rag::check_prefix` (without trimming), `NOMIC_PREFIXES` is only the suggestion on the page (no default, so
+  that an existing index stays valid). `connections/pages.rs`: fields with `placeholder`/`maxlength`, error code
+  `praefix`, `tls_warning` per connection, `status_context` passes `index.stale` through (filled by the index worker,
+  R19a); the template shows „n Aufträge liegengeblieben …“ only when `stale > 0`.
+- **Idea map, groups** (`idea_map/groups.rs`): `components` (union-find over the proximity pairs, root = smallest id,
+  only components ≥ 2) → `Group {group: "g<id>", ideas, words, proposal}`; `groups(state, work, filter)` builds the map
+  with `near: true`, `of_map` uses one already built (page). `name_groups`: one run per (data folder, work)
+  (`running`, the guard `Running` unregisters when dropped), persona = the named active one or `rows_and_lector`, call
+  via `state.model.chat` without the write lock, message with `DATA_TITLE` and per idea
+  `assist::context::framed_line(…, "einfall", …)` (defused, cannot leave the box), system prompt `SYSTEM` with "data,
+  not instructions"; `parse_names`/`clean_name` take only "g<id>: Name" of known groups (≤ 40 characters). Proposals in
+  a process-wide table per (data folder, work) → group (`Proposal` with the ideas at the time of the proposal; shown
+  only for the same group) – no SQLite, no mirror, loss on restart intended (contract §1). `accept`: ideas from the
+  proposal or from the groups by filter, only those still present, pre-check "at most 20 keywords", then per idea
+  `ideas::call("idea.update", {id, words})` (origin human, commit with `Baruch-Action: idea-update`). RPC in
+  `idea_map/mod.rs` (`METHODS`), forms via `bild::ACT_METHODS` and `run_act` (filter from `back`), page: section
+  „Gruppen“ in `karte.html` (context `clusters`), style `static/karte.css`. MCP gets no tool for it. MCP `idea_map`
+  takes `near_limit` and `near_threshold` (`filter_from_params`, refusal as `Failure::Tool` = `isError`).
+- **Ribbon** (`ribbon.rs`): `SCRIPTURE_FUNCTIONS` (`bibelstelle`, `bibel`) via `defined_functions`,
+  `cites_literature` (line with `#bibliography(` outside `//`). `ws_command.ts` (otherwise frozen) gets the commands
+  `scripture`/`cite` and the pure building blocks `scriptureFunction`, `scriptureSource`, `citeKey` (no imports, hence
+  testable under Node); `ribbon.ts` sends `arg = {fn}` for `scripture`, `wysiwyg.ts` inserts an island
+  (`span.ws-island[data-raw]`) or a reference (`button.ws-ref[data-target]`), which `wysiwyg.serialize` stores
+  literally or as `@schlüssel` (`docs/WYSIWYG.md`).
+- **NFC**: `baruch_library::check_range` compares excerpt and quotation in NFC (range in characters of the stored full
+  text, alternatively in characters of its NFC form); `websearch::verify::normalize` begins with `nfc()` (page and
+  quotation both pass through it). Crate `unicode-normalization` 0.1 (S1).
+- **Assumptions:** the function `#bibelstelle`/`#bibel` of the template takes the reference as content `[…]`; the
+  bibliography stands as `#bibliography(` in the template (not in an included file). Both are recognised without Typst
+  (`ribbon::code_lines`); since Round 23 block comments and the bracket depth count (top level only), and functions
+  introduced by `#import "datei.typ": name` count too.
 
 ### R19c treffer
 
-- **Trefferdarstellung:** Schwelle allein in `baruch_rag` (`WEAK_SCORE`, `is_weak`, `WEAK_LABEL`, Schnittstelle S1).
-  `literature::rag_view` ordnet stabil nach `weak` und liefert `weak_count`; `fragments/library.html` rendert schwache
-  Treffer über ein Makro in `<details class="weak-hits">`. `ideas::rag_ideas` sortiert schwache zuletzt;
-  `ideas.html` dasselbe Muster. `assist::rag_facts::drop_own_section` und `block_entries` stellen schwache Treffer
-  ans Ende (vor der Grenze `LIMIT`) und schreiben `rag_facts::similarity` („Ähnlichkeit (schwach, n %)“).
-- **`idea.search` (rag):** LanceDB nicht `Connected` oder Fehler außer `RagError::Invalid` → `rpc::RAG_UNAVAILABLE`
-  (-32001). MCP `idea_search {mode: "rag"}` ruft dieselbe RPC und macht daraus `isError`.
-- **baruch-scripture:** `wording::compare` vergleicht nach dem Wortvergleich zusätzlich ohne Leerraum
-  (`Comparison::spacing`): die Schlüssel der Bibelwörter aneinandergehängt, jeder Teil des Zitats muss von einer
-  Wortgrenze des Moduls bis zu einer Wortgrenze passen (kein Treffer mitten im Wort). `plain_words` normalisiert
-  nach NFC (`unicode-normalization`), sonst zerfiel ein zerlegtes „ü“ in zwei Wörter. `wording::fragment_survey`
-  schätzt Trennreste: Paar „A b“ im selben Vers, A ohne Satzzeichen am Ende, b klein, höchstens 5 Zeichen, kein
-  häufiges kurzes Wort, und „Ab“ kommt sonst im gelesenen Text vor; auffällig ab 3 Fällen und 1 von 200 Wortpaaren
-  (`FragmentSurvey::fragmented`). `quote_for` lässt vor einem Zitat danach bis zu drei Wörter aus `INTRO_WORDS` mit
-  Doppelpunkt zu (höchstens 48 Bytes). `count_word_follows`: „Mal“ mit folgender Kapitel- und Versangabe ist kein
-  Zahlwort.
-- **baruch-sword:** `Bible::sample_texts(max, deadline)` (Stichprobe in Modulreihenfolge), `reference::lemma_candidates`,
-  `compound_tails`, `strong_like`, `Lexicon::lookup_lemma` (Stichwort, dann `get_strongs` für Strong-Nummern
-  unabhängig von `StrongsPadding`, dann Endungen/Umlaut, zuletzt Kompositum; Antwort mit probierter Form).
-  `fixture::hyphen_remnants` baut in erfundenen Text Trennreste ein (Tests; fremde Module liest kein Test).
-- **Server:** `bibles::WordingResult.module_spacing`, `SPACING_LABEL`; `bibles::module_note` (Stichprobe 4000 Verse,
-  2 s, Zwischenspeicher je conf-Datei und Änderungszeit, blockierend) und `choice_note`; `scripture::check_with`,
-  `bible.marks`, `facts_with` (Zeile „Hinweis: …“) und `bible_line` tragen den Hinweis. `scripture::mark_with`: andere
-  Personas mit Bibel bekommen `mark_others_bible(Modul)` (beginnt mit `MARK_BIBLE`, gilt damit in `chat_render` als
-  Schlusshinweis), ohne Bibel `MARK_OTHERS`; `mark_answer_for_work` öffnet die Bibel nur, wenn eine Stelle vorkommt.
-  `bibles::german_of` bildet einen Vers des Moduls über `mapping::map_verse` ins Deutsche zurück; `bible.lookup`
-  liefert `german_ref`/`german_problem`, die Bibelseite (`literature/bibles.rs`, `literature_bible.html`) setzt sie in
-  `data-ref`/`data-verse-ref` und als Link. `literature::bibles::workspace_shelf` (über `view::extras`, Feld
-  `ViewExtras.bibles`) und `Shelf::context_at` bringen den Kasten „Bibeln“ serverseitig auf die Arbeitsseite.
-- **Annahmen:** Die Schwelle 0,45 gilt für alle Wege gleich, obwohl MultiGPT seine Skala nicht meldet; die
-  Fragment-Schätzung ist eine Faustregel (kann bei sehr kurzen Stichproben irren und meldet dann eher nichts).
+- **Rendering of hits:** the threshold only in `baruch_rag` (`WEAK_SCORE`, `is_weak`, `WEAK_LABEL`, interface S1).
+  `literature::rag_view` sorts stably by `weak` and returns `weak_count`; `fragments/library.html` renders weak hits
+  via a macro in `<details class="weak-hits">`. `ideas::rag_ideas` sorts weak ones last; `ideas.html` the same pattern.
+  `assist::rag_facts::drop_own_section` and `block_entries` put weak hits at the end (before the limit `LIMIT`) and
+  write `rag_facts::similarity` („Ähnlichkeit (schwach, n %)“).
+- **`idea.search` (rag):** LanceDB not `Connected` or an error other than `RagError::Invalid` → `rpc::RAG_UNAVAILABLE`
+  (-32001). MCP `idea_search {mode: "rag"}` calls the same RPC and turns that into `isError`.
+- **baruch-scripture:** after the word comparison, `wording::compare` additionally compares without whitespace
+  (`Comparison::spacing`): the keys of the Bible words concatenated, every part of the quotation must fit from a word
+  boundary of the module to a word boundary (no hit in the middle of a word). `plain_words` normalises to NFC
+  (`unicode-normalization`), otherwise a decomposed „ü“ fell apart into two words. `wording::fragment_survey` estimates
+  hyphenation remnants: pair „A b“ in the same verse, A without punctuation at the end, b lower case, at most 5
+  characters, not a frequent short word, and „Ab“ occurs elsewhere in the read text; conspicuous from 3 cases and 1 in
+  200 word pairs (`FragmentSurvey::fragmented`). `quote_for` now allows up to three words from `INTRO_WORDS` with a
+  colon before a quotation (at most 48 bytes). `count_word_follows`: „Mal“ followed by a chapter and verse reference is
+  not a numeral.
+- **baruch-sword:** `Bible::sample_texts(max, deadline)` (sample in module order), `reference::lemma_candidates`,
+  `compound_tails`, `strong_like`, `Lexicon::lookup_lemma` (headword, then `get_strongs` for Strong's numbers
+  independent of `StrongsPadding`, then endings/umlaut, finally compound; answer with the form tried).
+  `fixture::hyphen_remnants` builds hyphenation remnants into invented text (tests; no test reads third-party
+  modules).
+- **Server:** `bibles::WordingResult.module_spacing`, `SPACING_LABEL`; `bibles::module_note` (sample of 4000 verses,
+  2 s, cache per conf file and modification time, blocking) and `choice_note`; `scripture::check_with`, `bible.marks`,
+  `facts_with` (line „Hinweis: …“) and `bible_line` carry the note. `scripture::mark_with`: other personas with a Bible
+  get `mark_others_bible(Modul)` (begins with `MARK_BIBLE`, and thereby counts as a closing note in `chat_render`),
+  without a Bible `MARK_OTHERS`; `mark_answer_for_work` opens the Bible only if a reference occurs.
+  `bibles::german_of` maps a verse of the module back into the German versification via `mapping::map_verse`;
+  `bible.lookup` returns `german_ref`/`german_problem`, the Bible page (`literature/bibles.rs`,
+  `literature_bible.html`) puts them into `data-ref`/`data-verse-ref` and as a link.
+  `literature::bibles::workspace_shelf` (via `view::extras`, field `ViewExtras.bibles`) and `Shelf::context_at` bring
+  the box „Bibeln“ onto the work page on the server side.
+- **Assumptions:** the threshold 0.45 applies equally to all ways, although MultiGPT does not report its scale; the
+  fragment estimate is a rule of thumb (it can err with very short samples and then rather reports nothing).
 
 ### Integration
 
-- Zusammengeführt ohne Konflikte (index → pgvector → treffer, je `--no-ff`). Die Teile greifen über die
-  Schnittstelle R19-S1 ineinander: `IndexInfo.stale` füllt index, die Seite „Verbindungen“ (pgvector) zeigt es;
-  `config::embed_prefixes` lesen LanceDB (index) und die pgvector-Suche; `baruch_rag::is_weak` gilt in `rag.search`
-  (index) und in Literatur, Einfällen und Belegen (treffer) gleich.
-- Ein `EmbedderFactory` für alle Wege: `rag::set_embedders` bzw. Eliezer liefert die Einbetter für LanceDB und für
-  die Anfrage an pgvector (`rag::plan_way` reicht denselben Factory an `hooks::open_pgvector`); das Präfix wählt
-  jeder Weg selbst aus seiner Verbindung.
-- MCP `idea_search`: Kurzbeschreibung nennt `mode` (Integrator, `mcp/tools.rs`).
-- Abnahme `tests/round19_abnahme.rs` (5 Tests, Werk „Die Laternen am Kai“, alles frei erfunden, nur Nachbauten).
+- Merged without conflicts (index → pgvector → treffer, each `--no-ff`). The parts mesh through the interface R19-S1:
+  index fills `IndexInfo.stale`, the page „Verbindungen“ (pgvector) shows it; `config::embed_prefixes` are read by
+  LanceDB (index) and the pgvector search; `baruch_rag::is_weak` applies equally in `rag.search` (index) and in
+  literature, ideas and evidence (treffer).
+- One `EmbedderFactory` for all ways: `rag::set_embedders` or Eliezer provides the embedders for LanceDB and for the
+  query to pgvector (`rag::plan_way` passes the same factory to `hooks::open_pgvector`); each way chooses the prefix
+  itself from its connection.
+- MCP `idea_search`: the short description names `mode` (integrator, `mcp/tools.rs`).
+- Acceptance `tests/round19_abnahme.rs` (5 tests, work „Die Laternen am Kai“, everything freely invented, only mocks).
 
-## Runde 20 – EPUB-Vorschau
+## Round 20 – EPUB preview
 
-### Schnittstelle R20-S1
+### Interface R20-S1
 
-Neue Crate `crates/baruch-epub` (rein: keine Datenbank, kein Netz, kein Typst-Satz). Eingefroren in `lib.rs`:
-`EpubMeta`, `EpubImage`, `EpubSection`, `FootnoteMode` (`popup` Vorgabe, `endnotes`), `EpubInput`, `ItemKind`,
-`EpubItem`, `TocEntry`, `EpubWarning`, `EpubBook`, `EpubError`; Konstanten `MIMETYPE`, `CONTENT_DIR` (`OEBPS`),
-`OPF_PATH`, `CONTAINER_PATH`. Module: `build` (S1-Minimalbau: Dateiaufteilung je Teil/Kapitel `text/k{key}.xhtml`,
-Vorspann `text/front.xhtml`, `<p>` mit maskiertem Rohtext, `nav.xhtml`, `style/book.css` aus
-`baruch_typst::typeset::epub_style`, minimales OPF), `package` (echt: `mimetype` zuerst STORED ohne Extra-Feld, feste
-Zeitstempel, DEFLATE), `xhtml::escape_text`, `sample::input` (frei erfundenes Werk „Das Gartenhaus am Bach“, PNGs im
-Code erzeugt), `readers` (Typen und Slugs eingefroren, Platzhalterwerte), `check` (Typen eingefroren, Körper STUB).
-Namensregeln der Dateien und Klassen: Vertrag §1.4 (Kopf von `lib.rs`).
-Store: `Store::epubcheck_jar`/`set_epubcheck_jar` (`store_meta`, Schlüssel `epubcheck_jar`, keine Migration).
+New crate `crates/baruch-epub` (pure: no database, no network, no Typst typesetting). Frozen in `lib.rs`:
+`EpubMeta`, `EpubImage`, `EpubSection`, `FootnoteMode` (`popup` default, `endnotes`), `EpubInput`, `ItemKind`,
+`EpubItem`, `TocEntry`, `EpubWarning`, `EpubBook`, `EpubError`; constants `MIMETYPE`, `CONTENT_DIR` (`OEBPS`),
+`OPF_PATH`, `CONTAINER_PATH`. Modules: `build` (S1 minimal build: file split per part/chapter `text/k{key}.xhtml`,
+front matter `text/front.xhtml`, `<p>` with escaped raw text, `nav.xhtml`, `style/book.css` from
+`baruch_typst::typeset::epub_style`, minimal OPF), `package` (real: `mimetype` first, STORED without an extra field,
+fixed timestamps, DEFLATE), `xhtml::escape_text`, `sample::input` (freely invented work „Das Gartenhaus am Bach“, PNGs
+created in code), `readers` (types and slugs frozen, placeholder values), `check` (types frozen, body STUB). Naming
+rules of the files and classes: contract §1.4 (head of `lib.rs`).
+Store: `Store::epubcheck_jar`/`set_epubcheck_jar` (`store_meta`, key `epubcheck_jar`, no migration).
 Server: `epub.rs` (RPC `work.epub`, `GET /werke/{id}/epub`, `epub_input`, `book_for`, `epub_bytes`,
-`write_epub_file`; STUB `EPUB_COVER` von `cover.rs` hierher verschoben, `cover::book_info` ist `pub(crate)`),
-`epub_preview.rs` (`epub.readers` echt, `epub.preview` und Seiten STUB), `epub_check.rs` (`epub.check`,
-`epub.checker_get`/`epub.checker_set`, Seiten, Formulare, `preview_panel` – alles STUB), MCP `mcp/epub.rs`
-(`epub_export`) und `mcp/epub_check.rs` (`epub_check`), beide STUB und nur lesend. Stile `static/epub.css`,
-`static/epub_check.css`, `static/readers/<slug>.css`; Widget `web/src/epub_preview.ts` (leer).
+`write_epub_file`; STUB `EPUB_COVER` moved here from `cover.rs`, `cover::book_info` is `pub(crate)`),
+`epub_preview.rs` (`epub.readers` real, `epub.preview` and pages STUB), `epub_check.rs` (`epub.check`,
+`epub.checker_get`/`epub.checker_set`, pages, forms, `preview_panel` – all STUB), MCP `mcp/epub.rs` (`epub_export`)
+and `mcp/epub_check.rs` (`epub_check`), both STUB and read-only. Styles `static/epub.css`, `static/epub_check.css`,
+`static/readers/<slug>.css`; widget `web/src/epub_preview.ts` (empty).
 
 ### R20a epub
 
-- **`baruch-epub::build`** ersetzt den S1-Minimalbau: Aufteilung nach §0.2 (`split`), Text über das Blockmodell
-  (`xhtml::Renderer`, Abbildung in `docs/WYSIWYG.md` „EPUB-Abbildung“), Fußnoten (`FootnoteMode::Popup` →
-  `noteref`/`aside` in `ol.baruch-footnotes` am Dateiende; `Endnotes` → `text/notes.xhtml`; Nummern fortlaufend wie
-  Typst, je Kapitel neu nur mit Satz-Einstellung `restart = per_chapter` im Popup-Modus, Zeichen nach
-  `FootnoteNumbering`), Bilder (nur die vom Text genannten, `images/<bereinigter Pfad>`, ids `img-n`), Umschlag
-  (`images/cover.<ext>` + `text/cover.xhtml`), Titelei (`title`, `imprint`, `dedication`), `nav.xhtml` (toc +
-  landmarks, `hidden`), `toc.ncx` (verschachtelte navPoints, `dtb:depth`), OPF (Metadaten nur über `escape_text`,
-  `urn:isbn:` nur nach `isbn13_check`, Bildnachweis als zweites `dc:rights`, schema.org-Barrierefreiheit,
-  `alternativeText` nur wenn jedes Bild alt hat, `<guide>` für EPUB-2/Kindle), CSS = `build::BASE_CSS` +
-  `epub_style(&typeset)`. Labels werden vorab gesammelt (`collect_labels`), damit `@name` dateiübergreifend zeigt.
-- **`baruch-epub::template`**: `pagebreak_rules` (eigener Scanner: Kommentare entfernt, jede Show-Regel bis zum
-  Zeilenende auf Klammertiefe 0) → `TEMPLATE_PAGEBREAK_MAPPED` für `heading.where(level: 1)`/`<baruch-part>`, sonst
-  `TEMPLATE_PAGEBREAK_UNMAPPED`; `template_chapter_start` liest `detect_chapter_break` und setzt `chapter_start`, wenn
-  die Satz-Einstellung fehlt; `template_lang` (`#set text(lang: …)`), `is_language_tag`.
-- **`baruch_typst::typeset::epub_style`**: Umbruchregeln für `section.baruch-chapter`/`section.baruch-part` immer
-  (Vorgabe neue Seite, fortlaufend → `auto`, rechte Seite → `right`), weil Kapitel immer eigene Dateien sind.
-- **Server `epub.rs`**: `epub_input` sammelt `export_map` (Werkvorlage = Text vor dem ersten Abschnitt), Nummern aus
-  `numbering_preview` mit dem eingestellten Schema, `export_assets` + Alternativtexte aus `asset_list`, Umschlag
-  (`cover::cover_name`, `asset_data`), `book_meta` + `cover::book_info` → `imprint_lines`, `copyright_line`,
-  Sprache (Satz-Einstellung → Vorlage → „de“), `dcterms:modified` (jüngster Zeitpunkt aus Werk, Buchangaben,
-  Satz-Einstellungen, Bildern, Fassungen). Ein Abschnitt ohne lesbare Überschrift bleibt als Ebene 2 erhalten. RPC
-  `work.epub`, Route `GET /werke/{id}/epub`, `write_epub_file` (CLI, `create_new`). STUB `EPUB_COVER` entfernt.
-- **MCP `mcp/epub.rs`**: `epub_export` lesend, `MCP_EPUB_LIMIT` = 8 MiB für `include_bytes`.
+- **`baruch-epub::build`** replaces the S1 minimal build: split according to §0.2 (`split`), text via the block model
+  (`xhtml::Renderer`, mapping in `docs/WYSIWYG.md` „EPUB-Abbildung“), footnotes (`FootnoteMode::Popup` →
+  `noteref`/`aside` in `ol.baruch-footnotes` at the end of the file; `Endnotes` → `text/notes.xhtml`; numbers
+  consecutive like Typst, restarting per chapter only with the typesetting setting `restart = per_chapter` in popup
+  mode, signs according to `FootnoteNumbering`), images (only those named by the text, `images/<bereinigter Pfad>`,
+  ids `img-n`), cover (`images/cover.<ext>` + `text/cover.xhtml`), front matter (`title`, `imprint`, `dedication`),
+  `nav.xhtml` (toc + landmarks, `hidden`), `toc.ncx` (nested navPoints, `dtb:depth`), OPF (metadata only via
+  `escape_text`, `urn:isbn:` only after `isbn13_check`, image credits as a second `dc:rights`, schema.org
+  accessibility, `alternativeText` only if every image has alt, `<guide>` for EPUB 2/Kindle), CSS = `build::BASE_CSS`
+  + `epub_style(&typeset)`. Labels are collected beforehand (`collect_labels`), so that `@name` points across files.
+- **`baruch-epub::template`**: `pagebreak_rules` (own scanner: comments removed, every show rule up to the end of the
+  line at bracket depth 0) → `TEMPLATE_PAGEBREAK_MAPPED` for `heading.where(level: 1)`/`<baruch-part>`, otherwise
+  `TEMPLATE_PAGEBREAK_UNMAPPED`; `template_chapter_start` reads `detect_chapter_break` and sets `chapter_start` when
+  the typesetting setting is missing; `template_lang` (`#set text(lang: …)`), `is_language_tag`.
+- **`baruch_typst::typeset::epub_style`**: break rules for `section.baruch-chapter`/`section.baruch-part` always
+  (default new page, continuous → `auto`, right-hand page → `right`), because chapters are always files of their own.
+- **Server `epub.rs`**: `epub_input` collects `export_map` (work template = text before the first section), numbers
+  from `numbering_preview` with the configured scheme, `export_assets` + alternative texts from `asset_list`, cover
+  (`cover::cover_name`, `asset_data`), `book_meta` + `cover::book_info` → `imprint_lines`, `copyright_line`, language
+  (typesetting setting → template → "de"), `dcterms:modified` (latest point in time from work, book details,
+  typesetting settings, images, revisions). A section without a readable heading is kept as level 2. RPC `work.epub`,
+  route `GET /werke/{id}/epub`, `write_epub_file` (CLI, `create_new`). STUB `EPUB_COVER` removed.
+- **MCP `mcp/epub.rs`**: `epub_export` read-only, `MCP_EPUB_LIMIT` = 8 MiB for `include_bytes`.
 - **CLI** `export --epub` (`main.rs`).
-- Tests: `baruch-epub/tests/{build,xhtml,package}.rs` (Aufteilung, Fußnoten, Querverweise, Bilder/alt, Inseln,
-  Vorlagenregeln, Metadaten/Maskierung, OCF-Reihenfolge, Manifest/Spine, xmllint), `baruch-typst/tests/typeset_epub.rs`,
-  Server `tests/round20_epub.rs` (RPC, Download, 403/404/422, Umschlag/ISBN/Bilder, MCP mit 8-MiB-Grenze, CLI).
+- Tests: `baruch-epub/tests/{build,xhtml,package}.rs` (split, footnotes, cross-references, images/alt, islands,
+  template rules, metadata/escaping, OCF order, manifest/spine, xmllint), `baruch-typst/tests/typeset_epub.rs`, server
+  `tests/round20_epub.rs` (RPC, download, 403/404/422, cover/ISBN/images, MCP with the 8 MiB limit, CLI).
 
 ### R20b reader
 
-- **Profile** `baruch_epub::readers` (`PROFILES`, `profile(slug)`, neu `required()`): die neun eingefrorenen Slugs in
-  Vertragsreihenfolge mit Gerät, Maßen (CSS-Pixel im Hochformat), `required` (die fünf Pflicht-Profile),
-  `via_conversion` (nur Kindle/Kindle-App), `ReaderSupport` und Hinweis. **Annahmen** (ohne echtes Gerät und ohne
-  Netz zusammengestellt, beim Wissensstand der Entwickler): Apple Books „Original“ mit Georgia als Rückfall, eigene
-  Schriften sicher nur mit `com.apple.ibooks.display-options.xml`; Google Play Books „Original“ mit Literata;
-  Kindle/Kindle-App nach Send to Kindle mit Bookerly statt der Verlagsschrift, ohne Hintergrundfarben, SVG unsicher;
-  tolino und Kobo (gewöhnliches EPUB, nicht KEPUB) zeigen Fußnoten als Sprung statt Popup; E-Ink in Graustufen;
-  Thorium (Readium) und der calibre-Betrachter können EPUB 3 vollständig. **Hersteller-Reader auf Android**
-  (Samsung, Huawei …) sind ohne Gerät nicht prüfbar – kein erfundenes Profil, Nutzerfrage.
-- **Reader-CSS** `static/readers/<slug>.css` (je Profil eine Datei, im Server per `include_str!`,
-  `epub_preview::reader_css`): Standardschrift, -größe, Ränder (`padding` am `body`), Zeilenabstand, Ausrichtung,
-  Silbentrennung (`hyphens`), Fußnoten (Popup-Reader: Kasten „Popup-Fußnote“, sonst Notentext mit Linie), E-Ink
-  (`filter: grayscale(1)`, keine Hintergründe), eigene Vorgabeschrift (`!important`) und nach der Marke
-  `/* @night */` der Nachtmodus. Kein `<`/`&` (das CSS steht in XHTML), keine Adressen.
-- **Reader-Dateien** `GET /werke/{id}/epub/leser/{slug}/{*file}` (`epub_preview::reader_file`): das Buch entsteht je
-  Anfrage neu (`epub::book_for`, kein Zwischenspeicher); XHTML bekommt `<style id="baruch-reader">` vor `</head>`
-  (hinter `style/book.css`), alles andere byte-gleich mit dem Typ aus dem Manifest. Antwort mit CSP
-  `sandbox allow-same-origin; frame-ancestors 'self'` (keine Skripte, keine Formulare, nur in Baruch einrahmbar; `allow-same-origin`, damit Bilder und Stile der Lesedatei als Anfragen derselben Herkunft laden – sonst wies der Schutz gegen fremde Seiten sie mit 403 ab), `nosniff`,
-  `no-cache`. Pfade mit `..`, `.`, leeren Teilen, `\` oder Steuerzeichen und alles außerhalb des Manifests → 404;
-  `text/notes.xhtml` ohne `fussnoten` baut mit Endnoten (Links aus Kapiteln verlieren die Abfrage).
-- **Rahmen und Herkunft:** `guard::no_framing` setzt bei einer Antwort mit eigener `frame-ancestors`-Angabe kein
-  `DENY` und hängt nichts an die CSP: bei `frame-ancestors 'self'` `X-Frame-Options: SAMEORIGIN`, sonst ohne
-  `X-Frame-Options`. Alle anderen Antworten behalten `DENY` und `frame-ancestors 'none'` (Test). Wegen `sandbox`
-  läuft das eingerahmte Dokument mit undurchsichtiger Herkunft; seine Unteranfragen (Bilder, `book.css`, Links
-  zwischen Dateien) kommen nach Fetch Metadata als `Sec-Fetch-Site: cross-site`. Sie werden angenommen, wenn
-  `Referer` auf denselben `Host` zeigt (`epub_preview::from_own_frame`), sonst 403. **Geprüft in der Sichtprüfung
-  des Integrators (Firefox):** Der Browser kürzt diesen `Referer` auf die Herkunft (`http://host/`), auch mit
-  `Referrer-Policy: no-referrer-when-downgrade` im Rahmen; darum gilt der gekürzte `Referer` desselben Hosts (oder,
-  ungekürzt, eine Reader-Datei desselben Werks). Eine fremde Seite kann den `Referer` nicht auf unseren Host setzen.
-- **Vorschau-Seite** `GET /werke/{id}/epub/vorschau` (`templates/epub_preview.html`, eigene Umgebung im Modul):
-  Formular-GET (`leser` mehrfach, `datei`, `fussnoten`, `nacht`), Kapitelgrenzen-Liste aus den Spine-Dateien mit
-  Text (Titel aus `EpubBook.items`, Teil/Kapitel als Grenze markiert, Links mit der Profilwahl), Hinweise beim
-  Erzeugen (`EpubBook.warnings`), je Profil eine `<figure>` mit `<iframe>` in Gerätegröße, Hinweis „Send to Kindle
-  nimmt EPUB an“, darunter der Platz „Prüfung“ mit dem unveränderten Fragment `epub_check::preview_panel` (leer →
-  Link auf `/werke/{id}/epub/pruefung`). Unbekannter Slug/Datei → Hinweis mit 404, ungültige `fussnoten` → 400,
-  Werk ohne Abschnitt → Hinweis mit 422, fremde Seite → 403. Widget `epub-preview` (`web/src/epub_preview.ts`)
-  schickt das Formular bei jeder Änderung ab (nicht, wenn kein Reader mehr gewählt ist).
-- **RPC** `epub.readers`, `epub.preview` (siehe RPC.md). Menü: base.html (siehe „Kopfzeile“).
-- Tests: `baruch-epub/tests/readers.rs` (Slugs, Pflicht, Kindle, CSS-Datei je Slug), `tests/round20_reader.rs`
-  (Seite, Formular, 404-Hinweise, Reader-Datei mit CSP/`SAMEORIGIN`/`nosniff`, xmllint, Bilder per `reader_file`,
-  `no_framing`, RPC, Prüf-Platz, Reader-CSS), `tests/round9_menu.rs` (Menüeinträge, Seite in `all_pages`).
+- **Profiles** `baruch_epub::readers` (`PROFILES`, `profile(slug)`, new `required()`): the nine frozen slugs in
+  contract order with device, dimensions (CSS pixels in portrait), `required` (the five mandatory profiles),
+  `via_conversion` (only Kindle/Kindle app), `ReaderSupport` and hint. **Assumptions** (compiled without a real device
+  and without network, from the knowledge of the developers): Apple Books "Original" with Georgia as fallback, own
+  fonts reliable only with `com.apple.ibooks.display-options.xml`; Google Play Books "Original" with Literata;
+  Kindle/Kindle app after Send to Kindle with Bookerly instead of the publisher font, without background colours, SVG
+  uncertain; tolino and Kobo (ordinary EPUB, not KEPUB) show footnotes as a jump instead of a popup; e-ink in
+  greyscale; Thorium (Readium) and the calibre viewer support EPUB 3 completely. **Manufacturer readers on Android**
+  (Samsung, Huawei …) cannot be checked without a device – no invented profile, user question.
+- **Reader CSS** `static/readers/<slug>.css` (one file per profile, in the server via `include_str!`,
+  `epub_preview::reader_css`): default font, size, margins (`padding` on the `body`), line spacing, alignment,
+  hyphenation (`hyphens`), footnotes (popup readers: box „Popup-Fußnote“, otherwise note text with a rule), e-ink
+  (`filter: grayscale(1)`, no backgrounds), own default font (`!important`) and, after the marker `/* @night */`, the
+  night mode. No `<`/`&` (the CSS stands in XHTML), no addresses.
+- **Reader files** `GET /werke/{id}/epub/leser/{slug}/{*file}` (`epub_preview::reader_file`): the book is built anew
+  per request (`epub::book_for`, no cache); XHTML gets `<style id="baruch-reader">` before `</head>` (after
+  `style/book.css`), everything else byte-identical with the type from the manifest. Response with CSP
+  `sandbox allow-same-origin; frame-ancestors 'self'` (no scripts, no forms, can only be framed in Baruch;
+  `allow-same-origin`, so that images and styles of the reading file load as requests of the same origin – otherwise
+  the protection against other pages refused them with 403), `nosniff`, `no-cache`. Paths with `..`, `.`, empty
+  parts, `\` or control characters and everything outside the manifest → 404; `text/notes.xhtml` without `fussnoten`
+  builds with endnotes (links from chapters lose the query).
+- **Framing and origin:** for a response with its own `frame-ancestors` directive, `guard::no_framing` sets no `DENY`
+  and appends nothing to the CSP: with `frame-ancestors 'self'` `X-Frame-Options: SAMEORIGIN`, otherwise without
+  `X-Frame-Options`. All other responses keep `DENY` and `frame-ancestors 'none'` (test). Because of `sandbox` the
+  framed document runs with an opaque origin; its subrequests (images, `book.css`, links between files) arrive under
+  Fetch Metadata as `Sec-Fetch-Site: cross-site`. They are accepted if `Referer` points to the same `Host`
+  (`epub_preview::from_own_frame`), otherwise 403. **Checked in the visual check of the integrator (Firefox):** the
+  browser shortens this `Referer` to the origin (`http://host/`), even with `Referrer-Policy:
+  no-referrer-when-downgrade` in the frame; therefore the shortened `Referer` of the same host counts (or, unshortened,
+  a reader file of the same work). A foreign page cannot set the `Referer` to our host.
+- **Preview page** `GET /werke/{id}/epub/vorschau` (`templates/epub_preview.html`, environment of its own in the
+  module): form GET (`leser` multiple, `datei`, `fussnoten`, `nacht`), list of chapter boundaries from the spine files
+  with text (titles from `EpubBook.items`, part/chapter marked as a boundary, links with the profile choice), hints
+  from building (`EpubBook.warnings`), per profile a `<figure>` with an `<iframe>` in device size, the hint „Send to
+  Kindle nimmt EPUB an“, below it the place „Prüfung“ with the unchanged fragment `epub_check::preview_panel` (empty →
+  link to `/werke/{id}/epub/pruefung`). Unknown slug/file → hint with 404, invalid `fussnoten` → 400, work without a
+  section → hint with 422, foreign page → 403. The widget `epub-preview` (`web/src/epub_preview.ts`) submits the form
+  on every change (not when no reader is chosen any more).
+- **RPC** `epub.readers`, `epub.preview` (see RPC.md). Menu: base.html (see the section on the header and menus, `menu.rs`).
+- Tests: `baruch-epub/tests/readers.rs` (slugs, mandatory, Kindle, CSS file per slug), `tests/round20_reader.rs`
+  (page, form, 404 hints, reader file with CSP/`SAMEORIGIN`/`nosniff`, xmllint, images via `reader_file`,
+  `no_framing`, RPC, check place, reader CSS), `tests/round9_menu.rs` (menu entries, page in `all_pages`).
 
 ### R20c epub-pruefung
 
-- **`baruch_epub::check`** (rein, ohne Netz): `check_structure(epub, xmllint)` liest die ZIP-Bytes. Den ersten lokalen
-  Dateikopf prüft es direkt in den Bytes (`mimetype` als erster Eintrag, Methode STORED, kein Extra-Feld, Inhalt
-  `application/epub+zip`), den Rest über `zip::ZipArchive` (nur XML/CSS werden entpackt, je höchstens 16 MiB; Pfade mit
-  `..`, `/` am Anfang oder `\` sind ein Fehler). `container.xml` → `rootfile/@full-path` (ohne container der Rückfall
-  `OEBPS/content.opf`, damit die übrigen Prüfungen trotzdem laufen), OPF → Metadaten (Kennung samt
-  `unique-identifier`, Titel, Sprache, `dcterms:modified` bei EPUB 3, `schema:access*` als Hinweis), Manifest
-  (doppelte ids, fehlende Dateien, Dateien ohne Eintrag außer `mimetype`, `META-INF/*` und OPF), Spine (bekannte ids,
-  nur XHTML oder mit `fallback`, `toc` → NCX, ohne `toc` Hinweis `NCX_MISSING`), `<meta name="cover">`, Navigation
-  (`properties="nav"` und `<nav epub:type="toc">`), Lesereihenfolge (Dateien der nav-Links müssen in Spine-Reihenfolge
-  stehen). Je XHTML: Sprache, `<title>`, `alt` (fehlend = Fehler, leer = Hinweis), doppelte ids, Verweise von `img`,
-  `link`, `a`, SVG-`image` auf fehlende Dateien bzw. Sprungmarken. Codes fest in `check::codes`.
-- **Wohlgeformtheit:** mit `xmllint --noout --nonet -` je Datei über die Standardeingabe (wenn `find_xmllint` ihn im
-  übergebenen PATH-Inhalt findet), sonst und als Rückfall, wenn xmllint nicht startet, mit einem eigenen kleinen
-  XML-Baum über quick-xml (`check/xml.rs`: genau eine Wurzel, geschlossene Elemente auch am Dateiende, gültige
-  Attribute ohne Doppelte, nur die fünf vordefinierten Entitäten und Zeichenreferenzen – XHTML im EPUB hat keine DTD).
-  Der Inhalt wird immer über diesen Baum geprüft; `CheckReport.xml_tool` nennt das Werkzeug der Wohlgeformtheit.
-- **Reader-Warnungen** `reader_warnings(book, profile)` aus `ReaderSupport` und dem gebauten Buch (CSS und XHTML der
-  Items): Popup-Fußnoten (`epub:type="noteref"`), Seitenumbruch-CSS (bei Kapitel-/Teil-Dateien), eingebettete Schriften
-  (`font/*`, `@font-face`), Verlagsschrift (`font-family` bei `overrides_publisher_font`), CSS-Hintergründe und
-  Nachtmodus, SVG, Silbentrennung (`hyphens: auto`), Umwandlung über Send to Kindle (`via_conversion`). Jede Warnung
-  trägt `reader = slug` und beginnt mit dem Namen des Readers.
-- **EPUBCheck:** `find_epubcheck(path_env, jar)` – `epubcheck` (ausführbar) im übergebenen PATH-Inhalt vor einem
-  vorhandenen `.jar`; `run_epubcheck` startet das Programm bzw. `java -jar` mit dem EPUB in einer eigenen
-  Prozessgruppe, liest stdout/stderr in eigenen Fäden (je höchstens 4 MiB) und beendet bei Ablauf der Zeitgrenze die
-  ganze Gruppe (`kill -KILL -- -pgid`, dann `Child::kill`), ohne auf die Leser zu warten. Zeilen `ERROR(…)`,
-  `FATAL(…)`, `WARNING(…)`, `INFO(…)`/`USAGE(…)` werden Befunde `EPUBCHECK_<Code>` mit dem Pfad im EPUB; „bestanden“
-  heißt Exit 0 ohne Fehlerzeile. Ein eben geschriebenes Skript, das kurz „Text file busy“ meldet, wird bis zu 20-mal
-  erneut gestartet. Nie ein Download; PATH des Prozesses wird nur gelesen, nie gesetzt.
-- **Server `epub_check.rs`:** `run_check(state, work, readers, footnotes, epubcheck, path_env)` baut das EPUB über
-  `crate::epub::book_for` und `baruch_epub::package` (wie der Download, kein Commit), prüft in `spawn_blocking`, hängt
-  die Warnungen des Baus an (`…_MAPPED` als Hinweis, sonst Warnung) und je Reader `reader_warnings`. EPUBCheck nur mit
-  `epubcheck = true`: Pfad aus `Store::epubcheck_jar`, höchstens ein Lauf zur Zeit (statische Semaphore), EPUB in einem
-  eigenen Temp-Ordner (`baruch-epubcheck-<pid>-<n>`, beim Fallenlassen entfernt), Zeitgrenze 180 s. RPC `epub.check`,
-  werklos `epub.checker_get`/`epub.checker_set` (Prüfung des Pfads in `validate_jar`: absolut, `.jar`, reguläre Datei,
-  keine Steuerzeichen, ≤ 4096 Bytes). Seite `GET /werke/{id}/epub/pruefung` (Vorlage `epub_check.html` mit dem
-  Fragment `fragments/epub_check_panel.html`, eigene minijinja-Umgebung), Formulare `POST /werke/epub/pruefen` (200 mit
-  Bericht samt EPUBCheck) und `POST /einstellungen/daten/epubcheck` (303 bzw. 422 über `settings::error_page`); der
-  Block „EPUBCheck“ auf Einstellungen → Daten kommt aus `epub_check::settings_context`. `preview_panel` liefert den
-  Bericht ohne EPUBCheck als fertiges, maskiertes Fragment für die Vorschau. MCP `epub_check` ruft `run_check` fest mit
-  `epubcheck = false`.
-- **Buchangaben-Reste:** `baruch_typst::cover::isbn13_check` (Signatur unverändert) schneidet den Vorsatz
-  „ISBN“/„ISBN-13“/„ISBN 13“ in jeder Schreibung ab und kennt die neue Fehlerart `IsbnError::Prefix` (nicht 978/979);
-  `Store::set_book_meta` vergleicht die ISBN als Text (eine nur anders geschriebene ist eine Änderung). Papierdicke:
-  gespeichert bleibt `paper_mm` je Seite (keine Migration, Austauschformat unverändert); `work.meta.get` rechnet
-  `paper_sheet_mm` = 2 × `paper_mm`, `work.meta.set` und das Formular nehmen `paper_sheet_mm` (halbiert gespeichert; mit
-  `paper_mm` zusammen -32602). Umschlagbild löschen: `cover::release_cover_before_delete` entfernt unter derselben
-  Schreibsperre zuerst den Umschlag mit eigenem Commit „Umschlag entfernt“ (`asset.delete` ohne `rev`, Formular,
-  bestätigter Löschantrag), erst dann löscht der Store das Bild. Ein bestätigter Umschlag-Antrag setzt den Umschlag
-  über `Store::set_work_cover` unter der Sperre und schreibt **einen** Commit (`mirror::describe_asset_request` plus
-  „Umschlag vorher/nachher“ über `cover::commit_request`) statt zuvor zweier.
-- **Druckerei-Umschlag mit Textregeln (Abweichung vom Backlog: aus R20a hierher, Vertrag §0.6):**
-  `baruch_typst::cover::template_text_rules` liest die `#set text(…)`/`#set par(…)`-Regeln am Zeilenanfang der
-  Werkvorlage samt Regelblock der Satz-Einstellungen (`cover::page_template`), behält nur `lang`, `region`, `script`,
-  `dir`, `hyphenate`, `tracking`, `spacing`, `costs`, `kerning`, `ligatures` bzw. `justify`, `leading`, `spacing`,
-  `first-line-indent`, `hanging-indent`, `linebreaks` mit einfachen Werten (Zahlen mit Einheit, Zeichenketten,
-  `true`/`false`/`auto`/`none`, Wörterbücher daraus) und lässt bedingte Regeln, Variablen und ein `lang: "de"`, das
-  ohnehin gilt, weg. `wrap_source_with_rules` und `block_measure_source_with_rules` setzen sie direkt hinter
-  `#set text(lang: "de")`; ohne Regeln sind sie byte-gleich zu `wrap_source`/`block_measure_source` (Goldstände
-  R26/R27 unverändert grün, `round27_satz.rs`, `baruch-typst/tests/cover_layout.rs`). Show-Regeln der Vorlage nimmt der
-  Umschlag weiterhin nicht mit (sie könnten Überschriften oder Seiten betreffen, die es auf dem Umschlag nicht gibt).
+- **`baruch_epub::check`** (pure, without network): `check_structure(epub, xmllint)` reads the ZIP bytes. It checks
+  the first local file header directly in the bytes (`mimetype` as the first entry, method STORED, no extra field,
+  content `application/epub+zip`), the rest via `zip::ZipArchive` (only XML/CSS are unpacked, at most 16 MiB each;
+  paths with `..`, `/` at the start or `\` are an error). `container.xml` → `rootfile/@full-path` (without a container
+  the fallback `OEBPS/content.opf`, so that the other checks still run), OPF → metadata (identifier including
+  `unique-identifier`, title, language, `dcterms:modified` for EPUB 3, `schema:access*` as a hint), manifest
+  (duplicate ids, missing files, files without an entry except `mimetype`, `META-INF/*` and OPF), spine (known ids,
+  only XHTML or with `fallback`, `toc` → NCX, without `toc` the hint `NCX_MISSING`), `<meta name="cover">`,
+  navigation (`properties="nav"` and `<nav epub:type="toc">`), reading order (files of the nav links must stand in
+  spine order). Per XHTML: language, `<title>`, `alt` (missing = error, empty = hint), duplicate ids, references of
+  `img`, `link`, `a`, SVG `image` to missing files or jump marks. Codes fixed in `check::codes`.
+- **Well-formedness:** with `xmllint --noout --nonet -` per file via standard input (if `find_xmllint` finds it in the
+  passed PATH content), otherwise, and as a fallback if xmllint does not start, with a small XML tree of its own over
+  quick-xml (`check/xml.rs`: exactly one root, closed elements also at the end of the file, valid attributes without
+  duplicates, only the five predefined entities and character references – XHTML in EPUB has no DTD). The content is
+  always checked through this tree; `CheckReport.xml_tool` names the tool of the well-formedness check.
+- **Reader warnings** `reader_warnings(book, profile)` from `ReaderSupport` and the built book (CSS and XHTML of the
+  items): popup footnotes (`epub:type="noteref"`), page break CSS (for chapter/part files), embedded fonts (`font/*`,
+  `@font-face`), publisher font (`font-family` with `overrides_publisher_font`), CSS backgrounds and night mode, SVG,
+  hyphenation (`hyphens: auto`), conversion via Send to Kindle (`via_conversion`). Every warning carries
+  `reader = slug` and begins with the name of the reader.
+- **EPUBCheck:** `find_epubcheck(path_env, jar)` – `epubcheck` (executable) in the passed PATH content before an
+  existing `.jar`; `run_epubcheck` starts the program or `java -jar` with the EPUB in a process group of its own, reads
+  stdout/stderr in threads of their own (at most 4 MiB each) and, when the time limit expires, ends the whole group
+  (`kill -KILL -- -pgid`, then `Child::kill`) without waiting for the readers. Lines `ERROR(…)`, `FATAL(…)`,
+  `WARNING(…)`, `INFO(…)`/`USAGE(…)` become findings `EPUBCHECK_<Code>` with the path in the EPUB; "passed" means exit
+  0 without an error line. A script just written that briefly reports "Text file busy" is restarted up to 20 times.
+  Never a download; the PATH of the process is only read, never set.
+- **Server `epub_check.rs`:** `run_check(state, work, readers, footnotes, epubcheck, path_env)` builds the EPUB via
+  `crate::epub::book_for` and `baruch_epub::package` (like the download, no commit), checks in `spawn_blocking`,
+  appends the warnings of the build (`…_MAPPED` as a hint, otherwise a warning) and per reader `reader_warnings`.
+  EPUBCheck only with `epubcheck = true`: path from `Store::epubcheck_jar`, at most one run at a time (static
+  semaphore), EPUB in a temp folder of its own (`baruch-epubcheck-<pid>-<n>`, removed when dropped), time limit 180 s.
+  RPC `epub.check`, without a work `epub.checker_get`/`epub.checker_set` (check of the path in `validate_jar`:
+  absolute, `.jar`, regular file, no control characters, ≤ 4096 bytes). Page `GET /werke/{id}/epub/pruefung`
+  (template `epub_check.html` with the fragment `fragments/epub_check_panel.html`, minijinja environment of its own),
+  forms `POST /werke/epub/pruefen` (200 with the report including EPUBCheck) and `POST /einstellungen/daten/epubcheck`
+  (303 or 422 via `settings::error_page`); the block „EPUBCheck“ on settings → data comes from
+  `epub_check::settings_context`. `preview_panel` returns the report without EPUBCheck as a finished, escaped fragment
+  for the preview. MCP `epub_check` calls `run_check` with a fixed `epubcheck = false`.
+- **Book details leftovers:** `baruch_typst::cover::isbn13_check` (signature unchanged) cuts off the prefix
+  „ISBN“/„ISBN-13“/„ISBN 13“ in any spelling and knows the new error kind `IsbnError::Prefix` (not 978/979);
+  `Store::set_book_meta` compares the ISBN as text (one only written differently is a change). Paper thickness:
+  `paper_mm` per page stays stored (no migration, exchange format unchanged); `work.meta.get` computes
+  `paper_sheet_mm` = 2 × `paper_mm`, `work.meta.set` and the form take `paper_sheet_mm` (stored halved; together with
+  `paper_mm` -32602). Deleting the cover image: under the same write lock `cover::release_cover_before_delete` first
+  removes the cover with a commit of its own „Umschlag entfernt“ (`asset.delete` without `rev`, form, confirmed
+  deletion request), only then does the store delete the image. A confirmed cover request sets the cover via
+  `Store::set_work_cover` under the lock and writes **one** commit (`mirror::describe_asset_request` plus „Umschlag
+  vorher/nachher“ via `cover::commit_request`) instead of two before.
+- **Printer cover with text rules (deviation from the backlog: moved here from R20a, contract §0.6):**
+  `baruch_typst::cover::template_text_rules` reads the `#set text(…)`/`#set par(…)` rules at the start of a line of the
+  work template including the rule block of the typesetting settings (`cover::page_template`), keeps only `lang`,
+  `region`, `script`, `dir`, `hyphenate`, `tracking`, `spacing`, `costs`, `kerning`, `ligatures` or `justify`,
+  `leading`, `spacing`, `first-line-indent`, `hanging-indent`, `linebreaks` with simple values (numbers with unit,
+  strings, `true`/`false`/`auto`/`none`, dictionaries of these) and leaves out conditional rules, variables and a
+  `lang: "de"` that applies anyway. `wrap_source_with_rules` and `block_measure_source_with_rules` put them directly
+  after `#set text(lang: "de")`; without rules they are byte-identical to `wrap_source`/`block_measure_source` (golden
+  states R26/R27 still green, `round27_satz.rs`, `baruch-typst/tests/cover_layout.rs`). The cover still does not take
+  over show rules of the template (they could affect headings or pages that do not exist on the cover).
 
 ### Integration
 
-- Zusammenführen ohne Konflikte (`--no-ff`, Reihenfolge S1 → epub → reader → epub-pruefung).
-- Integrator: `mcp.rs`-`instructions` nennen `epub_export` und `epub_check`; die S1-Ausnahme für STUB-Beschreibungen in
-  `tests/mcp.rs` ist entfallen; die Prüfseite `/werke/{id}/epub/pruefung` steht in `round9_menu` `all_pages` (42
-  Seiten); Modulkopf von `cover.rs` verweist nicht mehr auf den entfernten `EPUB_COVER`; S1-Stand-Sätze in
-  Bedienung/RPC/MCP ersetzt. `grep -rn "STUB:" crates` zeigt keine R20-Vermerke mehr.
-- Nach dem Zusammenführen angepasste Tests (Verhalten von R20a, das reader/epub-pruefung im eigenen Worktree nicht
-  kannten): Titel der Dateien tragen die Nummer aus dem Schema („2 Das Holz“, `round20_reader.rs`), das Testwerk
-  bringt eigene Bilder mit (eigener Bildpfad im Reader-Test; `IMG_ALT_EMPTY` in `check.rs` gegen die Ausgangslage
-  gezählt).
-- Sichtprüfung (Firefox): Bilder und `book.css` luden im Rahmen nicht (403), weil Firefox den `Referer` der
-  Unteranfragen aus dem `sandbox`-Dokument auf die Herkunft kürzt; `from_own_frame` nimmt jetzt den gekürzten
-  `Referer` desselben Hosts an (Test in `round20_reader.rs` und Unit-Test). E-Ink-Profile (kindle, kobo, tolino):
-  `filter: grayscale(1)` am `body` statt am `html`, sonst füllt der Papierton den Rahmen nicht ganz.
-- Abnahme `tests/round20_abnahme.rs` (7 Tests, Werk „Das Feuer am Kap“, frei erfunden): Download über Menü/Route,
-  RPC und CLI mit gleichen Bytes; Umschlag + Titelei + zwei Teile + drei Kapitel als eigene Dateien, nav/ncx, zwei
-  Popup-Fußnoten mit Ziel, Querverweis `kC.xhtml#kN`, Metadaten mit `&`, `<`, `#[` wörtlich, Satz-Einstellungen im
-  CSS, xmllint auf jede XML-Datei, eigene Prüfung ohne Fehler; Vorschau (fünf Pflicht-Profile, Auswahl per GET,
-  Reader-Datei mit CSP/SAMEORIGIN, Hinweis `TEMPLATE_PAGEBREAK_MAPPED`, `..._UNMAPPED` bei einer Figur-Regel);
-  absichtlich kaputte EPUBs (fehlende Datei, falscher bzw. komprimierter mimetype, kaputtes XHTML); EPUBCheck nicht
-  gefunden bzw. als Skript im übergebenen PATH-Inhalt; MCP beide Werkzeuge ohne Commit, `epub_check` ohne EPUBCheck.
+- Merge without conflicts (`--no-ff`, order S1 → epub → reader → epub-pruefung).
+- Integrator: the `instructions` in `mcp.rs` name `epub_export` and `epub_check`; the S1 exception for STUB
+  descriptions in `tests/mcp.rs` is gone; the check page `/werke/{id}/epub/pruefung` is in `round9_menu` `all_pages`
+  (42 pages); the module head of `cover.rs` no longer points to the removed `EPUB_COVER`; S1 state sentences in
+  Bedienung/RPC/MCP replaced. `grep -rn "STUB:" crates` shows no R20 notes any more.
+- Tests adjusted after the merge (behaviour of R20a that reader/epub-pruefung did not know in their own worktree):
+  titles of the files carry the number from the scheme („2 Das Holz“, `round20_reader.rs`), the test work brings its
+  own images (own image path in the reader test; `IMG_ALT_EMPTY` in `check.rs` counted against the starting point).
+- Visual check (Firefox): images and `book.css` did not load in the frame (403), because Firefox shortens the
+  `Referer` of the subrequests from the `sandbox` document to the origin; `from_own_frame` now accepts the shortened
+  `Referer` of the same host (test in `round20_reader.rs` and unit test). E-ink profiles (kindle, kobo, tolino):
+  `filter: grayscale(1)` on the `body` instead of on the `html`, otherwise the paper tone does not fill the frame
+  completely.
+- Acceptance `tests/round20_abnahme.rs` (7 tests, work „Das Feuer am Kap“, freely invented): download via menu/route,
+  RPC and CLI with equal bytes; cover + front matter + two parts + three chapters as files of their own, nav/ncx, two
+  popup footnotes with target, cross-reference `kC.xhtml#kN`, metadata with `&`, `<`, `#[` literally, typesetting
+  settings in the CSS, xmllint on every XML file, own check without errors; preview (five mandatory profiles, choice by
+  GET, reader file with CSP/SAMEORIGIN, hint `TEMPLATE_PAGEBREAK_MAPPED`, `..._UNMAPPED` for a figure rule);
+  deliberately broken EPUBs (missing file, wrong or compressed mimetype, broken XHTML); EPUBCheck not found or as a
+  script in the passed PATH content; MCP both tools without a commit, `epub_check` without EPUBCheck.
 
-## Runde 31 – Register und Glossar
+## Round 31 – Index and glossary
 
-### Schnittstelle R31-S1
+### Interface R31-S1
 
-Vertrag R31 (PM, 2026-11-09). Eingefrorene Typen und Signaturen, Körper zum Teil als ehrliche Stubs
-(`grep -rn "STUB:" crates`, Vermerk „(R31 …)“):
+Contract R31 (PM, 2026-11-09). Frozen types and signatures, bodies partly as honest stubs (`grep -rn "STUB:" crates`,
+note "(R31 …)"):
 
-- `baruch-typst::index` (neu, Besitz register-satz): Registermarke `#metadata((register: "…", term: "…"))<baruch-idx>`
-  (`IndexMark`, `mark_source`, `parse_mark` echt), `Occurrence` (`first`/`all`/n), eingebaute Register `stichwort`,
-  `personen`, `bibel` (`builtin_registers`, `valid_register_slug`), `term_key` (NFC, Leerraum, klein; steht in der
-  Datenbank, darum unveränderlich), `glossary_anchor` (`baruch-gl-UUID`), `BackMatter` mit `is_active`. Stubs:
-  `sort_key` (= `term_key`), `find_marks`, `mark_word`, `insert_mark_at`, `remove_mark` (`IndexError::NotYet`),
-  `Projector::project` (Identität), `back_matter` (""), `overview` (leer). Neue Abhängigkeiten `baruch-scripture`
-  und `unicode-normalization`.
-- `TypesetSettings` (eingefroren) hat drei neue Felder hinten: `glossary_page` (`GlossaryPosition`: vor/nach den
-  Registern), `index_pages` (`IndexPages {registers, columns}`, 1–3 Spalten, höchstens 16 Register) und
-  `glossary_first_mention`; `FIELDS` hat 19 Einträge. Der Regelblock „// Baruch: Satz“ erzeugt für sie keine Zeile.
-- `baruch-wysiwyg`: `Inline::IndexMark {mark}` (JSON `{"t":"index_mark","mark":{…}}`); `parse` erkennt die
-  kanonische Marke vor jedem anderen `#`-Ausdruck, `emit` schreibt `mark_source`, `html` zeigt sie wie eine Inline-Insel
-  (`ws-island ws-index-mark`, `data-raw` = `mark_source`), damit das heutige `wysiwyg.ts` sie verlustfrei zurückschreibt.
-- `baruch-epub`: `EpubInput::back_matter` (Vorgabe leer), `ItemKind::Glossary`/`Index`, Namensregeln
-  `text/glossary.xhtml` (id `glossary`), `text/index-{slug}.xhtml` (id `index-{slug}`); `build` ignoriert das Feld noch.
-- `baruch-store::glossary` (Besitz glossar-daten): Typen `GlossaryTerm`, `GlossaryEdit`, `GlossaryChange`,
-  `IndexRegisterRow`, `NewIndexProposal`, `IndexProposal`, `IndexAccepted` und die `Store`-Methoden; S1 liest leer und
-  lehnt Schreiben mit `StoreError::Glossary("noch nicht umgesetzt (R31 glossar-daten)")` ab. Neue `StoreError`-Varianten
-  `Glossary`, `UnknownGlossaryTerm`, `UnknownIndexProposal` (RPC: INVALID_PARAMS). Keine Migration in S1 (0049 bringt
+- `baruch-typst::index` (new, owned by register-satz): index mark `#metadata((register: "…", term: "…"))<baruch-idx>`
+  (`IndexMark`, `mark_source`, `parse_mark` real), `Occurrence` (`first`/`all`/n), built-in indexes `stichwort`,
+  `personen`, `bibel` (`builtin_registers`, `valid_register_slug`), `term_key` (NFC, whitespace, lower case; it is
+  stored in the database, hence unchangeable), `glossary_anchor` (`baruch-gl-UUID`), `BackMatter` with `is_active`.
+  Stubs: `sort_key` (= `term_key`), `find_marks`, `mark_word`, `insert_mark_at`, `remove_mark`
+  (`IndexError::NotYet`), `Projector::project` (identity), `back_matter` (""), `overview` (empty). New dependencies
+  `baruch-scripture` and `unicode-normalization`.
+- `TypesetSettings` (frozen) has three new fields at the end: `glossary_page` (`GlossaryPosition`: before/after the
+  indexes), `index_pages` (`IndexPages {registers, columns}`, 1–3 columns, at most 16 indexes) and
+  `glossary_first_mention`; `FIELDS` has 19 entries. The rule block "// Baruch: Satz" produces no line for them.
+- `baruch-wysiwyg`: `Inline::IndexMark {mark}` (JSON `{"t":"index_mark","mark":{…}}`); `parse` recognises the
+  canonical mark before any other `#` expression, `emit` writes `mark_source`, `html` shows it like an inline island
+  (`ws-island ws-index-mark`, `data-raw` = `mark_source`), so that today's `wysiwyg.ts` writes it back losslessly.
+- `baruch-epub`: `EpubInput::back_matter` (default empty), `ItemKind::Glossary`/`Index`, naming rules
+  `text/glossary.xhtml` (id `glossary`), `text/index-{slug}.xhtml` (id `index-{slug}`); `build` still ignores the field.
+- `baruch-store::glossary` (owned by glossar-daten): types `GlossaryTerm`, `GlossaryEdit`, `GlossaryChange`,
+  `IndexRegisterRow`, `NewIndexProposal`, `IndexProposal`, `IndexAccepted` and the `Store` methods; S1 reads empty and
+  refuses writing with `StoreError::Glossary("noch nicht umgesetzt (R31 glossar-daten)")`. New `StoreError` variants
+  `Glossary`, `UnknownGlossaryTerm`, `UnknownIndexProposal` (RPC: INVALID_PARAMS). No migration in S1 (0049 comes with
   glossar-daten).
-- Store-Haken (Besitz register-satz): `snapshot::back_matter_in` (Satz-Einstellungen + eingebaute und eigene Register
-  + angenommene Begriffe), `Store::back_matter`; `export_parts` liefert als drittes das Buchende, Export und
-  Export-Karte hängen es über `snapshot::append_tail` an (Karte byte-gleich zum Export), `main.typ` hinter die
-  `#include`-Zeilen; je Abschnitt läuft nach `label_section` ein `Projector::project`; der Spiegel bekommt
-  `glossary::mirror_files` (`glossar.md`). Ohne R31-Einstellungen alles byte-gleich.
-- Server: Module `glossary` (RPC `glossary.*`, `index.registers/register_*/proposals/decide`), `index_marks`
-  (`index.entries/mark/unmark/overview`), `glossary_page` und `index_page` (Seiten), `mcp::glossary`, `assist::glossary`;
-  Stubs antworten REFUSED „noch nicht umgesetzt (R31 …)“ (`glossary::registers` liefert schon die eingebauten).
-  `epub.rs` setzt `back_matter`, `mirror::typeset_value` kennt die neuen Felder. Widgets `context-menu` und `glossary`
-  (leer).
+- Store hooks (owned by register-satz): `snapshot::back_matter_in` (typesetting settings + built-in and own indexes
+  + accepted terms), `Store::back_matter`; `export_parts` returns the back matter as third item, export and export map
+  append it via `snapshot::append_tail` (map byte-identical to the export), `main.typ` after the `#include` lines; per
+  section a `Projector::project` runs after `label_section`; the mirror gets `glossary::mirror_files`
+  (`glossar.md`). Without R31 settings everything is byte-identical.
+- Server: modules `glossary` (RPC `glossary.*`, `index.registers/register_*/proposals/decide`), `index_marks`
+  (`index.entries/mark/unmark/overview`), `glossary_page` and `index_page` (pages), `mcp::glossary`,
+  `assist::glossary`; stubs answer REFUSED „noch nicht umgesetzt (R31 …)“ (`glossary::registers` already returns the
+  built-in ones). `epub.rs` sets `back_matter`, `mirror::typeset_value` knows the new fields. Widgets `context-menu`
+  and `glossary` (empty).
 
 ### 31a glossar-daten
 
-- **Migration 0049** (`0049_glossary.sql`, einzige neue Migration der Aufgabe): `glossary_term` (Begriff, `term_key`,
-  kurze/ausführliche Erklärung, Quelle, Bibelstellen als JSON-Liste, Status `accepted`/`proposed`, Herkunft, Zeiten;
-  eindeutiger Teilindex `(work_id, term_key) WHERE status = 'accepted'`), `glossary_variant` (Varianten je Begriff in
-  Reihenfolge, `form_key`, ohne uuid), `index_register` (eigene Register, eingebaute Kennungen per CHECK gesperrt,
-  `UNIQUE (work_id, slug)`), `index_proposal` (Registervorschläge, ohne uuid – Arbeitsablauf der Instanz). uuid,
-  Fülltrigger, Grabstein- und Kaskaden-Trigger für `glossary_term` und `index_register` wie 0048; `uuid_tombstone`
-  bekommt die Arten `glossary_term` und `index_register` per Umbau (die siebzehn Grabstein-Trigger wörtlich neu). Kein
-  `FOREIGN_KEYS_OFF` (kein Fremdschlüssel zeigt auf `uuid_tombstone`); Beleg `crates/baruch-store/tests/migration_0049.rs`.
-- **Store** `baruch_store::glossary` (Vertrag §2.5): Lesen sortiert in Rust nach `baruch_typst::index::sort_key`;
-  `glossary_lookup` über `term_key` bzw. `form_key` (nur angenommene); Schreiben prüft Grenzen `MAX_GLOSSARY_*` mit
-  deutschen Meldungen (`StoreError::Glossary`), räumt auf (Begriff und Varianten in einer Zeile, Doppel weg) und lehnt
-  Doppel unter den angenommenen ab; `glossary_propose` lehnt angenommene und schon vorgeschlagene Begriffe ab;
-  `glossary_decide(false)` löscht den Vorschlag (Grabstein). Register: eingebaute und ungültige Kennungen abgelehnt,
-  höchstens 13. `index_propose` prüft Marke (`IndexMark::validate`), Register (eingebaut oder eigen), festen Schlüssel
-  (`GoneNode`) und ob das Wort in der aktuellen Fassung steht; `index_proposal_accept` wendet in **einer** Transaktion
-  `mark_word` auf die aktuelle Fassung an und speichert eine neue Fassung des Menschen (`write::save_human`, danach
-  `check_current_heading`); steht das Wort nicht mehr da, wird der Vorschlag `stale` (gespeichert) und der Text bleibt.
-  Solange `mark_word` (register-satz) ehrlich `NotYet` meldet, lehnt die Übernahme mit dieser Meldung ab, nichts
-  geändert. `accepted_entries_in`/`registers_in` speisen `Store::back_matter`; `mirror_files` liefert `glossar.md`
-  (angenommene Begriffe alphabetisch mit Varianten, Erklärungen, Bibelstellen, Quelle; danach „Vorschläge (noch nicht
-  angenommen)“ mit Herkunft; danach eigene Register) – ohne Begriffe und Register keine Datei.
-- **Server** `crate::glossary` (§3.1): alle RPC-Methoden; schreibende Funktionen nehmen die Schreibsperre vor dem
-  DB-Schreiben, genau ein Spiegel-Commit je Änderung über `mirror::record_glossary` (`describe_glossary`,
-  `describe_register`, `describe_index_proposal`, `describe_index_accept`; Trailer `Baruch-Action`,
-  `Baruch-Glossary`/`Baruch-Register`/`Baruch-Index-Proposal`, bei Vorschlägen `Persona` und Autor die Persona bzw. der
-  Client, beim Entscheiden `Baruch-Proposer`). Bibelstellen prüft und normalisiert `glossary::normalize_bible_refs` mit
-  `baruch_scripture::parse`. `glossary.suggest` (`assist::glossary`): Persona nach Lektor-Regel bzw. `persona`, ein
-  Modellaufruf über den `ModelPort` (Antwortform „Begriff | kurze Erklärung“), Ergebnisse nur über
-  `glossary::propose`; ein Fehler des Modells → REFUSED, nichts angelegt.
-- **MCP** `mcp::glossary`: `glossary_list` (lesend), `glossary_propose` und `index_propose` (nur Vorschläge, Herkunft
-  nach `acting_persona`, `node` → `isError`).
-- **Austausch Unterversion 7** (`baruch-exchange`, XSD `docs/schema/baruch-werk-1-u7.xsd`, u6 eingefroren): Modell
-  `ExchangeRegister`, `ExchangeGlossaryTerm`, `ExchangeGlossaryStatus`; Grabsteinarten `glossar-begriff`
-  (`glossary_term`) und `register` (`index_register`) ab 7; `<satz>`-Attribute `glossarseite`, `registerseiten`,
-  `registerseiten-spalten`, `glossar-erste-erwaehnung` (`typeset::R31_ATTRIBUTES`, gelesen erst ab 7 über
-  `typeset::r31_from_attrs`). `exchange_dump` gibt Register und alle Begriffe aus, `exchange_apply` übernimmt sie neu
-  mit Kennungen bzw. gleicht ab (bekannte Kennung nie überschrieben, gleicher `slug`/`term_key` unter fremder Kennung
-  → Hinweis statt Doppel, Grabstein → „hier gelöscht“). Registervorschläge sind nicht im Format.
+- **Migration 0049** (`0049_glossary.sql`, the only new migration of the task): `glossary_term` (term, `term_key`,
+  short/detailed explanation, source, Bible references as a JSON list, status `accepted`/`proposed`, origin, times;
+  unique partial index `(work_id, term_key) WHERE status = 'accepted'`), `glossary_variant` (variants per term in
+  order, `form_key`, without uuid), `index_register` (own indexes, built-in identifiers blocked by CHECK,
+  `UNIQUE (work_id, slug)`), `index_proposal` (index proposals, without uuid – workflow of the instance). uuid, fill
+  trigger, tombstone and cascade triggers for `glossary_term` and `index_register` like 0048; `uuid_tombstone` gets
+  the kinds `glossary_term` and `index_register` by rebuild (the seventeen tombstone triggers literally anew). No
+  `FOREIGN_KEYS_OFF` (no foreign key points to `uuid_tombstone`); evidence
+  `crates/baruch-store/tests/migration_0049.rs`.
+- **Store** `baruch_store::glossary` (contract §2.5): reading sorts in Rust by `baruch_typst::index::sort_key`;
+  `glossary_lookup` via `term_key` or `form_key` (accepted ones only); writing checks the limits `MAX_GLOSSARY_*`
+  with German messages (`StoreError::Glossary`), tidies up (term and variants in one line, duplicates removed) and
+  refuses duplicates among the accepted ones; `glossary_propose` refuses accepted and already proposed terms;
+  `glossary_decide(false)` deletes the proposal (tombstone). Indexes: built-in and invalid identifiers refused, at most
+  13. `index_propose` checks the mark (`IndexMark::validate`), the index (built-in or own), the fixed key (`GoneNode`)
+  and whether the word stands in the current revision; `index_proposal_accept` applies `mark_word` to the current
+  revision in **one** transaction and stores a new revision by the human (`write::save_human`, then
+  `check_current_heading`); if the word is no longer there, the proposal becomes `stale` (stored) and the text stays.
+  As long as `mark_word` (register-satz) honestly reports `NotYet`, the adoption refuses with this message, nothing
+  changed. `accepted_entries_in`/`registers_in` feed `Store::back_matter`; `mirror_files` returns `glossar.md`
+  (accepted terms alphabetically with variants, explanations, Bible references, source; then „Vorschläge (noch nicht
+  angenommen)“ with origin; then own indexes) – without terms and indexes no file.
+- **Server** `crate::glossary` (§3.1): all RPC methods; writing functions take the write lock before writing to the
+  database, exactly one mirror commit per change via `mirror::record_glossary` (`describe_glossary`,
+  `describe_register`, `describe_index_proposal`, `describe_index_accept`; trailer `Baruch-Action`,
+  `Baruch-Glossary`/`Baruch-Register`/`Baruch-Index-Proposal`, for proposals `Persona` and as author the persona or the
+  client, when deciding `Baruch-Proposer`). `glossary::normalize_bible_refs` checks and normalises Bible references
+  with `baruch_scripture::parse`. `glossary.suggest` (`assist::glossary`): persona by the lector rule or `persona`, one
+  model call via the `ModelPort` (answer form „Begriff | kurze Erklärung“), results only via `glossary::propose`; an
+  error of the model → REFUSED, nothing created.
+- **MCP** `mcp::glossary`: `glossary_list` (read-only), `glossary_propose` and `index_propose` (proposals only, origin
+  by `acting_persona`, `node` → `isError`).
+- **Exchange minor version 7** (`baruch-exchange`, XSD `docs/schema/baruch-werk-1-u7.xsd`, u6 frozen): model
+  `ExchangeRegister`, `ExchangeGlossaryTerm`, `ExchangeGlossaryStatus`; tombstone kinds `glossar-begriff`
+  (`glossary_term`) and `register` (`index_register`) from 7; `<satz>` attributes `glossarseite`, `registerseiten`,
+  `registerseiten-spalten`, `glossar-erste-erwaehnung` (`typeset::R31_ATTRIBUTES`, read only from 7 via
+  `typeset::r31_from_attrs`). `exchange_dump` writes indexes and all terms, `exchange_apply` takes them over anew with
+  identifiers or reconciles (a known identifier is never overwritten, the same `slug`/`term_key` under a foreign
+  identifier → hint instead of a duplicate, tombstone → „hier gelöscht“). Index proposals are not in the format.
 
 ### 31b register-satz
 
-**baruch-typst::index** (Körper; private Untermodule `index/scan.rs`, `index/project.rs`, `index/back.rs`):
+**baruch-typst::index** (bodies; private submodules `index/scan.rs`, `index/project.rs`, `index/back.rs`):
 
-- **Lesen** (`scan.rs`): je Byte Fließtext oder eine gesperrte Stelle mit eigener Nummer. Gesperrt sind
-  Überschriftszeilen (`=`-Zeilen, Teil- und „ohne Nummer“-Markierungen), Maskierungen, Raw, Kommentare, Formeln, Labels,
-  Verweise (`@name`), Adressen, Code hinter `#` samt Strings und Klammern, Anweisungen (`#let`, `#set`, `#show`, `#if` …
-  bis zum Zeilenende samt aller Klammern) und Marken. Inhaltsblöcke von Aufrufen (`#emph[…]`, `#footnote[…]`,
-  `caption: […]`) sind wieder Fließtext. Eine Einfügestelle ist erlaubt, wenn sie nicht zwischen zwei Bytes derselben
-  gesperrten Stelle liegt, nicht am Ende einer Kommentar- oder Überschriftszeile, nicht am Anfang einer Überschriftszeile
-  und nicht vor einem Label (es hinge sonst an der Marke).
-- `find_marks` = alle kanonischen Marken in Textreihenfolge (auch in Fußnoten und Inhaltsblöcken, nie in Kommentar, Raw
-  oder String). `mark_word` sucht das Wort wörtlich als ganzes Wort im Fließtext (Leerraum im Wort passt auf Leerraum
-  ohne Leerzeile; Wort direkt vor einem Label → Marke hinter das Label), setzt `mark_source` direkt dahinter (erste,
-  n-te oder alle Fundstellen); `insert_mark_at` prüft die Stelle; `remove_mark` nimmt nur einen Bereich, den
-  `find_marks` liefert. `sort_key` = DIN 5007-1 (NFD ohne Akzente, ß = ss, klein, Satzzeichen am Anfang übergangen).
-- **Projektion** (`project.rs`, `Projector`): (a) mit Register `bibel` in `index_pages.registers` hinter jede gültige
-  Stelle im Fließtext (`baruch_scripture::scan` auf dem Text mit Leerzeichen statt gesperrter Bytes) eine Marke
-  `register: "bibel"`, `term` = Buchname („Johannes“), `sub` = Kapitel und Verse („3,16“), `sort` =
-  `Passage::sort_key` (`43.003.016-003.016`, biblische Reihenfolge); (b) mit `glossary_first_mention == Some(true)` je
-  Kapitel (Überschrift Ebene 1, Teil oder „ohne Nummer“ Ebene 1 setzt zurück) die erste Fundstelle eines Begriffs oder
-  einer Variante als ganze Wörter (Groß-/Kleinschreibung egal, Wortgruppen mit Leerraum, `-`, `'`, `’`, `.`). Form:
-  mit Glossarseite `#link(<baruch-gl-UUID>)[#emph[Wort]]`, ohne `#emph[Wort]` – so gibt es nie einen Verweis auf ein
-  fehlendes Label. Folgt `(`, `[`, `;` oder `.Wort`, steht ein `;` dahinter (beendet den eingebetteten Ausdruck, Typst
-  setzt ihn nicht). Projektion nur im Export; SQLite bleibt unverändert.
-- **Buchende** (`back.rs`, `back_matter`): "" ohne Registerseiten und Glossarseite; sonst ab `// Baruch: Register und
-  Glossar` Hilfsfunktionen (`baruch-idx-ranges`, `baruch-idx-pages`, `baruch-idx-group`, `baruch-idx-entry`,
-  `baruch-gl-entry`), dann Glossarseite (vor oder nach den Registern) und je Register aus `index_pages.registers`
-  (unbekannte Kennungen fallen weg) eine Seite `#heading(level: 1, numbering: none)[…]`. Sortierung und Gruppierung in
-  Rust (Buchstabengruppen nach `sort_key`, Bibel nach Sortierschlüssel), Seitenzahlen in Typst: `query(<baruch-idx>)`,
-  je Marke `counter(page).at(m.location())` (dieselbe Zählung wie Fußzeile und „S. n“, auch ab dem ersten Kapitel),
-  Folgeseiten „12–14“, Marken mit `see` ohne Seite. Spalten über `columns(n, gutter: 1.5em, …)`. Glossar: Begriff fett,
-  Varianten in Klammern, kurze Erklärung, Absätze der ausführlichen, „Bibelstellen:“; Anker
-  `#metadata("baruch-glossar")<baruch-gl-UUID>` (nur bei UUID aus Buchstaben, Ziffern, `-`, `_`). Alle Daten als
-  maskierte String-Literale. Gleiche Eingabe → gleiche Bytes.
-- `overview` (Übersicht je Register, gespeicherte Texte): alle Register aus `back.registers`, Einträge wie im Buchende
-  sortiert, `keys` = Abschnitte mit Marken, die eine Seite tragen; automatische Bibelstellen nur mit eingeschaltetem
-  Bibelstellenregister.
+- **Reading** (`scan.rs`): per byte running text or a blocked place with a number of its own. Blocked are heading
+  lines (`=` lines, part and „ohne Nummer“ markers), escapes, raw, comments, formulas, labels, references (`@name`),
+  addresses, code after `#` including strings and brackets, statements (`#let`, `#set`, `#show`, `#if` … up to the end
+  of the line including all brackets) and marks. Content blocks of calls (`#emph[…]`, `#footnote[…]`, `caption: […]`)
+  are running text again. An insertion point is allowed if it does not lie between two bytes of the same blocked
+  place, not at the end of a comment or heading line, not at the start of a heading line and not before a label (it
+  would otherwise attach to the mark).
+- `find_marks` = all canonical marks in text order (also in footnotes and content blocks, never in a comment, raw or a
+  string). `mark_word` looks for the word literally as a whole word in running text (whitespace in the word matches
+  whitespace without an empty line; a word directly before a label → mark after the label), puts `mark_source` directly
+  after it (first, n-th or all occurrences); `insert_mark_at` checks the place; `remove_mark` takes only a range that
+  `find_marks` returns. `sort_key` = DIN 5007-1 (NFD without accents, `ß` = `ss`, lower case, punctuation at the start
+  skipped).
+- **Projection** (`project.rs`, `Projector`): (a) with the index `bibel` in `index_pages.registers`, after every valid
+  reference in running text (`baruch_scripture::scan` on the text with spaces instead of blocked bytes) a mark
+  `register: "bibel"`, `term` = book name („Johannes“), `sub` = chapter and verses („3,16“), `sort` =
+  `Passage::sort_key` (`43.003.016-003.016`, biblical order); (b) with `glossary_first_mention == Some(true)` per
+  chapter (a heading of level 1, part or „ohne Nummer“ level 1 resets) the first occurrence of a term or a variant as
+  whole words (case-insensitive, word groups with whitespace, `-`, `'`, `’`, `.`). Form: with a glossary page
+  `#link(<baruch-gl-UUID>)[#emph[Wort]]`, without `#emph[Wort]` – so there is never a reference to a missing label. If
+  `(`, `[`, `;` or `.Wort` follows, a `;` stands after it (ends the embedded expression, Typst does not set it).
+  Projection only in the export; SQLite stays unchanged.
+- **Back matter** (`back.rs`, `back_matter`): "" without index pages and glossary page; otherwise from
+  `// Baruch: Register und Glossar` helper functions (`baruch-idx-ranges`, `baruch-idx-pages`, `baruch-idx-group`,
+  `baruch-idx-entry`, `baruch-gl-entry`), then the glossary page (before or after the indexes) and per index from
+  `index_pages.registers` (unknown identifiers are dropped) a page `#heading(level: 1, numbering: none)[…]`. Sorting
+  and grouping in Rust (letter groups by `sort_key`, Bible by sort key), page numbers in Typst: `query(<baruch-idx>)`,
+  per mark `counter(page).at(m.location())` (the same counting as footer and „S. n“, also from the first chapter),
+  following pages "12–14", marks with `see` without a page. Columns via `columns(n, gutter: 1.5em, …)`. Glossary: term
+  bold, variants in parentheses, short explanation, paragraphs of the detailed one, „Bibelstellen:“; anchor
+  `#metadata("baruch-glossar")<baruch-gl-UUID>` (only for a UUID of letters, digits, `-`, `_`). All data as escaped
+  string literals. Same input → same bytes.
+- `overview` (overview per index, stored texts): all indexes from `back.registers`, entries sorted as in the back
+  matter, `keys` = sections with marks that carry a page; automatic Bible references only with the Bible reference
+  index switched on.
 
-**baruch-scripture** (additiv): `book_order` (1–66), `Passage::sort_key`, `Passage::chapter_verse`.
+**baruch-scripture** (additive): `book_order` (1–66), `Passage::sort_key`, `Passage::chapter_verse`.
 
-**Store** (`snapshot.rs`, `export_map.rs`): die Haken aus S1 bleiben unverändert; geprüft in
-`crates/baruch-store/tests/index_export.rs` (Goldens R29-S1 byte-gleich, Export = projizierte Abschnitte + Buchende,
-Karte = Export, `main.typ` = vorher + Buchende, SQLite ohne Projektion).
+**Store** (`snapshot.rs`, `export_map.rs`): the hooks from S1 stay unchanged; checked in
+`crates/baruch-store/tests/index_export.rs` (goldens R29-S1 byte-identical, export = projected sections + back matter,
+map = export, `main.typ` = before + back matter, SQLite without projection).
 
 **EPUB** (`build.rs`, `xhtml.rs`): `Inline::IndexMark` → `<span id="baruch-idx-{key}-{n}" class="baruch-idx">`
-(`Renderer::index_marks`, `PlacedMark`); die erste Erwähnung (Insel `#link(<baruch-gl-…>)[#emph[…]]`) →
-`<a epub:type="glossref" href="glossary.xhtml#baruch-gl-UUID"><em>…</em></a>` (ohne Glossarseite `<em>`); ein `;`
-direkt hinter einem eingebetteten Ausdruck vor `(`, `[`, `;`, `.Wort` entfällt wie in Typst. Mit aktiven Einstellungen:
-`text/glossary.xhtml` (`epub:type="glossary"`, `dt` glossterm mit `id="baruch-gl-UUID"`, `dd` glossdef) und
-`text/index-{slug}.xhtml` (`epub:type="index"`, `index-entry`/`index-term`, je Abschnitt ein `index-locator` auf den
-ersten Anker dort, beschriftet mit Nummer und Titel des Abschnitts), am Ende von Spine und Inhaltsverzeichnis in der
-Reihenfolge des Satzes; `book.css` bekommt `INDEX_CSS` nur dann (sonst byte-gleich).
+(`Renderer::index_marks`, `PlacedMark`); the first mention (island `#link(<baruch-gl-…>)[#emph[…]]`) →
+`<a epub:type="glossref" href="glossary.xhtml#baruch-gl-UUID"><em>…</em></a>` (without a glossary page `<em>`); a `;`
+directly after an embedded expression before `(`, `[`, `;`, `.Wort` is dropped as in Typst. With active settings:
+`text/glossary.xhtml` (`epub:type="glossary"`, `dt` glossterm with `id="baruch-gl-UUID"`, `dd` glossdef) and
+`text/index-{slug}.xhtml` (`epub:type="index"`, `index-entry`/`index-term`, per section one `index-locator` to the
+first anchor there, labelled with number and title of the section), at the end of spine and table of contents in the
+order of the typesetting; `book.css` gets `INDEX_CSS` only then (otherwise byte-identical).
 
-**Server** `crate::index_marks`: `index.mark`/`index.unmark` nehmen die Schreibsperre, setzen bzw. entfernen die Marke
-in der Fassung `rev` und speichern mit `save_human_on` eine neue Fassung des Menschen; `mirror::record` schreibt genau
-einen Commit. Register müssen in `glossary::registers` stehen. `index.entries` liest die Marken der aktuellen Fassungen
-und die automatischen Bibelstellen (Projektion je Abschnitt); `index.overview` ruft `baruch_typst::index::overview`.
+**Server** `crate::index_marks`: `index.mark`/`index.unmark` take the write lock, set or remove the mark in revision
+`rev` and store a new revision by the human with `save_human_on`; `mirror::record` writes exactly one commit. Indexes
+must stand in `glossary::registers`. `index.entries` reads the marks of the current revisions and the automatic Bible
+references (projection per section); `index.overview` calls `baruch_typst::index::overview`.
 
-Bekannte Grenzen: Ein importierter Export mit Buchende nähme das Buchende in den letzten Abschnitt auf (der Import kennt
-`// Baruch: Register und Glossar` noch nicht); Meldungen von Typst aus dem Buchende ordnet die Karte dem letzten
-Abschnitt zu. Stichwörter gelten als gleich, wenn sie wörtlich gleich sind.
+Known limits: an imported export with back matter would take the back matter into the last section (the import does
+not know `// Baruch: Register und Glossar` yet); the map assigns Typst messages from the back matter to the last
+section. Keywords count as equal if they are literally equal.
 
 ### 31c kontextmenue
 
-- **Satzbild:** `baruch-wysiwyg` zeigt `Inline::IndexMark` als leeres `span.ws-index-mark` (Felder in `data-*`,
-  Beschreibung aus `index_mark_label` in `title`/`aria-label`, Zeichen nur im Stil); `wysiwyg.ts` liest es als
-  `{t: "index_mark", mark}` zurück und führt den Befehl `index_mark` (`add|edit|remove`, `ws_command.ts`) aus. Einzelheiten
-  in `docs/WYSIWYG.md` („Registermarken und Kontextmenü“).
-- **Kontextmenü:** `web/src/context_menu.ts` (Widget `context-menu` auf `span.ribbon-index` im Menüband,
-  `fragments/edit_toolbar.html`) hängt sich an Satzbild und Textfeld desselben Editors; Befehle ans Satzbild nur über
-  `baruch:ws-command`, kein Import von `wysiwyg.ts`. RPC: `glossary.add`, `glossary.lookup`, `index.registers`. Reine
-  Bausteine (`menuItems`, `opensMenu`, `menuKey`, `markFromFields`, `glossaryParams`, `entryLine`) und in `ws_command.ts`
-  die Marken-Bausteine (`markSource`, `parseMarkAt`, `findMarks`, `validateMark`, `markLabel`, `markInSource`) – sie
-  folgen `baruch_typst::index` und werden unter Node gegen die Rust-Funktionen geprüft.
-- **Seiten ohne JavaScript:** `src/glossary_page.rs` (`/werke/{id}/glossar`, `POST …/glossar/act`, `/werke/{id}/markierung`,
-  Vorlagen `glossary.html`, `marking.html`, `fragments/context_menu.html`) und `src/index_page.rs` (`/werke/{id}/register`,
-  `POST …/register/act`, Vorlage `index_page.html`). Keine eigene Datenhaltung: gelesen und geschrieben wird nur über
-  `crate::glossary` (`call("glossary.list"|"glossary.lookup"|"index.proposals")`, `add`, `update`, `delete`, `decide`,
-  `registers`, `register_*`, `index_decide`) und `crate::index_marks` (`entries`, `overview`, `mark`, `unmark`); deren
-  Meldungen erscheinen auf der Seite bzw. als 422 mit den Eingaben. `glossar/act` mit `action=suggest` ruft
-  `crate::assist::glossary::suggest` (Nachbesserung R31). Erfolg → 303 auf `back`
-  (nur Pfade dieses Servers, `glossary_page::safe_back`), sonst die Seite, mit `ok=<action>` vor dem Anker
-  (`#begriff-{id}`, `#register-{slug}`, `#vorschlag-{id}`). Stile `static/glossary.css`, `static/context_menu.css`;
-  Widget `web/src/glossary.ts` (Filter der Listen).
-- **Satz-Einstellungen:** `settings/work_typeset.rs` liest und schreibt die drei R31-Felder (`glossary_page`, je Register
-  ein Häkchen `index_register` in Satzreihenfolge + `index_columns` (leer = 2), `glossary_first_mention`);
-  `BlockInput::registers` kommt aus `crate::glossary::registers`. `formToSettings` (`typeset_settings.ts`) liest dieselben
-  Felder (Node-Vergleichstest in `tests/round31_kontextmenue.rs`).
+- **Typeset view:** `baruch-wysiwyg` shows `Inline::IndexMark` as an empty `span.ws-index-mark` (fields in `data-*`,
+  description from `index_mark_label` in `title`/`aria-label`, sign only in the style); `wysiwyg.ts` reads it back as
+  `{t: "index_mark", mark}` and runs the command `index_mark` (`add|edit|remove`, `ws_command.ts`). Details in
+  `docs/WYSIWYG.md` („Registermarken und Kontextmenü“).
+- **Context menu:** `web/src/context_menu.ts` (widget `context-menu` on `span.ribbon-index` in the ribbon,
+  `fragments/edit_toolbar.html`) attaches to typeset view and text field of the same editor; commands to the typeset
+  view only via `baruch:ws-command`, no import of `wysiwyg.ts`. RPC: `glossary.add`, `glossary.lookup`,
+  `index.registers`. Pure building blocks (`menuItems`, `opensMenu`, `menuKey`, `markFromFields`, `glossaryParams`,
+  `entryLine`) and in `ws_command.ts` the mark building blocks (`markSource`, `parseMarkAt`, `findMarks`,
+  `validateMark`, `markLabel`, `markInSource`) – they follow `baruch_typst::index` and are checked under Node against
+  the Rust functions.
+- **Pages without JavaScript:** `src/glossary_page.rs` (`/werke/{id}/glossar`, `POST …/glossar/act`,
+  `/werke/{id}/markierung`, templates `glossary.html`, `marking.html`, `fragments/context_menu.html`) and
+  `src/index_page.rs` (`/werke/{id}/register`, `POST …/register/act`, template `index_page.html`). No data storage of
+  their own: reading and writing only via `crate::glossary` (`call("glossary.list"|"glossary.lookup"|
+  "index.proposals")`, `add`, `update`, `delete`, `decide`, `registers`, `register_*`, `index_decide`) and
+  `crate::index_marks` (`entries`, `overview`, `mark`, `unmark`); their messages appear on the page or as 422 with the
+  inputs. `glossar/act` with `action=suggest` calls `crate::assist::glossary::suggest` (follow-up R31). Success → 303
+  to `back` (only paths of this server, `glossary_page::safe_back`), otherwise the page, with `ok=<action>` before the
+  anchor (`#begriff-{id}`, `#register-{slug}`, `#vorschlag-{id}`). Styles `static/glossary.css`,
+  `static/context_menu.css`; widget `web/src/glossary.ts` (filter of the lists).
+- **Typesetting settings:** `settings/work_typeset.rs` reads and writes the three R31 fields (`glossary_page`, per index
+  a checkbox `index_register` in typesetting order + `index_columns` (empty = 2), `glossary_first_mention`);
+  `BlockInput::registers` comes from `crate::glossary::registers`. `formToSettings` (`typeset_settings.ts`) reads the
+  same fields (Node comparison test in `tests/round31_kontextmenue.rs`).
 
 ### Integration
 
-- Zusammenführen ohne Konflikte (`--no-ff`, Reihenfolge S1 → glossar-daten → register-satz → kontextmenue).
-- Integrator: `mcp.rs`-`instructions` nennen `glossary_list`, `glossary_propose` und `index_propose` (nur Vorschläge);
-  die S1-Ausnahmen in `tests/mcp.rs` (STUB-Beschreibungen) und `tests/round29_oberflaeche.rs` (drei R31-Felder im
-  Satz-Block) sind entfallen; S1-Stand-Sätze in Bedienung/RPC/MCP/SKILLS ersetzt. `grep -rn "STUB:" crates` zeigt
-  außerhalb der Tests nichts.
-- **Import eines Exports mit Buchende** (offener Punkt von register-satz): `baruch_typst::index::strip_back_matter`
-  schneidet alles ab der Zeile `// Baruch: Register und Glossar` ab, `strip_projection` nimmt die Zusätze der Projektion
-  heraus (automatische Bibelstellen-Marken = Register `bibel` mit `sort`, verlinkte erste Erwähnung
-  `#link(<baruch-gl-…>)[#emph[…]]` samt Schutz-`;`). `import::import_source` wendet beides an, `strip_projection` nur,
-  wenn ein Buchende gefunden wurde (also nur bei Exporten von Baruch). Sonst wanderte das Buchende in den letzten
-  Abschnitt, und der Text verwiese auf Glossar-Labels, die es im neuen Werk nicht gibt (Typst-Fehler). Die Auszeichnung
-  ohne Glossarseite (`#emph[…]`) ist von Hand geschriebener Hervorhebung nicht zu unterscheiden und bleibt stehen.
-- Abnahme `tests/round31_abnahme.rs` (5 Tests, Werk „Die Wärterin vom Kap“, frei erfunden, zwei Teile, drei Kapitel,
-  Bibelstellen, zwei Personen): Glossar über die Seite „Markierung“ und `/glossar/act` (ohne JavaScript) und über
-  `glossary.add` (wie der Dialog) → Glossar-Seite, Glossarseite im PDF (pdftotext: Begriff, Variante, kurze und
-  ausführliche Erklärung, Bibelstellen), EPUB `glossary.xhtml` mit `glossterm`/`glossdef` und `glossref` im Kapitel;
-  Marken über `/register/act` (alle 70 Fundstellen) und `index.mark` (Unterstichwort, „siehe auch“, Personen) →
-  Registerseiten mit gemessenen Seiten („Nebel 3–6“), Bibelstellenregister in biblischer Reihenfolge (1. Mose, Psalmen,
-  Johannes, Römer; Stelle im Kommentar fehlt), erste Erwähnung je Kapitel verlinkt; der Typst-Export setzt eigenständig
-  dieselben Register; Persona (`ScriptedModel`) und MCP schlagen nur vor, der Mensch übernimmt per Formular (Commits mit
-  `Baruch-Proposer`); Rundreise u7 zwischen zwei Wegwerf-Instanzen (Export samt Buchende byte-gleich, Grabstein, kein
-  Doppel beim Abgleich); ohne R31-Einstellungen bleiben Export und EPUB byte-gleich, auch mit Glossar und eigenem
-  Register; Import eines Exports mit Buchende; Tastatur (Kontextmenü-Taste, Umschalt+F10) und ARIA im ausgelieferten
-  Kontextmenü, Link „Markierung …“ ohne JavaScript.
-- Nach dem Zusammenführen: Die Sonde in `round31_kontextmenue.rs` (`register_forms_check_their_inputs_and_keep_them_on_422`)
-  rief `index.mark` auf und legte damit selbst eine neue Fassung an, die die des Formulars verdeckte – der Datenweg war vor
-  dem Zusammenführen ungeprüft. Sonde jetzt lesend (`index.entries`).
-- Sichtprüfung (Wegwerf-Server mit `--secrets memory`, Verbindungen auf 127.0.0.1:9, keine Anfrage an Eliezer oder ins
-  Netz; Bilder `.claude/sicht/r31/`): Kontextmenü im Satzbild mit „In Glossar aufnehmen“, Seite „An der Markierung“,
-  Glossar-Seite mit Vorschlag von MCP, Registerseite, PDF-Seiten (Stichwortregister „Nebel 3–4“, Bibelstellenregister in
-  biblischer Reihenfolge, Glossarseite, erste Erwähnung kursiv), EPUB-Vorschau mit Glossar. **Behoben:** Die
-  Registerseite nannte Fundstellen und Vorschläge mit dem inneren Schlüssel („k13“) und die Fundstelle englisch
-  („first“) – jetzt Nummer und Titel des Abschnitts („1 Die Ankunft“) und „erste Fundstelle“; die Glossar-Seite schrieb
-  bei Begriffen des Menschen „Vorgeschlagen von Autor“ – „Vorgeschlagen von“ steht nur noch bei Herkunft `@…`.
-- `typst` (CLI) ist auf diesem Rechner nicht im PATH: die `typst compile`-Zusicherungen melden „ÜBERSPRUNGEN“, der Export
-  wird stattdessen mit dem eingebetteten Compiler als eigenständige Datei gesetzt (gleiche Typst-Version, keine
-  weiteren Dateien).
+- Merge without conflicts (`--no-ff`, order S1 → glossar-daten → register-satz → kontextmenue).
+- Integrator: the `instructions` in `mcp.rs` name `glossary_list`, `glossary_propose` and `index_propose` (proposals
+  only); the S1 exceptions in `tests/mcp.rs` (STUB descriptions) and `tests/round29_oberflaeche.rs` (three R31 fields
+  in the typesetting block) are gone; S1 state sentences in Bedienung/RPC/MCP/SKILLS replaced. `grep -rn "STUB:"
+  crates` shows nothing outside the tests.
+- **Import of an export with back matter** (open item of register-satz): `baruch_typst::index::strip_back_matter`
+  cuts off everything from the line `// Baruch: Register und Glossar`, `strip_projection` takes out the additions of
+  the projection (automatic Bible reference marks = index `bibel` with `sort`, linked first mention
+  `#link(<baruch-gl-…>)[#emph[…]]` including the protective `;`). `import::import_source` applies both,
+  `strip_projection` only if back matter was found (that is only for exports by Baruch). Otherwise the back matter
+  moved into the last section, and the text referred to glossary labels that do not exist in the new work (Typst
+  error). The markup without a glossary page (`#emph[…]`) cannot be told apart from emphasis written by hand and stays.
+- Acceptance `tests/round31_abnahme.rs` (5 tests, work „Die Wärterin vom Kap“, freely invented, two parts, three
+  chapters, Bible references, two persons): glossary via the page „Markierung“ and `/glossar/act` (without
+  JavaScript) and via `glossary.add` (like the dialog) → glossary page, glossary page in the PDF (pdftotext: term,
+  variant, short and detailed explanation, Bible references), EPUB `glossary.xhtml` with `glossterm`/`glossdef` and
+  `glossref` in the chapter; marks via `/register/act` (all 70 occurrences) and `index.mark` (subentry, „siehe auch“,
+  persons) → index pages with measured pages („Nebel 3–6“), Bible reference index in biblical order („1. Mose“, „Psalmen“,
+  „Johannes“, „Römer“; a reference in a comment is missing), first mention per chapter linked; the Typst export
+  independently typesets the same indexes; persona (`ScriptedModel`) and MCP only propose, the human adopts by form
+  (commits with `Baruch-Proposer`); round trip u7 between two throwaway instances (export including back matter
+  byte-identical, tombstone, no duplicate when reconciling); without R31 settings export and EPUB stay byte-identical,
+  also with a glossary and an own index; import of an export with back matter; keyboard (context menu key,
+  Shift+F10) and ARIA in the delivered context menu, link „Markierung …“ without JavaScript.
+- After the merge: the probe in `round31_kontextmenue.rs` (`register_forms_check_their_inputs_and_keep_them_on_422`)
+  called `index.mark` and thereby created a new revision itself, which hid the one of the form – the data path was
+  unchecked before the merge. The probe now reads only (`index.entries`).
+- Visual check (throwaway server with `--secrets memory`, connections to 127.0.0.1:9, no request to Eliezer or to the
+  network; images `.claude/sicht/r31/`): context menu in the typeset view with „In Glossar aufnehmen“, page „An der
+  Markierung“, glossary page with a proposal from MCP, index page, PDF pages (keyword index „Nebel 3–4“, Bible
+  reference index in biblical order, glossary page, first mention in italics), EPUB preview with glossary. **Fixed:**
+  the index page named occurrences and proposals with the internal key („k13“) and the occurrence in English
+  („first“) – now number and title of the section („1 Die Ankunft“) and „erste Fundstelle“; the glossary page wrote
+  „Vorgeschlagen von Autor“ for terms of the human – „Vorgeschlagen von“ now stands only with origin `@…`.
+- `typst` (CLI) is not in the PATH on this machine: the `typst compile` assertions report „ÜBERSPRUNGEN“, the export is
+  instead typeset with the embedded compiler as a standalone file (same Typst version, no further files).
 
-### Nachbesserung nach Gutachten (R31)
+### Follow-up after review (R31)
 
-- **Keine doppelten Marken:** `baruch_typst::index::mark_word` prüft je gewählter Fundstelle die Kette der Marken direkt
-  hinter dem Wort bzw. Label (`carries_mark` über `Scan::marks`); steht dieselbe `IndexMark` schon dort, bleibt die
-  Fundstelle unberührt. Bleibt keine übrig → `IndexError::AlreadyMarked` (ersetzt das ungenutzte `NotYet`), der
-  Aufrufer legt keine Fassung an; `index_proposal_accept` setzt den Vorschlag dann auf `stale`. „erste“/„n-te“ zählen
-  weiter alle Fundstellen im Text (Auswahl der Oberfläche bleibt eindeutig). `markInSource` (TS) prüft dasselbe im
-  Quelltext, `sameMarkBehind` (`wysiwyg.ts`) im Satzbild. Vorher ließ `Scan::insertable` die Stelle vor einer
-  vorhandenen Marke zu, und jede Wiederholung war eine neue Fassung samt Spiegel-Commit.
-- **„Begriffe vorschlagen lassen“ bedienbar:** Formulare auf der Glossarseite und auf „An der Markierung“
-  (`glossar/act`, `action=suggest`, wahlweise `key`); Weiterleitung mit `neu`/`uebersprungen` für den Hinweis.
-- **Tests ohne S1-Zweige:** Wie in R27 sind die Zweige, die „noch nicht umgesetzt“ als richtig gelten ließen, entfernt
-  (`round31_kontextmenue.rs` mit `implemented`, `round31_glossar.rs`, `baruch-store/tests/glossary.rs`); die
-  422-Fälle mit erhaltenen Eingaben prüfen echte Fehler (unbekannte Bibelstelle, eingebaute Register-Kennung, Marke
-  schon gesetzt).
+- **No duplicate marks:** `baruch_typst::index::mark_word` checks for each chosen occurrence the chain of marks
+  directly after the word or label (`carries_mark` via `Scan::marks`); if the same `IndexMark` already stands there,
+  the occurrence stays untouched. If none is left → `IndexError::AlreadyMarked` (replaces the unused `NotYet`), the
+  caller creates no revision; `index_proposal_accept` then sets the proposal to `stale`. "first"/"n-th" still count
+  all occurrences in the text (the choice in the user interface stays unambiguous). `markInSource` (TS) checks the same
+  in the source, `sameMarkBehind` (`wysiwyg.ts`) in the typeset view. Before, `Scan::insertable` allowed the place
+  before an existing mark, and every repetition was a new revision including a mirror commit.
+- **„Begriffe vorschlagen lassen“ usable:** forms on the glossary page and on „An der Markierung“ (`glossar/act`,
+  `action=suggest`, optionally `key`); redirect with `neu`/`uebersprungen` for the notice.
+- **Tests without S1 branches:** as in R27, the branches that accepted „noch nicht umgesetzt“ as correct are removed
+  (`round31_kontextmenue.rs` with `implemented`, `round31_glossar.rs`, `baruch-store/tests/glossary.rs`); the 422 cases
+  with kept inputs check real errors (unknown Bible reference, built-in index identifier, mark already set).
 
-## Runde 21 – Import und Bilder
+## Round 21 – Import and images
 
-### Schnittstelle R21-S1
+### Interface R21-S1
 
-- **Abhängigkeiten** (in S1 festgelegt, Entwickler ändern keine Cargo.toml/Cargo.lock): baruch-server `zip` 2.4 (nur
-  DEFLATE; aus den dev-dependencies in die dependencies, für `src/archive.rs`), `quick-xml` 0.38 (EPUB, 21a; schon im
-  Lock), `pulldown-cmark` 0.13 ohne Standard-Features (Markdown, 21b; aufgelöst zu 0.13.6); baruch-render
-  `typst-render` 0.15.1 (Rasterbild einer Seite für das EPUB-Cover, 21c; ließ sich laden, der Ersatz resvg/image war
-  nicht nötig). `cargo tree -d` zeigt keine neuen Doppel-Versionen.
-- **`src/archive.rs`** (in S1 vollständig, danach markdown-import): `read_zip(bytes, &ArchiveLimits)` →
-  `Vec<ArchiveEntry {path, bytes}>` in Archivreihenfolge, nur reguläre Dateien (Ordner übersprungen). Abgelehnt mit
-  `ArchiveError::Unsafe {path, reason}`: absolute Pfade, `..`, `\`, Laufwerk, Steuerzeichen, leere oder Nicht-UTF-8-Namen,
-  Verknüpfungen, Sonderdateien, Verschlüsselung und doppelte Namen (auch nur in Groß-/Kleinschreibung verschieden; das
-  Zentralverzeichnis wird ab dem Endsatz selbst gezählt, weil die ZIP-Bibliothek Doppel still zusammenfasst).
-  `TooLarge`: mehr Einträge, größere Einträge oder Summe als `ArchiveLimits` – gezählt beim Entpacken mit `take`, nicht
-  aus dem Kopf –, Verhältnis entpackt/gepackt über `max_ratio` (Einträge bis `RATIO_FREE_BYTES` = 64 KiB sind davon
-  frei). `Corrupt`: unlesbar, falsche Prüfsumme, anderes Verfahren als STORED/DEFLATE. `NotZip`: Anfang nicht `PK`.
-  Grenzen für Importe `IMPORT_LIMITS`: 2000 Einträge, je 16 MiB, zusammen 80 MiB, Verhältnis 200.
-- **`src/import.rs`**: `ImportWarning {code, message, line}` (Hinweis statt stillem Verwerfen), Feld
-  `ImportReport.warnings` (hinter `skipped`), `import_source(…, warnings)`; neu `import_generated(state, source,
-  file_name, title, assets, skipped, warnings)` für fertig erzeugten Typst-Text (PDF/EPUB nach Bestätigung): dünne Hülle
-  um `import_source`, vergebener Titel → `REFUSED` mit `TITLE_HINT`, keine Überschrift → `INVALID_PARAMS`.
-- **CLI-Weiche** (`main.rs`, `import DATEI`): `exchange::is_exchange_name` → Austausch; `pdf_import::is_source_name`
-  (.pdf/.epub) → `pdf_import::cli_import` mit `CliSourceImport {title, apply: --uebernehmen, library: --bibliothek}`;
-  `markdown_import::is_markdown_name`/`is_archive_name` (.md/.markdown/.zip) → `markdown_import::cli_import`; sonst Typst.
-  `--uebernehmen`/`--bibliothek` mit anderer Dateiart → Exit 2. Der Typst-Import druckt je Warnung
-  `Hinweis (<code>): <message>` auf stderr.
-- **Routen und RPC**: `pdf_import::pages()` (`GET /werke/import/quelle`) bei den Seiten, `pdf_import::writes()`
-  (`POST /werke/import/quelle/vorschau` mit `DefaultBodyLimit::max(UPLOAD_LIMIT)` = 64 MiB + 64 KiB, `…/uebernehmen`,
-  `…/verwerfen`) hinter `guard::same_origin`; RPC `source_import.*` über `pdf_import::handles`/`call` hinter
-  `works::handles`. Markdown-Routen bleiben in `works.rs`. Stil `static/source_import.css` im gemeinsamen `STYLE`.
-  Menü „Baruch ▾ → PDF oder EPUB importieren…“ in `base.html`, Verweis unter dem Typst-Formular in
-  `fragments/work_new.html`. In S1 antworten Seite (200), Formulare (501), RPC (-32000) und CLI (Exit 1) ehrlich
-  „noch nicht umgesetzt“ (`// STUB: … (R21a/R21b)`).
-- **Migrationen**: S1 legt keine an. Reserviert, nur falls nötig: Store `0050_r21_assets.sql` (bilder),
-  `0051_r21_import.sql` (markdown-import); Bibliothek `0108_title_text.sql` (pdf-import, Tabelle `library_title_text`).
+- **Dependencies** (fixed in S1, developers change no Cargo.toml/Cargo.lock): baruch-server `zip` 2.4 (DEFLATE only;
+  moved from the dev-dependencies into the dependencies, for `src/archive.rs`), `quick-xml` 0.38 (EPUB, 21a; already in
+  the lock), `pulldown-cmark` 0.13 without default features (Markdown, 21b; resolved to 0.13.6); baruch-render
+  `typst-render` 0.15.1 (raster image of a page for the EPUB cover, 21c; it could be loaded, the replacement
+  resvg/image was not needed). `cargo tree -d` shows no new duplicate versions.
+- **`src/archive.rs`** (complete in S1, afterwards markdown-import): `read_zip(bytes, &ArchiveLimits)` →
+  `Vec<ArchiveEntry {path, bytes}>` in archive order, only regular files (folders skipped). Refused with
+  `ArchiveError::Unsafe {path, reason}`: absolute paths, `..`, `\`, drive, control characters, empty or non-UTF-8
+  names, links, special files, encryption and duplicate names (also those differing only in case; the central
+  directory is counted from the end record by the code itself, because the ZIP library silently merges duplicates).
+  `TooLarge`: more entries, larger entries or a larger sum than `ArchiveLimits` – counted while unpacking with `take`,
+  not from the header –, ratio unpacked/packed above `max_ratio` (entries up to `RATIO_FREE_BYTES` = 64 KiB are
+  exempt). `Corrupt`: unreadable, wrong checksum, a method other than STORED/DEFLATE. `NotZip`: start is not `PK`.
+  Limits for imports `IMPORT_LIMITS`: 2000 entries, 16 MiB each, 80 MiB together, ratio 200.
+- **`src/import.rs`**: `ImportWarning {code, message, line}` (hint instead of silent discarding), field
+  `ImportReport.warnings` (after `skipped`), `import_source(…, warnings)`; new `import_generated(state, source,
+  file_name, title, assets, skipped, warnings)` for finished generated Typst text (PDF/EPUB after confirmation): a thin
+  shell around `import_source`, a title already taken → `REFUSED` with `TITLE_HINT`, no heading → `INVALID_PARAMS`.
+- **CLI switch** (`main.rs`, `import DATEI`): `exchange::is_exchange_name` → exchange; `pdf_import::is_source_name`
+  (.pdf/.epub) → `pdf_import::cli_import` with `CliSourceImport {title, apply: --uebernehmen, library: --bibliothek}`;
+  `markdown_import::is_markdown_name`/`is_archive_name` (.md/.markdown/.zip) → `markdown_import::cli_import`;
+  otherwise Typst. `--uebernehmen`/`--bibliothek` with another file kind → exit 2. The Typst import prints per warning
+  `Hinweis (<code>): <message>` on stderr.
+- **Routes and RPC**: `pdf_import::pages()` (`GET /werke/import/quelle`) with the pages, `pdf_import::writes()`
+  (`POST /werke/import/quelle/vorschau` with `DefaultBodyLimit::max(UPLOAD_LIMIT)` = 64 MiB + 64 KiB,
+  `…/uebernehmen`, `…/verwerfen`) behind `guard::same_origin`; RPC `source_import.*` via
+  `pdf_import::handles`/`call` after `works::handles`. Markdown routes stay in `works.rs`. Style
+  `static/source_import.css` in the common `STYLE`. Menu „Baruch ▾ → PDF oder EPUB importieren…“ in `base.html`, a
+  link below the Typst form in `fragments/work_new.html`. In S1 page (200), forms (501), RPC (-32000) and CLI (exit 1)
+  answered honestly „noch nicht umgesetzt“ (`// STUB: … (R21a/R21b)`).
+- **Migrations**: S1 creates none. Reserved, only if needed: store `0050_r21_assets.sql` (bilder),
+  `0051_r21_import.sql` (markdown-import); library `0108_title_text.sql` (pdf-import, table `library_title_text`).
 
 ### 21a pdf-import
 
-Modul `src/pdf_import/` (global, ohne Werk), Bibliothek `0108_title_text.sql`, Volltext in `literature/fulltext.rs`.
+Module `src/pdf_import/` (global, without a work), library `0108_title_text.sql`, full text in
+`literature/fulltext.rs`.
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `mod.rs` | RPC `source_import.*`, `preview`/`preview_with` (Weg wählen, lesen, Entwurf), `apply`/`apply_draft` (Werk über `import::import_generated`, Quelle über `baruch_library::add_title` + `set_title_remote` bzw. `set_title_text`), `discard`, CLI `cli_import`/`cli_import_with` (eigene `PdfTools` für Tests), `local_pdf_reads` (Zähler je Datenordner: Tests prüfen „kein pdftotext auf dem MultiGPT-Weg“) |
-| `pdf.rs` | lokal: `pdfinfo -enc UTF-8` (Titel, Autor, Seiten) und `pdftotext -enc UTF-8 -bbox-layout DATEI -` über `tokio::process` mit `TOOL_TIMEOUT` (120 s), `kill_on_drop`, Standardeingabe `null`, nur Seiten 1–`MAX_PAGES` (2000, wie über MultiGPT; mehr → Warnung `import-pdf-pages-cut`), Ausgabe ≤ 128 MiB, höchstens `MAX_PARALLEL_READS` (2) Lesevorgänge zugleich (weitere warten); fehlt das Programm → ehrliche Meldung. Gliederung aus den Wortrahmen (`structure`) |
-| `remote.rs` | über MultiGPT: `upload_document` (genau einmal), Warten (`run_status`, sonst `read_document` mit Wiederholung, ≤ `INDEX_WAIT` 120 s, Pausen 0,1–2 s), `document_info` (Titel, Autor, Seiten, `toc`), Text mit `read_document {page_from, page_to}` in Bereichen ≤ 10 Seiten (gekürzt → Seite für Seite), Schnitt am Inhaltsverzeichnis (`split_by_toc`), ohne Verzeichnis nummerierte Zeilen (`split_by_heuristic`) |
-| `epub.rs` | EPUB: `archive::read_zip` mit `IMPORT_LIMITS`, `container.xml` → OPF (Titel, `dc:creator`, Sprache, Manifest, Spine), Navigation aus `nav.xhtml` (`epub:type="toc"`) bzw. `toc.ncx`, XHTML → Textfluss mit Sprungzielen; Verweise über `resolve` (Prozent-Kodierung, `..` nur innerhalb des Archivs) |
-| `typst_out.rs` | `escape_text` (Typst-Zeichen `\ # * _ ` $ @ < > [ ] ~`, `/` vor `/`/`*`, `-` vor `-`/`?`, am Absatzanfang `= - + /` und `12.`), `Inline` → Markup (`_…_`/`*…*` nur an Wortgrenzen, sonst `#emph[…]`/`#strong[…]`; `#footnote[…]`, `#super`, `#sub`, `#link`, `#raw`, `#linebreak()`), `assign`/`build_typst` (bestätigte Gliederung → Typst; Teil über `baruch_typst::heading_line(0, …)`) |
-| `xml.rs` | kleiner nachsichtiger XML-Baum über quick-xml 0.38 (`check_end_names` aus, HTML-Entitäten, ≤ 256 Ebenen, ≤ 2 Mio. Knoten) |
-| `draft.rs` | Entwürfe unter `<data>/import-drafts/<32 hex>/` (`draft.json`, `asset-<n>.bin`; nach Fehler von MultiGPT `pending.json` + `source.bin` für „lokal lesen“); `clean` vor jedem `preview`: älter als 24 h weg, dann die ältesten bis < 20 |
-| `pages.rs` | `GET /werke/import/quelle`, `POST …/vorschau` (multipart, `UPLOAD_LIMIT`), `…/uebernehmen`, `…/verwerfen`; Vorlage `templates/source_import.html`, Stil `static/source_import.css` |
+| `mod.rs` | RPC `source_import.*`, `preview`/`preview_with` (choose the way, read, draft), `apply`/`apply_draft` (work via `import::import_generated`, source via `baruch_library::add_title` + `set_title_remote` or `set_title_text`), `discard`, CLI `cli_import`/`cli_import_with` (own `PdfTools` for tests), `local_pdf_reads` (counter per data folder: tests check "no pdftotext on the MultiGPT way") |
+| `pdf.rs` | local: `pdfinfo -enc UTF-8` (title, author, pages) and `pdftotext -enc UTF-8 -bbox-layout DATEI -` via `tokio::process` with `TOOL_TIMEOUT` (120 s), `kill_on_drop`, standard input `null`, only pages 1–`MAX_PAGES` (2000, as via MultiGPT; more → warning `import-pdf-pages-cut`), output ≤ 128 MiB, at most `MAX_PARALLEL_READS` (2) reads at a time (further ones wait); if the program is missing → honest message. Outline from the word boxes (`structure`) |
+| `remote.rs` | via MultiGPT: `upload_document` (exactly once), waiting (`run_status`, otherwise `read_document` with repetition, ≤ `INDEX_WAIT` 120 s, pauses 0.1–2 s), `document_info` (title, author, pages, `toc`), text with `read_document {page_from, page_to}` in ranges ≤ 10 pages (shortened → page by page), cut at the table of contents (`split_by_toc`), without a table of contents numbered lines (`split_by_heuristic`) |
+| `epub.rs` | EPUB: `archive::read_zip` with `IMPORT_LIMITS`, `container.xml` → OPF (title, `dc:creator`, language, manifest, spine), navigation from `nav.xhtml` (`epub:type="toc"`) or `toc.ncx`, XHTML → text flow with jump targets; references via `resolve` (percent encoding, `..` only within the archive) |
+| `typst_out.rs` | `escape_text` (Typst characters `\ # * _ $ @ < > [ ] ~` and the backtick, `/` before `/`/`*`, `-` before `-`/`?`, at the start of a paragraph `= - + /` and `12.`), `Inline` → markup (`_…_`/`*…*` only at word boundaries, otherwise `#emph[…]`/`#strong[…]`; `#footnote[…]`, `#super`, `#sub`, `#link`, `#raw`, `#linebreak()`), `assign`/`build_typst` (confirmed outline → Typst; part via `baruch_typst::heading_line(0, …)`) |
+| `xml.rs` | small lenient XML tree over quick-xml 0.38 (`check_end_names` off, HTML entities, ≤ 256 levels, ≤ 2 million nodes) |
+| `draft.rs` | drafts under `<data>/import-drafts/<32 hex>/` (`draft.json`, `asset-<n>.bin`; after an error of MultiGPT `pending.json` + `source.bin` for „lokal lesen“); `clean` before every `preview`: older than 24 h removed, then the oldest until < 20 |
+| `pages.rs` | `GET /werke/import/quelle`, `POST …/vorschau` (multipart, `UPLOAD_LIMIT`), `…/uebernehmen`, `…/verwerfen`; template `templates/source_import.html`, style `static/source_import.css` |
 
-- **Gemeinsames Modell:** `Extracted {title, author, lang, pages, sections: [Section {level, title, part, body (Typst),
-  plain}], assets, skipped, warnings, plain_text}`. Die Vorschau zeigt `sections` als Gliederung; `apply` bildet die
-  bestätigte Liste (`Confirmed {level, title, part, source}`) auf die Abschnitte ab. Text vor dem ersten Punkt wird der
-  Punkt „Vorspann“. Werkvorlage des neuen Werks: `#set document(title, author)` und – bei EPUB mit `dc:language` –
+- **Common model:** `Extracted {title, author, lang, pages, sections: [Section {level, title, part, body (Typst),
+  plain}], assets, skipped, warnings, plain_text}`. The preview shows `sections` as an outline; `apply` maps the
+  confirmed list (`Confirmed {level, title, part, source}`) onto the sections. Text before the first item becomes the
+  item „Vorspann“. Work template of the new work: `#set document(title, author)` and – for EPUB with `dc:language` –
   `#set text(lang)`.
-- **PDF-Heuristik (lokal):** Zeilenhöhe = Median der Wortrahmen; Fließtext = häufigste Höhenklasse (halbe Punkte,
-  nach Zeichen gewichtet); Überschrift = Block mit ≤ 3 Zeilen, ≤ 160 Zeichen, Höhe ≥ 1,12 × Fließtext; Ebenen nach
-  absteigender Höhe (≤ 3); einzeilige Blöcke in Fließtextgröße mit Nummer `1.2.3 Titel` ohne Satzzeichen am Ende gelten
-  als Überschrift (Ebene = Zahl der Nummernteile, Nummer entfernt). Größte Klasse genau einmal auf Seite 1 vor jeder
-  anderen Überschrift = Titel des Dokuments. Reine Ziffernzeilen am Seitenrand = Seitenzahlen (entfernt). Zeilen eines
-  Blocks werden mit Leerzeichen verbunden, `Wort-` + Kleinbuchstabe ohne Trennstrich.
-- **EPUB-Umwandlung:** Blöcke (`p`, Überschriften, Listen als `-`/`+` mit Einzug, `blockquote` → `#quote(block:
-  true)[…]`, `figure`/`img` → `#figure(image("pfad", alt: …), caption: […])` bzw. `#image(…)`, `pre` → `#raw(block:
-  true, …)`, `hr` → `#line(length: 100%)`, Tabellen als Zeilen „a | b“ mit Warnung). Fußnoten: Elemente mit
-  `epub:type` `footnote`/`endnote`/`rearnote`/`note` bzw. `role="doc-footnote|doc-endnote"`, auf die ein Verweis zeigt
-  (`noteref`/`doc-noteref` oder `href` auf eine solche Note), fehlen im Fluss und stehen als `#footnote[…]` am Zeichen
-  (Rücksprünge weg; eine führende Zahl nur, wenn sie gleich dem Fußnotenzeichen ist und kein Rücksprung-Link die
-  Nummer trug – „1 Kor 13,4“ bleibt –, mit Warnung `import-epub-footnote-number`; Bilder in der Fußnote bleiben als
-  `#image(…)` in ihr). Hinter jedem eingebetteten Ausdruck (`#linebreak()`, `#emph[…]`, `#raw(…)`, `#footnote[…]` …)
-  steht ein Schutz-`;`, wenn danach `(`, `[`, `;` oder `.Name` folgt (`typst_out::needs_guard`, wie beim
-  Markdown-Import), sonst läse Typst einen Aufruf bzw. Feldzugriff. Bilder: Pfad im Werk relativ zum Ordner der OPF-Datei, geprüft mit
-  `check_asset_path`, ≤ 8 MiB je Bild, ≤ 64 MiB zusammen, nur PNG/JPEG/GIF/WebP/SVG (`detect_mime`), sonst übersprungen
-  mit Grund. Navigation: Ziel `datei#id` → Sprungziel im Fluss; die Überschrift gleich dem Navigationstitel fällt aus dem
-  Text; andere Überschriften bleiben fetter Text (Warnung). Tiefer als 3 → Ebene 3 (Warnung).
-- **Bibliothek:** `library_title_text (title_id → library_title ON DELETE CASCADE, source_name, mime, sha256, pages,
-  text CHECK typeof = 'text', created)` – nur neue Tabelle, Migrationstests `baruch-library/tests/migration_0108.rs`
-  (Kern-Fixture) und `baruch-server/tests/round21_pdf_import.rs` (echtes Kernschema von development). Funktionen
-  `set_title_text`, `title_text`, `title_text_created`, `title_for_text_sha256` (Doppel erkennen).
-- **Volltext (`literature/fulltext.rs`):** `read(Target::Title)` liest ohne Verknüpfung den lokalen Volltext
-  (`origin: "import"`, geteilt wie eine lokale Kopie über `local_part`), `check_highlight` prüft gegen ihn,
-  `has_fulltext(state, title)` = Verknüpfung oder lokaler Volltext. Die Dokumentansicht `/quelle` (`literature.rs`,
-  `source_page`) fragt seit der Integration `fulltext::has_fulltext` statt nur `title_remote` und zeigt so auch den
-  lokalen Volltext in Teilen samt den Feldern Anfang/Ende (Abnahme `round21_abnahme.rs`).
-- **Regeln:** Gliederung nie still (immer Vorschau; CLI ohne Flags schreibt nichts), Teil nur auf Bestätigung, kein
-  stiller Wechsel des Wegs, Warnungen statt Verwerfen, kein Import über MCP, Inhalte der Datei sind Daten (nur maskiert
-  in Seiten und Typst).
+- **PDF heuristic (local):** line height = median of the word boxes; running text = the most frequent height class
+  (half points, weighted by characters); heading = block with ≤ 3 lines, ≤ 160 characters, height ≥ 1.12 × running
+  text; levels by descending height (≤ 3); single-line blocks in running text size with a number `1.2.3 Titel` without
+  punctuation at the end count as a heading (level = number of number parts, number removed). The largest class exactly
+  once on page 1 before any other heading = title of the document. Pure digit lines at the page edge = page numbers
+  (removed). Lines of a block are joined with spaces, `Wort-` + lower-case letter without the hyphen.
+- **EPUB conversion:** blocks (`p`, headings, lists as `-`/`+` with indentation, `blockquote` → `#quote(block:
+  true)[…]`, `figure`/`img` → `#figure(image("pfad", alt: …), caption: […])` or `#image(…)`, `pre` → `#raw(block:
+  true, …)`, `hr` → `#line(length: 100%)`, tables as lines "a | b" with a warning). Footnotes: elements with
+  `epub:type` `footnote`/`endnote`/`rearnote`/`note` or `role="doc-footnote|doc-endnote"` that a reference points to
+  (`noteref`/`doc-noteref` or `href` to such a note) are missing from the flow and stand as `#footnote[…]` at the mark
+  (back links removed; a leading number only if it equals the footnote mark and no back link carried the number –
+  „1 Kor 13,4“ stays –, with warning `import-epub-footnote-number`; images in the footnote stay in it as
+  `#image(…)`). After every embedded expression (`#linebreak()`, `#emph[…]`, `#raw(…)`, `#footnote[…]` …) a
+  protective `;` stands if `(`, `[`, `;` or `.Name` follows (`typst_out::needs_guard`, as in the Markdown import),
+  otherwise Typst would read a call or field access. Images: path in the work relative to the folder of the OPF file,
+  checked with `check_asset_path`, ≤ 8 MiB per image, ≤ 64 MiB together, only PNG/JPEG/GIF/WebP/SVG (`detect_mime`),
+  otherwise skipped with a reason. Navigation: target `datei#id` → jump target in the flow; the heading equal to the
+  navigation title drops out of the text; other headings stay bold text (warning). Deeper than 3 → level 3 (warning).
+- **Library:** `library_title_text (title_id → library_title ON DELETE CASCADE, source_name, mime, sha256, pages,
+  text CHECK typeof = 'text', created)` – only a new table, migration tests `baruch-library/tests/migration_0108.rs`
+  (core fixture) and `baruch-server/tests/round21_pdf_import.rs` (real core schema of development). Functions
+  `set_title_text`, `title_text`, `title_text_created`, `title_for_text_sha256` (detect duplicates).
+- **Full text (`literature/fulltext.rs`):** `read(Target::Title)` reads the local full text without a link
+  (`origin: "import"`, split like a local copy via `local_part`), `check_highlight` checks against it,
+  `has_fulltext(state, title)` = link or local full text. Since the integration, the document view `/quelle`
+  (`literature.rs`, `source_page`) asks `fulltext::has_fulltext` instead of only `title_remote` and so also shows the
+  local full text in parts including the fields start/end (acceptance `round21_abnahme.rs`).
+- **Rules:** outline never silent (always a preview; the CLI without flags writes nothing), part only on confirmation,
+  no silent change of the way, warnings instead of discarding, no import via MCP, contents of the file are data (only
+  escaped in pages and Typst).
 
 ### 21b markdown-import
 
-- **Module** (`crates/baruch-server/src/markdown_import/`): `convert.rs` (Markdown → Typst, rein, ohne Zustand),
-  `mod.rs` (Namen, `Bundle` für ZIP und Ordner, Haupt-Datei, Bilder aus dem Bündel, `import_text`, `import_bundle`,
-  `import_archive`, `cli_import`, `report_text`). Angelegt wird immer über `import::import_generated` (eine Transaktion
-  für Werk und Bilder, Titelregeln wie beim Typst-Import). Formulare und RPC in `works.rs`, Bericht
-  `templates/import_report.html`. Keine Migration (0051 blieb frei).
-- **Umwandlung** (`convert::to_typst`, `pulldown-cmark` 0.13 mit Fußnoten, Tabellen, Durchgestrichenem,
-  Begriffslisten, Überschriften-Attributen und YAML-Kopf; Ereignisse → kleiner Baum → Ausgabe):
+- **Modules** (`crates/baruch-server/src/markdown_import/`): `convert.rs` (Markdown → Typst, pure, without state),
+  `mod.rs` (names, `Bundle` for ZIP and folders, main file, images from the bundle, `import_text`, `import_bundle`,
+  `import_archive`, `cli_import`, `report_text`). Creation always goes through `import::import_generated` (one
+  transaction for work and images, title rules as in the Typst import). Forms and RPC in `works.rs`, report
+  `templates/import_report.html`. No migration (0051 stayed free).
+- **Conversion** (`convert::to_typst`, `pulldown-cmark` 0.13 with footnotes, tables, strikethrough, definition lists,
+  heading attributes and YAML front matter; events → small tree → output):
 
-| Markdown | Typst | Hinweis-Code, wenn nicht abgebildet |
+| Markdown | Typst | Hint code when not mapped |
 |---|---|---|
 | `#`/`##`/`###` | `heading_line(1…3)` (`escape_title`) | `md-heading-level` (`####`–`######` → `===`) |
-| Auszeichnung in einer Überschrift | Titel als Text | `md-heading-format`; Fußnote darin `md-heading-footnote`; `{#id}` `md-heading-attributes` |
-| Überschrift in Zitat/Liste | `#strong[…]` | `md-heading-nested` |
-| Text vor der ersten Überschrift | `= <Titel>` davor | `md-preamble-heading` |
-| YAML-Kopf `title`/`author` | `#set document(title: …, author: …)` (Werkvorlage) | `md-front-matter` für andere Schlüssel |
-| Absatz, weicher Umbruch, harter Umbruch | Absatz, Zeilenende, `\` + Zeilenende | – |
+| Markup in a heading | title as text | `md-heading-format`; a footnote in it `md-heading-footnote`; `{#id}` `md-heading-attributes` |
+| Heading in a quotation/list | `#strong[…]` | `md-heading-nested` |
+| Text before the first heading | `= <Titel>` before it | `md-preamble-heading` |
+| YAML front matter `title`/`author` | `#set document(title: …, author: …)` (work template) | `md-front-matter` for other keys |
+| Paragraph, soft break, hard break | paragraph, line end, `\` + line end | – |
 | `*…*`, `**…**`, `~~…~~` | `#emph[…]`, `#strong[…]`, `#strike[…]` | – |
 | `` `Code` `` | `#raw("…")` | – |
-| Codeblock | ```` ```sprache ```` (Zaun länger als jede Backtick-Folge darin) | `md-code-lang` (Sprache mit anderen Zeichen) |
-| Liste, Aufzählung (Startnummer), verschachtelt | `- `, `n. `, Einzug = Breite des Zeichens | – |
+| Code block | "```sprache" (fence longer than any backtick run inside) | `md-code-lang` (language with other characters) |
+| List, numbered list (start number), nested | `- `, `n. `, indentation = width of the marker | – |
 | `> Zitat` | `#quote(block: true)[…]` | `md-quote-kind` (`> [!NOTE]`) |
-| `[Text](https:…)`, `<https:…>`, E-Mail | `#link("…")[Text]` bzw. `#link("…")` | `md-link-local` (andere Datei, `#Sprung`, fremdes Schema: nur der Text) |
-| Fußnote | `#footnote[…]` am Verweis | `md-footnote-repeated`, `md-footnote-unused`, `md-footnote-nested`, `md-footnote-missing` |
-| Bild allein im Absatz | `#image("p", alt: "…")`, mit Titel `#figure(image(…), caption: […])` | `md-image-remote` (Netz → `#link`), `md-image-data` (`data:`), `md-image-path` (kaputte %-Folge) |
-| Bild im Fließtext | `#box(image(…))` | `md-image-title` (Titel entfällt) |
-| Tabelle | `#table(columns: n, align: (…), table.header(…), …)` | – |
-| Begriffsliste | `/ Begriff: Erklärung` (`:` im Begriff maskiert) | `md-definition-multiple` (je Erklärung ein Eintrag) |
-| Trennlinie | `#line(length: 100%)` | – |
+| `[Text](https:…)`, `<https:…>`, e-mail | `#link("…")[Text]` or `#link("…")` | `md-link-local` (other file, `#Sprung`, foreign scheme: only the text) |
+| Footnote | `#footnote[…]` at the reference | `md-footnote-repeated`, `md-footnote-unused`, `md-footnote-nested`, `md-footnote-missing` |
+| Image alone in a paragraph | `#image("p", alt: "…")`, with a title `#figure(image(…), caption: […])` | `md-image-remote` (network → `#link`), `md-image-data` (`data:`), `md-image-path` (broken % sequence) |
+| Image in running text | `#box(image(…))` | `md-image-title` (title dropped) |
+| Table | `#table(columns: n, align: (…), table.header(…), …)` | – |
+| Definition list | `/ Begriff: Erklärung` (`:` in the term escaped) | `md-definition-multiple` (one entry per explanation) |
+| Horizontal rule | `#line(length: 100%)` | – |
 | `<br>` | `\ ` | – |
-| HTML im Text / HTML-Block / HTML-Kommentar | entfällt (Text bleibt) / `// …`-Kommentar / entfällt | `md-html` / `md-html-block` / `md-html-comment` |
-| unbekannte Form | Text als Absatz | `md-unknown` |
+| HTML in text / HTML block / HTML comment | dropped (text stays) / `// …` comment / dropped | `md-html` / `md-html-block` / `md-html-comment` |
+| Unknown form | text as a paragraph | `md-unknown` |
 
-  Maskierung (`convert::escape`, `escape_line_starts`): `\ # * _ $ @ < [ ] ~` und der Backtick, `/` vor `/`/`*`, `-` vor `-`/`?`; am
-  Zeilenanfang (nach Einzug) `= + - /` und `Ziffern.` – idempotent. Hinter `#…[…]`/`#…(…)` steht vor `(`, `[`, `;` und
-  `.Buchstabe` ein `;` (wie `needs_guard` der Projektion). Höchstens 200 Hinweise je Datei, dann
-  `md-warnings-truncated`. Zeilen sind 1-basiert in der Markdown-Datei (`into_offset_iter`).
-- **Bündel** (`Bundle::from_archive` über `archive::read_zip` mit `IMPORT_LIMITS`; `Bundle::from_files` für Ordner mit
-  denselben Pfadregeln, Doppeln ohne Groß-/Kleinschreibung und Grenzen): Haupt-Datei = einzige `.typ`/`.md`/`.markdown`,
-  sonst die flachste `index.md`/`main.typ`/`README.md`, sonst Fehler mit Kandidaten (-32602/422). Bilder: Pfade aus
-  `image_paths` des (umgewandelten) Typst-Texts, `check_asset_path`, Normalform, relativ zum Ordner der Haupt-Datei
-  (führendes `/` = dieser Ordner), Prüfung `import::check_image` (8 MiB, zusammen 64 MiB, Bildtyp) – Gründe wie beim
-  Typst-Import. Unbenutzte Dateien: ein Hinweis `archive-unused` (bis zehn Namen). `file_name` des Werks = Haupt-Datei,
-  bei `index.md`/`main.typ`/`README.md` der Name des Archivs bzw. Ordners mit deren Endung (Titel-Rückfall).
-- **Wege:** `POST /werke/import` (multipart `file` | `files` + `title`, `IMPORT_UPLOAD_LIMIT` = 80 MiB + 64 KiB nur an
-  dieser Route; `TooLarge` → 413, andere Archivfehler → 422; ohne Hinweise und übersprungene Bilder 303, sonst 200
-  Bericht), RPC `work.import` (`.md` als Text, Bilder in `skipped`), `work.import_archive` (Base64-ZIP), CLI
-  `markdown_import::cli_import` (Markdown: Bilder von der Platte über `import::read_assets_in` wie beim Typst-Import;
-  ZIP: aus dem Archiv; Bericht mit `Hinweis (<code>, Zeile n)` auf stdout).
-- **`export --out`** (`import::check_targets` vor der ersten Datei): `out` ist kein Nicht-Ordner; keine Zieldatei
-  vorhanden; kein Pfad Präfix-Ordner eines anderen (`a.png` vs. `a.png/b.svg`, Komponenten nach Normalform); kein
-  vorhandener Zwischenordner eine Verknüpfung oder Datei. Beim Schreiben zusätzlich `canonicalize(parent)` unter
-  `canonicalize(out)` (gegen Änderungen zwischen Prüfung und Schreiben).
-- **Satzbild** (`baruch-wysiwyg/src/html.rs`): `Soft` direkt hinter `Linebreak` als leeres
-  `<span class="ws-soft" data-after-break="1">` (keine Einrückung; das Widget liest es weiter als `soft`); eine Bildinsel
-  mit mehreren Bildern nennt ohne `caption:` jedes Bild in der Unterschrift und alle Pfade in
-  `<span class="ws-alt ws-paths">Bilder: …</span>`. Begriffslisten bleiben ohne Schachtelung (Grenze in
+  Escaping (`convert::escape`, `escape_line_starts`): `\ # * _ $ @ < [ ] ~` and the backtick, `/` before `/`/`*`, `-`
+  before `-`/`?`; at the start of a line (after indentation) `= + - /` and `Ziffern.` – idempotent. After
+  `#…[…]`/`#…(…)` a `;` stands before `(`, `[`, `;` and `.Buchstabe` (like `needs_guard` of the projection). At most
+  200 hints per file, then `md-warnings-truncated`. Lines are 1-based in the Markdown file (`into_offset_iter`).
+- **Bundles** (`Bundle::from_archive` via `archive::read_zip` with `IMPORT_LIMITS`; `Bundle::from_files` for folders
+  with the same path rules, case-insensitive duplicates and limits): main file = the only `.typ`/`.md`/`.markdown`,
+  otherwise the shallowest `index.md`/`main.typ`/`README.md`, otherwise an error with candidates (-32602/422). Images:
+  paths from `image_paths` of the (converted) Typst text, `check_asset_path`, normal form, relative to the folder of
+  the main file (leading `/` = this folder), check `import::check_image` (8 MiB, 64 MiB together, image type) – reasons
+  as in the Typst import. Unused files: one hint `archive-unused` (up to ten names). `file_name` of the work = main
+  file, for `index.md`/`main.typ`/`README.md` the name of the archive or folder with their extension (title fallback).
+- **Ways:** `POST /werke/import` (multipart `file` | `files` + `title`, `IMPORT_UPLOAD_LIMIT` = 80 MiB + 64 KiB only
+  on this route; `TooLarge` → 413, other archive errors → 422; without hints and skipped images 303, otherwise 200
+  report), RPC `work.import` (`.md` as text, images in `skipped`), `work.import_archive` (Base64 ZIP), CLI
+  `markdown_import::cli_import` (Markdown: images from disk via `import::read_assets_in` as in the Typst import; ZIP:
+  from the archive; report with `Hinweis (<code>, Zeile n)` on stdout).
+- **`export --out`** (`import::check_targets` before the first file): `out` is not a non-folder; no target file
+  exists; no path is a prefix folder of another (`a.png` vs. `a.png/b.svg`, components after normal form); no existing
+  intermediate folder is a link or a file. When writing, additionally `canonicalize(parent)` under
+  `canonicalize(out)` (against changes between check and write).
+- **Typeset view** (`baruch-wysiwyg/src/html.rs`): `Soft` directly after `Linebreak` as an empty
+  `<span class="ws-soft" data-after-break="1">` (no indentation; the widget still reads it as `soft`); an image island
+  with several images names, without `caption:`, every image in the caption and all paths in
+  `<span class="ws-alt ws-paths">Bilder: …</span>`. Definition lists stay without nesting (limit in
   `docs/WYSIWYG.md`).
 
 ### 21c bilder
 
-Keine Migration (0050 nicht gebraucht): Kontingent und Aufräumen arbeiten auf vorhandenen Zeilen.
+No migration (0050 not needed): quota and clean-up work on existing rows.
 
-- **Typwechsel:** RPC `asset.replace {rename}`, Formularfeld `rename` („Endung anpassen“), MCP `asset_replace {rename}`
-  → `Store::asset_request_with(…, rename)` (Feld `rename` in `params` von `replace`, fehlt in alten Zeilen = falsch;
-  `AssetRequest.rename`); Bestätigen ruft `replace_asset_renaming`. Satz am alten Pfad: `baruch_render`
-  `with_image_formats` (siehe „Bilder (Migration 0009)“), gemessen mit `pdfimages -list` im Test.
-- **Altbestand:** `asset.path_conflicts`, `asset.path_resolve`, Hinweis „Pfade mit zwei Bildern“ oben auf der Seite
-  „Bilder“ mit Formular `POST /werke/bilder/act` (`action=resolve_path`).
-- **Kontingent** (`mcp/assets.rs`, `check_quota` unter `write_lock` vor `add_asset` bzw. `asset_request_with`):
-  `Store::asset_mcp_usage(work, origin_name)` → `AssetUsage {writes, bytes, open_replace}` – `asset_revision` mit
-  `author_name` = Antragsteller und `created` ≥ jetzt − 1 Tag (Anzahl, Summe `bytes`) plus `asset_request` `op =
-  'replace'` desselben `origin_name` im Zeitraum (Anzahl, Größe aus `params.bytes` bzw. dem Inhalt), dazu offene
-  Ersetzen-Anträge. Grenzen `MAX_MCP_ASSET_WRITES_PER_DAY` 30, `MAX_MCP_ASSET_BYTES_PER_DAY` 64 MiB,
+- **Type change:** RPC `asset.replace {rename}`, form field `rename` („Endung anpassen“), MCP `asset_replace {rename}`
+  → `Store::asset_request_with(…, rename)` (field `rename` in `params` of `replace`, missing in old rows = false;
+  `AssetRequest.rename`); confirming calls `replace_asset_renaming`. Typesetting at the old path: `baruch_render`
+  `with_image_formats` (see "Images (migration 0009)"), measured with `pdfimages -list` in the test.
+- **Old stock:** `asset.path_conflicts`, `asset.path_resolve`, hint „Pfade mit zwei Bildern“ at the top of the page
+  „Bilder“ with the form `POST /werke/bilder/act` (`action=resolve_path`).
+- **Quota** (`mcp/assets.rs`, `check_quota` under `write_lock` before `add_asset` or `asset_request_with`):
+  `Store::asset_mcp_usage(work, origin_name)` → `AssetUsage {writes, bytes, open_replace}` – `asset_revision` with
+  `author_name` = requester and `created` ≥ now − 1 day (count, sum of `bytes`) plus `asset_request` `op = 'replace'`
+  of the same `origin_name` in the period (count, size from `params.bytes` or the content), plus open replace
+  requests. Limits `MAX_MCP_ASSET_WRITES_PER_DAY` 30, `MAX_MCP_ASSET_BYTES_PER_DAY` 64 MiB,
   `MAX_MCP_OPEN_REPLACE_REQUESTS` 10.
-- **Aufräumen:** `Store::purge_decided_asset_requests(work, ASSET_REQUEST_PURGE_DAYS = 30)` setzt in `params` von
-  entschiedenen `replace`-Anträgen mit `decided` < jetzt − 30 Tage `content = ""`, `purged = true`, `bytes` = Größe;
-  aufgerufen von `asset_requests::purge` vor Liste, Entscheidung, Abschnitt „Anträge“, MCP `asset_requests` und der
-  Antragsdatei (dann 410 Gone).
-- **ImageView:** `rpc::LibraryView.images` (`wysiwyg::image_view` liefert `image_alts` und `ImageView` in einem Gang);
-  der reservierte Schlüssel `IMAGE_VIEW_KEY` in `image_alts` und `ImageView::from_alts` sind entfallen.
-- **Literatur:** `literature::image_hits` (alle Wörter in Name/Bildunterschrift/Alternativtext der aktuellen Fassung,
-  höchstens `MAX_IMAGE_HITS` = 24), eigener kleiner Vorlagentext `IMAGE_HITS_TEMPLATE` (Autoescape HTML); angehängt an
-  `literature.render` (Popup) und als `images_html` in `literature.html` (`/literatur`). `fragments/library.html` bleibt
-  unberührt; die erste Arbeitsseite mit `?lq=` zeigt den Kasten erst, wenn das Popup über `literature.render` lädt
-  (das tut es beim Öffnen immer).
-- **Bild einfügen:** `assets::insert_figure_at` mit `Offset` rückt in einem Absatz über offene Klammern
-  (`open_brackets`: `[ ( {`, `\`-Maskierung, Rohtext, Zeichenketten in Code) hinweg an die nächste Zeilengrenze mit
-  geschlossenen Klammern, sonst hinter den Absatz.
-- **EPUB-Cover:** siehe „Bilder, Umschlag und PDF“; `epub::epub_cover` → `(Option<EpubImage>, Vec<EpubWarning>)`,
-  Warnung `COVER_RASTER_FAILED` (vorn in `EpubBook.warnings`, `book_for`), Rückfall die rohe Bilddatei. `EpubInput`
-  bleibt unverändert (Typen seit R20-S1 eingefroren).
-- **`pdfinfo`:** Alle Typst-PDFs (Buch, Stichwortzettel, Karte, Umschlag) tragen `/MarkInfo << /Marked true
-  /Suspects false >>` (krilla 0.8.2, `chunk_container.rs`: „We always set suspects to false because it's required by
-  PDF/UA“). poppler 25.03 meldet jeden Wert außer `true` als „Syntax Error: Suspects object is wrong type
-  (boolean)“. Belegt im Test: dieselbe Datei mit `/Xuspects false` (gleiche Länge, Querverweise stimmen) meldet
-  nichts. Nicht behoben (das PDF ist gültig; PDF/UA verlangt den Wert).
+- **Clean-up:** `Store::purge_decided_asset_requests(work, ASSET_REQUEST_PURGE_DAYS = 30)` sets, in `params` of decided
+  `replace` requests with `decided` < now − 30 days, `content = ""`, `purged = true`, `bytes` = size; called by
+  `asset_requests::purge` before the list, a decision, the section „Anträge“, MCP `asset_requests` and the request file
+  (then 410 Gone).
+- **ImageView:** `rpc::LibraryView.images` (`wysiwyg::image_view` returns `image_alts` and `ImageView` in one pass);
+  the reserved key `IMAGE_VIEW_KEY` in `image_alts` and `ImageView::from_alts` are gone.
+- **Literature:** `literature::image_hits` (all words in name/caption/alternative text of the current revision, at most
+  `MAX_IMAGE_HITS` = 24), a small template text of its own `IMAGE_HITS_TEMPLATE` (autoescape HTML); appended to
+  `literature.render` (popup) and as `images_html` in `literature.html` (`/literatur`). `fragments/library.html` stays
+  untouched; the first work page with `?lq=` shows the box only when the popup loads via `literature.render` (it
+  always does so when opening).
+- **Inserting an image:** `assets::insert_figure_at` with `Offset` moves within a paragraph past open brackets
+  (`open_brackets`: `[ ( {`, `\` escaping, raw text, strings in code) to the next line boundary with closed brackets,
+  otherwise behind the paragraph.
+- **EPUB cover:** see "Images, cover and PDF (Round 11, migrations 0017 and 0018)"; `epub::epub_cover` → `(Option<EpubImage>, Vec<EpubWarning>)`,
+  warning `COVER_RASTER_FAILED` (at the front of `EpubBook.warnings`, `book_for`), fallback the raw image file.
+  `EpubInput` stays unchanged (types frozen since R20-S1).
+- **`pdfinfo`:** all Typst PDFs (book, keyword slip, map, cover) carry `/MarkInfo << /Marked true /Suspects false >>`
+  (krilla 0.8.2, `chunk_container.rs`: "We always set suspects to false because it's required by PDF/UA"). poppler
+  25.03 reports every value except `true` as "Syntax Error: Suspects object is wrong type (boolean)". Shown in the
+  test: the same file with `/Xuspects false` (same length, cross-references correct) reports nothing. Not fixed (the
+  PDF is valid; PDF/UA requires the value).
 
-## Runde 22 – Revisionen und Spiegel
+## Round 22 – Revisions and mirror
 
-Migration 0050, Fortschreiben (`baruch_core::revision_policy`, `baruch-store/src/amend.rs`), Seitenzweige,
-Rückfrage erledigter Befunde, Archiv, Entwurf als Wasserzeichen, Austausch Unterversion 8.
+Migration 0050, amending (`baruch_core::revision_policy`, `baruch-store/src/amend.rs`), side branches, re-check of
+findings marked done, archive, draft as a watermark, exchange minor version 8.
 
 ### fassungen
 
-#### Migration 0050 (Runde 22)
+#### Migration 0050 (Round 22)
 
-`0050_revision_amend.sql`: `revision.amend_seq` (Stand, 0 = nie fortgeschrieben) und `revision.based_on_amend`
-(Stand der Basis eines Vorschlags); Tabelle `revision_amend` (je Schritt: `revision_id`, `seq` ab 1, `kind`
-`amend`|`undo`, `undo_of` genau bei `undo`, `body_before`, `body_after`, `author_name`, `created`, `uuid` mit
-Fülltrigger), Grabstein-Trigger (Art `revision_amend`, Werk-uuid über revision→node→work) und Kaskade
-`revision_amend_before_revision_delete` (BEFORE DELETE ON revision, damit der Grabstein das Werk noch kennt);
-`work_revision_policy` (je Werk: `amend`, `max_change_percent` 1–100, `new_after_minutes` 0–1440, ohne uuid, nicht
-im Austausch, geht mit dem Werk); `finding.adopted_amend`, `finding_status.adopted_amend`; `uuid_tombstone` mit der
-zwanzigsten Art `revision_amend` (Umbau wie 0049, ohne `FOREIGN_KEYS_OFF`). Verlustfrei geprüft in
-`crates/baruch-store/tests/migration_0050.rs` (nachgebaute Datenbank im Stand 0049; im CHECK stehen vor 0050
-neunzehn Arten – der Vertrag nannte 21).
+`0050_revision_amend.sql`: `revision.amend_seq` (state, 0 = never amended) and `revision.based_on_amend` (state of the
+basis of a proposal); table `revision_amend` (per step: `revision_id`, `seq` from 1, `kind` `amend`|`undo`, `undo_of`
+exactly for `undo`, `body_before`, `body_after`, `author_name`, `created`, `uuid` with fill trigger), tombstone
+trigger (kind `revision_amend`, work uuid via revision→node→work) and cascade `revision_amend_before_revision_delete`
+(BEFORE DELETE ON revision, so that the tombstone still knows the work); `work_revision_policy` (per work: `amend`,
+`max_change_percent` 1–100, `new_after_minutes` 0–1440, without uuid, not in the exchange, goes with the work);
+`finding.adopted_amend`, `finding_status.adopted_amend`; `uuid_tombstone` with the twentieth kind `revision_amend`
+(rebuild like 0049, without `FOREIGN_KEYS_OFF`). Checked to be lossless in
+`crates/baruch-store/tests/migration_0050.rs` (a database rebuilt at state 0049; before 0050 the CHECK lists nineteen
+kinds – the contract said 21).
 
-#### Fortschreiben (Runde 22)
+#### Amending (Round 22)
 
-- `baruch_core::revision_policy`: `RevisionPolicy` (Vorgabe an/20 %/30 min, `validate`), `SaveMode` (`from_param`:
-  fehlt → `New`), `NewReason` (`id`, `label`), `SaveFacts`, `decide` (Reihenfolge requested → no_current →
-  policy_off → not_own → not_on_current → heading_changed → large_change → time_elapsed; `None` = fortschreiben),
-  `change_percent`, `word_diff` (Wort-Unterschied für den Verlauf).
-- `baruch-store/src/amend.rs`: `verdict` (Tatsachen aus der DB: aktuelle Fassung, Autor, Basis, Minuten seit
-  max(Anlage, letzte Fortschreibung), Einstellung), `write_step` (Text ersetzen, `amend_seq` + 1, Zeile in
-  `revision_amend`, `edited` bleibt), `Store::amend_history`, `amend_undo`, `revision_policy`, `set_revision_policy`,
+- `baruch_core::revision_policy`: `RevisionPolicy` (default on/20 %/30 min, `validate`), `SaveMode` (`from_param`:
+  missing → `New`), `NewReason` (`id`, `label`), `SaveFacts`, `decide` (order requested → no_current → policy_off →
+  not_own → not_on_current → heading_changed → large_change → time_elapsed; `None` = amend), `change_percent`,
+  `word_diff` (word difference for the history).
+- `baruch-store/src/amend.rs`: `verdict` (facts from the database: current revision, author, basis, minutes since
+  max(creation, last amendment), setting), `write_step` (replace the text, `amend_seq` + 1, row in `revision_amend`,
+  `edited` stays), `Store::amend_history`, `amend_undo`, `revision_policy`, `set_revision_policy`,
   `save_human_mode`/`save_human_with_reason` (RPC `revision.save`), `outline_save_mode` (→ `outline::save_auto`:
-  Überschrift/Ebene/Teilen/Zusammenführen → `heading_changed`, sonst Regeln). `write.rs`: `add_proposal`/
-  `add_proposal_on` setzen `based_on_amend`. `tree.rs`: `RevisionInfo.amend_seq`, `RevisionInfo.based_on_amend`,
-  `Store::side_revisions` (Seitenzweige). Die alten Funktionen (`save_human`, `save_human_on`, `outline_save`) bleiben
-  „neue Fassung“.
-- Server: `src/revisions.rs` (RPC `revision.amends|amend_undo|policy_get|policy_set`, Seite „Verlauf“, Formulare),
-  `rpc::save_mode`/`rpc::add_saved` (Antwortfelder `saved`, `amend_seq`, `reason`, `reason_label`), `outline.rs`
-  (`mode`, `as_new`, Rückmeldung `saved=` in der Weiterleitung), `mirror.rs` (`describe` für Amended/AmendUndone,
-  `describe_revision_policy`, Seitenzweige), `view.rs` (Stand, Verlauf-Links, „weitere Fassung(en)“, Abzeichen „+n“,
-  Rückmeldung), `settings/work.rs` (Block „Fassungen“), `mcp/revisions.rs` (`revision_amends`). Oberfläche:
-  `templates/fragments/editor.html` (zwei Knöpfe, `mode=auto`), `templates/revision_history.html`,
-  `static/revisions.css`; `workspace.ts` übersetzt `as_new` in `mode: "new"` und zeigt die Rückmeldung,
-  `outline.ts`/`wysiwyg.ts` reichen den auslösenden Knopf beim erneuten Absenden weiter.
+  heading/level/split/merge → `heading_changed`, otherwise the rules). `write.rs`: `add_proposal`/`add_proposal_on`
+  set `based_on_amend`. `tree.rs`: `RevisionInfo.amend_seq`, `RevisionInfo.based_on_amend`, `Store::side_revisions`
+  (side branches). The old functions (`save_human`, `save_human_on`, `outline_save`) stay "new revision".
+- Server: `src/revisions.rs` (RPC `revision.amends|amend_undo|policy_get|policy_set`, page „Verlauf“, forms),
+  `rpc::save_mode`/`rpc::add_saved` (answer fields `saved`, `amend_seq`, `reason`, `reason_label`), `outline.rs`
+  (`mode`, `as_new`, feedback `saved=` in the redirect), `mirror.rs` (`describe` for Amended/AmendUndone,
+  `describe_revision_policy`, side branches), `view.rs` (state, history links, „weitere Fassung(en)“, badge "+n",
+  feedback), `settings/work.rs` (block „Fassungen“), `mcp/revisions.rs` (`revision_amends`). User interface:
+  `templates/fragments/editor.html` (two buttons, `mode=auto`), `templates/revision_history.html`,
+  `static/revisions.css`; `workspace.ts` translates `as_new` into `mode: "new"` and shows the feedback,
+  `outline.ts`/`wysiwyg.ts` pass on the triggering button when submitting again.
 
-#### Seitenzweige im Spiegel (Runde 22)
+#### Side branches in the mirror (Round 22)
 
-`baruch_gitmirror::Mirror::sync_side_refs(prefix, base, refs)` schreibt je `SideRef` (Name, Pfad, Inhalt, Autor,
-Committer, Nachricht) einen Commit aus dem Schnappschuss `base` mit ersetzter Datei, Elternteil HEAD, und setzt die
-Referenz (ohne Arbeitsordner, Index, HEAD); unveränderte (gleicher Inhalt an der Stelle, gleiche Nachricht) bleiben,
-fehlende werden entfernt; Pfad- und Namensprüfung vor jedem Schreiben. `side_refs`, `read_file`, `parents` lesen nur.
-Der Server (`mirror::commit_revisions`, `mirror::side_refs`) führt `refs/revisions/<key>/<n>` aus
-`Store::side_revisions` nach jedem Revisions-Commit, beim Start (`sync_work`) und nach `revision.reject`
-(`mirror::sync_side_refs`) nach. Fehler der Seitenzweige stehen nur auf stderr; der Commit gilt.
+`baruch_gitmirror::Mirror::sync_side_refs(prefix, base, refs)` writes per `SideRef` (name, path, content, author,
+committer, message) a commit from the snapshot `base` with the file replaced, parent HEAD, and sets the reference
+(without working folder, index, HEAD); unchanged ones (same content at the place, same message) stay, missing ones are
+removed; path and name check before every write. `side_refs`, `read_file`, `parents` only read. The server
+(`mirror::commit_revisions`, `mirror::side_refs`) updates `refs/revisions/<key>/<n>` from `Store::side_revisions` after
+every revision commit, at the start (`sync_work`) and after `revision.reject` (`mirror::sync_side_refs`). Errors of the
+side branches only go to stderr; the commit counts.
 
 ### befund-rueckfrage
 
-#### Runde 22 – befund-rueckfrage
+#### Round 22 – befund-rueckfrage
 
-- **Rückfrage erledigter Befunde:** `assist::context::is_recheck` (Prüfen `Mode::Review`, ↻ Wiederholen
-  `links.repeat_of`, RFC `OrderFrame::recheck`, nie Vorschlag) → `own_finding_lines`: eigene offene Befunde der
-  Persona zum Abschnitt (Umfang `chapter`: zum Kapitel), offen, nicht angehängt, kein Lob, die jüngsten 20, gerahmt
-  (`<<<befund … >>>`, also nicht im Korpus der Zitatprüfung) unter `prompts::OWN_FINDINGS_TITLE`; im System
-  `prompts::RECHECK_RULE`. Beim Kürzen fallen sie zuletzt (älteste zuerst). `Prepared::own_findings` nennt die ids.
-- **Zerlegung:** `findings::parse` behandelt Zeilen „Erledigt: …“ (`done_line`, nach Aufzählungs- und
-  Markdown-Zeichen, auch fett) und den Satz `prompts::ALL_DONE_SENTENCE` wie Vermerke – kein Befund, Stellen der
-  übrigen Befunde ohne Lücke (also `finding_spans` unverändert). `done_claims` liest Nummer („Befund n“, „Befund Nr.
-  n“, „[Bn]“, „Bn“) und Stelle (erstes Zitat).
-- **Statusvorschlag:** `assist::save` ruft nach `findings::ingest` unter der schon gehaltenen Schreibsperre
-  `assist::propose_done` → `findings::rpc::propose_held` (neu, wie `propose` ohne eigene Sperre) →
-  `Store::finding_propose_status(…, StatusChange::Done {reason}, IdeaOrigin::Persona, note)`; je Vorschlag ein Commit.
-  Übergangen (fremde Persona, unbekannt, entschieden, schon offene Rückfrage) wird mit Vermerk in
-  `Outcome::done_notes`.
-- **Pflichtbefund:** `prompts::critical_waived(text, had_own)` – nur wenn die Persona eigene offene Befunde sah
-  (`Retries::had_own`) und die Antwort den Satz sagt; dann keine Nachforderung und kein `CRITICAL_MISSING_NOTE`.
-- **Stand an Befunden:** `Store` (`findings.rs`): `Target::adopted_amend` aus `revision.amend_seq` beim Auflösen von
-  `Adopted`; `write_status` schreibt `finding.adopted_amend`, `finding_set_status`/`finding_propose_status` schreiben
-  `finding_status.adopted_amend`, `finding_decide` beim Bestätigen den Stand zu diesem Zeitpunkt.
-  `findings::adopted_words` („Fassung n · Stand k“) für Spiegel und `findings::view::status_words_amend`.
-- **Oberfläche:** `findings::view::entry_json` setzt `question` (offener Vorschlag `done`); Makro `decide_forms`
-  (`fragments/findings_panel.html`) und `finding_block.html` zeigen dann „Rückfrage“ mit „Ja, erledigt“ / „Nein, noch
-  offen“ (Formulare an `/werke/befunde/act`, `data-finding-form`; in der Befundkarte des Chats trägt der Kasten
+- **Re-check of findings marked done:** `assist::context::is_recheck` (check `Mode::Review`, ↻ retry
+  `links.repeat_of`, RFC `OrderFrame::recheck`, never a proposal) → `own_finding_lines`: the persona's own open
+  findings on the section (scope `chapter`: on the chapter), open, not attached, no praise, the latest 20, framed
+  (`<<<befund … >>>`, so not in the corpus of the quotation check) under `prompts::OWN_FINDINGS_TITLE`; in the system
+  part `prompts::RECHECK_RULE`. When shortening, they are dropped last (oldest first). `Prepared::own_findings` names
+  the ids.
+- **Splitting:** `findings::parse` treats lines „Erledigt: …“ (`done_line`, after list and Markdown characters, also
+  bold) and the sentence `prompts::ALL_DONE_SENTENCE` like notes – no finding, places of the other findings without a
+  gap (so `finding_spans` unchanged). `done_claims` reads the number („Befund n“, „Befund Nr. n“, „[Bn]“, „Bn“) and
+  the place (first quotation).
+- **Status proposal:** after `findings::ingest`, `assist::save` calls under the write lock already held
+  `assist::propose_done` → `findings::rpc::propose_held` (new, like `propose` without a lock of its own) →
+  `Store::finding_propose_status(…, StatusChange::Done {reason}, IdeaOrigin::Persona, note)`; one commit per proposal.
+  Skipped ones (another persona, unknown, decided, a re-check already open) get a note in `Outcome::done_notes`.
+- **Mandatory finding:** `prompts::critical_waived(text, had_own)` – only if the persona saw its own open findings
+  (`Retries::had_own`) and the answer says the sentence; then no follow-up demand and no `CRITICAL_MISSING_NOTE`.
+- **State on findings:** `Store` (`findings.rs`): `Target::adopted_amend` from `revision.amend_seq` when resolving
+  `Adopted`; `write_status` writes `finding.adopted_amend`, `finding_set_status`/`finding_propose_status` write
+  `finding_status.adopted_amend`, `finding_decide` on confirmation the state at that point in time.
+  `findings::adopted_words` („Fassung n · Stand k“) for the mirror and `findings::view::status_words_amend`.
+- **User interface:** `findings::view::entry_json` sets `question` (open proposal `done`); the macro `decide_forms`
+  (`fragments/findings_panel.html`) and `finding_block.html` then show „Rückfrage“ with „Ja, erledigt“ / „Nein, noch
+  offen“ (forms to `/werke/befunde/act`, `data-finding-form`; in the finding card of the chat the box carries
   `data-widget="findings"`).
-- **Archiv:** `Store::restore_retired` (eine Transaktion: `work_retired` prüfen, Titel frei, Zeile löschen,
-  `import::import_typst` mit Titel aus `work_retired` und Notiz `works::RESTORED_NOTE`, reservierten slug setzen).
-  Server `works.rs`: `archive_folder`, `read_archive` (Pfadschutz, Zusammensetzen wie Export, `strip_back_matter`,
-  `strip_projection`/`strip_first_mentions` wie `import.rs`), `archives`, `restore` (Sperre → lesen → Store →
-  `rename` nach `works/<slug>` → Commit „Werk wiederhergestellt“ mit `allow_empty`), Seite `works_archive.html`.
-- **Spiegel der Einfälle ohne Werk:** `mirror_ideas::sync_ideas_without_work` (Commit des Menschen, `allow_empty:
-  false`, Trailer `Baruch-Action: ideas-synced`; ohne Einfälle ohne Werk und ohne Ordner nichts) aus `sync_all`
-  (Start) und `works::delete` (nach dem Protokoll-Commit; Antwort `ideas_commit`).
+- **Archive:** `Store::restore_retired` (one transaction: check `work_retired`, title free, delete the row,
+  `import::import_typst` with the title from `work_retired` and the note `works::RESTORED_NOTE`, set the reserved
+  slug). Server `works.rs`: `archive_folder`, `read_archive` (path protection, assembling like the export,
+  `strip_back_matter`, `strip_projection`/`strip_first_mentions` like `import.rs`), `archives`, `restore` (lock → read →
+  store → `rename` to `works/<slug>` → commit „Werk wiederhergestellt“ with `allow_empty`), page `works_archive.html`.
+- **Mirror of ideas without a work:** `mirror_ideas::sync_ideas_without_work` (commit of the human, `allow_empty:
+  false`, trailer `Baruch-Action: ideas-synced`; without ideas without a work and without a folder nothing) from
+  `sync_all` (start) and `works::delete` (after the log commit; answer `ideas_commit`).
 
 ### spiegel-entwurf
 
-#### Entwurf als Wasserzeichen (Runde 22)
+#### Draft as a watermark (Round 22)
 
-- **Modell:** `baruch_typst::typeset::Draft` (S1) als Feld `TypesetSettings.draft`; `validate`/`normalized` prüfen und
-  trimmen (spiegel-entwurf). `rules` setzt dafür keine Zeile (der Entwurf wird wie `xref_with_page` herausgenommen),
-  `settings_from_rules` kennt ihn nicht – Export, Export-Karte, Spiegel und Regelblock bleiben byte-gleich.
-- **Regel:** `baruch_typst::typeset::draft_rule(&Draft, Option<&str>)` (`typeset/draft.rs`) liefert
-  `// Baruch: Entwurf (nur in den Ausgaben)` + `#set page(foreground: …)`: Text, Zusatz und Datum nur als maskierte
-  Typst-Zeichenketten (geschützte Leerzeichen gegen Umbruch), Deckkraft als Alpha von `rgb(…)`, Lage diagonal (−45°,
-  Größe aus der Zeichenzahl, höchstens 80 pt) oder Kopf-/Fußzeile (7 mm vom Rand). `foreground`, weil Hintergrund,
-  Kopf- und Fußzeile schon Vorlage und Satz-Regeln gehören (die Seitenzählung ab dem ersten Kapitel steht im
-  Hintergrund). Das Datum ermittelt nur der Server (`typeset::draft_today`, Ortszeit) und reicht es herein.
-- **Server:** `typeset::prepare_with(state, work, draft: Option<bool>)` setzt die Regel mit `cover::insert_parts` hinter
-  Werkvorlage und Regelblock **vor** den Rahmen (Umschlagseiten und Titelei im Buch-PDF tragen sie also auch) und
-  verschiebt die Karte – Diagnosen bleiben beim richtigen Abschnitt. `effective_draft` (dreiwertig), `cover_draft`
-  (Umschlag nur mit `draft.cover` oder ausdrücklich), `draft_param`/`draft_query`/`draft_pair` für RPC und Routen.
-  Stichwortzettel und Umschlag-PDF stellen die Regel vor die erste Zeile ihrer eigenen Quelle; das EPUB bekommt den
-  Entwurf über `EpubInput.typeset.draft` (Datum vom Server in den Zusatz geschrieben, baruch-epub bleibt ohne Uhr).
-  Druckprüfung `cover_print::cover_checks_with(…, draft)` mit Code `draft` (`CODES` jetzt 11).
+- **Model:** `baruch_typst::typeset::Draft` (S1) as the field `TypesetSettings.draft`; `validate`/`normalized` check
+  and trim (spiegel-entwurf). `rules` sets no line for it (the draft is taken out like `xref_with_page`),
+  `settings_from_rules` does not know it – export, export map, mirror and rule block stay byte-identical.
+- **Rule:** `baruch_typst::typeset::draft_rule(&Draft, Option<&str>)` (`typeset/draft.rs`) returns
+  `// Baruch: Entwurf (nur in den Ausgaben)` + `#set page(foreground: …)`: text, addition and date only as escaped
+  Typst strings (non-breaking spaces against line breaks), opacity as the alpha of `rgb(…)`, position diagonal (−45°,
+  size from the number of characters, at most 80 pt) or header/footer (7 mm from the edge). `foreground`, because
+  background, header and footer already belong to the template and the typesetting rules (the page counting from the
+  first chapter stands in the background). Only the server determines the date (`typeset::draft_today`, local time) and
+  passes it in.
+- **Server:** `typeset::prepare_with(state, work, draft: Option<bool>)` puts the rule with `cover::insert_parts` after
+  work template and rule block **before** the frame (so cover pages and front matter in the book PDF carry it too) and
+  shifts the map – diagnostics stay with the right section. `effective_draft` (three-valued), `cover_draft` (cover only
+  with `draft.cover` or explicitly), `draft_param`/`draft_query`/`draft_pair` for RPC and routes. Keyword slip and
+  cover PDF put the rule before the first line of their own source; the EPUB gets the draft via
+  `EpubInput.typeset.draft` (date written into the addition by the server, baruch-epub stays without a clock). Print
+  check `cover_print::cover_checks_with(…, draft)` with code `draft` (`CODES` now 11).
 
-#### Austausch Unterversion 8 (Runde 22)
+#### Exchange minor version 8 (Round 22)
 
 - `baruch-exchange`: `FORMAT_VERSION = 8`; `ExchangeRevision.amend_seq/based_on_amend/amends` (`ExchangeAmend`,
-  `ExchangeAmendKind`), `ExchangeFinding(Entry).adopted_amend`, Grabsteinart `Amend` („fortschreibung“ ↔
-  `revision_amend`, ab 8), `typeset::draft_attrs`/`draft_from_attrs` für `<entwurf/>`; `sample::sample_document_u8`
-  (das alte Beispiel bleibt ohne u8-Teile). XSD `docs/schema/baruch-werk-1-u8.xsd`, u7 eingefroren.
-- Store: `exchange_dump` liest Stand, Verlauf und `adopted_amend`; `exchange_apply` setzt sie im Nachlauf `apply_u8` nur
-  auf eben angelegten Zeilen, spult bekannte Fassungen vor (`fast_forward`, Regel d0) und baut für einen neuen Teil mit
-  übernommenen Kapiteln einen Antrag `Add` mit `requests::PartIdentity` (uuid, Fassungen samt Verlauf). Beim Zustimmen
-  ruft `requests::run` nach `outline::add_many` `exchange_apply::adopt_part`: die erzeugte Fassung 1 fällt weg (samt
-  ihres Grabsteins, sie gab es nie außerhalb der Transaktion), `node.last_rev` auf 0, dann Kennung und Fassungen aus dem
-  Antrag. Nur `exchange_apply.rs` schreibt uuids (Wächtertest bleibt grün).
+  `ExchangeAmendKind`), `ExchangeFinding(Entry).adopted_amend`, tombstone kind `Amend` („fortschreibung“ ↔
+  `revision_amend`, from 8), `typeset::draft_attrs`/`draft_from_attrs` for `<entwurf/>`;
+  `sample::sample_document_u8` (the old sample stays without u8 parts). XSD `docs/schema/baruch-werk-1-u8.xsd`, u7
+  frozen.
+- Store: `exchange_dump` reads state, history and `adopted_amend`; `exchange_apply` sets them in the post-pass
+  `apply_u8` only on rows just created, fast-forwards known revisions (`fast_forward`, rule d0) and, for a new part with
+  adopted chapters, builds a request `Add` with `requests::PartIdentity` (uuid, revisions including history). On
+  consent, `requests::run` calls `exchange_apply::adopt_part` after `outline::add_many`: the generated revision 1 is
+  dropped (including its tombstone, it never existed outside the transaction), `node.last_rev` set to 0, then
+  identifier and revisions from the request. Only `exchange_apply.rs` writes uuids (the guard test stays green).
 
-#### Spiegel (Runde 22)
+#### Mirror (Round 22)
 
-- **Show-Regel über die Sprungmarke:** Ein Knoten „ohne Nummer“, dessen Überschrift sich nicht markieren lässt (Titel
-  mit Code), mit derselben Überschrift wie ein nummerierter Knoten bekommt statt der Regel über Ebene und Titel
-  `#show <kN>: set heading(numbering: none)` unter `// Baruch: Überschriften ohne Nummer über die Sprungmarke`
-  (`snapshot::label_rules`, vor dem Block des Rückfalls). Mit eigenem Label bleibt die Grenze. Rückweg beim Import:
-  `snapshot::split_label_fallback` in `import.rs` (die genannten Überschriften kommen „ohne Nummer“ zurück).
-- **Spiegel setzen:** Abschnittsdateien liegen in `abschnitte/`; relative Bildpfade `image("bilder/x")` schreibt der
-  Spiegel ab der Wurzel (`image("/bilder/x")`, `snapshot::root_image_paths`), damit Typst `main.typ` samt `#include`
-  setzen kann (Test `the_mirror_main_typ_with_its_includes_sets_like_the_export`: gleiche Seitenzahl wie der Export).
-  Dokumentierte Abweichungen: Rasterbilder liegen im Spiegel als `bilder/<name>.b64` (Base64-Text) und müssen vor dem
-  Setzen zurückgewandelt werden; ein Bildpfad, der nicht `bilder/<Name des Bilds>` ist, steht im Spiegel nicht unter
-  diesem Pfad; die Teil-Seiten-Regel und der Rahmen (Umschlag, Titelei) gehören nur zum Satz, nicht zu Export und Spiegel.
+- **Show rule via the jump mark:** a node „ohne Nummer“ whose heading cannot be marked (title with code), with the
+  same heading as a numbered node, gets, instead of the rule over level and title,
+  `#show <kN>: set heading(numbering: none)` under `// Baruch: Überschriften ohne Nummer über die Sprungmarke`
+  (`snapshot::label_rules`, before the block of the fallback). With a label of its own the limit stays. Way back on
+  import: `snapshot::split_label_fallback` in `import.rs` (the named headings come back „ohne Nummer“).
+- **Typesetting the mirror:** section files lie in `abschnitte/`; the mirror writes relative image paths
+  `image("bilder/x")` from the root (`image("/bilder/x")`, `snapshot::root_image_paths`), so that Typst can typeset
+  `main.typ` including `#include` (test `the_mirror_main_typ_with_its_includes_sets_like_the_export`: the same page
+  count as the export). Documented deviations: raster images lie in the mirror as `bilder/<name>.b64` (Base64 text) and
+  must be converted back before typesetting; an image path that is not `bilder/<Name des Bilds>` does not stand under
+  this path in the mirror; the part page rule and the frame (cover, front matter) belong only to the typesetting, not
+  to export and mirror.
 
-## Runde 23 – Härtung
+## Round 23 – Hardening
 
-Keine Migration (Store weiter bis 0050, Bibliothek bis 0108), keine neue Unterversion des Austauschformats, keine
-neuen RPC-Methoden oder MCP-Werkzeuge.
+No migration (store still up to 0050, library up to 0108), no new minor version of the exchange format, no new RPC
+methods or MCP tools.
 
 ### web
 
-**Lesende Anfragen fremder Seiten (`guard::own_reads`).** Die Schicht liegt über allen Routen und lehnt ein GET oder
-HEAD mit 403 „Abgelehnt: Anfrage von einer fremden Seite (lesend)“ ab, wenn `Sec-Fetch-Site` `cross-site` oder
-`same-site` ist und die Anfrage keine Navigation des obersten Fensters ist (`Sec-Fetch-Mode: navigate` mit
-`Sec-Fetch-Dest: document`). Bild, Skript, `fetch` und Rahmen einer fremden Seite erreichen damit keine lesende Route
-mehr (z. B. `GET /einstellungen/assistenten?modelle=abfragen`, Stichwortzettel); ein Link von außen öffnet Baruch
-weiter. Ohne `Sec-Fetch-Site` (curl, MCP-Clients, alte Browser) gilt die Anfrage als eigene. Zwei Abgrenzungen:
-(1) Dateien der EPUB-Vorschau (`/werke/{id}/epub/leser/…`) stehen in einem Rahmen mit `sandbox`; der Browser meldet
-deren Bilder und Sprünge als `cross-site`. Dort entscheidet weiter die Route selbst über den `Referer`
-(`epub_preview::from_own_frame`). (2) Fehlen `Sec-Fetch-Mode` und `Sec-Fetch-Dest` **beide**, ist die Art nicht belegt
-und die Anfrage gilt nicht als Unterressource – kein Browser schickt `Sec-Fetch-Site` ohne `Sec-Fetch-Mode`; die Routen
-mit eigener Prüfung (`cross_site_get`) lehnen eine solche Anfrage weiter selbst ab.
+**Reading requests of foreign pages (`guard::own_reads`).** The layer lies over all routes and refuses a GET or HEAD
+with 403 „Abgelehnt: Anfrage von einer fremden Seite (lesend)“ if `Sec-Fetch-Site` is `cross-site` or `same-site`
+and the request is not a navigation of the top-level window (`Sec-Fetch-Mode: navigate` with
+`Sec-Fetch-Dest: document`). Image, script, `fetch` and frames of a foreign page thereby no longer reach any reading
+route (e.g. `GET /einstellungen/assistenten?modelle=abfragen`, keyword slip); a link from outside still opens Baruch.
+Without `Sec-Fetch-Site` (curl, MCP clients, old browsers) the request counts as our own. Two delimitations:
+(1) Files of the EPUB preview (`/werke/{id}/epub/leser/…`) stand in a frame with `sandbox`; the browser reports their
+images and jumps as `cross-site`. There the route itself still decides via the `Referer`
+(`epub_preview::from_own_frame`). (2) If `Sec-Fetch-Mode` and `Sec-Fetch-Dest` are **both** missing, the kind is not
+proven and the request does not count as a subresource – no browser sends `Sec-Fetch-Site` without `Sec-Fetch-Mode`;
+the routes with a check of their own (`cross_site_get`) still refuse such a request themselves.
 
-**Meldecodes.** Seiten zeigen nie Text aus der Adresse als Meldung, nur feste Codes (`?ok=<code>`, `?fehler=<code>`,
-`?hinweis=<code>`), die der Server auf feste Sätze abbildet. Die letzte Ausnahme (`?ok=sicherung&ziel=<Ordner>`) ist
-entfernt: Den Ordnernamen liest `settings::newest_backup` aus dem Dateisystem.
+**Message codes.** Pages never show text from the address as a message, only fixed codes (`?ok=<code>`,
+`?fehler=<code>`, `?hinweis=<code>`), which the server maps to fixed sentences. The last exception
+(`?ok=sicherung&ziel=<Ordner>`) is removed: `settings::newest_backup` reads the folder name from the file system.
 
-**Abzeichen der Kopfzeile.** `base.html` kennzeichnet außerhalb der Arbeitsseite die Abzeichen mit `data-badge-fill` und
-die Menüleiste mit `data-badges-work="<Werk>"`. Die Schicht `consent::inject` (über allen Routen, mit `AppState`) ruft
-nach der Hinweisleiste `menu::fill_page`, das die Zahlen aus `menu::badges` in das fertige HTML einsetzt
-(`menu::fill_badges`) und das Kennzeichen entfernt. So braucht keine der rund dreißig Vorlagen-Umgebungen eigene Daten.
+**Badges of the header.** Outside the work page, `base.html` marks the badges with `data-badge-fill` and the menu bar
+with `data-badges-work="<Werk>"`. The layer `consent::inject` (over all routes, with `AppState`) calls, after the
+notice bar, `menu::fill_page`, which puts the numbers from `menu::badges` into the finished HTML
+(`menu::fill_badges`) and removes the marker. So none of the roughly thirty template environments needs data of its
+own.
 
-**Fortschreiben und Ändern über den Baum.** `Store::update_revision_at` (und die alte Hülle `update_revision`) legt
-für die aktuelle bzw. eine schon fortgeschriebene Fassung bei geändertem Text einen Schritt in `revision_amend` an
-(Art `amend`, keine Migration) und erhöht `revision.amend_seq`; `Change.amend_seq` nennt den neuen Stand, die Art der
-Änderung bleibt `Updated` (Spiegel-Commit wie bisher). Damit ist die Kette der Schritte lückenlos (Vorspulen beim
-Abgleich, Austausch), und ein Editor mit altem Stand bekommt `NotOnCurrent` statt still zu überschreiben. Mit
-`expected_amend` lehnt der Store einen veralteten Stand ab (`StoreError::Stale`, „Veraltet: …“).
+**Amending and changing via the tree.** `Store::update_revision_at` (and the old shell `update_revision`) creates, for
+the current or an already amended revision with changed text, a step in `revision_amend` (kind `amend`, no
+migration) and increments `revision.amend_seq`; `Change.amend_seq` names the new state, the kind of change stays
+`Updated` (mirror commit as before). Thus the chain of steps has no gaps (fast-forward when reconciling, exchange),
+and an editor with an old state gets `NotOnCurrent` instead of silently overwriting. With `expected_amend` the store
+refuses an outdated state (`StoreError::Stale`, „Veraltet: …“).
 
-**Satzbild: Zitatblock** (auch `docs/WYSIWYG.md`). `baruch_wysiwyg::parse` liest eine logische Zeile, die genau ein
-`#quote(block: true, …)[…]` ist, als eigenes Stück (wie `#szene[…]`/`#arbeit[…]`): Eine Zeile direkt dahinter ist ein
-eigener Absatz, eine Zeile direkt davor beendet ihren Absatz – wie Typst setzt. `#quote[…]`, `block: false` und
-unlesbare Argumente bleiben Teil ihres Absatzes. Unberührte Blöcke gehen byte-gleich zurück. Der Knopf „Zitat“ fügt
-`#quote(block: true)[]` mit der Folgezeile „– “ ein, nicht `attribution: []`: Eine leere `attribution` setzt in Typst
-0.15.1 eine Zeile mit dem Geviertstrich (gemessen in `crates/baruch-render/tests/quote_attribution.rs`: mit
-`attribution: []` steht ein „—“ in einer eigenen Zeile mehr als 5 pt unter dem Zitat, ohne `attribution` keiner).
+**Typeset view: quotation block** (also `docs/WYSIWYG.md`). `baruch_wysiwyg::parse` reads a logical line that is
+exactly one `#quote(block: true, …)[…]` as a piece of its own (like `#szene[…]`/`#arbeit[…]`): a line directly after
+it is a paragraph of its own, a line directly before it ends its paragraph – as Typst typesets. `#quote[…]`,
+`block: false` and unreadable arguments stay part of their paragraph. Untouched blocks go back byte-identical. The
+button „Zitat“ inserts `#quote(block: true)[]` with the following line "– ", not `attribution: []`: an empty
+`attribution` sets a line with the em dash in Typst 0.15.1 (measured in
+`crates/baruch-render/tests/quote_attribution.rs`: with `attribution: []` a "—" stands in a line of its own more than
+5 pt below the quotation, without `attribution` none).
 
-**Editor: Sperre während des Speicherns.** `widgets.ts` (`lockEditor`, `editorLocked`) sperrt den Bereich
-`#pane-editor` (`inert`, `aria-busy`) vom Druck auf „Speichern“ bis nach dem Neuzeichnen; `outline.ts` und
-`workspace.ts` zählen ihre Sperren, ein zweites Absenden während des Laufs entfällt. `workspace.ts` verwirft überholte
-`ui.render`-Antworten über eine laufende Nummer (es gilt die zuletzt ausgelöste Navigation).
+**Editor: lock while saving.** `widgets.ts` (`lockEditor`, `editorLocked`) locks the area `#pane-editor` (`inert`,
+`aria-busy`) from pressing „Speichern“ until after the redraw; `outline.ts` and `workspace.ts` count their locks, a
+second submission during the run is dropped. `workspace.ts` discards outdated `ui.render` answers via a running number
+(the navigation triggered last counts).
 
-**Gedankenkarte.** Die Nähe (`idea_map::near::compute`) rechnet in `spawn_blocking` und höchstens für die ersten
-`MAX_NEAR_IDEAS` = 1500 Einfälle nach Nummer (rund 1,1 Millionen Paare); darüber sagt es die Meldung der Karte.
+**Idea map.** The proximity (`idea_map::near::compute`) computes in `spawn_blocking` and at most for the first
+`MAX_NEAR_IDEAS` = 1500 ideas by number (roughly 1.1 million pairs); above that the message of the map says so.
 
-**Umschlag.** `cover::compile_limited` setzt die Mess-Sätze (`book_page_mm`, `block_heights`) mit der Zeitgrenze des
-Satzes (`cover::MEASURE_TIMEOUT` = 60 s); danach ist der Lauf als abgebrochen markiert und das Ergebnis verworfen,
-`block_heights` meldet -32000 „… Typst wurde nach 60 Sekunden nicht fertig (Zeitgrenze).“ Die Kontrastprüfung entpackt
-das Umschlagbild mit Grenzen wie die Vorschaubilder (`cover_print::MAX_CONTRAST_SIDE_PX` = 20 000, 512 MiB) und merkt
-sich bis zu acht entpackte Bilder (zusammen höchstens 96 MiB RGB) nach Prüfsumme. `default_blocks` rundet Lage und Breite
-auf 0,01 mm.
+**Cover.** `cover::compile_limited` typesets the measuring sources (`book_page_mm`, `block_heights`) with the time limit
+of the typesetting (`cover::MEASURE_TIMEOUT` = 60 s); after that the run is marked as cancelled and the result
+discarded, `block_heights` reports -32000 „… Typst wurde nach 60 Sekunden nicht fertig (Zeitgrenze).“ The contrast
+check unpacks the cover image with limits like the preview images (`cover_print::MAX_CONTRAST_SIDE_PX` = 20 000,
+512 MiB) and remembers up to eight unpacked images (together at most 96 MiB RGB) by checksum. `default_blocks` rounds
+position and width to 0.01 mm.
 
-**EPUB.** Fußnoten bekommen ihren Platz in der Liste, bevor ihr Inhalt geschrieben ist (innere Fußnote hinter der
-äußeren). `collect_labels` zählt Abbildungen (`#figure(image(…) …)`, allein oder mit Label dahinter) in Lesereihenfolge
-(`Links::figures`); `@name` zeigt „Abbildung n“ (bzw. das eigene Wort des Verweises) und verlinkt auf
-`<figure id="lbl-name">`. `check_mimetype` entpackt einen komprimierten `mimetype` und prüft auch dessen Inhalt
-(`MIMETYPE_CONTENT` zusätzlich zu `MIMETYPE_COMPRESSED`).
+**EPUB.** Footnotes get their place in the list before their content is written (inner footnote after the outer
+one). `collect_labels` counts figures (`#figure(image(…) …)`, alone or with a label after it) in reading order
+(`Links::figures`); `@name` shows „Abbildung n“ (or the reference's own word) and links to `<figure id="lbl-name">`.
+`check_mimetype` unpacks a compressed `mimetype` and also checks its content (`MIMETYPE_CONTENT` in addition to
+`MIMETYPE_COMPRESSED`).
 
-**Satzmeldungen aus dem Buchende.** `ExportMap::tail_first_line`/`in_tail`: Zeilen hinter dem letzten Abschnitt
-(Register, Glossar) gehören keinem Abschnitt mehr; `typeset::Typeset::diagnostics` nennt sie
-„Buchende (Register, Glossar)“ mit der Zeile im Buchende.
+**Typesetting messages from the back matter.** `ExportMap::tail_first_line`/`in_tail`: lines after the last section
+(index, glossary) no longer belong to any section; `typeset::Typeset::diagnostics` names them „Buchende (Register,
+Glossar)“ with the line in the back matter.
 
-**Befunde.** `finding_list`, `finding_attached_to` und `findings_by_uuid` holen die offenen Vorschläge in einer Abfrage
-je 500 Befunde (vorher je Befund eine). `Finding::stale_summary` ist abgeleitet (offener Sammelbefund ohne offenen
-Ursprung; gelöschte Ursprünge zählen als entschieden) und wird nie gespeichert. `finding_open_counts` und die Matrix
-zählen offene Sammelbefunde nicht.
+**Findings.** `finding_list`, `finding_attached_to` and `findings_by_uuid` fetch the open proposals in one query per
+500 findings (before, one per finding). `Finding::stale_summary` is derived (an open collective finding without an open
+origin; deleted origins count as decided) and is never stored. `finding_open_counts` and the matrix do not count open
+collective findings.
 
-**Bibel und Kommentar in der Zählung des Moduls.** Die Belege aus SWORD (`bible_research::collect`) lesen die Stelle
-über `bibles::read_passage` (Abbildung german() → Zählung des Moduls) wie Prüfung und `bible.lookup`; Kommentare über
-`bibles::read_commentary` (dieselbe Abbildung, Beschriftung mit dem Namen der Zählung). Fehlende Verse nennt die
-Wortlautprüfung in deutscher Zählung (zurück abgebildet), sonst mit dem Namen der Modulzählung.
+**Bible and commentary in the versification of the module.** The evidence from SWORD (`bible_research::collect`)
+reads the reference via `bibles::read_passage` (mapping german() → versification of the module) like the check and
+`bible.lookup`; commentaries via `bibles::read_commentary` (the same mapping, labelled with the name of the
+versification). The wording check names missing verses in German versification (mapped back), otherwise with the name
+of the module versification.
 
-**Menüband.** `ribbon::defined_functions` wertet nur Code der obersten Ebene aus (`code_lines`: ohne Zeilen- und – auch
-geschachtelte – Blockkommentare, ohne Rümpfe anderer Funktionen, Zeichenketten bleiben ganz) und kennt
+**Ribbon.** `ribbon::defined_functions` evaluates only top-level code (`code_lines`: without line comments and –
+also nested – block comments, without bodies of other functions, strings stay whole) and knows
 `#import "datei.typ": name, a as b`.
 
 ### mcp-namen
 
-- **Handles** (`mcp/session.rs`): `handle_name`, `legacy_handle_name`, `LOCAL_PREFIX`, `local_name` (reine Funktionen), `Client::handle`, `Client::owned_handles`. `mcp.rs::localize` grenzt Clients ohne Token bei jeder Anfrage gegen die Tokenliste ab (eine kleine Abfrage je Anfrage).
-- **Tokens** (`store/mcp_tokens.rs`): `mcp_token_create_unique(name, handle, legacy, reserved_prefix)` prüft in einer `BEGIN IMMEDIATE`-Transaktion und legt an; die Regeln reicht der Server herein (`mcp/tokens.rs::create`, einziger Weg von RPC und Formular). `mcp_token_create` (ohne Handle-Prüfung) bleibt für Tests und Bestand.
-- **Eigentum** (`posts.rs`): `Actor` trägt `also` (weitere eigene Autorennamen, der Alt-Handle eines Tokens) und `owns()`; `posts::edit`, `posts::act`, `threads::delete_post` und `threads::edit_post_as` prüfen darüber.
-- **Kontingent** (`store/asset_requests.rs`): `asset_mcp_usage_without_token(work, token_handles)` zählt alle Bildfassungen, deren Autor mit „@“ beginnt, und alle Anträge von Personas und MCP-Clients, ohne die Autoren der Tokens.
-- **Obergrenzen im Store:** `glossary::MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN` (200), `…_PER_WORK` (2000), `requests::MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN` (50; nicht beim Einlesen einer Austauschdatei und nicht für den Menschen).
-- **Relay** (`assist/chat.rs`): `relay_targets` wählt die Ziele, `ChatOrder::relay` schaltet Erwähnungen zu (MCP). `relay_section` in `mcp/tools.rs` ist entfernt. Fäden ohne Abschnitt haben weiter ihre eigene Schleife in `threads.rs` mit denselben Grenzen.
-- **Auftrag eines Beitrags** (`store/post_meta.rs`): `PostRequest` + `web`, `asker`, `relay`; `assist::FramedAnswer::{to_request, from_request}`.
-- **Nachbesserung, Bestand** (`mcp/session.rs`): `keeps_legacy(name, token_names)` und `token_handle` (reine Funktionen), `Client::keeps_legacy`. Ein Token, dessen neuer Handle erst durch die Regel seit Runde 23 dem Handle oder Alt-Handle eines Tokens mit anderem Alt-Handle gliche, schreibt und besitzt weiter nur unter seinem Alt-Handle. `mcp.rs::localize` bestimmt das für Tokens bei `initialize` und bei jeder Anfrage aus derselben Tokenliste (kein gespeicherter Zustand, keine Migration); die Seite „MCP-Zugang“ (`settings/access.rs`) zeigt `taken`.
-- **Nachbesserung, Kontingente ohne Token:** `mcp/quota.rs::acquire(state, &Client)` belegt je Auftrag den Platz des Handles (höchstens `MAX_PER_CLIENT` = 2) und ohne Token zusätzlich einen der gemeinsamen Plätze (`WITHOUT_TOKEN`, höchstens `MAX_WITHOUT_TOKEN` = 4), beide unter einer Sperre; `Slot` gibt beide frei. `mcp/tools.rs::Counted` wählt für `add_post` und `propose_revision`, wessen Bestand zählt: `Author` (Token oder genannte Persona) oder `WithoutToken` (alle Autoren `@mcp:…` außer denen der Tokens, `token_handles`, auch vom Bildkontingent genutzt).
-- **Kontext** (`assist/context.rs`): `kept_own` führt `Prepared::own_findings` nach dem Kürzen nach.
-- **Varianten** (`assist/variants.rs`): `splice` ersetzt nur die Bytebereiche der betroffenen Absätze (`paragraph_spans`).
-- **Befunde beim Verschieben** (`store/posts.rs::post_move`): ein `UPDATE finding` in derselben Transaktion.
+- **Handles** (`mcp/session.rs`): `handle_name`, `legacy_handle_name`, `LOCAL_PREFIX`, `local_name` (pure functions),
+  `Client::handle`, `Client::owned_handles`. `mcp.rs::localize` delimits clients without a token against the token
+  list on every request (one small query per request).
+- **Tokens** (`store/mcp_tokens.rs`): `mcp_token_create_unique(name, handle, legacy, reserved_prefix)` checks and
+  creates in one `BEGIN IMMEDIATE` transaction; the server passes the rules in (`mcp/tokens.rs::create`, the only path
+  of RPC and form). `mcp_token_create` (without the handle check) stays for tests and existing code.
+- **Ownership** (`posts.rs`): `Actor` carries `also` (further own author names, the old handle of a token) and
+  `owns()`; `posts::edit`, `posts::act`, `threads::delete_post` and `threads::edit_post_as` check through it.
+- **Quota** (`store/asset_requests.rs`): `asset_mcp_usage_without_token(work, token_handles)` counts all image
+  revisions whose author begins with "@" and all requests of personas and MCP clients, without the authors of the
+  tokens.
+- **Upper limits in the store:** `glossary::MAX_OPEN_INDEX_PROPOSALS_PER_ORIGIN` (200), `…_PER_WORK` (2000),
+  `requests::MAX_OPEN_OUTLINE_REQUESTS_PER_ORIGIN` (50; not when reading an exchange file and not for the human).
+- **Relay** (`assist/chat.rs`): `relay_targets` chooses the targets, `ChatOrder::relay` switches mentions on (MCP).
+  `relay_section` in `mcp/tools.rs` is removed. Threads without a section still have their own loop in `threads.rs`
+  with the same limits.
+- **Job of a post** (`store/post_meta.rs`): `PostRequest` + `web`, `asker`, `relay`;
+  `assist::FramedAnswer::{to_request, from_request}`.
+- **Follow-up, existing tokens** (`mcp/session.rs`): `keeps_legacy(name, token_names)` and `token_handle` (pure
+  functions), `Client::keeps_legacy`. A token whose new handle would only through the rule since Round 23 equal the
+  handle or old handle of a token with another old handle still writes and owns only under its old handle.
+  `mcp.rs::localize` determines this for tokens on `initialize` and on every request from the same token list (no
+  stored state, no migration); the page „MCP-Zugang“ (`settings/access.rs`) shows `taken`.
+- **Follow-up, quotas without a token:** `mcp/quota.rs::acquire(state, &Client)` occupies per job the slot of the
+  handle (at most `MAX_PER_CLIENT` = 2) and, without a token, additionally one of the common slots (`WITHOUT_TOKEN`,
+  at most `MAX_WITHOUT_TOKEN` = 4), both under one lock; `Slot` frees both. `mcp/tools.rs::Counted` chooses for
+  `add_post` and `propose_revision` whose stock counts: `Author` (token or named persona) or `WithoutToken` (all
+  authors `@mcp:…` except those of the tokens, `token_handles`, also used by the image quota).
+- **Context** (`assist/context.rs`): `kept_own` updates `Prepared::own_findings` after shortening.
+- **Variants** (`assist/variants.rs`): `splice` replaces only the byte ranges of the affected paragraphs
+  (`paragraph_spans`).
+- **Findings when moving** (`store/posts.rs::post_move`): one `UPDATE finding` in the same transaction.
 
 ### geheimnisse
 
-- **Geheimnisse schwärzen an einer Stelle (Runde 23).** `baruch_llm::scrub(text, secret)`
-  (`crates/baruch-llm/src/secret.rs`) ersetzt durch `***`: jedes wörtliche Vorkommen und – ab 6 Byte Länge des
-  Geheimnisses (`SCRUB_ENCODED_MIN`) – die Prozent-Kodierung (je Byte wörtlich oder `%XX` mit großen oder kleinen
-  Hex-Ziffern, Leerzeichen auch als `+`) und Base64 (Standard und URL-sicher, mit oder ohne `=`, auch als Teil eines
-  längeren Base64 wie `Basic base64(user:geheim)`: gesucht werden je Versatz 0/1/2 die Zeichen, die allein vom
-  Geheimnis abhängen; die gemischten Randzeichen und Füllzeichen gehen mit). Kürzere Geheimnisse nur wörtlich. Nicht
-  erkannt: Hex, JSON-Escapes, doppelte Kodierung, umbrochenes Base64. Aufrufer: `Endpoint::scrub` (Modell-Client),
-  `connections::check::scrub`/`scrub_value`, `connections::multigpt::scrub_text`/`scrub_error` (damit `Session::scrub`,
-  Websuche, PDF-Abruf), `PgvectorWay::scrub` (über `multigpt::scrub_error`), `sync::Link::scrub` (über
-  `multigpt::scrub_text` bzw. die Sitzung), `models::check_connection` (über `check::scrub_value`). Neue Abhängigkeit
-  `base64 0.22` in `baruch-llm` (stand schon im Lock).
-- **Keine Weiterleitungen.** Alle drei HTTP-Clients mit Schlüssel (`connections/check.rs`, `connections/multigpt.rs`,
-  `baruch-llm`) haben `redirect::Policy::none()`; ein 3xx ist ein Fehler mit eigener Meldung, `Location` wird nicht
-  gezeigt. Tests je Client mit zwei Nachbauten (der zweite sieht keine Anfrage).
-- **Filter vor `fetch_url`.** `websearch::fetch::fetch_allowed(url) -> Result<(), &'static str>` prüft nur den Wortlaut
-  der Adresse: Schema http/https, keine Benutzerangaben, kein IP-Literal in Loopback, privat, Link-Local, CGNAT,
-  unspezifiziert, Multicast, Broadcast, 0/8, 192.0.0.0/24, 198.18.0.0/15, 240/4; IPv6 `::1`, `::`, `ff00::/8`, ULA `fc00::/7`,
-  `fe80::/10`, `fec0::/10`, dazu IPv4 in IPv6 (`::ffff:`, `::a.b.c.d`, NAT64 `64:ff9b::/96`, 6to4 `2002::/16`) und
-  das ganze `64:ff9b:1::/48`;
-  `localhost`, Namen auf `.localhost`/`.local`/`.internal`/`.home.arpa` und (über den Vertrag hinaus) Namen ohne
-  Punkt. Dezimale, hexadezimale, oktale und verkürzte IPv4-Schreibweisen normalisiert der URL-Parser vorher.
-  **Keine DNS-Auflösung** – Namen, die auf private Adressen zeigen, erkennt nur die abrufende Seite; ob MultiGPT
-  selbst filtert, ist unbekannt (**Annahme**: nein). `websearch::search::gather` ruft abgelehnte Treffer nicht ab, sie
-  verbrauchen keinen der vier Abrufe und erscheinen als Hinweis. `websearch::fetch::set_fetch_exceptions(state, hosts)`
-  ist ein Ausnahmeweg je Datenordner nur für Tests (kein RPC, kein Formular, keine Einstellung führt dorthin).
-- **Modell-Zwischenspeicher je (Art, Adresse)** (`models.rs`: `CACHE`, `CONTEXTS`); `expire_list(url)` betrifft alle
-  Arten der Adresse, `remember(url, …)` gehört zur Verbindung `eliezer`. `models::context` prüft
-  `external`/`external_allowed` vor jeder Anfrage.
-- **Predigt mit Bibel:** `Store::create_work_with_bible(new, human, sermon_text, bible)` schreibt `work_bible` in der
-  Transaktion des Anlegens; `create_work_with_text` ruft sie mit `None`.
-- **EPUBCheck-Temp-Ordner** (`epub_check::TempDir`): `baruch-epubcheck-<32 Hex-Zeichen aus getrandom>`, unter Unix
-  `DirBuilder::mode(0o700)`, ohne `recursive` – ein vorhandener Ordner, eine Datei oder ein Symlink gleichen Namens
-  ist ein Fehler („Temp-Ordner für EPUBCheck: …“) und wird weder benutzt noch aufgeräumt.
-- **SSE-Parser** (`baruch-llm/src/sse.rs`): Die Grenze `max_line` gilt auch für die Summe der `data:`-Zeilen eines
-  Ereignisses („Ein Ereignis im Antwortstrom ist zu groß; abgebrochen.“).
+- **Redacting secrets in one place (Round 23).** `baruch_llm::scrub(text, secret)`
+  (`crates/baruch-llm/src/secret.rs`) replaces with `***`: every literal occurrence and – from a secret length of
+  6 bytes (`SCRUB_ENCODED_MIN`) – the percent encoding (per byte literally or `%XX` with upper or lower case hex
+  digits, spaces also as `+`) and Base64 (standard and URL-safe, with or without `=`, also as part of a longer Base64
+  like `Basic base64(user:geheim)`: for each offset 0/1/2 the characters that depend on the secret alone are searched
+  for; the mixed edge characters and padding characters go along). Shorter secrets only literally. Not recognised:
+  hex, JSON escapes, double encoding, wrapped Base64. Callers: `Endpoint::scrub` (model client),
+  `connections::check::scrub`/`scrub_value`, `connections::multigpt::scrub_text`/`scrub_error` (and thereby
+  `Session::scrub`, web search, PDF fetch), `PgvectorWay::scrub` (via `multigpt::scrub_error`), `sync::Link::scrub`
+  (via `multigpt::scrub_text` or the session), `models::check_connection` (via `check::scrub_value`). New dependency
+  `base64 0.22` in `baruch-llm` (it was already in the lock).
+- **No redirects.** All three HTTP clients with a key (`connections/check.rs`, `connections/multigpt.rs`,
+  `baruch-llm`) have `redirect::Policy::none()`; a 3xx is an error with a message of its own, `Location` is not shown.
+  Tests per client with two mocks (the second sees no request).
+- **Filter before `fetch_url`.** `websearch::fetch::fetch_allowed(url) -> Result<(), &'static str>` checks only the
+  wording of the address: scheme http/https, no user information, no IP literal in loopback, private, link-local,
+  CGNAT, unspecified, multicast, broadcast, 0/8, 192.0.0.0/24, 198.18.0.0/15, 240/4; IPv6 `::1`, `::`, `ff00::/8`, ULA
+  `fc00::/7`, `fe80::/10`, `fec0::/10`, plus IPv4 in IPv6 (`::ffff:`, `::a.b.c.d`, NAT64 `64:ff9b::/96`, 6to4
+  `2002::/16`) and the whole of `64:ff9b:1::/48`;
+  `localhost`, names on `.localhost`/`.local`/`.internal`/`.home.arpa` and (beyond the contract) names without a dot.
+  The URL parser normalises decimal, hexadecimal, octal and shortened IPv4 notations beforehand.
+  **No DNS resolution** – names that point to private addresses are only recognised by the fetching side; whether
+  MultiGPT filters itself is unknown (**assumption**: no). `websearch::search::gather` does not fetch refused hits,
+  they use up none of the four fetches and appear as a hint. `websearch::fetch::set_fetch_exceptions(state, hosts)` is
+  an exception path per data folder for tests only (no RPC, no form, no setting leads there).
+- **Model cache per (kind, address)** (`models.rs`: `CACHE`, `CONTEXTS`); `expire_list(url)` affects all kinds of the
+  address, `remember(url, …)` belongs to the connection `eliezer`. `models::context` checks
+  `external`/`external_allowed` before every request.
+- **Sermon with Bible:** `Store::create_work_with_bible(new, human, sermon_text, bible)` writes `work_bible` in the
+  transaction of the creation; `create_work_with_text` calls it with `None`.
+- **EPUBCheck temp folder** (`epub_check::TempDir`): `baruch-epubcheck-<32 Hex-Zeichen aus getrandom>`, under Unix
+  `DirBuilder::mode(0o700)`, without `recursive` – an existing folder, file or symlink of the same name is an error
+  („Temp-Ordner für EPUBCheck: …“) and is neither used nor cleaned up.
+- **SSE parser** (`baruch-llm/src/sse.rs`): the limit `max_line` also applies to the sum of the `data:` lines of an
+  event („Ein Ereignis im Antwortstrom ist zu groß; abgebrochen.“).
 
 ### Integration
 
-- **Router:** `guard::own_reads` liegt als Schicht über allen Routen (unmittelbar vor `guard::local_host`, Schnittstelle
-  R23-S1b). `/mcp` hat die eigene Größengrenze `MCP_BODY_LIMIT` (12 MiB). `/act` kennt `based_on_amend`.
-- **Datenordner:** `baruch_store::Store::open` legt einen neuen Datenordner unter Unix mit 0700 an (`create_data_dir`,
-  Codereview quellen-5); ein vorhandener bleibt unverändert.
-- **Abnahme:** `tests/round23_abnahme.rs` (Zitat bis Tokens in einem Ablauf; Geheimnisse, Weiterleitung, Websuche).
+- **Router:** `guard::own_reads` lies as a layer over all routes (immediately before `guard::local_host`, interface
+  R23-S1b). `/mcp` has its own size limit `MCP_BODY_LIMIT` (12 MiB). `/act` knows `based_on_amend`.
+- **Data folder:** under Unix `baruch_store::Store::open` creates a new data folder with 0700 (`create_data_dir`, code
+  review quellen-5); an existing one stays unchanged.
+- **Acceptance:** `tests/round23_abnahme.rs` (quotation to tokens in one flow; secrets, redirect, web search).
 
-## 0.9.0 – Ältere Fassungen ausblenden (Nutzer 2026-11-24)
+## 0.9.0 – Hiding older revisions (user 2026-11-24)
 
-- **Migration 0051** (`0051_revision_fold.sql`): Tabelle `node_revision_fold` (`node_id` als Primärschlüssel mit
-  `ON DELETE CASCADE`, `below` ≥ 1 = Nummer der Fassung, an der die Marke steht, `updated`, `updated_by`). Ohne uuid,
-  nicht im Austauschformat (Arbeitsweise der Instanz wie `work_revision_policy`), kein Commit im Spiegel (kein
-  Buchtext). Verlustfrei geprüft in `crates/baruch-store/tests/revision_fold.rs` (Datenbank im Stand ed9d210, Store
-  bis 0050).
-- **Regel** `baruch_core::revision_fold`: `cutoff` = Marke, höchstens die aktuelle Fassung; ausgeblendet sind ersetzte
-  und verworfene Fassungen unter `cutoff` (`is_hidden`, `hidden_count`); nie die aktuelle, nie offene Vorschläge.
-  `offered` = „bis hierhin ausblenden“ nur an der aktuellen Fassung und darunter, wenn darunter etwas auszublenden ist.
-- **Store** `baruch-store/src/revision_fold.rs`: `revision_fold`, `work_revision_folds` (Schlüssel → Marke),
-  `set_revision_fold` (über der aktuellen `Refused`), `clear_revision_fold`, `clear_work_revision_folds`,
-  `fold_revisions_before` (werkweit, letzte Fassung vor einem UTC-Zeitpunkt, höchstens die aktuelle).
-- **Server** `src/revision_fold.rs`: RPC `revision.fold_get|fold_set|fold_clear|fold_before|fold_clear_all` (kein
-  MCP-Werkzeug), Formular `POST /einstellungen/werk/fassungen/ausblenden`; `/act` nimmt `fold_set`/`fold_clear`.
-  `view.rs`: `ViewExtras.revision_folds`, `Location.fassungen` (`alle` = Schalter offen, `Resolved.show_all`,
-  `FOLD_OPEN_Q` in `Resolved::url`), `FoldView` (Zähler und Nachbarn über die sichtbaren Fassungen, Links für den
-  Schalter, Fassungen mit Angebot), `TreeRevision.hidden`/`fold`. Vorlagen: `fragments/editor.html` (Zusatz am Zähler,
-  „bis hier ausblenden“), `fragments/revisions.html` (Formulare `rev-fold-<n>`, „Wieder alle zeigen“, Schalter
-  `<details class="rev-fold">`), `fragments/revtree.html` (Makro `folded`), `settings/werk.html`; CSS in
-  `static/revisions.css`; `web/src/rpc.ts` reicht `fassungen` an `ui.render` durch.
+- **Migration 0051** (`0051_revision_fold.sql`): table `node_revision_fold` (`node_id` as primary key with
+  `ON DELETE CASCADE`, `below` ≥ 1 = number of the revision at which the marker stands, `updated`, `updated_by`).
+  Without uuid, not in the exchange format (way of working of the instance like `work_revision_policy`), no commit in
+  the mirror (no book text). Checked to be lossless in `crates/baruch-store/tests/revision_fold.rs` (database at state
+  ed9d210, store up to 0050).
+- **Rule** `baruch_core::revision_fold`: `cutoff` = marker, at most the current revision; hidden are replaced and
+  discarded revisions below `cutoff` (`is_hidden`, `hidden_count`); never the current one, never open proposals.
+  `offered` = „bis hierhin ausblenden“ only at the current revision and below it, if there is something to hide below.
+- **Store** `baruch-store/src/revision_fold.rs`: `revision_fold`, `work_revision_folds` (key → marker),
+  `set_revision_fold` (above the current one `Refused`), `clear_revision_fold`, `clear_work_revision_folds`,
+  `fold_revisions_before` (work-wide, last revision before a UTC point in time, at most the current one).
+- **Server** `src/revision_fold.rs`: RPC `revision.fold_get|fold_set|fold_clear|fold_before|fold_clear_all` (no MCP
+  tool), form `POST /einstellungen/werk/fassungen/ausblenden`; `/act` takes `fold_set`/`fold_clear`. `view.rs`:
+  `ViewExtras.revision_folds`, `Location.fassungen` (`alle` = switch open, `Resolved.show_all`, `FOLD_OPEN_Q` in
+  `Resolved::url`), `FoldView` (counter and neighbours over the visible revisions, links for the switch, revisions
+  with an offer), `TreeRevision.hidden`/`fold`. Templates: `fragments/editor.html` (addition at the counter, „bis hier
+  ausblenden“), `fragments/revisions.html` (forms `rev-fold-<n>`, „Wieder alle zeigen“, switch
+  `<details class="rev-fold">`), `fragments/revtree.html` (macro `folded`), `settings/werk.html`; CSS in
+  `static/revisions.css`; `web/src/rpc.ts` passes `fassungen` through to `ui.render`.
 
-## Runde 33 – Menüband
+## Round 33 – Ribbon
 
-Die Kopfzeile mit Werk ▾ / Ansicht ▾ / Werkzeuge ▾ und die flache Knopfreihe über dem Blatt sind durch ein Menüband
-ersetzt: ein Menü **Baruch ▾** (Programm), Reiter **Start · Einfügen · Prüfen · Buch · Ansicht** mit Gruppen, und die
-Knöpfe des Editors docken in das Band an. Keine neue Route, keine neue RPC-Methode, kein neues MCP-Werkzeug;
-`ui.render`, `menu.badges` und `ribbon.formats` sind unverändert. Der Laptop-Modus (kompaktes Band, Seitenleisten)
-gehört zu `src/laptop.rs`/`web/src/laptop.ts` und ist dort beschrieben.
+The header with „Werk ▾“ / „Ansicht ▾“ / „Werkzeuge ▾“ and the flat row of buttons above the sheet are replaced by a
+ribbon: one menu **„Baruch ▾“** (program), tabs **„Start · Einfügen · Prüfen · Buch · Ansicht“** with groups, and the
+buttons of the editor dock into the ribbon. No new route, no new RPC method, no new MCP tool; `ui.render`,
+`menu.badges` and `ribbon.formats` are unchanged. The laptop mode (compact ribbon, side rails) belongs to
+`src/laptop.rs`/`web/src/laptop.ts` and is described there.
 
-### Vorlage (`templates/base.html`)
+### Template (`templates/base.html`)
 
-Das Band steht vollständig in `base.html` (die Vorlage ist in rund 35 eigenen minijinja-Umgebungen eingebettet; ein
-`{% include %}` müsste in allen registriert werden).
+The ribbon stands completely in `base.html` (the template is embedded in roughly 35 minijinja environments of their
+own; an `{% include %}` would have to be registered in all of them).
 
-- `<header class="band" data-widget="band" data-tab="" data-work="W">` (die Klasse `topbar` gibt es nicht mehr),
-  direkt darunter die Marke `<!--baruch-consent-->`.
-- Zeile 1 (`div.band-top`): `nav.menubar[data-widget=menubar]` mit genau einem `details.menu[data-menu="baruch"]`
-  (Alle Werke, Neues Werk / Importieren…, PDF oder EPUB importieren…, Austausch: Einlesen…, ⚙ Einstellungen, Über
-  Baruch), die Reiterzeile `nav.band-tabs[role=tablist][data-band-default]`, die Werkwahl (`form.work-select`, nur
-  Arbeitsseite), `span.work-title`, der Autor und der Schalter `a[data-band-toggle]` (Band auf/zu). Die Reiterzeile
-  steht im Dokument gleich hinter dem Menü (nicht hinter dem Titel): So bleibt sie auf jeder Seite an derselben
-  Stelle, und die Tab-Folge entspricht dem Bild.
-- Zeile 2 (`div.band-panels`): je Reiter ein `div.band-panel[role=tabpanel]` und – nur auf der Arbeitsseite – der
-  Andockplatz `div.band-dock[data-band-dock]`.
-- Reiter je Seite: Arbeitsseite (`topbar` gesetzt) alle fünf; Seiten mit Werk Start · Prüfen · Buch · Ansicht; ohne
-  Werk Start · Ansicht (dort stehen „Literatur“ und „Abgleichen“ in einer Gruppe „Werkzeuge“ unter Start, weil sie
-  kein Werk brauchen; „Werk wählen“ führt wie bisher auf `/werke`).
-- Blöcke der Seiten: `band_tab` (Vorgabe-Reiter, sonst `start`), `page_actions` (Gruppen im Reiter Start, zwischen
-  „Werk“ bzw. „Ansicht des Textes“ und „Einfälle“), `band_einfuegen`, `band_pruefen`, `band_buch`, `band_ansicht`
-  (jeweils vor den festen Gruppen des Reiters).
-- Plätze für Runde 32 als Kommentare der Vorlage: `{#- R32-PLATZ import-word -#}` und `{#- R32-PLATZ beenden -#}`
-  (letzter Eintrag) im Menü Baruch ▾, `{#- R32-PLATZ export-word -#}` in der Gruppe Ausgabe.
+- `<header class="band" data-widget="band" data-tab="" data-work="W">` (the class `topbar` no longer exists),
+  directly below it the marker `<!--baruch-consent-->`.
+- Row 1 (`div.band-top`): `nav.menubar[data-widget=menubar]` with exactly one `details.menu[data-menu="baruch"]`
+  („Alle Werke“, „Neues Werk / Importieren…“, „PDF oder EPUB importieren…“, „Austausch: Einlesen…“,
+  „⚙ Einstellungen“, „Über Baruch“), the tab row `nav.band-tabs[role=tablist][data-band-default]`, the work choice
+  (`form.work-select`, work page only), `span.work-title`, the author and the switch `a[data-band-toggle]` (ribbon
+  open/closed). The tab row stands in the document directly after the menu (not after the title): so it stays at the
+  same place on every page, and the tab order matches the picture.
+- Row 2 (`div.band-panels`): per tab one `div.band-panel[role=tabpanel]` and – only on the work page – the docking
+  place `div.band-dock[data-band-dock]`.
+- Tabs per page: work page (`topbar` set) all five; pages with a work „Start · Prüfen · Buch · Ansicht“; without a
+  work „Start · Ansicht“ (there „Literatur“ and „Abgleichen“ stand in a group „Werkzeuge“ under „Start“, because they
+  need no work; „Werk wählen“ leads to `/werke` as before).
+- Blocks of the pages: `band_tab` (default tab, otherwise `start`), `page_actions` (groups in the tab „Start“, between
+  „Werk“ or „Ansicht des Textes“ and „Einfälle“), `band_einfuegen`, `band_pruefen`, `band_buch`, `band_ansicht`
+  (each before the fixed groups of the tab).
+- Places for Round 32 as comments of the template: `{#- R32-PLATZ import-word -#}` and `{#- R32-PLATZ beenden -#}`
+  (last entry) in the menu „Baruch ▾“, `{#- R32-PLATZ export-word -#}` in the group „Ausgabe“.
 
-**Wörtliche Formen.** Die Schicht ersetzt Zeichenketten; die Reihenfolge der Attribute ist darum Teil der
-Schnittstelle (der Unit-Test `the_template_carries_the_literal_forms_apply_relies_on` hält sie fest):
+**Literal forms.** The layer replaces strings; the order of the attributes is therefore part of the interface (the
+unit test `the_template_carries_the_literal_forms_apply_relies_on` pins it):
 
-| Stück | Form |
+| Piece | Form |
 |---|---|
-| Reiter | `<a class="band-tab" role="tab" id="band-tab-ID" aria-controls="band-panel-ID" data-band-tab="ID" href="?tab=ID" aria-selected="false">` |
-| Feld | `<div class="band-panel" role="tabpanel" id="band-panel-ID" aria-labelledby="band-tab-ID" data-band-panel="ID" hidden>` |
-| Gruppe | `<details class="band-group" data-band-group open><summary class="band-group-label">Name</summary><div class="band-items" role="group" aria-label="Name">…</div></details>` – weitere Attribute nur zwischen `class="…"` und `data-band-group` (z. B. `data-band-after`: hinter dem Andockplatz) |
-| Band auf/zu | `data-band-toggle aria-expanded="true" href="?band=closed"` |
-| Laptop-Schalter | `<a class="btn" data-laptop-set="auto" aria-pressed="false" href="?laptop=auto">Automatisch</a>` (ebenso `on`, `off`) |
-| Seitenleisten | `<a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">Gliederung</a>`, rechts `right`/`rrail` |
+| Tab | `<a class="band-tab" role="tab" id="band-tab-ID" aria-controls="band-panel-ID" data-band-tab="ID" href="?tab=ID" aria-selected="false">` |
+| Panel | `<div class="band-panel" role="tabpanel" id="band-panel-ID" aria-labelledby="band-tab-ID" data-band-panel="ID" hidden>` |
+| Group | `<details class="band-group" data-band-group open><summary class="band-group-label">Name</summary><div class="band-items" role="group" aria-label="Name">…</div></details>` – further attributes only between `class="…"` and `data-band-group` (e.g. `data-band-after`: after the docking place) |
+| Ribbon open/closed | `data-band-toggle aria-expanded="true" href="?band=closed"` |
+| Laptop switch | `<a class="btn" data-laptop-set="auto" aria-pressed="false" href="?laptop=auto">Automatisch</a>` (likewise `on`, `off`) |
+| Side rails | `<a class="btn" data-rail-toggle="left" aria-pressed="false" href="?lrail=1">Gliederung</a>`, on the right `right`/`rrail` |
 
-### Schicht `band::apply` (`src/band.rs`)
+### Layer `band::apply` (`src/band.rs`)
 
-Seiten kennen ihre Adresse und `?tab=` nicht. Die Schicht `consent::inject` (über allen Routen, wie die Abzeichen
-seit Runde 23a) hält vor `next.run` Cookie-Kopf und rohe Abfrage fest, bildet `BandState::from_request` und
-`LaptopState::from_request` und ruft nach `menu::fill_page` `band::apply(&page, &band, &laptop)`; gültige Schlüssel
-der Adresse hängt sie als `Set-Cookie` an (`band::set_cookies`, `laptop::set_cookies`).
+Pages do not know their address and `?tab=`. The layer `consent::inject` (over all routes, like the badges since
+Round 23a) keeps the cookie header and the raw query before `next.run`, builds `BandState::from_request` and
+`LaptopState::from_request` and, after `menu::fill_page`, calls `band::apply(&page, &band, &laptop)`; valid keys of
+the address are appended as `Set-Cookie` (`band::set_cookies`, `laptop::set_cookies`).
 
-- `BandState { tab, closed, rest }`: `?tab=` nur für Kennungen aus `TABS` (nicht gemerkt), `?band=open|closed` vor
-  dem Cookie `baruch_band` (`closed`; fehlt = offen), `rest` = rohe Abfrage ohne `tab`, `band`, `laptop`, `lrail`,
-  `rrail` (nicht dekodiert). Ungültige Werte werden übergangen; bei mehrfachen Schlüsseln gilt der letzte gültige.
-- `apply`, in dieser Reihenfolge; eine Seite ohne die Marke ` data-band-fill` bleibt unverändert:
-  1. Marke an `<html>` → `laptop.html_attrs()` und `data-band="open|closed"`;
-  2. aktiver Reiter: `?tab=`, falls der Kopf ihn hat; sonst `data-band-default`, falls vorhanden; sonst der erste;
-  3. `data-tab=""` am Kopf → `data-tab="<aktiv>"`;
-  4. Adressen der Reiter `href="?<rest>&tab=ID"`; der aktive zusätzlich `aria-selected="true"` und `&band=closed`
-     (Klick klappt zu); bei zugeklapptem Band tragen alle Reiter `&band=open`;
-  5. `hidden` fällt am aktiven Feld weg;
-  6. kompakt (`laptop.compact()`): jedes ` data-band-group open>` → ` data-band-group name="band-group">` (Popups
-     aus `<details>`, der gemeinsame Name hält nur eines offen);
-  7. jedes `href="?K=V"` mit K ∈ {band, laptop, lrail, rrail} → `href="?<rest>&tab=<aktiv>&K=V"`;
-  8. `aria-pressed` am geltenden Laptop-Schalter; Seitenleiste sichtbar → `aria-pressed="true"`, eingeklappt →
-     Adresse auf `lrail=0` bzw. `rrail=0`; zugeklapptes Band → Schalter auf `band=open`, `aria-expanded="false"`.
-- `node=` (alte Adressform) geht nicht in die erzeugten Adressen mit: Erzeugte Links tragen nie `node=` (Vertrag
-  Runde 8 §1). `rest` selbst bleibt die rohe Abfrage; eine Seite, die noch mit `?node=` aufgerufen wurde, verliert
-  beim Reiterwechsel ohne JavaScript nur diese Stelle. Alle anderen Schlüssel bleiben – auch einmalige wie
-  `?ok=gespeichert` (die Meldung steht dann nach einem Reiterwechsel ohne JavaScript noch einmal da).
-- **Sicherheit:** `rest` kommt aus der Adresse und geht nur über `escape_attr` (`&`, `<`, `>`, `"`, `'`) in ein
-  Attribut. Die Schritte 2 bis 6 wirken nur zwischen `<header class="band"` und `</header>`: Text im Seiteninhalt, der
-  wie ein Reiter aussieht, verstellt nichts. Die Schritte 7 und 8 gelten auf der ganzen Seite (auch für die schmalen
-  Leisten der Arbeitsseite); ein Wert V mit anderen Zeichen als `[A-Za-z0-9_-]` wird nicht angefasst.
-- **Bekannte Grenze:** Auf einer Seite, die Antwort eines POST ist (z. B. die Rückfrage „Speichern bestätigen“),
-  führt ein Reiter-Link ohne JavaScript per GET auf dieselbe Adresse; mit JavaScript wechselt band.ts ohne Neuladen.
+- `BandState { tab, closed, rest }`: `?tab=` only for identifiers from `TABS` (not remembered), `?band=open|closed`
+  before the cookie `baruch_band` (`closed`; missing = open), `rest` = raw query without `tab`, `band`, `laptop`,
+  `lrail`, `rrail` (not decoded). Invalid values are skipped; with repeated keys the last valid one counts.
+- `apply`, in this order; a page without the marker ` data-band-fill` stays unchanged:
+  1. marker on `<html>` → `laptop.html_attrs()` and `data-band="open|closed"`;
+  2. active tab: `?tab=` if the header has it; otherwise `data-band-default` if present; otherwise the first;
+  3. `data-tab=""` on the header → `data-tab="<aktiv>"`;
+  4. addresses of the tabs `href="?<rest>&tab=ID"`; the active one additionally `aria-selected="true"` and
+     `&band=closed` (a click closes); with a closed ribbon all tabs carry `&band=open`;
+  5. `hidden` is dropped on the active panel;
+  6. compact (`laptop.compact()`): every ` data-band-group open>` → ` data-band-group name="band-group">` (popups
+     from `<details>`, the common name keeps only one open);
+  7. every `href="?K=V"` with K ∈ {band, laptop, lrail, rrail} → `href="?<rest>&tab=<aktiv>&K=V"`;
+  8. `aria-pressed` on the applicable laptop switch; side rail visible → `aria-pressed="true"`, collapsed → address to
+     `lrail=0` or `rrail=0`; closed ribbon → switch to `band=open`, `aria-expanded="false"`.
+- `node=` (old address form) does not go along into the generated addresses: generated links never carry `node=`
+  (contract Round 8 §1). `rest` itself stays the raw query; a page that was still called with `?node=` loses only
+  this place on a tab change without JavaScript. All other keys stay – also one-off ones like `?ok=gespeichert` (the
+  message then stands there once more after a tab change without JavaScript).
+- **Security:** `rest` comes from the address and goes into an attribute only via `escape_attr` (`&`, `<`, `>`, `"`,
+  `'`). Steps 2 to 6 act only between `<header class="band"` and `</header>`: text in the page content that looks like
+  a tab changes nothing. Steps 7 and 8 apply on the whole page (also for the narrow rails of the work page); a value V
+  with characters other than `[A-Za-z0-9_-]` is not touched.
+- **Known limit:** on a page that is the answer to a POST (e.g. the question „Speichern bestätigen“), a tab link
+  without JavaScript leads by GET to the same address; with JavaScript band.ts switches without reloading.
 
-### Abzeichen
+### Badges
 
-Die Abzeichen stehen an den Reitern: offene Vorschläge an **Start**, „N offen“ (Befunde) an **Prüfen**, offene
-Anträge zur Gliederung an **Buch**; dazu die Zahl an den Einträgen „Befunde“ und „Anträge zur Gliederung“. Die Haken
-sind die alten (`data-badge`, `data-badge-item`, `data-badge-fill`, `data-badges-work`): Die Arbeitsseite zeichnet aus
-`topbar.badges`, jede andere Seite füllt `menu::fill_badges` im fertigen HTML (ohne JavaScript), `menu.ts` frischt auf
-(„N offen“ am Reiter, nur die Zahl im Eintrag).
+The badges stand on the tabs: open proposals on **„Start“**, „N offen“ (findings) on **„Prüfen“**, open outline
+requests on **„Buch“**; plus the number on the entries „Befunde“ and „Anträge zur Gliederung“. The hooks are the old
+ones (`data-badge`, `data-badge-item`, `data-badge-fill`, `data-badges-work`): the work page draws from
+`topbar.badges`, every other page is filled by `menu::fill_badges` in the finished HTML (without JavaScript),
+`menu.ts` refreshes („N offen“ on the tab, only the number in the entry).
 
-### Andocken der Editor-Knöpfe
+### Docking the editor buttons
 
-Die Editor-Widgets hängen an `div.wysiwyg`, und `ui.render` zeichnet nur die drei Spalten neu. Darum bleiben die
-Knöpfe im Fragment `fragments/edit_toolbar.html` (Editor-Zweig, `div[data-edit-toolbar][hidden]` in `div.wysiwyg`) und
-werden mit dem Editor neu gezeichnet; `ui.render` ist unverändert.
+The editor widgets hang on `div.wysiwyg`, and `ui.render` redraws only the three columns. Therefore the buttons stay
+in the fragment `fragments/edit_toolbar.html` (editor branch, `div[data-edit-toolbar][hidden]` in `div.wysiwyg`) and
+are redrawn with the editor; `ui.render` is unchanged.
 
-- Die Leiste hat zwei Teile: `div[data-band-part="start"]` (Gruppen Text: Satzbild | Quelltext; Absatz:
-  Absatzformat, K, F; Fassung: ‹ n/m ›, Speichern, Als neue Fassung – `form="editor-form"`; Assistenten: Prüfen,
-  Vorschlag) und `div[data-band-part="einfuegen"]` (Einfügen: Formate aus `ribbon.formats`; Bild; Register und
-  Glossar). Alle Haken sind die bisherigen (`data-ws-mode`, `data-ws-tools`, `data-ws-format`, `data-ws-cmd`,
+- The bar has two parts: `div[data-band-part="start"]` (groups text: „Satzbild“ | „Quelltext“; paragraph: paragraph
+  format, „K“, „F“; revision: ‹ n/m ›, „Speichern“, „Als neue Fassung“ – `form="editor-form"`; assistants: „Prüfen“,
+  „Vorschlag“) and `div[data-band-part="einfuegen"]` (insert: formats from `ribbon.formats`; image; index and
+  glossary). All hooks are the previous ones (`data-ws-mode`, `data-ws-tools`, `data-ws-format`, `data-ws-cmd`,
   `data-ribbon-cmd`, `data-ribbon-snippet`, `data-ribbon-image`, `data-widget="ribbon"`,
-  `data-widget="context-menu"`, `data-ctx-action`, `data-index-*`). Die ‹ ›-Links im Band tragen kein `data-key`
-  (Alt+←/→ nimmt weiter die Links im Kopf des Editors).
-- `fragments/editor.html` endet in beiden Ansichten mit `<span data-widget="band-dock" hidden></span>`. Das Widget
-  `band-dock` (band.ts) leert beim Einhängen `div[data-band-dock]` und hängt die Leiste des gezeigten Editors hinein
-  (Vorschau: nur leeren); der Kopf trägt dann `data-docked`. Weil `mount` die Widgets in Dokumentreihenfolge
-  einhängt, haben sich `wysiwyg`, `ribbon` und `context-menu` vorher mit ihrem Editor verbunden.
-- Welcher Teil sichtbar ist, regelt `band.css` über `header.band[data-tab]`. Die Felder zeichnen keinen Kasten
-  (`display: contents`): Gruppen und Andockplatz stehen in einer Zeile, der Andockplatz zwischen „Ansicht des
-  Textes“ und „Einfälle“ (`order`).
-- Nachgezogen in den Widgets: `widgets.ts` – `editToolbar(root)` findet die Leiste am Blatt oder im Andockplatz
-  (wysiwyg.ts nutzt es für den Umschalter Satzbild/Quelltext), `submitButton` überspringt die Knöpfe der Leiste
-  (maßgeblich bleibt „Speichern“ der Statuszeile), `lockEditor` sperrt auch den Andockplatz; `workspace.ts` lauscht
-  für `a[data-nav]` am Dokument (Umschalter und ‹ › stehen im Kopf); `sheet.ts` merkt die Cursorstelle für „Bild“
-  über einen Lauscher am Dokument; `ribbon.ts` lässt die Pfeiltasten nur über erreichbare Knöpfe wandern.
-- „Prüfen“/„Vorschlag“ (`[data-band-assist]`) lösen den gleichnamigen Knopf von `form.assist-form` rechts aus;
-  „Speichern“ im Band speichert nicht, solange der Knopf der Statuszeile gesperrt ist (nichts geändert).
-- Ohne JavaScript bleibt die Leiste verborgen am Blatt (wie bisher: Textfeld und Statuszeile); der Reiter Einfügen
-  zeigt dann einen Hinweis (`nojs-only`) mit den Links „Bild einfügen …“ (`#bild-einfuegen`) und „Markierung …“.
+  `data-widget="context-menu"`, `data-ctx-action`, `data-index-*`). The ‹ › links in the ribbon carry no `data-key`
+  (Alt+←/→ still takes the links in the head of the editor).
+- `fragments/editor.html` ends in both views with `<span data-widget="band-dock" hidden></span>`. The widget
+  `band-dock` (band.ts) empties `div[data-band-dock]` when mounted and puts the bar of the shown editor into it
+  (preview: only empty); the header then carries `data-docked`. Because `mount` mounts the widgets in document order,
+  `wysiwyg`, `ribbon` and `context-menu` have connected to their editor before.
+- Which part is visible is controlled by `band.css` via `header.band[data-tab]`. The panels draw no box
+  (`display: contents`): groups and docking place stand in one row, the docking place between „Ansicht des Textes“
+  and „Einfälle“ (`order`).
+- Updated in the widgets: `widgets.ts` – `editToolbar(root)` finds the bar at the sheet or in the docking place
+  (wysiwyg.ts uses it for the switch typeset view/source), `submitButton` skips the buttons of the bar („Speichern“ of
+  the status line stays decisive), `lockEditor` also locks the docking place; `workspace.ts` listens for `a[data-nav]`
+  on the document (switch and ‹ › stand in the header); `sheet.ts` remembers the cursor position for „Bild“ via a
+  listener on the document; `ribbon.ts` lets the arrow keys move only over reachable buttons.
+- „Prüfen“/„Vorschlag“ (`[data-band-assist]`) trigger the button of the same name of `form.assist-form` on the right;
+  „Speichern“ in the ribbon does not save as long as the button of the status line is disabled (nothing changed).
+- Without JavaScript the bar stays hidden at the sheet (as before: text field and status line); the tab „Einfügen“
+  then shows a hint (`nojs-only`) with the links „Bild einfügen …“ (`#bild-einfuegen`) and „Markierung …“.
 
-### Widgets `band` und `band-dock` (`web/src/band.ts`)
+### Widgets `band` and `band-dock` (`web/src/band.ts`)
 
-- Reiter nach dem ARIA-Muster für Tabs: Klick wechselt ohne Neuladen, ←/→ (mit Umlauf) und Pos1/Ende wandern und
-  wählen, nur der gewählte Reiter steht in der Tab-Folge.
-- Klick auf den gewählten Reiter oder auf den Schalter klappt das Band (`data-band` an `<html>`, Cookie
-  `baruch_band`); zugeklappt zeigt ein Reiter sein Feld vorübergehend über dem Inhalt (`data-band-peek` am Kopf) –
-  Esc, ein Klick daneben oder ein ausgelöster Eintrag blendet es aus.
-- Gruppen: voll alle offen, die Beschriftung ist kein Schalter; kompakt (`data-compact` an `<html>`) Popups – nur
-  eines offen, Esc und Klick daneben schließen. band.ts misst nie Breiten; es reagiert auf das Ereignis
-  `baruch:laptop` (laptop.ts) mit `syncGroups`.
-- Stil `static/band.css`: nur die Attribute an `<html>` (`data-compact`, `data-band`), keine Media-Queries; nur
-  Farbvariablen aus `app.css`; Hilfsklassen `js-only`/`nojs-only`.
+- Tabs after the ARIA pattern for tabs: a click switches without reloading, ←/→ (with wrap-around) and Home/End move
+  and select, only the selected tab is in the tab order.
+- A click on the selected tab or on the switch collapses the ribbon (`data-band` on `<html>`, cookie `baruch_band`);
+  when collapsed, a tab shows its panel temporarily over the content (`data-band-peek` on the header) – Esc, a click
+  beside it or a triggered entry hides it.
+- Groups: full, all open, the label is not a switch; compact (`data-compact` on `<html>`) popups – only one open, Esc
+  and a click beside it close. band.ts never measures widths; it reacts to the event `baruch:laptop` (laptop.ts) with
+  `syncGroups`.
+- Style `static/band.css`: only the attributes on `<html>` (`data-compact`, `data-band`), no media queries; only colour
+  variables from `app.css`; helper classes `js-only`/`nojs-only`.
 
-Tests: Unit-Tests in `src/band.rs`; `tests/round33_menueband.rs` (Band je Seitenart, `?tab=`, `?band=` mit Cookie,
-Maskierung, Zuordnung aller alten Einträge, Abzeichen, Fragment des Editors, Verhalten der Widgets im Node-Nachbau,
-Szene „band“ in `tests/round23_web/widgets.mjs`).
+Tests: unit tests in `src/band.rs`; `tests/round33_menueband.rs` (ribbon per page kind, `?tab=`, `?band=` with cookie,
+escaping, mapping of all old entries, badges, fragment of the editor, behaviour of the widgets in the Node mock, scene
+"band" in `tests/round23_web/widgets.mjs`).
 
-### Laptop-Modus (Runde 33)
+### Laptop mode (Round 33)
 
-Eine Quelle der Wahrheit: **Attribute an `<html>`**. Der Server schreibt sie beim Ausliefern, das Widget hält sie
-im Browser aktuell, CSS und andere Widgets lesen nur sie. Es gibt für die Modi **keine Media-Query auf die
-Fensterbreite** – sonst gäbe es zwei Wahrheiten, sobald der Mensch „An“ oder „Aus“ wählt.
+One source of truth: **attributes on `<html>`**. The server writes them when delivering, the widget keeps them current
+in the browser, CSS and other widgets only read them. There is **no media query on the window width** for the modes –
+otherwise there would be two truths as soon as the human chooses „An“ or „Aus“.
 
-| Attribut | Bedeutung | gesetzt, wenn |
+| Attribute | Meaning | set when |
 |---|---|---|
-| `data-laptop="auto\|on\|off"` | Wahl des Menschen | immer |
-| `data-compact` | Band kompakt | `on`, oder `auto` und Breite `m`/`s` |
-| `data-narrow` | schmal: beide Seitenspalten sind Leisten | `on`, oder `auto` und Breite `s` |
-| `data-rail-left` | Gliederung eingeklappt | schmal, oder von Hand (`lrail`) |
-| `data-rail-right` | rechte Spalte eingeklappt | schmal, oder von Hand (`rrail`) |
-| `data-drawer="left\|right"` | Schublade offen (nur laptop.ts, nie vom Server) | solange die Schublade offen ist |
+| `data-laptop="auto\|on\|off"` | choice of the human | always |
+| `data-compact` | ribbon compact | `on`, or `auto` and width `m`/`s` |
+| `data-narrow` | narrow: both side columns are rails | `on`, or `auto` and width `s` |
+| `data-rail-left` | outline collapsed | narrow, or by hand (`lrail`) |
+| `data-rail-right` | right column collapsed | narrow, or by hand (`rrail`) |
+| `data-drawer="left\|right"` | drawer open (only laptop.ts, never from the server) | as long as the drawer is open |
 
 #### Server: `src/laptop.rs`
 
-- `LaptopState::from_request(cookie_header, query)` liest den Zustand: Schlüssel der Adresse `laptop`
-  (`auto|on|off`), `lrail`, `rrail` (`0|1`) gelten **vor** den Cookies `baruch_laptop` (`on|off`, fehlt =
-  automatisch), `baruch_lrail`, `baruch_rrail` (`1`, fehlt = sichtbar). Die Breitenklasse kommt nur aus dem Cookie
-  `baruch_vw` (`w|m|s`, fehlt = breit). Ungültige Werte werden übergangen; steht ein Schlüssel mehrfach in der
-  Adresse, gilt der letzte gültige (das Band hängt seine Schlüssel hinten an).
-- `compact()`, `narrow()`, `rail_left()`, `rail_right()` sind die Formel aus der Tabelle; `html_attrs()` schreibt
-  sie in fester Reihenfolge und **nur aus festen Zeichenketten** – nichts aus Adresse oder Cookie gelangt in die
-  Seite.
-- `set_cookies(query)` liefert fertige `Set-Cookie`-Werte für gültige Schlüssel der Adresse
-  (`…; Path=/; Max-Age=31536000; SameSite=Lax`); die Vorgaben (`laptop=auto`, `lrail=0`, `rrail=0`) löschen das
-  Cookie (`Max-Age=0`).
-- Schwellen: `COMPACT_BELOW_PX = 1600`, `NARROW_BELOW_PX = 1280`; `Width::from_px` ordnet zu.
-- Verdrahtung: `consent::inject` (Schicht über allen HTML-Antworten) bildet den Zustand vor `next.run`,
-  `band::apply` setzt `html_attrs()` an der Marke ` data-band-fill` ein, die Cookies werden an die Antwort
-  **angehängt** (`/` setzt schon `baruch_work`). Keine neue Route, keine RPC-Methode, keine Migration.
+- `LaptopState::from_request(cookie_header, query)` reads the state: keys of the address `laptop` (`auto|on|off`),
+  `lrail`, `rrail` (`0|1`) apply **before** the cookies `baruch_laptop` (`on|off`, missing = automatic),
+  `baruch_lrail`, `baruch_rrail` (`1`, missing = visible). The width class comes only from the cookie `baruch_vw`
+  (`w|m|s`, missing = wide). Invalid values are skipped; if a key occurs several times in the address, the last valid
+  one counts (the ribbon appends its keys at the end).
+- `compact()`, `narrow()`, `rail_left()`, `rail_right()` are the formula from the table; `html_attrs()` writes them in
+  a fixed order and **only from fixed strings** – nothing from address or cookie gets into the page.
+- `set_cookies(query)` returns finished `Set-Cookie` values for valid keys of the address
+  (`…; Path=/; Max-Age=31536000; SameSite=Lax`); the defaults (`laptop=auto`, `lrail=0`, `rrail=0`) delete the cookie
+  (`Max-Age=0`).
+- Thresholds: `COMPACT_BELOW_PX = 1600`, `NARROW_BELOW_PX = 1280`; `Width::from_px` maps.
+- Wiring: `consent::inject` (layer over all HTML responses) builds the state before `next.run`, `band::apply` inserts
+  `html_attrs()` at the marker ` data-band-fill`, the cookies are **appended** to the response (`/` already sets
+  `baruch_work`). No new route, no RPC method, no migration.
 
 #### Browser: `web/src/laptop.ts`
 
-- Hängt sich beim Laden selbst am `document` ein (Seiten ohne Arbeitsfläche haben kein Element dafür); das Widget
-  `laptop` bleibt registriert und löst dasselbe aus.
-- Misst `window.innerWidth` beim Laden und bei `resize` (gebündelt über `requestAnimationFrame`), schreibt die
-  Klasse ins Cookie `baruch_vw` und setzt die Attribute nach derselben Formel (`effective`, `htmlAttrs`). Die
-  Schwellen stehen als `COMPACT_BELOW_PX`/`NARROW_BELOW_PX` auch im Skript; `tests/round33_laptop.rs` vergleicht
-  sie und alle 36 Kombinationen der Formel mit der Rust-Seite.
-- **Ereignis `baruch:laptop`** am `document`, `detail: {compact, narrow}`: einmal beim Laden, danach bei jedem
-  Wechsel von `compact` oder `narrow`. band.ts klappt danach seine Gruppen. Das Ereignis beim Laden geht hinaus,
-  bevor Widgets eingehängt sind – wer es braucht, liest beim Einhängen zusätzlich die Attribute an `<html>`.
-  laptop.ts fasst die Gruppen des Bands nie an; band.ts misst nie Breiten.
-- Klicks (ein Hörer am `document`): `[data-laptop-set]` (Modus, Cookie `baruch_laptop`), `[data-rail-toggle]`
-  (Schalter im Band), `[data-rail-open]` (Leiste), `[data-rail-collapse]` („Einklappen“ in der Spalte),
-  `[data-rail-close]` („Schließen“, Fläche neben der Schublade). Das Widget pflegt `aria-pressed` der Schalter
-  (Leiste sichtbar = gedrückt) und die Adresse des Rückfall-Links (`lrail=0|1`). Gibt es die Spalte auf der Seite
-  nicht, bleibt der Link ein gewöhnlicher Link.
-- Schublade: im schmalen Zustand `data-drawer` an `<html>`; Fokus in die Spalte, Esc und „Schließen“ geben ihn
-  dem Auslöser zurück, ein Klick daneben schließt ohne Fokuswechsel, die Wahl eines Abschnitts (`a.tree-entry`)
-  schließt die Gliederung. Nicht schmal klappen Leiste und Schalter die Spalte dauerhaft (Cookies `baruch_lrail`,
-  `baruch_rrail`).
-- `web/src/zoom.ts`: `[data-zoom-reset]` setzt alle Zonen zurück und löscht `baruch_zoom`.
+- Attaches itself to the `document` when loading (pages without a workspace have no element for it); the widget
+  `laptop` stays registered and triggers the same.
+- Measures `window.innerWidth` when loading and on `resize` (bundled via `requestAnimationFrame`), writes the class
+  into the cookie `baruch_vw` and sets the attributes by the same formula (`effective`, `htmlAttrs`). The thresholds
+  also stand in the script as `COMPACT_BELOW_PX`/`NARROW_BELOW_PX`; `tests/round33_laptop.rs` compares them and all 36
+  combinations of the formula with the Rust side.
+- **Event `baruch:laptop`** on the `document`, `detail: {compact, narrow}`: once when loading, then on every change of
+  `compact` or `narrow`. band.ts then folds its groups. The event at load goes out before widgets are mounted – whoever
+  needs it additionally reads the attributes on `<html>` when mounting. laptop.ts never touches the groups of the
+  ribbon; band.ts never measures widths.
+- Clicks (one listener on the `document`): `[data-laptop-set]` (mode, cookie `baruch_laptop`), `[data-rail-toggle]`
+  (switch in the ribbon), `[data-rail-open]` (rail), `[data-rail-collapse]` („Einklappen“ in the column),
+  `[data-rail-close]` („Schließen“, area beside the drawer). The widget maintains `aria-pressed` of the switches (rail
+  visible = pressed) and the address of the fallback link (`lrail=0|1`). If the column does not exist on the page,
+  the link stays an ordinary link.
+- Drawer: in the narrow state `data-drawer` on `<html>`; focus into the column, Esc and „Schließen“ give it back to
+  the trigger, a click beside it closes without a focus change, choosing a section (`a.tree-entry`) closes the
+  outline. When not narrow, rail and switch collapse the column permanently (cookies `baruch_lrail`, `baruch_rrail`).
+- `web/src/zoom.ts`: `[data-zoom-reset]` resets all zones and deletes `baruch_zoom`.
 
-#### Markup und Stil
+#### Markup and style
 
-- `templates/workspace.html`: zwischen den Spalten je eine Leiste `a.rail[data-rail-open]` (`href="#pane-tree"`
-  bzw. `#pane-assistants`) und die Fläche `a.rail-scrim` (`href="#pane-editor"`). Die Spalten bleiben erstes und
-  letztes Kind des Rasters, weil das Widget `splitter` sie so misst. `id="pane-tree"`, `id="pane-editor"`,
-  `id="pane-assistants"`, die Splitter und alle `data-zoom-zone` sind unverändert.
-- `templates/fragments/tree.html`, `assistants.html`: oben die Zeile `div.rail-bar` mit „Einklappen“
-  (`?lrail=1` bzw. `?rrail=1`) und „Schließen“ (`#pane-editor`). Sie steht in den Fragmenten, weil `ui.render`
-  den Inhalt der Spalten ersetzt.
-- `static/app.css`: Grundgerüst (Raster, Leisten im Ruhezustand verborgen). Die Regeln der alten Kopfzeile
-  (`.topbar`) und die beiden Breiten-Media-Queries (Kopfzeile unter 1000 px, Spalten untereinander unter 900 px)
-  sind entfallen.
-- `static/laptop.css` (in `STYLE` zuletzt): alles an `data-compact`, `data-narrow`, `data-rail-*` außerhalb des
-  Bands. Ohne JavaScript öffnet `:target` die Schublade (`html:not(.js)…:target`); mit JavaScript gelten diese
-  Regeln nicht, damit eine Adresse mit `#pane-tree` die Schublade nicht offen hält. Die Fläche daneben braucht
-  ohne JavaScript `:has()`; fehlt das im Browser, bleibt „Schließen“.
+- `templates/workspace.html`: between the columns one rail each `a.rail[data-rail-open]` (`href="#pane-tree"` or
+  `#pane-assistants`) and the area `a.rail-scrim` (`href="#pane-editor"`). The columns stay first and last child of
+  the grid, because the widget `splitter` measures them that way. `id="pane-tree"`, `id="pane-editor"`,
+  `id="pane-assistants"`, the splitters and all `data-zoom-zone` are unchanged.
+- `templates/fragments/tree.html`, `assistants.html`: at the top the row `div.rail-bar` with „Einklappen“ (`?lrail=1`
+  or `?rrail=1`) and „Schließen“ (`#pane-editor`). It stands in the fragments because `ui.render` replaces the content
+  of the columns.
+- `static/app.css`: basic frame (grid, rails hidden in the resting state). The rules of the old header (`.topbar`) and
+  the two width media queries (header below 1000 px, columns stacked below 900 px) are gone.
+- `static/laptop.css` (last in `STYLE`): everything on `data-compact`, `data-narrow`, `data-rail-*` outside the
+  ribbon. Without JavaScript `:target` opens the drawer (`html:not(.js)…:target`); with JavaScript these rules do not
+  apply, so that an address with `#pane-tree` does not keep the drawer open. The area beside it needs `:has()` without
+  JavaScript; if the browser lacks it, „Schließen“ remains.
 
-#### Grenzen
+#### Limits
 
-- Ohne JavaScript fehlt `baruch_vw`: „Automatisch“ zeichnet breit, der Mensch stellt „An“.
-- Beim allerersten Aufruf mit JavaScript kennt der Server die Breite ebenfalls noch nicht; die Seite kommt breit
-  und wird vom Widget sofort umgestellt (ein kurzer Sprung, danach stimmt das Cookie).
-- Das Cookie `baruch_vw` gilt je Browser, nicht je Fenster: Zwei verschieden breite Fenster überschreiben es
-  gegenseitig; das Widget stellt jedes Fenster nach dem Laden richtig.
+- Without JavaScript `baruch_vw` is missing: „Automatisch“ draws wide, the human sets „An“.
+- On the very first call with JavaScript the server does not know the width yet either; the page comes wide and is
+  switched over by the widget immediately (a short jump, afterwards the cookie is right).
+- The cookie `baruch_vw` applies per browser, not per window: two windows of different widths overwrite it in turn;
+  the widget sets each window right after loading.
 
-## Runde 32 – Word und Beenden
+## Round 32 – Word and quitting
 
-Neues Crate `baruch-docx` (rein, ohne Datenbank und Netz; `zip` 9 nur mit `deflate`, `quick-xml` 0.42) mit dem
-gemeinsamen Modell (`model.rs`), Fehlern, Grenzen (`limits.rs`) und den festgelegten Namen von OOXML (`ooxml.rs`).
-Leser (`read`, `resolve`, `to_typst`) und Schreiber (`from_typst`, `diff`, `write`) sind dateigetrennt; beide
-kennen nur das Modell. Im Server stehen `docx_import/`, `docx_export/` und `shutdown.rs`. Keine Migration.
+New crate `baruch-docx` (pure, without database and network; `zip` 9 only with `deflate`, `quick-xml` 0.42) with the
+common model (`model.rs`), errors, limits (`limits.rs`) and the fixed names of OOXML (`ooxml.rs`). Reader (`read`,
+`resolve`, `to_typst`) and writer (`from_typst`, `diff`, `write`) are in separate files; both know only the model. In
+the server stand `docx_import/`, `docx_export/` and `shutdown.rs`. No migration.
 
-### Runde 32 – Word-Import (docx_import)
+### Round 32 – Word import (docx_import)
 
-**Crate `baruch-docx`, Leserseite** (rein, ohne Datenbank und Netz):
+**Crate `baruch-docx`, reader side** (pure, without database and network):
 
-- `read::read(bytes, &Limits) -> ReadDocx { document, warnings }` – `read/pack.rs` öffnet das ZIP (Größe der Datei,
-  Zahl der Einträge, erklärte Größen vor dem Entpacken; jeder Eintrag über `take(Grenze + 1)`, die Summe des wirklich
-  Entpackten zählt mit; Namen mit `..`, führendem `/`, Rückstrich oder Laufwerk → `Unsafe`; OLE-Anfang → `NotDocx`
-  „altes .doc oder verschlüsselt“) und löst Beziehungen auf (Ziel außerhalb des Archivs ohne `TargetMode="External"`
-  → `Unsafe`; externe Ziele werden nie abgerufen, ein nur verknüpftes Bild ergibt `docx_bild_extern`).
-  `read/xml.rs` baut je Teil einen kleinen Baum mit quick-xml: DTD → `Unsafe`, nur die fünf festen Entitäten und
-  Zeichenverweise werden aufgelöst, Tiefe und Elementzahl begrenzt. Elemente heißen wie in der Datei (`w:p`) –
-  Annahme: die üblichen Präfixe. `read/body.rs` bildet den Textkörper auf das Modell ab: Rolle der Absatzvorlage
-  (ID `Heading N`, Name „heading N“/„Überschrift N“, `basedOn`, `w:outlineLvl` in Vorlage oder Absatz, die
-  Baruch-Vorlagen aus `ooxml.rs`), Läufe mit Zeichenformaten, `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo` als
-  `Inline::Tracked`, Änderung der Absatzmarke als `mark`, Fußnoten/Endnoten inline, Kommentarbereiche, Links,
-  Bilder (DrawingML und VML; Medientyp aus den ersten Bytes), Listen über `numbering.xml`, Tabellen, Typst-Inseln
-  (`w:sdt` mit `w:tag="baruch-typst"`: der mit `w:vanish` verborgene Text ist der Quelltext, Absätze sind Zeilen).
-  Warnungen je Code einmal mit der Zahl der Stellen.
-- `resolve::resolve(document, View)` löst die Änderungsverfolgung auf (`Original`, `Final`, `FinalBy(name)`); eine
-  nicht angewandte eingefügte Absatzmarke lässt den Absatz im folgenden aufgehen, eine angewandte gelöschte lässt ihn
-  den folgenden aufnehmen. `change_authors` nennt die Bearbeiter in der Reihenfolge des ersten Auftretens.
-  `proposal_view(document, name)` ist `FinalBy` mit den Überschriften des Originals und liefert `HeadingChange`
-  (`before` leer = eingefügt, `after` leer = gelöscht; `section` zählt wie `to_typst` am Original, ein Vorspann vor
-  der ersten Überschrift ist Abschnitt 0).
-- `to_typst::to_typst(document) -> TypstOut { sections, warnings }` schreibt je Abschnitt Typst in den Formen des
-  Markdown-Imports (Text maskiert, Auszeichnung als Funktion, `#quote(block: true, attribution: […])[…]`, Listen mit
-  `-`/`+`, `#table(…)`, `#figure(image("…", alt: "…"), caption: […])`) und sammelt je Abschnitt die Kommentar-Anker
-  (kommentierter Wortlaut). Text vor der ersten Überschrift wird ein Abschnitt mit leerem Titel.
+- `read::read(bytes, &Limits) -> ReadDocx { document, warnings }` – `read/pack.rs` opens the ZIP (size of the file,
+  number of entries, declared sizes before unpacking; every entry via `take(Grenze + 1)`, the sum of what is really
+  unpacked is counted too; names with `..`, a leading `/`, a backslash or a drive → `Unsafe`; OLE start → `NotDocx`
+  „altes .doc oder verschlüsselt“) and resolves relationships (a target outside the archive without
+  `TargetMode="External"` → `Unsafe`; external targets are never fetched, an image that is only linked yields
+  `docx_bild_extern`). `read/xml.rs` builds a small tree per part with quick-xml: DTD → `Unsafe`, only the five fixed
+  entities and character references are resolved, depth and number of elements limited. Elements are named as in the
+  file (`w:p`) – assumption: the usual prefixes. `read/body.rs` maps the text body onto the model: role of the
+  paragraph style (ID `Heading N`, name "heading N"/„Überschrift N“, `basedOn`, `w:outlineLvl` in style or paragraph,
+  the Baruch styles from `ooxml.rs`), runs with character formats, `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo` as
+  `Inline::Tracked`, change of the paragraph mark as `mark`, footnotes/endnotes inline, comment ranges, links, images
+  (DrawingML and VML; media type from the first bytes), lists via `numbering.xml`, tables, Typst islands (`w:sdt` with
+  `w:tag="baruch-typst"`: the text hidden with `w:vanish` is the source, paragraphs are lines). Warnings once per code
+  with the number of places.
+- `resolve::resolve(document, View)` resolves the change tracking (`Original`, `Final`, `FinalBy(name)`); an inserted
+  paragraph mark that is not applied merges the paragraph into the following one, an applied deleted one makes it
+  take in the following one. `change_authors` names the editors in the order of their first occurrence.
+  `proposal_view(document, name)` is `FinalBy` with the headings of the original and returns `HeadingChange`
+  (`before` empty = inserted, `after` empty = deleted; `section` counts like `to_typst` on the original, front matter
+  before the first heading is section 0).
+- `to_typst::to_typst(document) -> TypstOut { sections, warnings }` writes per section Typst in the forms of the
+  Markdown import (text escaped, markup as functions, `#quote(block: true, attribution: […])[…]`, lists with
+  `-`/`+`, `#table(…)`, `#figure(image("…", alt: "…"), caption: […])`) and collects per section the comment anchors
+  (commented wording). Text before the first heading becomes a section with an empty title.
 
-**Server `docx_import`** (`src/docx_import/mod.rs`, `draft.rs`, `pages.rs`, Vorlage `docx_import.html`):
+**Server `docx_import`** (`src/docx_import/mod.rs`, `draft.rs`, `pages.rs`, template `docx_import.html`):
 
-- `prepare(bytes) -> Prepared` (rein, in `spawn_blocking`): liest, schreibt das Original als Abschnitte, legt je
-  Bearbeiter den Vorschlagsstand auf die Abschnitte des Originals (nur abweichende Abschnitte zählen), ordnet
-  Kommentare ihren Abschnitten zu (zuerst am Original, sonst am Stand eines Bearbeiters) und sammelt die Warnungen.
-- `preview` legt den Entwurf ab (`draft.rs`, gehalten wie `pdf_import/draft.rs`: 32 Hex, 20 Stück, 24 Stunden);
-  `apply` liest die abgelegte Datei neu und ruft `apply_prepared`:
-  1. Werk über `import::import_generated` (ein Commit „Import aus <datei>“, Bilder als `ImportAsset`),
-  2. unter der Schreibsperre je Bearbeiter und Abschnitt `Store::add_proposal(…, "@word:<name>", "word", Notiz)` –
-     der Text ist die aktuelle Fassung mit ersetztem Abschnittstext, die Überschriftszeile bleibt wörtlich –, danach
-     `mirror::side_refs_after_proposal` (Seitenzweige `refs/revisions/<key>/<n>` mit Persona und Modell),
-  3. Beiträge über `Store::add_post` (geänderte Überschriften, Kommentare mit `TextRef` auf Fassung 1, Antworten
-     direkt hinter ihrem Kommentar).
-  Nie `set_current`: Fassung 1 bleibt die aktuelle. Ein Fehler in 2 oder 3 wird als Warnung gemeldet, das Werk
-  bleibt.
-- `cli_import` teilt `prepare`/`apply_prepared`; ohne `--uebernehmen` wird nichts geschrieben.
+- `prepare(bytes) -> Prepared` (pure, in `spawn_blocking`): reads, writes the original as sections, puts the proposal
+  state of each editor onto the sections of the original (only differing sections count), assigns comments to their
+  sections (first on the original, otherwise on the state of an editor) and collects the warnings.
+- `preview` stores the draft (`draft.rs`, kept like `pdf_import/draft.rs`: 32 hex, 20 pieces, 24 hours); `apply`
+  reads the stored file anew and calls `apply_prepared`:
+  1. work via `import::import_generated` (one commit „Import aus <datei>“, images as `ImportAsset`),
+  2. under the write lock per editor and section `Store::add_proposal(…, "@word:<name>", "word", Notiz)` – the text
+     is the current revision with the section text replaced, the heading line stays literal –, then
+     `mirror::side_refs_after_proposal` (side branches `refs/revisions/<key>/<n>` with persona and model),
+  3. posts via `Store::add_post` (changed headings, comments with `TextRef` on revision 1, answers directly after their
+     comment).
+  Never `set_current`: revision 1 stays the current one. An error in 2 or 3 is reported as a warning, the work stays.
+- `cli_import` shares `prepare`/`apply_prepared`; without `--uebernehmen` nothing is written.
 
-**Annahmen (ohne echtes Word geprüft):** Die Tests bauen ihre Word-Dateien selbst nach ECMA-376 und `ooxml.rs`; eine
-von Microsoft Word oder LibreOffice geschriebene Datei wurde nicht gelesen. Angenommen ist insbesondere: Präfixe wie
-oben; Antworten auf Kommentare über `commentsExtended.xml` (`w15:paraIdParent` ↔ `w14:paraId` des Kommentarabsatzes);
-die Träger der Typst-Insel wie in `ooxml.rs` beschrieben (mehrzeiliger Quelltext als mehrere verborgene Absätze oder
-mit `w:br`).
+**Assumptions (checked without a real Word):** the tests build their Word files themselves according to ECMA-376 and
+`ooxml.rs`; a file written by Microsoft Word or LibreOffice was not read. Assumed in particular: prefixes as above;
+answers to comments via `commentsExtended.xml` (`w15:paraIdParent` ↔ `w14:paraId` of the comment paragraph); the
+carriers of the Typst island as described in `ooxml.rs` (multi-line source as several hidden paragraphs or with
+`w:br`).
 
-### Word-Export (`baruch-docx` Schreiber, `baruch-server/src/docx_export`)
+### Word export (`baruch-docx` writer, `baruch-server/src/docx_export`)
 
-Der Weg vom Werk zur Datei hat drei reine Stufen im Crate `baruch-docx` und eine lesende im Server:
+The way from the work to the file has three pure stages in the crate `baruch-docx` and one reading stage in the
+server:
 
-1. **`from_typst(body, image_paths)`** (`from_typst.rs`, `from_typst/args.rs`): liest einen Abschnitt mit
-   `baruch_wysiwyg::parse` und bildet die Blöcke auf das Modell ab. Abbildungen (`#figure(image(…))`, `#image(…)`)
-   werden `Block::Figure` mit wörtlichem `raw`, einfache Tabellen `Block::Table`, `#pagebreak()` `Block::PageBreak`.
-   Alles andere wird `Block::Typst`/`Inline::Typst` mit wörtlichem Quelltext und sichtbarem Ersatz (Warnung
-   `docx_typst_insel`); Unsichtbares (Label, Registermarke, Kommentar) geht ohne Warnung als Insel ohne Sichtbares
-   mit, Querverweise mit ihrem Text.
-2. **`track_changes(current, proposed, change)`** (`diff.rs`): richtet die Blöcke über die längste gemeinsame
-   Teilfolge aus, ordnet in jeder Lücke ähnliche Blöcke gleicher Art einander zu (Anteil gemeinsamer Wörter) und
-   vergleicht sie wortweise; übrige Blöcke sind ganz neu oder entfallen ganz (`mark` an der Absatzmarke, Inhalt in
-   `Inline::Tracked`). Zusage: Einfügungen behalten und Löschungen entfernt = Vorschlag, umgekehrt = aktuelle
-   Fassung (Ausnahmen siehe Kopf von `diff.rs`: leeres Tabellengitter, Seitenumbrüche).
-3. **`write(document, options)`** (`write.rs`, `write/body.rs`, `write/styles.rs`, `write/image.rs`): schreibt das
-   Archiv in fester Reihenfolge mit festen ZIP-Zeiten (deterministisch): `[Content_Types].xml`, `_rels/.rels`,
-   `docProps/app.xml`, `docProps/core.xml`, `word/document.xml` samt Beziehungen, `styles.xml`, `settings.xml`,
-   `numbering.xml`, `footnotes.xml` (bei Verweisen in Fußnoten mit eigenen Beziehungen), `comments.xml` (nur mit
-   Kommentaren), Bilder unter `word/media/imageN.<endung>`. XML-verbotene Zeichen werden durch U+FFFD ersetzt.
-4. **`docx_export::build`** (Server): liest Werkangaben, alle Fassungen (`Store::load_work`, Zeitpunkte aus
-   `Store::revision_tree`), Bilder (`Store::export_assets`, nur PNG/JPEG/GIF) und – mit Vorschlägen – die Marken
-   „bis hierhin“ (`Store::work_revision_folds`). Offen ist ein Vorschlag mit Status „vorgeschlagen“, der nicht nach
-   `baruch_core::revision_fold::is_hidden` ausgeblendet ist. Es gibt nur lesende Zugriffe; das Packen läuft in
-   `spawn_blocking`.
+1. **`from_typst(body, image_paths)`** (`from_typst.rs`, `from_typst/args.rs`): reads a section with
+   `baruch_wysiwyg::parse` and maps the blocks onto the model. Figures (`#figure(image(…))`, `#image(…)`) become
+   `Block::Figure` with literal `raw`, simple tables `Block::Table`, `#pagebreak()` `Block::PageBreak`. Everything
+   else becomes `Block::Typst`/`Inline::Typst` with literal source and a visible substitute (warning
+   `docx_typst_insel`); invisible things (label, index mark, comment) go along without a warning as an island without
+   anything visible, cross-references with their text.
+2. **`track_changes(current, proposed, change)`** (`diff.rs`): aligns the blocks via the longest common subsequence,
+   pairs similar blocks of the same kind in every gap (share of common words) and compares them word by word; the
+   remaining blocks are completely new or dropped completely (`mark` on the paragraph mark, content in
+   `Inline::Tracked`). Promise: insertions kept and deletions removed = proposal, the other way round = current
+   revision (exceptions see the head of `diff.rs`: empty table grid, page breaks).
+3. **`write(document, options)`** (`write.rs`, `write/body.rs`, `write/styles.rs`, `write/image.rs`): writes the
+   archive in a fixed order with fixed ZIP times (deterministic): `[Content_Types].xml`, `_rels/.rels`,
+   `docProps/app.xml`, `docProps/core.xml`, `word/document.xml` including relationships, `styles.xml`,
+   `settings.xml`, `numbering.xml`, `footnotes.xml` (with references in footnotes with relationships of its own),
+   `comments.xml` (only with comments), images under `word/media/imageN.<endung>`. Characters forbidden in XML are
+   replaced by U+FFFD.
+4. **`docx_export::build`** (server): reads work details, all revisions (`Store::load_work`, points in time from
+   `Store::revision_tree`), images (`Store::export_assets`, only PNG/JPEG/GIF) and – with proposals – the markers
+   „bis hierhin“ (`Store::work_revision_folds`). Open is a proposal with status „vorgeschlagen“ that is not hidden by
+   `baruch_core::revision_fold::is_hidden`. There are only reading accesses; packing runs in `spawn_blocking`.
 
-Festlegungen des Schreibers über `ooxml.rs` hinaus (für den Leser und die Rundreise):
+Decisions of the writer beyond `ooxml.rs` (for the reader and the round trip):
 
-- Der Pfad eines Bildes im Werk steht in `wp:docPr name`, der Alternativtext in `descr`.
-- Eine Abbildung mit `raw` steht in einem Inhaltssteuerelement `baruch-typst` (verborgener Quelltext, dann Bild und
-  Unterschrift) – für den Leser also eine Insel mit `raw`, was beim Zurücklesen den wörtlichen Quelltext ergibt.
-- Geordnete Listen: die erste mit Beginn 1 benutzt `NUM_DECIMAL`, jede weitere eine eigene `w:num` (ab 3) auf
-  derselben abstrakten Nummerierung mit `w:startOverride` – sonst zählte Word über alle Listen des Buchs weiter.
-- Verfolgte Änderungen stehen um jeden Lauf einzeln (`w:ins`/`w:del`), eine verfolgte Insel als
-  `w:ins`/`w:del` um das `w:sdt`. Die Absatzmarke der Zitatquelle und der Bildunterschrift gilt als verfolgt, wenn
-  ihr ganzer Inhalt eine Änderung derselben Art ist.
-- Fußnotentext beginnt wie in Word mit einem Leerzeichen hinter dem Fußnotenzeichen.
-- Untertitel steht zusätzlich in `dc:subject`, das Impressum in `dc:description`.
+- The path of an image in the work stands in `wp:docPr name`, the alternative text in `descr`.
+- A figure with `raw` stands in a content control `baruch-typst` (hidden source, then image and caption) – for the
+  reader therefore an island with `raw`, which yields the literal source when read back.
+- Ordered lists: the first one starting at 1 uses `NUM_DECIMAL`, every further one a `w:num` of its own (from 3) on
+  the same abstract numbering with `w:startOverride` – otherwise Word would keep counting across all lists of the book.
+- Tracked changes stand around each run separately (`w:ins`/`w:del`), a tracked island as `w:ins`/`w:del` around the
+  `w:sdt`. The paragraph mark of the quotation source and of the caption counts as tracked if its whole content is a
+  change of the same kind.
+- Footnote text begins as in Word with a space after the footnote mark.
+- The subtitle additionally stands in `dc:subject`, the imprint in `dc:description`.
 
-### Beenden (`shutdown.rs`)
+### Quitting (`shutdown.rs`)
 
-- `crates/baruch-server/src/shutdown.rs` – Beenden (Runde 32).
-  - `Shutdown` (in `AppState::shutdown`): Auslöser auf einem `watch`-Kanal; einmal verlangt, bleibt verlangt.
-  - `own_machine(hosts, peer, headers)`: wahr nur, wenn die Gegenstelle (`ConnectInfo`) bekannt und Loopback ist
-    (`to_canonical`, damit `::ffff:127.0.0.1` zählt), `guard::via_proxy` verneint und `Host` fehlt oder
-    `guard::allowed_host` erfüllt. `guard.rs` blieb unberührt.
-  - `serve` → `serve_until(listener, state, grace, signal)`: `axum::serve(…)` mit
-    `into_make_service_with_connect_info::<SocketAddr>()` und `with_graceful_shutdown` auf das erste von Signal
-    (`shutdown/signals.rs`) und `Shutdown::requested()`. Danach nimmt der Server keine Verbindung mehr an,
-    ruhende Verbindungen schließen, laufende Anfragen werden beantwortet. Eine zweite Zukunft wartet ab dem
-    Auslöser die Frist (`GRACE` = 10 s) ab; ist dann noch eine Verbindung offen, wird nicht länger gewartet
-    (Meldung auf stderr). Zuletzt `store.pool().close()` (höchstens `CLOSE_WAIT` = 5 s): SQLite schreibt das
-    Protokoll (`-wal`) zurück. `serve` schreibt dann „Baruch beendet.“; `main` kehrt zurück, Status 0.
-  - `shutdown/signals.rs` (nur `tokio`, einzeln übersetzbar): Strg+C überall; Unix `SIGTERM`; Windows
-    `ctrl_break`, `ctrl_close`, `ctrl_shutdown` – die letzten beiden mit Frist `WINDOWS_CLOSE_GRACE` = 3 s, weil
-    Windows den Prozess kurz nach dem Ereignis selbst beendet. Kein `SIGHUP` (ein Empfänger höbe `nohup` auf).
-  - Seiten: eigene Template-Umgebung (`base.html`, `shutdown.html`, `shutdown_done.html`). Die Abschlussseite
-    ist in sich geschlossen (Stil inline, einziges Skript `window.close()`), weil der Server danach nichts mehr
-    liefert. `POST /beenden` antwortet zuerst und löst `REPLY_DELAY` = 500 ms später aus.
-  - Kein Widget, keine `.ts`-Datei: Das Inline-Skript der Abschlussseite genügt.
-- Tests: `src/shutdown.rs` (Auslöser, Tabelle zu `own_machine`), `tests/round32_beenden.rs` (Seiten am echten
-  Server im Testprozess, echter Prozess mit Knopf/SIGTERM/Strg+C, Starter mit Attrappen in abgeschlossenem
-  `PATH`, Units, Workflows).
-- CI: `pages.yml` und `release.yml` trennen `pages-build` und `pages-deploy`; Regel 11 in
-  `scripts/ci-check-workflows.sh`, Gegenproben in `scripts/ci-selftest.sh`.
+- `crates/baruch-server/src/shutdown.rs` – quitting (Round 32).
+  - `Shutdown` (in `AppState::shutdown`): trigger on a `watch` channel; once requested, it stays requested.
+  - `own_machine(hosts, peer, headers)`: true only if the peer (`ConnectInfo`) is known and loopback (`to_canonical`,
+    so that `::ffff:127.0.0.1` counts), `guard::via_proxy` says no and `Host` is missing or satisfies
+    `guard::allowed_host`. `guard.rs` stayed untouched.
+  - `serve` → `serve_until(listener, state, grace, signal)`: `axum::serve(…)` with
+    `into_make_service_with_connect_info::<SocketAddr>()` and `with_graceful_shutdown` on the first of signal
+    (`shutdown/signals.rs`) and `Shutdown::requested()`. After that the server accepts no more connections, idle
+    connections close, running requests are answered. A second future waits for the grace period (`GRACE` = 10 s) from
+    the trigger on; if a connection is still open then, it waits no longer (message on stderr). Finally
+    `store.pool().close()` (at most `CLOSE_WAIT` = 5 s): SQLite writes back the log (`-wal`). `serve` then writes
+    „Baruch beendet.“; `main` returns, status 0.
+  - `shutdown/signals.rs` (only `tokio`, compilable on its own): Ctrl+C everywhere; Unix `SIGTERM`; Windows
+    `ctrl_break`, `ctrl_close`, `ctrl_shutdown` – the last two with the grace period `WINDOWS_CLOSE_GRACE` = 3 s,
+    because Windows ends the process itself shortly after the event. No `SIGHUP` (a receiver would cancel `nohup`).
+  - Pages: a template environment of their own (`base.html`, `shutdown.html`, `shutdown_done.html`). The final page is
+    self-contained (style inline, the only script `window.close()`), because the server delivers nothing afterwards.
+    `POST /beenden` answers first and triggers `REPLY_DELAY` = 500 ms later.
+  - No widget, no `.ts` file: the inline script of the final page is enough.
+- Tests: `src/shutdown.rs` (trigger, table for `own_machine`), `tests/round32_beenden.rs` (pages on the real server in
+  the test process, real process with button/SIGTERM/Ctrl+C, launcher with dummies in a closed `PATH`, units,
+  workflows).
+- CI: `pages.yml` and `release.yml` separate `pages-build` and `pages-deploy`; rule 11 in
+  `scripts/ci-check-workflows.sh`, counter-checks in `scripts/ci-selftest.sh`.
 
-Bekannte Grenze: Läuft beim Beenden noch ein blockierender Auftrag (`spawn_blocking`, etwa ein Typst-Satz),
-wartet die Tokio-Laufzeit beim Verlassen von `main` auf ihn – das Ende kann sich dann über die Frist hinaus
-verzögern. Die Datenbank ist zu diesem Zeitpunkt bereits geschlossen. Nicht mit einem Test belegt.
+Known limit: if a blocking job (`spawn_blocking`, say a Typst typesetting) is still running when quitting, the Tokio
+runtime waits for it when leaving `main` – the end can then be delayed beyond the grace period. The database is
+already closed at that point. Not proven by a test.
 
-### Integration (Runde 32)
+### Integration (Round 32)
 
-- **Nahtstelle Leser/Schreiber:** Beide Seiten entstanden getrennt gegen `model.rs` und `ooxml.rs`. Die Rundreise
-  (`crates/baruch-docx/tests/roundtrip.rs` am Modell, `tests/round32_abnahme.rs` über den Server) fand drei Lücken,
-  alle im Leser bzw. in `to_typst` behoben:
-  - `w:lvlOverride`/`w:startOverride` an `w:num` gilt als erste Nummer der Liste (`read.rs`, `Numbering::overrides`) –
-    so schreibt der Schreiber jede weitere Aufzählung, und so beginnt auch Word eine Liste neu.
-  - Eine Aufzählung, die nicht bei 1 beginnt, trägt in `to_typst` an jedem Punkt ihre Nummer („3.“, „4.“ …,
-    geschachtelt ab 1). „3.“ gefolgt von „+“ versteht Typst, `baruch-wysiwyg` läse es aber als zwei Listen.
-  - Der Pfad eines Bildes im Werk kommt aus `wp:docPr name` zurück, wenn der Name wie ein Pfad aussieht
-    (`read/body.rs`, `work_path`: relativ, ohne `..`, Endung passend zum Inhalt); Bilder im sichtbaren Teil einer
-    Typst-Insel werden mitgelesen (`island_images`), weil der Quelltext der Insel sie nennt.
-- **Signale vor „Baruch läuft“:** `signals::system_signal()` richtet die Empfänger (Unix: `SIGINT`, `SIGTERM`) beim
-  Aufruf ein, nicht erst beim ersten Warten; `main` ruft es vor der Zeile „Baruch läuft“ und reicht die Zukunft an
-  `shutdown::serve_with(listener, state, signal)` (`serve` = `serve_with` mit `system_signal()`). Vorher beendete ein
-  `SIGTERM` unmittelbar nach dieser Zeile den Prozess hart (Test `sigterm_ends_the_throwaway_server_with_exit_0`).
-- **`main.rs`:** Nach erfolgreichem `shutdown::serve_with` endet `main` mit `std::process::exit(0)`, damit ein noch
-  laufender blockierender Auftrag das Ende nicht über die Frist hinaus verzögert (die Datenbank ist dann schon
-  geschlossen, die Schlusszeile ausgegeben).
-- **Wächter `round33_seiten`:** Die drei neuen Vorlagen (`docx_import.html`, `docx_export.html`, `shutdown.html`)
-  stehen in `TEMPLATES`.
-- **Offen:** `commentsExtended.xml` schreibt der Schreiber nicht (Antworten stehen als eigene Kommentare, der Server
-  schreibt ohnehin keine); die privat gehaltenen Konstanten des Schreibers (`NS_APP`, `PART_FOOTNOTES_RELS`,
-  `STYLE_HYPERLINK`, `STYLE_COMMENT_TEXT`, `STYLE_COMMENT_REFERENCE`) sind nicht nach `ooxml.rs` gezogen; Zitate im
-  Text stehen in Word ohne Anführungszeichen; SVG und WebP werden nicht eingebettet.
+- **Seam reader/writer:** both sides were created separately against `model.rs` and `ooxml.rs`. The round trip
+  (`crates/baruch-docx/tests/roundtrip.rs` on the model, `tests/round32_abnahme.rs` through the server) found three
+  gaps, all fixed in the reader or in `to_typst`:
+  - `w:lvlOverride`/`w:startOverride` on `w:num` counts as the first number of the list (`read.rs`,
+    `Numbering::overrides`) – that is how the writer writes every further numbered list, and that is also how Word
+    restarts a list.
+  - A numbered list that does not begin at 1 carries its number on every item in `to_typst` („3.“, „4.“ …, nested
+    from 1). Typst understands "3." followed by "+", but `baruch-wysiwyg` would read it as two lists.
+  - The path of an image in the work comes back from `wp:docPr name` if the name looks like a path (`read/body.rs`,
+    `work_path`: relative, without `..`, extension matching the content); images in the visible part of a Typst island
+    are read too (`island_images`), because the source of the island names them.
+- **Signals before „Baruch läuft“:** `signals::system_signal()` sets up the receivers (Unix: `SIGINT`, `SIGTERM`) on
+  the call, not only at the first wait; `main` calls it before the line „Baruch läuft“ and passes the future to
+  `shutdown::serve_with(listener, state, signal)` (`serve` = `serve_with` with `system_signal()`). Before, a `SIGTERM`
+  immediately after this line ended the process hard (test `sigterm_ends_the_throwaway_server_with_exit_0`).
+- **`main.rs`:** after a successful `shutdown::serve_with`, `main` ends with `std::process::exit(0)`, so that a
+  blocking job still running does not delay the end beyond the grace period (the database is then already closed, the
+  closing line printed).
+- **Guard `round33_seiten`:** the three new templates (`docx_import.html`, `docx_export.html`, `shutdown.html`) stand
+  in `TEMPLATES`.
+- **Open:** the writer does not write `commentsExtended.xml` (answers stand as comments of their own, the server writes
+  none anyway); the private constants of the writer (`NS_APP`, `PART_FOOTNOTES_RELS`, `STYLE_HYPERLINK`,
+  `STYLE_COMMENT_TEXT`, `STYLE_COMMENT_REFERENCE`) are not moved to `ooxml.rs`; quotations in the text stand in Word
+  without quotation marks; SVG and WebP are not embedded.
 
-## Runde 34 – Mindmap
+## Round 34 – Mind map
 
-Die Gedankenkarte (Runde 25) ist eine Mindmap wie in XMind geworden. Drei Zweige (`team/mindmap_daten`,
-`team/mindmap_widget`, `team/mindmap_austausch`) auf der Schnittstelle R34-S1, zusammengeführt mit `--no-ff` ohne
-Textkonflikte; die inhaltliche Naht war die **Wolke** (siehe „Integration“).
+The idea map (Round 25) has become a mind map as in XMind. Three branches (`team/mindmap_daten`,
+`team/mindmap_widget`, `team/mindmap_austausch`) on the interface R34-S1, merged with `--no-ff` without text conflicts;
+the seam in content was the **cloud** (see "Integration").
 
-### Wolke und Mindmap: eine Regel mit vier Plätzen
+### Cloud and mind map: one rule with four places
 
-Der Vertrag der Runde ließ Einfälle ohne Elternknoten und ohne Bezug als „freie Hauptthemen“ direkt am Werk hängen;
-die Wolke „Ohne Kapitel“ wäre entfallen. Nach dem Nachtrag des Nutzers vom 2026-11-25 („Es macht Sinn eine
-Verbindung zwischen der Wolke und der Mindmap zu machen“) gilt **eine Regel mit vier Plätzen**:
+The contract of the round let ideas without a parent node and without a reference hang directly on the work as „freie
+Hauptthemen“; the cloud „Ohne Kapitel“ would have been dropped. After the user's addition of 2026-11-25 („Es macht
+Sinn eine Verbindung zwischen der Wolke und der Mindmap zu machen“), **one rule with four places** applies:
 
-1. `parent` gesetzt → Unterknoten dieses Einfalls (gleiches Werk, kein Kreis, Kette höchstens 32 tief). Der Bezug
-   (`key`) bleibt daneben erlaubt und ist dann nur der Link zum Abschnitt.
-2. sonst `key` gesetzt → Kind des Ankers (nächster Vorfahre der Art Kapitel, sonst der Punkt selbst).
-3. sonst `main_topic` → **freies Hauptthema** direkt am Werk.
-4. sonst → **in der Wolke**: nicht im Baum, sondern in der Ablage neben der Mindmap.
+1. `parent` set → child node of this idea (same work, no cycle, chain at most 32 deep). The reference (`key`) stays
+   allowed beside it and is then only the link to the section.
+2. otherwise `key` set → child of the anchor (nearest ancestor of the kind chapter, otherwise the item itself).
+3. otherwise `main_topic` → **free main topic** directly on the work.
+4. otherwise → **in the cloud**: not in the tree, but in the tray beside the mind map.
 
-Dafür trägt `idea` eine vierte neue Spalte `main_topic` (0/1, Vorgabe 0); der Vertrag sah drei vor. Ohne sie ließe
-sich ein Einfall, den man aufs Werk zieht, nicht von einem Einfall ohne Platz unterscheiden. Folgen:
+For this `idea` carries a fourth new column `main_topic` (0/1, default 0); the contract planned three. Without it an
+idea that one drags onto the work could not be told apart from an idea without a place. Consequences:
 
-- **Bestehende Einfälle** ohne Bezug (heute Wolke „Ohne Kapitel“) liegen nach der Migration in der Wolke; Einfälle
-  mit Bezug hängen wie bisher an ihrem Kapitel. Nichts wird zum Hauptast, ohne dass jemand es dorthin zieht.
-- **Neue Einfälle ohne Platz** (Schnellerfassung Alt+E, Formular, RPC `idea.create` und MCP `idea_create` ohne
-  `parent`/`key`) landen in der Wolke.
-- **Aus der Wolke in die Mindmap:** `idea.move` mit `parent` (auf einen Einfall), mit `parent: null, key` (auf ein
-  Kapitel) oder mit `parent: null, key: null` bzw. `cloud: false` (aufs Werk, wird Hauptthema).
-- **Aus der Mindmap in die Wolke:** `idea.move` mit `cloud: true`. Der Einfall verliert Elternknoten und Bezug;
-  **seine Unterknoten bleiben an ihm** – der Teilbaum wandert als Ganzes in die Wolke. Begründung: kein Einfall
-  verliert dabei stillschweigend seinen Zusammenhang, die Aktion ist mit einem `idea.move` zurück umkehrbar
-  (Strg+Z des Widgets), und „nur er“ hieße, seine Kinder ungefragt an den Großelternknoten zu hängen. Wer nur den
-  einen Einfall lösen will, zieht vorher die Unterknoten woandershin.
-- **Zähler:** `cloud.count` („n in der Wolke“) zählt die Einfälle der obersten Ebene der Wolke ohne Filter,
-  `cloud.count_with_children` samt ihren Unterknoten.
-- **Nähe als Hilfe:** `cloud.hints` nennt je Einfall der Wolke höchstens einen Vorschlag „passt zu Ast …“ – den
-  nächsten Einfall in der Mindmap (gespeicherte Einbettungen und gleiche Schlagwörter wie auf der Karte, nie eine
-  neue Einbettung) und den Hauptast, in dem er hängt. Die Vorschläge werden auch berechnet, wenn der Filter die
-  Nähe-Linien im Bild ausschaltet.
-- **Wiederherstellen** eines Einfalls, dessen Elternknoten noch gelöscht ist: Er bleibt an seinem Bezug bzw. liegt
-  in der Wolke (`detached: true`), nicht als Hauptthema am Werk.
-- **Baum-Import** (`tree::import` ohne `parent`): Die obersten Knoten werden freie Hauptthemen, nicht Einfälle der
-  Wolke – wer eine Mindmap einliest, will sie in der Mindmap sehen.
+- **Existing ideas** without a reference (today the cloud „Ohne Kapitel“) lie in the cloud after the migration; ideas
+  with a reference hang on their chapter as before. Nothing becomes a main branch without somebody dragging it there.
+- **New ideas without a place** (quick capture Alt+E, form, RPC `idea.create` and MCP `idea_create` without
+  `parent`/`key`) land in the cloud.
+- **From the cloud into the mind map:** `idea.move` with `parent` (onto an idea), with `parent: null, key` (onto a
+  chapter) or with `parent: null, key: null` or `cloud: false` (onto the work, becomes a main topic).
+- **From the mind map into the cloud:** `idea.move` with `cloud: true`. The idea loses parent node and reference; **its
+  child nodes stay with it** – the subtree moves into the cloud as a whole. Reason: no idea silently loses its context,
+  the action can be reversed with one `idea.move` back (Ctrl+Z of the widget), and "only it" would mean hanging its
+  children on the grandparent node without asking. Whoever wants to detach only the one idea drags the child nodes
+  elsewhere first.
+- **Counters:** `cloud.count` („n in der Wolke“) counts the top-level ideas of the cloud without a filter,
+  `cloud.count_with_children` including their child nodes.
+- **Proximity as help:** `cloud.hints` names per idea of the cloud at most one suggestion „passt zu Ast …“ – the
+  nearest idea in the mind map (stored embeddings and equal keywords as on the map, never a new embedding) and the
+  main branch it hangs in. The suggestions are computed even if the filter switches off the proximity lines in the
+  picture.
+- **Restoring** an idea whose parent node is still deleted: it stays at its reference or lies in the cloud
+  (`detached: true`), not as a main topic on the work.
+- **Tree import** (`tree::import` without `parent`): the top nodes become free main topics, not ideas of the cloud –
+  whoever reads in a mind map wants to see it in the mind map.
 
-### Daten (Migration 0052, Store)
+### Data (migration 0052, store)
 
-Migration `0052_idea_tree.sql` (nur `ADD COLUMN`, nicht in `FOREIGN_KEYS_OFF`):
+Migration `0052_idea_tree.sql` (only `ADD COLUMN`, not in `FOREIGN_KEYS_OFF`):
 
 ```sql
 ALTER TABLE idea ADD COLUMN title TEXT NOT NULL DEFAULT '' CHECK (length(title) <= 200);
@@ -5270,39 +5306,39 @@ ALTER TABLE idea ADD COLUMN main_topic INTEGER NOT NULL DEFAULT 0 CHECK (main_to
 CREATE INDEX idea_parent ON idea(parent_id, position);
 ```
 
-Regeln im Store (`crates/baruch-store/src/ideas.rs`):
+Rules in the store (`crates/baruch-store/src/ideas.rs`):
 
-- **Titel:** höchstens 200 Zeichen, eine Zeile, darf leer sein. Ein Einfall braucht Titel **oder** mindestens ein
-  Schlagwort. Angezeigter Titel (`Idea::display_title`): der Titel, sonst die Schlagwörter „a, b“, sonst der Anfang
-  des Gedankens, sonst „Einfall <id>“ – nie leer. Der Titel steht im Volltextindex (`idea_fts`, Spalte `words`).
-- **Elternknoten:** nicht gelöschter Einfall desselben Werks; kein Kreis; Kette höchstens 32 Einfälle
-  (`MAX_IDEA_DEPTH`). Einfälle ohne Werk haben keinen Elternknoten.
-- **Reihenfolge:** `position`, dann `id`, unter Geschwistern (gleicher Elternknoten bzw. alle Einfälle des Werks
-  ohne Elternknoten). Neue kommen ans Ende; „vor ein Geschwister“ (`before`) nummeriert die Geschwister lückenlos
-  ab 1 neu, ohne deren `updated` anzufassen. Bestehende Einfälle tragen 0 und ordnen sich nach `id`; solange unter
-  einem Elternknoten nichts geordnet wurde, behalten auch neue die 0 (im Austausch dann ohne `platz` – ein Werk ohne
-  geordneten Baum gibt dieselbe Datei aus wie vor Runde 34 und besteht auch das eingefrorene u8-Schema).
-- **Löschen** nimmt die nicht gelöschten Nachfahren mit **demselben Zeitstempel** mit; **Wiederherstellen** bringt
-  den Einfall und genau die Nachfahren mit diesem Zeitstempel zurück (früher einzeln Gelöschtes bleibt gelöscht).
-  Verbindungen (`idea_link`) und Lagen (`idea_map_pos`) bleiben dabei gespeichert.
-- **Werkwechsel** (`idea.update` mit `work`): Der Einfall löst sich vom Elternknoten und liegt im neuen Werk in der
-  Wolke; seine Unterknoten bleiben im alten Werk und verlieren den Elternknoten (kein Baum über zwei Werke).
-- **Lagen** (`idea_map_pos`) bleiben gespeichert und im Austausch, sind in der Mindmap aber ohne Wirkung (die
-  Anordnung rechnet der Server aus dem Baum).
+- **Title:** at most 200 characters, one line, may be empty. An idea needs a title **or** at least one keyword.
+  Displayed title (`Idea::display_title`): the title, otherwise the keywords "a, b", otherwise the start of the
+  thought, otherwise „Einfall <id>“ – never empty. The title is in the full-text index (`idea_fts`, column `words`).
+- **Parent node:** a non-deleted idea of the same work; no cycle; chain at most 32 ideas (`MAX_IDEA_DEPTH`). Ideas
+  without a work have no parent node.
+- **Order:** `position`, then `id`, among siblings (same parent node or all ideas of the work without a parent node).
+  New ones go to the end; "before a sibling" (`before`) renumbers the siblings without gaps from 1, without touching
+  their `updated`. Existing ideas carry 0 and order themselves by `id`; as long as nothing was ordered under a parent
+  node, new ones keep the 0 too (in the exchange then without `platz` – a work without an ordered tree writes the same
+  file as before Round 34 and also passes the frozen u8 schema).
+- **Deleting** takes the non-deleted descendants along with **the same timestamp**; **restoring** brings back the idea
+  and exactly the descendants with this timestamp (what was deleted individually earlier stays deleted). Links
+  (`idea_link`) and positions (`idea_map_pos`) stay stored meanwhile.
+- **Change of work** (`idea.update` with `work`): the idea detaches from its parent node and lies in the cloud in the
+  new work; its child nodes stay in the old work and lose their parent node (no tree across two works).
+- **Positions** (`idea_map_pos`) stay stored and in the exchange, but have no effect in the mind map (the server
+  computes the layout from the tree).
 
-Spiegel `einfaelle.md`: Hat ein Werk mindestens einen Einfall mit Titel, Elternknoten oder Hauptthema, steht vor den
-Einträgen der Abschnitt `## Baum` – die Einfälle eingerückt nach Elternknoten, Geschwister nach `position`, dann
-`id`, oben mit dem Platz („(am Abschnitt key 12)“, „(Hauptthema)“, „(Wolke)“). Jeder Eintrag nennt zusätzlich
-`- Titel: …`, `- Unterknoten von: Einfall <id>` bzw. `- Platz: Hauptthema am Werk`. Ohne Baum bleibt die Datei
-byte-gleich wie vor Runde 34.
+Mirror `einfaelle.md`: if a work has at least one idea with a title, parent node or main topic, the section
+`## Baum` stands before the entries – the ideas indented by parent node, siblings by `position`, then `id`, at the top
+with the place („(am Abschnitt key 12)“, „(Hauptthema)“, „(Wolke)“). Every entry additionally names `- Titel: …`,
+`- Unterknoten von: Einfall <id>` or `- Platz: Hauptthema am Werk`. Without a tree the file stays byte-identical as
+before Round 34.
 
-Austauschformat: Unterversion 9, `<einfall>` mit `titel`, `eltern`, `platz`, `hauptthema` – siehe
+Exchange format: minor version 9, `<einfall>` with `titel`, `eltern`, `platz`, `hauptthema` – see
 `docs/Austauschformat.md` („Baum der Mindmap“).
 
-### Baum, Wolke und Import im Server (`idea_map/tree.rs`)
+### Tree, cloud and import in the server (`idea_map/tree.rs`)
 
-Die Signaturen aus S1.2 sind wörtlich geblieben (`MindMap`, `TreeNode`, `TreeKind`, `tree`, `ImportTree`, `import`,
-Konstanten). Neu daneben:
+The signatures from S1.2 stayed literally the same (`MindMap`, `TreeNode`, `TreeKind`, `tree`, `ImportTree`,
+`import`, constants). New beside them:
 
 ```rust
 pub struct CloudHint { pub idea: IdeaId, pub node: String, pub node_title: String,
@@ -5313,838 +5349,834 @@ pub async fn cloud(state: &AppState, work: WorkId, filter: &MapFilter) -> Result
 pub async fn tree_and_cloud(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<(MindMap, Cloud), RpcError>;
 ```
 
-- `tree` liefert Werk (`w`), Teile und Kapitel (`n:<key>`) in Gliederungsreihenfolge, danach die freien Hauptthemen
-  nach `position, id`; unter jedem Knoten erst die Gliederungspunkte, dann seine Einfälle nach `position, id`.
-  Einfälle der Wolke stehen **nicht** im Baum.
-- Filter `status`, `word`, `origin`: Ein Einfall, der nicht passt, bleibt als Geist (`ghost: true`, `hit: false`)
-  stehen, solange ein Nachfahre passt. `q` blendet nichts aus, es setzt `hit` (Volltext, auch über den Titel).
-- `MindMap::links` und `MindMap::near.pairs` nennen nur Einfälle, die im Baum stehen; `Cloud::links` die
-  Verbindungen mit mindestens einem Ende in der Wolke. `total_ideas` zählt die gezeigten Einfälle im Baum (ohne
-  Geister, ohne Wolke); `descendants` zählt je Knoten die Einfälle, die unter ihm im Baum stehen.
-- `Cloud::ideas` sind `TreeNode` der Art `idea` mit ihren Unterknoten in `children`; derselbe Filter gilt.
-- `import` legt den Baum in einer Transaktion an (Store `idea_import_tree`) und schreibt **einen** Commit „Mindmap
-  eingelesen: n Einfälle“ (`Baruch-Action: idea-import`) mit der übergebenen Herkunft. Abgelehnt (-32000, nichts
-  angelegt, kein Commit): kein Knoten, mehr als `MAX_IMPORT_NODES` (2000) Knoten, tiefer als `MAX_TREE_DEPTH` (32,
-  auch zusammen mit der Tiefe von `parent`), `parent` gelöscht oder in einem anderen Werk, Titel über 200 bzw. Notiz
-  über 4000 Zeichen, Schlagwörter über den Grenzen der Einfälle (höchstens 20, je 60 Zeichen), eine Verbindung mit
-  einem Pfad ohne Knoten. Ein Knoten ohne Titel und Schlagwort heißt „(ohne Titel)“; eine Verbindung eines Knotens
-  mit sich selbst wird übergangen. `ImportTree::title` steht im Rumpf des Commits, `warnings` werden nicht
-  gespeichert. Wer `import` ruft, kürzt Titel und Notizen vorher
-  (`files/import.rs`); der Import kürzt nicht, er lehnt ab.
+- `tree` returns the work (`w`), parts and chapters (`n:<key>`) in outline order, then the free main topics by
+  `position, id`; under each node first the outline items, then its ideas by `position, id`. Ideas of the cloud do
+  **not** stand in the tree.
+- Filters `status`, `word`, `origin`: an idea that does not match stays as a ghost (`ghost: true`, `hit: false`) as
+  long as a descendant matches. `q` hides nothing, it sets `hit` (full text, also over the title).
+- `MindMap::links` and `MindMap::near.pairs` name only ideas that stand in the tree; `Cloud::links` the links with at
+  least one end in the cloud. `total_ideas` counts the shown ideas in the tree (without ghosts, without the cloud);
+  `descendants` counts per node the ideas that stand below it in the tree.
+- `Cloud::ideas` are `TreeNode` of the kind `idea` with their child nodes in `children`; the same filter applies.
+- `import` creates the tree in one transaction (store `idea_import_tree`) and writes **one** commit „Mindmap
+  eingelesen: n Einfälle“ (`Baruch-Action: idea-import`) with the passed origin. Refused (-32000, nothing created, no
+  commit): no node, more than `MAX_IMPORT_NODES` (2000) nodes, deeper than `MAX_TREE_DEPTH` (32, also together with
+  the depth of `parent`), `parent` deleted or in another work, title over 200 or note over 4000 characters, keywords
+  over the limits of ideas (at most 20, 60 characters each), a link with a path without a node. A node without title
+  and keyword is called „(ohne Titel)“; a link of a node with itself is skipped. `ImportTree::title` stands in the body
+  of the commit, `warnings` are not stored. Whoever calls `import` shortens titles and notes beforehand
+  (`files/import.rs`); the import does not shorten, it refuses.
 
-- Knoten der Mindmap sind Zeilen der Tabelle `idea` – keine zweite Struktur. Der Store kennt die Regeln des Baums
-  (`idea_create_at`, `idea_move`, `idea_delete_tree`, `idea_restore_tree`, `idea_import_tree`, `idea_tree_rows`),
-  der Server setzt ihn mit der Gliederung zusammen (`idea_map::tree`), der Spiegel schreibt ihn in `einfaelle.md`.
-- Jede schreibende Aktion läuft unter der Schreibsperre und ergibt genau einen Commit mit Herkunft (`idea-create`,
+- Nodes of the mind map are rows of the table `idea` – no second structure. The store knows the rules of the tree
+  (`idea_create_at`, `idea_move`, `idea_delete_tree`, `idea_restore_tree`, `idea_import_tree`, `idea_tree_rows`), the
+  server combines it with the outline (`idea_map::tree`), the mirror writes it into `einfaelle.md`.
+- Every writing action runs under the write lock and yields exactly one commit with origin (`idea-create`,
   `idea-update`, `idea-move`, `idea-delete`, `idea-restore`, `idea-import`).
-- Die flache Karte (`idea_map::build`, RPC `idea.map`) bleibt als Abwärtsverträglichkeit; der Baum baut auf ihr auf
-  (Gliederung, Filter, Verbindungen, Nähe, Befunde) und liest die Einfälle zusätzlich ungefiltert, um Geister und
-  die Wolke zu bestimmen.
+- The flat map (`idea_map::build`, RPC `idea.map`) stays for backward compatibility; the tree builds on it (outline,
+  filters, links, proximity, findings) and additionally reads the ideas unfiltered to determine ghosts and the cloud.
 
-### Bild und Seite (`idea_map/bild/`)
+### Picture and page (`idea_map/bild/`)
 
-`bild/mod.rs` (Seite `/werke/{id}/karte`, Bild `/werke/{id}/karte/bild`, Filter), `bild/mindmap.rs` (Zeichnung),
-`bild/tree_layout.rs` (Anordnung, rein rechnerisch und deterministisch). Eine Anordnung, in Rust: Bildschirm und
-Ausgabe (`.svg`, `.pdf`) entstehen aus derselben Funktion `mindmap::render(map, options)`; das Widget ordnet nichts
-selbst an. `bild/layout.rs` und `bild/svg.rs` der alten Gedankenkarte sind gelöscht.
+`bild/mod.rs` (page `/werke/{id}/karte`, picture `/werke/{id}/karte/bild`, filters), `bild/mindmap.rs` (drawing),
+`bild/tree_layout.rs` (layout, purely computational and deterministic). One layout, in Rust: screen and output
+(`.svg`, `.pdf`) come from the same function `mindmap::render(map, options)`; the widget lays out nothing itself.
+`bild/layout.rs` and `bild/svg.rs` of the old idea map are deleted.
 
-- Bühne: `<div class="mm-stage" data-widget="mindmap" data-work data-bild data-back data-zu data-wahl
-  data-gliederung>`, darin `[data-mm-toolbar]`, `[data-mm-canvas]` mit `<svg class="mm-svg" data-cloud-count
-  data-zu>` und `<g class="mm-viewport">`, darunter `[data-mm-status]` (Live-Region). Zähler:
+- Stage: `<div class="mm-stage" data-widget="mindmap" data-work data-bild data-back data-zu data-wahl
+  data-gliederung>`, in it `[data-mm-toolbar]`, `[data-mm-canvas]` with `<svg class="mm-svg" data-cloud-count
+  data-zu>` and `<g class="mm-viewport">`, below that `[data-mm-status]` (live region). Counter:
   `[data-mm-cloud-count]`.
-- Reihenfolge im Viewport: Äste, Nähe, Beziehungen, Wolke, Knoten, zuletzt die Beschriftungen der Beziehungen
-  (`g.mm-link-labels`; sie liegen über den Knoten, damit nahe Knoten sie nicht verdecken – Integration).
-- Knoten: `<g class="mm-node mm-<work|part|chapter|idea>" data-node data-parent data-depth data-side="right|left"
-  data-branch="0..7" data-editable="1|0" data-title data-own tabindex="0">`; Einfälle `data-idea`, mit Bezug
-  `data-key`; mit Nachfahren `data-children="n"`; mit offenen Befunden `data-open-findings="k"`. Zusatzklassen: `mm-b<n>` (Astfarbe), `mm-main` (Hauptast),
-  `mm-done`, `mm-hit`, `mm-dim`, `mm-ghost`, `mm-closed`, `mm-many-findings`. Das Werk hat weder `data-side` noch
-  `data-branch`. Kinder: `<title>`, `rect.mm-box`, `text.mm-label` (in `a.mm-label-link`), `g.mm-note`,
-  `a.mm-section`, `a.mm-findings[data-open-findings]`, `a.mm-toggle[data-count]`.
-- Äste: `<path class="mm-edge mm-b<n>" data-from data-to>` (kubische Kurve, `stroke-width` 3.6 / 2.4 / 1.8 / 1.4).
-- Beziehungen: `<g class="mm-rel">` mit `<path class="mm-link mm-link-<kind>" data-link data-from="i:<a>"
-  data-to="i:<b>" data-end-from data-end-to>`; die Beschriftung ist `<text class="mm-link-label" data-link>` in
-  `g.mm-link-labels`. Widerspruch zusätzlich `mm-contradiction` an Gruppe, Pfad und Text. `data-end-*` nennt den
-  Knoten, an dem die Linie sichtbar endet.
-- Nähe: `<path class="mm-near" data-from data-to>` (nur mit `near`, nur zwischen Knoten des Baums).
-- Wolke: `<g class="mm-cloud" data-count>` mit `rect.mm-cloud-area` und `text.mm-cloud-head`; Kärtchen sind
-  `g.mm-node.mm-idea.mm-cloud-item[data-cloud="1"][data-parent="w"]` (welche Kinder der Wurzel in der Wolke
-  liegen, sagt `RenderOptions::cloud`; alle anderen sind Hauptäste), mit Vorschlag `data-fits="<Hauptast>"` und
-  `text.mm-cloud-hint.mm-b<n>`, mit Unterknoten `text.mm-cloud-below` („+ n“).
-- Eingeklappte Knoten zeichnen keine Nachfahren; `a.mm-toggle` zeigt „+ n“, sein `href` ist `?<Filter>&zu=<neue
-  Liste>`. Die Zahl zählt alle verborgenen Knoten (jede Art), nicht nur Einfälle.
-- **Fragment** (`standalone: false`): kein `xmlns`, kein `<style>`, keine Farbattribute – Farben über
-  `--mm-b0`…`--mm-b7` in `karte.css` (hell, dunkel nach System, dunkel nach Schalter). **Eigenständig**
-  (`standalone: true`, für `.svg`/`.pdf`): `xmlns`, eigener `<style>`, Farben als Attribute
-  (`mindmap::BRANCH_COLORS`), weißer Grund, keine Links (statt `<a>` ein `<g>` derselben Klasse).
-- Die Anordnung ist deterministisch; Textbreiten sind geschätzt (der Server kennt die Schrift des Browsers nicht),
-  Titel über 48 Zeichen werden im Bild gekürzt (voller Titel in `data-title` und im Tooltip).
+- Order in the viewport: branches, proximity, relations, cloud, nodes, last the labels of the relations
+  (`g.mm-link-labels`; they lie above the nodes so that nearby nodes do not hide them – integration).
+- Nodes: `<g class="mm-node mm-<work|part|chapter|idea>" data-node data-parent data-depth data-side="right|left"
+  data-branch="0..7" data-editable="1|0" data-title data-own tabindex="0">`; ideas `data-idea`, with a reference
+  `data-key`; with descendants `data-children="n"`; with open findings `data-open-findings="k"`. Extra classes:
+  `mm-b<n>` (branch colour), `mm-main` (main branch), `mm-done`, `mm-hit`, `mm-dim`, `mm-ghost`, `mm-closed`,
+  `mm-many-findings`. The work has neither `data-side` nor `data-branch`. Children: `<title>`, `rect.mm-box`,
+  `text.mm-label` (in `a.mm-label-link`), `g.mm-note`, `a.mm-section`, `a.mm-findings[data-open-findings]`,
+  `a.mm-toggle[data-count]`.
+- Branches: `<path class="mm-edge mm-b<n>" data-from data-to>` (cubic curve, `stroke-width` 3.6 / 2.4 / 1.8 / 1.4).
+- Relations: `<g class="mm-rel">` with `<path class="mm-link mm-link-<kind>" data-link data-from="i:<a>"
+  data-to="i:<b>" data-end-from data-end-to>`; the label is `<text class="mm-link-label" data-link>` in
+  `g.mm-link-labels`. Contradiction additionally `mm-contradiction` on group, path and text. `data-end-*` names the
+  node at which the line visibly ends.
+- Proximity: `<path class="mm-near" data-from data-to>` (only with `near`, only between nodes of the tree).
+- Cloud: `<g class="mm-cloud" data-count>` with `rect.mm-cloud-area` and `text.mm-cloud-head`; cards are
+  `g.mm-node.mm-idea.mm-cloud-item[data-cloud="1"][data-parent="w"]` (which children of the root lie in the cloud is
+  said by `RenderOptions::cloud`; all others are main branches), with a suggestion `data-fits="<Hauptast>"` and
+  `text.mm-cloud-hint.mm-b<n>`, with child nodes `text.mm-cloud-below` ("+ n").
+- Collapsed nodes draw no descendants; `a.mm-toggle` shows "+ n", its `href` is `?<Filter>&zu=<neue Liste>`. The
+  number counts all hidden nodes (of every kind), not only ideas.
+- **Fragment** (`standalone: false`): no `xmlns`, no `<style>`, no colour attributes – colours via
+  `--mm-b0`…`--mm-b7` in `karte.css` (light, dark by system, dark by switch). **Standalone** (`standalone: true`, for
+  `.svg`/`.pdf`): `xmlns`, its own `<style>`, colours as attributes (`mindmap::BRANCH_COLORS`), white background, no
+  links (instead of `<a>` a `<g>` of the same class).
+- The layout is deterministic; text widths are estimated (the server does not know the font of the browser), titles
+  over 48 characters are shortened in the picture (full title in `data-title` and in the tooltip).
 
 ### Widget `web/src/mindmap.ts`
 
-Ersetzt `idea_map.ts` (gelöscht). Es ordnet nichts selbst an: Nach jeder Aktion holt es `data-bild` mit Filter und
-`zu=` neu, setzt das SVG ein und behält Auswahl und Ausschnitt (`transform` auf `.mm-viewport`). RPC (nur diese,
-über `rpc.ts`): `idea.create`, `idea.update`, `idea.move`, `idea.delete`, `idea.restore`, `idea.link`,
-`idea.unlink`, `idea.link_restore`. Rückgängig ist die Umkehr-RPC der letzten Aktion (anlegen ↔ `idea.delete`,
-löschen ↔ `idea.restore`, umbenennen ↔ `idea.update` mit dem alten gespeicherten Titel aus `data-own`, umhängen ↔
-`idea.move` zurück an den alten Platz – `parent`, `key`, `before`, bei einem Kärtchen der Wolke `cloud: true`, bei
-einem Hauptthema `parent: null, key: null, cloud: false` –, verbinden ↔ `idea.unlink`, lösen ↔ `idea.link_restore`).
-Knöpfe im Menüband tragen `data-mm-action` (`child`, `sibling`, `rename`, `delete`, `link`, `cloud`, `undo`), Links
-mit `data-mm-zu` setzen die eingeklappten Knoten aus ihrem `href`.
+Replaces `idea_map.ts` (deleted). It lays out nothing itself: after every action it fetches `data-bild` anew with
+filter and `zu=`, inserts the SVG and keeps selection and viewport (`transform` on `.mm-viewport`). RPC (only these,
+via `rpc.ts`): `idea.create`, `idea.update`, `idea.move`, `idea.delete`, `idea.restore`, `idea.link`, `idea.unlink`,
+`idea.link_restore`. Undo is the reversing RPC of the last action (create ↔ `idea.delete`, delete ↔ `idea.restore`,
+rename ↔ `idea.update` with the old stored title from `data-own`, re-hang ↔ `idea.move` back to the old place –
+`parent`, `key`, `before`, for a card of the cloud `cloud: true`, for a main topic `parent: null, key: null, cloud:
+false` –, link ↔ `idea.unlink`, unlink ↔ `idea.link_restore`). Buttons in the ribbon carry `data-mm-action`
+(`child`, `sibling`, `rename`, `delete`, `link`, `cloud`, `undo`), links with `data-mm-zu` set the collapsed nodes
+from their `href`.
 
-`idea.delete` schickt das Widget mit `confirm: true` (die Rückfrage stellt es selbst). Aufs Werk gezogen bzw. Tab
-am Werk ergibt ein freies Hauptthema (`cloud: false`), in die Wolke gezogen `cloud: true`.
+The widget sends `idea.delete` with `confirm: true` (it asks the question itself). Dragged onto the work, or Tab on the
+work, yields a free main topic (`cloud: false`), dragged into the cloud `cloud: true`.
 
-### Ein- und Ausgabe, Gliederungsansicht (`idea_map/files/`)
+### Input and output, outline view (`idea_map/files/`)
 
-`crates/baruch-server/src/idea_map/files/` (Ein- und Ausgabe der Mindmap, Bedienung ohne JavaScript):
+`crates/baruch-server/src/idea_map/files/` (input and output of the mind map, use without JavaScript):
 
-- `mod.rs` – Routen (`pages()`, `writes()`), die Ausgaben, `POST /werke/{id}/karte/act`.
-- `export.rs` – Wolke und Hauptäste aus der Sicht `tree::Scene` (`cloud`, `placed`), das Blatt
-  (`Sheet`) als Vorstufe von `.mm`/`.xmind`, Markdown.
-- `freemind.rs`, `xmind.rs` – je Schreiber und Leser. `import.rs` – Grenzen, Reinigung, `Raw` → `ImportTree`
-  (`finish`, `check`). `upload.rs` – Formular, Vorschau, Bestätigung. `outline.rs` – Gliederungsansicht.
-- Vorlagen `karte_gliederung.html`, `karte_einlesen.html`; Stil `static/karte_gliederung.css` (nur Variablen aus
+- `mod.rs` – routes (`pages()`, `writes()`), the outputs, `POST /werke/{id}/karte/act`.
+- `export.rs` – cloud and main branches from the view `tree::Scene` (`cloud`, `placed`), the sheet (`Sheet`) as a
+  preliminary stage of `.mm`/`.xmind`, Markdown.
+- `freemind.rs`, `xmind.rs` – one writer and reader each. `import.rs` – limits, cleaning, `Raw` → `ImportTree`
+  (`finish`, `check`). `upload.rs` – form, preview, confirmation. `outline.rs` – outline view.
+- Templates `karte_gliederung.html`, `karte_einlesen.html`; style `static/karte_gliederung.css` (only variables from
   `app.css`).
 
-Sicherheit beim Einlesen: Upload höchstens 10 MiB (`DefaultBodyLimit` an der Route). Aus dem ZIP wird allein der
-Eintrag `content.json` gelesen (Namen als Bytes verglichen, nie als Pfad benutzt, nichts auf Platte entpackt); beim
-Entpacken wird mitgezählt und bei 20 MiB abgebrochen; Archive mit mehr als 50 Einträgen oder mit Namen, die aus dem
-Archiv herausführten (`..`, absoluter Pfad, Laufwerk, `\`), werden ganz abgelehnt. XML: eine DOCTYPE wird
-abgelehnt, Entitäten werden nicht aufgelöst (nur die fünf von XML, `nbsp`, Zeichenreferenzen); der Leser arbeitet
-mit eigenem Stapel und begrenzt Knotenzahl und Tiefe beim Lesen. Zwischen Vorschau und Bestätigung steht der Baum
-als JSON in einem verborgenen Formularfeld (keine Datei im Datenordner) und wird bei der Bestätigung erneut
-geprüft (`import::check`). Beide POST-Routen liegen hinter `guard::same_origin`.
+Security when reading in: upload at most 10 MiB (`DefaultBodyLimit` on the route). From the ZIP only the entry
+`content.json` is read (names compared as bytes, never used as a path, nothing unpacked to disk); while unpacking the
+bytes are counted and it aborts at 20 MiB; archives with more than 50 entries or with names that would lead out of the
+archive (`..`, absolute path, drive, `\`) are refused entirely. XML: a DOCTYPE is refused, entities are not resolved
+(only the five of XML, `nbsp`, character references); the reader works with its own stack and limits node count and
+depth while reading. Between preview and confirmation the tree stands as JSON in a hidden form field (no file in the
+data folder) and is checked again on confirmation (`import::check`). Both POST routes lie behind
+`guard::same_origin`.
 
-### Abweichungen vom Vertrag der Runde
+### Deviations from the contract of the round
 
-- **`idea.delete`:** Der Vertrag nennt „Antwort zusätzlich `deleted: [ids]`“. `deleted` ist seit Runde 7 `true`
-  (RPC und MCP, geprüft u. a. in `round23_geheimnisse.rs`); die Liste heißt darum **`deleted_ids`**, `deleted`
-  bleibt `true`.
-- **Ablehnungen von `idea.move` und `tree::import`** tragen den Code **-32000** (`rpc::REFUSED`, „abgelehnt“). Der
-  Vertrag schreibt -32001; das ist seit Runde 19c `RAG_UNAVAILABLE`.
-- **`MapIdea`** (Typ der flachen Karte) bekommt die Felder `title`, `parent`, `position` nicht am Typ, sondern in
-  der Antwort von `idea.map` und `idea_map` (dazu `main_topic`, `cloud`): Die eingefrorene Datei `bild/layout.rs`
-  baut `MapIdea` in ihren Tests von Hand und bräche sonst.
-- **`MindMap` unverändert:** Die Wolke ist kein Feld von `MindMap` (Handbau in fremden Tests bräche), sondern eine
-  zweite Funktion `tree::cloud` bzw. beide zusammen `tree::tree_and_cloud` (siehe 3).
-- **XSD:** Das Schema der Unterversion 9 liegt als neue Datei `docs/schema/baruch-werk-1-u9.xsd` neben den
-  eingefrorenen; `baruch-werk-1-u8.xsd` ist unverändert (SHA-256 im Test).
-- Dateinamen der Ausgaben heißen `<slug>-mindmap.*` (vorher `-karte.*`); die Adressen bleiben `/werke/{id}/karte.*`.
-- Ein Einfall eines anderen Werks im Formular der Mindmap ergibt 409 (vorher 422).
-- Das alte XMind-8-Format (nur `content.xml`) wird mit klarer Meldung abgelehnt, nicht gelesen.
+- **`idea.delete`:** the contract says „Antwort zusätzlich `deleted: [ids]`“. `deleted` is `true` since Round 7 (RPC
+  and MCP, checked among others in `round23_geheimnisse.rs`); the list is therefore called **`deleted_ids`**,
+  `deleted` stays `true`.
+- **Refusals of `idea.move` and `tree::import`** carry the code **-32000** (`rpc::REFUSED`, "refused"). The contract
+  writes -32001; that has been `RAG_UNAVAILABLE` since Round 19c.
+- **`MapIdea`** (type of the flat map) gets the fields `title`, `parent`, `position` not on the type, but in the answer
+  of `idea.map` and `idea_map` (plus `main_topic`, `cloud`): the frozen file `bild/layout.rs` builds `MapIdea` by hand
+  in its tests and would otherwise break.
+- **`MindMap` unchanged:** the cloud is not a field of `MindMap` (hand-built values in other tests would break), but a
+  second function `tree::cloud`, or both together `tree::tree_and_cloud` (see 3).
+- **XSD:** the schema of minor version 9 lies as a new file `docs/schema/baruch-werk-1-u9.xsd` beside the frozen ones;
+  `baruch-werk-1-u8.xsd` is unchanged (SHA-256 in the test).
+- File names of the outputs are called `<slug>-mindmap.*` (before `-karte.*`); the addresses stay
+  `/werke/{id}/karte.*`.
+- An idea of another work in the form of the mind map yields 409 (before 422).
+- The old XMind 8 format (only `content.xml`) is refused with a clear message, not read.
 
-### Integration (Runde 34)
+### Integration (Round 34)
 
-- **Die Naht „Wolke“.** mindmap_daten liefert die Wolke getrennt vom Baum (`tree::cloud`, `tree::tree_and_cloud`);
-  mindmap_widget und mindmap_austausch hatten gegen S1 angenommen, „Einfälle direkt an der Wurzel“ seien die Wolke.
-  Damit wären freie Hauptthemen als Kärtchen der Wolke gezeichnet worden und die echte Wolke gar nicht. Der
-  Integrator hat die Sicht **`tree::Scene`** eingeführt (`tree::scene`): Sie hängt die Einfälle der Wolke hinter den
-  Hauptästen an die Wurzel (damit `walk`/`find` sie kennen), nennt ihre Kennungen (`Scene::cloud`), den Zähler ohne
-  Filter (`cloud_count`) und die Vorschläge (`hints`), und fügt die Verbindungen mit einem Ende in der Wolke hinzu.
-  Seite, Bild, Gliederungsansicht und alle Ausgaben lesen nur noch diese Sicht; `RenderOptions` trägt dafür `cloud`,
-  `cloud_count` und `hints` (`RenderOptions::of(scene, standalone, closed)`), `tree_layout::layout_with` unterscheidet
-  Hauptäste und Kärtchen nach diesen Kennungen. RPC `idea.tree` und MCP `idea_tree` bleiben bei `{map, cloud}`.
-- **Hauptthema und Wolke in der Bedienung.** Widget: Tab am Werk und „aufs Werk ziehen“ schicken `cloud: false`
-  (freies Hauptthema), „in die Wolke“ `cloud: true`; die Umkehr für Strg+Z kennt beide Plätze. Formular
-  `POST /werke/{id}/karte/act`: `ziel=wolke` → `cloud: true`, `ziel=w` → Hauptthema, `ort=werk` beim Anlegen;
-  Gliederungsansicht mit „Neues Hauptthema“ und „Als Hauptthema ans Werk“. Einlesen ohne Zielknoten legt Hauptthemen
-  an (Texte der Vorlage angepasst).
-- **Gefunden beim Zusammenführen:** Das Widget rief `idea.delete` ohne `confirm: true` – der Server hätte jedes
-  Löschen (und das Rückgängig eines Anlegens) abgelehnt. Behoben, Test in `round34_abnahme`.
-- Vorschlag „passt zu Ast …“ in der Gliederungsansicht nennt den Hauptast mit Nummer (`export::node_title`).
-- Gelöscht: `bild/layout.rs`, `bild/svg.rs`, `bild::load`, `export::tree_order`, `web/src/idea_map.ts`, der S1-Text
-  `tree::NOT_YET`. `PdfKind::Map` heißt „Mindmap“. Alte Bildregeln `.im-*` in `static/karte.css` stehen noch (Filter,
-  Gruppen, Widersprüche und Legende der Seite benutzen einen Teil davon); ausmisten ist offen (Backlog).
-- Tests: `round34_abnahme.rs` (Bild und Aktionen des Widgets über RPC, Gliederungsansicht ohne JavaScript mit allen
-  Aktionen, MCP mit Herkunft, Rundreise `.mm`/`.xmind` in ein zweites Werk, alte Daten unverändert). Angepasste
-  fremde Tests: elf Rundreisen auf `version="9"`, `round25_abnahme`, `round25_bild`, `round18_menueband`,
-  `round28_abnahme`, `round28_uebersicht`, `round9_menu`, `round33_seiten` (zwei neue Vorlagen).
+- **The seam "cloud".** mindmap_daten delivers the cloud separately from the tree (`tree::cloud`,
+  `tree::tree_and_cloud`); mindmap_widget and mindmap_austausch had assumed against S1 that "ideas directly at the
+  root" were the cloud. Free main topics would then have been drawn as cards of the cloud and the real cloud not at
+  all. The integrator introduced the view **`tree::Scene`** (`tree::scene`): it hangs the ideas of the cloud on the
+  root after the main branches (so that `walk`/`find` know them), names their identifiers (`Scene::cloud`), the
+  counter without a filter (`cloud_count`) and the suggestions (`hints`), and adds the links with one end in the
+  cloud. Page, picture, outline view and all outputs read only this view now; `RenderOptions` carries `cloud`,
+  `cloud_count` and `hints` for it (`RenderOptions::of(scene, standalone, closed)`), `tree_layout::layout_with` tells
+  main branches and cards apart by these identifiers. RPC `idea.tree` and MCP `idea_tree` stay with `{map, cloud}`.
+- **Main topic and cloud in use.** Widget: Tab on the work and "drag onto the work" send `cloud: false` (free main
+  topic), "into the cloud" `cloud: true`; the reversal for Ctrl+Z knows both places. Form
+  `POST /werke/{id}/karte/act`: `ziel=wolke` → `cloud: true`, `ziel=w` → main topic, `ort=werk` when creating; outline
+  view with „Neues Hauptthema“ and „Als Hauptthema ans Werk“. Reading in without a target node creates main topics
+  (texts of the template adjusted).
+- **Found while merging:** the widget called `idea.delete` without `confirm: true` – the server would have refused
+  every deletion (and the undo of a creation). Fixed, test in `round34_abnahme`.
+- The suggestion „passt zu Ast …“ in the outline view names the main branch with its number (`export::node_title`).
+- Deleted: `bild/layout.rs`, `bild/svg.rs`, `bild::load`, `export::tree_order`, `web/src/idea_map.ts`, the S1 text
+  `tree::NOT_YET`. `PdfKind::Map` is called „Mindmap“. Old picture rules `.im-*` in `static/karte.css` still stand
+  (filters, groups, contradictions and legend of the page use part of them); clearing them out is open (backlog).
+- Tests: `round34_abnahme.rs` (picture and actions of the widget via RPC, outline view without JavaScript with all
+  actions, MCP with origin, round trip `.mm`/`.xmind` into a second work, old data unchanged). Adjusted tests of
+  others: eleven round trips to `version="9"`, `round25_abnahme`, `round25_bild`, `round18_menueband`,
+  `round28_abnahme`, `round28_uebersicht`, `round9_menu`, `round33_seiten` (two new templates).
 
-## Runde 35 – Konten und Rollen
+## Round 35 – Accounts and roles
 
-Konten, Passwort-Hash, Sitzungen und die Anmelde-Schicht (Modul `auth`), Rollen je Werk und die einzige Stelle der
-Rechteprüfung (Modul `roles`), Seiten und Menü (Modul `konten_ui`). Bedienung: `docs/Bedienung.md` („Konten und
-Rollen“), Betrieb: `docs/Betrieb.md` („Anmeldung und Konten“), Methoden und Routen: `docs/RPC.md` („Runde 35“).
+Accounts, password hash, sessions and the login layer (module `auth`), roles per work and the only place of the
+permission check (module `roles`), pages and menu (module `konten_ui`). Usage: `docs/Bedienung.md` (Round 35, accounts
+and roles), operation: `docs/Betrieb.md` (Round 35, login and accounts), methods and routes: `docs/RPC.md`
+(Round 35).
 
-- **Ohne Konten** (Tabelle `account` leer) bleibt Baruch offen wie vor Runde 35: `Who::Open`, kein Cookie, keine
-  Umleitung, keine zusätzliche Kopfzeile.
-- **Mit Konten** verlangen Seiten, Formulare und `/rpc` eine Sitzung – auch am eigenen Rechner (Vorgabe). `/mcp`
-  bleibt bei Tokens; die Schicht lässt `/mcp` unberührt.
-- Das erste Konto ist der Autor und entsteht nur am eigenen Rechner (`POST /einrichten`). Jedes weitere Konto ist
-  ein Lektor. Konten werden nie gelöscht (das Handle `@lektorat:<slug>` bleibt vergeben), nur gesperrt.
+- **Without accounts** (table `account` empty) Baruch stays open as before Round 35: `Who::Open`, no cookie, no
+  redirect, no additional header.
+- **With accounts** pages, forms and `/rpc` require a session – also on the own machine (default). `/mcp` stays with
+  tokens; the layer leaves `/mcp` untouched.
+- The first account is the author and is created only on the own machine (`POST /einrichten`). Every further account is
+  a Lektor. Accounts are never deleted (the handle `@lektorat:<slug>` stays taken), only locked.
 
-**Entscheidungen des PM** (der Nutzer kann sie umstoßen): Mit Konten gilt die Anmeldung auch am eigenen Rechner;
-die Ausnahme „Am eigenen Rechner ohne Anmeldung“ (`store_meta` `auth.local_open`) schaltet der Autor ein. Direkter
-Zugriff von anderen Rechnern bleibt gesperrt (`guard::remote_only_mcp` unverändert) – ein Lektor kommt über den
-Reverse-Proxy auf demselben Rechner. Kontoart global (`author` | `lektor`), Rolle je Werk. Für Lektoren ist alles
-verboten, was nicht ausdrücklich erlaubt ist. Konten und Freigaben sind Instanzdaten (nicht im Austauschformat, kein
-Commit im Spiegel). Kein neues MCP-Werkzeug.
+**Decisions of the PM** (the user can overturn them): with accounts, login also applies on the own machine; the
+exception „Am eigenen Rechner ohne Anmeldung“ (`store_meta` `auth.local_open`) is switched on by the author. Direct
+access from other machines stays blocked (`guard::remote_only_mcp` unchanged) – a Lektor comes in via the reverse
+proxy on the same machine. Account kind global (`author` | `lektor`), role per work. For Lektors everything is
+forbidden that is not explicitly allowed. Accounts and grants are instance data (not in the exchange format, no commit
+in the mirror). No new MCP tool.
 
-### Konten und Anmeldung (`auth`)
+### Accounts and login (`auth`)
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `baruch-store/src/accounts.rs` | Tabellen `account`, `account_session`, `login_attempt` (Migration 0053) und der Schalter `store_meta` `auth.local_open`. Der Store hasht nie und sieht nie ein Klartext-Passwort; `Account` trägt keinen Hash. |
-| `baruch-server/src/auth/mod.rs` | `Who`, `Identity`, `current()`/`scope()` (task-lokal), `AuthState` (gemerktes „es gibt Konten“), `accounts_exist`, `identity_of`, `check_name`, `message` |
-| `auth/gate.rs` | Schicht `gate` (im Router direkt außerhalb von `consent::inject`), `resolve`, `own_machine`, `peer` |
+| `baruch-store/src/accounts.rs` | tables `account`, `account_session`, `login_attempt` (migration 0053) and the switch `store_meta` `auth.local_open`. The store never hashes and never sees a plain-text password; `Account` carries no hash. |
+| `baruch-server/src/auth/mod.rs` | `Who`, `Identity`, `current()`/`scope()` (task-local), `AuthState` (remembered "there are accounts"), `accounts_exist`, `identity_of`, `check_name`, `message` |
+| `auth/gate.rs` | layer `gate` (in the router directly outside `consent::inject`), `resolve`, `own_machine`, `peer` |
 | `auth/password.rs` | Argon2id: `hash`, `hash_with`, `verify`, `policy`, `hash_blocking`, `verify_blocking`, `DUMMY_PHC` |
-| `auth/session.rs` | Token, Cookie, `current_hash()` (Sitzung der laufenden Anfrage, task-lokal) |
-| `auth/throttle.rs` | Sperre gegen Durchprobieren: `wait_seconds`, Bereiche, `reserve`/`succeeded` |
-| `auth/routes.rs` | Formulare (hinter `guard::same_origin`) und die gemeinsamen Bausteine `create_account`, `change_password`, `check_current`, `set_active` |
+| `auth/session.rs` | token, cookie, `current_hash()` (session of the running request, task-local) |
+| `auth/throttle.rs` | lock against brute force: `wait_seconds`, ranges, `reserve`/`succeeded` |
+| `auth/routes.rs` | forms (behind `guard::same_origin`) and the common building blocks `create_account`, `change_password`, `check_current`, `set_active` |
 | `auth/rpc.rs` | `account.*` |
-| `auth/cli.rs`, `main.rs` | Notweg `baruch-server passwort <name>` |
+| `auth/cli.rs`, `main.rs` | emergency path `baruch-server passwort <name>` |
 | `guard.rs` | `forwarded(headers)`, `FORWARDED_HEADERS` |
 
-**Ablauf einer Anfrage** (`auth::gate`): (1) `/mcp` läuft als `Who::Open` durch. (2) `Who` aus den Extensions der
-Anfrage (nur im Prozess setzbar: Tests), sonst `resolve`. (3) `Who::Anonymous`: `PUBLIC_PATHS` und `/static/js/…`
-laufen durch; GET/HEAD → 303 auf `/anmelden?next=<Pfad+Query, prozentkodiert>`; `POST /rpc` → 401 mit JSON-RPC-Fehler
-`-32002`; sonst 401 Text „Anmeldung erforderlich.“ (4) `roles::check_request`. (5) Die Anfrage läuft in
-`auth::scope(who, …)` und `session::scope(<Token-Hash>, …)`.
+**Course of a request** (`auth::gate`): (1) `/mcp` passes as `Who::Open`. (2) `Who` from the extensions of the request
+(settable only within the process: tests), otherwise `resolve`. (3) `Who::Anonymous`: `PUBLIC_PATHS` and
+`/static/js/…` pass; GET/HEAD → 303 to `/anmelden?next=<Pfad+Query, prozentkodiert>`; `POST /rpc` → 401 with JSON-RPC
+error `-32002`; otherwise 401 text „Anmeldung erforderlich.“ (4) `roles::check_request`. (5) The request runs in
+`auth::scope(who, …)` and `session::scope(<Token-Hash>, …)`.
 
-**`resolve`:** keine Konten → `Open`. Sonst: gültige Sitzung eines aktiven Kontos → `Account`; sonst Schalter
-„Am eigenen Rechner ohne Anmeldung“ an **und** `gate::own_machine` → `LocalAuthor`; sonst `Anonymous`. Ein
-Datenbankfehler führt nie zu mehr Rechten (er steht auf stderr, die Anfrage gilt als nicht angemeldet; ist schon
-die Zahl der Konten nicht lesbar, gilt „es gibt Konten“).
+**`resolve`:** no accounts → `Open`. Otherwise: a valid session of an active account → `Account`; otherwise the switch
+„Am eigenen Rechner ohne Anmeldung“ on **and** `gate::own_machine` → `LocalAuthor`; otherwise `Anonymous`. A database
+error never leads to more rights (it goes to stderr, the request counts as not logged in; if even the number of
+accounts cannot be read, "there are accounts" applies).
 
-**Eigener Rechner** (`gate::own_machine`, Entscheidung 0.2): `shutdown::own_machine` (Gegenstelle bekannt und
-Loopback, kein Proxy-Name, `Host` eine IP-Adresse oder `localhost`) **und** keine der Kopfzeilen `Forwarded`,
-`X-Forwarded-For`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Real-IP`, `Via` (`guard::forwarded`; schon das
-Vorhandensein zählt, der Inhalt wird nicht gelesen). Ohne `ConnectInfo`: nein. Sind Proxy-Namen erlaubt
-(`--allow-host`), gilt auch eine Anfrage ohne `Host` nicht als eigener Rechner.
+**Own machine** (`gate::own_machine`, decision 0.2): `shutdown::own_machine` (peer known and loopback, no proxy name,
+`Host` an IP address or `localhost`) **and** none of the headers `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`,
+`X-Forwarded-Proto`, `X-Real-IP`, `Via` (`guard::forwarded`; their mere presence counts, the content is not read).
+Without `ConnectInfo`: no. If proxy names are allowed (`--allow-host`), a request without `Host` does not count as the
+own machine either.
 
-**Antworten:** Mit Konten bekommt jede Antwort (angemeldet oder abgewiesen) `Cache-Control: no-store`, wenn sie
-selbst keine Angabe trägt (`/static/…` behält `no-cache`). Ohne Konten hängt die Schicht nichts an.
+**Responses:** with accounts every response (logged in or refused) gets `Cache-Control: no-store` if it carries no
+directive itself (`/static/…` keeps `no-cache`). Without accounts the layer appends nothing.
 
-**Regel:** `auth::current()` und `auth::session::current_hash()` nie in abgespaltenen Aufgaben (`tokio::spawn`,
-`spawn_blocking`) auswerten – vorher holen und mitgeben.
+**Rule:** never evaluate `auth::current()` and `auth::session::current_hash()` in spawned tasks (`tokio::spawn`,
+`spawn_blocking`) – fetch them beforehand and pass them along.
 
-#### Passwort
+#### Password
 
-- Argon2id, **m = 19456 KiB, t = 2, p = 1**, Salz 16 Byte (getrandom), Ausgabe 32 Byte, gespeichert als PHC-Text
-  (`$argon2id$v=19$m=19456,t=2,p=1$<Salz>$<Hash>`), Crate `argon2` 0.5. Hashen und Prüfen laufen in
+- Argon2id, **m = 19456 KiB, t = 2, p = 1**, salt 16 bytes (getrandom), output 32 bytes, stored as PHC text
+  (`$argon2id$v=19$m=19456,t=2,p=1$<Salz>$<Hash>`), crate `argon2` 0.5. Hashing and verifying run in
   `spawn_blocking`.
-- `verify` liest die Parameter aus dem PHC-Text: Wächst die Vorgabe später, bleiben alte Hashes prüfbar. Nur
-  Argon2id gilt; ein unlesbarer Text passt zu keinem Passwort.
-- Regel: 10 bis 200 Zeichen (Unicode-Zeichen, nicht Bytes), sonst keine.
-- Unbekannter Name: Prüfung gegen den festen Schein-Hash `password::DUMMY_PHC` (gleiche Parameter, gleiche Dauer),
-  gleiche Meldung „Name oder Passwort stimmt nicht.“ – auch für ein gesperrtes Konto und ein überlanges Passwort.
-- Kein Klartext in Datenbank (CHECK `password LIKE '$argon2id$%'`), Logs, Fehlermeldungen oder Antworten; kein Typ
-  mit Passwort leitet `Debug` ab; Meldungen zu falschen RPC-Parametern zitieren keinen Wert.
+- `verify` reads the parameters from the PHC text: if the default grows later, old hashes stay verifiable. Only
+  Argon2id counts; an unreadable text matches no password.
+- Rule: 10 to 200 characters (Unicode characters, not bytes), no other rule.
+- Unknown name: check against the fixed dummy hash `password::DUMMY_PHC` (same parameters, same duration), the same
+  message „Name oder Passwort stimmt nicht.“ – also for a locked account and an overlong password.
+- No plain text in the database (CHECK `password LIKE '$argon2id$%'`), logs, error messages or responses; no type with
+  a password derives `Debug`; messages about wrong RPC parameters quote no value.
 
-#### Sitzung
+#### Session
 
-- Token: 32 Zufallsbytes (getrandom) als Base64url (43 Zeichen). In der Datenbank steht nur der SHA-256 (hex,
-  64 Zeichen, CHECK der Spalte). Wer nur die Datenbank kennt, kann sich damit nicht anmelden.
-- Cookie: `baruch_session=<token>; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000`, zusätzlich `; Secure`, wenn
-  `guard::via_proxy` wahr ist (Proxy-Name im `Host`, oder Proxy-Namen erlaubt und kein `Host`).
-- Gültig 30 Tage ohne Benutzung, höchstens 90 Tage seit der Anmeldung (beides prüft der Server in SQL);
-  `last_seen` wird höchstens einmal je Minute geschrieben. Abgelaufene Sitzungen aller Konten räumt die nächste
-  Anmeldung weg.
-- **Erneuern (Ergänzung zum Vertrag):** Liegt die vorige Benutzung länger als eine Stunde zurück, setzt die Antwort
-  dasselbe Cookie erneut (frische 30 Tage im Browser) – sonst endete die Sitzung im Browser 30 Tage nach der
-  Anmeldung, obwohl sie benutzt wird. Die Obergrenze von 90 Tagen bleibt.
-- Abmelden löscht die Sitzung und das Cookie (`Max-Age=0`). Passwortwechsel löscht alle **anderen** Sitzungen des
-  Kontos (die ändernde bleibt; Zurücksetzen durch den Autor oder die Befehlszeile löscht alle). Sperren
-  (`active = 0`) löscht alle. Beides wirkt bei der nächsten Anfrage.
+- Token: 32 random bytes (getrandom) as Base64url (43 characters). Only the SHA-256 is stored in the database (hex, 64
+  characters, CHECK on the column). Whoever knows only the database cannot log in with it.
+- Cookie: `baruch_session=<token>; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000`, additionally `; Secure` if
+  `guard::via_proxy` is true (proxy name in `Host`, or proxy names allowed and no `Host`).
+- Valid 30 days without use, at most 90 days since the login (the server checks both in SQL); `last_seen` is written at
+  most once per minute. The next login clears away expired sessions of all accounts.
+- **Renewing (addition to the contract):** if the previous use lies more than an hour back, the response sets the same
+  cookie again (fresh 30 days in the browser) – otherwise the session would end in the browser 30 days after the
+  login although it is in use. The upper limit of 90 days stays.
+- Logging out deletes the session and the cookie (`Max-Age=0`). A password change deletes all **other** sessions of the
+  account (the changing one stays; a reset by the author or the command line deletes all). Locking (`active = 0`)
+  deletes all. Both take effect on the next request.
 
-#### Sperre gegen Durchprobieren (`login_attempt`)
+#### Lock against brute force (`login_attempt`)
 
-- Bereiche: `konto:<Namensschlüssel>` (immer, auch für unbekannte Namen; Namensschlüssel = ohne Rand, Leerraum
-  einfach, klein, höchstens 40 Zeichen) und `adresse:<IP>` (nur mit bekannter Gegenstelle und nicht über den Proxy).
-- Bis zum dritten Fehlversuch keine Wartezeit; ab dem vierten 2^(n−3) Sekunden (2, 4, 8 …), höchstens 900.
-- Der Fehlversuch, der die Sperre auslöst, und jeder Versuch während der Sperre antworten **429** mit
-  `Retry-After: <Sekunden>`; während der Sperre wird kein Passwort geprüft und nichts gezählt.
-- Jeder Versuch wird **vor** der Prüfung des Passworts reserviert (`Store::login_reserve`, `throttle::reserve`):
-  Prüfung der Sperre und Zählen als Fehlversuch sind eine Transaktion (`BEGIN IMMEDIATE`). Von beliebig vielen
-  gleichzeitigen Versuchen kommen darum nur so viele bis zur Prüfung (Argon2id) wie nacheinander – bei leerem
-  Zähler vier, der Rest bekommt 429. Auch ein Versuch, dessen Verbindung während der Prüfung abbricht, bleibt
-  gezählt. (Bis zum Codereview nach Runde 35 wurde erst nach der Prüfung gezählt; eine Salve ging an der Sperre
-  vorbei.)
-- Erfolg nimmt die Reservierung zurück und setzt die Bereiche des Versuchs zurück. Einträge, die älter als 24 Stunden
-  sind, fallen beim nächsten Versuch weg.
-- Höchstens 1000 Zeilen: Ist die Tabelle voll (999 Bereiche), bekommt ein neuer Bereich keine Zeile; stattdessen
-  wartet der Bereich `alle` fest 2 Sekunden – in dieser Zeit wartet jeder Anmeldeversuch. Weil vor der Prüfung
-  gezählt wird, löst bei voller Tabelle auch eine gelungene Anmeldung aus einem neuen Bereich diese 2 Sekunden aus
-  (der Erfolg setzt `alle` nicht zurück, sonst könnte ein Konto die gemeinsame Bremse für andere aufheben).
-- Auch das bisherige Passwort beim Ändern (`/konto/passwort`, `account.set_password`) zählt in `konto:<…>`: Wer
-  eine Sitzung in der Hand hat, kann das Passwort nicht beliebig oft raten.
+- Ranges: `konto:<Namensschlüssel>` (always, also for unknown names; name key = without surrounding whitespace, single
+  whitespace, lower case, at most 40 characters) and `adresse:<IP>` (only with a known peer and not via the proxy).
+- Up to the third failed attempt no waiting time; from the fourth 2^(n−3) seconds (2, 4, 8 …), at most 900.
+- The failed attempt that triggers the lock and every attempt during the lock answer **429** with
+  `Retry-After: <Sekunden>`; during the lock no password is checked and nothing is counted.
+- Every attempt is reserved **before** the password is checked (`Store::login_reserve`, `throttle::reserve`): checking
+  the lock and counting as a failed attempt are one transaction (`BEGIN IMMEDIATE`). Of any number of simultaneous
+  attempts, therefore only as many get to the check (Argon2id) as would one after the other – with an empty counter
+  four, the rest get 429. An attempt whose connection drops during the check also stays counted. (Until the code
+  review after Round 35, counting happened only after the check; a salvo got past the lock.)
+- Success takes back the reservation and resets the ranges of the attempt. Entries older than 24 hours are dropped on
+  the next attempt.
+- At most 1000 rows: if the table is full (999 ranges), a new range gets no row; instead the range `alle` waits a fixed
+  2 seconds – during this time every login attempt waits. Because counting happens before the check, with a full
+  table even a successful login from a new range triggers these 2 seconds (success does not reset `alle`, otherwise
+  one account could lift the common brake for others).
+- The previous password when changing it (`/konto/passwort`, `account.set_password`) also counts in `konto:<…>`:
+  whoever holds a session cannot guess the password arbitrarily often.
 
-#### Befehlszeile
+#### Command line
 
-`baruch-server passwort <name> [--data <Ordner>]` – Notweg bei vergessenem Passwort. Liest das neue Passwort als
-**eine Zeile von der Standardeingabe** (nie von der Befehlszeile: dort stünde es in der Prozessliste), setzt es für
-das vorhandene Konto und beendet alle Sitzungen des Kontos. Exit 0 mit „Passwort für „…“ gesetzt …“; unbekanntes
-Konto (nennt die vorhandenen), ungültige Länge, Ordner ohne Datenbank oder noch kein Konto → Exit 1 mit Grund auf
-stderr; ohne Namen Exit 2. Legt kein Konto an und entsperrt keines. Läuft auch neben dem laufenden Server.
+`baruch-server passwort <name> [--data <Ordner>]` – emergency path for a forgotten password. Reads the new password as
+**one line from standard input** (never from the command line: there it would stand in the process list), sets it for
+the existing account and ends all sessions of the account. Exit 0 with „Passwort für „…“ gesetzt …“; unknown account
+(names the existing ones), invalid length, folder without a database or no account yet → exit 1 with the reason on
+stderr; without a name exit 2. Creates no account and unlocks none. Also runs beside the running server.
 
-`serve` gibt beim Start eine Zeile „Anmeldung: aus (keine Konten …)“ bzw. „Anmeldung: an (n Konten)“ aus.
+At start, `serve` prints a line „Anmeldung: aus (keine Konten …)“ or „Anmeldung: an (n Konten)“.
 
-#### Store (nur von `auth` gerufen)
+#### Store (called only by `auth`)
 
-`account_count`, `account_list`, `account_get`, `account_create` (Lektor nur, wenn es ein Autor-Konto gibt),
-`account_create_first` (Prüfung „Tabelle leer“ und Einfügen in einer Anweisung: von zwei gleichzeitigen Aufrufen
-gewinnt genau einer), `account_for_login`, `account_password`, `account_set_password(id, phc, keep)`,
-`account_set_active` (letzter aktiver Autor bleibt – Prüfung und Änderung in einer Anweisung), `session_create`,
-`session_account`, `session_delete`, `session_delete_all`, `login_reserve` (Sperre prüfen und Versuch zählen in
-einer Transaktion; Ausgang `LoginAttempt`), `login_wait`, `login_failure`, `login_reset`,
-`auth_local_open`, `set_auth_local_open`; Hilfen `Store::account_name_key`, `Store::session_token_hash`.
-`lib.rs` reicht aus dem Modul nur `Account`, `NewAccount` und `LoginAttempt` heraus; Meldungen und Grenzen hängen darum als
-zugehörige Konstanten an `Store` (`ACCOUNT_TAKEN`, `ACCOUNT_NOT_FIRST`, `ACCOUNT_NEEDS_AUTHOR`,
-`ACCOUNT_LAST_AUTHOR`, `LOGIN_ATTEMPT_ROWS`, `LOGIN_FULL_WAIT`).
+`account_count`, `account_list`, `account_get`, `account_create` (Lektor only if there is an author account),
+`account_create_first` (check "table empty" and insert in one statement: of two simultaneous calls exactly one wins),
+`account_for_login`, `account_password`, `account_set_password(id, phc, keep)`, `account_set_active` (the last active
+author stays – check and change in one statement), `session_create`, `session_account`, `session_delete`,
+`session_delete_all`, `login_reserve` (check the lock and count the attempt in one transaction; outcome
+`LoginAttempt`), `login_wait`, `login_failure`, `login_reset`, `auth_local_open`, `set_auth_local_open`; helpers
+`Store::account_name_key`, `Store::session_token_hash`. `lib.rs` exports from the module only `Account`, `NewAccount`
+and `LoginAttempt`; messages and limits therefore hang as associated constants on `Store` (`ACCOUNT_TAKEN`,
+`ACCOUNT_NOT_FIRST`, `ACCOUNT_NEEDS_AUTHOR`, `ACCOUNT_LAST_AUTHOR`, `LOGIN_ATTEMPT_ROWS`, `LOGIN_FULL_WAIT`).
 
-### Rollen (`roles`)
+### Roles (`roles`)
 
-- **Kontoart global, Rolle je Werk.** `roles::role_in(state, who, work)`: volle Rechte (`Who::Open`,
-  `Who::LocalAuthor`, Autor-Konto) → `Role::Author` in jedem Werk; Lektor-Konto → `Role::Lektor` nur mit Zeile in
-  `work_member` (Migration 0054); sonst `None` (Werk unsichtbar).
-- **Eine Stelle der Rechteprüfung:** das Modul `roles` (`crates/baruch-server/src/roles/mod.rs`).
-  - `roles::check_request` – jede Route, aufgerufen aus `auth::gate`. Lektor: nur Treffer in `LEKTOR_ROUTES`
-    (Methode + Muster), sonst 403 „Abgelehnt: …“ mit Kopfzeile `x-baruch-abgelehnt: rolle`. HEAD zählt als GET;
-    andere Verben als GET, HEAD, POST sind für Lektoren gesperrt.
-  - `roles::check_rpc` – jede RPC-Methode, aufgerufen aus `rpc::call` vor jedem Dispatch (auch für unbekannte
-    Namen), also für `/rpc` (einzeln und Batch), `/act` und `/lektorat/act`. Lektor: nur Methoden aus `LEKTOR_RPC`,
-    sonst `-32003` „Das darf nur der Autor: <methode>“.
-  - Alles, was nicht in den Tabellen steht, ist für Lektoren gesperrt – auch Routen und Methoden künftiger Runden.
-    Die Formulare der Module (`/beitraege/act`, `/werke/befunde/act`, `/faden/act` …) rufen ihr Modul direkt und
-    stehen darum nicht in `LEKTOR_ROUTES`.
-- **Werk-Bindung.** Das Werk steht im Pfad (`{id}`), in der Adresse (`?work=`) oder im RPC-Parameter `work`.
-  - Ein nicht freigegebenes Werk wird mit derselben Meldung abgelehnt wie ein unbekanntes („unbekanntes Werk N“;
-    403 bzw. `-32003`) – ein Lektor erfährt nicht, welche Werke es gibt.
-  - Fehlt das Werk, gilt **nie** das Vorgabewerk der Instanz: RPC setzt das kleinste freigegebene Werk ein; GET-Seiten
-    mit `WorkFrom::Query` leiten mit 303 auf dieselbe Adresse mit `work=<Werk>` um – das zuletzt geöffnete (Cookie
-    `baruch_work`), wenn es freigegeben ist, sonst das kleinste freigegebene (`roles::check_request_preferring`, so
-    ruft `auth::gate` auf); ohne freigegebenes Werk 303 auf `/werke` (RPC: `-32003` „Noch kein Werk freigegeben.“).
-    Das Cookie gibt nie ein Recht. Für Seiten ohne eigenes Werk (`/werke`, `/konto`, `/ueber`) siehe „Integration“.
-  - Ein `work` in der Adresse bzw. in den Parametern wird bei **jeder** erlaubten Route und Methode geprüft, auch wenn
-    sie selbst kein Werk braucht (Werkwahl im Menüband). Die Adresse wird gelesen wie die Seiten sie lesen
-    (prozentdekodiert; ein kodierter Name wie `wor%6B` zählt mit, mehrere `work` müssen alle freigegeben sein).
-  - Ids (Beitrag, Befund, Faden, Bild, fester Schlüssel eines Abschnitts) sucht der Store immer im genannten Werk;
-    eine id eines fremden Werks trifft unter dem freigegebenen nichts (Test
+- **Account kind global, role per work.** `roles::role_in(state, who, work)`: full rights (`Who::Open`,
+  `Who::LocalAuthor`, author account) → `Role::Author` in every work; Lektor account → `Role::Lektor` only with a row
+  in `work_member` (migration 0054); otherwise `None` (work invisible).
+- **One place of the permission check:** the module `roles` (`crates/baruch-server/src/roles/mod.rs`).
+  - `roles::check_request` – every route, called from `auth::gate`. Lektor: only hits in `LEKTOR_ROUTES` (method +
+    pattern), otherwise 403 „Abgelehnt: …“ with the header `x-baruch-abgelehnt: rolle`. HEAD counts as GET; verbs
+    other than GET, HEAD, POST are blocked for Lektors.
+  - `roles::check_rpc` – every RPC method, called from `rpc::call` before every dispatch (also for unknown names), so
+    for `/rpc` (single and batch), `/act` and `/lektorat/act`. Lektor: only methods from `LEKTOR_RPC`, otherwise
+    `-32003` „Das darf nur der Autor: <methode>“.
+  - Everything not in the tables is blocked for Lektors – also routes and methods of future rounds. The forms of the
+    modules (`/beitraege/act`, `/werke/befunde/act`, `/faden/act` …) call their module directly and therefore are not
+    in `LEKTOR_ROUTES`.
+- **Work binding.** The work stands in the path (`{id}`), in the address (`?work=`) or in the RPC parameter `work`.
+  - A work not granted is refused with the same message as an unknown one („unbekanntes Werk N“; 403 or `-32003`) – a
+    Lektor does not learn which works exist.
+  - If the work is missing, the default work of the instance **never** applies: RPC inserts the smallest granted work;
+    GET pages with `WorkFrom::Query` redirect with 303 to the same address with `work=<Werk>` – the one opened last
+    (cookie `baruch_work`) if it is granted, otherwise the smallest granted one (`roles::check_request_preferring`,
+    that is how `auth::gate` calls it); without a granted work 303 to `/werke` (RPC: `-32003` „Noch kein Werk
+    freigegeben.“). The cookie never grants a right. For pages without a work of their own (`/werke`, `/konto`,
+    `/ueber`) see "Integration".
+  - A `work` in the address or in the parameters is checked for **every** allowed route and method, even if it needs
+    no work itself (work choice in the ribbon). The address is read as the pages read it (percent-decoded; an encoded
+    name like `wor%6B` counts too, several `work` must all be granted).
+  - The store always looks up ids (post, finding, thread, image, fixed key of a section) in the named work; an id of a
+    foreign work hits nothing under the granted one (test
     `ids_of_a_foreign_work_yield_nothing_under_the_granted_work`).
-- **Nichts wird gemerkt.** Jede Prüfung liest die Freigaben neu (`Store::member_works`, liefert nur für aktive
-  Lektor-Konten etwas). Entzug der Freigabe und Sperre des Kontos wirken bei der nächsten Anfrage.
-- **Sichtbarkeit.** `roles::visible_works` liefert dem Lektor nur freigegebene Werke (`work.list`, `/werke`,
-  Werkwahl); `rpc::library_view` liefert Lektoren eine leere Literaturliste (keine Titel, keine Suche, keine Treffer,
-  kein Bilderkasten) – für `ui.render` und die Seite `/`.
-- **Herkunft.** Ein Lektor schreibt unter `@lektorat:<slug>` (`roles::author_name`), alle anderen weiter als „Autor“.
-  - Vorschlag: `Store::add_proposal` mit Persona = Handle, Modell leer; Seitenzweig `refs/revisions/<key>/<n>`
-    (`mirror::side_refs_after_proposal`) wie bei MCP-Vorschlägen, Trailer `Persona: @lektorat:<slug>`.
-  - Beitrag: `post.author` = Handle; wie beim Autor kein Commit beim Anlegen. Bearbeiten/Löschen eigener Beiträge:
-    ein Commit (`mirror::describe_post`), Autor des Commits ist der Handle, Committer „Autor“.
-  - Befund: `finding.persona` = Handle; ein Commit „Befund <id>: angelegt von @lektorat:<slug>“
-    (`mirror::describe_finding_added`, neu), Autor „<Anzeigename> (<Handle>)“
-    `<lektorat-slug>@lektorat.baruch.invalid`, Trailer `Baruch-Finding`, `Baruch-Action: finding-add`,
-    `Baruch-Node` (falls Abschnitt), `Baruch-Origin: lektor`, `Baruch-Lektor`.
-- **Freigaben sind Instanzdaten:** Tabelle `work_member` (0054), nicht im Austauschformat, kein Commit im Spiegel;
-  der Zeitpunkt steht in `granted`. Löschen eines Werks oder Kontos entfernt seine Freigaben (ON DELETE CASCADE).
-- **Store (`baruch-store/src/members.rs`):** `member_list(work)`, `member_grant(work, account, role)` (nur
-  Lektor-Konten, nur vorhandene Werke, idempotent – der Zeitpunkt der ersten Freigabe bleibt),
-  `member_revoke(work, account)`, `member_works(account)` (aufsteigend; leer für gesperrte, unbekannte und
-  Autor-Konten).
+- **Nothing is remembered.** Every check reads the grants anew (`Store::member_works`, returns something only for
+  active Lektor accounts). Withdrawing the grant and locking the account take effect on the next request.
+- **Visibility.** `roles::visible_works` returns to the Lektor only granted works (`work.list`, `/werke`, work choice);
+  `rpc::library_view` returns an empty literature list to Lektors (no titles, no search, no hits, no image box) – for
+  `ui.render` and the page `/`.
+- **Origin.** A Lektor writes under `@lektorat:<slug>` (`roles::author_name`), all others still as „Autor“.
+  - Proposal: `Store::add_proposal` with persona = handle, model empty; side branch `refs/revisions/<key>/<n>`
+    (`mirror::side_refs_after_proposal`) as with MCP proposals, trailer `Persona: @lektorat:<slug>`.
+  - Post: `post.author` = handle; as with the author, no commit on creation. Editing/deleting own posts: one commit
+    (`mirror::describe_post`), author of the commit is the handle, committer „Autor“.
+  - Finding: `finding.persona` = handle; one commit „Befund <id>: angelegt von @lektorat:<slug>“
+    (`mirror::describe_finding_added`, new), author „<Anzeigename> (<Handle>)“
+    `<lektorat-slug>@lektorat.baruch.invalid`, trailer `Baruch-Finding`, `Baruch-Action: finding-add`, `Baruch-Node`
+    (if a section), `Baruch-Origin: lektor`, `Baruch-Lektor`.
+- **Grants are instance data:** table `work_member` (0054), not in the exchange format, no commit in the mirror; the
+  point in time stands in `granted`. Deleting a work or an account removes its grants (ON DELETE CASCADE).
+- **Store (`baruch-store/src/members.rs`):** `member_list(work)`, `member_grant(work, account, role)` (only Lektor
+  accounts, only existing works, idempotent – the time of the first grant stays), `member_revoke(work, account)`,
+  `member_works(account)` (ascending; empty for locked, unknown and author accounts).
 
-#### Erlaubte Routen für Lektoren (`roles::LEKTOR_ROUTES`)
+#### Allowed routes for Lektors (`roles::LEKTOR_ROUTES`)
 
-| Methode | Muster | Werk aus | Begründung |
+| Method | Pattern | Work from | Reason |
 |---|---|---|---|
-| GET | `/` | Adresse | Arbeitsseite: Abschnitt lesen, Vorschlag, Chat |
-| GET | `/werke` | – | Werkliste, gefiltert über `roles::visible_works` |
-| GET | `/beitraege` | Adresse | ganze Chat-Historie eines Abschnitts (ohne JavaScript) |
-| GET | `/beitrag` | Adresse | ein Beitrag: kopieren, zitieren, eigenen bearbeiten |
-| GET | `/faeden` | Adresse | Fäden lesen |
-| GET | `/faden` | Adresse | einen Faden lesen (schreiben nicht: `/faden/act` gesperrt) |
-| GET | `/suche` | Adresse | im Werk suchen (ersetzen nicht) |
-| GET | `/gliederung` | Adresse | Gliederung lesen (ändern nicht: `/gliederung/act` gesperrt) |
-| GET | `/werke/{id}/befunde` | Pfad | Befundseite, dort auch „Befund schreiben“ |
-| GET | `/werke/{id}/fassungen/verlauf` | Pfad | Verlauf der Fortschreibungen lesen |
-| GET | `/werke/{id}/glossar` | Pfad | Glossar lesen |
-| GET | `/werke/{id}/register` | Pfad | Register lesen |
-| GET | `/werke/{id}/bilder/{name}/datei` | Pfad | Bilder im Text der Arbeitsseite |
-| GET | `/werke/{id}/bilder/{name}/vorschau` | Pfad | Vorschaubilder im Text |
-| GET | `/ueber`, `/ueber/lizenz` | – | Über Baruch, Lizenz (AGPL: Hinweis auf den Quelltext) |
-| GET | `/konto` | – | eigenes Konto (Passwort ändern, Abmelden) |
-| GET | `/anmelden` | – | Anmeldeseite (nach dem Abmelden) |
-| GET | `/einstellungen/darstellung` | Adresse | Darstellung im eigenen Browser (Cookie); alle anderen Einstellungsseiten gesperrt. **Abweichung:** mit Werk aus der Adresse statt „ohne Werk“ – ohne `work` zeigte das Menüband der Seite das Vorgabewerk der Instanz (Titel eines fremden Werks) |
-| GET | `/static/app.css`, `/static/favicon.svg`, `/static/js/{name}` | – | Stil, Symbol, Widgets |
-| POST | `/rpc` | – | JSON-RPC; jede Methode prüft `roles::check_rpc` |
-| POST | `/lektorat/act` | – | Formularweg ohne JavaScript; ruft `rpc::call`, also dieselbe Prüfung |
-| POST | `/abmelden` | – | Abmelden |
-| POST | `/konto/passwort` | – | eigenes Passwort ändern |
-| POST | `/einstellungen/darstellung/act` | – | Darstellung speichern (nur Cookies im eigenen Browser) |
+| GET | `/` | address | work page: read a section, proposal, chat |
+| GET | `/werke` | – | list of works, filtered via `roles::visible_works` |
+| GET | `/beitraege` | address | whole chat history of a section (without JavaScript) |
+| GET | `/beitrag` | address | one post: copy, quote, edit an own one |
+| GET | `/faeden` | address | read threads |
+| GET | `/faden` | address | read one thread (not write: `/faden/act` blocked) |
+| GET | `/suche` | address | search in the work (not replace) |
+| GET | `/gliederung` | address | read the outline (not change: `/gliederung/act` blocked) |
+| GET | `/werke/{id}/befunde` | path | findings page, there also „Befund schreiben“ |
+| GET | `/werke/{id}/fassungen/verlauf` | path | read the history of amendments |
+| GET | `/werke/{id}/glossar` | path | read the glossary |
+| GET | `/werke/{id}/register` | path | read the index |
+| GET | `/werke/{id}/bilder/{name}/datei` | path | images in the text of the work page |
+| GET | `/werke/{id}/bilder/{name}/vorschau` | path | preview images in the text |
+| GET | `/ueber`, `/ueber/lizenz` | – | about Baruch, licence (AGPL: pointer to the source code) |
+| GET | `/konto` | – | own account (change password, log out) |
+| GET | `/anmelden` | – | login page (after logging out) |
+| GET | `/einstellungen/darstellung` | address | display in the own browser (cookie); all other settings pages blocked. **Deviation:** with the work from the address instead of "without work" – without `work` the ribbon of the page showed the default work of the instance (title of a foreign work) |
+| GET | `/static/app.css`, `/static/favicon.svg`, `/static/js/{name}` | – | style, icon, widgets |
+| POST | `/rpc` | – | JSON-RPC; every method is checked by `roles::check_rpc` |
+| POST | `/lektorat/act` | – | form path without JavaScript; calls `rpc::call`, so the same check |
+| POST | `/abmelden` | – | log out |
+| POST | `/konto/passwort` | – | change own password |
+| POST | `/einstellungen/darstellung/act` | – | save the display (only cookies in the own browser) |
 
-Nicht erlaubt und darum 403: jeder Upload, `/act`, jedes Formular eines Moduls, jeder Export (PDF, EPUB, Word,
-Austausch, Mindmap-Datei), Import, alle übrigen Einstellungen, Beenden, Literatur, Einfälle, Bilderseiten außer Datei
-und Vorschau. `/mcp` bleibt bei Tokens und läuft nicht durch die Rollenprüfung.
+Not allowed and therefore 403: every upload, `/act`, every form of a module, every export (PDF, EPUB, Word, exchange,
+mind map file), import, all other settings, quitting, literature, ideas, image pages except file and preview. `/mcp`
+stays with tokens and does not pass through the role check.
 
-#### Erlaubte RPC-Methoden für Lektoren (`roles::LEKTOR_RPC`)
+#### Allowed RPC methods for Lektors (`roles::LEKTOR_RPC`)
 
-„Werk“ = `work` aus den Parametern; fehlt es, wird das kleinste freigegebene eingesetzt.
+"Work" = `work` from the parameters; if it is missing, the smallest granted one is inserted.
 
-| Methode | Werk | Art | Begründung |
+| Method | Work | Kind | Reason |
 |---|---|---|---|
-| `work.get`, `node.get` | Werk | lesend | Werk und Abschnitt lesen |
-| `revision.tree`, `revision.amends`, `revision.fold_get` | Werk | lesend | Fassungen, ihr Verlauf, Ausblendung |
-| `ui.render` | Werk | lesend | Arbeitsseite ohne Neuladen (Literatur für Lektoren leer) |
-| `menu.badges` | Werk | lesend | Zähler im Menüband |
-| `post.page`, `post.since`, `post.versions` | Werk | lesend | Chat des Abschnitts |
-| `finding.list`, `finding.get`, `finding.matrix` | Werk | lesend | Befunde |
-| `thread.list`, `thread.get`, `thread.since`, `thread.post_versions` | Werk | lesend | Fäden lesen |
-| `glossary.list`, `glossary.lookup`, `index.entries`, `index.overview` | Werk | lesend | Glossar und Register |
-| `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` | Werk | lesend | Editor für den Vorschlag |
-| `ribbon.formats` | Werk | lesend | Formate der Vorlage im Menüband |
-| `work.sheet` | Werk | lesend | **ergänzt:** Satzbild des Werks für den Editor (nur lesen; `work.sheet_set` bleibt gesperrt) |
-| `search.find` | Werk | lesend | **ergänzt:** Suche im Werk (Seite `/suche` und Suchleiste); `search.preview/replace/undo` bleiben gesperrt |
-| `work.list` | – | lesend | gefiltert auf freigegebene Werke |
-| `account.me`, `account.set_password`, `account.logout_all` | – | eigenes Konto | Konto des Lektors (Baustein „konten“) |
-| `revision.propose` | Werk | schreibend | Vorschlag einer Fassung |
-| `post.add`, `post.edit`, `post.delete` | Werk | schreibend | Beitrag; bearbeiten und löschen nur eigene |
-| `finding.add` | Werk | schreibend | Befund bzw. „Anmerkung zum Buch“ |
+| `work.get`, `node.get` | work | reading | read work and section |
+| `revision.tree`, `revision.amends`, `revision.fold_get` | work | reading | revisions, their history, hiding |
+| `ui.render` | work | reading | work page without reloading (literature empty for Lektors) |
+| `menu.badges` | work | reading | counters in the ribbon |
+| `post.page`, `post.since`, `post.versions` | work | reading | chat of the section |
+| `finding.list`, `finding.get`, `finding.matrix` | work | reading | findings |
+| `thread.list`, `thread.get`, `thread.since`, `thread.post_versions` | work | reading | read threads |
+| `glossary.list`, `glossary.lookup`, `index.entries`, `index.overview` | work | reading | glossary and index |
+| `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` | work | reading | editor for the proposal |
+| `ribbon.formats` | work | reading | formats of the template in the ribbon |
+| `work.sheet` | work | reading | **added:** typeset view settings of the work for the editor (read only; `work.sheet_set` stays blocked) |
+| `search.find` | work | reading | **added:** search in the work (page `/suche` and search bar); `search.preview/replace/undo` stay blocked |
+| `work.list` | – | reading | filtered to granted works |
+| `account.me`, `account.set_password`, `account.logout_all` | – | own account | account of the Lektor (building block "konten") |
+| `revision.propose` | work | writing | proposal of a revision |
+| `post.add`, `post.edit`, `post.delete` | work | writing | post; edit and delete only own ones |
+| `finding.add` | work | writing | finding or „Anmerkung zum Buch“ |
 
-Abweichungen vom Start des Vertrags (§2.2), gemeldet (dazu die Route `/einstellungen/darstellung` in §2):
+Deviations from the start of the contract (§2.2), reported (plus the route `/einstellungen/darstellung` in §2):
 
-1. `wysiwyg.*` und `ribbon.formats` stehen mit Werk-Bindung statt „ohne Werk“. Grund: `rpc::dispatch` gibt ihnen ohne
-   `work` das Vorgabewerk der Instanz (`wysiwyg.parse` liest dessen Bildtexte, `wysiwyg.style` dessen Satzbild,
-   `ribbon.formats` die Formate dessen Vorlage) – das wäre für einen Lektor ein fremdes Werk. Folge: Ein Lektor ohne
-   freigegebenes Werk bekommt für sie `-32003`.
-2. Ergänzt wurden nur die beiden rein lesenden Methoden `work.sheet` und `search.find` (Begründung in der Tabelle).
-   Keine davon fasst ein Modell, eine Verbindung oder das Dateisystem an. Nicht ergänzt (offen für den Integrator bzw.
-   „oberflaeche_konten“, falls die Arbeitsseite sie für Lektoren aufruft): `bible.marks` und `scripture.check` (lesen
-   SWORD-Module aus dem Dateisystem), `timing.count`, `xref.targets`, `outline.check`, `index.registers`,
-   `work.typeset_get`.
+1. `wysiwyg.*` and `ribbon.formats` stand with a work binding instead of "without work". Reason: without `work`,
+   `rpc::dispatch` gives them the default work of the instance (`wysiwyg.parse` reads its image texts,
+   `wysiwyg.style` its typeset view settings, `ribbon.formats` the formats of its template) – for a Lektor that would
+   be a foreign work. Consequence: a Lektor without a granted work gets `-32003` for them.
+2. Only the two purely reading methods `work.sheet` and `search.find` were added (reason in the table). None of them
+   touches a model, a connection or the file system. Not added (open for the integrator or "oberflaeche_konten", if
+   the work page calls them for Lektors): `bible.marks` and `scripture.check` (read SWORD modules from the file
+   system), `timing.count`, `xref.targets`, `outline.check`, `index.registers`, `work.typeset_get`.
 
-### Oberfläche (`konten_ui`, `view.rs`, Vorlagen)
+### User interface (`konten_ui`, `view.rs`, templates)
 
-| Datei | Inhalt |
+| File | Content |
 |---|---|
-| `src/konten_ui/mod.rs` | `login_page`/`login_html`, `setup_page`/`setup_html`, `safe_next`, `MESSAGES` mit `ok_message`/`error_message`, `apply`, Marken `KONTO_MARK`, `LEKTOR_OPEN/CLOSE`, `KONTEN_OPEN/CLOSE`, eigene minijinja-Umgebung (die 38.) |
-| `src/konten_ui/pages.rs` | Routen `GET /anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`; Inhalt der Einstellungsseite „Konten“ (`render_settings`); reine Darstellungsfunktionen `accounts_html`, `members_html`, `account_html` über Ansichtsdaten; `direct_from_own_machine` (dieselbe Regel wie `auth::gate::own_machine`, über `guard::forwarded`) |
-| `src/view.rs` | `values` liest `auth::current()`; für Lektoren eigene Vorlagen der drei Bereiche (`pane_templates`), `post.mine`, Beiträge ohne Befund-Karten, Herkunft `@lektorat:…` ohne leeres Modell |
-| `src/consent.rs` | Hinweisleiste und Dialog nur bei vollen Rechten |
-| `src/settings/mod.rs` | achte Seite `konten` in `PAGES`; Navigation des Rahmens für Lektoren nur „Darstellung“ |
-| `templates/anmelden.html`, `einrichten.html` | eigenständige Seiten ohne Menüband und ohne Skript |
-| `templates/konto.html`, `mitwirkende.html` | erweitern `base.html` (Reiter Start bzw. Buch) |
-| `templates/settings/konten.html` | Inhalt der Einstellungsseite |
-| `templates/fragments/lektor_tree.html`, `lektor_editor.html`, `lektor_assistants.html` | Arbeitsseite eines Lektors |
-| `static/konten.css` | Regeln der Rollen und Gestaltung der neuen Seiten (nur Variablen aus `app.css`) |
-| `web/src/settings.ts`, `menu.ts` | Lektor: „Einstellungen“ bleibt ein Link (kein `settings.render`), Pfeiltasten überspringen ausgeblendete Einträge |
+| `src/konten_ui/mod.rs` | `login_page`/`login_html`, `setup_page`/`setup_html`, `safe_next`, `MESSAGES` with `ok_message`/`error_message`, `apply`, markers `KONTO_MARK`, `LEKTOR_OPEN/CLOSE`, `KONTEN_OPEN/CLOSE`, a minijinja environment of its own (the 38th) |
+| `src/konten_ui/pages.rs` | routes `GET /anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`; content of the settings page „Konten“ (`render_settings`); pure rendering functions `accounts_html`, `members_html`, `account_html` over view data; `direct_from_own_machine` (the same rule as `auth::gate::own_machine`, via `guard::forwarded`) |
+| `src/view.rs` | `values` reads `auth::current()`; for Lektors templates of their own for the three areas (`pane_templates`), `post.mine`, posts without finding cards, origin `@lektorat:…` without an empty model |
+| `src/consent.rs` | notice bar and dialog only with full rights |
+| `src/settings/mod.rs` | eighth page `konten` in `PAGES`; navigation of the frame for Lektors only „Darstellung“ |
+| `templates/anmelden.html`, `einrichten.html` | standalone pages without ribbon and without script |
+| `templates/konto.html`, `mitwirkende.html` | extend `base.html` (tab „Start“ or „Buch“) |
+| `templates/settings/konten.html` | content of the settings page |
+| `templates/fragments/lektor_tree.html`, `lektor_editor.html`, `lektor_assistants.html` | work page of a Lektor |
+| `static/konten.css` | rules of the roles and styling of the new pages (only variables from `app.css`) |
+| `web/src/settings.ts`, `menu.ts` | Lektor: „Einstellungen“ stays a link (no `settings.render`), arrow keys skip hidden entries |
 
 #### `konten_ui::apply(page, who, accounts_exist)`
 
-Läuft in `consent::inject` nach `band::apply` über jede Seite mit der Marke `<!--BARUCH-KONTO-->` (sie steht in
-`base.html` im Menü „Baruch ▾“ nach „Baruch beenden…“). Seiten ohne Marke bleiben Byte für Byte gleich.
+Runs in `consent::inject` after `band::apply` over every page with the marker `<!--BARUCH-KONTO-->` (it stands in
+`base.html` in the menu „Baruch ▾“ after „Baruch beenden…“). Pages without the marker stay byte for byte the same.
 
-| Zustand | Menüeintrag | `<body>` | Kennzeichen |
+| State | Menu entry | `<body>` | Markers |
 |---|---|---|---|
-| ohne Konten | „Konten einrichten…“ (`/einrichten`) | unverändert | ` nur-autor"` → `"`, ` data-nur-autor` entfernt, Stücke `NUR-LEKTOR` und `NUR-KONTEN` herausgeschnitten |
-| Autor-Konto | „Angemeldet: <Anzeigename> (Autor)“, „Mein Konto“, Formular „Abmelden“ (`POST /abmelden`) | `data-rolle="autor"` | `NUR-LEKTOR` herausgeschnitten, `NUR-KONTEN` bleibt (ohne Klammern) |
-| Lektor-Konto | wie oben mit „(Lektor)“ | `data-rolle="lektor"` | `NUR-LEKTOR` und `NUR-KONTEN` bleiben (ohne Klammern) |
-| `LocalAuthor` | „Autor (eigener Rechner, ohne Anmeldung)“, „Anmelden“ | `data-rolle="autor"` | wie Autor-Konto |
-| `Anonymous` | „Anmelden“ | unverändert | wie Autor-Konto |
+| without accounts | „Konten einrichten…“ (`/einrichten`) | unchanged | ` nur-autor"` → `"`, ` data-nur-autor` removed, pieces `NUR-LEKTOR` and `NUR-KONTEN` cut out |
+| author account | „Angemeldet: <Anzeigename> (Autor)“, „Mein Konto“, form „Abmelden“ (`POST /abmelden`) | `data-rolle="autor"` | `NUR-LEKTOR` cut out, `NUR-KONTEN` stays (without brackets) |
+| Lektor account | as above with „(Lektor)“ | `data-rolle="lektor"` | `NUR-LEKTOR` and `NUR-KONTEN` stay (without brackets) |
+| `LocalAuthor` | „Autor (eigener Rechner, ohne Anmeldung)“, „Anmelden“ | `data-rolle="autor"` | like the author account |
+| `Anonymous` | „Anmelden“ | unchanged | like the author account |
 
-Damit ist eine Seite ohne Konten bis auf den einen Menüeintrag dieselbe wie vor Runde 35. Geprüft mit einem
-Byte-Vergleich von 23 Seiten und `ui.render` vor und nach der Änderung (Ziffern genullt): Unterschiede nur der
-Menüeintrag, der achte Eintrag „Konten“ in der Navigation der Einstellungen und die Anzeige einer Herkunft
-`@lektorat:…` (vorher „Persona @lektorat:erika ()“, jetzt „@lektorat:erika“ – ohne Konten kommt sie nicht vor).
+So a page without accounts is, apart from the one menu entry, the same as before Round 35. Checked with a byte
+comparison of 23 pages and `ui.render` before and after the change (digits zeroed): differences only the menu entry,
+the eighth entry „Konten“ in the navigation of the settings and the display of an origin `@lektorat:…` (before
+„Persona @lektorat:erika ()“, now „@lektorat:erika“ – without accounts it does not occur).
 
-Regel für Vorlagen: `nur-autor` ist immer die **letzte** Klasse eines Elements (`class="btn nur-autor"`), sonst
-findet `apply` sie ohne Konten nicht. `apply` nimmt die Kennzeichen nur aus **Tags** heraus, nie aus Text zwischen
-den Tags – Buchtext im Textfeld oder Satzbild bleibt unberührt, auch wenn er zufällig dieselben Zeichen enthält. Gruppen des Menübands tragen statt der Klasse das Attribut `data-nur-autor`
-(ihr Tag muss wörtlich `<details class="band-group"` … ` data-band-group open>` bleiben, `band::apply`).
+Rule for templates: `nur-autor` is always the **last** class of an element (`class="btn nur-autor"`), otherwise
+`apply` does not find it without accounts. `apply` takes the markers out of **tags** only, never out of text between
+the tags – book text in the text field or typeset view stays untouched, even if it happens to contain the same
+characters. Groups of the ribbon carry the attribute `data-nur-autor` instead of the class (their tag must stay
+literally `<details class="band-group"` … ` data-band-group open>`, `band::apply`).
 
-#### Was ein Lektor sieht
+#### What a Lektor sees
 
-- **Arbeitsseite (serverseitig):** `view::page`/`view::panes` nehmen für Lektoren `fragments/lektor_*.html`. Darin:
-  Formular `form#editor-form` an `POST /lektorat/act` mit `method=revision.propose`, `work`, `key`, `body`, `note`
-  (mit JavaScript dieselbe Methode über `/rpc`, `data-rpc` in `workspace.ts`), Knopf „Vorschlagen“; rechts
-  „Befund schreiben“ (`finding.add`: `work`, `key`, `kind`, `body`, `quote`), Beitrag (`post.add`: `work`, `key`,
-  `body`), eigene Beiträge ändern/entfernen (`post.edit`: `id`, `body`; `post.delete`: `id`, `confirm`). Es fehlen
-  im HTML: Speichern, Als neue Fassung, Übernehmen, Verwerfen, Umschalten („aktuell machen“, „Diese Fassung
-  verwenden“), Löschen, Ausblenden, Personas und ihre Formulare, Lösungen, Verschieben/Umwandeln von Beiträgen,
-  Bild einfügen, Markierung, Zitate prüfen, die Dialoge Literatur/Werk anlegen/Einfall, Reiter und Feld „Einfügen“,
-  das Widget „outline“ (Umstellen der Gliederung) und das Widget „chat“ (siehe Annahmen). Befund-Blöcke in
-  Beiträgen der Personas liest der Lektor als Text des Beitrags, ohne die Karte mit den Status-Knöpfen.
-- **Übrige Seiten (CSS, ohne JavaScript):** `konten.css` blendet für `body[data-rolle="lektor"]` aus: `.nur-autor`,
-  `[data-nur-autor]` und **jedes POST-Formular**, dessen `action` nicht `/lektorat/act`, `/abmelden`,
-  `/konto/passwort` oder `/einstellungen/darstellung/act` ist (dieselbe Regel wie im Server: alles verboten, was nicht
-  erlaubt ist – neue Formulare künftiger Runden sind für Lektoren von selbst verborgen). `.nur-lektor` ist nur dort
-  sichtbar. Gekennzeichnet sind in `base.html`: Neues Werk/Import (3 Einträge), Austausch einlesen, Beenden, die
-  Gruppen Einfälle, Werkzeuge, Quellen, Satz, Ausgabe, Umschlag und die Knöpfe Zitate prüfen, Querverweise, Werk
-  bearbeiten, Anträge, Gliederungsschema, Bilder, Mitwirkende; in `works.html` die Gruppe „Werke“ und Ändern, Export,
-  PDF, Löschen; auf der Befundseite die Formulare zu Status, Entscheidung und Lösungen (Makro `card(…, na)`).
-- **Befundseite:** Formular „Befund schreiben: Anmerkung zum Buch“ (`finding.add` ohne `key`, `back=befunde`) als
-  `nur-lektor`, nur für Lektoren im HTML.
-- **Einstellungen:** In der Navigation steht für Lektoren nur „Darstellung“.
-- **Zustimmung:** Hinweisleiste und Dialog (`consent`) nur bei vollen Rechten.
+- **Work page (server side):** `view::page`/`view::panes` take `fragments/lektor_*.html` for Lektors. In them: the
+  form `form#editor-form` to `POST /lektorat/act` with `method=revision.propose`, `work`, `key`, `body`, `note` (with
+  JavaScript the same method via `/rpc`, `data-rpc` in `workspace.ts`), button „Vorschlagen“; on the right „Befund
+  schreiben“ (`finding.add`: `work`, `key`, `kind`, `body`, `quote`), post (`post.add`: `work`, `key`, `body`),
+  changing/removing own posts (`post.edit`: `id`, `body`; `post.delete`: `id`, `confirm`). Missing from the HTML:
+  save, save as a new revision, adopt, discard, switching („aktuell machen“, „Diese Fassung verwenden“), delete, hide,
+  personas and their forms, solutions, moving/converting posts, inserting an image, marking, checking quotations, the
+  dialogs literature/create work/idea, tab and panel „Einfügen“, the widget "outline" (rearranging the outline) and
+  the widget "chat" (see assumptions). Finding blocks in posts of the personas are read by the Lektor as text of the
+  post, without the card with the status buttons.
+- **Other pages (CSS, without JavaScript):** for `body[data-rolle="lektor"]`, `konten.css` hides `.nur-autor`,
+  `[data-nur-autor]` and **every POST form** whose `action` is not `/lektorat/act`, `/abmelden`, `/konto/passwort` or
+  `/einstellungen/darstellung/act` (the same rule as in the server: everything forbidden that is not allowed – new
+  forms of future rounds are hidden from Lektors by themselves). `.nur-lektor` is visible only there. Marked in
+  `base.html`: new work/import (3 entries), read exchange, quit, the groups ideas, tools, sources, typesetting, output,
+  cover and the buttons check quotations, cross-references, edit work, requests, outline scheme, images, contributors;
+  in `works.html` the group „Werke“ and change, export, PDF, delete; on the findings page the forms for status,
+  decision and solutions (macro `card(…, na)`).
+- **Findings page:** form „Befund schreiben: Anmerkung zum Buch“ (`finding.add` without `key`, `back=befunde`) as
+  `nur-lektor`, only for Lektors in the HTML.
+- **Settings:** in the navigation only „Darstellung“ stands for Lektors.
+- **Consent:** notice bar and dialog (`consent`) only with full rights.
 
-#### Seiten
+#### Pages
 
-| Route | Verhalten |
+| Route | Behaviour |
 |---|---|
-| `GET /anmelden[?next=…][&ok=abgemeldet]` | ohne Konten 303 `/`; sonst Formular `POST /anmelden` (`name`, `password`, `next`), Link „Weiter“ auf `safe_next(next)`; mit Sitzung „Angemeldet als …“ |
-| `GET /einrichten` | mit Konten 303 `/einstellungen/konten`; nicht vom eigenen Rechner 403 mit Erklärung (ohne Formular); sonst Formular `POST /einrichten` (`name`, `display`, `password`, `password2`) |
-| `GET /konto[?ok=…][&fehler=…]` | Name, Rolle, Herkunft, Werke (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; ohne Konten Erklärung; `LocalAuthor` Hinweis |
-| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | nur volle Rechte (sonst 403), unbekanntes Werk 404; Daten aus `rpc::call("member.list", {work})`; Formulare `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
-| `GET /einstellungen/konten[?ok=…][&fehler=…]` | Liste aus `Store::account_list`, Schalter aus `account.me` (`local_open`); Formulare `POST /einstellungen/konten/act` mit `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); ohne Konten Erklärung und „Einrichten“ |
+| `GET /anmelden[?next=…][&ok=abgemeldet]` | without accounts 303 `/`; otherwise form `POST /anmelden` (`name`, `password`, `next`), link „Weiter“ to `safe_next(next)`; with a session „Angemeldet als …“ |
+| `GET /einrichten` | with accounts 303 `/einstellungen/konten`; not from the own machine 403 with an explanation (without a form); otherwise form `POST /einrichten` (`name`, `display`, `password`, `password2`) |
+| `GET /konto[?ok=…][&fehler=…]` | name, role, origin, works (`roles::visible_works`), `POST /konto/passwort` (`current`, `password`, `password2`), `POST /abmelden`; without accounts an explanation; `LocalAuthor` a hint |
+| `GET /werke/{id}/mitwirkende[?ok=…][&fehler=…]` | only full rights (otherwise 403), unknown work 404; data from `rpc::call("member.list", {work})`; forms `POST /werke/{id}/mitwirkende/act` (`action=grant|revoke`, `account`) |
+| `GET /einstellungen/konten[?ok=…][&fehler=…]` | list from `Store::account_list`, switch from `account.me` (`local_open`); forms `POST /einstellungen/konten/act` with `action=create` (`name`, `display`, `password`, `password2`), `deactivate`/`activate` (`id`), `reset_password` (`id`, `password`, `password2`), `local_open` (`open=0|1`); without accounts an explanation and „Einrichten“ |
 
-`?ok=`/`?fehler=` zeigen nur den Satz aus `MESSAGES` (ein Erfolgscode gilt nicht als Fehler und umgekehrt, Unbekanntes
-zeigt nichts). Alle Konto-Seiten antworten mit `Cache-Control: no-store`.
+`?ok=`/`?fehler=` show only the sentence from `MESSAGES` (a success code does not count as an error and vice versa,
+unknown codes show nothing). All account pages answer with `Cache-Control: no-store`.
 
-### Annahmen und Abweichungen vom Vertrag
+### Assumptions and deviations from the contract
 
-Konten:
+Accounts:
 
-1. **„Es gibt Konten“ wird nur als Ja gemerkt** (Vertrag §1.4 sagt: Ergebnis zwischenspeichern und nach dem Anlegen
-   ungültig machen). Konten werden nie gelöscht, ein Ja bleibt wahr; das Nein wird je Anfrage nachgesehen (ein
-   `SELECT count(*)` auf der leeren Tabelle). Grund: Ein gemerktes Nein ließe Anfragen ohne Anmeldung durch, wenn
-   ein Konto an der Ablage vorbei entsteht (Tests der Kollegen legen Konten per SQL an; zweiter Prozess).
-2. **Cookie erneuern** nach mehr als einer Stunde Pause (siehe Sitzung) – im Vertrag nicht genannt.
-3. **Der vierte Fehlversuch antwortet selbst schon 429** mit `Retry-After: 2` (Abnahme: „ab dem vierten Fehlversuch
-   429“), nicht erst der fünfte Versuch.
-4. **`alle`** sperrt, solange es wartet, jeden Anmeldeversuch (auch bekannte Bereiche) für höchstens 2 Sekunden.
-5. **Bisheriges Passwort beim Ändern** zählt in der Sperre des Kontos mit; während der Sperre lautet der Code
-   `passwort_falsch` (die Tabelle der Meldungen hat keinen eigenen Code für „gesperrt“).
-6. **`POST /einrichten` mit vorhandenem Konto** zeigt die Seite mit 403 und dem Satz „Es gibt schon ein Konto.“
-   (kein Code der Tabelle §3.4); für Unangemeldete endet die Anfrage schon in der Schicht mit 401.
-7. **`/einstellungen/konten/act` `create` ohne jedes Konto** leitet auf `/einrichten` (303): Ein Lektor ohne Autor
-   wäre ein Zustand, in dem niemand volle Rechte hat; der Store lehnt ihn ebenfalls ab.
-8. **Sperren des eigenen Kontos** ist einem Autor erlaubt, solange ein anderer aktiver Autor bleibt (in dieser Runde
-   gibt es über die Oberfläche nur einen Autor – praktisch greift immer `letzter_autor`).
-9. **`resolve` nimmt `&http::request::Parts`** statt `&Request` (schon in S1 so festgelegt und begründet).
+1. **"There are accounts" is remembered only as a yes** (contract §1.4 says: cache the result and invalidate it after
+   creating). Accounts are never deleted, a yes stays true; the no is looked up per request (one `SELECT count(*)` on
+   the empty table). Reason: a remembered no would let requests through without login if an account comes into being
+   past the store (tests of the colleagues create accounts by SQL; a second process).
+2. **Renewing the cookie** after a pause of more than an hour (see session) – not named in the contract.
+3. **The fourth failed attempt itself already answers 429** with `Retry-After: 2` (acceptance: "from the fourth
+   failed attempt 429"), not only the fifth attempt.
+4. **`alle`** blocks every login attempt (also known ranges) for at most 2 seconds while it waits.
+5. **The previous password when changing it** counts in the lock of the account; during the lock the code is
+   `passwort_falsch` (the table of messages has no code of its own for "locked").
+6. **`POST /einrichten` with an existing account** shows the page with 403 and the sentence „Es gibt schon ein
+   Konto.“ (no code of table §3.4); for users not logged in, the request already ends in the layer with 401.
+7. **`/einstellungen/konten/act` `create` without any account** redirects to `/einrichten` (303): a Lektor without an
+   author would be a state in which nobody has full rights; the store refuses it as well.
+8. **Locking the own account** is allowed for an author as long as another active author remains (in this round there
+   is only one author via the user interface – in practice `letzter_autor` always applies).
+9. **`resolve` takes `&http::request::Parts`** instead of `&Request` (already fixed and justified so in S1).
 
-Rollen:
+Roles:
 
-- **Kein Zähler für offene Vorschläge:** MCP begrenzt offene Vorschläge je Client; für Lektoren (Menschen) gibt es
-  keine solche Grenze, nur die Größen (1 MiB Text, 2000 Zeichen Notiz).
-- **Lektoren und der Faden-Chat:** lesen ja, schreiben nein (kein Modellauftrag, Vertrag §0.7).
-- **`/lektorat/act` für den Autor:** nimmt nur Methoden aus `LEKTOR_RPC`; `revision.propose`/`finding.add` lehnt der
-  Server für ihn mit Hinweis ab. Der Autor nutzt wie bisher `/act` und die Formulare der Module.
+- **No counter for open proposals:** MCP limits open proposals per client; for Lektors (humans) there is no such
+  limit, only the sizes (1 MiB text, 2000 characters note).
+- **Lektors and the thread chat:** read yes, write no (no model job, contract §0.7).
+- **`/lektorat/act` for the author:** takes only methods from `LEKTOR_RPC`; the server refuses
+  `revision.propose`/`finding.add` for him with a hint. The author uses `/act` and the forms of the modules as before.
 
-Oberfläche:
+User interface:
 
-2. **`account.me`** liefert `local_open` (Vertrag §1.6); scheitert der Aufruf, zeigt die Seite „ausgeschaltet“.
-3. **`member.list`** in der Form des Vertrags (§2.3); eine unlesbare Antwort zeigt die Seite als Fehler.
-4. **`/einstellungen/konten/act`** bekommt genau die Felder des Vertrags – kein `work`. Nach der Aktion fehlt das
-   Werk in der Adresse (es kommt dann aus dem Cookie `baruch_work`).
-5. **`/lektorat/act`** leitet nach `revision.propose`, `post.*` und `finding.add` zurück auf den Abschnitt
-   (`view::node_url`) bzw. mit `back=befunde` auf die Befundseite. Die Lektor-Formulare der Arbeitsseite schicken
-   kein `back`.
-6. **`revision.propose`** über `/rpc` antwortet mit `{key, rev, …}`; `workspace.ts` zeigt danach diese Fassung.
-7. **Live-Chat:** Für Lektoren fehlt das Widget „chat“ (neue Beiträge erscheinen nach dem Neuladen): `post.since`
-   liefert Beiträge mit den Werkzeugen des Autors (`post_entry`), die ein Lektor nicht nutzen kann.
-8. **Seiten `/beitrag` und `/beitraege`:** Ein Lektor liest dort; seine eigenen Beiträge ändert und entfernt er nur auf
-   der Arbeitsseite. Die Formulare des Autors sind dort über die CSS-Regel für POST-Formulare verborgen.
-9. **Anzeigename bei der Herkunft:** Fassungen, Beiträge und Befunde zeigen `@lektorat:<slug>` (wie `@word:<name>`).
-   Den Anzeigenamen dazu gibt es auf „Mein Konto“, „Mitwirkende“ und in den Einstellungen – auf der Arbeitsseite
-   nicht (die Ansichtsdaten `LibraryView` kennen keine Konten; Besitzer `rpc.rs`).
-10. **Links auf gesperrte Seiten** (z. B. Umschlagbild in der Werkliste, „Zitate prüfen“ in älteren Seiten) können für
-    Lektoren stehen bleiben, wo sie nicht in `base.html` liegen; sie enden mit 403 „Abgelehnt: …“.
+2. **`account.me`** returns `local_open` (contract §1.6); if the call fails, the page shows "switched off".
+3. **`member.list`** in the form of the contract (§2.3); an unreadable answer shows the page as an error.
+4. **`/einstellungen/konten/act`** gets exactly the fields of the contract – no `work`. After the action the work is
+   missing from the address (it then comes from the cookie `baruch_work`).
+5. **`/lektorat/act`** redirects after `revision.propose`, `post.*` and `finding.add` back to the section
+   (`view::node_url`) or, with `back=befunde`, to the findings page. The Lektor forms of the work page send no
+   `back`.
+6. **`revision.propose`** via `/rpc` answers with `{key, rev, …}`; `workspace.ts` then shows this revision.
+7. **Live chat:** for Lektors the widget "chat" is missing (new posts appear after reloading): `post.since` returns
+   posts with the tools of the author (`post_entry`), which a Lektor cannot use.
+8. **Pages `/beitrag` and `/beitraege`:** a Lektor reads there; he changes and removes his own posts only on the work
+   page. The forms of the author are hidden there by the CSS rule for POST forms.
+9. **Display name with the origin:** revisions, posts and findings show `@lektorat:<slug>` (like `@word:<name>`). The
+   display name for it is on „Mein Konto“, „Mitwirkende“ and in the settings – not on the work page (the view data
+   `LibraryView` know no accounts; owner `rpc.rs`).
+10. **Links to blocked pages** (e.g. cover image in the list of works, „Zitate prüfen“ in older pages) can stay for
+    Lektors where they do not lie in `base.html`; they end with 403 „Abgelehnt: …“.
 
-### Angepasste ältere Tests
+### Adjusted older tests
 
-| Datei | Warum |
+| File | Why |
 |---|---|
-| `tests/round9_settings.rs`, `tests/round9_integration.rs`, Unit-Test in `settings/mod.rs` | acht statt sieben Einstellungsseiten (Vertrag §3.1) |
-| `tests/round24_pakete.rs` | hinter „Baruch beenden…“ folgt der Eintrag zum Konto (Vertrag §3.2) |
-| `tests/round32_abnahme.rs` | die Einträge „Word (.docx) importieren…“ und „Baruch beenden…“ tragen in `base.html` die Klasse `nur-autor`; hinter der Marke `R32-PLATZ beenden` folgt die Marke für den Eintrag zum Konto |
-| `tests/round33_laptop.rs` | `konten.css` steht in `STYLE` hinter `laptop.css` (S1); der Test verlangt jetzt, dass `laptop.css` hinter dem Grundgerüst steht und danach nur `konten.css` folgt (das die Zustände des Laptop-Modus nicht anfasst – geprüft in `round35_oberflaeche`) |
-| `tests/round33_seiten.rs` | `konto.html` und `mitwirkende.html` in `TEMPLATES` |
+| `tests/round9_settings.rs`, `tests/round9_integration.rs`, unit test in `settings/mod.rs` | eight instead of seven settings pages (contract §3.1) |
+| `tests/round24_pakete.rs` | after „Baruch beenden…“ follows the entry for the account (contract §3.2) |
+| `tests/round32_abnahme.rs` | the entries „Word (.docx) importieren…“ and „Baruch beenden…“ carry the class `nur-autor` in `base.html`; after the marker `R32-PLATZ beenden` follows the marker for the entry for the account |
+| `tests/round33_laptop.rs` | `konten.css` stands in `STYLE` after `laptop.css` (S1); the test now requires that `laptop.css` stands after the basic frame and only `konten.css` follows it (which does not touch the states of the laptop mode – checked in `round35_oberflaeche`) |
+| `tests/round33_seiten.rs` | `konto.html` and `mitwirkende.html` in `TEMPLATES` |
 
-### Integration (Runde 35)
+### Integration (Round 35)
 
-- **Zusammengeführt** `team/konten`, `team/rollen`, `team/oberflaeche_konten` ohne Konflikt. Die drei Zweige hatten
-  je gegen die Stubs der anderen gebaut; die Naht prüft `tests/round35_abnahme.rs` mit echten Sitzungen (kein
-  `common::with_who`): Einrichten nur vom eigenen Rechner (nicht über den Proxy-Namen, nicht ohne Gegenstelle, nicht
-  mit `X-Forwarded-For`), danach Seiten 303 auf `/anmelden?next=…`, `/rpc` 401 mit −32002, Formulare 401, `/mcp`
-  unverändert; viermal falsches Passwort → 429 mit `Retry-After`, auch für das richtige; Abmelden beendet genau eine
-  Sitzung; kein Passwort und kein Token im Datenordner (alle Dateien durchsucht). Die Lektorin (Name mit Umlaut →
-  `@lektorat:baerbel`) sieht nur das freigegebene Werk, schreibt Vorschlag, Beitrag und Befund über
-  `/lektorat/act` (ohne JavaScript) mit Herkunft im Spiegel, darf nicht übernehmen (403 über `/act`, `/lektorat/act`,
-  −32003 über `/rpc`); der Autor übernimmt über `/act`; nach dem Entzug der Freigabe 403. Dazu mit echter Sitzung jede
-  Route aus `common::registered_routes()` und jeder Methodenname aus `common::rpc_method_candidates()` außerhalb der
-  beiden Tabellen: 403 bzw. −32003, Datenbank (Zeilenzahlen) und Spiegel (HEAD) danach unverändert.
-- **Ohne Konten:** Die Startseite ist bis auf den Eintrag „Konten einrichten…“ (direkt hinter „Baruch beenden…“) die
-  von vorher: Der Test schneidet den Eintrag heraus und findet danach nichts aus Runde 35 mehr. Ein Vergleich Byte für
-  Byte gegen ein Programm vom Stand vor S1 steht im Bericht von oberflaeche_konten (23 Seiten und `ui.render`); der
-  Integrator hat ihn nicht wiederholt.
-- **Zuletzt geöffnetes Werk (Vertrag §2.1, bei rollen offen):** `roles::check_request_preferring(…, preferred)` nimmt
-  das Werk aus dem Cookie `baruch_work`, wenn es freigegeben ist; `check_request` (S1-Signatur) bleibt und ruft es
-  ohne Wunsch.
-- **Seiten ohne eigenes Werk (Sichtprüfung):** `/werke` verlinkte für Lektoren „Zurück zum Werk“ auf das Vorgabewerk
-  der Instanz (403), und mit einem alten Cookie `baruch_work` zeigte das ganze Menüband auf ein fremdes Werk. Zwei
-  Stellen, beide zentral: `AppState::default_work` liefert einem Lektor das kleinste **freigegebene** Werk (ohne
-  Freigabe `UnknownWork(0)`), und `auth::gate` richtet für Lektoren das Cookie `baruch_work` **der Anfrage** auf ein
-  freigegebenes Werk (`pin_last_work`; das Cookie im Browser bleibt, ohne Freigabe fehlt es). Titel eines fremden
-  Werks standen auch vorher nicht in der Seite.
-- **Kopf eines Vorschlags:** „@lektorat:baerbel (@lektorat:baerbel) · Fassung 2“ nannte den Handle doppelt (ein Konto
-  hat keinen Persona-Eintrag); jetzt „@lektorat:baerbel · Fassung 2“ (`view.rs`). Der Anzeigename steht dort weiter
-  nicht (Backlog).
-- **Befundseite:** Das Formular „Anmerkung zum Buch“ stand wegen `.fd-form` (befunde.css) am rechten Rand;
-  `konten.css` richtet es als Spalte aus.
-- `konten_ui::pages::direct_from_own_machine` nutzt `guard::forwarded` (eine Liste der sechs Kopfzeilen statt zwei);
-  der S1-Text `accounts::NOT_YET` und die Ausnahmeliste `pending` in `round35_schreibwege` sind entfernt.
-- **Widgets der Arbeitsseite eines Lektors** (Sorge von rollen: Aufrufe gesperrter Methoden): Die Seite trägt nur
+- **Merged** `team/konten`, `team/rollen`, `team/oberflaeche_konten` without a conflict. The three branches had each
+  built against the stubs of the others; the seam is checked by `tests/round35_abnahme.rs` with real sessions (no
+  `common::with_who`): setting up only from the own machine (not via the proxy name, not without a peer, not with
+  `X-Forwarded-For`), afterwards pages 303 to `/anmelden?next=…`, `/rpc` 401 with −32002, forms 401, `/mcp`
+  unchanged; four wrong passwords → 429 with `Retry-After`, also for the right one; logging out ends exactly one
+  session; no password and no token in the data folder (all files searched). The Lektor (name with umlaut →
+  `@lektorat:baerbel`) sees only the granted work, writes proposal, post and finding via `/lektorat/act` (without
+  JavaScript) with origin in the mirror, may not adopt (403 via `/act`, `/lektorat/act`, −32003 via `/rpc`); the
+  author adopts via `/act`; after the grant is withdrawn 403. Plus, with a real session, every route from
+  `common::registered_routes()` and every method name from `common::rpc_method_candidates()` outside the two tables:
+  403 or −32003, database (row counts) and mirror (HEAD) unchanged afterwards.
+- **Without accounts:** the start page is, apart from the entry „Konten einrichten…“ (directly after „Baruch
+  beenden…“), the one from before: the test cuts out the entry and afterwards finds nothing from Round 35. A byte for
+  byte comparison against a program at the state before S1 stands in the report of oberflaeche_konten (23 pages and
+  `ui.render`); the integrator did not repeat it.
+- **Work opened last (contract §2.1, open with rollen):** `roles::check_request_preferring(…, preferred)` takes the
+  work from the cookie `baruch_work` if it is granted; `check_request` (S1 signature) stays and calls it without a
+  preference.
+- **Pages without a work of their own (visual check):** for Lektors, `/werke` linked „Zurück zum Werk“ to the default
+  work of the instance (403), and with an old cookie `baruch_work` the whole ribbon pointed to a foreign work. Two
+  places, both central: `AppState::default_work` returns to a Lektor the smallest **granted** work (without a grant
+  `UnknownWork(0)`), and `auth::gate` points the cookie `baruch_work` **of the request** to a granted work for Lektors
+  (`pin_last_work`; the cookie in the browser stays, without a grant it is missing). Titles of a foreign work did not
+  stand in the page before either.
+- **Head of a proposal:** „@lektorat:baerbel (@lektorat:baerbel) · Fassung 2“ named the handle twice (an account has
+  no persona entry); now „@lektorat:baerbel · Fassung 2“ (`view.rs`). The display name still does not stand there
+  (backlog).
+- **Findings page:** the form „Anmerkung zum Buch“ stood at the right edge because of `.fd-form` (befunde.css);
+  `konten.css` aligns it as a column.
+- `konten_ui::pages::direct_from_own_machine` uses `guard::forwarded` (one list of the six headers instead of two);
+  the S1 text `accounts::NOT_YET` and the exception list `pending` in `round35_schreibwege` are removed.
+- **Widgets of the work page of a Lektor** (concern of rollen: calls of blocked methods): the page carries only
   `workspace`, `editor`, `wysiwyg`, `tree`, `accordion`, `splitter`, `band`, `band-dock`, `menubar`, `settings`,
-  `theme`, `work-select`. Beim Laden kommt kein RPC-Aufruf; „Vorschlagen“ mit JavaScript ruft `wysiwyg.serialize`,
-  `revision.propose`, `ui.render`, `menu.badges` – alle erlaubt (Sichtprüfung mit Probe, Mitschrift am Vermittler).
-  `timing`, `scripture-check`, `context-menu` stehen für Lektoren nicht in der Seite; `bible.marks`, `timing.count`,
-  `index.registers` usw. bleiben darum zu Recht gesperrt.
-- **Bestätigt (PM-Frage von rollen):** `wysiwyg.*`, `ribbon.formats` und `GET /einstellungen/darstellung` mit
-  Werk-Bindung; `work.sheet` und `search.find` als rein lesende Ergänzungen. Folge: Ein Lektor ohne freigegebenes Werk
-  erreicht die Darstellungsseite nicht (Umleitung auf `/werke`).
-- **Bausteine eingesetzt:** Die Dateien `docs/r35/*.md` der Entwickler sind in diesen Abschnitt, in `docs/RPC.md`
-  und `docs/MCP.md` aufgegangen und gelöscht.
-- **Fotos der Sichtprüfung:** `.claude/sicht/r35/` (Einrichten, Anmelden, Konten, Mitwirkende, Menü und Arbeitsseite
-  als Autor und als Lektor, Befundseite, Mein Konto, Ablehnung; hell und dunkel, mit und ohne JavaScript, 1024 px).
+  `theme`, `work-select`. On loading no RPC call happens; „Vorschlagen“ with JavaScript calls `wysiwyg.serialize`,
+  `revision.propose`, `ui.render`, `menu.badges` – all allowed (visual check with a probe, transcript at the
+  intermediary). `timing`, `scripture-check`, `context-menu` do not stand in the page for Lektors; `bible.marks`,
+  `timing.count`, `index.registers` etc. therefore rightly stay blocked.
+- **Confirmed (PM question of rollen):** `wysiwyg.*`, `ribbon.formats` and `GET /einstellungen/darstellung` with work
+  binding; `work.sheet` and `search.find` as purely reading additions. Consequence: a Lektor without a granted work
+  does not reach the display page (redirect to `/werke`).
+- **Building blocks merged in:** the files `docs/r35/*.md` of the developers went into this section, into
+  `docs/RPC.md` and `docs/MCP.md` and are deleted.
+- **Photos of the visual check:** `.claude/sicht/r35/` (setup, login, accounts, contributors, menu and work page as
+  author and as Lektor, findings page, my account, refusal; light and dark, with and without JavaScript, 1024 px).
 
 ### Tests
 
-- `crates/baruch-store/tests/migration_0053.rs`, `migration_0054.rs`: Migrationen auf nachgebauter Datenbank im Stand
-  0052 (alle Zeilen byte-gleich), Store-Regeln (erstes Konto nur einmal, letzter Autor, Sitzungen, Sperre, Freigaben).
-- `crates/baruch-server/tests/round35_konten.rs` (Anmeldung, Sitzung, Sperre, Verwaltung, Befehl `passwort`),
-  `round35_rollen.rs` (Werk-Bindung, Herkunft, eigene Beiträge, Befunde, Freigaben), `round35_schreibwege.rs` (jede
-  Route und Methode außerhalb der Tabellen), `round35_oberflaeche.rs` (Seiten, Menü, Arbeitsseite, Stylesheet),
-  `round35_abnahme.rs` (der echte Weg mit Sitzungen, siehe „Integration“).
-- Testhilfen in `tests/common/mod.rs`: `registered_routes()`, `rpc_method_candidates()`, `with_who(request, who)`.
+- `crates/baruch-store/tests/migration_0053.rs`, `migration_0054.rs`: migrations on a rebuilt database at state 0052
+  (all rows byte-identical), store rules (first account only once, last author, sessions, lock, grants).
+- `crates/baruch-server/tests/round35_konten.rs` (login, session, lock, administration, command `passwort`),
+  `round35_rollen.rs` (work binding, origin, own posts, findings, grants), `round35_schreibwege.rs` (every route and
+  method outside the tables), `round35_oberflaeche.rs` (pages, menu, work page, stylesheet), `round35_abnahme.rs` (the
+  real path with sessions, see "Integration").
+- Test helpers in `tests/common/mod.rs`: `registered_routes()`, `rpc_method_candidates()`, `with_who(request, who)`.
 
-### Handprüfung für den Nutzer (echter Browser, Proxy mit TLS)
+### Manual check for the user (real browser, proxy with TLS)
 
-Vorher eine Sicherung anlegen oder mit einem eigenen Datenordner prüfen (`--data`).
+Make a backup first or check with a data folder of your own (`--data`).
 
-**Ohne Konten**
+**Without accounts**
 
-1. Baruch öffnen: alles wie bisher? Im Menü „Baruch ▾“ steht neu „Konten einrichten…“.
-2. Einstellungen → Konten: Erklärung und Knopf „Einrichten“.
+1. Open Baruch: everything as before? In the menu „Baruch ▾“ there is a new entry „Konten einrichten…“.
+2. Settings → accounts: explanation and button „Einrichten“.
 
-**Einrichten (am Rechner selbst, `http://127.0.0.1:8765`)**
+**Setting up (on the machine itself, `http://127.0.0.1:8765`)**
 
-3. „Konten einrichten…“: Formular erscheint. Zwei verschiedene Passwörter → Meldung, Name bleibt stehen.
-4. Konto anlegen → Einstellungen → Konten mit „Das Konto ist angelegt.“; Menü zeigt „Angemeldet: … (Autor)“.
-5. Über den Proxy (`https://NAME/einrichten`) bzw. in einem privaten Fenster: Umleitung auf die Konten bzw. Anmeldung.
-6. Passwortmanager des Browsers: bietet er beim Anlegen das Speichern und beim Anmelden das Ausfüllen an?
+3. „Konten einrichten…“: the form appears. Two different passwords → message, the name stays.
+4. Create the account → settings → accounts with „Das Konto ist angelegt.“; the menu shows „Angemeldet: … (Autor)“.
+5. Via the proxy (`https://NAME/einrichten`) or in a private window: redirect to the accounts or the login.
+6. Password manager of the browser: does it offer saving when creating and filling in when logging in?
 
-**Autor**
+**Author**
 
-7. Abmelden → Anmeldeseite mit „Abgemeldet.“; falsches Passwort viermal → Wartezeit wird genannt.
-8. Lektor anlegen (Einstellungen → Konten), Werk freigeben (Reiter Buch → Mitwirkende), wieder entziehen.
-9. Sperren und Entsperren; Passwort zurücksetzen (aufklappbares Formular in der Zeile).
-10. „Am eigenen Rechner ohne Anmeldung“ ein- und ausschalten: Menü zeigt „Autor (eigener Rechner, ohne Anmeldung)“.
-    **Über den Proxy muss trotzdem die Anmeldeseite kommen.**
-11. Dunkles Thema und Laptop-Modus: Anmeldeseite, Mein Konto, Konten, Mitwirkende lesbar, nichts läuft aus dem Fenster.
+7. Log out → login page with „Abgemeldet.“; a wrong password four times → the waiting time is named.
+8. Create a Lektor (settings → accounts), grant a work (tab „Buch“ → „Mitwirkende“), withdraw it again.
+9. Lock and unlock; reset the password (expandable form in the row).
+10. Switch „Am eigenen Rechner ohne Anmeldung“ on and off: the menu shows „Autor (eigener Rechner, ohne Anmeldung)“.
+    **Via the proxy the login page must still come.**
+11. Dark theme and laptop mode: login page, „Mein Konto“, accounts, contributors readable, nothing runs out of the
+    window.
 
-**Lektor (zweiter Browser oder privates Fenster, über den Proxy)**
+**Lektor (second browser or private window, via the proxy)**
 
-12. Anmelden: nur das freigegebene Werk in der Werkwahl und unter „Alle Werke“; ohne Freigabe „Noch kein Werk
+12. Log in: only the granted work in the work choice and under „Alle Werke“; without a grant „Noch kein Werk
     freigegeben.“.
-13. Arbeitsseite: kein „Speichern“, kein Reiter „Einfügen“, keine Assistenten rechts; im Menü „Baruch ▾“ nur Alle
-    Werke, Einstellungen, Über Baruch, Mein Konto, Abmelden.
-14. Text ändern → „Vorschlagen“ (mit Notiz): Der Vorschlag erscheint als neue Fassung „Vorschlag · @lektorat:…“.
-    Dasselbe mit abgeschaltetem JavaScript.
-15. Beitrag senden; eigenen Beitrag unter „Verwalten“ ändern und entfernen; beim Beitrag des Autors fehlt „Verwalten“.
-16. „Befund schreiben“ rechts; auf der Seite Befunde „Anmerkung zum Buch schreiben“; dort keine Status-Knöpfe.
-17. Adresse von Hand: `/werke/<id>/pdf`, `/einstellungen/werk`, `/literatur` → „Abgelehnt: …“ (403).
-18. „Einstellungen“ führt auf Darstellung (kein Dialog); Thema umschalten wirkt.
-19. Als Autor: Vorschlag des Lektors übernehmen bzw. verwerfen; im Git-Spiegel steht die Herkunft.
-20. Link auf eine Baruch-Seite aus einer E-Mail anklicken, während man angemeldet ist: Anmeldeseite mit „Schon
-    angemeldet? Weiter“ → der Klick führt ohne neue Anmeldung ans Ziel.
+13. Work page: no „Speichern“, no tab „Einfügen“, no assistants on the right; in the menu „Baruch ▾“ only „Alle
+    Werke“, „Einstellungen“, „Über Baruch“, „Mein Konto“, „Abmelden“.
+14. Change text → „Vorschlagen“ (with a note): the proposal appears as a new revision „Vorschlag · @lektorat:…“. The
+    same with JavaScript switched off.
+15. Send a post; change and remove an own post under „Verwalten“; at the post of the author „Verwalten“ is missing.
+16. „Befund schreiben“ on the right; on the page findings „Anmerkung zum Buch schreiben“; no status buttons there.
+17. Address by hand: `/werke/<id>/pdf`, `/einstellungen/werk`, `/literatur` → „Abgelehnt: …“ (403).
+18. „Einstellungen“ leads to „Darstellung“ (no dialog); switching the theme works.
+19. As the author: adopt or discard the proposal of the Lektor; the origin stands in the Git mirror.
+20. Click a link to a Baruch page from an e-mail while logged in: login page with „Schon angemeldet? Weiter“ → the
+    click leads to the target without a new login.
 
-**Notweg**
+**Emergency path**
 
-21. `echo 'neues-langes-passwort' | baruch-server passwort <Name> --data <Ordner>`; danach anmelden.
+21. `echo 'neues-langes-passwort' | baruch-server passwort <Name> --data <Ordner>`; then log in.
 22. `curl -i -X POST <Adresse>/rpc -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"work.list"}'`
-    ohne Cookie → 401 mit Code −32002; `/mcp` verhält sich wie vor Runde 35 (Token bzw. eigener Rechner).
+    without a cookie → 401 with code −32002; `/mcp` behaves as before Round 35 (token or own machine).
 23. `sqlite3 'file:<Ordner>/baruch.sqlite?mode=ro' 'select password from account; select token_hash from
-    account_session'` → nur `$argon2id$v=19$m=19456,t=2,p=1$…` und 64 Hex-Zeichen.
-24. Als Lektor mit zwei freigegebenen Werken: im zweiten Werk arbeiten, dann „Baruch ▾ → Alle Werke“ und „Zurück zum
-    Werk“ → das zuletzt geöffnete Werk, nie ein fremdes.
+    account_session'` → only `$argon2id$v=19$m=19456,t=2,p=1$…` and 64 hex characters.
+24. As a Lektor with two granted works: work in the second work, then „Baruch ▾ → Alle Werke“ and „Zurück zum Werk“
+    → the work opened last, never a foreign one.
 
-## Runde 36 – Reste
+## Round 36 – Leftovers
 
-Kleine, klar abgegrenzte Punkte aus den Runden 33 bis 35, aus der Gegenprobe 0.9.0 und aus der Liste „offen nach
-R24“ (Aufgabe `reste`; Bedienung in `docs/Bedienung.md`, „Runde 36 – Reste“). Keine neue Route, keine neue
-RPC-Methode, kein neues MCP-Werkzeug, keine Migration (die reservierte Nummer 0055 bleibt unbenutzt), keine neue
-Abhängigkeit. Neues SQL steht nur in `crates/baruch-store/src/reste36.rs`, als Zeichenketten-Literale mit gebundenen
-Werten.
+Small, clearly delimited items from Rounds 33 to 35, from the counter-check of 0.9.0 and from the list "open after
+R24" (task `reste`; usage in `docs/Bedienung.md`, Round 36, leftovers). No new route, no new RPC method, no new MCP
+tool, no migration (the reserved number 0055 stays unused), no new dependency. New SQL stands only in
+`crates/baruch-store/src/reste36.rs`, as string literals with bound values.
 
-### Konten und Rollen
+### Accounts and roles
 
-- **Notweg `passwort`** (`auth/cli.rs`): Nach `account_set_password` ruft `reset_password`
-  `Store::login_reset(&throttle::account_scope(name))` auf. Der Bereich hängt am Namensschlüssel des Kontos; der
-  Bereich der Adresse und die Bereiche anderer Namen bleiben. Ein abgelehnter Aufruf (zu kurzes Passwort,
-  unbekanntes Konto) ändert nichts.
-- **Werk-Bindung gelockert** (`roles/mod.rs`): `GET /einstellungen/darstellung` in `LEKTOR_ROUTES` sowie
-  `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` und `ribbon.formats` in `LEKTOR_RPC` stehen
-  auf `WorkFrom::None`. Das trägt, weil alle Wege zu einem Werk ohne ausdrückliches `work` für einen Lektor nur
-  Freigegebenes liefern: `AppState::default_work` gibt ihm das kleinste freigegebene Werk und ohne Freigabe keines;
-  `settings::resolve_work` lässt das Cookie `baruch_work` für einen Lektor nur gelten, wenn `roles::role_in` das Werk
-  als freigegeben kennt (vorher hätte die Seite ohne `work` das zuletzt geöffnete Werk aus dem Cookie genommen). Ein
-  in der Adresse oder im Parameter genanntes `work` prüft `roles` wie bisher. `roles` bleibt die einzige Stelle der
-  Rechteprüfung; die Änderung in `resolve_work` wählt nur aus, was gezeigt wird. Beleg: `round36_lektor`
-  (Vorgabewerk nie fremd, Seite ohne Freigabe erreichbar und ohne fremden Titel, Methoden ohne `work`).
-- **Anzeigename zur Herkunft** (`konten_ui/names.rs`): Ein Nachbearbeitungsschritt über das fertige HTML, an zwei
-  Stellen eingehängt – `consent::inject` (ganze Seiten) und `ui.render` (die drei Stücke für das Nachladen). Er
-  liest `Store::account_list`, bildet je Konto `@lektorat:<slug>` → Anzeigename und ersetzt nur den **Text** der
-  Herkunfts-Elemente durch „Anzeigename (@lektorat:slug)“; Attribute (`data-post-author` …) und alles Gespeicherte
-  bleiben der Handle. Ohne Konten und ohne Treffer gibt er die Seite unverändert zurück (Byte für Byte, Test).
-  Gewählt wurde die Nachbearbeitung, weil `LibraryView` und die Vorlagen keine Konten kennen und der Store in dieser
-  Runde nicht umgebaut wird.
-- **Beschriftung und Links für Lektoren:** `base.html` trägt den Knopf der Suche zweimal (`nur-autor` „Im Werk
-  suchen und ersetzen“, `nur-lektor` „Im Werk suchen“); `konten_ui::apply` lässt wie bei den übrigen Paaren nur den
-  passenden stehen. `works.html` zeichnet das Umschlagbild für Lektoren ohne Link (`lektor` im Kontext von
-  `works::list_page`). Beides ist Bequemlichkeit; gesperrt wird weiter allein in `roles`.
-- **Thema auf `/anmelden` und `/einrichten`** (`konten_ui::themed`, eingehängt in `consent::inject`): Die beiden
-  eigenständigen Seiten (ohne Menüband, erkannt am Kopf der Vorlage und an `body.konto-seite`) bekommen
-  `data-theme` aus dem Cookie `baruch_theme` an `<html>`, wie `base.html`. Ohne Cookie oder mit einem unbekannten
-  Wert bleibt die Seite unverändert (Farbschema des Systems). Kein JavaScript.
+- **Emergency path `passwort`** (`auth/cli.rs`): after `account_set_password`, `reset_password` calls
+  `Store::login_reset(&throttle::account_scope(name))`. The range hangs on the name key of the account; the range of
+  the address and the ranges of other names stay. A refused call (password too short, unknown account) changes
+  nothing.
+- **Work binding loosened** (`roles/mod.rs`): `GET /einstellungen/darstellung` in `LEKTOR_ROUTES` as well as
+  `wysiwyg.parse`, `wysiwyg.serialize`, `wysiwyg.diff`, `wysiwyg.style` and `ribbon.formats` in `LEKTOR_RPC` stand on
+  `WorkFrom::None`. That holds because all paths to a work without an explicit `work` deliver only granted works to a
+  Lektor: `AppState::default_work` gives him the smallest granted work and without a grant none;
+  `settings::resolve_work` accepts the cookie `baruch_work` for a Lektor only if `roles::role_in` knows the work as
+  granted (before, the page without `work` would have taken the work opened last from the cookie). A `work` named in
+  the address or in the parameter is checked by `roles` as before. `roles` stays the only place of the permission
+  check; the change in `resolve_work` only chooses what is shown. Evidence: `round36_lektor` (default work never
+  foreign, page reachable without a grant and without a foreign title, methods without `work`).
+- **Display name with the origin** (`konten_ui/names.rs`): a post-processing step over the finished HTML, hooked in
+  at two places – `consent::inject` (whole pages) and `ui.render` (the three pieces for reloading). It reads
+  `Store::account_list`, builds per account `@lektorat:<slug>` → display name and replaces only the **text** of the
+  origin elements by "display name (@lektorat:slug)"; attributes (`data-post-author` …) and everything stored stay the
+  handle. Without accounts and without hits it returns the page unchanged (byte for byte, test). Post-processing was
+  chosen because `LibraryView` and the templates know no accounts and the store is not rebuilt in this round.
+- **Labels and links for Lektors:** `base.html` carries the search button twice (`nur-autor` „Im Werk suchen und
+  ersetzen“, `nur-lektor` „Im Werk suchen“); as with the other pairs, `konten_ui::apply` leaves only the matching one.
+  `works.html` draws the cover image for Lektors without a link (`lektor` in the context of `works::list_page`). Both
+  are convenience; blocking still happens only in `roles`.
+- **Theme on `/anmelden` and `/einrichten`** (`konten_ui::themed`, hooked into `consent::inject`): the two standalone
+  pages (without ribbon, recognised by the head of the template and by `body.konto-seite`) get `data-theme` from the
+  cookie `baruch_theme` on `<html>`, like `base.html`. Without a cookie or with an unknown value the page stays
+  unchanged (colour scheme of the system). No JavaScript.
 
-### Mindmap
+### Mind map
 
-- **Rundreise mit Wolke:** `files/import.rs` erkennt den eigenen Ast an der Kennung `export::CLOUD_ID` (nie am
-  Titel), löst ihn auf und gibt seinen Kindern `ImportNode::cloud = true` (`tree.rs`, `#[serde(default)]`, damit
-  eine ältere Vorschau im Formular weiter gilt). Beim Anlegen ohne Zielknoten legt der Store die obersten Knoten
-  wie bisher als Hauptthemen an (`idea_import_tree`, eine Store-Datei von sqlx09 in dieser Runde); danach verschiebt
-  `tree.rs` die gekennzeichneten mit `Store::idea_move` in die Wolke – unter derselben Schreibsperre und vor dem
-  einen Spiegel-Commit. Mit Zielknoten zählt das Kennzeichen nicht, tiefer im Baum auch nicht.
-- **Beschriftungen der Verbindungen** (`bild/mindmap.rs`, `free_label_spot`): Jede Beschriftung ist ein Rechteck
-  (geschätzte Textbreite plus Rand). Gesucht wird ein Platz, der kein Knotenrechteck und keine schon gesetzte
-  Beschriftung überschneidet (3 px Abstand) und im Bild liegt: zuerst an sieben Stellen der Kurve mit wachsendem
-  Abstand darüber und darunter, dann in Ringen um die Mitte der Linie. Findet sich nichts, bleibt sie an der Mitte
-  und trägt `data-crowded`. Dazu ein deckender Grund (`rect.mm-link-label-bg`, in der Datei-Ausgabe weiß), damit
-  kreuzende Linien sie nicht durchstreichen. Grenze: Die Textbreite ist geschätzt, der Server kennt die Schrift des
-  Browsers nicht.
-- **Heller Streifen im dunklen Modus** (`static/karte.css`): `.karte` ist der Scrollbehälter der Seite und war auf
-  1400 px begrenzt und zentriert; ihre Bildlaufleiste stand in breiten Fenstern darum neben der Bühne statt am
-  Fensterrand, in den Farben des Systems. Jetzt reicht `.karte` über die volle Breite und rückt den Inhalt über
-  `padding-inline` in die Mitte; `.karte` und `.mm-canvas` setzen `scrollbar-color` aus den Variablen der Seite.
-  Die Ursache ist aus dem Stylesheet abgeleitet und dort zugesichert; im Browser angesehen ist es nicht
-  (Handprüfung beim Nutzer).
+- **Round trip with cloud:** `files/import.rs` recognises its own branch by the identifier `export::CLOUD_ID` (never
+  by the title), dissolves it and gives its children `ImportNode::cloud = true` (`tree.rs`, `#[serde(default)]`, so
+  that an older preview in the form stays valid). When creating without a target node, the store creates the top
+  nodes as main topics as before (`idea_import_tree`, a store file of sqlx09 in this round); afterwards `tree.rs`
+  moves the marked ones into the cloud with `Store::idea_move` – under the same write lock and before the one mirror
+  commit. With a target node the marker does not count, deeper in the tree neither.
+- **Labels of the links** (`bild/mindmap.rs`, `free_label_spot`): every label is a rectangle (estimated text width
+  plus margin). A place is searched that overlaps no node rectangle and no label already placed (3 px distance) and
+  lies within the picture: first at seven places of the curve with growing distance above and below, then in rings
+  around the middle of the line. If nothing is found, it stays at the middle and carries `data-crowded`. Plus an
+  opaque background (`rect.mm-link-label-bg`, white in the file output), so that crossing lines do not strike it
+  through. Limit: the text width is estimated, the server does not know the font of the browser.
+- **Light stripe in dark mode** (`static/karte.css`): `.karte` is the scroll container of the page and was limited to
+  1400 px and centred; in wide windows its scrollbar therefore stood beside the stage instead of at the window edge,
+  in the colours of the system. Now `.karte` spans the full width and moves the content to the middle via
+  `padding-inline`; `.karte` and `.mm-canvas` set `scrollbar-color` from the variables of the page. The cause is
+  derived from the stylesheet and asserted there; it has not been looked at in the browser (manual check by the
+  user).
 
-### Fassungen und Assistenten
+### Revisions and assistants
 
-- **Zähler im Band** (`fragments/edit_toolbar.html`): derselbe Schalter wie im Editor-Kopf aus `rev.fold`
-  („(+ n ausgeblendet) ▸“ bzw. „n ältere verbergen ▾“, gleiche Adressen); ‹ und › tragen `rev.fold.q` weiter.
-- **Eigene offene Befunde nur beim Prüfen** (`assist/chat.rs`, `is_check_order`): `OrderFrame::recheck` einer
-  direkt angesprochenen Persona ist `rfc || is_check_order(message)`. Ein Prüfauftrag ist eine Nachricht, in der
-  ein Wort (außerhalb von Erwähnungen und Zitatzeilen) mit prüf, überprüf, nachprüf, gegenprüf, kontrollier, check
-  oder review beginnt, oder die einen Befund „[B<n>]“ nennt. „Prüfen“, ↻ und RFC bleiben erneutes Prüfen. Die
-  Erkennung ist eine Wortliste, kein Verstehen: „geprüft“ zählt nicht, „Checkliste“ zählt.
-- **`propose_chapter` auf der richtigen Grundlage** (`assist/mod.rs`, `assist/basis.rs`): Der Vorschlag für den
-  Teil des Auftrags entsteht über `Store::add_proposal_on` auf `prepared.shown_rev` (gewählt bzw. gezeigt), die
-  übrigen Teile wie bisher auf ihrer aktuellen Fassung. `Outcome::basis` kommt aus `basis::of_proposal` (Kopfzeile
-  „Grundlage: …“) und steht in der Antwort von `persona.propose` – auch beim Vorschlag für einen Abschnitt. Ein
-  Text, der der gezeigten Fassung gleicht, zählt als unverändert.
-- **`baruch_vw` beim ersten Aufruf** (`web/src/vw.ts`, `base.html`): ein klassisches Skript im `<head>` vor dem
-  Modul `main.js`. Es läuft vor dem ersten Zeichnen, vergleicht die Breitenklasse des Fensters mit dem Cookie,
-  schreibt bei Abweichung das Cookie neu und setzt die Attribute an `<html>` nach derselben Formel wie
-  `laptop.rs` und `laptop.ts` (Schwellen 1280/1600). Stimmt das Cookie, tut es nichts. Der Server kann die Breite
-  bei der ersten Anfrage nicht kennen; ohne JavaScript bleibt es bei „breit“. Ausgeliefert wird `vw.js` über die
-  vorhandene Route `/static/js/{name}`; `build.rs` übersetzt es wie die übrigen Dateien unter `web/src`.
+- **Counter in the ribbon** (`fragments/edit_toolbar.html`): the same switch as in the editor head from `rev.fold`
+  („(+ n ausgeblendet) ▸“ or „n ältere verbergen ▾“, same addresses); ‹ and › carry `rev.fold.q` along.
+- **Own open findings only when checking** (`assist/chat.rs`, `is_check_order`): `OrderFrame::recheck` of a directly
+  addressed persona is `rfc || is_check_order(message)`. A check request is a message in which a word (outside
+  mentions and quotation lines) begins with `prüf`, `überprüf`, `nachprüf`, `gegenprüf`, `kontrollier`, `check` or `review`, or
+  which names a finding "[B<n>]". „Prüfen“, ↻ and RFC stay re-checks. The detection is a word list, not
+  understanding: „geprüft“ does not count, „Checkliste“ counts.
+- **`propose_chapter` on the right basis** (`assist/mod.rs`, `assist/basis.rs`): the proposal for the part of the job
+  is created via `Store::add_proposal_on` on `prepared.shown_rev` (chosen or shown), the other parts as before on
+  their current revision. `Outcome::basis` comes from `basis::of_proposal` (head line „Grundlage: …“) and stands in
+  the answer of `persona.propose` – also for the proposal for a section. A text equal to the shown revision counts as
+  unchanged.
+- **`baruch_vw` on the first call** (`web/src/vw.ts`, `base.html`): a classic script in the `<head>` before the module
+  `main.js`. It runs before the first paint, compares the width class of the window with the cookie, rewrites the
+  cookie on a difference and sets the attributes on `<html>` by the same formula as `laptop.rs` and `laptop.ts`
+  (thresholds 1280/1600). If the cookie is right, it does nothing. The server cannot know the width on the first
+  request; without JavaScript it stays "wide". `vw.js` is delivered via the existing route `/static/js/{name}`;
+  `build.rs` compiles it like the other files under `web/src`.
 
-### Einstellungen, Editor, Spiegel
+### Settings, editor, mirror
 
-- **„Sicherung angelegt“** (`settings/data.rs`): ein prozessweiter Vermerk je Datenordner
-  (`static BACKUP_NOTES: Mutex<BTreeMap<PathBuf, String>>`, kein Feld in `AppState`). Das Formular legt ihn nach
-  einer gelungenen Sicherung ab, die Seite mit `?ok=sicherung` holt ihn genau einmal ab. Nach einem Neustart ist er
-  weg; `settings.backup` über RPC antwortet wie bisher direkt.
-- **Rechte des Datenordners** (`settings::open_permissions`, `permissions_warning`): nur lesend
-  (`metadata().permissions().mode() & 0o777`, gemeldet wenn `& 0o077 != 0`), nur unter Unix. Baruch ändert die
-  Rechte eines vorhandenen Ordners nie.
-- **Token-Liste** (`settings/mcp.html`, `settings.css`): Klasse `token-former` mit `white-space: nowrap`.
-- **Knopf „Zitat“** (`ribbon::QUOTE_SNIPPET`): `#quote(block: true)[]\n` ohne Folgezeile „– “.
-- **`outline_mentions`** (`xref.rs`): Ordnungszahlen bis `MAX_ORDINAL` = 100 aus Stämmen gebildet und am ganzen
-  Stamm verglichen („achtzehnten“ ist 18, nicht 8); römische Zahlen bis 3999, nur in üblicher Schreibweise. Die
-  Regel „nur bei Eindeutigkeit“ ist unverändert.
-- **store-5** (`baruch-store/src/reste36.rs`, `outline.rs`, `mirror.rs`): `Store::outline_delete_losses` liest alle
-  Fassungen außer der aktuellen (`proposal` für `status = 'proposed'`) und alle Beiträge des Punkts. Der Server
-  ruft es unter der Schreibsperre unmittelbar vor `outline_delete` auf – beim Löschen durch den Menschen und beim
-  Bestätigen eines Antrags „Löschen“ – und gibt das Ergebnis an `mirror::record_outline_losses`: derselbe eine
-  Commit, im Rumpf zusätzlich jede mitgelöschte Fassung und jeder Beitrag im Wortlaut, dazu die Trailer
-  `Baruch-Lost-Revisions` und `Baruch-Lost-Posts`. Ohne Verluste ist der Commit wie bisher. Ein Antrag allein
-  löscht nichts; löschen kann nur der Mensch.
+- **„Sicherung angelegt“** (`settings/data.rs`): a process-wide note per data folder
+  (`static BACKUP_NOTES: Mutex<BTreeMap<PathBuf, String>>`, no field in `AppState`). The form stores it after a
+  successful backup, the page with `?ok=sicherung` picks it up exactly once. After a restart it is gone;
+  `settings.backup` via RPC answers directly as before.
+- **Permissions of the data folder** (`settings::open_permissions`, `permissions_warning`): read only
+  (`metadata().permissions().mode() & 0o777`, reported if `& 0o077 != 0`), only under Unix. Baruch never changes the
+  permissions of an existing folder.
+- **Token list** (`settings/mcp.html`, `settings.css`): class `token-former` with `white-space: nowrap`.
+- **Button „Zitat“** (`ribbon::QUOTE_SNIPPET`): `#quote(block: true)[]\n` without the following line "– ".
+- **`outline_mentions`** (`xref.rs`): ordinal numbers up to `MAX_ORDINAL` = 100 built from stems and compared on the
+  whole stem („achtzehnten“ is 18, not 8); Roman numbers up to 3999, only in the usual notation. The rule "only when
+  unambiguous" is unchanged.
+- **store-5** (`baruch-store/src/reste36.rs`, `outline.rs`, `mirror.rs`): `Store::outline_delete_losses` reads all
+  revisions except the current one (`proposal` for `status = 'proposed'`) and all posts of the item. The server calls
+  it under the write lock immediately before `outline_delete` – when the human deletes and when a request "delete" is
+  confirmed – and passes the result to `mirror::record_outline_losses`: the same one commit, in the body additionally
+  every revision and every post deleted along with it in its wording, plus the trailers `Baruch-Lost-Revisions` and
+  `Baruch-Lost-Posts`. Without losses the commit is as before. A request alone deletes nothing; only the human can
+  delete.
 
-### Grenzen und Ehrliches
+### Limits and honesty
 
-- Kein Browser in dieser Runde: Token-Liste, heller Streifen, Lage der Beschriftungen im echten Schriftbild und
-  das frühe Skript `vw.js` sind über Markup, Stylesheet, erzeugtes SVG und das Node-Harness geprüft, nicht gesehen.
-- Der Vermerk „Sicherung angelegt“ gilt je Prozess und Datenordner, nicht je Sitzung: Bei mehreren Menschen an
-  einer Instanz sieht ihn, wer die Seite zuerst mit `?ok=sicherung` lädt.
-- Nicht bearbeitete Punkte stehen mit Grund in `docs/Backlog.md` („R36: nicht bearbeitet, …“).
+- No browser in this round: token list, light stripe, position of the labels in the real typeface and the early
+  script `vw.js` are checked via markup, stylesheet, generated SVG and the Node harness, not seen.
+- The note „Sicherung angelegt“ applies per process and data folder, not per session: with several humans on one
+  instance, whoever loads the page with `?ok=sicherung` first sees it.
+- Items not worked on stand with a reason in `docs/Backlog.md` („R36: nicht bearbeitet, …“).
 
 ### Tests
 
-- `crates/baruch-store/tests/reste36.rs`: `outline_delete_losses` (übrige Fassungen, Beiträge, nur lesend,
-  unbekanntes Werk und unbekannter Punkt).
-- `crates/baruch-server/tests/round36_lektor.rs` (Werk-Bindung, Anzeigename, „Im Werk suchen“, Umschlagbild,
-  Thema), `round36_mindmap.rs` (Rundreise `.mm`/`.xmind`, fremder Ast „Wolke“, Beschriftungen im SVG, Stylesheet),
-  `round36_reste.rs` (Band-Zähler, `vw.js` am Server und im Node-Harness, Sicherung, Rechte, Token-Liste, Zitat,
-  Nennungen, Spiegel-Commit beim Löschen direkt und über einen bestätigten Antrag).
-- In vorhandenen Dateien: `round35_konten.rs` (Notweg hebt die Sperre auf), `kritik_zyklus.rs` (Vorschlag fürs
-  Kapitel auf der gezeigten bzw. gewählten Fassung), `round22_befunde.rs` (schlichte Frage ohne eigene Befunde,
-  Prüfauftrag mit).
+- `crates/baruch-store/tests/reste36.rs`: `outline_delete_losses` (remaining revisions, posts, read only, unknown work
+  and unknown item).
+- `crates/baruch-server/tests/round36_lektor.rs` (work binding, display name, „Im Werk suchen“, cover image, theme),
+  `round36_mindmap.rs` (round trip `.mm`/`.xmind`, foreign branch „Wolke“, labels in the SVG, stylesheet),
+  `round36_reste.rs` (ribbon counter, `vw.js` on the server and in the Node harness, backup, permissions, token list,
+  quotation, mentions, mirror commit when deleting directly and via a confirmed request).
+- In existing files: `round35_konten.rs` (the emergency path lifts the lock), `kritik_zyklus.rs` (proposal for the
+  chapter on the shown or chosen revision), `round22_befunde.rs` (simple question without own findings, check request
+  with).
 
-### Typst-Kommandozeile (Aufgabe `typst_alias`)
+### Typst command line (task `typst_alias`)
 
-`main` entscheidet vor dem Start der Tokio-Laufzeit über `typst_cli::dispatch(args)`: Heißt das Programm `typst`
-oder `baruch-typst` (Dateiname von argv[0], ohne `.exe`, Groß/Klein egal) oder ist das erste Argument `typst`, läuft
-`typst_cli::run` und der Prozess endet mit dessen Exit-Code (0 Erfolg, 1 Satz- oder Dateifehler, 2 falscher Aufruf
-oder Nicht-Unterstütztes) – ohne Datenordner, Datenbank, Server oder Netz. `baruch-server/src/typst_cli.rs` liest
-nur die Argumente und schreibt die Dateien (erst nach gelungenem Satz); der Satz steht in
-`baruch-render/src/cli.rs` (`compile_file`, `font_names`) als Kindmodul von `baruch-render`, das Schriften,
-Bibliothek und die deutschen Meldungen des Servers mitbenutzt. Die Welt `Disk` liest Dateien nur unter dem
-Wurzelordner (aufgelöst, Symlinks nach außen gesperrt) und lehnt Pakete mit `OFFLINE` ab. `TYPST_VERSION` folgt dem
-Crate `typst` in `Cargo.lock` (Tests und `scripts/ci-typst.sh` halten das fest). Die Pakete liefern nur den Namen
-`baruch-typst` (Symlink bzw. `.cmd`). Bedienung und Grenzen: `docs/Verteilung.md`, „Typst-Kommandozeile“.
+`main` decides before the start of the Tokio runtime via `typst_cli::dispatch(args)`: if the program is called `typst`
+or `baruch-typst` (file name of argv[0], without `.exe`, case-insensitive) or the first argument is `typst`,
+`typst_cli::run` runs and the process ends with its exit code (0 success, 1 typesetting or file error, 2 wrong call or
+something unsupported) – without data folder, database, server or network. `baruch-server/src/typst_cli.rs` only reads
+the arguments and writes the files (only after successful typesetting); the typesetting stands in
+`baruch-render/src/cli.rs` (`compile_file`, `font_names`) as a child module of `baruch-render`, which shares fonts,
+library and the German messages of the server. The world `Disk` reads files only under the root folder (resolved,
+symlinks pointing outside blocked) and refuses packages with `OFFLINE`. `TYPST_VERSION` follows the crate `typst` in
+`Cargo.lock` (tests and `scripts/ci-typst.sh` pin that). The packages deliver only the name `baruch-typst` (symlink
+or `.cmd`). Usage and limits: `docs/Verteilung.md`, "Typst command line".
 
-### Datenbankzugriff mit sqlx 0.9 (Aufgabe `sqlx09`)
+### Database access with sqlx 0.9 (task `sqlx09`)
 
-Store, Bibliothek und Server nutzen eine gemeinsame sqlx-Ausprägung 0.9 (SQLite gebündelt über libsqlite3-sys 0.40;
-der Server zusätzlich PostgreSQL mit rustls/ring und Systemzertifikaten für pgvector). `query`, `query_as`,
-`query_scalar` und `begin_with` nehmen nur noch `&'static str` oder einen mit `sqlx::AssertSqlSafe` bestätigten
-Text. Regel (Modulkommentar von `baruch-store/src/lib.rs`): SQL wo möglich als Literal; `AssertSqlSafe` nur für Text
-aus festen Bausteinen des Quelltexts (Spaltenlisten, Platzhalter-Ketten, feste Bedingungen, Tabellennamen aus
-Literalen, bei pgvector geprüfte Bezeichner über `quoted()`); Werte werden immer gebunden. Die Migrationen und ihre
-Prüfsummen in `_sqlx_migrations` sind gegenüber 0.8 unverändert (Tests `sqlx09_migrations` in Store und Bibliothek,
-`round36_sqlx` im Server). Neu gegenüber 0.8: sqlx-sqlite 0.9 beachtet `-- no-transaction` am Kopf einer Migration;
-keine Migration von Baruch trägt die Markierung, 0040 braucht weiter `baruch_store::migrate` mit `FOREIGN_KEYS_OFF`.
+Store, library and server use a common sqlx build 0.9 (SQLite bundled via libsqlite3-sys 0.40; the server additionally
+PostgreSQL with rustls/ring and system certificates for pgvector). `query`, `query_as`, `query_scalar` and
+`begin_with` take only `&'static str` or a text confirmed with `sqlx::AssertSqlSafe`. Rule (module comment of
+`baruch-store/src/lib.rs`): SQL as a literal where possible; `AssertSqlSafe` only for text from fixed building blocks
+of the source (column lists, placeholder chains, fixed conditions, table names from literals, for pgvector checked
+identifiers via `quoted()`); values are always bound. The migrations and their checksums in `_sqlx_migrations` are
+unchanged compared with 0.8 (tests `sqlx09_migrations` in store and library, `round36_sqlx` in the server). New
+compared with 0.8: sqlx-sqlite 0.9 honours `-- no-transaction` at the head of a migration; no migration of Baruch
+carries the marker, 0040 still needs `baruch_store::migrate` with `FOREIGN_KEYS_OFF`.
 
-### Abnahme der Integration
+### Acceptance of the integration
 
-`crates/baruch-server/tests/round36_abnahme.rs` (Integrator) prüft über die gebaute Binärdatei die Naht zwischen
-Export und Typst-Kommandozeile: Import einer erfundenen Typst-Datei mit Bild, `export --out` und `export --pdf`,
-dann `baruch-typst compile` (Symlink) und `baruch-server typst compile` auf der exportierten Datei – alle drei PDF
-sind Byte für Byte gleich (Werk ohne Umschlag und Titelei; mit Umschlag legt der Export seinen Rahmen um die
-Quelle, die Kommandozeile setzt nur die Datei). `watch` endet mit Exit 2 und schreibt nichts.
+`crates/baruch-server/tests/round36_abnahme.rs` (integrator) checks via the built binary the seam between export and
+Typst command line: import of an invented Typst file with an image, `export --out` and `export --pdf`, then
+`baruch-typst compile` (symlink) and `baruch-server typst compile` on the exported file – all three PDFs are byte for
+byte the same (work without cover and front matter; with a cover the export puts its frame around the source, the
+command line typesets only the file). `watch` ends with exit 2 and writes nothing.
 
-Aus der Sichtprüfung der Integration: Die Kopfzeile eines Vorschlags im Lesefluss (`pv-label`) nannte als einzige
-Stelle der Arbeitsseite nur den Handle; `konten_ui::names::ORIGIN_CLASSES` nimmt die Klasse jetzt mit
-(`round36_lektor`). Im Editor-Kopf wird der Chip mit Anzeigename und Handle bei schmaler Mittelspalte mit „…“
-gekürzt (`.editor-head > .rev-meta`, wie bisher jede lange Herkunft) – im Backlog.
+From the visual check of the integration: the head line of a proposal in the reading flow (`pv-label`) was the only
+place of the work page naming only the handle; `konten_ui::names::ORIGIN_CLASSES` now includes the class
+(`round36_lektor`). In the editor head the chip with display name and handle is shortened with "…" when the middle
+column is narrow (`.editor-head > .rev-meta`, like every long origin before) – in the backlog.
 
-## Hilfe auf der Webseite (Runde 37)
+## Help on the website (Round 37)
 
-Die Bedienung steht nicht mehr in `docs/`, sondern auf der Webseite (Hugo, `site/`):
+The user guide no longer stands in `docs/`, but on the website (Hugo, `site/`):
 
-- **Quelle:** `site/content/de/hilfe/*.md` (Anwender, 14 Seiten, Einstieg `_index.md` mit `aliases: ["/bedienung/"]`),
-  `site/content/de/betrieb.md` (Betreiber), `installation.md` und `mcp.md` (Ersteinrichtung). `docs/Bedienung.md` und
-  `docs/Betrieb.md` tragen nur noch „Wo steht was“ und technische Anmerkungen.
-- **Theme:** `site/themes/baruch/layouts/section.html` (Startseite der Hilfe), `layouts/hilfe/page.html` (Navigation
-  des Abschnitts, Inhaltsverzeichnis, vor/zurück), Shortcodes `hilfebild` (Bild aus `static/bilder/hilfe/`, Name muss
-  in `site/data/hilfebilder.toml` stehen, dunkle Fassung über `<picture>`, Link auf die volle Größe), `taste` und der
-  ältere `bild`. Kein JavaScript, keine fremden Adressen.
-- **Bilder:** `site/tools/bildschirmfotos.py` baut auf einem Wegwerf-Server (`--listen 127.0.0.1:0`, eigener
-  Datenordner, `--secrets memory`, eigenes `HOME`) das erfundene Beispielwerk `site/tools/beispielwerk.typ` aus und
-  fotografiert jede Zeile der Bildliste mit Firefox über einen Vermittler im Skript (Cookies, Sitzung, `<details>`
-  öffnen, Klick, Messung eines Ausschnitts). `--pruefen` belegt jede Adresse ohne Firefox, `--abgleich` hält Liste,
-  Seiten und Dateien gegeneinander. Einzelheiten: `site/tools/README.md`.
-- **Prüfung:** `scripts/site-check.py` (von `scripts/ci-site.sh` nach dem Hugo-Bau aufgerufen): tote interne Links
-  und Anker, Bilder ohne alt-Text, JavaScript, fremde Adressen, Weiterleitung `/bedienung/` → `/hilfe/`. Tests
-  `tests/round37_hilfe.rs` (Seiten, Anker, Bildnamen, verbotene Wörter, Tasten) und `tests/round37_bilder.rs`
-  (Bildliste, Hilfe-Link).
-- **Oberfläche:** `about::HELP_URL`; Eintrag „Hilfe“ im Menü Baruch ▾ (`templates/base.html`) und auf „Über Baruch“ –
-  ein gewöhnlicher Link nach außen, Baruch selbst ruft nichts ab.
+- **Source:** `site/content/de/hilfe/*.md` (users, 14 pages, entry `_index.md` with `aliases: ["/bedienung/"]`),
+  `site/content/de/betrieb.md` (operators), `installation.md` and `mcp.md` (first setup). `docs/Bedienung.md` and
+  `docs/Betrieb.md` only carry "where is what" and technical notes.
+- **Theme:** `site/themes/baruch/layouts/section.html` (start page of the help), `layouts/hilfe/page.html`
+  (navigation of the section, table of contents, previous/next), shortcodes `hilfebild` (image from
+  `static/bilder/hilfe/`, the name must stand in `site/data/hilfebilder.toml`, dark version via `<picture>`, link to
+  the full size), `taste` and the older `bild`. No JavaScript, no foreign addresses.
+- **Images:** `site/tools/bildschirmfotos.py` builds, on a throwaway server (`--listen 127.0.0.1:0`, own data folder,
+  `--secrets memory`, own `HOME`), the invented sample work `site/tools/beispielwerk.typ` and photographs every line of
+  the image list with Firefox via an intermediary in the script (cookies, session, opening `<details>`, click,
+  measuring a cut-out). `--pruefen` proves every address without Firefox, `--abgleich` keeps list, pages and files in
+  line with each other. Details: `site/tools/README.md`.
+- **Check:** `scripts/site-check.py` (called by `scripts/ci-site.sh` after the Hugo build): dead internal links and
+  anchors, images without alt text, JavaScript, foreign addresses, redirect `/bedienung/` → `/hilfe/`. Tests
+  `tests/round37_hilfe.rs` (pages, anchors, image names, forbidden words, keys) and `tests/round37_bilder.rs` (image
+  list, help link).
+- **User interface:** `about::HELP_URL`; entry „Hilfe“ in the menu „Baruch ▾“ (`templates/base.html`) and on „Über
+  Baruch“ – an ordinary link to the outside, Baruch itself fetches nothing.
 
 ## Round 38 – English as the primary language, work language
 
-> From Round 38 on, new sections of this document are written in English; the sections above stay German until
-> they are translated as a whole.
+> From Round 38 on, new sections of this document were written in English; Round 38c translated the older sections
+> as a whole. German stays only where it is quoted (texts of the user interface, German model output words) or code.
 
 **Language rule (`AGENTS.md`).** The primary language is English for code, comments, commits, developer docs, MCP
 and RPC. The user interface stays German until Round 39 (then German and English through catalogs). File names,
@@ -6175,7 +6207,7 @@ Modules:
 |---|---|
 | `crates/baruch-core/src/language.rs` | `WorkLanguage { De, En }` (default `De`, serde lowercase), `ALL`, `as_str()` (`"de"`/`"en"`), `parse()` (exactly `"de"` or `"en"`, no trimming, case-sensitive), `english_name()` (`"German"`/`"English"`) |
 | `crates/baruch-store/src/language.rs` | `Store::work_language(work)` (`UnknownWork` for a missing work), `Store::set_work_language(work, language) -> bool` (`true` = changed; one `BEGIN IMMEDIATE` transaction; a change sets `work.updated` like `update_work`); `WorkSummary` and `WorkMeta` carry `language` |
-| `crates/baruch-server/src/work_language.rs` | RPC `work.language`, `work.language_set` (`handles`, `call`, same shape as `crate::timing`); `of(state, work)` reads the work language for a model call |
+| `crates/baruch-server/src/work_language.rs` | RPC `work.language`, `work.language_set` (`handles`, `call`, same shape as `crate::timing`); `of(state, work)` reads the work language for a model call, `fallback(work, read)` decides what an unreadable work language means (see below) |
 | `crates/baruch-server/src/assist/lang.rs` | marker sets `DE` and `EN` (`Markers`), `markers(language)`, `language_rule(language)`; further markers `MORE_DE`/`MORE_EN` (`MoreMarkers`: `besser:`/`better:`, `Schritt:`/`Step:`, `befund`/`finding`, `Stelle`/`place`, `was fehlt`/`what is missing`, `was stört`/`what disturbs`); `localized(text, language)` swaps the German markers named in a prompt text for those of the work language; `of_prompt(system)` reads the work language of a call back from its language rule (used for the retry notes) |
 | `crates/baruch-server/src/assist/prompts.rs` | `default_prompt_in(handle, role, kind, language)`, `effective_prompt_in(handle, role, stored, kind, language)`; `default_prompt_for` and `effective_prompt_for` are wrappers with `WorkLanguage::De`. `effective_prompt(handle, role, stored)` (settings page, `persona.prompt_get`) deliberately carries **no** language rule: a prompt saved from the settings page must not take the rule of one work into another |
 
@@ -6193,6 +6225,17 @@ Modules:
   `ok=sprache#sprache` or `sprachfehler=1#sprache` (pattern `timing_act`) and is not in `LEKTOR_ROUTES`. The
   block „Werksprache“ in `templates/settings/werk.html` (`id="sprache"`, directly before `id="zeit"`) is a plain
   form with a `<select name="language">` („Deutsch“ = `de`, „Englisch“ = `en`) and works without JavaScript.
+- An unknown or missing work at `POST /einstellungen/werk/sprache` (also when no default work can be determined)
+  changes nothing and answers 303 to `/einstellungen/werk?sprachfehler=werk#sprache`; for `sprachfehler=werk` the
+  block „Werksprache“ shows the message
+  „Die Werksprache ließ sich nicht speichern: dieses Werk gibt es nicht; nichts geändert.“
+  and for any other value of `sprachfehler` the previous message.
+
+**Unreadable work language.** `work_language::of(state, work)` never fails a model call: if the store cannot read the
+work language, the pure function `work_language::fallback(work, read)` answers `de` together with a message, and `of`
+prints it to stderr as `work language of work <id> unreadable, answering in German: <error>`. The persona then
+answers in German, as before Round 38. The exchange export (`exchange_dump`) keeps reading the column directly; the
+CHECK of migration 0055 rules out values other than `de` and `en`.
 
 **Which texts are English.** English since Round 38: the MCP `instructions`, all tool and parameter descriptions,
 stub answers and error texts that only arise in `src/mcp/**`; for RPC the protocol errors (parse error, invalid

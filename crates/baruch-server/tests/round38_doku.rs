@@ -57,7 +57,7 @@ const FILES: [(&str, Part, State); 13] = [
     // Round 38c, architektur_1.
     ("docs/Architektur.md", Part::Above, State::Pending),
     // Round 38c, architektur_2.
-    ("docs/Architektur.md", Part::Below, State::Pending),
+    ("docs/Architektur.md", Part::Below, State::Translated),
 ];
 
 /// The four history files (contract §3).
@@ -431,6 +431,10 @@ fn the_developer_docs_describe_the_work_language() {
                 "every detection accepts both languages",
                 "| `critical` | „Kritisch:“ | `Critical:` |",
                 "| `my_proposal` | „Mein Vorschlag:“ | `My proposal:` |",
+                "`/einstellungen/werk?sprachfehler=werk#sprache`",
+                "„Die Werksprache ließ sich nicht speichern: dieses Werk gibt es nicht; nichts geändert.“",
+                "`work_language::fallback(work, read)`",
+                "`work language of work <id> unreadable, answering in German: <error>`",
             ][..],
         ),
         (
