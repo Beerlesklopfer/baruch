@@ -1,26 +1,26 @@
 {#- Search bar in the editor (Round 30a, web/src/search.ts): at the top right of the editor, hidden without JavaScript
     (then the page /suche applies, link below). The arrow ▸ unfolds the replace row. Replacing here changes only the
     unsaved editor text; saving is done as always with „Speichern“. Context: work.id, node.key, rev.number. -#}
-<div class="search-bar" data-widget="search-bar" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" role="search" aria-label="Im Abschnitt suchen" hidden>
-  <button type="button" class="btn sb-expand" data-sb-expand aria-expanded="false" title="Ersetzen ein-/ausblenden (Strg+H)">▸</button>
+<div class="search-bar" data-widget="search-bar" data-work="{{ work.id }}" data-key="{{ node.key }}" data-rev="{{ rev.number }}" role="search" aria-label="{{ t('search.bar.label') }}" hidden>
+  <button type="button" class="btn sb-expand" data-sb-expand aria-expanded="false" title="{{ t('search.bar.expand_html') }}">▸</button>
   <div class="sb-rows">
     <div class="sb-row">
-      <input type="search" class="sb-q" data-sb-q placeholder="Suchen" aria-label="Suchen" maxlength="500" autocomplete="off">
-      <button type="button" class="btn sb-toggle" data-sb-toggle="case" aria-pressed="false" title="Groß/klein beachten (Alt+C)">Aa</button>
-      <button type="button" class="btn sb-toggle" data-sb-toggle="word" aria-pressed="false" title="Nur ganze Wörter (Alt+W)"><u>ab</u></button>
-      <button type="button" class="btn sb-toggle" data-sb-toggle="re" aria-pressed="false" title="Regulärer Ausdruck (Alt+R)">.*</button>
-      <button type="button" class="btn sb-toggle" data-sb-toggle="sel" aria-pressed="false" title="Nur in der Markierung suchen (Alt+L; die Markierung im Quelltext beim Öffnen der Suche)">⌶</button>
-      <span class="sb-count small" data-sb-count aria-live="polite">Keine Treffer</span>
-      <button type="button" class="btn" data-sb-prev title="Voriger Treffer (Umschalt+Enter, Umschalt+F3)">↑</button>
-      <button type="button" class="btn" data-sb-next title="Nächster Treffer (Enter, F3)">↓</button>
-      <button type="button" class="btn" data-sb-close title="Schließen (Escape)" aria-label="Suchleiste schließen">✕</button>
+      <input type="search" class="sb-q" data-sb-q placeholder="{{ t('search.bar.query') }}" aria-label="{{ t('search.bar.query') }}" maxlength="500" autocomplete="off">
+      <button type="button" class="btn sb-toggle" data-sb-toggle="case" aria-pressed="false" title="{{ t('search.bar.case_html') }}">Aa</button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="word" aria-pressed="false" title="{{ t('search.bar.word') }}"><u>ab</u></button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="re" aria-pressed="false" title="{{ t('search.bar.regex') }}">.*</button>
+      <button type="button" class="btn sb-toggle" data-sb-toggle="sel" aria-pressed="false" title="{{ t('search.bar.selection') }}">⌶</button>
+      <span class="sb-count small" data-sb-count aria-live="polite">{{ t('search.bar.no_hits') }}</span>
+      <button type="button" class="btn" data-sb-prev title="{{ t('search.bar.prev') }}">↑</button>
+      <button type="button" class="btn" data-sb-next title="{{ t('search.bar.next') }}">↓</button>
+      <button type="button" class="btn" data-sb-close title="{{ t('search.bar.close') }}" aria-label="{{ t('search.bar.close_label') }}">✕</button>
     </div>
     <div class="sb-row sb-replace" data-sb-replace hidden>
-      <input type="text" class="sb-r" data-sb-r placeholder="Ersetzen" aria-label="Ersetzen" maxlength="2000" autocomplete="off">
-      <button type="button" class="btn" data-sb-one title="Aktuellen Treffer ersetzen (Strg+Umschalt+1)">Ersetzen</button>
-      <button type="button" class="btn" data-sb-all title="Alle im Abschnitt ersetzen (Strg+Alt+Enter)">Alle</button>
-      <a class="small" data-sb-work href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=work&amp;shown_rev={{ rev.number }}" title="Im ganzen Werk suchen und ersetzen (Strg+Umschalt+F)">im Werk …</a>
+      <input type="text" class="sb-r" data-sb-r placeholder="{{ t('search.bar.replace') }}" aria-label="{{ t('search.bar.replace') }}" maxlength="2000" autocomplete="off">
+      <button type="button" class="btn" data-sb-one title="{{ t('search.bar.replace_one') }}">{{ t('search.bar.replace') }}</button>
+      <button type="button" class="btn" data-sb-all title="{{ t('search.bar.replace_all_title') }}">{{ t('search.bar.replace_all') }}</button>
+      <a class="small" data-sb-work href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=work&amp;shown_rev={{ rev.number }}" title="{{ t('search.bar.work_title') }}">{{ t('search.bar.work') }}</a>
     </div>
   </div>
 </div>
-<noscript><p class="small"><a href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=section&amp;shown_rev={{ rev.number }}">Im Abschnitt suchen und ersetzen</a></p></noscript>
+<noscript><p class="small"><a href="/suche?work={{ work.id }}&amp;key={{ node.key }}&amp;range=section&amp;shown_rev={{ rev.number }}">{{ t('search.bar.section_page') }}</a></p></noscript>

@@ -11,68 +11,65 @@
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
   <form class="work-form" action="/werke/import" method="post" enctype="multipart/form-data" data-widget="work-upload">
-    <h2 class="pane-title">Typst- oder Markdown-Datei importieren</h2>
-    <label>Datei (.typ, .md, .markdown bis 16 MiB oder .zip bis 80 MiB)
+    <h2 class="pane-title">{{ t('layout.work_new.import_heading') }}</h2>
+    <label>{{ t('layout.work_new.file') }}
       <input type="file" name="file" accept=".typ,.md,.markdown,.zip">
     </label>
-    <label>oder ein Ordner <span class="muted small">(mit Haupt-Datei und Bildern, zusammen bis 80 MiB)</span>
+    <label>{{ t('layout.work_new.folder') }} <span class="muted small">{{ t('layout.work_new.folder_hint') }}</span>
       <input type="file" name="files" multiple webkitdirectory>
     </label>
-    <label>Titel <span class="muted small">(leer: aus der Datei)</span>
+    <label>{{ t('layout.work_new.title') }} <span class="muted small">{{ t('layout.work_new.title_hint') }}</span>
       <input type="text" name="title" value="{{ f.upload_title }}" data-from-file autocomplete="off">
     </label>
-    <p class="muted small">Typst: alles vor der ersten Überschrift wird die Werkvorlage, <code>=</code>/<code>==</code>/<code>===</code> die Gliederung.
-      Markdown: <code>#</code>/<code>##</code>/<code>###</code> werden die Gliederung (tiefere Ebenen auf die dritte begrenzt), was sich nicht abbilden lässt, steht im Bericht.
-      Ein ZIP oder Ordner bringt genau eine Haupt-Datei (.typ oder .md, sonst <code>index.md</code>/<code>main.typ</code>) und die Bilder relativ dazu mit.
-      Gibt es den Titel schon, bitte einen anderen eintragen.</p>
-    <button class="btn primary" type="submit">Importieren</button>
+    <p class="muted small">{{ t("layout.work_new.import_help_html") }}</p>
+    <button class="btn primary" type="submit">{{ t('layout.work_new.import') }}</button>
   </form>
   {#- Round 21a (content pdf-import): PDF/EPUB with a preview of the outline on a page of its own. #}
-  <p class="muted small work-new-note"><a href="/werke/import/quelle">PDF oder EPUB importieren …</a> (mit Vorschau der Gliederung)</p>
+  <p class="muted small work-new-note"><a href="/werke/import/quelle">{{ t('layout.work_new.import_pdf') }}</a> {{ t('layout.work_new.import_pdf_hint') }}</p>
   <form class="work-form" action="/werke/act" method="post">
-    <h2 class="pane-title">Neues Werk anlegen</h2>
+    <h2 class="pane-title">{{ t('layout.work_new.create_heading') }}</h2>
     <input type="hidden" name="action" value="create">
-    <label>Titel
+    <label>{{ t('layout.work_new.title') }}
       <input type="text" name="title" value="{{ f.title }}" required>
     </label>
-    <label>Untertitel
+    <label>{{ t('layout.work_new.subtitle') }}
       <input type="text" name="subtitle" value="{{ f.subtitle }}">
     </label>
-    <label>Autor
+    <label>{{ t('layout.work_new.author') }}
       <input type="text" name="author" value="{{ f.author }}">
     </label>
-    <label>Art
+    <label>{{ t('layout.work_new.kind') }}
       <select name="kind">
-        <option value="book"{% if f.kind != "sermon" %} selected{% endif %}>Buch</option>
-        <option value="sermon"{% if f.kind == "sermon" %} selected{% endif %}>Predigt</option>
+        <option value="book"{% if f.kind != "sermon" %} selected{% endif %}>{{ t('layout.work_new.kind_book') }}</option>
+        <option value="sermon"{% if f.kind == "sermon" %} selected{% endif %}>{{ t('layout.work_new.kind_sermon') }}</option>
       </select>
     </label>
-    <label>Grundgerüst
+    <label>{{ t('layout.work_new.preset') }}
       <select name="preset">
-        <option value=""{% if not f.preset %} selected{% endif %}>passend zur Art</option>
-        <option value="book"{% if f.preset == "book" %} selected{% endif %}>Buch: Kapitel „Erstes Kapitel“</option>
-        <option value="sermon"{% if f.preset == "sermon" %} selected{% endif %}>Predigt: Predigttext, Einleitung, I.–III., Anwendung, Schluss</option>
+        <option value=""{% if not f.preset %} selected{% endif %}>{{ t('layout.work_new.preset_auto') }}</option>
+        <option value="book"{% if f.preset == "book" %} selected{% endif %}>{{ t('layout.work_new.preset_book') }}</option>
+        <option value="sermon"{% if f.preset == "sermon" %} selected{% endif %}>{{ t('layout.work_new.preset_sermon') }}</option>
       </select>
     </label>
     <fieldset class="work-sermon">
-      <legend>Nur bei einer Predigt</legend>
-      <label>Predigttext <span class="muted small">(Bibelstelle, z. B. „Joh 3,16–18“; leer: später eintragen)</span>
+      <legend>{{ t('layout.work_new.sermon_only') }}</legend>
+      <label>{{ t('layout.work_new.sermon_text') }} <span class="muted small">{{ t('layout.work_new.sermon_text_hint') }}</span>
         <input type="text" name="text_ref" value="{{ f.text_ref }}" autocomplete="off" maxlength="500">
       </label>
       {%- if bible_modules is defined %}
-      <label>SWORD-Bibel für den Wortlaut
+      <label>{{ t('layout.work_new.sword_bible') }}
         <select name="module">
-          <option value=""{% if not f.module %} selected{% endif %}>Bibel des aktuellen Werks</option>
+          <option value=""{% if not f.module %} selected{% endif %}>{{ t('layout.work_new.current_bible') }}</option>
           {%- for m in bible_modules %}
-          <option value="{{ m.name }}"{% if f.module == m.name %} selected{% endif %}{% if not m.usable %} disabled{% endif %}>{{ m.name }}{% if m.description %} – {{ m.description }}{% endif %}{% if not m.usable %} (nicht lesbar){% endif %}</option>
+          <option value="{{ m.name }}"{% if f.module == m.name %} selected{% endif %}{% if not m.usable %} disabled{% endif %}>{{ m.name }}{% if m.description %} – {{ m.description }}{% endif %}{% if not m.usable %} {{ t('layout.work_new.unreadable') }}{% endif %}</option>
           {%- endfor %}
         </select>
       </label>
       {%- if not bible_modules %}
-      <p class="muted small">Keine SWORD-Bibel gefunden (Einstellungen → Quellen → Bibeln); dann steht nur die Stellenangabe im Predigttext.</p>
+      <p class="muted small">{{ t('layout.work_new.no_bible') }}</p>
       {%- endif %}
       {%- else %}
-      <label>SWORD-Modul <span class="muted small">(leer: Bibel des aktuellen Werks)</span>
+      <label>{{ t('layout.work_new.sword_module') }} <span class="muted small">{{ t('layout.work_new.sword_module_hint') }}</span>
         <input type="text" name="module" value="{{ f.module }}" autocomplete="off" maxlength="200">
       </label>
       {%- endif %}
@@ -81,14 +78,14 @@
       {%- elif work and work.id %}
       <input type="hidden" name="from_work" value="{{ work.id }}">
       {%- endif %}
-      <p class="muted small">Der Wortlaut kommt als Zitat mit Stelle und Modul in den Punkt „Predigttext“; die gewählte Bibel wird die SWORD-Bibel der Predigt.</p>
+      <p class="muted small">{{ t('layout.work_new.sword_note') }}</p>
     </fieldset>
-    <label>Zielgruppe
+    <label>{{ t('layout.work_new.audience') }}
       <input type="text" name="audience" value="{{ f.audience }}">
     </label>
-    <label>Bibelübersetzung
+    <label>{{ t('layout.work_new.translation') }}
       <input type="text" name="bible" value="{{ f.bible }}">
     </label>
-    <button class="btn primary" type="submit">Anlegen</button>
+    <button class="btn primary" type="submit">{{ t('layout.work_new.create') }}</button>
   </form>
 </div>

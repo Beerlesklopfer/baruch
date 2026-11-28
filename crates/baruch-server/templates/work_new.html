@@ -1,19 +1,19 @@
 {#- Page /werke/neu: uploading and creating without JavaScript (content fragments/work_new.html).
     Context: settings, form, error, back_url. -#}
 {% extends "base.html" %}
-{% block title %}Neues Werk – Baruch{% endblock %}
-{% block page_title %}Neues Werk{% endblock %}
+{% block title %}{{ t('layout.work_page.head_title') }}{% endblock %}
+{% block page_title %}{{ t('layout.work_page.page_title') }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/werke">Werke</a>
-    {%- if back_url %}<a class="btn" href="{{ back_url }}">Zurück zum Werk</a>{% endif %}
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('layout.work_page.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('layout.work_page.back') }}">
+    <a class="btn" href="/werke">{{ t('layout.work_page.works') }}</a>
+    {%- if back_url %}<a class="btn" href="{{ back_url }}">{{ t('layout.work_page.back_to_work') }}</a>{% endif %}
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page">
-  <h1 class="pane-title">Neues Werk oder Import</h1>
+  <h1 class="pane-title">{{ t('layout.work_page.heading') }}</h1>
   {% include "fragments/work_new.html" %}
 </main>
 {% endblock %}

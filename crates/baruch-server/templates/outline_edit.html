@@ -2,14 +2,14 @@
     move, create a new item before/after/below, delete (with the checkbox confirm). Forms to
     /gliederung/act. Context: work, entry, entries (targets), lq, lq_q, work_url, manager_url. -#}
 {% extends "base.html" %}
-{% block title %}{{ entry.title }} bearbeiten – Gliederung – Baruch{% endblock %}
-{% block page_title %}Gliederungspunkt bearbeiten · {{ work.title }}{% endblock %}
+{% block title %}{{ t('outline.edit.head_title', title=entry.title) }}{% endblock %}
+{% block page_title %}{{ t('outline.edit.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ manager_url }}">Gliederung</a>
-    <a class="btn" href="{{ work_url }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('outline.edit.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('outline.edit.back') }}">
+    <a class="btn" href="{{ manager_url }}">{{ t('outline.edit.outline') }}</a>
+    <a class="btn" href="{{ work_url }}">{{ t('outline.edit.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -25,51 +25,51 @@
   <h1 class="pane-title">{% if entry.number %}{{ entry.number }} {% endif %}{{ entry.title }} <span class="muted">· {{ entry.level_name }}</span></h1>
 
   <section class="card outline-card">
-    <h2 class="pane-title">Umbenennen</h2>
+    <h2 class="pane-title">{{ t('outline.edit.rename') }}</h2>
     <form method="post" action="/gliederung/act">{{ hidden("outline.rename", "gliederung") }}
-      <label class="small">Neuer Titel <input type="text" name="title" value="{{ entry.title }}" required maxlength="200" pattern=".*\S.*" title="Höchstens 200 Zeichen, nicht leer" size="40"></label>
-      <button class="btn primary" type="submit">Umbenennen</button>
+      <label class="small">{{ t('outline.edit.new_title') }} <input type="text" name="title" value="{{ entry.title }}" required maxlength="200" pattern=".*\S.*" title="{{ t('outline.edit.title_rule') }}" size="40"></label>
+      <button class="btn primary" type="submit">{{ t('outline.edit.rename') }}</button>
     </form>
     {%- if entry.level == 0 %}
-    <p class="muted tiny">Die Teil-Markierung im Text bekommt den neuen Titel (neue Fassung, Kommentar bleibt); ein leerer Teil bekommt sie neu. Ein Teiltext ohne Markierung (älterer Bestand) bleibt unverändert, nur der Titel ändert sich.</p>
+    <p class="muted tiny">{{ t('outline.edit.rename_part') }}</p>
     {%- else %}
-    <p class="muted tiny">Die Überschriftszeile im Text bekommt den neuen Titel (neue Fassung, Label und Kommentar bleiben).</p>
+    <p class="muted tiny">{{ t('outline.edit.rename_heading') }}</p>
     {%- endif %}
   </section>
 
   {%- if entry.level > 0 %}
   <section class="card outline-card">
-    <h2 class="pane-title">Ebene</h2>
+    <h2 class="pane-title">{{ t('outline.edit.level') }}</h2>
     <form method="post" action="/gliederung/act">{{ hidden("outline.set_level", "gliederung") }}
-      <label class="small">Ebene <select name="level">
+      <label class="small">{{ t('outline.edit.level') }} <select name="level">
         {%- for level in [1, 2, 3] %}
         <option value="{{ level }}"{% if level == entry.level %} selected{% endif %}>{{ level }} · {{ level_names[level] }}</option>
         {%- endfor %}
       </select></label>
-      <button class="btn" type="submit">Ebene ändern</button>
+      <button class="btn" type="submit">{{ t('outline.edit.set_level') }}</button>
     </form>
-    <p class="muted tiny">Unterpunkte wandern um dieselbe Zahl Ebenen mit.</p>
+    <p class="muted tiny">{{ t('outline.edit.level_note') }}</p>
   </section>
   {%- endif %}
 
   <section class="card outline-card">
-    <h2 class="pane-title">Verschieben</h2>
+    <h2 class="pane-title">{{ t('outline.edit.move') }}</h2>
     <form method="post" action="/gliederung/act">{{ hidden("outline.move", "gliederung") }}
       <label class="small"><select name="place">
-        <option value="before">vor</option><option value="after">hinter</option><option value="into">unter</option>
+        <option value="before">{{ t('outline.edit.before') }}</option><option value="after">{{ t('outline.edit.after') }}</option><option value="into">{{ t('outline.edit.under') }}</option>
       </select></label>
-      <label class="small"><select name="target_key" aria-label="Ziel">
+      <label class="small"><select name="target_key" aria-label="{{ t('outline.edit.target') }}">
         {%- for target in entries if target.id != entry.id %}
         <option value="{{ target.key }}">{{ "· " * target.level }}{% if target.number %}{{ target.number }} {% endif %}{{ target.title }}</option>
         {%- endfor %}
       </select></label>
-      <button class="btn" type="submit">Verschieben</button>
+      <button class="btn" type="submit">{{ t('outline.edit.move') }}</button>
     </form>
-    <p class="muted tiny">Mit allen Unterpunkten. Die Ebene bleibt: vor/hinter nur einen Punkt derselben Ebene, unter nur einen Punkt eine Ebene höher; sonst erst die Ebene ändern (oben). Ungültige Ziele werden abgewiesen.</p>
+    <p class="muted tiny">{{ t('outline.edit.move_note_html') }}</p>
   </section>
 
   <section class="card outline-card">
-    <h2 class="pane-title">Neuer Gliederungspunkt</h2>
+    <h2 class="pane-title">{{ t('outline.edit.new') }}</h2>
     <form method="post" action="/gliederung/act">
       <input type="hidden" name="method" value="outline.add">
       <input type="hidden" name="work" value="{{ work.id }}">
@@ -78,33 +78,32 @@
       <input type="hidden" name="node" value="{{ entry.id }}">
       <input type="hidden" name="view" value="gliederung">
       {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
-      <label class="small">Titel <input type="text" name="title" required maxlength="200" pattern=".*\S.*" title="Höchstens 200 Zeichen, nicht leer" size="30"></label>
+      <label class="small">{{ t('outline.edit.title') }} <input type="text" name="title" required maxlength="200" pattern=".*\S.*" title="{{ t('outline.edit.title_rule') }}" size="30"></label>
       <label class="small"><select name="place">
-        <option value="before">davor</option><option value="after" selected>danach</option><option value="into">darunter</option>
+        <option value="before">{{ t('outline.edit.add_before') }}</option><option value="after" selected>{{ t('outline.edit.add_after') }}</option><option value="into">{{ t('outline.edit.add_under') }}</option>
       </select></label>
       {%- if entry.level <= 1 %}
-      <label class="small">Ebene <select name="level">
-        <option value="" selected>wie der Ort</option>
+      <label class="small">{{ t('outline.edit.level') }} <select name="level">
+        <option value="" selected>{{ t('outline.edit.like_place') }}</option>
         <option value="0">0 · {{ level_names[0] }}</option>
       </select></label>
       {%- endif %}
-      <button class="btn" type="submit">Anlegen</button>
+      <button class="btn" type="submit">{{ t('outline.edit.create') }}</button>
     </form>
-    <p class="muted tiny">Davor/danach auf derselben Ebene, darunter eine Ebene tiefer als letzter Unterpunkt.
-      {%- if entry.level <= 1 %} Mit Ebene „{{ level_names[0] }}“ entsteht davor bzw. danach ein neuer Teil (auch mit Werkvorlage);
-      die folgenden Kapitel bis zum nächsten Teil stehen dann unter ihm, ihre Texte und Nummern bleiben.{% endif %}</p>
+    <p class="muted tiny">{{ t('outline.edit.add_note_html') }}
+      {%- if entry.level <= 1 %} {{ t('outline.edit.add_part_note', level_names=level_names[0]) }}{% endif %}</p>
   </section>
 
   <section class="card outline-card">
-    <h2 class="pane-title">Löschen</h2>
+    <h2 class="pane-title">{{ t('common.delete') }}</h2>
     {%- if entry.has_children %}
-    <p class="small">„{{ entry.title }}“ hat Unterpunkte; erst verschieben oder löschen.</p>
+    <p class="small">{{ t('outline.edit.has_children', title=entry.title) }}</p>
     {%- else %}
     <form method="post" action="/gliederung/act">{{ hidden("outline.delete", "gliederung") }}
-      <label class="small"><input type="checkbox" name="confirm" value="1" required> „{{ entry.title }}“ mit allen Fassungen und Beiträgen wirklich löschen</label>
-      <button class="btn danger" type="submit">Löschen</button>
+      <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('outline.edit.delete_confirm', title=entry.title) }}</label>
+      <button class="btn danger" type="submit">{{ t('common.delete') }}</button>
     </form>
-    <p class="muted tiny">Der Text der aktuellen Fassung steht danach vollständig im Commit des Git-Spiegels.</p>
+    <p class="muted tiny">{{ t('outline.edit.delete_note') }}</p>
     {%- endif %}
   </section>
 </main>

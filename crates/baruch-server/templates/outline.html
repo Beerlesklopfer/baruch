@@ -8,13 +8,13 @@
     entry the badge „k offen“ (open findings including sub-items, counting rule §1.5) with a link to the page of the
     findings. -#}
 {% extends "base.html" %}
-{% block title %}Gliederung – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}Gliederung · {{ work.title }}{% endblock %}
+{% block title %}{{ t('outline.page.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('outline.page.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ work_url }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('outline.page.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('outline.page.back') }}">
+    <a class="btn" href="{{ work_url }}">{{ t('outline.page.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -27,79 +27,70 @@
     {%- if lq %}<input type="hidden" name="lq" value="{{ lq }}">{% endif %}
 {%- endmacro %}
 <main class="outline-page">
-  <h1 class="pane-title">Gliederung von „{{ work.title }}“</h1>
-  <p class="muted small">Diese Seite ist der Rückfall ohne JavaScript; mit JavaScript geschieht alles im Baum
-    links (Ziehen und Ablegen, Kontextmenü, Doppelklick bzw. F2 zum Umbenennen).
-    Jede Änderung ist ein Commit im Git-Spiegel. Ändern sich Ebene oder Titel, bekommt der
-    Abschnitt eine neue Fassung, die sich nur in der Überschriftszeile unterscheidet. Assistenten legen
-    höchstens neue Punkte an; Umbenennen, Verschieben, Umstufen und Löschen beantragen sie nur – das
-    entscheiden Sie unten bei den Anträgen.</p>
+  <h1 class="pane-title">{{ t('outline.page.heading', title=work.title) }}</h1>
+  <p class="muted small">{{ t('outline.page.intro') }}</p>
   {%- if timing.shown %}
   {#- Round 16c: time guard – total time, target time and warning as text (without JavaScript). #}
   <p class="outline-timing{% if timing.status == 'over' %} warning{% endif %}" id="zeit">
-    Gesamtzeit <strong>{{ timing.clock }}</strong> ({{ timing.words }} Wörter, {{ timing.words_per_minute }} Wörter je Minute)
-    {%- if timing.target_clock %} · Zielzeit <strong>{{ timing.target_clock }}</strong>{% endif %}
-    {%- if timing.status == "over" %} · <strong role="alert">Warnung: Zielzeit um {{ timing.over_clock }} überschritten</strong>
-    {%- elif timing.status == "ok" %} · im Rahmen{% endif %}</p>
+    {{ t('outline.page.total') }} <strong>{{ timing.clock }}</strong> {{ t('outline.page.total_words', words=timing.words, words_per_minute=timing.words_per_minute) }}
+    {%- if timing.target_clock %} {{ t('outline.page.target') }} <strong>{{ timing.target_clock }}</strong>{% endif %}
+    {%- if timing.status == "over" %} · <strong role="alert">{{ t('outline.page.over', over_clock=timing.over_clock) }}</strong>
+    {%- elif timing.status == "ok" %} {{ t('outline.page.within') }}{% endif %}</p>
   {%- endif %}
   <table class="outline-table">
-    <thead><tr><th>Nummer</th><th>Titel</th><th>Ebene</th>{% if timing.shown %}<th>Dauer</th>{% endif %}<th>Umstellen</th><th>Zählen, Bearbeiten</th></tr></thead>
+    <thead><tr><th>{{ t('outline.page.col_number') }}</th><th>{{ t('outline.page.col_title') }}</th><th>{{ t('outline.page.col_level') }}</th>{% if timing.shown %}<th>{{ t('outline.page.col_duration') }}</th>{% endif %}<th>{{ t('outline.page.col_arrange') }}</th><th>{{ t('outline.page.col_count') }}</th></tr></thead>
     <tbody>
     {%- for entry in entries %}
       <tr class="outline-entry level-{{ entry.level }}{% if entry.selected %} selected{% endif %}" id="punkt-{{ entry.id }}">
         <td class="num">{{ entry.number }}</td>
         <td class="outline-title" style="padding-left: {{ entry.level * 18 + 6 }}px">
           <a href="/?work={{ work.id }}&key={{ entry.key }}{{ lq_q }}">{{ entry.title }}</a>
-          {%- if entry.findings %} <a class="badge warning findings-badge" href="{{ findings_url }}?key={{ entry.key }}#zelle" data-findings-open="{{ entry.findings }}" title="{{ entry.findings }} offene{% if entry.findings == 1 %}r{% endif %} Befund{% if entry.findings != 1 %}e{% endif %}{% if entry.has_children %} samt Unterpunkten{% if entry.findings_own %} ({{ entry.findings_own }} am Punkt selbst){% endif %}{% endif %}">{{ entry.findings }} offen</a>{% endif %}</td>
+          {%- if entry.findings %} <a class="badge warning findings-badge" href="{{ findings_url }}?key={{ entry.key }}#zelle" data-findings-open="{{ entry.findings }}" title="{% if entry.findings == 1 %}{{ t('outline.page.findings_one', count=entry.findings) }}{% else %}{{ t('outline.page.findings_other', count=entry.findings) }}{% endif %}{% if entry.has_children %} {{ t('outline.page.findings_children') }}{% if entry.findings_own %} {{ t('outline.page.findings_own', findings_own=entry.findings_own) }}{% endif %}{% endif %}">{{ t('outline.page.findings_open', count=entry.findings) }}</a>{% endif %}</td>
         <td class="muted small">{{ entry.level_name }}</td>
         {%- if timing.shown %}
-        {%- set t = timing.sections[entry.id] %}
-        <td class="num outline-duration" title="{{ t.words }} Wörter">{{ t.clock }} <span class="muted small">ab {{ t.start_clock }}</span></td>
+        {%- set tm = timing.sections[entry.id] %}
+        <td class="num outline-duration" title="{{ t('outline.page.words', words=tm.words) }}">{{ tm.clock }} <span class="muted small">{{ t('outline.page.start_clock', start_clock=tm.start_clock) }}</span></td>
         {%- endif %}
         <td class="outline-buttons">
           {%- if entry.up is not none %}
           <form method="post" action="/gliederung/act">{{ hidden("outline.move", entry) }}
             <input type="hidden" name="target" value="{{ entry.up }}"><input type="hidden" name="target_key" value="{{ entry.up_key }}"><input type="hidden" name="place" value="before">
-            <button class="btn tool" type="submit" title="Vor „{{ entry.up_title }}“" aria-label="Nach oben">↑</button></form>
+            <button class="btn tool" type="submit" title="{{ t('outline.page.before', up_title=entry.up_title) }}" aria-label="{{ t('outline.page.up') }}">↑</button></form>
           {%- endif %}
           {%- if entry.down is not none %}
           <form method="post" action="/gliederung/act">{{ hidden("outline.move", entry) }}
             <input type="hidden" name="target" value="{{ entry.down }}"><input type="hidden" name="target_key" value="{{ entry.down_key }}"><input type="hidden" name="place" value="after">
-            <button class="btn tool" type="submit" title="Hinter „{{ entry.down_title }}“" aria-label="Nach unten">↓</button></form>
+            <button class="btn tool" type="submit" title="{{ t('outline.page.after', down_title=entry.down_title) }}" aria-label="{{ t('outline.page.down') }}">↓</button></form>
           {%- endif %}
           {%- if entry.promote %}
           <form method="post" action="/gliederung/act">{{ hidden("outline.set_level", entry) }}
             <input type="hidden" name="level" value="{{ entry.level - 1 }}">
-            <button class="btn tool" type="submit" title="Höher stufen" aria-label="Höher stufen">←</button></form>
+            <button class="btn tool" type="submit" title="{{ t('outline.page.promote') }}" aria-label="{{ t('outline.page.promote') }}">←</button></form>
           {%- endif %}
           {%- if entry.demote %}
           <form method="post" action="/gliederung/act">{{ hidden("outline.set_level", entry) }}
             <input type="hidden" name="level" value="{{ entry.level + 1 }}">
-            <button class="btn tool" type="submit" title="Tiefer stufen" aria-label="Tiefer stufen">→</button></form>
+            <button class="btn tool" type="submit" title="{{ t('outline.page.demote') }}" aria-label="{{ t('outline.page.demote') }}">→</button></form>
           {%- endif %}
         </td>
         <td class="outline-buttons">
           {%- if entry.level > 0 %}
           <form method="post" action="/gliederung/act">{{ hidden("outline.set_numbered", entry) }}
             <input type="hidden" name="numbered" value="{{ 0 if entry.numbered else 1 }}">
-            <button class="btn tool" type="submit" title="{% if entry.numbered %}Ohne Nummer zählen (z. B. Vorwort, Einleitung){% else %}Wieder mit Nummer zählen{% endif %}">{% if entry.numbered %}ohne Nummer{% else %}mit Nummer{% endif %}</button></form>
+            <button class="btn tool" type="submit" title="{% if entry.numbered %}{{ t('outline.page.unnumber_title') }}{% else %}{{ t('outline.page.number_title') }}{% endif %}">{% if entry.numbered %}{{ t('outline.page.unnumbered') }}{% else %}{{ t('outline.page.numbered') }}{% endif %}</button></form>
           {%- endif %}
-          <a class="btn tool" href="/gliederung/bearbeiten?work={{ work.id }}&key={{ entry.key }}{{ lq_q }}">Bearbeiten</a></td>
+          <a class="btn tool" href="/gliederung/bearbeiten?work={{ work.id }}&key={{ entry.key }}{{ lq_q }}">{{ t('outline.page.edit') }}</a></td>
       </tr>
     {%- endfor %}
     </tbody>
   </table>
 
   <section class="outline-requests card" id="antraege">
-    <h2 class="pane-title">Anträge der Assistenten{% if open_requests %} ({{ open_requests | length }} offen){% endif %}</h2>
+    <h2 class="pane-title">{{ t('outline.page.requests') }}{% if open_requests %} {{ t('outline.page.requests_open', count=open_requests | length) }}{% endif %}</h2>
     {%- if open_requests %}
-    <p class="small">Bestätigen führt den Antrag aus (ein Commit im Git-Spiegel, Sie als Bestätiger, der
-      Assistent als Herkunft). Hat sich der Punkt inzwischen geändert, wird der Antrag nicht ausgeführt,
-      sondern als veraltet abgeschlossen. Ablehnen ändert nichts an der Gliederung. Ein neuer Teil, unter
-      den vorhandene Kapitel (in einer Predigt: Predigtteile) wandern würden, braucht Ihre Zustimmung („Zustimmen“); auch Ablehnen steht
-      dann im Git-Spiegel.</p>
+    <p class="small">{{ t('outline.page.requests_help') }}</p>
     <table class="outline-table requests-table">
-      <thead><tr><th>Nr.</th><th>Antrag</th><th>Von</th><th>Begründung</th><th></th></tr></thead>
+      <thead><tr><th>{{ t('outline.page.col_no') }}</th><th>{{ t('outline.page.col_request') }}</th><th>{{ t('outline.page.col_from') }}</th><th>{{ t('outline.page.col_reason') }}</th><th></th></tr></thead>
       <tbody>
       {%- for r in open_requests %}
         <tr class="outline-request" id="antrag-{{ r.id }}">
@@ -108,12 +99,12 @@
             {#- Round 14: outline after confirming, expandable without JavaScript. #}
             {#- Round 23a: beyond the first requests the page computes the preview only on demand (link). #}
             {%- if r.preview_later %}
-            <p class="small request-preview-later"><a href="{{ r.preview_url }}" data-preview-later>Vorschau anzeigen</a> <span class="muted">(wird erst auf Anforderung berechnet)</span></p>
+            <p class="small request-preview-later"><a href="{{ r.preview_url }}" data-preview-later>{{ t('outline.page.show_preview') }}</a> <span class="muted">{{ t('outline.page.preview_lazy') }}</span></p>
             {%- else %}
             <details class="request-preview"{% if r.preview_open %} open{% endif %}>
-              <summary class="small">Vorschau</summary>
+              <summary class="small">{{ t('outline.page.preview') }}</summary>
               {%- if r.preview_error %}
-              <p class="small warning">Keine Vorschau: {{ r.preview_error }}</p>
+              <p class="small warning">{{ t('outline.page.preview_error', preview_error=r.preview_error) }}</p>
               {%- else %}
               <ol class="request-preview-list">
               {%- for p in r.preview %}
@@ -121,14 +112,14 @@
                   {#- Round 16c: kind and number unambiguous („Teil 1“, „Kapitel 2“), before → after for adopted
                   chapters. #}
                   <span class="num preview-label">{{ p.label }}</span> {{ p.title }}
-                  {%- if p.changed_label %} <span class="small muted preview-before">(vorher {{ p.before_label }} → nachher {{ p.label }})</span>{% endif %}
-                  {%- if p.mark == "renamed" %} <span class="badge primary">umbenannt</span>
-                  {%- elif p.mark == "moved" %} <span class="badge primary">verschoben</span>
-                  {%- elif p.mark == "level" %} <span class="badge primary">neue Ebene</span>
-                  {%- elif p.mark == "numbered" %} <span class="badge primary">{% if p.number %}mit Nummer{% else %}ohne Nummer{% endif %}</span>
-                  {%- elif p.mark == "deleted" %} <span class="badge warning">entfällt</span>
-                  {%- elif p.mark == "added" %} <span class="badge primary">neu</span>
-                  {%- elif p.mark == "adopted" %} <span class="badge warning">wandert unter den neuen Teil</span>{% endif %}</li>
+                  {%- if p.changed_label %} <span class="small muted preview-before">{{ t('outline.page.preview_changed', before_label=p.before_label, label=p.label) }}</span>{% endif %}
+                  {%- if p.mark == "renamed" %} <span class="badge primary">{{ t('outline.page.mark_renamed') }}</span>
+                  {%- elif p.mark == "moved" %} <span class="badge primary">{{ t('outline.page.mark_moved') }}</span>
+                  {%- elif p.mark == "level" %} <span class="badge primary">{{ t('outline.page.mark_level') }}</span>
+                  {%- elif p.mark == "numbered" %} <span class="badge primary">{% if p.number %}{{ t('outline.page.numbered') }}{% else %}{{ t('outline.page.unnumbered') }}{% endif %}</span>
+                  {%- elif p.mark == "deleted" %} <span class="badge warning">{{ t('outline.page.mark_deleted') }}</span>
+                  {%- elif p.mark == "added" %} <span class="badge primary">{{ t('outline.page.mark_new') }}</span>
+                  {%- elif p.mark == "adopted" %} <span class="badge warning">{{ t('outline.page.mark_under') }}</span>{% endif %}</li>
               {%- endfor %}
               </ol>
               {%- endif %}
@@ -138,7 +129,7 @@
           <td class="small">{{ r.note }}</td>
           <td class="outline-buttons">
             {#- User question 12: a new part that would take over chapters needs the consent („Zustimmen“). #}
-            {%- for decision, label in [("confirm", "Zustimmen" if r.op.op == "add" else "Bestätigen"), ("reject", "Ablehnen")] %}
+            {%- for decision, label in [("confirm", t("outline.page.agree") if r.op.op == "add" else t("outline.page.confirm")), ("reject", t("outline.page.reject"))] %}
             <form method="post" action="/gliederung/act">
               <input type="hidden" name="method" value="outline.request_decide">
               <input type="hidden" name="work" value="{{ work.id }}">
@@ -154,14 +145,14 @@
       </tbody>
     </table>
     {%- else %}
-    <p class="muted small">Keine offenen Anträge.</p>
+    <p class="muted small">{{ t('outline.page.no_requests') }}</p>
     {%- endif %}
     {%- if decided_requests %}
     <details class="small">
-      <summary>Zuletzt entschieden</summary>
+      <summary>{{ t('outline.page.decided') }}</summary>
       <ul class="requests-decided">
       {%- for r in decided_requests %}
-        <li id="antrag-{{ r.id }}">Antrag {{ r.id }}: {{ r.summary }} ({{ r.origin_label }}) – <strong>{{ r.decision_label }}</strong>
+        <li id="antrag-{{ r.id }}">{{ t('outline.page.decided_item', id=r.id, summary=r.summary, origin_label=r.origin_label) }} <strong>{{ r.decision_label }}</strong>
           {%- if r.message %}: {{ r.message }}{% endif %}</li>
       {%- endfor %}
       </ul>
@@ -170,25 +161,23 @@
   </section>
 
   <section class="outline-numbering card">
-    <h2 class="pane-title">Nummerierung</h2>
-    <p class="small">Jetzt: <strong>{{ numbering.scheme_label }}</strong>
-      {%- if numbering.scheme in ["template", "custom"] %} – {% if numbering.effective %}Muster „{{ numbering.effective }}“{% else %}keine Nummern{% endif %}{% endif %}
-      {%- if numbering.scheme == "template" and numbering.template is none %} (die Werkvorlage setzt keins – Vorgabe „1.1“){% endif %}.
-      Teile zählen eigen, Kapitel über Teile hinweg fortlaufend.
-      <a href="/werke/{{ work.id }}/nummerierung">Schema wählen…</a></p>
+    <h2 class="pane-title">{{ t('outline.page.numbering') }}</h2>
+    <p class="small">{{ t('outline.page.now') }} <strong>{{ numbering.scheme_label }}</strong>
+      {%- if numbering.scheme in ["template", "custom"] %} – {% if numbering.effective %}{{ t('outline.page.pattern_effective', effective=numbering.effective) }}{% else %}{{ t('outline.page.no_numbers') }}{% endif %}{% endif %}
+      {%- if numbering.scheme == "template" and numbering.template is none %} {{ t('outline.page.template_none') }}{% endif %}{{ t('outline.page.numbering_rule') }}
+      <a href="/werke/{{ work.id }}/nummerierung">{{ t('outline.page.choose_scheme') }}</a></p>
     <div class="outline-numbering-forms">
       <form method="post" action="/gliederung/act">{{ hidden("outline.set_numbering", entries[0] if entries else {"id": 0}) }}
         <input type="hidden" name="numbering" value="vorlage">
-        <button class="btn" type="submit"{% if numbering.scheme == "template" %} disabled{% endif %}>Aus der Vorlage</button></form>
+        <button class="btn" type="submit"{% if numbering.scheme == "template" %} disabled{% endif %}>{{ t('outline.page.from_template') }}</button></form>
       <form method="post" action="/gliederung/act">{{ hidden("outline.set_numbering", entries[0] if entries else {"id": 0}) }}
-        <label class="small">Muster <input type="text" name="numbering" value="{{ numbering.numbering or numbering.custom or (numbering.effective if numbering.scheme == "template" else "") }}" placeholder="1.1" size="8" required></label>
-        <button class="btn" type="submit">Setzen</button></form>
+        <label class="small">{{ t('outline.page.pattern') }} <input type="text" name="numbering" value="{{ numbering.numbering or numbering.custom or (numbering.effective if numbering.scheme == "template" else "") }}" placeholder="1.1" size="8" required></label>
+        <button class="btn" type="submit">{{ t('outline.page.set') }}</button></form>
       <form method="post" action="/gliederung/act">{{ hidden("outline.set_numbering", entries[0] if entries else {"id": 0}) }}
         <input type="hidden" name="numbering" value="keine">
-        <button class="btn" type="submit"{% if numbering.scheme == "none" %} disabled{% endif %}>Keine Nummern</button></form>
+        <button class="btn" type="submit"{% if numbering.scheme == "none" %} disabled{% endif %}>{{ t('outline.page.no_numbers_button') }}</button></form>
     </div>
-    <p class="muted tiny">Muster wie in Typst: Zählzeichen 1, a, A, i, I mit Text davor und dazwischen, z. B. „1.1“, „I.1“, „1.a)“;
-      „I|1“ nummeriert nur die Kapitel, „I.;A.;1.;a)“ gibt jeder Ebene ihr eigenes Muster.</p>
+    <p class="muted tiny">{{ t('outline.page.pattern_help') }}</p>
   </section>
 </main>
 {% endblock %}

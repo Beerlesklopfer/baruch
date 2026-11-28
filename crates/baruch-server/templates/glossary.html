@@ -7,33 +7,31 @@
     deleting with the mandatory checkbox confirm, looking up as a GET form. Proposals of the assistants stand separately
     and marked; only the human can accept or reject. Widget „glossary“ (web/src/glossary.ts): search field. -#}
 {% extends "base.html" %}
-{% block title %}Glossar – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Glossar{% endblock %}
+{% block title %}{{ t('reference.glossary.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('reference.glossary.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
-    <a class="btn" href="/werke/{{ work.id }}/register">Register</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('reference.glossary.see_also') }}</summary><div class="band-items" role="group" aria-label="{{ t('reference.glossary.see_also') }}">
+    <a class="btn" href="/werke/{{ work.id }}/register">{{ t('reference.glossary.index') }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('reference.glossary.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('reference.glossary.back') }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t('reference.glossary.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {%- macro term_fields(v, prefix) %}
-  <label class="glossary-field small">Begriff <input type="text" name="term" maxlength="200" required value="{{ v.term or '' }}"></label>
-  <label class="glossary-field small">Kurze Erklärung <input type="text" name="short" maxlength="500" value="{{ v.short or '' }}"></label>
-  <label class="glossary-field small">Ausführliche Erklärung <textarea name="long" rows="4">{{ v.long or '' }}</textarea></label>
-  <label class="glossary-field small">Varianten <span class="muted tiny">(je Zeile eine, z. B. Mehrzahl)</span> <textarea name="variants" rows="2">{{ v.variants_text if v.variants_text is defined else (v.variants or '') }}</textarea></label>
-  <label class="glossary-field small">Bibelstellen <span class="muted tiny">(je Zeile eine, z. B. Joh 3,16)</span> <textarea name="bible_refs" rows="2">{{ v.bible_refs_text if v.bible_refs_text is defined else (v.bible_refs or '') }}</textarea></label>
-  <label class="glossary-field small">Quelle <input type="text" name="source" maxlength="500" value="{{ v.source or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.glossary.term') }} <input type="text" name="term" maxlength="200" required value="{{ v.term or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.glossary.short') }} <input type="text" name="short" maxlength="500" value="{{ v.short or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.glossary.long') }} <textarea name="long" rows="4">{{ v.long or '' }}</textarea></label>
+  <label class="glossary-field small">{{ t('reference.glossary.variants') }} <span class="muted tiny">{{ t('reference.glossary.variants_hint') }}</span> <textarea name="variants" rows="2">{{ v.variants_text if v.variants_text is defined else (v.variants or '') }}</textarea></label>
+  <label class="glossary-field small">{{ t('reference.glossary.bible_refs') }} <span class="muted tiny">{{ t('reference.glossary.bible_refs_hint') }}</span> <textarea name="bible_refs" rows="2">{{ v.bible_refs_text if v.bible_refs_text is defined else (v.bible_refs or '') }}</textarea></label>
+  <label class="glossary-field small">{{ t('reference.glossary.source') }} <input type="text" name="source" maxlength="500" value="{{ v.source or '' }}"></label>
 {%- endmacro %}
 {% block body %}
 <main class="works-page glossary-page" data-work="{{ work.id }}" data-widget="glossary">
-  <h1 class="pane-title">Glossar</h1>
-  <p class="muted small">Begriffe, die im Buch erklärt werden: kurze und ausführliche Erklärung, Varianten (andere Wortformen) und
-    Bibelstellen. Welche Seite das Glossar im Buch bekommt, regelt Einstellungen → Werk → Satz. Assistenten schlagen Begriffe
-    nur vor; übernehmen, ändern und löschen nur Sie.</p>
+  <h1 class="pane-title">{{ t('reference.glossary.heading') }}</h1>
+  <p class="muted small">{{ t('reference.glossary.intro') }}</p>
   {%- if ok %}
   <p class="notice small" role="status" data-glossary-ok>{{ ok }}</p>
   {%- endif %}
@@ -41,58 +39,58 @@
   <p class="notice error small" role="alert" data-glossary-error>{{ retry.message }}</p>
   {%- endif %}
   {%- if load_error %}
-  <p class="notice warning small" role="alert" data-glossary-load-error>Das Glossar lässt sich nicht lesen: {{ load_error }}</p>
+  <p class="notice warning small" role="alert" data-glossary-load-error>{{ t('reference.glossary.load_error', load_error=load_error) }}</p>
   {%- endif %}
 
-  <form class="glossary-lookup" method="get" action="/werke/{{ work.id }}/glossar" role="search" aria-label="Im Glossar nachschlagen">
-    <label class="small">Nachschlagen <input type="search" name="nachschlagen" value="{{ lookup.word if lookup else '' }}" placeholder="Wort oder Variante"></label>
-    <button class="btn" type="submit">Nachschlagen</button>
+  <form class="glossary-lookup" method="get" action="/werke/{{ work.id }}/glossar" role="search" aria-label="{{ t('reference.glossary.lookup_label') }}">
+    <label class="small">{{ t('reference.glossary.lookup') }} <input type="search" name="nachschlagen" value="{{ lookup.word if lookup else '' }}" placeholder="{{ t('reference.glossary.lookup_placeholder') }}"></label>
+    <button class="btn" type="submit">{{ t('reference.glossary.lookup') }}</button>
   </form>
   {%- if lookup %}
   <section class="glossary-lookup-result" id="nachschlagen" aria-labelledby="nachschlagen-titel">
-    <h2 id="nachschlagen-titel" class="small">Im Glossar: „{{ lookup.word }}“</h2>
+    <h2 id="nachschlagen-titel" class="small">{{ t('reference.glossary.lookup_found', word=lookup.word) }}</h2>
     {%- if lookup.error %}
     <p class="notice warning small" role="alert">{{ lookup.error }}</p>
     {%- elif not lookup.terms %}
-    <p class="small">„{{ lookup.word }}“ steht nicht im Glossar. <a href="/werke/{{ work.id }}/glossar?begriff={{ lookup.word|urlencode }}#neu">In Glossar aufnehmen</a></p>
+    <p class="small">{{ t('reference.glossary.lookup_missing', word=lookup.word) }} <a href="/werke/{{ work.id }}/glossar?begriff={{ lookup.word|urlencode }}#neu">{{ t('reference.glossary.add') }}</a></p>
     {%- else %}
-    {%- for t in lookup.terms %}
-    <p class="small"><a href="#begriff-{{ t.id }}">{{ t.term }}</a>{% if t.short %} – {{ t.short }}{% endif %}</p>
+    {%- for gterm in lookup.terms %}
+    <p class="small"><a href="#begriff-{{ gterm.id }}">{{ gterm.term }}</a>{% if gterm.short %} – {{ gterm.short }}{% endif %}</p>
     {%- endfor %}
     {%- endif %}
   </section>
   {%- endif %}
 
-  <p class="glossary-filter" hidden><label class="small">Liste filtern <input type="search" data-glossary-filter placeholder="Begriff, Variante, Erklärung"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
+  <p class="glossary-filter" hidden><label class="small">{{ t('reference.glossary.filter') }} <input type="search" data-glossary-filter placeholder="{{ t('reference.glossary.filter_placeholder') }}"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
 
   <section class="glossary-list" aria-labelledby="angenommen">
-    <h2 id="angenommen" class="small">Begriffe ({{ accepted|length }})</h2>
+    <h2 id="angenommen" class="small">{{ t('reference.glossary.terms', count=accepted|length) }}</h2>
     {%- if not accepted and not load_error %}
-    <p class="muted small">Noch keine Begriffe. Im Editor: Wort markieren, Rechtsklick → „In Glossar aufnehmen“, oder unten anlegen.</p>
+    <p class="muted small">{{ t('reference.glossary.empty') }}</p>
     {%- endif %}
-    {%- for t in accepted %}
-    {%- set failed = retry and retry.id == t.id %}
-    <article class="glossary-term" id="begriff-{{ t.id }}" data-filter-text="{{ t.filter }}">
-      <h3 class="glossary-term-title">{{ t.term }}</h3>
-      {%- if t.variants %}<p class="muted small">auch: {{ t.variants|join(", ") }}</p>{% endif %}
-      {%- if t.short %}<p class="small glossary-short">{{ t.short }}</p>{% endif %}
-      {%- if t.long %}<p class="small glossary-long">{{ t.long }}</p>{% endif %}
-      {%- if t.bible_refs %}<p class="muted small">Bibelstellen: {{ t.bible_refs|join("; ") }}</p>{% endif %}
-      {%- if t.source %}<p class="muted tiny">Quelle: {{ t.source }}</p>{% endif %}
-      <p class="muted tiny">{% if t.origin and t.origin[:1] == "@" %}Vorgeschlagen von {{ t.origin }} · {% endif %}{% if t.updated %}geändert {{ t.updated }}{% if t.updated_by %} von {{ t.updated_by }}{% endif %}{% else %}angelegt {{ t.created }}{% endif %}</p>
-      <details class="glossary-edit"{% if open_id == t.id %} open{% endif %}>
-        <summary class="btn small">Bearbeiten oder löschen</summary>
+    {%- for gterm in accepted %}
+    {%- set failed = retry and retry.id == gterm.id %}
+    <article class="glossary-term" id="begriff-{{ gterm.id }}" data-filter-text="{{ gterm.filter }}">
+      <h3 class="glossary-term-title">{{ gterm.term }}</h3>
+      {%- if gterm.variants %}<p class="muted small">{{ t('reference.glossary.also', variants=gterm.variants|join(", ")) }}</p>{% endif %}
+      {%- if gterm.short %}<p class="small glossary-short">{{ gterm.short }}</p>{% endif %}
+      {%- if gterm.long %}<p class="small glossary-long">{{ gterm.long }}</p>{% endif %}
+      {%- if gterm.bible_refs %}<p class="muted small">{{ t('reference.glossary.bible_list', bible_refs=gterm.bible_refs|join("; ")) }}</p>{% endif %}
+      {%- if gterm.source %}<p class="muted tiny">{{ t('reference.glossary.source_line', source=gterm.source) }}</p>{% endif %}
+      <p class="muted tiny">{% if gterm.origin and gterm.origin[:1] == "@" %}{{ t('reference.glossary.proposed_by', origin=gterm.origin) }} {% endif %}{% if gterm.updated %}{{ t('reference.glossary.changed', updated=gterm.updated) }}{% if gterm.updated_by %} {{ t('reference.glossary.changed_by', updated_by=gterm.updated_by) }}{% endif %}{% else %}{{ t('reference.glossary.created', created=gterm.created) }}{% endif %}</p>
+      <details class="glossary-edit"{% if open_id == gterm.id %} open{% endif %}>
+        <summary class="btn small">{{ t('reference.glossary.edit') }}</summary>
         <form method="post" action="/werke/{{ work.id }}/glossar/act">
           <input type="hidden" name="action" value="update">
-          <input type="hidden" name="id" value="{{ t.id }}">
-          {{- term_fields(retry.v if failed and retry.action == "update" else t, "e") }}
-          <button class="btn primary" type="submit">Speichern</button>
+          <input type="hidden" name="id" value="{{ gterm.id }}">
+          {{- term_fields(retry.v if failed and retry.action == "update" else gterm, "e") }}
+          <button class="btn primary" type="submit">{{ t('common.save') }}</button>
         </form>
         <form method="post" action="/werke/{{ work.id }}/glossar/act" class="glossary-delete">
           <input type="hidden" name="action" value="delete">
-          <input type="hidden" name="id" value="{{ t.id }}">
-          <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, „{{ t.term }}“ aus dem Glossar löschen</label>
-          <button class="btn" type="submit">Löschen</button>
+          <input type="hidden" name="id" value="{{ gterm.id }}">
+          <label class="check small"><input type="checkbox" name="confirm" value="1" required> {{ t('reference.glossary.delete_confirm', term=gterm.term) }}</label>
+          <button class="btn" type="submit">{{ t('common.delete') }}</button>
         </form>
       </details>
     </article>
@@ -100,32 +98,32 @@
   </section>
 
   <section class="glossary-proposals" aria-labelledby="vorschlaege">
-    <h2 id="vorschlaege" class="small">Vorschläge der Assistenten ({{ proposed|length }})</h2>
+    <h2 id="vorschlaege" class="small">{{ t('reference.glossary.proposals', count=proposed|length) }}</h2>
     <form class="glossary-suggest" method="post" action="/werke/{{ work.id }}/glossar/act" data-glossary-suggest>
       <input type="hidden" name="action" value="suggest">
-      <button class="btn" type="submit">Begriffe vorschlagen lassen</button>
-      <span class="muted tiny">Der Lektor (Einstellungen → Assistenten) liest das ganze Werk und schlägt Begriffe vor, die erklärt werden sollten. Sie erscheinen hier als Vorschläge; übernehmen nur Sie. Das kann eine Weile dauern.</span>
+      <button class="btn" type="submit">{{ t('reference.glossary.ask') }}</button>
+      <span class="muted tiny">{{ t('reference.glossary.ask_help') }}</span>
     </form>
     {%- if not proposed %}
-    <p class="muted small">Keine offenen Vorschläge.</p>
+    <p class="muted small">{{ t('reference.glossary.no_proposals') }}</p>
     {%- endif %}
-    {%- for t in proposed %}
-    <article class="glossary-term glossary-proposed" id="begriff-{{ t.id }}" data-filter-text="{{ t.filter }}" data-proposed>
-      <h3 class="glossary-term-title">{{ t.term }} <span class="badge" title="Vorschlag, noch nicht im Glossar">Vorschlag von {{ t.origin }}</span></h3>
-      {%- if t.variants %}<p class="muted small">auch: {{ t.variants|join(", ") }}</p>{% endif %}
-      {%- if t.short %}<p class="small glossary-short">{{ t.short }}</p>{% endif %}
-      {%- if t.long %}<p class="small glossary-long">{{ t.long }}</p>{% endif %}
-      {%- if t.bible_refs %}<p class="muted small">Bibelstellen: {{ t.bible_refs|join("; ") }}</p>{% endif %}
+    {%- for gterm in proposed %}
+    <article class="glossary-term glossary-proposed" id="begriff-{{ gterm.id }}" data-filter-text="{{ gterm.filter }}" data-proposed>
+      <h3 class="glossary-term-title">{{ gterm.term }} <span class="badge" title="{{ t('reference.glossary.proposal_title') }}">{{ t('reference.glossary.proposal_by', origin=gterm.origin) }}</span></h3>
+      {%- if gterm.variants %}<p class="muted small">{{ t('reference.glossary.also', variants=gterm.variants|join(", ")) }}</p>{% endif %}
+      {%- if gterm.short %}<p class="small glossary-short">{{ gterm.short }}</p>{% endif %}
+      {%- if gterm.long %}<p class="small glossary-long">{{ gterm.long }}</p>{% endif %}
+      {%- if gterm.bible_refs %}<p class="muted small">{{ t('reference.glossary.bible_list', bible_refs=gterm.bible_refs|join("; ")) }}</p>{% endif %}
       <div class="glossary-decide">
         <form method="post" action="/werke/{{ work.id }}/glossar/act">
           <input type="hidden" name="action" value="accept">
-          <input type="hidden" name="id" value="{{ t.id }}">
-          <button class="btn primary" type="submit">Übernehmen</button>
+          <input type="hidden" name="id" value="{{ gterm.id }}">
+          <button class="btn primary" type="submit">{{ t('reference.glossary.accept') }}</button>
         </form>
         <form method="post" action="/werke/{{ work.id }}/glossar/act">
           <input type="hidden" name="action" value="reject">
-          <input type="hidden" name="id" value="{{ t.id }}">
-          <button class="btn" type="submit">Verwerfen</button>
+          <input type="hidden" name="id" value="{{ gterm.id }}">
+          <button class="btn" type="submit">{{ t('reference.glossary.reject') }}</button>
         </form>
       </div>
     </article>
@@ -133,7 +131,7 @@
   </section>
 
   <section class="glossary-new" id="neu" aria-labelledby="neu-titel">
-    <h2 id="neu-titel" class="small">Neuer Begriff</h2>
+    <h2 id="neu-titel" class="small">{{ t('reference.glossary.new_term') }}</h2>
     <form method="post" action="/werke/{{ work.id }}/glossar/act">
       <input type="hidden" name="action" value="add">
       {%- if retry and retry.action == "add" %}
@@ -141,7 +139,7 @@
       {%- else %}
       {{- term_fields({"term": prefill}, "n") }}
       {%- endif %}
-      <button class="btn primary" type="submit">In Glossar aufnehmen</button>
+      <button class="btn primary" type="submit">{{ t('reference.glossary.add') }}</button>
     </form>
   </section>
 </main>

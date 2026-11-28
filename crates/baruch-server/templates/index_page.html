@@ -8,44 +8,42 @@
     register_rename|register_delete); deleting with a mandatory checkbox. Proposals of the assistants are marked;
     accepting (a new revision of the human with the mark) and rejecting only here by form. -#}
 {% extends "base.html" %}
-{% block title %}Register – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Register{% endblock %}
+{% block title %}{{ t('reference.index.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('reference.index.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Buch“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}buch{% endblock %}
 {% block band_buch %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Siehe auch</summary><div class="band-items" role="group" aria-label="Siehe auch">
-    <a class="btn" href="/werke/{{ work.id }}/glossar">Glossar</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('reference.index.see_also') }}</summary><div class="band-items" role="group" aria-label="{{ t('reference.index.see_also') }}">
+    <a class="btn" href="/werke/{{ work.id }}/glossar">{{ t('reference.index.glossary') }}</a>
   </div></details>
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="/?work={{ work.id }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('reference.index.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('reference.index.back') }}">
+    <a class="btn" href="/?work={{ work.id }}">{{ t('reference.index.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {%- macro mark_fields(v, word) %}
-  <label class="glossary-field small">Wort im Text <input type="text" name="word" maxlength="200" required value="{{ v.word or word or '' }}"></label>
-  <label class="glossary-field small">Fundstelle <select name="occurrence">
-    <option value="first"{% if not v.occurrence or v.occurrence == "first" %} selected{% endif %}>erste</option>
-    <option value="all"{% if v.occurrence == "all" %} selected{% endif %}>alle</option>
+  <label class="glossary-field small">{{ t('reference.index.word') }} <input type="text" name="word" maxlength="200" required value="{{ v.word or word or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.index.occurrence') }} <select name="occurrence">
+    <option value="first"{% if not v.occurrence or v.occurrence == "first" %} selected{% endif %}>{{ t('reference.index.first') }}</option>
+    <option value="all"{% if v.occurrence == "all" %} selected{% endif %}>{{ t('reference.index.all') }}</option>
     {%- for n in [2, 3, 4, 5] %}
     <option value="{{ n }}"{% if v.occurrence == n|string %} selected{% endif %}>{{ n }}.</option>
     {%- endfor %}
   </select></label>
-  <label class="glossary-field small">Register <select name="register">
+  <label class="glossary-field small">{{ t('reference.index.register') }} <select name="register">
     {%- for r in registers %}
     <option value="{{ r.slug }}"{% if (v.register or "stichwort") == r.slug %} selected{% endif %}>{{ r.title }}</option>
     {%- endfor %}
   </select></label>
-  <label class="glossary-field small">Stichwort <span class="muted tiny">(leer = das Wort)</span> <input type="text" name="term" maxlength="200" value="{{ v.term or '' }}"></label>
-  <label class="glossary-field small">Unterstichwort <input type="text" name="sub" maxlength="200" value="{{ v.sub or '' }}"></label>
-  <label class="glossary-field small">siehe <input type="text" name="see" maxlength="200" value="{{ v.see or '' }}"></label>
-  <label class="glossary-field small">siehe auch <input type="text" name="also" maxlength="200" value="{{ v.also or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.index.term') }} <span class="muted tiny">{{ t('reference.index.term_hint') }}</span> <input type="text" name="term" maxlength="200" value="{{ v.term or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.index.sub') }} <input type="text" name="sub" maxlength="200" value="{{ v.sub or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.index.see') }} <input type="text" name="see" maxlength="200" value="{{ v.see or '' }}"></label>
+  <label class="glossary-field small">{{ t('reference.index.see_also_field') }} <input type="text" name="also" maxlength="200" value="{{ v.also or '' }}"></label>
 {%- endmacro %}
 {% block body %}
 <main class="works-page index-page" data-work="{{ work.id }}" data-widget="glossary">
-  <h1 class="pane-title">Register</h1>
-  <p class="muted small">Registereinträge sind Marken im Text, direkt hinter dem Wort; das Bibelstellenregister entsteht von selbst aus
-    den erkannten Bibelstellen. Welche Register das Buch am Ende bekommt, regelt Einstellungen → Werk → Satz. Eine Marke setzen oder
-    entfernen ergibt eine neue Fassung des Abschnitts; Assistenten schlagen Einträge nur vor.</p>
+  <h1 class="pane-title">{{ t('reference.index.heading') }}</h1>
+  <p class="muted small">{{ t('reference.index.intro') }}</p>
   {%- if ok %}
   <p class="notice small" role="status" data-index-ok>{{ ok }}</p>
   {%- endif %}
@@ -55,23 +53,23 @@
 
   {%- if section %}
   <section class="index-section" id="abschnitt" aria-labelledby="abschnitt-titel">
-    <h2 id="abschnitt-titel" class="small">Abschnitt {% if section.number %}{{ section.number }} {% endif %}{{ section.title }} (aktuelle Fassung {{ section.rev }})</h2>
+    <h2 id="abschnitt-titel" class="small">{{ t('reference.index.section') }} {% if section.number %}{{ section.number }} {% endif %}{{ t('reference.index.section_title', title=section.title, rev=section.rev) }}</h2>
     {%- if section.error %}
     <p class="notice warning small" role="alert">{{ section.error }}</p>
     {%- elif not section.entries %}
-    <p class="muted small">Keine Registereinträge in diesem Abschnitt.</p>
+    <p class="muted small">{{ t('reference.index.no_entries_section') }}</p>
     {%- endif %}
     <ul class="index-entries">
     {%- for e in section.entries %}
-      <li>{{ e.register }}: {{ e.term }}{% if e.sub %} › {{ e.sub }}{% endif %}{% if e.see %} (siehe: {{ e.see }}){% endif %}{% if e.also %} (siehe auch: {{ e.also }}){% endif %}
-        {%- if e.auto %} <span class="muted tiny">automatisch</span>{% elif e.start is not none %}
+      <li>{{ e.register }}: {{ e.term }}{% if e.sub %} › {{ e.sub }}{% endif %}{% if e.see %} {{ t('reference.index.see_inline', see=e.see) }}{% endif %}{% if e.also %} {{ t('reference.index.see_also_inline', also=e.also) }}{% endif %}
+        {%- if e.auto %} <span class="muted tiny">{{ t('reference.index.auto') }}</span>{% elif e.start is not none %}
         <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
           <input type="hidden" name="action" value="unmark">
           <input type="hidden" name="key" value="{{ section.key }}">
           <input type="hidden" name="rev" value="{{ section.rev }}">
           <input type="hidden" name="start" value="{{ e.start }}">
           <input type="hidden" name="end" value="{{ e.end }}">
-          <button class="btn small" type="submit" title="Marke entfernen (neue Fassung)">Entfernen</button>
+          <button class="btn small" type="submit" title="{{ t('reference.index.remove_title') }}">{{ t('reference.index.remove') }}</button>
         </form>
         {%- endif %}</li>
     {%- endfor %}
@@ -81,31 +79,31 @@
       <input type="hidden" name="key" value="{{ section.key }}">
       <input type="hidden" name="rev" value="{{ section.rev }}">
       {{- mark_fields(retry.v if retry and retry.action == "mark" else {}, "") }}
-      <button class="btn primary" type="submit">Marke setzen (neue Fassung)</button>
+      <button class="btn primary" type="submit">{{ t('reference.index.set_mark') }}</button>
     </form>
   </section>
   {%- endif %}
 
   {%- if overview_error %}
-  <p class="notice warning small" role="alert" data-index-overview-error>Die Übersicht lässt sich nicht bilden: {{ overview_error }}</p>
+  <p class="notice warning small" role="alert" data-index-overview-error>{{ t('reference.index.overview_error', overview_error=overview_error) }}</p>
   {%- endif %}
-  <p class="glossary-filter" hidden><label class="small">Einträge filtern <input type="search" data-glossary-filter placeholder="Stichwort"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
-  <nav class="index-toc small" aria-label="Register">
+  <p class="glossary-filter" hidden><label class="small">{{ t('reference.index.filter') }} <input type="search" data-glossary-filter placeholder="{{ t('reference.index.term_placeholder') }}"></label> <span class="muted tiny" data-glossary-count aria-live="polite"></span></p>
+  <nav class="index-toc small" aria-label="{{ t('reference.index.register') }}">
     {%- for s in sections %}<a href="#register-{{ s.register.slug }}">{{ s.register.title }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
   </nav>
   {%- for s in sections %}
   <section class="index-register" id="register-{{ s.register.slug }}" aria-labelledby="titel-{{ s.register.slug }}">
-    <h2 id="titel-{{ s.register.slug }}" class="small">{{ s.register.title }}{% if s.register.kind == "scripture" %} <span class="muted tiny">(automatisch aus den erkannten Bibelstellen)</span>{% endif %}</h2>
+    <h2 id="titel-{{ s.register.slug }}" class="small">{{ s.register.title }}{% if s.register.kind == "scripture" %} <span class="muted tiny">{{ t('reference.index.auto_note') }}</span>{% endif %}</h2>
     {%- if not s.terms %}
-    <p class="muted small">Noch keine Einträge.</p>
+    <p class="muted small">{{ t('reference.index.empty') }}</p>
     {%- else %}
     <ul class="index-terms">
-    {%- for t in s.terms %}
-      <li data-filter-text="{{ t.filter }}"{% if t.sub %} class="index-sub"{% endif %}>{% if t.sub %}<span class="muted">{{ t.term }} ›</span> {{ t.sub }}{% else %}{{ t.term }}{% endif %}
-        {%- if t.keys %} <span class="index-keys small">{% for k in t.keys %}<a href="{{ k.url|safe }}">{{ k.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
-        {%- if t.see %} <span class="small">siehe {{ t.see|join(", ") }}</span>{% endif %}
-        {%- if t.also %} <span class="small">siehe auch {{ t.also|join(", ") }}</span>{% endif %}
-        {%- if t.auto %} <span class="muted tiny">automatisch</span>{% endif %}</li>
+    {%- for iterm in s.terms %}
+      <li data-filter-text="{{ iterm.filter }}"{% if iterm.sub %} class="index-sub"{% endif %}>{% if iterm.sub %}<span class="muted">{{ iterm.term }} ›</span> {{ iterm.sub }}{% else %}{{ iterm.term }}{% endif %}
+        {%- if iterm.keys %} <span class="index-keys small">{% for k in iterm.keys %}<a href="{{ k.url|safe }}">{{ k.label }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+        {%- if iterm.see %} <span class="small">{{ t('reference.index.see_list', see=iterm.see|join(", ")) }}</span>{% endif %}
+        {%- if iterm.also %} <span class="small">{{ t('reference.index.see_also_list', also=iterm.also|join(", ")) }}</span>{% endif %}
+        {%- if iterm.auto %} <span class="muted tiny">{{ t('reference.index.auto') }}</span>{% endif %}</li>
     {%- endfor %}
     </ul>
     {%- endif %}
@@ -113,38 +111,37 @@
   {%- endfor %}
 
   <section class="index-proposals" id="vorschlaege" aria-labelledby="vorschlaege-titel">
-    <h2 id="vorschlaege-titel" class="small">Vorschläge der Assistenten ({{ open|length }})</h2>
+    <h2 id="vorschlaege-titel" class="small">{{ t('reference.index.proposals', count=open|length) }}</h2>
     {%- if proposals_error %}
-    <p class="notice warning small" role="alert" data-index-proposals-error>Die Vorschläge lassen sich nicht lesen: {{ proposals_error }}</p>
+    <p class="notice warning small" role="alert" data-index-proposals-error>{{ t('reference.index.proposals_error', proposals_error=proposals_error) }}</p>
     {%- elif not open %}
-    <p class="muted small">Keine offenen Registervorschläge.</p>
+    <p class="muted small">{{ t('reference.index.no_proposals') }}</p>
     {%- endif %}
     {%- for p in open %}
     <article class="index-proposal" id="vorschlag-{{ p.id }}" data-proposed>
-      <p class="small"><span class="badge" title="Vorschlag, noch nicht im Text">Vorschlag von {{ p.origin }}</span>
-        „{{ p.word }}“ ({{ p.occurrence_label }}) in <a href="/?work={{ work.id }}&amp;key={{ p.key }}">{{ p.section_label }}</a>, Fassung {{ p.based_on }}:
-        {{ p.mark.register }} – {{ p.mark.term }}{% if p.mark.sub %} › {{ p.mark.sub }}{% endif %}{% if p.mark.see %} (siehe: {{ p.mark.see }}){% endif %}{% if p.mark.also %} (siehe auch: {{ p.mark.also }}){% endif %}</p>
-      {%- if p.reason %}<p class="muted small">Begründung: {{ p.reason }}</p>{% endif %}
+      <p class="small"><span class="badge" title="{{ t('reference.index.proposal_title') }}">{{ t('reference.index.proposal_by', origin=p.origin) }}</span>
+        {{ t('reference.index.proposal_word', word=p.word, occurrence_label=p.occurrence_label) }} <a href="/?work={{ work.id }}&amp;key={{ p.key }}">{{ p.section_label }}</a>{{ t('reference.index.proposal_mark', based_on=p.based_on, register=p.mark.register, term=p.mark.term) }}{% if p.mark.sub %} › {{ p.mark.sub }}{% endif %}{% if p.mark.see %} {{ t('reference.index.see_inline', see=p.mark.see) }}{% endif %}{% if p.mark.also %} {{ t('reference.index.see_also_inline', also=p.mark.also) }}{% endif %}</p>
+      {%- if p.reason %}<p class="muted small">{{ t('reference.index.reason', reason=p.reason) }}</p>{% endif %}
       <div class="glossary-decide">
         <form method="post" action="/werke/{{ work.id }}/register/act">
           <input type="hidden" name="action" value="accept">
           <input type="hidden" name="id" value="{{ p.id }}">
-          <button class="btn primary" type="submit" title="Marke als neue Fassung in den Abschnitt setzen">Übernehmen</button>
+          <button class="btn primary" type="submit" title="{{ t('reference.index.accept_title') }}">{{ t('reference.index.accept') }}</button>
         </form>
         <form method="post" action="/werke/{{ work.id }}/register/act">
           <input type="hidden" name="action" value="reject">
           <input type="hidden" name="id" value="{{ p.id }}">
-          <button class="btn" type="submit">Verwerfen</button>
+          <button class="btn" type="submit">{{ t('reference.index.reject') }}</button>
         </form>
       </div>
     </article>
     {%- endfor %}
     {%- if decided %}
     <details class="index-decided">
-      <summary class="small">Entschiedene Vorschläge ({{ decided|length }})</summary>
+      <summary class="small">{{ t('reference.index.decided', count=decided|length) }}</summary>
       <ul>
       {%- for p in decided %}
-        <li class="small" id="vorschlag-{{ p.id }}">„{{ p.word }}“ → {{ p.mark.term }} ({{ p.mark.register }}), {{ p.origin }}: {% if p.status == "accepted" %}übernommen{% elif p.status == "rejected" %}verworfen{% else %}veraltet (Wort nicht mehr im Text){% endif %}{% if p.decided_by %} von {{ p.decided_by }}{% endif %}</li>
+        <li class="small" id="vorschlag-{{ p.id }}">{{ t("reference.index.decided_item", word=p.word, term=p.mark.term, register=p.mark.register, origin=p.origin) }} {% if p.status == "accepted" %}{{ t('reference.index.accepted') }}{% elif p.status == "rejected" %}{{ t('reference.index.rejected') }}{% else %}{{ t('reference.index.outdated') }}{% endif %}{% if p.decided_by %} {{ t('reference.index.decided_by', decided_by=p.decided_by) }}{% endif %}</li>
       {%- endfor %}
       </ul>
     </details>
@@ -152,24 +149,24 @@
   </section>
 
   <section class="index-manage" id="eigene" aria-labelledby="eigene-titel">
-    <h2 id="eigene-titel" class="small">Register verwalten</h2>
+    <h2 id="eigene-titel" class="small">{{ t('reference.index.manage') }}</h2>
     <ul class="index-register-list">
     {%- for r in registers %}
       <li>
         {%- if r.builtin %}
-        <span>{{ r.title }}</span> <span class="muted tiny">eingebaut ({{ r.slug }})</span>
+        <span>{{ r.title }}</span> <span class="muted tiny">{{ t('reference.index.builtin', slug=r.slug) }}</span>
         {%- else %}
         <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
           <input type="hidden" name="action" value="register_rename">
           <input type="hidden" name="slug" value="{{ r.slug }}">
           <label class="small">{{ r.slug }} <input type="text" name="title" maxlength="80" required value="{{ r.title }}"></label>
-          <button class="btn small" type="submit">Umbenennen</button>
+          <button class="btn small" type="submit">{{ t('reference.index.rename') }}</button>
         </form>
         <form class="inline-form" method="post" action="/werke/{{ work.id }}/register/act">
           <input type="hidden" name="action" value="register_delete">
           <input type="hidden" name="slug" value="{{ r.slug }}">
-          <label class="check small"><input type="checkbox" name="confirm" value="1" required> Ja, löschen</label>
-          <button class="btn small" type="submit">Löschen</button>
+          <label class="check small"><input type="checkbox" name="confirm" value="1" required> {{ t('reference.index.delete_confirm') }}</label>
+          <button class="btn small" type="submit">{{ t('common.delete') }}</button>
         </form>
         {%- endif %}
       </li>
@@ -178,10 +175,10 @@
     <form class="index-register-add" method="post" action="/werke/{{ work.id }}/register/act">
       <input type="hidden" name="action" value="register_add">
       {%- set rv = retry.v if retry and retry.action == "register_add" else {} %}
-      <label class="small">Kennung <input type="text" name="slug" maxlength="32" pattern="[a-z][a-z0-9\-]{0,31}" required value="{{ rv.slug or '' }}" placeholder="z. B. orte"></label>
-      <label class="small">Titel <input type="text" name="title" maxlength="80" required value="{{ rv.title or '' }}" placeholder="z. B. Ortsregister"></label>
-      <button class="btn" type="submit">Register anlegen</button>
-      <span class="muted tiny">Noch {{ custom_left }} eigene Register möglich (Kennung: Kleinbuchstaben, Ziffern, Bindestrich).</span>
+      <label class="small">{{ t('reference.index.slug') }} <input type="text" name="slug" maxlength="32" pattern="[a-z][a-z0-9\-]{0,31}" required value="{{ rv.slug or '' }}" placeholder="{{ t('reference.index.slug_placeholder') }}"></label>
+      <label class="small">{{ t('reference.index.title') }} <input type="text" name="title" maxlength="80" required value="{{ rv.title or '' }}" placeholder="{{ t('reference.index.title_placeholder') }}"></label>
+      <button class="btn" type="submit">{{ t('reference.index.create') }}</button>
+      <span class="muted tiny">{{ t('reference.index.custom_left', custom_left=custom_left) }}</span>
     </form>
   </section>
 </main>

@@ -8,45 +8,45 @@
     value}], batch {id, query, replacement, count, undone, checks [{label, url}]}, latest {id, query, replacement,
     count, created}, undone, error, self_url, preview_url, back_url. -#}
 {% extends "base.html" %}
-{% block title %}Suchen und ersetzen – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Suchen und ersetzen{% endblock %}
+{% block title %}{{ t('search.page.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('search.page.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Prüfen“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block band_tab %}pruefen{% endblock %}
 {% block band_pruefen %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back_url }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('search.page.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('search.page.back') }}">
+    <a class="btn" href="{{ back_url }}">{{ t('search.page.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page search-page" data-widget="search-page" data-work="{{ work.id }}">
-  <h1 class="pane-title">Im Werk suchen und ersetzen</h1>
+  <h1 class="pane-title">{{ t('search.page.heading') }}</h1>
   {%- if error %}
   <p class="toast" role="alert" data-search-error>{{ error }}</p>
   {%- endif %}
   {%- if batch %}
   <section class="sr-done notice" role="status" data-search-batch="{{ batch.id }}">
     {%- if batch.undone %}
-    <p>Ersetzen „{{ batch.query }}“ → „{{ batch.replacement }}“ wurde rückgängig gemacht.</p>
+    <p>{{ t('search.page.undone_batch', query=batch.query, replacement=batch.replacement) }}</p>
     {%- else %}
-    <p><strong>Ersetzt:</strong> „{{ batch.query }}“ → „{{ batch.replacement }}“ in {{ batch.count }}
-      {% if batch.count == 1 %}Abschnitt{% else %}Abschnitten{% endif %} (je eine neue Fassung von dir, ein Commit im Spiegel).</p>
+    <p><strong>{{ t('search.page.replaced') }}</strong> {{ t('search.page.replaced_in', query=batch.query, replacement=batch.replacement, count=batch.count) }}
+      {% if batch.count == 1 %}{{ t('search.page.sections_one') }}{% else %}{{ t('search.page.sections_other') }}{% endif %} {{ t('search.page.replaced_note') }}</p>
     <form method="post" action="/suche/act" class="sr-undo">
       <input type="hidden" name="method" value="search.undo">
       <input type="hidden" name="batch" value="{{ batch.id }}">
       <input type="hidden" name="confirm" value="1">
       {%- for h in hidden %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
-      <button type="submit" class="btn">Rückgängig</button>
+      <button type="submit" class="btn">{{ t('search.page.undo') }}</button>
     </form>
     {%- if batch.checks %}
-    <p class="small" data-scripture-hint>Bitte den Wortlaut der Bibelzitate prüfen (Prüfanzeige):
+    <p class="small" data-scripture-hint>{{ t('search.page.check_quotes') }}
       {%- for c in batch.checks %} <a href="{{ c.url|safe }}">{{ c.label }}</a>{% if not loop.last %} ·{% endif %}{% endfor %}</p>
     {%- endif %}
     {%- endif %}
   </section>
   {%- endif %}
   {%- if undone %}
-  <p class="notice" role="status" data-search-undone="{{ undone }}">Rückgängig gemacht: Die Abschnitte stehen wieder auf ihrer vorigen Fassung.</p>
+  <p class="notice" role="status" data-search-undone="{{ undone }}">{{ t('search.page.undone') }}</p>
   {%- endif %}
 
   <form method="get" action="/suche" class="sr-form" data-search-form>
@@ -54,26 +54,26 @@
     {%- if key %}<input type="hidden" name="key" value="{{ key }}">{% endif %}
     {%- for h in carried %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
     <p class="sr-fields">
-      <label>Suchen <input type="search" name="q" value="{{ q }}" maxlength="500" required autofocus data-search-q></label>
-      <label>Ersetzen durch <input type="text" name="replacement" value="{{ replacement }}" maxlength="2000" data-search-replacement></label>
+      <label>{{ t('search.page.query') }} <input type="search" name="q" value="{{ q }}" maxlength="500" required autofocus data-search-q></label>
+      <label>{{ t('search.page.replacement') }} <input type="text" name="replacement" value="{{ replacement }}" maxlength="2000" data-search-replacement></label>
     </p>
     <p class="sr-options">
-      <label title="Groß/klein beachten (Alt+C)"><input type="checkbox" name="case" value="1"{% if case %} checked{% endif %}> Groß/klein</label>
-      <label title="Nur ganze Wörter (Alt+W)"><input type="checkbox" name="word" value="1"{% if word %} checked{% endif %}> Ganzes Wort</label>
-      <label title="Regulärer Ausdruck (Alt+R)"><input type="checkbox" name="re" value="1"{% if re %} checked{% endif %}> Regulärer Ausdruck</label>
+      <label title="{{ t('search.page.case_title_html') }}"><input type="checkbox" name="case" value="1"{% if case %} checked{% endif %}> {{ t('search.page.case_html') }}</label>
+      <label title="{{ t('search.page.word_title') }}"><input type="checkbox" name="word" value="1"{% if word %} checked{% endif %}> {{ t('search.page.word') }}</label>
+      <label title="{{ t('search.page.regex_title') }}"><input type="checkbox" name="re" value="1"{% if re %} checked{% endif %}> {{ t('search.page.regex') }}</label>
     </p>
     <fieldset class="sr-range">
-      <legend>Bereich</legend>
+      <legend>{{ t('search.page.range') }}</legend>
       {%- for r in ranges %}
       <label><input type="radio" name="range" value="{{ r.word }}"{% if r.checked %} checked{% endif %}> {{ r.label }}</label>
       {%- endfor %}
       <details class="sr-picks"{% if range == "picked" or not key %} open{% endif %}>
-        <summary>Gliederung (für „Abschnitt“, „Kapitel“, „Teil“, „ab Abschnitt“ den Punkt wählen, für „Auswahl“ Häkchen setzen)</summary>
+        <summary>{{ t('search.page.outline') }}</summary>
         <ul class="sr-outline">
           {%- for n in outline %}
           <li style="padding-left: {{ n.depth * 1.2 }}em">
             <label><input type="checkbox" name="sel" value="{{ n.key }}"{% if n.checked %} checked{% endif %}> {{ n.label }}</label>
-            {%- if not n.current %} <a class="small" href="/suche?work={{ work.id }}&amp;key={{ n.key }}&amp;range={{ range }}&amp;q={{ q_enc }}">als Abschnitt wählen</a>{% else %} <strong class="small">(gewählter Abschnitt)</strong>{% endif %}
+            {%- if not n.current %} <a class="small" href="/suche?work={{ work.id }}&amp;key={{ n.key }}&amp;range={{ range }}&amp;q={{ q_enc }}">{{ t('search.page.pick_section') }}</a>{% else %} <strong class="small">{{ t('search.page.picked_section') }}</strong>{% endif %}
           </li>
           {%- endfor %}
         </ul>
@@ -81,32 +81,32 @@
     </fieldset>
     {%- if revs %}
     <fieldset class="sr-rev" data-search-rev>
-      <legend>Fassung (nur Abschnitt und Markierung)</legend>
-      <label><input type="radio" name="rev" value="current"{% if not revs.shown %} checked{% endif %}> aktuelle Fassung</label>
+      <legend>{{ t('search.page.rev') }}</legend>
+      <label><input type="radio" name="rev" value="current"{% if not revs.shown %} checked{% endif %}> {{ t('search.page.rev_current') }}</label>
       {%- if revs.shown_rev %}
-      <label><input type="radio" name="rev" value="shown"{% if revs.shown %} checked{% endif %}> gezeigte Fassung {{ revs.shown_rev }}</label>
+      <label><input type="radio" name="rev" value="shown"{% if revs.shown %} checked{% endif %}> {{ t('search.page.rev_shown', shown_rev=revs.shown_rev) }}</label>
       {%- endif %}
-      <span class="muted small">Vorschau und Ersetzen gelten immer der aktuellen Fassung.</span>
+      <span class="muted small">{{ t('search.page.rev_note') }}</span>
     </fieldset>
     {%- endif %}
     <fieldset class="sr-kinds">
-      <legend>Textarten</legend>
+      <legend>{{ t('search.page.kinds') }}</legend>
       {%- for k in kinds %}
       <label><input type="checkbox" name="kinds" value="{{ k.word }}"{% if k.checked %} checked{% endif %}> {{ k.label }}</label>
       {%- endfor %}
-      <span class="muted small">Beim Ersetzen bleiben Zitate (auch Bibelzitate) und Typst-Code unberührt, außer du wählst Zitate ausdrücklich.</span>
+      <span class="muted small">{{ t('search.page.kinds_note') }}</span>
     </fieldset>
     <p>
-      <button type="submit" class="btn primary">Suchen</button>
-      <button type="submit" class="btn" name="vorschau" value="1">Vorschau des Ersetzens</button>
+      <button type="submit" class="btn primary">{{ t('search.page.query') }}</button>
+      <button type="submit" class="btn" name="vorschau" value="1">{{ t('search.page.preview_button') }}</button>
     </p>
   </form>
 
   {%- if summary %}
   <section class="sr-results" data-search-results>
-    <h2>{{ summary.total }} {% if summary.total == 1 %}Treffer{% else %}Treffer{% endif %} · {{ summary.range_label }}</h2>
-    {%- if summary.truncated %}<p class="small muted" data-search-truncated>Es werden {{ summary.shown }} von {{ summary.total }} Treffern gezeigt.</p>{% endif %}
-    {%- if summary.timed_out %}<p class="toast" role="alert" data-search-timeout>Die Suche brauchte länger als 2 s und wurde abgebrochen; die Liste ist unvollständig.</p>{% endif %}
+    <h2>{{ summary.total }} {% if summary.total == 1 %}{{ t('search.page.hits_one') }}{% else %}{{ t('search.page.hits_other') }}{% endif %} · {{ summary.range_label }}</h2>
+    {%- if summary.truncated %}<p class="small muted" data-search-truncated>{{ t('search.page.truncated', shown=summary.shown, total=summary.total) }}</p>{% endif %}
+    {%- if summary.timed_out %}<p class="toast" role="alert" data-search-timeout>{{ t('search.page.timed_out') }}</p>{% endif %}
     <ul class="sr-tree">
       {%- for g in groups %}
       <li class="sr-section" data-key="{{ g.key }}">
@@ -120,7 +120,7 @@
         </ul>
       </li>
       {%- else %}
-      <li class="muted">Keine Treffer.</li>
+      <li class="muted">{{ t('search.page.no_hits') }}</li>
       {%- endfor %}
     </ul>
   </section>
@@ -128,9 +128,9 @@
 
   {%- if preview %}
   <section class="sr-preview" data-search-preview>
-    <h2>Vorschau: „{{ q }}“ → „{{ replacement }}“ · {{ preview.total }} Treffer · {{ preview.range_label }}</h2>
-    {%- if preview.timed_out %}<p class="toast" role="alert" data-search-timeout>Die Suche brauchte länger als 2 s; Ersetzen geht erst mit kleinerem Bereich.</p>{% endif %}
-    {%- if preview.truncated %}<p class="small muted" data-search-preview-truncated>Die Vorschau zeigt nicht alle Abschnitte (höchstens 500 ganze Abschnitte mit zusammen höchstens 2000 Stellen); bitte Suche oder Bereich eingrenzen.</p>{% endif %}
+    <h2>{{ t('search.page.preview_heading', q=q, replacement=replacement, total=preview.total, range_label=preview.range_label) }}</h2>
+    {%- if preview.timed_out %}<p class="toast" role="alert" data-search-timeout>{{ t('search.page.preview_timed_out') }}</p>{% endif %}
+    {%- if preview.truncated %}<p class="small muted" data-search-preview-truncated>{{ t('search.page.preview_truncated') }}</p>{% endif %}
     {%- if preview.sections %}
     <form method="post" action="/suche/act" class="sr-replace-form">
       <input type="hidden" name="method" value="search.replace">
@@ -139,19 +139,19 @@
       {%- for s in preview.sections %}
       <fieldset class="sr-preview-section" data-key="{{ s.key }}">
         <legend><label><input type="checkbox" name="pick" value="{{ s.key }}:{{ s.base_rev }}" checked> {{ s.label }}</label>
-          <span class="muted small">Fassung {{ s.base_rev }}, {{ s.count }} {% if s.count == 1 %}Stelle{% else %}Stellen{% endif %}</span>
-          {%- if s.url %} <a class="small jump" href="{{ s.url|safe }}" data-jump>öffnen</a>{% endif %}</legend>
+          <span class="muted small">{{ t('search.page.preview_rev', base_rev=s.base_rev, count=s.count) }} {% if s.count == 1 %}{{ t('search.page.places_one') }}{% else %}{{ t('search.page.places_other') }}{% endif %}</span>
+          {%- if s.url %} <a class="small jump" href="{{ s.url|safe }}" data-jump>{{ t('search.page.open') }}</a>{% endif %}</legend>
         <input type="hidden" name="count_{{ s.key }}" value="{{ s.count }}">
         <div class="sr-diff">{{ s.diff_html|safe }}</div>
-        <p class="sr-keep small">Stellen:
+        <p class="sr-keep small">{{ t('search.page.places') }}
           {%- for i in s.indices %} <label><input type="checkbox" name="keep" value="{{ s.key }}:{{ i }}" checked> {{ i + 1 }}</label>{% endfor %}</p>
       </fieldset>
       {%- endfor %}
-      <p><label><input type="checkbox" name="confirm" value="1"> Ja, ersetzen (je Abschnitt eine neue Fassung von mir)</label>
-        <button type="submit" class="btn primary">Alle ersetzen</button></p>
+      <p><label><input type="checkbox" name="confirm" value="1"> {{ t('search.page.confirm') }}</label>
+        <button type="submit" class="btn primary">{{ t('search.page.replace_all') }}</button></p>
     </form>
     {%- else %}
-    <p class="muted">Nichts zu ersetzen.</p>
+    <p class="muted">{{ t('search.page.nothing') }}</p>
     {%- endif %}
   </section>
   {%- endif %}
@@ -159,17 +159,15 @@
   {%- if latest and not batch %}
   <section class="sr-latest small" data-search-latest="{{ latest.id }}">
     <form method="post" action="/suche/act" class="sr-undo">
-      Letztes Ersetzen: „{{ latest.query }}“ → „{{ latest.replacement }}“ in {{ latest.count }} {% if latest.count == 1 %}Abschnitt{% else %}Abschnitten{% endif %}
+      {{ t('search.page.latest', query=latest.query, replacement=latest.replacement, count=latest.count) }} {% if latest.count == 1 %}{{ t('search.page.sections_one') }}{% else %}{{ t('search.page.sections_other') }}{% endif %}
       <input type="hidden" name="method" value="search.undo">
       <input type="hidden" name="batch" value="{{ latest.id }}">
       <input type="hidden" name="confirm" value="1">
       {%- for h in hidden %}<input type="hidden" name="{{ h.name }}" value="{{ h.value }}">{% endfor %}
-      <button type="submit" class="btn">Rückgängig</button>
+      <button type="submit" class="btn">{{ t('search.page.undo') }}</button>
     </form>
   </section>
   {%- endif %}
-  <p class="muted tiny">Gesucht wird im Typst-Quelltext der Fassungen. Tasten wie in VS Code: Strg+F suchen und Strg+H
-    ersetzen im Abschnitt, Strg+Umschalt+F bzw. Strg+Umschalt+H im Werk, Enter/F3 nächster Treffer, Alt+C/W/R
-    Groß/klein, ganzes Wort, regulärer Ausdruck.</p>
+  <p class="muted tiny">{{ t('search.page.keys_help_html') }}</p>
 </main>
 {% endblock %}

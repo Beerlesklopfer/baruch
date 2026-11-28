@@ -22,16 +22,16 @@
 {%- set anchor = post.anchor or "post-" %}
         <div class="post-author">{% if post.style %}<span class="pc-swatch" aria-hidden="true"></span>{% endif %}{{ post.author }}
           {%- if post.time %} <span class="muted tiny post-time">{{ post.time }}</span>{% endif %}
-          {%- if post.edited %} <span class="muted tiny post-edited" title="zuletzt bearbeitet {{ post.edited_time or post.edited }}; die alte Fassung steht im Verlauf">bearbeitet</span>{% endif %}</div>
+          {%- if post.edited %} <span class="muted tiny post-edited" title="{{ t('posts.item.edited_title', edited=post.edited_time or post.edited) }}">{{ t('posts.item.edited') }}</span>{% endif %}</div>
         {%- if post.extra %}
         {%- if post.extra.basis %}
-        <div class="post-basis tiny" title="Grundlage dieser Antwort (von Baruch, nicht vom Modell)">{{ post.extra.basis }}</div>
+        <div class="post-basis tiny" title="{{ t('posts.item.basis_title') }}">{{ post.extra.basis }}</div>
         {%- endif %}
         {%- if post.extra.relay_from %}
-        <div class="post-relation tiny muted">antwortet auf {% if post.extra.reply_to %}<a href="#{{ anchor }}{{ post.extra.reply_to }}">Beitrag {{ post.extra.reply_to }}</a> {% endif %}von {{ post.extra.relay_from }}</div>
+        <div class="post-relation tiny muted">{{ t('posts.item.replies_to') }} {% if post.extra.reply_to %}<a href="#{{ anchor }}{{ post.extra.reply_to }}">{{ t('posts.item.post_ref', reply_to=post.extra.reply_to) }}</a> {% endif %}{{ t('posts.item.relay_from', relay_from=post.extra.relay_from) }}</div>
         {%- endif %}
         {%- if post.extra.repeat_of %}
-        <div class="post-relation tiny muted">Wiederholung von <a href="#{{ anchor }}{{ post.extra.repeat_of }}">Beitrag {{ post.extra.repeat_of }}</a>{% if post.extra.basis_rev %} nach Fassung {{ post.extra.basis_rev }}{% endif %}</div>
+        <div class="post-relation tiny muted">{{ t('posts.item.repeat_of') }} <a href="#{{ anchor }}{{ post.extra.repeat_of }}">{{ t('posts.item.post_repeat', repeat_of=post.extra.repeat_of) }}</a>{% if post.extra.basis_rev %} {{ t('posts.item.after_rev', basis_rev=post.extra.basis_rev) }}{% endif %}</div>
         {%- endif %}
         <div class="post-body post-md">
           {%- for seg in post.extra.segments %}
@@ -64,11 +64,11 @@
       <div class="post{% if post.style %} pc{% endif %}"{% if post.style %} style="{{ post.style }}"{% endif %}>
         {{- post_item(post) }}
         {%- for r in post.refs %}
-        <a class="ref" href="{{ r.url }}" data-nav title="{{ r.quote }}">↪ {{ r.number }} {{ r.title }} · Revision {{ r.rev }}</a>
+        <a class="ref" href="{{ r.url }}" data-nav title="{{ r.quote }}">{{ t('posts.item.ref', number=r.number, title=r.title, rev=r.rev) }}</a>
         {%- endfor %}
-        {%- for source in post.sources %}<div class="muted tiny">Quelle: {{ source }}</div>{% endfor %}
+        {%- for source in post.sources %}<div class="muted tiny">{{ t('posts.item.source', source=source) }}</div>{% endfor %}
         {%- if post.id and post.sources | select("startingwith", "Web:") | list %}
-        <a class="ref websearch-link" href="/websuche/belege?work={{ at.work }}&amp;key={{ at.key }}&amp;post={{ post.id }}" title="abgerufene Seiten, Zitate und ihre Prüfung; belegte Zitate in die Bibliothek">↪ Belege der Websuche</a>
+        <a class="ref websearch-link" href="/websuche/belege?work={{ at.work }}&amp;key={{ at.key }}&amp;post={{ post.id }}" title="{{ t('posts.item.web_title') }}">{{ t('posts.item.web') }}</a>
         {%- endif %}
         {%- if post.solutions %}{{ post_solutions(post, at.work, at.key, at.rev) }}{% endif %}
         {%- if post.id %}
@@ -76,49 +76,49 @@
           {%- if post.extra and post.extra.can_repeat %}
           <form class="post-form post-repeat" method="post" action="/beitraege/act" data-rpc>
             {{- post_hidden("post.repeat", post, at) }}
-            <button class="tool small" type="submit" aria-label="Antwort von {{ post.author }} wiederholen" title="Dieselbe Anfrage an {{ post.author }} gegen die gezeigte Fassung {{ at.rev }}; die alte Antwort bleibt">↻</button>
+            <button class="tool small" type="submit" aria-label="{{ t('posts.item.repeat_label', author=post.author) }}" title="{{ t('posts.item.repeat_title', author=post.author, rev=at.rev) }}">↻</button>
           </form>
           {%- endif %}
-          <a class="tool small post-delete" href="/beitrag?work={{ at.work }}&amp;id={{ post.id }}#loeschen" data-post-delete data-work="{{ at.work }}" aria-label="Beitrag löschen" title="Beitrag löschen (mit Rückfrage)">✕</a>
-          <button class="tool small" type="button" data-post-copy hidden title="Text des Beitrags in die Zwischenablage">Kopieren</button>
-          <button class="tool small" type="button" data-post-quote hidden title="Beitrag als „> …“ ins Eingabefeld">Zitieren</button>
-          <a class="tool small" href="/beitrag?work={{ at.work }}&amp;id={{ post.id }}" title="Beitrag zum Markieren und Kopieren, Zitieren{% if post.own %}, Bearbeiten{% endif %} und Verlauf (auch ohne JavaScript)">Beitrag öffnen</a>
+          <a class="tool small post-delete" href="/beitrag?work={{ at.work }}&amp;id={{ post.id }}#loeschen" data-post-delete data-work="{{ at.work }}" aria-label="{{ t('posts.item.delete_label') }}" title="{{ t('posts.item.delete_title') }}">✕</a>
+          <button class="tool small" type="button" data-post-copy hidden title="{{ t('posts.item.copy_title') }}">{{ t('posts.item.copy') }}</button>
+          <button class="tool small" type="button" data-post-quote hidden title="{{ t('posts.item.quote_title') }}">{{ t('posts.item.quote') }}</button>
+          <a class="tool small" href="/beitrag?work={{ at.work }}&amp;id={{ post.id }}" title="{% if post.own %}{{ t('posts.item.open_own_title') }}{% else %}{{ t('posts.item.open_title') }}{% endif %}">{{ t('posts.item.open') }}</a>
         </div>
         <details class="post-manage">
-          <summary class="tool small" title="Beitrag {% if post.own %}bearbeiten, {% endif %}löschen, verschieben oder umwandeln">Verwalten</summary>
+          <summary class="tool small" title="{% if post.own %}{{ t('posts.item.manage_own_title') }}{% else %}{{ t('posts.item.manage_title') }}{% endif %}">{{ t('posts.item.manage') }}</summary>
           {%- if post.own %}
           <form class="post-form post-edit" method="post" action="/beitraege/act" data-rpc>
             {{- post_hidden("post.edit", post, at) }}
-            <label class="small wide">Bearbeiten <textarea name="body" rows="3" maxlength="4000" required aria-label="Neuer Text des Beitrags">{{ post.body }}</textarea></label>
-            <button class="btn small" type="submit" title="die alte Fassung bleibt im Verlauf">Speichern</button>
+            <label class="small wide">{{ t('posts.item.edit') }} <textarea name="body" rows="3" maxlength="4000" required aria-label="{{ t('posts.item.new_text_label') }}">{{ post.body }}</textarea></label>
+            <button class="btn small" type="submit" title="{{ t('posts.item.old_stays') }}">{{ t('common.save') }}</button>
           </form>
           {%- endif %}
           <form class="post-form" method="post" action="/beitraege/act" data-rpc>
             {{- post_hidden("post.delete", post, at) }}
-            <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich löschen</label>
-            <button class="btn danger small" type="submit">Löschen</button>
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('posts.item.delete_confirm') }}</label>
+            <button class="btn danger small" type="submit">{{ t('common.delete') }}</button>
           </form>
           {%- if at.targets %}
           <details class="post-move">
-            <summary class="small">Verschieben…</summary>
+            <summary class="small">{{ t('posts.item.move_menu') }}</summary>
             <form class="post-form" method="post" action="/beitraege/act" data-rpc>
               {{- post_hidden("post.move", post, at) }}
-              <label class="small">nach <select name="target_key" required>
-                {%- for t in at.targets %}<option value="{{ t.key }}">{{ t.label }}</option>{% endfor %}
+              <label class="small">{{ t('posts.item.move_to') }} <select name="target_key" required>
+                {%- for target in at.targets %}<option value="{{ target.key }}">{{ target.label }}</option>{% endfor %}
               </select></label>
-              <button class="btn small" type="submit">Verschieben</button>
+              <button class="btn small" type="submit">{{ t('posts.item.move') }}</button>
             </form>
           </details>
           {%- endif %}
           <form class="post-form" method="post" action="/beitraege/act" data-rpc>
             {{- post_hidden("post.to_idea", post, at) }}
-            <label class="small">Schlagwörter <input type="text" name="words" required placeholder="z. B. Rose, Dorn" aria-label="Schlagwörter des Einfalls"></label>
-            <button class="btn small" type="submit">In Einfall umwandeln</button>
+            <label class="small">{{ t('posts.item.tags') }} <input type="text" name="words" required placeholder="{{ t('posts.item.tags_placeholder') }}" aria-label="{{ t('posts.item.tags_label') }}"></label>
+            <button class="btn small" type="submit">{{ t('posts.item.to_idea') }}</button>
           </form>
           {%- if not post.own %}
           <form class="post-form" method="post" action="/beitraege/act" data-rpc>
             {{- post_hidden("post.to_findings", post, at) }}
-            <button class="btn small" type="submit" title="Befunde aus diesem Beitrag anlegen; der Beitrag bleibt unverändert">In Befunde umwandeln</button>
+            <button class="btn small" type="submit" title="{{ t('posts.item.to_findings_title') }}">{{ t('posts.item.to_findings') }}</button>
           </form>
           {%- endif %}
         </details>
@@ -139,41 +139,41 @@
           <input type="hidden" name="work" value="{{ at.work }}">
           <input type="hidden" name="thread" value="{{ at.thread }}">
           <input type="hidden" name="id" value="{{ e.id }}">
-          <button class="tool small" type="submit" aria-label="Antwort von {{ e.author }} wiederholen" title="Dieselbe Anfrage noch einmal an {{ e.author }}; die alte Antwort bleibt">↻</button>
+          <button class="tool small" type="submit" aria-label="{{ t('posts.item.repeat_label', author=e.author) }}" title="{{ t('posts.item.repeat_again_title', author=e.author) }}">↻</button>
         </form>
         {%- endif %}
         <details class="post-delete-box">
-          <summary class="tool small post-delete" data-thread-delete data-work="{{ at.work }}" data-thread="{{ at.thread }}" aria-label="Beitrag löschen" title="Beitrag löschen (mit Rückfrage)">✕</summary>
+          <summary class="tool small post-delete" data-thread-delete data-work="{{ at.work }}" data-thread="{{ at.thread }}" aria-label="{{ t('posts.item.delete_label') }}" title="{{ t('posts.item.delete_title') }}">✕</summary>
           <form method="post" action="/faden/act" class="post-form">
             <input type="hidden" name="method" value="thread.post_delete">
             <input type="hidden" name="work" value="{{ at.work }}">
             <input type="hidden" name="thread" value="{{ at.thread }}">
             <input type="hidden" name="id" value="{{ e.id }}">
-            <label class="small"><input type="checkbox" name="confirm" value="1" required> wirklich löschen</label>
-            <button class="btn danger small" type="submit">Löschen</button>
+            <label class="small"><input type="checkbox" name="confirm" value="1" required> {{ t('posts.item.delete_confirm') }}</label>
+            <button class="btn danger small" type="submit">{{ t('common.delete') }}</button>
           </form>
         </details>
-        <button class="tool small" type="button" data-post-copy hidden title="Text des Beitrags in die Zwischenablage">Kopieren</button>
-        <a class="tool small" href="{{ e.quote_url }}" data-post-quote-link title="Beitrag als „> …“ in die Antwort">Zitieren</a>
+        <button class="tool small" type="button" data-post-copy hidden title="{{ t('posts.item.copy_title') }}">{{ t('posts.item.copy') }}</button>
+        <a class="tool small" href="{{ e.quote_url }}" data-post-quote-link title="{{ t('posts.item.quote_reply_title') }}">{{ t('posts.item.quote') }}</a>
       </div>
       {%- if e.own %}
       <details class="post-manage">
-        <summary class="tool small">Bearbeiten</summary>
+        <summary class="tool small">{{ t('posts.item.edit') }}</summary>
         <form method="post" action="/faden/bearbeiten" class="thread-form">
           <input type="hidden" name="work" value="{{ at.work }}">
           <input type="hidden" name="thread" value="{{ at.thread }}">
           <input type="hidden" name="id" value="{{ e.id }}">
-          <label class="wide">Neuer Text <textarea name="body" rows="3" maxlength="4000" required>{{ e.body }}</textarea></label>
-          <button class="btn small" type="submit" title="Die alte Fassung bleibt im Verlauf (Fäden stehen nicht im Spiegel)">Speichern</button>
+          <label class="wide">{{ t('posts.item.new_text') }} <textarea name="body" rows="3" maxlength="4000" required>{{ e.body }}</textarea></label>
+          <button class="btn small" type="submit" title="{{ t('posts.item.old_stays_thread') }}">{{ t('common.save') }}</button>
         </form>
       </details>
       {%- endif %}
       {%- if e.versions %}
       <details class="post-versions">
-        <summary class="tool small">Verlauf ({{ e.versions | length }})</summary>
+        <summary class="tool small">{{ t('posts.item.history', count=e.versions | length) }}</summary>
         <ol class="post-version-list">
         {%- for v in e.versions %}
-          <li><div class="muted tiny">gültig ab {{ v.valid_from }}, ersetzt {{ v.replaced }} von {{ v.edited_by }}</div>
+          <li><div class="muted tiny">{{ t('posts.item.version', valid_from=v.valid_from, replaced=v.replaced, edited_by=v.edited_by) }}</div>
             <div class="thread-body">{{ v.body }}</div></li>
         {%- endfor %}
         </ol>

@@ -505,13 +505,16 @@ fn the_template_keeps_the_three_places_for_round_32() {
     let export = at("{#- R32-PLATZ export-word -#}");
     assert!(menu_start < import && import < menu_end, "Platz „Word importieren“ im Menü Baruch ▾ (bei den Importen)");
     assert!(
-        at("PDF oder EPUB importieren…") < import && import < at("Austausch: Einlesen…"),
+        at("{{ t('layout.band.import_pdf') }}") < import && import < at("{{ t('layout.band.exchange_import') }}"),
         "…zwischen „PDF oder EPUB importieren…“ und „Austausch: Einlesen…“"
     );
-    assert!(at("Über Baruch</a>") < quit && quit < menu_end, "Platz „Baruch beenden“ ist der letzte Eintrag des Menüs");
+    assert!(
+        at("{{ t('layout.band.about') }}</a>") < quit && quit < menu_end,
+        "Platz „Baruch beenden“ ist der letzte Eintrag des Menüs"
+    );
     assert!(base[quit..menu_end].matches("<a ").count() == 0, "hinter dem Platz „beenden“ folgt kein weiterer Eintrag");
     assert!(
-        at(">EPUB</a>") < export && export < at("Stichwortzettel …</a>"),
+        at(">{{ t('layout.band.epub') }}</a>") < export && export < at("{{ t('layout.band.notes') }}</a>"),
         "Platz „Word exportieren“ in der Gruppe Ausgabe, hinter EPUB"
     );
     assert!(!base.contains("class=\"topbar\""), "die alte Kopfzeile steht nicht mehr in der Vorlage");

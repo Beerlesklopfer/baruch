@@ -2,16 +2,16 @@
     rearranging, no context menu (the widget „outline“ is missing; „tree“ remembers collapsed chapters). Entries and
     badges as in fragments/tree.html (context tree, cover, timing, work, node, lq_q). -#}
 <div class="rail-bar">
-  <a class="tool tiny rail-collapse" href="?lrail=1" data-rail-collapse="left" title="Gliederung einklappen (schmale Leiste am Rand)">‹ Einklappen</a>
-  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="Gliederung schließen">Schließen</a>
+  <a class="tool tiny rail-collapse" href="?lrail=1" data-rail-collapse="left" title="{{ t('editor.lektor_tree.collapse_title') }}">{{ t('editor.lektor_tree.collapse') }}</a>
+  <a class="tool tiny rail-close" href="#pane-editor" data-rail-close title="{{ t('editor.lektor_tree.close_title') }}">{{ t('common.close') }}</a>
 </div>
 <div class="outline-head">
   {% if cover %}<img class="tree-cover" src="{{ cover.thumb }}" alt="{{ cover.alt }}">{% endif %}
-  <h2 class="pane-title">Gliederung</h2>
-  <a class="tool small" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}" title="Die ganze Gliederung auf einer Seite">ganze Gliederung</a>
+  <h2 class="pane-title">{{ t('editor.lektor_tree.heading') }}</h2>
+  <a class="tool small" href="/gliederung?work={{ work.id }}&key={{ node.key }}{{ lq_q }}" title="{{ t('editor.lektor_tree.whole_title') }}">{{ t('editor.lektor_tree.whole') }}</a>
   {%- if timing %}
   <p class="outline-timing small">
-    <span title="Sprechdauer bei {{ timing.words_per_minute }} Wörtern je Minute">Gesamt ≈ {{ timing.total_clock }}{% if timing.target_clock %} / Ziel {{ timing.target_clock }}{% endif %}</span>
+    <span title="{{ t('editor.lektor_tree.timing_title', words_per_minute=timing.words_per_minute) }}">{{ t('editor.lektor_tree.timing_total', total_clock=timing.total_clock) }}{% if timing.target_clock %} {{ t('editor.lektor_tree.timing_target_html', target_clock=timing.target_clock) }}{% endif %}</span>
   </p>
   {%- endif %}
 </div>
@@ -25,9 +25,9 @@
          href="/?work={{ work.id }}&key={{ item.key }}{{ lq_q }}" data-nav
          {% if item.selected %}aria-current="page"{% endif %}>
         <span class="tree-label">{% if item.number %}<span class="num">{{ item.number }}</span>{% endif %}{{ item.title }}</span>
-        {%- if item.proposals %}<span class="badge primary" title="offene Vorschläge">{{ item.proposals }} {% if item.proposals == 1 %}Vorschlag{% else %}Vorschläge{% endif %}</span>{% endif %}
-        {%- if item.findings %}<span class="badge warning findings-badge" title="{{ item.findings }} offene{% if item.findings == 1 %}r{% endif %} Befund{% if item.findings != 1 %}e{% endif %}{% if item.children %} samt Unterpunkten{% endif %}">{{ item.findings }} offen</span>{% endif %}
-        {%- if item.duration %}<span class="tree-duration muted tiny" title="Sprechdauer ≈ {{ item.duration }}">≈ {{ item.duration }}</span>{% endif %}
+        {%- if item.proposals %}<span class="badge primary" title="{{ t('editor.lektor_tree.proposals_title') }}">{{ item.proposals }} {% if item.proposals == 1 %}{{ t('editor.lektor_tree.proposal_one') }}{% else %}{{ t('editor.lektor_tree.proposal_other') }}{% endif %}</span>{% endif %}
+        {%- if item.findings %}<span class="badge warning findings-badge" title="{% if item.findings == 1 %}{{ t('editor.tree.findings_one', count=item.findings) }}{% else %}{{ t('editor.tree.findings_other', count=item.findings) }}{% endif %}{% if item.children %} {{ t('editor.lektor_tree.findings_children') }}{% endif %}">{{ t('editor.lektor_tree.findings_open', count=item.findings) }}</span>{% endif %}
+        {%- if item.duration %}<span class="tree-duration muted tiny" title="{{ t('editor.lektor_tree.duration', duration=item.duration) }}">≈ {{ item.duration }}</span>{% endif %}
       </a>
       </span>
     {%- endset %}

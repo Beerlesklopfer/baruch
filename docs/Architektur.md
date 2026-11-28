@@ -6357,6 +6357,37 @@ EPUB, Word export, exchange files, mirror commits) are not touched in this round
 
 #### templates_1
 
+Converted the 41 templates of the layout (`base.html`, `workspace.html`, toast, context menu, idea capture, new
+work, persona notice page), the workspace (editor, ribbon toolbar, tree, revisions, revision tree, highlights,
+proposals, review basis and scope, assistants, the three Lektor fragments, note cards, marking, variants, revision
+history), the outline pages (`outline*.html`), posts and threads, search (bar and page) and the reference pages
+(cross references, quotation check, glossary, index) to `t()`. Stems and files: `layout`, `editor`, `outline`, `posts`,
+`search`, `reference` in `locales/{en,de}/`, each file grouped by template with a `# templates/…`
+comment (1 227 keys); shared words come from `common.*` (save, delete, close).
+
+- Plurals that the templates built inside a word (`Beitr{% if %}ag{% else %}äge{% endif %}`, `Fassung{% if %}en`,
+  `offene{% if %}r Befund{% if %}e`) became two keys each (`…_one`, `…_other`) chosen by the unchanged
+  `{% if %}`; the German texts are the same words as before. Separable verbs around a loop (`setzt [B1], [B2] um`)
+  keep two keys; the English closing part is the empty string `{ "" }`.
+- Strings that were built with `~` (`ws_hint`, `save_hint`, `foot_hint` in the editor and the Lektor editor) are
+  one key with variables; the help text of the Typst/Markdown import with `<code>` is the only `_html` key
+  (`layout.work_new.import_help_html`), the reference sentence of the quotation check another
+  (`reference.scripture.quote_rule_html`).
+- Loop variables named `t` shadowed the function `t()` and were renamed (`gterm` in the glossary, `iterm` in the
+  index, `th` in the threads list, `tm` in the outline, `target` in the post item); the output is unchanged.
+- The badge on the tab „Prüfen“ stays „<number> <word>“ (`layout.band.findings_open`), so `menu::fill_badges`
+  still replaces the zero right after the tag in both languages.
+- Escaping: a plain key is auto-escaped as a whole, and minijinja writes `/` as `&#x2f;`. The 16 texts with a slash
+  (`Neues Werk / Importieren…`, `/ Ziel …`, `Groß/klein`, …) are therefore `_html` keys without markup: `t_html`
+  escapes only `& < > " '`, so the pages keep their literal `/` (tests check for it, e.g. `assets.rs`).
+- Calls use single quotes (`{{ t('…') }}`) in text and attributes alike, so a group label in `<summary>` and its
+  `aria-label` stay literally equal (`round33_seiten`).
+- Left in the allow list with a reason: identifiers that the finder sees as German (`data-band-tab="buch"`, the
+  `band_tab` block values, form values `gliederung`/`keine`, `data-section="befunde"`, the handle name `alle`,
+  `data-settings-page="werk"`). Not touched: proper names (`Baruch`), Rust values (`{{ notice }}`, dates from Rust)
+  and texts the widgets set at run time.
+- Test: `tests/round39a_templates_1.rs`.
+
 #### templates_2
 
 #### templates_3

@@ -50,8 +50,10 @@ fn the_zoom_scales_the_children_so_the_column_keeps_its_width() {
 #[test]
 fn outline_and_right_column_stay_zones_of_their_own() {
     let page = include_str!("../templates/workspace.html");
-    for zone in ["id=\"pane-tree\" aria-label=\"Gliederung\" data-zoom-zone=\"tree\"", "data-zoom-zone=\"assistants\""]
-    {
+    for zone in [
+        "id=\"pane-tree\" aria-label=\"{{ t('layout.workspace.outline_label') }}\" data-zoom-zone=\"tree\"",
+        "data-zoom-zone=\"assistants\"",
+    ] {
         assert!(page.contains(zone), "{zone}: Gliederung und rechte Spalte lassen sich als Ganzes vergrößern");
     }
     assert!(

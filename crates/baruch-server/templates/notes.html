@@ -7,48 +7,46 @@
     min_pt, max_pt, cards, total_clock, target_clock, file_name, error; Round 22: draft_url (link „Als Entwurf
     herunterladen“ with &entwurf=1, does not change the setting). -#}
 {% extends "base.html" %}
-{% block title %}Stichwortzettel – {{ work.title }} – Baruch{% endblock %}
-{% block page_title %}{{ work.title }}: Stichwortzettel{% endblock %}
+{% block title %}{{ t('editor.notes.head_title', title=work.title) }}{% endblock %}
+{% block page_title %}{{ t('editor.notes.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ back }}">Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('editor.notes.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('editor.notes.back') }}">
+    <a class="btn" href="{{ back }}">{{ t('editor.notes.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
 <main class="works-page notes-page">
-  <h1 class="pane-title">Stichwortzettel</h1>
+  <h1 class="pane-title">{{ t('editor.notes.heading') }}</h1>
   {%- if error %}
   <p class="notice error" role="alert">{{ error }}</p>
   {%- endif %}
-  <p class="muted small">Je Abschnitt Überschrift, Zeitmarke aus dem Zeitwächter, Stichpunkte und Bibelstellen.
-    Stichpunkte: eigene Kommentarzeilen „// Stichwort: …“, sonst hervorgehobene Stellen (*…*), sonst der erste
-    Satz jedes Absatzes; höchstens sechs Punkte zu je höchstens 160 Zeichen.</p>
+  <p class="muted small">{{ t('editor.notes.intro_html') }}</p>
   <form class="notes-form" method="get" action="/werke/{{ work.id }}/stichwortzettel">
     <fieldset>
-      <legend>Format</legend>
+      <legend>{{ t('editor.notes.format') }}</legend>
       {%- for c in choices %}
       <label><input type="radio" name="format" value="{{ c.value }}"{% if c.selected %} checked{% endif %}> {{ c.label }}</label>
       {%- endfor %}
     </fieldset>
-    <label>Schriftgröße (Punkt) <input type="number" name="schrift" value="{{ font_pt }}" min="{{ min_pt }}" max="{{ max_pt }}" step="1" required></label>
-    <button class="btn" type="submit">Übernehmen</button>
+    <label>{{ t('editor.notes.font_size') }} <input type="number" name="schrift" value="{{ font_pt }}" min="{{ min_pt }}" max="{{ max_pt }}" step="1" required></label>
+    <button class="btn" type="submit">{{ t('editor.notes.apply') }}</button>
   </form>
   <p class="notes-download">
-    <a class="btn primary" href="{{ pdf_url }}" download{% if file_name %}="{{ file_name }}"{% endif %}>PDF herunterladen</a>
-    {%- if draft_url %} <a class="btn" href="{{ draft_url }}" download title="Mit Wasserzeichen „Entwurf“; die Satz-Einstellung bleibt, wie sie ist">Als Entwurf herunterladen</a>{% endif %}
+    <a class="btn primary" href="{{ pdf_url }}" download{% if file_name %}="{{ file_name }}"{% endif %}>{{ t('editor.notes.pdf') }}</a>
+    {%- if draft_url %} <a class="btn" href="{{ draft_url }}" download title="{{ t('editor.notes.draft_title') }}">{{ t('editor.notes.draft') }}</a>{% endif %}
     {%- if file_name %} <span class="muted small">{{ file_name }}</span>{% endif %}
   </p>
   {%- if total_clock %}
-  <p class="notes-times">Gesamtdauer <strong>{{ total_clock }}</strong>{% if target_clock %} · Zielzeit <strong>{{ target_clock }}</strong>{% endif %}</p>
+  <p class="notes-times">{{ t('editor.notes.total') }} <strong>{{ total_clock }}</strong>{% if target_clock %} {{ t('editor.notes.target') }} <strong>{{ target_clock }}</strong>{% endif %}</p>
   {%- endif %}
-  <section class="notes-cards" aria-label="Vorschau der Karten">
+  <section class="notes-cards" aria-label="{{ t('editor.notes.cards_label') }}">
   {%- for c in cards %}
     <article class="notes-card card depth-{{ c.depth }}" id="karte-{{ c.key }}">
       <header class="notes-card-head">
         <strong>{% if c.number %}{{ c.number }} {% endif %}{{ c.title }}</strong>
-        <span class="muted small notes-clock">ab {{ c.start_clock }} · Dauer {{ c.clock }}</span>
+        <span class="muted small notes-clock">{{ t('editor.notes.card_time', start_clock=c.start_clock, clock=c.clock) }}</span>
       </header>
       {%- if c.points %}
       <ul class="notes-points">
@@ -57,15 +55,15 @@
       {%- endfor %}
       </ul>
       {%- else %}
-      <p class="muted small">Keine Stichpunkte.</p>
+      <p class="muted small">{{ t('editor.notes.no_points') }}</p>
       {%- endif %}
       {%- if c.refs %}
-      <p class="small notes-refs">Bibelstellen: {{ c.refs | join(" · ") }}</p>
+      <p class="small notes-refs">{{ t('editor.notes.refs', refs=c.refs | join(" · ")) }}</p>
       {%- endif %}
-      <p class="muted tiny notes-rule">Regel: {{ c.rule_label }}</p>
+      <p class="muted tiny notes-rule">{{ t('editor.notes.rule', rule_label=c.rule_label) }}</p>
     </article>
   {%- else %}
-    <p class="muted">Keine Abschnitte.</p>
+    <p class="muted">{{ t('editor.notes.no_sections') }}</p>
   {%- endfor %}
   </section>
 </main>

@@ -9,7 +9,7 @@
   <p class="toast-message">{{ toast.message }}</p>
   {%- if toast.summarized %}
   <details class="toast-details">
-    <summary>Nur als Zusammenfassung gesehen ({{ toast.summarized | length }})</summary>
+    <summary>{{ t('layout.toast.summarized', count=toast.summarized | length) }}</summary>
     <ul>
       {%- for part in toast.summarized %}
       <li>{{ part }}</li>

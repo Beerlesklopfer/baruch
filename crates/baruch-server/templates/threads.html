@@ -3,13 +3,13 @@
     Faden“ to POST /faden/act (behind same_origin). Context: settings, work {id, title}, threads [{id, title,
     created_by, updated, posts, last_author, url}], personas [{handle, name}] (active), notice, work_url. -#}
 {% extends "base.html" %}
-{% block title %}Fäden – Baruch{% endblock %}
-{% block page_title %}Fäden · {{ work.title }}{% endblock %}
+{% block title %}{{ t('posts.threads.head_title') }}{% endblock %}
+{% block page_title %}{{ t('posts.threads.page_title', title=work.title) }}{% endblock %}
 {#- Round 33 (ribbon, contract §7): actions of the page as groups in the tab „Start“
 (details/summary with ordinary links, usable without JavaScript). #}
 {% block page_actions %}
-  <details class="band-group" data-band-group open><summary class="band-group-label">Zurück</summary><div class="band-items" role="group" aria-label="Zurück">
-    <a class="btn" href="{{ work_url }}" data-back>Zurück zum Werk</a>
+  <details class="band-group" data-band-group open><summary class="band-group-label">{{ t('posts.threads.back') }}</summary><div class="band-items" role="group" aria-label="{{ t('posts.threads.back') }}">
+    <a class="btn" href="{{ work_url }}" data-back>{{ t('posts.threads.back_to_work') }}</a>
   </div></details>
 {% endblock %}
 {% block body %}
@@ -17,28 +17,28 @@
   {%- if notice %}
   <p class="notice" role="status">{{ notice }}</p>
   {%- endif %}
-  <h1 class="pane-title">Fäden ohne Abschnitt</h1>
-  <p class="muted small">Gespräche mit Personas und MCP-Clients, die an keinem Abschnitt hängen. Sie ändern keinen Buchtext.</p>
+  <h1 class="pane-title">{{ t('posts.threads.heading') }}</h1>
+  <p class="muted small">{{ t('posts.threads.intro') }}</p>
   <ul class="threads">
-  {%- for t in threads %}
-    <li class="thread-item" data-thread="{{ t.id }}">
-      <a href="{{ t.url }}"><strong>{{ t.title }}</strong></a>
-      <span class="muted tiny">begonnen von {{ t.created_by }} · {{ t.posts }} Beitr{% if t.posts == 1 %}ag{% else %}äge{% endif %} · zuletzt {{ t.last_author }}, {{ t.updated }}</span>
+  {%- for th in threads %}
+    <li class="thread-item" data-thread="{{ th.id }}">
+      <a href="{{ th.url }}"><strong>{{ th.title }}</strong></a>
+      <span class="muted tiny">{{ t('posts.threads.started_by', created_by=th.created_by) }} {% if th.posts == 1 %}{{ t("posts.threads.count_one", count=th.posts) }}{% else %}{{ t("posts.threads.count_other", count=th.posts) }}{% endif %} {{ t('posts.threads.last', last_author=th.last_author, updated=th.updated) }}</span>
     </li>
   {%- else %}
-    <li class="muted small">Noch keine Fäden.</li>
+    <li class="muted small">{{ t('posts.threads.empty') }}</li>
   {%- endfor %}
   </ul>
-  <section class="thread-new" aria-label="Neuer Faden">
-    <h2 class="pane-title">Neuer Faden</h2>
+  <section class="thread-new" aria-label="{{ t('posts.threads.new') }}">
+    <h2 class="pane-title">{{ t('posts.threads.new') }}</h2>
     <form method="post" action="/faden/act" class="thread-form">
       <input type="hidden" name="work" value="{{ work.id }}">
-      <label class="wide">Nachricht <textarea name="message" rows="3" maxlength="4000" required placeholder="@lektor … ruft eine Persona"></textarea></label>
-      <label>Persona antworten lassen <select name="persona">
-        <option value="">– nur Erwähnte (@…) –</option>
+      <label class="wide">{{ t('posts.threads.message') }} <textarea name="message" rows="3" maxlength="4000" required placeholder="{{ t('posts.threads.placeholder') }}"></textarea></label>
+      <label>{{ t('posts.threads.persona') }} <select name="persona">
+        <option value="">{{ t('posts.threads.mentioned') }}</option>
         {%- for p in personas %}<option value="{{ p.handle }}">{{ p.name }} ({{ p.handle }})</option>{% endfor %}
       </select></label>
-      <button class="btn primary" type="submit">Faden beginnen</button>
+      <button class="btn primary" type="submit">{{ t('posts.threads.start') }}</button>
     </form>
   </section>
 </main>
