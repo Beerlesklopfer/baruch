@@ -55,7 +55,7 @@ const FILES: [(&str, Part, State); 13] = [
     // Round 38c, rpc_doku.
     ("docs/RPC.md", Part::Whole, State::Translated),
     // Round 38c, architektur_1.
-    ("docs/Architektur.md", Part::Above, State::Pending),
+    ("docs/Architektur.md", Part::Above, State::Translated),
     // Round 38c, architektur_2.
     ("docs/Architektur.md", Part::Below, State::Pending),
 ];
