@@ -471,7 +471,7 @@ async fn migration_0007_keeps_every_row_of_a_round_4_database_and_never_hands_ou
         sqlx::query_scalar("SELECT sql FROM sqlite_master WHERE name = 'work'").fetch_one(pool).await.unwrap();
     assert!(sql.contains("AUTOINCREMENT"), "work.id zählt jetzt nur aufwärts: {sql}");
 
-    let server = baruch_server::router(std::sync::Arc::new(state));
+    let server = common::router(std::sync::Arc::new(state));
     let deleted =
         common::rpc(server.clone(), "work.delete", json!({ "work": second, "confirm_title": "Laternenbuch (2)" }))
             .await;

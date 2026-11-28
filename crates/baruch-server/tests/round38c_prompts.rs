@@ -59,7 +59,7 @@ async fn pier(language: WorkLanguage, steps: impl IntoIterator<Item = Step>) -> 
     .await
     .expect("the data directory opens");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import(PIER, "pier.typ").await.work;
     server.state.store.set_work_language(work, language).await.unwrap();
     let keys = server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect();

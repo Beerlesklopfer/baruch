@@ -134,7 +134,7 @@ async fn open(steps: Vec<Step>) -> (common::Server, ScriptedModel) {
             .await
             .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    (common::Server { app: baruch_server::router(state.clone()), state, data }, model)
+    (common::Server { app: common::router(state.clone()), state, data }, model)
 }
 
 /// Import the book, mock vector space as embedder, build the index.

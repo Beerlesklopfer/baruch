@@ -105,7 +105,11 @@ impl From<RpcError> for Failure {
 
 impl From<StoreError> for Failure {
     fn from(e: StoreError) -> Self {
-        RpcError::from(e).into()
+        // Round 39a: MCP answers in English, whatever the request language.
+        let message = crate::store_text::store_error_text(crate::i18n::Lang::En, &e);
+        let mut error = RpcError::from(e);
+        error.message = message;
+        error.into()
     }
 }
 

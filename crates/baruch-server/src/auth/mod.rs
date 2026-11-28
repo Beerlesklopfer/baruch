@@ -117,7 +117,8 @@ pub fn lektor_handle(name: &str) -> String {
 pub const SESSION_COOKIE: &str = "baruch_session";
 
 /// Paths that stay reachable without login; plus everything under [`PUBLIC_PREFIX`].
-pub const PUBLIC_PATHS: &[&str] = &["/anmelden", "/static/app.css", "/static/favicon.svg"];
+/// Round 39a: `/einstellungen/sprache` too (an anonymous visitor only gets the cookie, see `crate::i18n_switch`).
+pub const PUBLIC_PATHS: &[&str] = &["/anmelden", "/static/app.css", "/static/favicon.svg", "/einstellungen/sprache"];
 
 /// Prefix of the widgets the login page loads.
 pub const PUBLIC_PREFIX: &str = "/static/js/";

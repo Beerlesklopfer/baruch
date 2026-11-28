@@ -35,6 +35,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("settings/verbindungen.html", include_str!("../../templates/settings/verbindungen.html")),
             ("settings/quellen.html", include_str!("../../templates/settings/quellen.html")),

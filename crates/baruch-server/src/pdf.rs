@@ -169,7 +169,7 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
             .acquire()
             .await
             .map_err(|e| Failed::Other(RpcError::new(INTERNAL, format!("Typst-Sperre: {e}"))))?;
-        let handle = tokio::task::spawn_blocking(move || {
+        let handle = tokio::task::spawn_blocking(crate::i18n::carry(move || {
             // Lock and work belong to the run: if the time runs out, Typst finishes computing and releases
             // both only then.
             let _permit = permit;
@@ -178,7 +178,7 @@ async fn generate(work: WorkId, kind: PdfKind, source: Source, limit: Duration) 
             let started = Instant::now();
             let pdf = baruch_render::compile_pdf(&source);
             (pdf, u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX))
-        });
+        }));
         handle.await.map_err(|e| Failed::Other(RpcError::new(INTERNAL, format!("Typst ist abgestürzt: {e}"))))
     };
     let begun = Instant::now();
@@ -399,7 +399,7 @@ pub async fn write_pdf_file(state: &AppState, work: WorkId, target: &std::path::
 /// fails, the half file is removed.
 async fn write_new_file(target: &std::path::Path, bytes: Vec<u8>) -> Result<(), String> {
     let path = target.to_owned();
-    tokio::task::spawn_blocking(move || -> Result<(), String> {
+    tokio::task::spawn_blocking(crate::i18n::carry(move || -> Result<(), String> {
         use std::io::Write;
         let shown = path.display().to_string();
         let mut file = std::fs::OpenOptions::new()
@@ -414,7 +414,7 @@ async fn write_new_file(target: &std::path::Path, bytes: Vec<u8>) -> Result<(), 
             return Err(format!("{shown} lässt sich nicht schreiben: {e}"));
         }
         Ok(())
-    })
+    }))
     .await
     .map_err(|e| format!("Schreiben abgebrochen: {e}"))?
 }

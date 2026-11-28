@@ -335,7 +335,7 @@ async fn suggest_asks_the_lector_through_the_model_port_and_only_proposes() {
     .await
     .expect("Datenordner");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import_garden().await;
     let work = report.work;
     result(&server.rpc("glossary.add", json!({ "work": work, "term": "Beet" })).await);
@@ -399,7 +399,7 @@ async fn suggest_is_a_form_on_the_glossary_and_marking_pages_without_javascript(
     .await
     .expect("Datenordner");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import_garden().await.work;
     let key = first_key(&server, work).await;
     result(&server.rpc("glossary.add", json!({ "work": work, "term": "Beet" })).await);

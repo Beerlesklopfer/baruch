@@ -43,7 +43,7 @@ async fn bakery() -> Bakery {
             .await
             .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let mock = MockEliezer::start().await;
     mock.set_models(&["google/gemma-4-26b-a4b", "qwen3-4b-q4-k-m", "llama-3.2-3b-instruct-q4-k-m"]);
     let set = server.rpc("connection.set", json!({ "kind": "eliezer", "config": { "url": mock.url() } })).await;

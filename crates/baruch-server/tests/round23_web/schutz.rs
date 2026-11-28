@@ -56,7 +56,7 @@ async fn with_counting_model() -> (common::Server, Arc<AtomicUsize>) {
     .await
     .expect("Datenordner lässt sich öffnen");
     let state = Arc::new(state);
-    (common::Server { app: baruch_server::router(state.clone()), state, data }, lists)
+    (common::Server { app: common::router(state.clone()), state, data }, lists)
 }
 
 fn get(uri: &str, headers: &[(&str, &str)]) -> Request<Body> {
@@ -168,7 +168,7 @@ async fn open_in_subdir() -> common::Server {
     let data = root.path().join("daten");
     std::fs::create_dir(&data).unwrap();
     let state = Arc::new(baruch_server::AppState::open(&data).await.expect("Datenordner lässt sich öffnen"));
-    common::Server { app: baruch_server::router(state.clone()), state, data: root }
+    common::Server { app: common::router(state.clone()), state, data: root }
 }
 
 #[tokio::test]

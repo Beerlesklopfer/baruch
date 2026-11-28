@@ -1688,6 +1688,7 @@ pub fn page(
 
 pub fn environment() -> Environment<'static> {
     let mut env = Environment::new();
+    crate::i18n::install(&mut env);
     for (name, source) in [
         ("base.html", include_str!("../templates/base.html")),
         ("workspace.html", include_str!("../templates/workspace.html")),

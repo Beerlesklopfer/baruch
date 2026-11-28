@@ -172,7 +172,7 @@ async fn after_deleting_every_work_a_restart_does_not_seed_and_the_page_leads_to
     // Restart on the same data directory.
     let state = baruch_server::AppState::open(server.path()).await.expect("Neustart gelingt");
     assert!(state.store.works().await.unwrap().is_empty(), "kein neues Beispielwerk nach dem Neustart");
-    let app = baruch_server::app(state);
+    let app = common::router(std::sync::Arc::new(state));
     let response = tower::ServiceExt::oneshot(app, Request::get("/").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::SEE_OTHER, "ohne Werke leitet / weiter");
     assert_eq!(

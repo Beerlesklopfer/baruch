@@ -49,7 +49,7 @@ async fn harbour(steps: impl IntoIterator<Item = Step>) -> Harbour {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import(HARBOUR, "hafen.typ").await;
     let keys = server.state.store.load_work(report.work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     Harbour { server, model, work: report.work, slug: report.slug, keys }

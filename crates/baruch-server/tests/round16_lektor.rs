@@ -33,7 +33,7 @@ async fn server_with(model: ScriptedModel) -> common::Server {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {

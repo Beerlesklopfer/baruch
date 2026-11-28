@@ -322,14 +322,15 @@ pub async fn start(state: &AppState) -> Result<Value, RpcError> {
         Err(e) => return Err(RpcError::from(e)),
     };
     let (store, secrets, data) = (state.store.clone(), state.secrets.clone(), state.data.clone());
-    tokio::spawn(async move {
+    // Round 39a: the stored summary is built in the language of the request that started the run.
+    let lang = crate::i18n::current();
+    tokio::spawn(crate::i18n::scope(lang, async move {
         let _guard = guard;
         // Own task: a panic in the run becomes a note and does not leave the mark hanging.
-        let report = tokio::spawn(work(store.clone(), secrets, data)).await.unwrap_or_else(|e| Report {
-            counts: SyncCounts::default(),
-            notes: vec![format!("Abgleich abgebrochen: {e}")],
-            ok: false,
-        });
+        let report =
+            tokio::spawn(crate::i18n::scope(lang, work(store.clone(), secrets, data))).await.unwrap_or_else(|e| {
+                Report { counts: SyncCounts::default(), notes: vec![format!("Abgleich abgebrochen: {e}")], ok: false }
+            });
         let mut message = summary(&report);
         for note in &report.notes {
             message.push('\n');
@@ -338,7 +339,7 @@ pub async fn start(state: &AppState) -> Result<Value, RpcError> {
         if let Err(e) = store.sync_run_finish(id, report.ok, &message, &report.counts).await {
             eprintln!("Abgleich: Ergebnis nicht gespeichert: {e}");
         }
-    });
+    }));
     Ok(json!({ "started": true, "running": true, "run": id }))
 }
 

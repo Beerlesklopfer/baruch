@@ -28,7 +28,7 @@ async fn open_with(secrets: MemorySecrets) -> common::Server {
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with_secrets(data.path(), Arc::new(secrets)).await.expect("Datenordner öffnen");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {

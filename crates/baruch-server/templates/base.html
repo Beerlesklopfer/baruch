@@ -1,6 +1,6 @@
 {# SPDX-License-Identifier: AGPL-3.0-or-later #}
 <!doctype html>
-<html lang="de"{% if settings.theme %} data-theme="{{ settings.theme }}"{% endif %}{% if html_style %} style="{{ html_style }}"{% endif %} data-band-fill>
+<html lang="{{ ui_lang() }}"{% if settings.theme %} data-theme="{{ settings.theme }}"{% endif %}{% if html_style %} style="{{ html_style }}"{% endif %} data-band-fill>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,8 @@
   <link rel="stylesheet" href="/static/app.css">
   {#- Round 36: vw.js is a classic script (not a module) and runs before the first paint – it corrects the
       width class (cookie baruch_vw, attributes on <html>) when the window has a different size since the last visit. #}
-  {% block scripts %}<script src="/static/js/vw.js"></script><script type="module" src="/static/js/main.js"></script>{% endblock %}
+  {#- Round 39a (interface R39a-S1): texts of the widgets in the page language (web/src/i18n.ts reads them). #}
+  {% block scripts %}<script src="/static/js/vw.js"></script><script type="application/json" id="baruch-i18n">{{ widget_catalog() }}</script><script type="module" src="/static/js/main.js"></script>{% endblock %}
 </head>
 <body>
 {#- Ribbon of all pages (Round 33, src/band.rs, web/src/band.ts; replaces the header with Werk ▾/Ansicht ▾/Werkzeuge ▾
@@ -69,6 +70,14 @@
           {%- else %}
           <a class="menu-item settings-open" role="menuitem" href="/einstellungen/darstellung{% if w %}?work={{ w }}{% endif %}" data-settings-open aria-haspopup="dialog" aria-controls="settings" aria-keyshortcuts="Alt+Comma" title="Einstellungen (Alt+,)" data-shortcut="Alt+,">⚙ Einstellungen</a>
           {%- endif %}
+          {#- R39A-S1 lang-switch begin #}
+          {#- Round 39a: language of the interface, a plain form (POST /einstellungen/sprache, back through the
+              Referer); without nur-autor, Lektors may switch too. #}
+          <form class="menu-item lang-switch" method="post" action="/einstellungen/sprache" role="none">
+            <button type="submit" role="menuitem" name="lang" value="en" lang="en"{% if ui_lang() == "en" %} aria-current="true"{% endif %}>{{ t("common.lang.en") }}</button>
+            <button type="submit" role="menuitem" name="lang" value="de" lang="de"{% if ui_lang() == "de" %} aria-current="true"{% endif %}>{{ t("common.lang.de") }}</button>
+          </form>
+          {#- R39A-S1 lang-switch end #}
           {#- Round 37: help on the website (about::HELP_URL). An ordinary link into a new window, usable without
               JavaScript, without nur-autor (Lektors see it too); no route, no entry in roles. #}
           <a class="menu-item" role="menuitem" href="https://baruch.bernau.family/hilfe/" target="_blank" rel="noopener noreferrer" title="Hilfe mit Bildern auf der Webseite von Baruch (öffnet ein neues Fenster, braucht das Internet)">Hilfe</a>

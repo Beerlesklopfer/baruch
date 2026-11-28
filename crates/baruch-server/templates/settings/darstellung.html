@@ -1,7 +1,7 @@
 {#- Settings page „Darstellung“ (Round 9): cookies of this browser. One form to
     POST /einstellungen/darstellung/act with all choices, a second one resets the column widths.
     Context: work, notice, error, theme (system|light|dark), editor (satz|quelltext), pv (open|closed),
-    accordion (chat|personas|revisions), left, right (text or none). -#}
+    accordion (chat|personas|revisions), left, right (text or none), ui_lang_setting (en|de|auto, Round 39a). -#}
 {%- macro choice(name, value, label, current) %}
       <label class="settings-choice"><input type="radio" name="{{ name }}" value="{{ value }}"{% if value == current %} checked{% endif %}> {{ label }}</label>
 {%- endmacro %}
@@ -45,6 +45,21 @@
     <p class="small">Spaltenbreiten: links {% if left %}{{ left }}{% else %}Vorgabe{% endif %}, rechts {% if right %}{{ right }}{% else %}Vorgabe{% endif %}.
       <button class="btn" type="submit">Spaltenbreiten zurücksetzen</button></p>
   </form>
+  {#- R39A-S1 lang-form begin #}
+  {#- Round 39a: language of the interface, an own form to POST /einstellungen/sprache (cookie and the own setting),
+      back to this page. #}
+  <form class="settings-form" method="post" action="/einstellungen/sprache">
+    <input type="hidden" name="back" value="/einstellungen/darstellung{% if work %}?work={{ work }}{% endif %}">
+    <fieldset>
+      <legend>{{ t("common.lang.label") }}</legend>
+      {{- choice("lang", "en", t("common.lang.en"), ui_lang_setting) }}
+      {{- choice("lang", "de", t("common.lang.de"), ui_lang_setting) }}
+      {{- choice("lang", "auto", t("common.lang.auto"), ui_lang_setting) }}
+    </fieldset>
+    <p class="muted tiny">{{ t("common.lang.hint_html") }}</p>
+    <p><button class="btn primary" type="submit">{{ t("common.save") }}</button></p>
+  </form>
+  {#- R39A-S1 lang-form end #}
   <p class="muted tiny">Diese Werte stehen nur in diesem Browser (Cookies <code>baruch_theme</code>, <code>baruch_editor</code>,
     <code>baruch_pv</code>, <code>baruch_accordion</code>, <code>baruch_left</code>/<code>baruch_right</code>); ein anderer Browser hat seine eigenen.</p>
 </section>

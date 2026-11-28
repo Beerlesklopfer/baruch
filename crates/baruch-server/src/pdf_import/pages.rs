@@ -36,6 +36,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../../templates/base.html")),
             ("source_import.html", include_str!("../../templates/source_import.html")),
@@ -256,10 +257,10 @@ async fn preview_form(
         (None, Some(id)) => {
             let data = state.data.clone();
             let owned = id.clone();
-            match tokio::task::spawn_blocking(move || draft::load_pending(&data, &owned)).await {
+            match tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load_pending(&data, &owned))).await {
                 Ok(Ok((pending, bytes))) => {
                     let data = state.data.clone();
-                    let _ = tokio::task::spawn_blocking(move || draft::remove(&data, &id)).await;
+                    let _ = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &id))).await;
                     if form.title.trim().is_empty() {
                         form.title = pending.title.unwrap_or_default();
                     }

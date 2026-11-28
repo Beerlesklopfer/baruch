@@ -127,7 +127,7 @@ async fn cliff(model: Arc<dyn ModelPort>) -> Tower {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let modules = tempfile::tempdir().unwrap();
     let root: &Path = &modules.path().join("sword");
     write(root, &bible()).unwrap();

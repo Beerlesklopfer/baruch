@@ -336,6 +336,8 @@ pub async fn stream(State(state): State<Arc<AppState>>, headers: HeaderMap, body
         }
     };
     let stream = RunStream { run: Some(Box::pin(run)), events, last: None };
+    // Round 39a: the body is polled after the handler returned, outside the scope of `i18n::layer`.
+    let stream = crate::i18n::scoped_stream(crate::i18n::current(), stream);
     let mut response = Sse::new(stream).into_response();
     response.headers_mut().insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static("no-store"));
     response

@@ -96,6 +96,8 @@ pub const LEKTOR_ROUTES: &[(&str, &str, WorkFrom)] = &[
     ("POST", "/abmelden", WorkFrom::None),
     ("POST", "/konto/passwort", WorkFrom::None),
     ("POST", "/einstellungen/darstellung/act", WorkFrom::None),
+    // Round 39a (interface R39a-S1): language of the user interface (cookie, own account setting).
+    ("POST", "/einstellungen/sprache", WorkFrom::None),
 ];
 
 /// RPC methods a Lektor may call, with the origin of the work (contract §2.2; reasons in
@@ -432,8 +434,15 @@ mod tests {
         let posts: Vec<&str> = LEKTOR_ROUTES.iter().filter(|(v, _, _)| *v == "POST").map(|(_, p, _)| *p).collect();
         assert_eq!(
             posts,
-            ["/rpc", "/lektorat/act", "/abmelden", "/konto/passwort", "/einstellungen/darstellung/act"],
-            "schreibend nur die Wege durch rpc::call, das eigene Konto und die Darstellung (Cookie)"
+            [
+                "/rpc",
+                "/lektorat/act",
+                "/abmelden",
+                "/konto/passwort",
+                "/einstellungen/darstellung/act",
+                "/einstellungen/sprache"
+            ],
+            "schreibend nur die Wege durch rpc::call, das eigene Konto, die Darstellung (Cookie) und die Sprache"
         );
         for (i, (method, _)) in LEKTOR_RPC.iter().enumerate() {
             assert!(!LEKTOR_RPC[..i].iter().any(|(m, _)| m == method), "{method} steht doppelt in LEKTOR_RPC");

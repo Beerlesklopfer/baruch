@@ -24,11 +24,18 @@ fn theme_of(settings: &Settings) -> &'static str {
     settings.theme.unwrap_or("system")
 }
 
+/// Chosen language of the interface for the form: `en`, `de` or `auto` (nothing chosen, like the browser).
+fn ui_lang_setting() -> &'static str {
+    crate::i18n::chosen().map_or("auto", crate::i18n::Lang::code)
+}
+
 /// `settings.get {page: "darstellung"}`: the cookies of the request.
 pub(super) fn values(settings: &Settings) -> Json {
     json!({
         "theme": theme_of(settings), "editor": settings.editor, "pv": settings.pv, "accordion": settings.accordion,
         "widths": { "left": settings.left, "right": settings.right },
+        // Round 39a: the chosen language of the interface (setting or cookie), `auto` = like the browser.
+        "lang": ui_lang_setting(),
     })
 }
 
@@ -47,6 +54,7 @@ pub(super) async fn render(
             work => work, notice => notice, error => info.error,
             theme => theme_of(s), editor => s.editor, pv => s.pv, accordion => s.accordion,
             left => width(s.left), right => width(s.right),
+            ui_lang_setting => ui_lang_setting(),
         },
     )
 }

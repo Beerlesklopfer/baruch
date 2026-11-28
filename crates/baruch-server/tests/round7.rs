@@ -624,7 +624,7 @@ async fn migrations_0010_and_0011_together_keep_a_development_database_lossless(
     // After the migration: the typeset view finds the image with a ./ path, proposal in the reading flow, an idea can
     // be created.
     let state = std::sync::Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let (status, html) = server.get(&format!("/?work={work}&node=1")).await;
     assert_eq!(status, StatusCode::OK, "Arbeitsbereich lädt");
     assert!(html.contains("class=\"pv"), "Vorschlag aus development erscheint als Variante im Lesefluss");

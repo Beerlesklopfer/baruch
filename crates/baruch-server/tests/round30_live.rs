@@ -37,7 +37,7 @@ async fn light(model: ScriptedModel) -> Light {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import(LIGHT, "leuchtfeuer.typ").await;
     let keys = server.state.store.load_work(report.work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     Light { server, model, work: report.work, keys }

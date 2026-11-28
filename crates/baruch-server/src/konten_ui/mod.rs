@@ -125,6 +125,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../../templates/base.html")),
             ("anmelden.html", include_str!("../../templates/anmelden.html")),
@@ -314,8 +315,17 @@ pub fn apply(page: &str, who: &Who, accounts_exist: bool) -> String {
     }
 }
 
-/// Head of the standalone pages of the accounts (`anmelden.html`, `einrichten.html`), verbatim as in the templates.
-const STANDALONE_HEAD: &str = "<!doctype html>\n<html lang=\"de\">";
+/// Head of the standalone pages of the accounts (`anmelden.html`, `einrichten.html`), verbatim as in the templates
+/// up to the language: `<!doctype html>\n<html lang="xx">` with any two-letter code (Round 39a, `ui_lang()`).
+const STANDALONE_HEAD: &str = "<!doctype html>\n<html lang=\"";
+
+/// Language code of a standalone head (`de` in `<html lang="de">`) and the length of the head; `None` if the page
+/// does not start with it.
+fn standalone_lang(page: &str) -> Option<(&str, usize)> {
+    let rest = page.strip_prefix(STANDALONE_HEAD)?;
+    let code = rest.get(..2).filter(|code| code.bytes().all(|b| b.is_ascii_lowercase()))?;
+    rest[2..].starts_with("\">").then_some((code, STANDALONE_HEAD.len() + 4))
+}
 
 /// Round 36: the standalone pages `/anmelden` and `/einrichten` (without a ribbon) follow the cookie
 /// `baruch_theme`: `theme` (`light` | `dark`, already checked by [`crate::view::Settings`]) goes as `data-theme`
@@ -323,10 +333,11 @@ const STANDALONE_HEAD: &str = "<!doctype html>\n<html lang=\"de\">";
 /// or no cookie: then the colour scheme of the system keeps applying).
 pub fn themed(page: &str, theme: Option<&str>) -> Option<String> {
     let theme = theme.filter(|theme| matches!(*theme, "light" | "dark"))?;
-    if !(page.starts_with(STANDALONE_HEAD) && page.contains("<body class=\"konto-seite\">")) {
+    let (lang, head) = standalone_lang(page)?;
+    if !page.contains("<body class=\"konto-seite\">") {
         return None;
     }
-    Some(format!("<!doctype html>\n<html lang=\"de\" data-theme=\"{theme}\">{}", &page[STANDALONE_HEAD.len()..]))
+    Some(format!("<!doctype html>\n<html lang=\"{lang}\" data-theme=\"{theme}\">{}", &page[head..]))
 }
 
 /// Pages of the accounts: `/anmelden`, `/einrichten`, `/konto`, `/werke/{id}/mitwirkende`.
@@ -555,5 +566,20 @@ mod tests {
         let view = SetupView { name: String::new(), display: String::new(), error: None, allowed: false };
         let html = body(setup_page(StatusCode::FORBIDDEN, &view)).await;
         assert!(!html.contains("<form"), "nicht vom eigenen Rechner: nur die Erklärung, kein Formular");
+    }
+
+    #[test]
+    fn standalone_pages_get_the_theme_in_every_interface_language() {
+        for lang in ["de", "en"] {
+            let page =
+                format!("<!doctype html>\n<html lang=\"{lang}\">\n<head></head>\n<body class=\"konto-seite\">x</body>");
+            let themed = themed(&page, Some("dark")).expect("a standalone account page is themed");
+            assert!(
+                themed.starts_with(&format!("<!doctype html>\n<html lang=\"{lang}\" data-theme=\"dark\">\n<head>")),
+                "the language of the page stays and the theme is added: {themed}"
+            );
+        }
+        let other = "<!doctype html>\n<html lang=\"de\" data-band-fill>\n<body class=\"konto-seite\">";
+        assert_eq!(themed(other, Some("dark")), None, "another head (base.html) is not a standalone page");
     }
 }

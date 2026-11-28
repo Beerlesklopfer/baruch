@@ -63,7 +63,7 @@ async fn house(steps: impl IntoIterator<Item = Step>) -> House {
     .await
     .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import(LIGHTHOUSE, "leuchtturm.typ").await.work;
     let key = server.state.store.load_work(work).await.unwrap().nodes[1].key;
     let site = MockSite::with_fixtures().await;

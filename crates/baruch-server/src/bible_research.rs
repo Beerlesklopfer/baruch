@@ -387,7 +387,7 @@ pub async fn research(
     }
     let opened = Opened { bible, commentaries, lexicons };
     let text = text.to_owned();
-    tokio::task::spawn_blocking(move || collect(&opened, &text, collector)).await.ok()
+    tokio::task::spawn_blocking(crate::i18n::carry(move || collect(&opened, &text, collector))).await.ok()
 }
 
 #[cfg(test)]

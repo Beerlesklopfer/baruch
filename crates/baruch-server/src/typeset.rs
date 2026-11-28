@@ -260,9 +260,9 @@ fn cancelled() -> RpcError {
 /// Font search in advance (Round 18a, proposal for the start in `main.rs`): loads embedded and system fonts
 /// in the background, so that the first typesetting does not wait for it. Returns at once; needs a Tokio runtime.
 pub fn warm_fonts() {
-    tokio::task::spawn_blocking(|| {
+    tokio::task::spawn_blocking(crate::i18n::carry(|| {
         let _ = baruch_render::warm_fonts();
-    });
+    }));
 }
 
 /// Number of the entries in the cache (for tests).
@@ -548,7 +548,7 @@ async fn compile_run(
         note_run(&stand);
         let run_cancel = cancel.clone();
         let run_registration = registration.clone();
-        let handle = tokio::task::spawn_blocking(move || {
+        let handle = tokio::task::spawn_blocking(crate::i18n::carry(move || {
             // Lock and registration belong to the run, not to the request: if the time runs out, Typst computes
             // to the end (staying cancellable) and releases the lock only then.
             let _permit = permit;
@@ -559,7 +559,7 @@ async fn compile_run(
             let compiled = Arc::new(Compiled { rendered, millis });
             cache_put(compiled.clone());
             Some(compiled)
-        });
+        }));
         // Cancelled: the request returns at once, even if Typst still computes up to the next check point.
         tokio::select! {
             joined = handle => match joined.map_err(|e| RpcError::new(INTERNAL, format!("Typst ist abgestürzt: {e}")))? {
@@ -926,6 +926,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             // Round 33: the controls of the typesetting page stand in the ribbon (block band_buch in typeset.html);

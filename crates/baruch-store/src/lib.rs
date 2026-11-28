@@ -127,6 +127,7 @@ mod threads;
 mod timing;
 mod tree;
 mod typeset;
+mod ui_language;
 mod uuids;
 mod variants;
 mod works;
@@ -204,6 +205,7 @@ pub use threads::{MAX_THREAD_TITLE_CHARS, Thread, ThreadPost, ThreadSummary, UNK
 pub use timing::TimingSettings;
 pub use tree::{NodeRevisions, RevisionEdit, RevisionInfo, RevisionRecord, Switch};
 pub use typeset::{TypesetAdopted, TypesetChange, WorkTypeset};
+pub use ui_language::UI_LANGUAGE_INVALID;
 pub use uuids::{Instance, MAX_INSTANCE_NAME_CHARS, new_uuid};
 pub use variants::VariantInfo;
 pub use works::{

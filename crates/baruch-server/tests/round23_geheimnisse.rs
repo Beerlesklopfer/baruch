@@ -54,7 +54,7 @@ pub(crate) async fn with_models() -> (common::Server, MockEliezer) {
         .await
         .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let eliezer = MockEliezer::start().await;
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": eliezer.url() } })).await;
     (server, eliezer)

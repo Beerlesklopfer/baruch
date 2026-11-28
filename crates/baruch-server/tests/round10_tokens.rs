@@ -234,8 +234,7 @@ async fn wrong_or_revoked_tokens_are_refused_even_from_loopback() {
 async fn other_hosts_reach_only_mcp_and_foreign_origins_stay_out() {
     let server = common::open().await;
     let (_, secret) = create_by_rpc(&server, "Laptop").await;
-    let app =
-        baruch_server::router(server.state.clone()).layer(middleware::from_fn(baruch_server::guard::remote_only_mcp));
+    let app = common::router(server.state.clone()).layer(middleware::from_fn(baruch_server::guard::remote_only_mcp));
     let send = |request: Request<Body>| {
         let app = app.clone();
         async move { app.oneshot(request).await.unwrap().status() }

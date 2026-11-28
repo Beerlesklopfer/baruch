@@ -41,7 +41,7 @@ async fn open_with(secrets: MemorySecrets) -> common::Server {
     let data = tempfile::tempdir().unwrap();
     let state = baruch_server::AppState::open_with_secrets(data.path(), Arc::new(secrets)).await.expect("Datenordner");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 async fn with_model(model: &ScriptedModel) -> common::Server {
@@ -51,7 +51,7 @@ async fn with_model(model: &ScriptedModel) -> common::Server {
             .await
             .expect("Datenordner");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 async fn ok(server: &common::Server, method: &str, params: Value) -> Value {

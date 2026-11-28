@@ -95,7 +95,7 @@ async fn harbour() -> Harbour {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let eliezer = MockEliezer::start().await;
     let answer = server.rpc("connection.set", json!({ "kind": "eliezer", "config": { "url": eliezer.url() } })).await;
     assert!(answer["error"].is_null(), "Verbindung zum Nachbau: {answer}");

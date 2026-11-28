@@ -40,6 +40,8 @@ pub mod findings;
 pub mod glossary;
 pub mod glossary_page;
 pub mod guard;
+pub mod i18n;
+mod i18n_switch;
 pub mod idea_map;
 pub mod ideas;
 pub mod import;
@@ -77,6 +79,7 @@ pub mod search_hooks;
 pub mod settings;
 pub mod sheet;
 pub mod shutdown;
+pub mod store_text;
 pub mod sync;
 pub mod threads;
 pub mod timing;
@@ -393,6 +396,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Round 35 (interface R35-S1): sign in/sign out/set up/accounts and the forms of the roles.
         .merge(auth::routes::writes())
         .merge(roles::routes::writes())
+        // Round 39a (interface R39a-S1): language of the user interface (form, cookie, own setting).
+        .merge(i18n_switch::writes())
         .route_layer(middleware::from_fn(guard::same_origin));
     Router::new()
         .route("/", get(index))
@@ -443,9 +448,13 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Round 10: from other machines only `/mcp` (with a token, checked in `mcp::endpoint`).
         // User question 12: notice bar and dialog for requests that need consent, on every page.
         .layer(middleware::from_fn_with_state(state.clone(), consent::inject))
+        // Round 39a: the own language setting of an account (inside the gate, where the identity is known).
+        .layer(middleware::from_fn_with_state(state.clone(), i18n::account_layer))
         // Round 35: sign-in and roles – outside of `inject` (page and bar are already created under the
         // established identity), inside of `remote_only_mcp` (foreign machines do not get this far at all).
         .layer(middleware::from_fn_with_state(state.clone(), auth::gate))
+        // Round 39a: language of the request (instance setting, cookie, Accept-Language); refusals of the gate use it.
+        .layer(middleware::from_fn_with_state(state.clone(), i18n::layer))
         .layer(middleware::from_fn(guard::remote_only_mcp))
         .layer(middleware::from_fn(guard::own_reads))
         .layer(middleware::from_fn_with_state(state.clone(), guard::local_host))

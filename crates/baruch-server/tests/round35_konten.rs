@@ -100,7 +100,7 @@ async fn open_behind_proxy() -> Server {
     let mut state = baruch_server::AppState::open(data.path()).await.expect("Datenordner");
     state.allowed_hosts = AllowedHosts::parse(PROXY).unwrap();
     let state = Arc::new(state);
-    Server { app: baruch_server::router(state.clone()), state, data }
+    Server { app: common::router(state.clone()), state, data }
 }
 
 /// Sets up the first account from the own machine; returns the token of the author's session.
@@ -1378,7 +1378,7 @@ impl Process {
         let data = tempfile::tempdir().unwrap();
         {
             let state = Arc::new(baruch_server::AppState::open(data.path()).await.expect("Datenordner"));
-            let app = baruch_server::router(state.clone());
+            let app = common::router(state.clone());
             for kind in ["eliezer", "multigpt"] {
                 let set = json!({ "kind": kind, "config": { "url": "http://127.0.0.1:9" } });
                 let answer = common::rpc(app.clone(), "connection.set", set).await;

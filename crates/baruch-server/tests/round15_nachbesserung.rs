@@ -93,7 +93,7 @@ async fn coast(model: Recorder, sections: usize, chars: usize) -> (common::Serve
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import(&lighthouse(sections, chars), "kueste.typ").await.work;
     let keys = server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     (server, work, keys)
@@ -204,7 +204,7 @@ async fn ollama_without_num_ctx_reports_its_default_and_not_the_model_maximum() 
     .await
     .unwrap();
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let parked = MockEliezer::start().await;
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": parked.url() } })).await;
     let ollama = MockEliezer::start().await;
@@ -250,7 +250,7 @@ async fn an_eliezer_marked_external_receives_no_book_text_for_embeddings() {
     .await
     .unwrap();
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let eliezer = MockEliezer::start().await;
     ok(&server, "model.connection_set", json!({ "id": 1, "external": true })).await;
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": eliezer.url() } })).await;

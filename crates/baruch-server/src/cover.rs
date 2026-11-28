@@ -289,7 +289,8 @@ pub async fn compile_limited(
 ) -> Result<Option<baruch_render::Rendered>, String> {
     let cancel = baruch_render::Cancel::new();
     let run = cancel.clone();
-    let task = tokio::task::spawn_blocking(move || baruch_render::compile_cancellable(&source, &run));
+    let task =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_render::compile_cancellable(&source, &run)));
     match tokio::time::timeout(limit, task).await {
         Ok(Ok(rendered)) => Ok(rendered),
         Ok(Err(e)) => Err(e.to_string()),
@@ -332,7 +333,7 @@ async fn book_page_mm(template: &str, files: &[(String, Vec<u8>)]) -> Option<(f6
 /// print check reports `font`). With `fallback` a block without a font gets this one (print-shop cover and
 /// measuring: the font of the work template, which applies in the book anyway), provided it exists.
 pub(crate) async fn resolve_fonts(mut layout: CoverLayout, fallback: Option<String>) -> CoverLayout {
-    tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let fallback = fallback.filter(|f| baruch_render::has_font_family(f));
         for block in &mut layout.blocks {
             match &block.font {
@@ -342,7 +343,7 @@ pub(crate) async fn resolve_fonts(mut layout: CoverLayout, fallback: Option<Stri
             }
         }
         layout
-    })
+    }))
     .await
     .unwrap_or_default()
 }
@@ -647,7 +648,7 @@ pub(crate) async fn commit_request(
     let files = state.store.mirror_snapshot(work).await.map_err(|e| e.to_string())?;
     request.files = files.into_iter().map(|f| MirrorFile { path: f.path, contents: f.contents }).collect();
     let mirror = state.mirror(work).await?;
-    let result = tokio::task::spawn_blocking(move || mirror.commit(&request))
+    let result = tokio::task::spawn_blocking(crate::i18n::carry(move || mirror.commit(&request)))
         .await
         .map_err(|e| format!("Git: {e}"))?
         .map_err(|e| e.to_string());
@@ -1000,6 +1001,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             ("cover.html", include_str!("../templates/cover.html")),

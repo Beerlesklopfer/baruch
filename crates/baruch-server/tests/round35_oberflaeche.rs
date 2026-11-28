@@ -636,7 +636,7 @@ async fn a_lektor_gets_propose_post_and_finding_but_no_author_button() {
             if attr(form, "method").as_deref() == Some("post") {
                 let action = attr(form, "action").unwrap_or_default();
                 assert!(
-                    action == "/lektorat/act" || action == "/abmelden",
+                    action == "/lektorat/act" || action == "/abmelden" || action == "/einstellungen/sprache",
                     "{at}: jedes Formular eines Lektors geht an /lektorat/act (oder meldet ab): {form}"
                 );
             }
@@ -1109,7 +1109,11 @@ async fn the_members_page_lists_shares_and_offers_grant_and_revoke() {
     assert!(page.contains(NASTY_ESCAPED) && !page.contains("<b>"), "Namen sind maskiert");
     assert!(page.contains("2026-11-25 14:03 UTC"), "der Zeitpunkt der Freigabe steht kurz und lesbar da");
     assert!(page.contains("gesperrt</span>"), "ein gesperrtes Konto ist als solches erkennbar");
-    let acts: Vec<&str> = tags(&page, "form").into_iter().filter(|t| t.contains("method=\"post\"")).collect();
+    // Round 39a: the language switch of the menu is not a form of this page.
+    let acts: Vec<&str> = tags(&page, "form")
+        .into_iter()
+        .filter(|t| t.contains("method=\"post\"") && !t.contains("lang-switch"))
+        .collect();
     assert_eq!(
         acts.len(),
         3,

@@ -392,7 +392,7 @@ async fn personas_and_mcp_only_propose_and_the_human_accepts_without_javascript(
     .await
     .expect("Datenordner");
     let state = Arc::new(state);
-    let c = cape(common::Server { app: baruch_server::router(state.clone()), state, data }).await;
+    let c = cape(common::Server { app: common::router(state.clone()), state, data }).await;
     let w = c.work;
     c.rpc("glossary.add", json!({ "term": "Leuchtfeuer" })).await;
 

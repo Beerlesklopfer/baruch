@@ -402,6 +402,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             ("assets.html", include_str!("../templates/assets.html")),
@@ -849,7 +850,7 @@ async fn thumbnail(
     let Ok(_slot) = THUMB_SLOTS.acquire().await else {
         return (StatusCode::SERVICE_UNAVAILABLE, "Fehler: Vorschaubilder nicht verfügbar").into_response();
     };
-    let made = tokio::task::spawn_blocking(move || thumbnail_bytes(&bytes, &mime, bound)).await;
+    let made = tokio::task::spawn_blocking(crate::i18n::carry(move || thumbnail_bytes(&bytes, &mime, bound))).await;
     match made {
         Ok(Ok((bytes, mime))) => (
             [

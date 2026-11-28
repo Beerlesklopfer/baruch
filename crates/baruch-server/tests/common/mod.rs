@@ -69,7 +69,34 @@ pub async fn open() -> Server {
     let data = tempfile::tempdir().unwrap();
     let state = baruch_server::AppState::open(data.path()).await.expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    Server { app: baruch_server::router(state.clone()), state, data }
+    Server { app: router(state.clone()), state, data }
+}
+
+/// The router of the server, pinned to German for the tests written before Round 39a (contract R39a §1.15): a
+/// request with neither an `Accept-Language` header nor a `baruch_lang` cookie gets `Accept-Language: de`. Tests of
+/// the language itself set one of the two ([`with_lang`]).
+pub fn router(state: Arc<baruch_server::AppState>) -> Router {
+    baruch_server::router(state).layer(axum::middleware::from_fn(pin_german))
+}
+
+async fn pin_german(mut request: axum::extract::Request, next: axum::middleware::Next) -> axum::response::Response {
+    let has_cookie = request
+        .headers()
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|line| line.split(';'))
+        .any(|pair| pair.trim().starts_with(&format!("{}=", baruch_server::i18n::COOKIE)));
+    if !has_cookie && !request.headers().contains_key(header::ACCEPT_LANGUAGE) {
+        request.headers_mut().insert(header::ACCEPT_LANGUAGE, axum::http::HeaderValue::from_static("de"));
+    }
+    next.run(request).await
+}
+
+/// Sets `Accept-Language: <lang>` on a request (replaces the German pin of [`router`]).
+pub fn with_lang(mut request: Request<Body>, lang: &str) -> Request<Body> {
+    request.headers_mut().insert(header::ACCEPT_LANGUAGE, axum::http::HeaderValue::from_str(lang).unwrap());
+    request
 }
 
 impl Server {

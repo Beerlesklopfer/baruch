@@ -220,11 +220,11 @@ pub async fn import_file(state: &AppState, path: &Path) -> Result<ImportReport, 
 /// names ([`read_assets`]).
 pub async fn import_file_as(state: &AppState, path: &Path, title: Option<&str>) -> Result<ImportReport, RpcError> {
     let owned: PathBuf = path.to_owned();
-    let (source, file_name, assets, skipped) = tokio::task::spawn_blocking(move || {
+    let (source, file_name, assets, skipped) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let (source, file_name) = read_file(&owned)?;
         let (assets, skipped) = read_assets(&owned, &source);
         Ok::<_, RpcError>((source, file_name, assets, skipped))
-    })
+    }))
     .await
     .map_err(|e| RpcError::new(INTERNAL, format!("Lesen von {} abgebrochen: {e}", path.display())))??;
     import_source(state, &source, &file_name, title, assets, skipped, Vec::new()).await.map_err(map_title_error)
@@ -405,7 +405,7 @@ pub async fn export_to_dir(store: &Store, work: WorkId, out: &Path) -> Result<Ve
         files.push((path, file.bytes));
     }
     let out = out.to_owned();
-    tokio::task::spawn_blocking(move || write_all(&out, &files))
+    tokio::task::spawn_blocking(crate::i18n::carry(move || write_all(&out, &files)))
         .await
         .map_err(|e| format!("Schreiben abgebrochen: {e}"))?
 }

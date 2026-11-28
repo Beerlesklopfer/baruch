@@ -211,6 +211,7 @@ async fn image_hits_html(state: &AppState, at: &At) -> String {
 pub(crate) async fn image_hits_box(state: &AppState, work: WorkId, lq: Option<&str>) -> String {
     let Some(query) = lq.map(str::trim).filter(|q| !q.is_empty()) else { return String::new() };
     let mut env = Environment::new();
+    crate::i18n::install(&mut env);
     env.set_auto_escape_callback(|_| minijinja::AutoEscape::Html);
     if let Err(e) = env.add_template("images", IMAGE_HITS_TEMPLATE) {
         return format!("<p class=\"notice error\">Bilder: Vorlage fehlerhaft ({})</p>", escape_text(&e.to_string()));
@@ -251,6 +252,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             ("literature.html", include_str!("../templates/literature.html")),

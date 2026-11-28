@@ -126,9 +126,9 @@ async fn block_and_imprint_checks(
         let heights = crate::cover::block_heights(state, work, &blocks, &geometry).await?;
         let background = front_background(state, work, &meta).await?;
         let fonts: Vec<Option<String>> = blocks.iter().map(|b| b.font.clone()).collect();
-        let missing: Vec<bool> = tokio::task::spawn_blocking(move || {
+        let missing: Vec<bool> = tokio::task::spawn_blocking(crate::i18n::carry(move || {
             fonts.iter().map(|f| f.as_deref().is_some_and(|f| !baruch_render::has_font_family(f))).collect()
-        })
+        }))
         .await
         .unwrap_or_default();
         let default_font = crate::cover_layout::default_font(state, work).await?;
@@ -260,7 +260,7 @@ async fn front_background(state: &AppState, work: WorkId, meta: &BookMeta) -> Re
     let Some(name) = &meta.cover else { return Ok(Background::Dark) };
     let data = state.store.asset_data(work, name, None).await?;
     let bytes = data.bytes()?;
-    let decoded = tokio::task::spawn_blocking(move || {
+    let decoded = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let sum = baruch_render::sha256_hex(&bytes);
         if let Some(image) = cached_contrast_image(&sum) {
             return Some(image);
@@ -274,7 +274,7 @@ async fn front_background(state: &AppState, work: WorkId, meta: &BookMeta) -> Re
         let image = std::sync::Arc::new(decode_for_contrast(&bytes)?);
         remember_contrast_image(sum, &image);
         Some(image)
-    })
+    }))
     .await
     .ok()
     .flatten();

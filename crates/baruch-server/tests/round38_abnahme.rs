@@ -207,7 +207,7 @@ async fn a_persona_is_told_the_work_language_and_a_german_work_behaves_as_before
         .await
         .expect("the data directory opens");
         let state = Arc::new(state);
-        let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+        let server = common::Server { app: common::router(state.clone()), state, data };
         let work = server.import(ORCHARD, "orchard.typ").await.work;
         let key = server.state.store.load_work(work).await.unwrap().nodes[0].key;
         (server, model, work, key)

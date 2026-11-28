@@ -203,7 +203,7 @@ pub async fn preview(
         return fail(status_of(&e), e.message).await;
     }
     // Reading and unpacking compute; not on the runtime thread.
-    let read = tokio::task::spawn_blocking(move || import::read(&bytes)).await;
+    let read = tokio::task::spawn_blocking(crate::i18n::carry(move || import::read(&bytes))).await;
     match read {
         Ok(Ok(tree)) => show(&state, &headers, work, StatusCode::OK, Mode::Preview(&tree), parent, None).await,
         Ok(Err(message)) => fail(unprocessable, message).await,

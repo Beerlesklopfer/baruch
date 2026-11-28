@@ -384,7 +384,7 @@ async fn sermon_text(
     // read – exactly 400 verses are complete.
     let read = {
         let bible = Arc::clone(&bible);
-        tokio::task::spawn_blocking(move || crate::bibles::read_passage(&bible, book, start, end))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || crate::bibles::read_passage(&bible, book, start, end)))
             .await
             .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
     };
@@ -607,7 +607,7 @@ async fn archive_mirror(
                 trailers: vec![("Baruch-Action".to_owned(), "work-deleted".to_owned())],
                 allow_empty: true,
             };
-            match tokio::task::spawn_blocking(move || mirror.commit(&request)).await {
+            match tokio::task::spawn_blocking(crate::i18n::carry(move || mirror.commit(&request))).await {
                 Ok(Ok(id)) => commit = id,
                 Ok(Err(e)) => errors.push(e.to_string()),
                 Err(e) => errors.push(format!("Git: {e}")),
@@ -620,7 +620,7 @@ async fn archive_mirror(
     let today = today();
     let data = state.data.clone();
     let slug = deleted.slug.clone();
-    let moved = tokio::task::spawn_blocking(move || move_to_trash(&data, &slug, &today)).await;
+    let moved = tokio::task::spawn_blocking(crate::i18n::carry(move || move_to_trash(&data, &slug, &today))).await;
     let archive = match moved {
         Ok(Ok(archive)) => archive,
         Ok(Err(e)) => {
@@ -886,7 +886,7 @@ pub async fn archives(state: &AppState) -> Result<Vec<ArchiveEntry>, RpcError> {
     let live: Vec<String> = state.store.work_list().await?.iter().map(|w| title_key(&w.title)).collect();
     let data = state.data.clone();
     let slugs: Vec<String> = retired.iter().map(|r| r.slug.clone()).collect();
-    let folders = tokio::task::spawn_blocking(move || {
+    let folders = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         slugs
             .iter()
             .map(|slug| {
@@ -897,7 +897,7 @@ pub async fn archives(state: &AppState) -> Result<Vec<ArchiveEntry>, RpcError> {
                 Ok::<_, String>((folder, main))
             })
             .collect::<Vec<_>>()
-    })
+    }))
     .await
     .map_err(|e| RpcError::new(INTERNAL, format!("Archiv lesen abgebrochen: {e}")))?;
     Ok(retired
@@ -940,7 +940,7 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
     }
     let data = state.data.clone();
     let wanted = slug.to_owned();
-    let (folder, archived) = tokio::task::spawn_blocking(move || {
+    let (folder, archived) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let folder = archive_folder(&data, &wanted)?.ok_or_else(|| {
             format!("Kein Archivordner works/{TRASH_DIR}/{wanted}-… gefunden; nichts wiederhergestellt.")
         })?;
@@ -950,7 +950,7 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
             return Err(format!("works/{wanted} gibt es schon; nichts wiederhergestellt."));
         }
         Ok::<_, String>((folder, archived))
-    })
+    }))
     .await
     .map_err(|e| RpcError::new(INTERNAL, format!("Archiv lesen abgebrochen: {e}")))?
     .map_err(refused)?;
@@ -959,11 +959,11 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
     let mut errors: Vec<String> = Vec::new();
     let data = state.data.clone();
     let (from, to_slug) = (folder.clone(), slug.to_owned());
-    let moved = tokio::task::spawn_blocking(move || {
+    let moved = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let target = mirror_dir(&data, &to_slug)?;
         std::fs::rename(data.join(&from), &target)
             .map_err(|e| format!("{from} lässt sich nicht nach works/{to_slug} verschieben: {e}"))
-    })
+    }))
     .await;
     match moved {
         Ok(Ok(())) => {}
@@ -991,7 +991,7 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
                 trailers: vec![("Baruch-Action".to_owned(), "work-restored".to_owned())],
                 allow_empty: true,
             };
-            match tokio::task::spawn_blocking(move || mirror.commit(&request)).await {
+            match tokio::task::spawn_blocking(crate::i18n::carry(move || mirror.commit(&request))).await {
                 Ok(Ok(id)) => commit = id,
                 Ok(Err(e)) => errors.push(e.to_string()),
                 Err(e) => errors.push(format!("Git: {e}")),
@@ -1022,6 +1022,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             ("works.html", include_str!("../templates/works.html")),

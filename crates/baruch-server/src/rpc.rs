@@ -293,7 +293,8 @@ impl From<StoreError> for RpcError {
             StoreError::Stale(_) => REFUSED,
             StoreError::Db(_) | StoreError::Migrate(_) | StoreError::Io { .. } => INTERNAL,
         };
-        RpcError::new(code, e.to_string())
+        // Round 39a: the text in the language of the request (`/mcp` sets English, see `mcp/tools.rs`).
+        RpcError::new(code, crate::store_text::store_error_text(crate::i18n::current(), &e))
     }
 }
 

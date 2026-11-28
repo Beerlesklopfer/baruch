@@ -149,7 +149,8 @@ pub async fn compute(
     };
     // Round 23a: O(n²·d) not on the async thread. If the task aborts (panic), the map stays without nearness and
     // says so instead of letting the whole page fail.
-    let found = tokio::task::spawn_blocking(move || pairs(&list, vectors.as_ref(), limit, threshold)).await;
+    let found =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || pairs(&list, vectors.as_ref(), limit, threshold))).await;
     match found {
         Ok(pairs) => Near { state: state_word, message: format!("{message}{cap_note}"), pairs },
         Err(e) => Near {

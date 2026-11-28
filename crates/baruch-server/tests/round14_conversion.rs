@@ -135,7 +135,7 @@ async fn revisions(server: &common::Server, work: i64, title: &str) -> (i64, Nod
 
 async fn open_server(dir: tempfile::TempDir) -> common::Server {
     let state = Arc::new(baruch_server::AppState::open(dir.path()).await.expect("Datenordner öffnet"));
-    common::Server { app: baruch_server::router(state.clone()), state, data: dir }
+    common::Server { app: common::router(state.clone()), state, data: dir }
 }
 
 fn log(server: &common::Server, slug: &str) -> Option<String> {

@@ -429,7 +429,7 @@ async fn commit(
         trailers,
         allow_empty: true,
     };
-    let result = tokio::task::spawn_blocking(move || mirror.commit(&request))
+    let result = tokio::task::spawn_blocking(crate::i18n::carry(move || mirror.commit(&request)))
         .await
         .map_err(|e| format!("Git: {e}"))?
         .map_err(|e| e.to_string());

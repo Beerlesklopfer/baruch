@@ -496,7 +496,7 @@ async fn migrations_0008_and_0009_together_keep_a_development_database_lossless(
 
     // After the migration images can be created.
     let state = std::sync::Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let added = server
         .rpc("asset.add", json!({ "work": plain, "file_name": "haus.svg", "content": HOUSE, "encoding": "svg", "path": "/bilder/haus.svg" }))
         .await;

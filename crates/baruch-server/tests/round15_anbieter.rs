@@ -31,7 +31,7 @@ async fn ferry() -> (common::Server, MockEliezer, i64, i64) {
         .await
         .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let eliezer = MockEliezer::start().await;
     ok(&server, "connection.set", json!({ "kind": "eliezer", "config": { "url": eliezer.url() } })).await;
     let work = server.import(TEXT, "faehre.typ").await.work;

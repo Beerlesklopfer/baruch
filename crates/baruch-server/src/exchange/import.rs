@@ -68,6 +68,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../../templates/base.html")),
             ("exchange_import.html", include_str!("../../templates/exchange_import.html")),
@@ -133,7 +134,7 @@ async fn import_page(headers: HeaderMap, Query(query): Query<ImportQuery>) -> Re
 
 /// Read and check the file (does not block the Tokio worker).
 async fn read_document(bytes: Arc<Vec<u8>>) -> Result<ExchangeDocument, RpcError> {
-    tokio::task::spawn_blocking(move || baruch_exchange::read::read(&bytes, &Limits::DEFAULT))
+    tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_exchange::read::read(&bytes, &Limits::DEFAULT)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
         .map_err(RpcError::from)
@@ -478,7 +479,8 @@ async fn preview_form(
     };
     let data = state.data.clone();
     let sha_for_inbox = sha.clone();
-    let stored = tokio::task::spawn_blocking(move || put_inbox(&data, &sha_for_inbox, &bytes)).await;
+    let stored =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || put_inbox(&data, &sha_for_inbox, &bytes))).await;
     match stored {
         Ok(Ok(())) => {}
         Ok(Err(e)) => {
@@ -551,7 +553,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
         Err(e) => return form_page(&headers, StatusCode::INTERNAL_SERVER_ERROR, None, Some(e), ""),
     };
     let read_path = path.clone();
-    let bytes = match tokio::task::spawn_blocking(move || std::fs::read(&read_path)).await {
+    let bytes = match tokio::task::spawn_blocking(crate::i18n::carry(move || std::fs::read(&read_path))).await {
         Ok(Ok(bytes)) => bytes,
         _ => {
             return form_page(
@@ -566,7 +568,7 @@ async fn import_form(State(state): State<Arc<AppState>>, headers: HeaderMap, For
     let title = Some(form.title.trim()).filter(|t| !t.is_empty()).map(str::to_owned);
     let outcome = import_bytes(&state, bytes, &sha, mode, title.as_deref()).await;
     // Afterwards (also on a refusal) no inbox file is left behind.
-    let _ = tokio::task::spawn_blocking(move || std::fs::remove_file(&path)).await;
+    let _ = tokio::task::spawn_blocking(crate::i18n::carry(move || std::fs::remove_file(&path))).await;
     let outcome = match outcome {
         Ok(outcome) => outcome,
         Err(e) => {
@@ -685,7 +687,7 @@ pub fn report_text(report: &ExchangeReport) -> String {
 /// error; `--vorschau` writes nothing.
 pub async fn cli_import(state: &AppState, path: &std::path::Path, options: &CliImport) -> Result<String, String> {
     let owned = path.to_owned();
-    let bytes = tokio::task::spawn_blocking(move || read_cli_file(&owned))
+    let bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || read_cli_file(&owned)))
         .await
         .map_err(|e| format!("Lesen abgebrochen: {e}"))??;
     let sha = baruch_exchange::sha256_hex(&bytes);

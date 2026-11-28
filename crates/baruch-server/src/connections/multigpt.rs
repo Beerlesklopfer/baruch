@@ -2236,7 +2236,10 @@ pub mod mock {
             tokio::time::sleep(Duration::from_millis(50)).await;
             let _ = tx.send(Ok(second.into())).await;
         });
-        let body = axum::body::Body::from_stream(tokio_stream::wrappers::ReceiverStream::new(rx));
+        // Round 39a: a body polled outside the request keeps the language of the request.
+        let stream =
+            crate::i18n::scoped_stream(crate::i18n::current(), tokio_stream::wrappers::ReceiverStream::new(rx));
+        let body = axum::body::Body::from_stream(stream);
         ([(header::CONTENT_TYPE, "text/event-stream")], body).into_response()
     }
 

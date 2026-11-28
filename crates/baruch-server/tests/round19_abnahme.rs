@@ -75,7 +75,7 @@ async fn with_model(model: &ScriptedModel) -> common::Server {
             .await
             .expect("Datenordner");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 /// Like `rag::wait_idle`, with an upper limit (a hanging test is to fail, not wait forever).

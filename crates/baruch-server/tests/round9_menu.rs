@@ -275,7 +275,13 @@ async fn every_page_has_exactly_one_band_with_the_app_menu_and_tabs() {
         );
         assert!(m.contains("<div class=\"menu-list\" role=\"menu\">"), "{uri}: Liste mit role=menu: {m}");
         assert!(
-            !m.contains("<button"),
+            !{
+                // Round 39a: the language switch is a plain form (works without JavaScript), the rest stays links.
+                let switch =
+                    m.find("<form class=\"menu-item lang-switch\"").map(|a| (a, a + m[a..].find("</form>").unwrap()));
+                switch.map_or(m.to_owned(), |(a, b)| format!("{}{}", &m[..a], &m[b..]))
+            }
+            .contains("<button"),
             "{uri}: das Menü enthält keine Knöpfe, die nur mit JavaScript etwas tun – alles Links: {m}"
         );
         // Round 33: the entries of the old menus are in the panels of the tabs; every page has at least Start and

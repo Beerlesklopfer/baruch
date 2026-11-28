@@ -469,7 +469,7 @@ pub(crate) async fn read(path: &Path, tools: &PdfTools) -> Result<Extracted, Str
     .await?;
     // Without a copy if the output is valid UTF-8 (the normal case with `-enc UTF-8`).
     let bbox = String::from_utf8(bbox).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
-    let mut read = tokio::task::spawn_blocking(move || structure(&bbox, &info))
+    let mut read = tokio::task::spawn_blocking(crate::i18n::carry(move || structure(&bbox, &info)))
         .await
         .map_err(|e| format!("Lesen der PDF abgebrochen: {e}"))??;
     if let Some(warning) = page_limit_warning(pages) {

@@ -212,7 +212,7 @@ async fn world(steps: impl IntoIterator<Item = Step>) -> World {
             .await
             .expect("Datenordner öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import(FERRY, "faehre.typ").await.work;
 
     let search = MockMultigpt::start().await;

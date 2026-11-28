@@ -6288,3 +6288,81 @@ lossless, all works `de`, the CHECK rejects `fr`), `work_language.rs`, `exchange
 and bilingual detection, MCP `initialize` and `tools/list` without umlauts), `round38_doku.rs` (the translated
 developer docs, the head paragraph of the history files, the rules in `AGENTS.md`), `round38_abnahme.rs`
 (acceptance of the round).
+
+## Round 39a – User interface German and English
+
+The user interface gets catalogs in English (base) and German; templates, widgets and the user-facing messages of
+the server take their texts from there. The work language of Round 38 stays a separate setting: book outputs (PDF,
+EPUB, Word export, exchange files, mirror commits) are not touched in this round (Round 39b).
+
+### Interface (S1): localisation scaffold
+
+- **Catalogs:** `crates/baruch-server/locales/en/<stem>.ftl` (base catalog) and `locales/de/<stem>.ftl` (the German
+  wording as it was), always both, with the same keys in the same order. Fluent syntax (`fluent-bundle` 0.15,
+  `unic-langid` 0.9), restricted to variables `{ $name }`, number selectors and multiline values; no attributes,
+  terms, message references or functions. `build.rs` lists every `locales/<lang>/*.ftl` as
+  `$OUT_DIR/locales.rs` (`(lang, stem, include_str!(…))`, sorted), embedded as `i18n::CATALOGS`; a new area file
+  needs no code change. Stems and owners per task are in the contract of the round; `common.ftl` belongs to S1
+  (`i18n::COMMON_KEYS`: `common.lang.*`, `common.save`, `common.cancel`, `common.delete`, `common.close`,
+  `common.back`, `common.yes`, `common.no`).
+- **Key rules:** `<stem>.<part>.<name>…` (regex `i18n::KEY_PATTERN`), first segment = file stem, stable names and
+  never German text; written dotted at column 0, the loader maps `.` to `-` for the Fluent id. Only keys ending in
+  `_html` may carry markup, exactly `<code> <strong> <em> <kbd> <br>` without attributes (`i18n::MARKUP_TAGS`);
+  `t()` escapes everything else and the arguments. `widget.*` texts only with simple `{ $name }`. A key is always a
+  complete string literal at its call site (the checks find it there).
+- **Lookup (`src/i18n.rs`):** one concurrent bundle per language, built once without isolation marks (no
+  U+2068/U+2069 in HTML); `t(lang, key, args)` → text of the language, else the English text, else the key;
+  `tc(key, args)` = `t(current(), …)`; `exists(key)`; `t_html` for markup keys. Arguments are `i18n::Arg`
+  (text or number; numbers select plural forms, decimals are passed pre-formatted).
+- **Resolution and layers (`src/lib.rs`):** `i18n::layer` sits outside `auth::gate`: stored instance setting (only
+  while there are no accounts) → cookie `baruch_lang` → `Accept-Language` (q-values, `i18n::negotiate`) → English;
+  `/mcp` is always English. `i18n::account_layer` sits inside the gate (between `auth::gate` and `consent::inject`):
+  an account with its own setting, or the author on the own machine with the instance setting, overrides it.
+  Refusals of the gate use the outer language; pages, fragments, `/rpc` answers and the consent bar use
+  `i18n::current()`. Store setting: `Store::ui_language`/`set_ui_language` (`crates/baruch-store/src/ui_language.rs`,
+  `store_meta` keys `ui.language` and `ui.language.account.<id>`, no migration).
+- **Task-locals:** the language lives in a task-local slot like `auth::current`. Spawned work does not inherit it:
+  `i18n::scope`/`sync_scope`, `i18n::carry(closure)` for `spawn_blocking` (S1 wrapped the closures of the server
+  that run inside requests), `i18n::scoped_stream` for response bodies polled after the handler (SSE of
+  `assist/routes.rs`, the stream of `connections/multigpt.rs`).
+- **Store errors:** `src/store_text.rs` `store_error_text(lang, &StoreError)` is the one place where store messages
+  become user-facing text: `/rpc` in the request language (`impl From<StoreError> for RpcError`), MCP in English
+  (`impl From<StoreError> for Failure`). S1 passes the German text through.
+- **Switch (`src/i18n_switch.rs`):** `POST /einstellungen/sprache` (`lang=en|de|auto`, optional `back`) behind
+  `guard::same_origin`, public (`auth::PUBLIC_PATHS`) and allowed for Lektors (`roles::LEKTOR_ROUTES`). Cookie for a
+  year (`auto` deletes it), setting per account or instance (anonymous: cookie only), 303 to a local `back`, else to
+  the Referer of the same host, else `/`; an invalid language → 422 `common.lang.invalid`. Forms: menu „Baruch ▾“ in
+  `base.html` (block `R39A-S1 lang-switch`) and `settings/darstellung.html` (block `R39A-S1 lang-form`, radios with
+  „Wie der Browser“); `settings.get {page: "darstellung"}` returns `lang: en|de|auto`.
+- **Templates:** `i18n::install(&mut env)` follows every `Environment::new()` and registers `t(key, **args)`,
+  `ui_lang()`, `widget_catalog()` and the filters `ui_minutes`, `ui_day`, `ui_number(decimals=0)`. A template
+  variable `lang` (`en`/`de`) selects the language, otherwise `current()`. `<html lang="{{ ui_lang() }}">` in
+  `base.html`, `anmelden.html`, `einrichten.html`, `shutdown_done.html`; `konten_ui::themed` accepts any two-letter
+  code in the standalone head.
+- **Widget catalog:** `<script type="application/json" id="baruch-i18n">{{ widget_catalog() }}</script>` before the
+  module script in `base.html` (every page that loads `main.js`; the standalone pages `anmelden.html` and
+  `einrichten.html` load no script and stay without it): all `widget.*` texts of the page language with their
+  `{ $name }` placeables, `<`, `>`, `&` and the braces inside texts as JSON escapes (no `{{`/`}}` in a page). `web/src/i18n.ts` reads it once:
+  `t`, `uiLang`, `fmtNumber`, `fmtMinutes`, `fmtDay` (same output as the server); without the element `t` returns
+  the key.
+- **Formatting:** `i18n::number(lang, value, decimals)` (de `1.234,5`, en `1,234.5`), `localtime::ui_minutes` (de
+  `07.11.2026 18:53`, en `2026-11-07 18:53`) and `localtime::ui_day`; `german_minutes`/`german_day` stay for book
+  outputs.
+- **Checks (`tests/round39a_i18n.rs`):** same files, keys and placeables in en and de, Fluent restrictions, markup
+  only in `_html` keys, every used key exists, no orphaned key, the literal finder over templates (text nodes, shown
+  attributes, literals in expressions) and widgets (string and template literals) against
+  `scripts/i18n-literal-allow.txt` (every German literal listed, no stale entry), resolution and switch, widget
+  catalog, formatting. The test harness pins the older tests to German: `common::router` adds `Accept-Language: de`
+  when a request names neither a header nor the cookie; `common::with_lang` asks for another language.
+
+#### templates_1
+
+#### templates_2
+
+#### templates_3
+
+#### widgets
+
+#### messages_1
+
+#### messages_2

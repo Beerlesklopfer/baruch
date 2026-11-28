@@ -379,7 +379,7 @@ async fn the_lector_of_the_sermon_sees_framed_foreign_findings_and_only_backed_c
     .await
     .unwrap();
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let dir = tempfile::tempdir().unwrap();
     bibles(&server, dir.path(), false).await;
     let s = sermon(&server, "", "").await;
@@ -453,7 +453,7 @@ async fn reviewing_the_whole_sermon_accepts_critical_findings_behind_a_part_labe
     .await
     .unwrap();
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let dir = tempfile::tempdir().unwrap();
     bibles(&server, dir.path(), false).await;
     let s = sermon(&server, "", "").await;

@@ -446,7 +446,13 @@ async fn every_entry_of_the_former_menus_is_a_link_on_the_workspace() {
     );
     assert!(panel(head, "start").contains(">Vorschau</a>"), "im Editor heißt der Umschalter „Vorschau“: {head}");
     assert!(
-        !menu.contains("<button"),
+        !{
+            // Round 39a: the language switch is a plain form (works without JavaScript), the rest stays links.
+            let switch =
+                menu.find("<form class=\"menu-item lang-switch\"").map(|a| (a, a + menu[a..].find("</form>").unwrap()));
+            switch.map_or(menu.to_owned(), |(a, b)| format!("{}{}", &menu[..a], &menu[b..]))
+        }
+        .contains("<button"),
         "das Menü Baruch enthält nur Links (nichts, was nur mit JavaScript etwas täte): {menu}"
     );
     // New switches of the tab Ansicht (contract §4, verbatim forms; the state is set by the layer).

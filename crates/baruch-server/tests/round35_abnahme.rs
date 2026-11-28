@@ -98,7 +98,7 @@ async fn open_behind_proxy() -> Server {
     let mut state = baruch_server::AppState::open(data.path()).await.expect("Datenordner");
     state.allowed_hosts = AllowedHosts::parse(PROXY).unwrap();
     let state = Arc::new(state);
-    Server { app: baruch_server::router(state.clone()), state, data }
+    Server { app: common::router(state.clone()), state, data }
 }
 
 async fn rpc_with(server: &Server, token: &str, method: &str, params: Value) -> Value {

@@ -573,7 +573,7 @@ dependencies = [
  "baruch-wysiwyg",
  "quick-xml 0.42.0",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
  "zip",
 ]
 
@@ -587,7 +587,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
  "zip",
 ]
 
@@ -600,7 +600,7 @@ dependencies = [
  "quick-xml 0.42.0",
  "sha2 0.10.9",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
  "zip",
 ]
 
@@ -610,7 +610,7 @@ version = "0.9.0"
 dependencies = [
  "gix",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -637,7 +637,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "unicode-normalization",
 ]
@@ -711,6 +711,7 @@ dependencies = [
  "baruch-wysiwyg",
  "base64 0.22.1",
  "chrono",
+ "fluent-bundle",
  "getrandom 0.2.17",
  "image",
  "keyring",
@@ -727,6 +728,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower",
+ "unic-langid",
  "unicode-normalization",
  "zip",
 ]
@@ -746,7 +748,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
 ]
 
@@ -770,7 +772,7 @@ dependencies = [
  "baruch-scripture",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.21",
  "unicode-normalization",
 ]
 
@@ -782,7 +784,7 @@ dependencies = [
  "fastrand",
  "serde",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1213,7 +1215,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fa961b519f0b462e3a3b4a34b64d119eeaca1d59af726fe450bbba07a9fc0a1"
 dependencies = [
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -1248,7 +1250,7 @@ checksum = "3c963350b2b08aa4b725d7802593245380ab53dacfedcaa971385fc33306c0d4"
 dependencies = [
  "comemo-macros",
  "parking_lot",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "siphasher",
  "slab",
 ]
@@ -2300,7 +2302,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71958f69fb2de856c5dd51ac9377e986ca1aa5919f931bf5395a807277f889a0"
 dependencies = [
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -2695,6 +2697,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "fluent-bundle"
+version = "0.15.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7fe0a21ee80050c678013f82edf4b705fe2f26f1f9877593d13198612503f493"
+dependencies = [
+ "fluent-langneg",
+ "fluent-syntax",
+ "intl-memoizer",
+ "intl_pluralrules",
+ "rustc-hash 1.1.0",
+ "self_cell 0.10.3",
+ "smallvec",
+ "unic-langid",
+]
+
+[[package]]
+name = "fluent-langneg"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7eebbe59450baee8282d71676f3bfed5689aeab00b27545e83e5f14b1195e8b0"
+dependencies = [
+ "unic-langid",
+]
+
+[[package]]
+name = "fluent-syntax"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a530c4694a6a8d528794ee9bbd8ba0122e779629ac908d15ad5a7ae7763a33d"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "flume"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3018,7 +3054,7 @@ dependencies = [
  "gix-utils",
  "gix-validate",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3039,7 +3075,7 @@ version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d982fc7ef0608e669851d0d2a6141dae74c60d5a27e8daa451f2a4857bbf41e2"
 dependencies = [
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3092,7 +3128,7 @@ dependencies = [
  "gix-sec",
  "memchr",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
  "unicode-bom",
  "winnow 0.7.15",
 ]
@@ -3107,7 +3143,7 @@ dependencies = [
  "bstr",
  "gix-path",
  "libc",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3132,7 +3168,7 @@ dependencies = [
  "bstr",
  "gix-hash",
  "gix-object",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3147,7 +3183,7 @@ dependencies = [
  "gix-path",
  "gix-ref",
  "gix-sec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3174,7 +3210,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "prodash",
- "thiserror",
+ "thiserror 2.0.21",
  "walkdir",
  "zlib-rs",
 ]
@@ -3190,7 +3226,7 @@ dependencies = [
  "gix-features",
  "gix-path",
  "gix-utils",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3214,7 +3250,7 @@ dependencies = [
  "faster-hex",
  "gix-features",
  "sha1-checked",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3253,7 +3289,7 @@ dependencies = [
  "memmap2",
  "rustix",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3264,7 +3300,7 @@ checksum = "054fbd0989700c69dc5aa80bc66944f05df1e15aa7391a9e42aca7366337905f"
 dependencies = [
  "gix-tempfile",
  "gix-utils",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3284,7 +3320,7 @@ dependencies = [
  "gix-validate",
  "itoa",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -3305,7 +3341,7 @@ dependencies = [
  "gix-quote",
  "parking_lot",
  "tempfile",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3324,7 +3360,7 @@ dependencies = [
  "gix-path",
  "memmap2",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3336,7 +3372,7 @@ dependencies = [
  "bstr",
  "faster-hex",
  "gix-trace",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3348,7 +3384,7 @@ dependencies = [
  "bstr",
  "gix-trace",
  "gix-validate",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3366,7 +3402,7 @@ dependencies = [
  "gix-transport",
  "gix-utils",
  "maybe-async",
- "thiserror",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -3378,7 +3414,7 @@ checksum = "96fc2ff2ec8cc0c92807f02eab1f00eb02619fc2810d13dc42679492fcc36757"
 dependencies = [
  "bstr",
  "gix-utils",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3398,7 +3434,7 @@ dependencies = [
  "gix-utils",
  "gix-validate",
  "memmap2",
- "thiserror",
+ "thiserror 2.0.21",
  "winnow 0.7.15",
 ]
 
@@ -3415,7 +3451,7 @@ dependencies = [
  "gix-revision",
  "gix-validate",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3446,7 +3482,7 @@ dependencies = [
  "gix-hashtable",
  "gix-object",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3470,7 +3506,7 @@ dependencies = [
  "bstr",
  "gix-hash",
  "gix-lock",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3504,7 +3540,7 @@ dependencies = [
  "gix-quote",
  "gix-sec",
  "gix-url",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3521,7 +3557,7 @@ dependencies = [
  "gix-object",
  "gix-revwalk",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3533,7 +3569,7 @@ dependencies = [
  "bstr",
  "gix-path",
  "percent-encoding",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3703,7 +3739,7 @@ dependencies = [
  "roman-numerals-rs",
  "serde",
  "serde_yaml",
- "thiserror",
+ "thiserror 2.0.21",
  "unic-langid",
  "unicode-segmentation",
  "unscanny",
@@ -3757,7 +3793,7 @@ dependencies = [
  "kurbo",
  "moxcms",
  "phf 0.13.1",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "siphasher",
  "skrifa",
  "smallvec",
@@ -3814,7 +3850,7 @@ dependencies = [
  "hayro-jbig2",
  "hayro-jpeg2000",
  "memchr",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "smallvec",
  "zune-jpeg",
 ]
@@ -4355,6 +4391,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "intl-memoizer"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "310da2e345f5eb861e7a07ee182262e94975051db9e4223e909ba90f392f163f"
+dependencies = [
+ "type-map",
+ "unic-langid",
+]
+
+[[package]]
+name = "intl_pluralrules"
+version = "7.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "078ea7b7c29a2b4df841a7f6ac8775ff6074020c6776d48491ce2268e068f972"
+dependencies = [
+ "unic-langid",
+]
+
+[[package]]
 name = "io-uring"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4414,7 +4469,7 @@ dependencies = [
  "cedarwood",
  "jieba-macros",
  "phf 0.13.1",
- "rustc-hash",
+ "rustc-hash 2.1.3",
 ]
 
 [[package]]
@@ -4545,7 +4600,7 @@ dependencies = [
  "pdf-writer",
  "png",
  "rayon",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "rustybuzz",
  "siphasher",
  "skrifa",
@@ -4648,7 +4703,7 @@ dependencies = [
  "rand 0.9.5",
  "rayon",
  "roaring",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "semver",
  "serde",
  "serde_json",
@@ -5424,7 +5479,7 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "strum_macros 0.28.0",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -5957,7 +6012,7 @@ dependencies = [
  "itertools 0.14.0",
  "parking_lot",
  "percent-encoding",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "url",
@@ -5984,7 +6039,7 @@ dependencies = [
  "nix 0.31.3",
  "parking_lot",
  "percent-encoding",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "url",
@@ -6599,10 +6654,10 @@ dependencies = [
  "pin-project-lite",
  "quinn-proto",
  "quinn-udp",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "rustls",
  "socket2",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
  "web-time",
@@ -6620,11 +6675,11 @@ dependencies = [
  "rand 0.10.3",
  "rand_pcg",
  "ring",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "rustls",
  "rustls-pki-types",
  "slab",
- "thiserror",
+ "thiserror 2.0.21",
  "tinyvec",
  "tracing",
  "web-time",
@@ -6842,7 +6897,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60dc65c0ff1a7ae1294b0c67b9f14baf70b644404010370171787bfac1038fc0"
 dependencies = [
  "libredox",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -7059,6 +7114,12 @@ dependencies = [
  "arrayvec",
  "num-traits",
 ]
+
+[[package]]
+name = "rustc-hash"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustc-hash"
@@ -7282,6 +7343,21 @@ dependencies = [
  "core-foundation-sys",
  "libc",
 ]
+
+[[package]]
+name = "self_cell"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e14e4d63b804dc0c7ec4a1e52bcb63f02c7ac94476755aa579edac21e01f915d"
+dependencies = [
+ "self_cell 1.3.0",
+]
+
+[[package]]
+name = "self_cell"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ab42ca02749e120097e328d91d415325bdf43b1c72c4c8badf37375fe40a813"
 
 [[package]]
 name = "semver"
@@ -7737,7 +7813,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -7777,7 +7853,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
- "thiserror",
+ "thiserror 2.0.21",
  "tokio",
  "url",
 ]
@@ -7804,7 +7880,7 @@ dependencies = [
  "sha1 0.11.0",
  "sha2 0.11.1",
  "sqlx-core",
- "thiserror",
+ "thiserror 2.0.21",
  "tracing",
 ]
 
@@ -7838,7 +7914,7 @@ dependencies = [
  "smallvec",
  "sqlx-core",
  "stringprep",
- "thiserror",
+ "thiserror 2.0.21",
  "tracing",
  "whoami",
 ]
@@ -7862,7 +7938,7 @@ dependencies = [
  "percent-encoding",
  "serde",
  "sqlx-core",
- "thiserror",
+ "thiserror 2.0.21",
  "tracing",
  "url",
 ]
@@ -7988,7 +8064,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "38803281d1c23166c5ebcb455439a5d2afe711cc909cf88af72448c297756ad6"
 dependencies = [
  "kurbo",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "skrifa",
  "write-fonts",
 ]
@@ -8077,7 +8153,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "thiserror",
+ "thiserror 2.0.21",
  "walkdir",
  "yaml-rust",
 ]
@@ -8101,7 +8177,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
@@ -8115,11 +8191,31 @@ checksum = "d6a4b9ba8738cb4a4f399d37e266becfd475e75eb73425b87a05a2f2039ba63e"
 
 [[package]]
 name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09e52cb86a36cede5cb101bf8908837b3e4c6e5e59fe7fd85c23fb56200d189e"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 2.0.21",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -8381,7 +8477,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -8533,6 +8629,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "type-map"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb30dbbd9036155e74adad6812e9898d03ec374946234fbcebd5dfc7b9187b90"
+dependencies = [
+ "rustc-hash 2.1.3",
+]
+
+[[package]]
 name = "typed-arena"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8559,7 +8664,7 @@ dependencies = [
  "arrayvec",
  "comemo",
  "ecow",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "typst-eval",
  "typst-html",
  "typst-layout",
@@ -8589,7 +8694,7 @@ dependencies = [
  "comemo",
  "ecow",
  "indexmap 2.14.2",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "stacker",
  "toml",
  "typst-library",
@@ -8611,7 +8716,7 @@ dependencies = [
  "comemo",
  "ecow",
  "palette",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "time",
  "typst-assets",
  "typst-library",
@@ -8634,7 +8739,7 @@ dependencies = [
  "fontdb",
  "once_cell",
  "parking_lot",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "serde",
  "serde_json",
  "typst-assets",
@@ -8665,7 +8770,7 @@ dependencies = [
  "kurbo",
  "libm",
  "memchr",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "rustybuzz",
  "smallvec",
  "ttf-parser",
@@ -8720,7 +8825,7 @@ dependencies = [
  "regex-syntax",
  "roxmltree 0.21.2",
  "rust_decimal",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "rustybuzz",
  "serde",
  "serde_json",
@@ -8777,7 +8882,7 @@ dependencies = [
  "infer",
  "krilla",
  "krilla-svg",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "serde",
  "smallvec",
  "typst-assets",
@@ -8846,7 +8951,7 @@ dependencies = [
  "image",
  "indexmap 2.14.2",
  "itoa",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "ryu",
  "ttf-parser",
  "typst-assets",
@@ -8865,7 +8970,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92a20d79df5d10c7fb0b4f7c18e4b2671edfc21e5ed9ad9894e18cccefd1c70f"
 dependencies = [
  "ecow",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "serde",
  "toml",
  "typst-timing",
@@ -8898,7 +9003,7 @@ dependencies = [
  "once_cell",
  "portable-atomic",
  "rayon",
- "rustc-hash",
+ "rustc-hash 2.1.3",
  "semver",
  "siphasher",
  "smallvec",
@@ -9176,7 +9281,7 @@ dependencies = [
  "peniko",
  "png",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -9193,7 +9298,7 @@ dependencies = [
  "peniko",
  "png",
  "smallvec",
- "thiserror",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

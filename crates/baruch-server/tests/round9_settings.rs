@@ -290,7 +290,7 @@ async fn the_display_page_shows_the_cookies_of_the_request() {
     let answer = server.rpc("settings.get", json!({ "page": "darstellung" })).await;
     assert_eq!(
         answer["result"],
-        json!({ "theme": "system", "editor": "satz", "pv": "open", "accordion": "chat", "widths": { "left": null, "right": null } }),
+        json!({ "theme": "system", "editor": "satz", "pv": "open", "accordion": "chat", "widths": { "left": null, "right": null }, "lang": "auto" }),
         "RPC ohne Cookies: die Vorgaben"
     );
 }
@@ -611,7 +611,7 @@ async fn open_in_subdir() -> common::Server {
     let data = root.path().join("daten");
     std::fs::create_dir(&data).unwrap();
     let state = std::sync::Arc::new(AppState::open(&data).await.expect("Datenordner lässt sich öffnen"));
-    common::Server { app: baruch_server::router(state.clone()), state, data: root }
+    common::Server { app: common::router(state.clone()), state, data: root }
 }
 
 /// All files below `dir` (relative, sorted).

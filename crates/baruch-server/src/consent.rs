@@ -37,6 +37,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         env.add_template("consent.html", include_str!("../templates/consent.html"))
             .expect("Vorlage der Zustimmung fehlerhaft");
         env

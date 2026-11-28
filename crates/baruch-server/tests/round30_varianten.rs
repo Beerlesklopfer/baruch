@@ -42,7 +42,7 @@ async fn tower_with(source: &str, steps: impl IntoIterator<Item = Step>) -> Towe
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import(source, "bruecke.typ").await;
     let keys = server.state.store.load_work(report.work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     Tower { server, model, work: report.work, keys }

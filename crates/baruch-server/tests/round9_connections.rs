@@ -40,7 +40,7 @@ async fn open_with(secrets: MemorySecrets) -> common::Server {
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with_secrets(data.path(), Arc::new(secrets)).await.expect("Datenordner öffnen");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 /// This is how minijinja escapes text in HTML (also `/`).
@@ -1399,7 +1399,7 @@ async fn saving_with_a_secret_checks_it_first_and_reports_what_really_changed() 
     let data = tempfile::tempdir().unwrap();
     let state = AppState::open_with_secrets(data.path(), Arc::new(LockedKeyring)).await.unwrap();
     let state = Arc::new(state);
-    let locked = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let locked = common::Server { app: common::router(state.clone()), state, data };
     let body = format!(
         "method=connection.set&kind=eliezer&url={}&secret={}",
         form_escape("http://127.0.0.1:9/"),

@@ -48,7 +48,7 @@ async fn orchard(steps: impl IntoIterator<Item = Step>) -> Orchard {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let work = server.import(ORCHARD, "obstgarten.typ").await.work;
     let keys = server.state.store.load_work(work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     Orchard { server, model, work, keys }

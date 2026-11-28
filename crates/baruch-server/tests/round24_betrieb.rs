@@ -34,7 +34,7 @@ async fn open_in(data: tempfile::TempDir, names: &str) -> common::Server {
     let mut state = AppState::open(data.path()).await.expect("Datenordner öffnen");
     state.allowed_hosts = AllowedHosts::parse(names).expect("gültige Namen im Test");
     let state = Arc::new(state);
-    common::Server { app: baruch_server::router(state.clone()), state, data }
+    common::Server { app: common::router(state.clone()), state, data }
 }
 
 /// `GET /` with this `Host` header: status and text.

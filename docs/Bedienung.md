@@ -34,6 +34,30 @@ notes" below. For the help pages:
 
 Comments in the Rust code that still name `docs/Bedienung.md „…“` mean the section from the table below.
 
+### Localising a text (Round 39a)
+
+The user interface speaks English (base catalog) and German; the work language is a different setting (book
+outputs follow the work, not the interface). To move a visible text into the catalogs:
+
+1. Add the key to the area file of your task in **both** `crates/baruch-server/locales/en/<stem>.ftl` (natural
+   English) and `locales/de/<stem>.ftl` (the existing German wording, byte for byte), at the same position. Keys
+   are stable names, not text: `<stem>.<part>.<name>` in lower case (`outline.add.button = Add item`), the first
+   segment is the file stem. Shared words (`common.save`, `common.cancel`, …) come from `common.ftl`, which only
+   the interface owner changes; a word of another area is duplicated under your own stem.
+2. Call it: in a template `{{ t("outline.add.button") }}` (arguments as keyword arguments,
+   `{{ t("outline.count", count=n) }}`; numbers stay numbers for plurals; never `|safe`, a key ending in `_html` may
+   contain `<code>`, `<strong>`, `<em>`, `<kbd>`, `<br>`), in Rust `i18n::tc("…", &[("name", value.into())])` (or
+   `i18n::t(lang, …)` with a known language), in a widget `t("widget.<module>.<name>")` from `./i18n.js`. Dates
+   through `ui_minutes`/`ui_day` (filters in templates, `localtime::ui_minutes`/`ui_day` in Rust,
+   `fmtMinutes`/`fmtDay` in widgets), numbers with decimals through `ui_number`/`i18n::number`/`fmtNumber`. The key
+   is always a complete string literal at the call site.
+3. Remove the lines of your files from `scripts/i18n-literal-allow.txt` (German literals the finder still sees in
+   templates and widgets).
+4. Run the checks: `cargo test -p baruch-server --test server round39a_i18n` (same keys and placeables in en and de,
+   no unknown and no orphaned key, markup only in `_html` keys, the literal finder against the allow list) and the
+   full run. Existing tests stay German: the test harness (`common::router`) sends `Accept-Language: de` when a
+   request names no language; `common::with_lang` asks for another one.
+
 ## Where is what
 
 Every `##` heading of the former revision of this file (state `00537dd`, `git show 00537dd:docs/Bedienung.md`):
@@ -896,6 +920,13 @@ Per help page, what is deliberately missing there. Interfaces in detail: `docs/R
 - **Cookies (`baruch_*`):** `baruch_work`, `baruch_editor`, `baruch_pv` (proposals initially open/closed),
   `baruch_folded` (at most 200 entries `<key>-<rev>`), `baruch_band`, `baruch_laptop`, `baruch_lrail`,
   `baruch_rrail`, `baruch_zoom`, plus column widths, the open area on the right, collapsed chapters and the theme.
+- **Interface language (Round 39a):** English or German. Without a choice Baruch follows the browser
+  (`Accept-Language`, otherwise English). The choice is made in the menu „Baruch ▾“ (two buttons „English“ and
+  „Deutsch“, the current one marked) or on „Einstellungen → Darstellung“ (block „Sprache der Oberfläche“ with
+  „Wie der Browser“); both are plain forms to `POST /einstellungen/sprache` and work without JavaScript. The choice
+  is kept in the cookie `baruch_lang` and as a setting: without accounts for the instance, with accounts per account
+  (Lektors too); on the sign-in page it is only the cookie. Order: the own setting, the cookie, the browser,
+  English. MCP always answers in English; the work language (book outputs) is set per work.
 - **Work language (Round 38):** block „Werksprache“ on the page
   `/einstellungen/werk` (`id="sprache"`, directly before the time keeper `id="zeit"`): a `<select name="language">`
   with „Deutsch“ (`de`) and „Englisch“ (`en`) and the button „Speichern“; a plain form, usable without JavaScript.

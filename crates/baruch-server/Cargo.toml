@@ -127,6 +127,10 @@ getrandom = "0.2"
 # Runde 35 (Schnittstelle R35-S1, konten): Passwörter der Konten als Argon2id-PHC-Text (`src/auth/password.rs`).
 # Lizenz MIT OR Apache-2.0.
 argon2 = "0.5"
+# Round 39a (interface R39a-S1): catalogs of the user interface (`locales/<lang>/*.ftl`, `src/i18n.rs`) with Fluent
+# (number selectors for plurals) and its language tags. Licence MIT OR Apache-2.0.
+fluent-bundle = "0.15"
+unic-langid = "0.9"
 
 # „Sicherung jetzt“: freien Platz des Dateisystems prüfen (statvfs ohne unsafe).
 [target.'cfg(unix)'.dependencies]

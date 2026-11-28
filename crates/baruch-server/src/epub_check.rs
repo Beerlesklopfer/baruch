@@ -196,12 +196,12 @@ async fn epubcheck(tool: EpubcheckTool, bytes: Vec<u8>, timeout: Duration) -> (E
         return (EpubcheckStatus::Failed { message: "EPUBCheck: Warteschlange geschlossen".into() }, Vec::new());
     };
     let run_tool = tool.clone();
-    let result = tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let dir = TempDir::new().map_err(|e| format!("Temp-Ordner für EPUBCheck: {e}"))?;
         let file = dir.0.join("buch.epub");
         std::fs::write(&file, &bytes).map_err(|e| format!("EPUB für EPUBCheck schreiben: {e}"))?;
         run_epubcheck(&run_tool, &file, timeout)
-    })
+    }))
     .await
     .unwrap_or_else(|e| Err(format!("EPUBCheck: {e}")));
     match result {
@@ -226,7 +226,7 @@ pub async fn run_check(
     let xmllint = find_xmllint(path_env);
     let structure_bytes = bytes.clone();
     let (mut findings, xml_tool) =
-        tokio::task::spawn_blocking(move || check_structure(&structure_bytes, xmllint.as_deref()))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || check_structure(&structure_bytes, xmllint.as_deref())))
             .await
             .map_err(|e| RpcError::new(INTERNAL, format!("Prüfung abgebrochen: {e}")))?;
     findings.extend(book.warnings.iter().map(build_warning));
@@ -346,6 +346,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../templates/base.html")),
             ("epub_check.html", include_str!("../templates/epub_check.html")),

@@ -269,13 +269,13 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
     let input = PreviewInput { file_name: file_name.clone(), ..input };
     let (way, way_reason) = choose_way(state, &input).await?;
     let data = state.data.clone();
-    tokio::task::spawn_blocking(move || draft::clean(&data)).await.ok();
+    tokio::task::spawn_blocking(crate::i18n::carry(move || draft::clean(&data))).await.ok();
     let id = draft::new_id();
     let epub = is_epub(&file_name);
     let mut document = None;
     let extracted = if epub {
         let bytes = input.bytes.clone();
-        tokio::task::spawn_blocking(move || epub::read(&bytes))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || epub::read(&bytes)))
             .await
             .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
             .map_err(|e| PreviewError { error: invalid(e), way: Some("local"), retry_local: None })?
@@ -286,9 +286,9 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
         let bytes = input.bytes.clone();
         let written = {
             let (dir, file) = (dir.clone(), file.clone());
-            tokio::task::spawn_blocking(move || {
+            tokio::task::spawn_blocking(crate::i18n::carry(move || {
                 std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, &bytes))
-            })
+            }))
             .await
             .map_err(|e| RpcError::new(INTERNAL, format!("Schreiben abgebrochen: {e}")))?
         };
@@ -320,7 +320,10 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
                 };
                 let data = state.data.clone();
                 let bytes = input.bytes.clone();
-                let saved = tokio::task::spawn_blocking(move || draft::save_pending(&data, &pending, &bytes)).await;
+                let saved = tokio::task::spawn_blocking(crate::i18n::carry(move || {
+                    draft::save_pending(&data, &pending, &bytes)
+                }))
+                .await;
                 let retry = matches!(saved, Ok(Ok(()))).then(|| id.clone());
                 return Err(PreviewError {
                     error: RpcError::new(
@@ -372,7 +375,7 @@ pub async fn preview_with(state: &AppState, input: PreviewInput, tools: &PdfTool
     };
     let data = state.data.clone();
     let saved = draft.clone();
-    tokio::task::spawn_blocking(move || draft::save(&data, &saved, &assets))
+    tokio::task::spawn_blocking(crate::i18n::carry(move || draft::save(&data, &saved, &assets)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Schreiben abgebrochen: {e}")))?
         .map_err(|e| RpcError::new(INTERNAL, e))?;
@@ -634,7 +637,7 @@ pub async fn apply_draft(
 async fn load_draft(state: &AppState, id: &str) -> Result<Draft, RpcError> {
     let data = state.data.clone();
     let owned = id.to_owned();
-    let loaded = tokio::task::spawn_blocking(move || draft::load(&data, &owned))
+    let loaded = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load(&data, &owned)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?;
     loaded.map_err(|e| match e {
@@ -667,14 +670,14 @@ pub async fn apply(
     let _guard = ApplyingGuard(id.to_owned());
     let data = state.data.clone();
     let loaded = draft.clone();
-    let assets = tokio::task::spawn_blocking(move || draft::load_assets(&data, &loaded))
+    let assets = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::load_assets(&data, &loaded)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Lesen abgebrochen: {e}")))?
         .map_err(|e| RpcError::new(INTERNAL, e))?;
     let applied = apply_draft(state, &draft, assets, target, title, author, confirmed).await?;
     let data = state.data.clone();
     let owned = id.to_owned();
-    let _ = tokio::task::spawn_blocking(move || draft::remove(&data, &owned)).await;
+    let _ = tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &owned))).await;
     Ok(applied)
 }
 
@@ -685,7 +688,7 @@ pub async fn discard(state: &AppState, id: &str) -> Result<bool, RpcError> {
     }
     let data = state.data.clone();
     let owned = id.to_owned();
-    tokio::task::spawn_blocking(move || draft::remove(&data, &owned))
+    tokio::task::spawn_blocking(crate::i18n::carry(move || draft::remove(&data, &owned)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, format!("Löschen abgebrochen: {e}")))
 }
@@ -837,7 +840,7 @@ pub async fn cli_import_with(
     let epub = is_epub(&file_name);
     let extracted = if epub {
         let owned = bytes.clone();
-        tokio::task::spawn_blocking(move || epub::read(&owned))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || epub::read(&owned)))
             .await
             .map_err(|e| format!("Lesen abgebrochen: {e}"))??
     } else {

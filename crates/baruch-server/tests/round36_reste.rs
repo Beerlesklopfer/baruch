@@ -285,7 +285,7 @@ async fn open_in_subdir() -> common::Server {
     let data = root.path().join("daten");
     std::fs::create_dir(&data).unwrap();
     let state = Arc::new(baruch_server::AppState::open(&data).await.expect("Datenordner lässt sich öffnen"));
-    common::Server { app: baruch_server::router(state.clone()), state, data: root }
+    common::Server { app: common::router(state.clone()), state, data: root }
 }
 
 #[tokio::test]
@@ -342,7 +342,7 @@ async fn open_permissions_of_an_existing_data_folder_are_reported_and_never_chan
     assert_eq!(mode(), 0o755, "Vorbedingung: der vorhandene Datenordner ist für andere lesbar");
 
     let state = Arc::new(baruch_server::AppState::open(&data).await.expect("Datenordner lässt sich öffnen"));
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data: root };
+    let server = common::Server { app: common::router(state.clone()), state, data: root };
     assert_eq!(mode(), 0o755, "das Öffnen ändert die Rechte eines vorhandenen Ordners nicht");
     assert_eq!(baruch_server::settings::open_permissions(&data), Some(0o755), "die Prüfung nennt die Rechte");
 

@@ -95,7 +95,7 @@ pub async fn dirs(state: &AppState) -> Result<(Vec<PathBuf>, bool), RpcError> {
 pub async fn scan(state: &AppState) -> Result<(Scan, Vec<PathBuf>, bool), RpcError> {
     let (dirs, default) = dirs(state).await?;
     let list = dirs.clone();
-    let found = tokio::task::spawn_blocking(move || baruch_sword::scan(&list))
+    let found = tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_sword::scan(&list)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
     Ok((found, dirs, default))
@@ -250,7 +250,7 @@ pub async fn by_name(state: &AppState, name: &str) -> Result<Choice, RpcError> {
     let key = stored_cipher_key(state, &info).await;
     let opened = {
         let info = info.clone();
-        tokio::task::spawn_blocking(move || open_cached_with_key(&info, key.as_deref()))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || open_cached_with_key(&info, key.as_deref())))
             .await
             .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
     };
@@ -645,7 +645,7 @@ async fn open_source<T: Send + Sync + 'static>(
     let key = stored_cipher_key(state, &info).await;
     let opened = {
         let info = info.clone();
-        tokio::task::spawn_blocking(move || cached(cache, &info, key.as_deref(), open))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || cached(cache, &info, key.as_deref(), open)))
             .await
             .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
     };
@@ -737,9 +737,11 @@ pub async fn commentary_lookup(
                     let source = Arc::clone(&commentary);
                     let (book, start, end) = (p.book.id, p.start, p.end);
                     // Round 23a (code review quellen-2): map the German reference into the commentary's numbering.
-                    let read = tokio::task::spawn_blocking(move || read_commentary(&source, book, start, end))
-                        .await
-                        .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
+                    let read = tokio::task::spawn_blocking(crate::i18n::carry(move || {
+                        read_commentary(&source, book, start, end)
+                    }))
+                    .await
+                    .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
                     match read {
                         Ok(read) => {
                             for e in &read.entries {
@@ -795,7 +797,7 @@ pub async fn commentary_search(
             Source::Ready(commentary) => {
                 let source = Arc::clone(&commentary);
                 let q = query.to_owned();
-                let found = tokio::task::spawn_blocking(move || source.search(&q, limit, deadline))
+                let found = tokio::task::spawn_blocking(crate::i18n::carry(move || source.search(&q, limit, deadline)))
                     .await
                     .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
                 let mut v = source_json(&commentary.info);
@@ -857,7 +859,7 @@ pub async fn lexicon_lookup(
     let source = Arc::clone(&lexicon);
     let wanted = key.to_owned();
     // Round 19c: with lemma probe (Strong spellings, endings, umlaut, compound), `probe` = tried form.
-    let article = tokio::task::spawn_blocking(move || source.lookup_lemma(&wanted))
+    let article = tokio::task::spawn_blocking(crate::i18n::carry(move || source.lookup_lemma(&wanted)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
         .map_err(|e| RpcError::new(REFUSED, e.to_string()))?;
@@ -884,7 +886,7 @@ pub async fn lexicon_keys(
     let lexicon = one_lexicon(state, work, module).await?;
     let source = Arc::clone(&lexicon);
     let p = prefix.to_owned();
-    let list = tokio::task::spawn_blocking(move || source.keys(&p, limit))
+    let list = tokio::task::spawn_blocking(crate::i18n::carry(move || source.keys(&p, limit)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
         .map_err(|e| RpcError::new(REFUSED, e.to_string()))?;
@@ -908,7 +910,7 @@ pub async fn lexicon_search(
     let source = Arc::clone(&lexicon);
     let q = query.to_owned();
     let deadline = Instant::now() + REFERENCE_SEARCH_TIME;
-    let (hits, truncated) = tokio::task::spawn_blocking(move || source.search(&q, limit, deadline))
+    let (hits, truncated) = tokio::task::spawn_blocking(crate::i18n::carry(move || source.search(&q, limit, deadline)))
         .await
         .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
         .map_err(|e| RpcError::new(REFUSED, e.to_string()))?;
@@ -1238,10 +1240,12 @@ pub async fn search(choice: &Choice, query: &str, limit: usize) -> Result<Value,
     let bible = Arc::clone(bible);
     let query_owned = query.to_owned();
     let started = Instant::now();
-    let result = tokio::task::spawn_blocking(move || bible.search(&query_owned, limit, started + SEARCH_TIME))
-        .await
-        .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
-        .map_err(|e| RpcError::new(REFUSED, e.to_string()))?;
+    let result = tokio::task::spawn_blocking(crate::i18n::carry(move || {
+        bible.search(&query_owned, limit, started + SEARCH_TIME)
+    }))
+    .await
+    .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
+    .map_err(|e| RpcError::new(REFUSED, e.to_string()))?;
     let hits: Vec<Value> = result
         .hits
         .iter()
@@ -1421,7 +1425,7 @@ pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result
     let info = enciphered_module(state, module).await?;
     let probe = {
         let (info, key) = (info.clone(), key.clone());
-        tokio::task::spawn_blocking(move || probe_with(&info, &key))
+        tokio::task::spawn_blocking(crate::i18n::carry(move || probe_with(&info, &key)))
             .await
             .map_err(|e| RpcError::new(INTERNAL, e.to_string()))?
     };

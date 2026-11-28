@@ -244,7 +244,7 @@ async fn work_sheet_settings_reach_the_html_before_any_script_and_survive_a_rest
     drop(app);
     drop(state);
     let state = Arc::new(baruch_server::AppState::open(data.path()).await.expect("Datenordner öffnet wieder"));
-    let restarted = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let restarted = common::Server { app: common::router(state.clone()), state, data };
     let (_, page) = restarted.get(&format!("/?work={work}&key={key}")).await;
     check(&page, "nach dem Neustart");
 

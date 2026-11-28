@@ -373,7 +373,7 @@ impl Process {
         let data = tempfile::tempdir().unwrap();
         {
             let state = Arc::new(baruch_server::AppState::open(data.path()).await.expect("Datenordner"));
-            let app = baruch_server::router(state.clone());
+            let app = common::router(state.clone());
             for kind in ["eliezer", "multigpt"] {
                 let set = json!({ "kind": kind, "config": { "url": "http://127.0.0.1:9" } });
                 let answer = common::rpc(app.clone(), "connection.set", set).await;
@@ -459,8 +459,7 @@ impl Process {
             );
         }
         let state = Arc::new(baruch_server::AppState::open(self.data.path()).await.expect("erneutes Öffnen gelingt"));
-        let row =
-            common::rpc(baruch_server::router(state.clone()), "connection.get", json!({ "kind": "multigpt" })).await;
+        let row = common::rpc(common::router(state.clone()), "connection.get", json!({ "kind": "multigpt" })).await;
         state.store.pool().close().await;
         assert_eq!(
             row["result"]["config"]["url"], "http://127.0.0.1:9/mcp",

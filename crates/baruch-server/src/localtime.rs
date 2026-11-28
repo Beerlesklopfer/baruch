@@ -86,6 +86,42 @@ pub fn german_day(stamp: &str) -> String {
     german_day_in(stamp, &Local)
 }
 
+/// Point in time to the minute in the language of the user interface (Round 39a, contract §2.3) in `zone`:
+/// de `07.11.2026 18:53`, en `2026-11-07 18:53`; anything unreadable stays. Book outputs keep [`german_minutes`].
+pub fn ui_minutes_in<Tz: TimeZone>(lang: crate::i18n::Lang, stamp: &str, zone: &Tz) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let pattern = match lang {
+        crate::i18n::Lang::De => "%d.%m.%Y %H:%M",
+        crate::i18n::Lang::En => "%Y-%m-%d %H:%M",
+    };
+    format_in(stamp, zone, pattern).unwrap_or_else(|| stamp.to_owned())
+}
+
+/// Like [`ui_minutes_in`] in local time.
+pub fn ui_minutes(lang: crate::i18n::Lang, stamp: &str) -> String {
+    ui_minutes_in(lang, stamp, &Local)
+}
+
+/// Day in the language of the user interface (Round 39a, contract §2.3) in `zone`: de `07.11.2026`, en
+/// `2026-11-07`; anything unreadable stays. Book outputs keep [`german_day`].
+pub fn ui_day_in<Tz: TimeZone>(lang: crate::i18n::Lang, stamp: &str, zone: &Tz) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let pattern = match lang {
+        crate::i18n::Lang::De => "%d.%m.%Y",
+        crate::i18n::Lang::En => "%Y-%m-%d",
+    };
+    format_in(stamp, zone, pattern).unwrap_or_else(|| stamp.to_owned())
+}
+
+/// Like [`ui_day_in`] in local time.
+pub fn ui_day(lang: crate::i18n::Lang, stamp: &str) -> String {
+    ui_day_in(lang, stamp, &Local)
+}
+
 /// Unix seconds → `JJJJ-MM-TT HH:MM:SS` in `zone`.
 pub fn unix_seconds_in<Tz: TimeZone>(secs: u64, zone: &Tz) -> String
 where
@@ -147,6 +183,18 @@ mod tests {
             "23:30 UTC ist in Berlin schon der nächste Tag – das Abrufdatum muss der Tag des Nutzers sein"
         );
         assert_eq!(german_day_in("2026-11-07T23:30:00Z", &Utc), "07.11.2026", "in UTC derselbe Tag");
+    }
+
+    #[test]
+    fn interface_times_follow_the_interface_language() {
+        use crate::i18n::Lang;
+        let at = "2026-11-07T17:53:42.451Z";
+        assert_eq!(ui_minutes_in(Lang::De, at, &berlin_winter()), "07.11.2026 18:53", "German day first, like before");
+        assert_eq!(ui_minutes_in(Lang::En, at, &berlin_winter()), "2026-11-07 18:53", "English as ISO date");
+        assert_eq!(ui_day_in(Lang::De, "2026-11-07T23:30:00Z", &berlin_winter()), "08.11.2026", "local day, German");
+        assert_eq!(ui_day_in(Lang::En, "2026-11-07T23:30:00Z", &berlin_winter()), "2026-11-08", "local day, English");
+        assert_eq!(ui_minutes_in(Lang::En, "gestern", &Utc), "gestern", "unreadable stays, nothing invented");
+        assert_eq!(ui_day_in(Lang::De, "", &Utc), "", "empty stays empty");
     }
 
     #[test]

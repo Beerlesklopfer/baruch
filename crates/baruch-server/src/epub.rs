@@ -288,10 +288,11 @@ pub async fn front_cover_png(state: &AppState, work: WorkId) -> Result<Vec<u8>, 
     {
         return Ok(png);
     }
-    let raster =
-        tokio::task::spawn_blocking(move || baruch_render::render_png(&source, 0, COVER_MAX_WIDTH, COVER_MAX_HEIGHT))
-            .await
-            .map_err(|e| format!("Rasterbild: {e}"))??;
+    let raster = tokio::task::spawn_blocking(crate::i18n::carry(move || {
+        baruch_render::render_png(&source, 0, COVER_MAX_WIDTH, COVER_MAX_HEIGHT)
+    }))
+    .await
+    .map_err(|e| format!("Rasterbild: {e}"))??;
     if let Ok(mut cache) = raster_cache().lock() {
         if cache.len() >= 8 {
             cache.remove(0);

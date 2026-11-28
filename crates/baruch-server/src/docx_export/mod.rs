@@ -74,9 +74,10 @@ pub async fn export_file(state: &AppState, work: WorkId, options: &DocxExportOpt
     };
     // Packing is pure computation: not on the runtime thread of the requests.
     let document = built.document;
-    let bytes = tokio::task::spawn_blocking(move || baruch_docx::write::write(&document, &write_options))
-        .await
-        .map_err(|e| RpcError::new(crate::rpc::INTERNAL, format!("Word-Datei schreiben: {e}")))??;
+    let bytes =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || baruch_docx::write::write(&document, &write_options)))
+            .await
+            .map_err(|e| RpcError::new(crate::rpc::INTERNAL, format!("Word-Datei schreiben: {e}")))??;
     Ok(DocxFile { file_name: format!("{slug}.docx"), bytes, proposals: built.proposals, warnings: built.warnings })
 }
 
@@ -158,6 +159,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         for (name, source) in [
             ("base.html", include_str!("../../templates/base.html")),
             ("docx_export.html", include_str!("../../templates/docx_export.html")),

@@ -351,6 +351,7 @@ fn templates() -> &'static Environment<'static> {
     static ENV: OnceLock<Environment<'static>> = OnceLock::new();
     ENV.get_or_init(|| {
         let mut env = Environment::new();
+        crate::i18n::install(&mut env);
         env.add_template("asset_requests.html", include_str!("../templates/fragments/asset_requests.html"))
             .expect("Vorlage der Bildanträge fehlerhaft");
         env

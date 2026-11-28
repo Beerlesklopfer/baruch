@@ -304,7 +304,7 @@ pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> R
         return Err(format!("{shown} ist größer als {} MiB", limit / (1024 * 1024)));
     }
     let owned = file.to_owned();
-    let bytes = tokio::task::spawn_blocking(move || std::fs::read(owned))
+    let bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || std::fs::read(owned)))
         .await
         .map_err(|e| format!("Lesen von {shown} abgebrochen: {e}"))?
         .map_err(|e| format!("{shown} lässt sich nicht lesen: {e}"))?;
@@ -315,9 +315,10 @@ pub async fn cli_import(state: &AppState, file: &Path, title: Option<&str>) -> R
         let converted = convert::to_typst(&text, &stem(name));
         let folder = file.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new(".")).to_owned();
         let typst = converted.typst.clone();
-        let (assets, skipped) = tokio::task::spawn_blocking(move || import::read_assets_in(&folder, &typst))
-            .await
-            .map_err(|e| e.to_string())?;
+        let (assets, skipped) =
+            tokio::task::spawn_blocking(crate::i18n::carry(move || import::read_assets_in(&folder, &typst)))
+                .await
+                .map_err(|e| e.to_string())?;
         import::import_generated(state, &converted.typst, name, title, assets, skipped, converted.warnings).await
     };
     let report = result.map_err(|e| format!("Import von {shown}: {}", e.message))?;

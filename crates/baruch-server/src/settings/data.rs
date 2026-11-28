@@ -146,7 +146,7 @@ async fn mirrors(state: &AppState) -> Result<Vec<MirrorRow>, String> {
     for w in works {
         let dir = crate::mirror_dir(&state.data, &w.slug).map_or_else(|e| e, |d| d.display().to_string());
         let (head, error) = match state.mirror(w.id).await {
-            Ok(mirror) => match tokio::task::spawn_blocking(move || mirror.head()).await {
+            Ok(mirror) => match tokio::task::spawn_blocking(crate::i18n::carry(move || mirror.head())).await {
                 Ok(Ok(head)) => (head, None),
                 Ok(Err(e)) => (None, Some(e.to_string())),
                 Err(e) => (None, Some(format!("Git: {e}"))),
@@ -160,7 +160,7 @@ async fn mirrors(state: &AppState) -> Result<Vec<MirrorRow>, String> {
 
 async fn size_of(state: &AppState) -> u64 {
     let data = state.data.clone();
-    tokio::task::spawn_blocking(move || dir_size(&data)).await.unwrap_or(0)
+    tokio::task::spawn_blocking(crate::i18n::carry(move || dir_size(&data))).await.unwrap_or(0)
 }
 
 pub(super) async fn render(
@@ -187,7 +187,8 @@ pub(super) async fn render(
         if query.get("ok").map(String::as_str) == Some("sicherung") { take_backup_note(&state.data) } else { None };
     // Round 36: only report too open permissions of the data folder, never change them.
     let data = state.data.clone();
-    let permissions = tokio::task::spawn_blocking(move || permissions_warning(&data)).await.ok().flatten();
+    let permissions =
+        tokio::task::spawn_blocking(crate::i18n::carry(move || permissions_warning(&data))).await.ok().flatten();
     let instance = state.store.instance().await.map_err(|e| e.to_string())?;
     let instance_saved = query.get("ok").map(String::as_str) == Some("instanz");
     // Round 20c: block „EPUBCheck“ (path to the epubcheck.jar, form in crate::epub_check).
@@ -332,9 +333,9 @@ pub async fn backup(state: &AppState) -> Result<Backup, String> {
         .map_err(|e| format!("Zeit der Sicherung: {e}"))?;
     let name = name.to_string_lossy().into_owned();
     let (dir, parent_dir, base) = (data.clone(), parent.to_owned(), name.clone());
-    let (count, needed, available) = tokio::task::spawn_blocking(move || {
+    let (count, needed, available) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         (existing_backups(&parent_dir, &base), dir_size(&dir), free_space(&parent_dir))
-    })
+    }))
     .await
     .map_err(|e| format!("Platz prüfen abgebrochen: {e}"))?;
     if count >= MAX_BACKUPS {
@@ -372,14 +373,14 @@ async fn fill(state: &AppState, data: &Path, target: &Path) -> Result<Backup, St
         .await
         .map_err(|e| format!("Datenbank sichern (VACUUM INTO): {e}"))?;
     let (from, to) = (data.to_owned(), target.to_owned());
-    let skipped = tokio::task::spawn_blocking(move || {
+    let skipped = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let mut skipped = Vec::new();
         copy_tree(&from, &to, "", true, &mut skipped).map(|()| skipped)
-    })
+    }))
     .await
     .map_err(|e| format!("Kopieren abgebrochen: {e}"))??;
     let dir = target.to_owned();
-    let size_bytes = tokio::task::spawn_blocking(move || dir_size(&dir)).await.unwrap_or(0);
+    let size_bytes = tokio::task::spawn_blocking(crate::i18n::carry(move || dir_size(&dir))).await.unwrap_or(0);
     Ok(Backup { dir: target.to_owned(), size_bytes, skipped })
 }
 

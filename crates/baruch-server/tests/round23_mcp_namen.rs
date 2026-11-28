@@ -50,7 +50,7 @@ pub(crate) async fn mill(steps: impl IntoIterator<Item = Step>) -> Mill {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import(MILL, "muehle.typ").await;
     let keys = server.state.store.load_work(report.work).await.unwrap().nodes.iter().map(|n| n.key).collect();
     Mill { server, model, work: report.work, slug: report.slug, keys }

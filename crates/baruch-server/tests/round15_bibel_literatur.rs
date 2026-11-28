@@ -66,7 +66,7 @@ async fn shelf(modules: &[Fixture], steps: Vec<Step>) -> Shelf {
     .await
     .unwrap();
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let bibles = tempfile::tempdir().unwrap();
     if !modules.is_empty() {
         let root: &Path = &bibles.path().join("sword");

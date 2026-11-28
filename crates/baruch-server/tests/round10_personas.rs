@@ -44,7 +44,7 @@ async fn with_model(model: ScriptedModel) -> Bees {
     .await
     .expect("Datenordner lässt sich nicht öffnen");
     let state = Arc::new(state);
-    let server = common::Server { app: baruch_server::router(state.clone()), state, data };
+    let server = common::Server { app: common::router(state.clone()), state, data };
     let report = server.import(BEES, "bienen.typ").await;
     let work = report.work;
     let updated = server.rpc("work.update", json!({ "work": work, "audience": "Hobby-Imker" })).await;

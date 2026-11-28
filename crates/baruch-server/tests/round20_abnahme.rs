@@ -327,7 +327,7 @@ async fn the_cli_writes_the_same_bytes_as_the_download() {
     let data = dir.path().join("daten");
     let (slug, download) = {
         let state = std::sync::Arc::new(baruch_server::AppState::open(&data).await.unwrap());
-        let app = baruch_server::router(state.clone());
+        let app = common::router(state.clone());
         let report = baruch_server::import::import_typst(&state, &cape(), "kap.typ").await.unwrap();
         furnish(&app, &state.store, report.work).await;
         let (status, _, bytes) = get_bytes(&app, &format!("/werke/{}/epub", report.work), &[]).await;
