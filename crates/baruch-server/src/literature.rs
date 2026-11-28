@@ -753,6 +753,9 @@ fn without_fts_note(message: &str) -> String {
         "; die Wortlaut-Suche (FTS) geht weiter.",
         ". Die Wortlaut-Suche (FTS) geht weiter.",
         "Die Wortlaut-Suche (FTS) geht weiter.",
+        "; the wording search (FTS) continues.",
+        ". The wording search (FTS) continues.",
+        "The wording search (FTS) continues.",
     ] {
         if let Some(cut) = text.strip_suffix(note) {
             text = cut.trim_end().to_owned();
@@ -1897,6 +1900,20 @@ mod tests {
         );
         assert_eq!(super::display_snippet("= Nur Titel"), "= Nur Titel", "nur eine Überschrift bleibt stehen");
         assert_eq!(super::display_snippet("Ein Satz = kein Titel."), "Ein Satz = kein Titel.", "sonst unverändert");
+    }
+
+    #[test]
+    fn the_english_word_search_note_is_stripped_too() {
+        assert_eq!(
+            super::without_fts_note("No embedding model reachable: off. The wording search (FTS) continues."),
+            "No embedding model reachable: off",
+            "the English catalog sentence must be cut like the German one, or rag_unavailable doubles it"
+        );
+        assert_eq!(
+            super::without_fts_note("No embedding model connected (tests); the wording search (FTS) continues."),
+            "No embedding model connected (tests)",
+            "the semicolon form of the English catalog is cut as well"
+        );
     }
 
     #[test]
