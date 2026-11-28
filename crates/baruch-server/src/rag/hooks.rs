@@ -16,7 +16,7 @@ pub async fn collections(state: &AppState, work: WorkId, way: Way) -> Result<Vec
         .store
         .work_collections(work, super::rag_way(way))
         .await
-        .map_err(|e| RagError::Failed(format!("Sammlungen des Werks nicht lesbar: {e}")))
+        .map_err(|e| RagError::Failed(crate::i18n::tc("rag_msg.collections", &[("detail", e.to_string().into())])))
 }
 
 /// Open pgvector as a search way.

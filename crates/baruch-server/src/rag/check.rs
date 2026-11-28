@@ -11,16 +11,18 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::connections::Fault;
+use crate::i18n::tc;
 
-/// Fixed text of the probe embedding (no book text).
+/// Fixed text of the probe embedding (no book text). Stays German on purpose: it is only sent to the embedding model,
+/// never shown, and a fixed text keeps the probe comparable (Round 39c).
 pub const PROBE_TEXT: &str = "Baruch prüft die Einbettung.";
 
 /// Is the folder writable? (Create and delete a probe file.)
 fn writable(dir: &std::path::Path) -> Result<(), String> {
-    std::fs::create_dir_all(dir).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
+    std::fs::create_dir_all(dir).map_err(|e| tc("rag_msg.check.dir_create", &[("detail", e.to_string().into())]))?;
     let probe = dir.join(".baruch-schreibprobe");
-    std::fs::write(&probe, b"ok").map_err(|e| format!("nicht beschreibbar: {e}"))?;
-    std::fs::remove_file(&probe).map_err(|e| format!("Probedatei nicht löschbar: {e}"))
+    std::fs::write(&probe, b"ok").map_err(|e| tc("rag_msg.check.not_writable", &[("detail", e.to_string().into())]))?;
+    std::fs::remove_file(&probe).map_err(|e| tc("rag_msg.check.probe_delete", &[("detail", e.to_string().into())]))
 }
 
 /// Run the check and store it.
@@ -40,7 +42,10 @@ pub async fn check_lancedb(state: &AppState) -> Result<Value, Fault> {
             details["writable"] = json!(usable.is_ok());
             let mut problems: Vec<String> = Vec::new();
             if let Err(why) = &usable {
-                problems.push(format!("Ordner {}: {why}.", cfg.dir.display()));
+                problems.push(tc(
+                    "rag_msg.check.folder",
+                    &[("dir", cfg.dir.display().to_string().into()), ("why", why.into())],
+                ));
             }
             let mut meta = None;
             if usable.is_ok() {
@@ -79,9 +84,9 @@ pub async fn check_lancedb(state: &AppState) -> Result<Value, Fault> {
                     && d != answer.dimension
                 {
                     problems.push(
-                        RagError::ModelMismatch(format!(
-                            "Das Modell liefert {} Dimensionen, der Index hat {d}; „Index neu aufbauen“ hilft.",
-                            answer.dimension
+                        RagError::ModelMismatch(tc(
+                            "rag_msg.check.dimension",
+                            &[("got", answer.dimension.to_string().into()), ("index", d.to_string().into())],
                         ))
                         .message()
                         .to_owned(),
@@ -93,10 +98,14 @@ pub async fn check_lancedb(state: &AppState) -> Result<Value, Fault> {
                 let dimension = probe.as_ref().map(|a| a.dimension).unwrap_or_default();
                 (
                     true,
-                    format!(
-                        "LanceDB bereit: Ordner {}, {entries} Einträge, Einbettung mit {} ({dimension} Dimensionen) geht.",
-                        cfg.dir.display(),
-                        cfg.configured
+                    tc(
+                        "rag_msg.check.ready",
+                        &[
+                            ("dir", cfg.dir.display().to_string().into()),
+                            ("entries", entries.into()),
+                            ("model", cfg.configured.as_str().into()),
+                            ("dimension", dimension.to_string().into()),
+                        ],
                     ),
                 )
             } else {

@@ -62,9 +62,12 @@ async fn work_import_over_rpc_takes_16_mib_and_refuses_one_byte_more() {
     assert_eq!(exported.len(), MAX_SOURCE_BYTES as usize, "der ganze Text ist angekommen");
 
     let over = typst_of_size(MAX_SOURCE_BYTES as usize + 1);
-    let err = works::call(&server.state, "work.import", json!({ "file_name": "groesser.typ", "source": over }))
-        .await
-        .expect_err("ein Byte mehr wird abgelehnt");
+    let err = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        works::call(&server.state, "work.import", json!({ "file_name": "groesser.typ", "source": over })),
+    )
+    .await
+    .expect_err("ein Byte mehr wird abgelehnt");
     assert_eq!(err.code, rpc::INVALID_PARAMS, "zu groß → -32602: {}", err.message);
     assert!(err.message.contains("größer als 16 MiB"), "deutsche Meldung nennt die Grenze: {}", err.message);
     assert_eq!(server.state.store.works().await.unwrap().len(), 2, "nur das Beispielwerk und der 16-MiB-Import");

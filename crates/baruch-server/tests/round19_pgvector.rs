@@ -633,7 +633,14 @@ async fn mcp_idea_map_honours_near_limit_and_near_threshold_and_refuses_bad_valu
     assert!(degrees(&one).iter().all(|d| *d <= 1), "near_limit 1 wirkt wie in der RPC: {one}");
     assert_eq!(one["result"]["structuredContent"]["filter"]["near_limit"], 1, "angewandter Filter nennt ihn");
     let rpc = ok(&server, "idea.map", json!({ "work": work, "near_limit": 1 })).await;
-    assert_eq!(one["result"]["structuredContent"]["near"], rpc["near"], "dieselbe Nähe wie über RPC");
+    // MCP answers in English, the pinned RPC in German (Round 39c: the note of the nearness comes from the catalog), so
+    // state and pairs are compared, not the sentence.
+    let near = &one["result"]["structuredContent"]["near"];
+    assert_eq!(
+        (&near["state"], &near["pairs"]),
+        (&rpc["near"]["state"], &rpc["near"]["pairs"]),
+        "dieselbe Nähe wie über RPC"
+    );
     let threshold = tool(&server, &s, "idea_map", json!({ "work": work, "near_threshold": 0.5 })).await;
     assert_eq!(
         threshold["result"]["structuredContent"]["filter"]["near_threshold"], 0.5,

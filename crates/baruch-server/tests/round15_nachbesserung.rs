@@ -260,7 +260,9 @@ async fn an_eliezer_marked_external_receives_no_book_text_for_embeddings() {
     let embedder =
         baruch_server::rag::eliezer_embedders(&server.state).for_model("text-embedding-nomic-embed-text-v1.5");
     let texts = vec!["Der Leuchtturm steht seit hundert Jahren auf der Klippe.".to_owned()];
-    let refused = embedder.embed(&texts).await.expect_err("extern ohne Freigabe: nichts einbetten");
+    let refused = baruch_server::i18n::scope(baruch_server::i18n::Lang::De, embedder.embed(&texts))
+        .await
+        .expect_err("extern ohne Freigabe: nichts einbetten");
     let message = refused.to_string();
     assert!(message.contains("extern") && message.contains("Nichts gesendet"), "ehrlicher Grund: {message}");
     assert!(

@@ -387,22 +387,25 @@ mod tests {
 
     #[test]
     fn answers_come_as_json_or_as_event_stream() {
-        let json = br#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#;
-        assert_eq!(rpc_answer("application/json", json, 1).unwrap(), json!({ "ok": true }), "JSON");
-        let sse = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\n data: \"result\":{\"tools\":[]}}\n\n";
-        assert_eq!(
-            rpc_answer("text/event-stream; charset=utf-8", sse, 2).unwrap_err(),
-            "keine JSON-RPC-Antwort mit id 2 gefunden",
-            "eine mit Leerzeichen eingerückte Zeile ist keine data:-Zeile"
-        );
-        let sse = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\ndata: \"result\":{\"tools\":[]}}\n";
-        assert_eq!(
-            rpc_answer("text/event-stream", sse, 2).unwrap(),
-            json!({ "tools": [] }),
-            "mehrzeilige data, letzte ohne Leerzeile"
-        );
-        let error = br#"{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"nein"}}"#;
-        assert_eq!(rpc_answer("application/json", error, 1).unwrap_err(), "Fehler der Gegenstelle: nein", "Fehler");
+        // The German sentences are the wording from before Round 39c; the scope pins the interface language.
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let json = br#"{"jsonrpc":"2.0","id":1,"result":{"ok":true}}"#;
+            assert_eq!(rpc_answer("application/json", json, 1).unwrap(), json!({ "ok": true }), "JSON");
+            let sse = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\n data: \"result\":{\"tools\":[]}}\n\n";
+            assert_eq!(
+                rpc_answer("text/event-stream; charset=utf-8", sse, 2).unwrap_err(),
+                "keine JSON-RPC-Antwort mit id 2 gefunden",
+                "eine mit Leerzeichen eingerückte Zeile ist keine data:-Zeile"
+            );
+            let sse = b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"method\":\"notifications/progress\"}\n\ndata: {\"jsonrpc\":\"2.0\",\"id\":2,\ndata: \"result\":{\"tools\":[]}}\n";
+            assert_eq!(
+                rpc_answer("text/event-stream", sse, 2).unwrap(),
+                json!({ "tools": [] }),
+                "mehrzeilige data, letzte ohne Leerzeile"
+            );
+            let error = br#"{"jsonrpc":"2.0","id":1,"error":{"code":-1,"message":"nein"}}"#;
+            assert_eq!(rpc_answer("application/json", error, 1).unwrap_err(), "Fehler der Gegenstelle: nein", "Fehler");
+        });
     }
 
     #[test]

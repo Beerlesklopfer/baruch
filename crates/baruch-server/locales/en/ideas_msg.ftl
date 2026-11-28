@@ -139,3 +139,10 @@ ideas_msg.outline_notice.imported = Mind map imported.
 ideas_msg.outline_notice.cloud = Cloud
 ideas_msg.outline_notice.main_topic = { $title } (main topic on the work)
 ideas_msg.map.link_id_missing = id missing (link)
+
+# Picture of the mind map (src/idea_map/bild/mindmap.rs: page fragment and the .svg/.pdf export, both in the language
+# of the request; Round 39c, task reste_1).
+ideas_msg.mindmap.label = Mind map: { $title }
+ideas_msg.mindmap.cloud_empty = Cloud – empty. Ideas without a place in the mind map lie here.
+ideas_msg.mindmap.cloud_count = Cloud – { $count } in the cloud
+ideas_msg.mindmap.fits = fits branch “{ $title }”

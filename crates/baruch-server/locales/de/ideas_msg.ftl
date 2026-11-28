@@ -135,3 +135,10 @@ ideas_msg.outline_notice.imported = Mindmap eingelesen.
 ideas_msg.outline_notice.cloud = Wolke
 ideas_msg.outline_notice.main_topic = { $title } (Hauptthema am Werk)
 ideas_msg.map.link_id_missing = id fehlt (Verbindung)
+
+# Picture of the mind map (src/idea_map/bild/mindmap.rs: page fragment and the .svg/.pdf export, both in the language
+# of the request; Round 39c, task reste_1).
+ideas_msg.mindmap.label = Mindmap: { $title }
+ideas_msg.mindmap.cloud_empty = Wolke – leer. Einfälle ohne Platz in der Mindmap liegen hier.
+ideas_msg.mindmap.cloud_count = Wolke – { $count } in der Wolke
+ideas_msg.mindmap.fits = passt zu Ast „{ $title }“

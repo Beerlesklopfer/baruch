@@ -346,9 +346,20 @@ pub fn cover_draft(stored: Option<&Draft>, choice: Option<bool>) -> Option<Draft
     }
 }
 
-/// Today's date in local time („10.11.2026“) – the only place where the watermark gets a date.
+/// Today's date in local time in the German form („10.11.2026“, as [`draft_today_in`] with German).
 pub fn draft_today() -> String {
-    chrono::Local::now().format("%-d.%-m.%Y").to_string()
+    draft_today_in(baruch_core::WorkLanguage::De)
+}
+
+/// Today's date in local time in the form of the work language (Round 39c) – the only place where the watermark
+/// gets a date: German „10.11.2026“ (`%-d.%-m.%Y`, byte-equal to the form before), English ISO 8601 „2026-11-10“
+/// (`%Y-%m-%d`, no words, so no book catalog key).
+pub fn draft_today_in(lang: baruch_core::WorkLanguage) -> String {
+    let format = match lang {
+        baruch_core::WorkLanguage::De => "%-d.%-m.%Y",
+        baruch_core::WorkLanguage::En => "%Y-%m-%d",
+    };
+    chrono::Local::now().format(format).to_string()
 }
 
 /// Rule of the watermark with today's date if `draft.date` is set.
@@ -359,7 +370,7 @@ pub fn draft_rule_for(draft: &Draft) -> String {
 /// Like [`draft_rule_for`] in the work language `lang` (Round 39b integration): the stored default text and the
 /// date line come from the book catalog (`DRAFT` in an English work); German stays byte-equal.
 pub fn draft_rule_for_in(draft: &Draft, lang: baruch_core::WorkLanguage) -> String {
-    let date = draft.date.then(draft_today);
+    let date = draft.date.then(|| draft_today_in(lang));
     baruch_typst::typeset::draft_rule_in(draft, date.as_deref(), lang)
 }
 

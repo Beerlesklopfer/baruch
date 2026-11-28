@@ -423,7 +423,10 @@ async fn a_saved_multigpt_address_survives_reopening_unchanged() {
 #[tokio::test]
 async fn without_an_address_multigpt_is_not_set_up_and_nothing_is_asked() {
     let server = open_allowing("").await;
-    let refused = open_way(&server.state).await.err().expect("ohne Adresse gibt es keinen Suchweg");
+    let refused = baruch_server::i18n::scope(baruch_server::i18n::Lang::De, open_way(&server.state))
+        .await
+        .err()
+        .expect("ohne Adresse gibt es keinen Suchweg");
     assert_eq!(refused.code(), "not_configured", "nicht eingerichtet (Weg aus), kein Ausfall: {refused}");
     assert!(refused.is_off(), "der Weg gilt als aus, nicht als gescheitert: {refused}");
     assert!(

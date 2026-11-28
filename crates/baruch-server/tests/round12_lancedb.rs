@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use baruch_llm::mock::MockEliezer;
 use baruch_rag::{BoxFuture, Embedder, EmbedderFactory, Embeddings, RagError};
+use baruch_server::i18n::{self, Lang};
 use baruch_server::rag;
 use serde_json::{Value, json};
 
@@ -34,6 +35,11 @@ Tisch neben der Kanne mit Tee, und seine Seiten rochen nach Salz und Petroleum.
 Im kleinen Garten hinter dem Turm säte die Tochter des Wärters ein Senfkorn, das kleinste aller Samenkörner. \
 Sie goss es jeden Morgen mit Regenwasser aus der Tonne, und im Sommer stand dort ein Strauch voller Spatzen.
 ";
+
+/// A sentence of the semantic search in the German interface language (the test router pins German, Round 39c).
+fn de(sentence: fn() -> String) -> String {
+    i18n::sync_scope(Lang::De, sentence)
+}
 
 fn result(answer: &Value) -> &Value {
     answer.get("result").unwrap_or_else(|| panic!("Fehler statt Ergebnis: {answer}"))
@@ -350,9 +356,9 @@ async fn without_an_embedding_model_lancedb_fails_honestly_and_fts_keeps_working
     let found = search(&server, json!({ "work": work, "query": "Nebelhorn" })).await;
     let lance = way(&found, "lancedb");
     assert_eq!(lance["state"], "failed", "kein Einbettungsmodell: ausgefallen: {found}");
-    assert_eq!(lance["message"], rag::NO_EMBEDDER, "fester Satz: {found}");
+    assert_eq!(lance["message"], de(rag::no_embedder), "fester Satz: {found}");
     let status = result(&server.rpc("rag.status", json!({ "work": work })).await).clone();
-    assert_eq!(status["index"]["problem"], rag::NO_EMBEDDER, "Status nennt den Grund: {status}");
+    assert_eq!(status["index"]["problem"], de(rag::no_embedder), "Status nennt den Grund: {status}");
     let fts = server.rpc("library.search", json!({ "work": work, "query": "Nebelhorn" })).await;
     assert!(!result(&fts)["hits"].as_array().unwrap().is_empty(), "Wortlaut-Suche (FTS) geht weiter: {fts}");
 
@@ -413,7 +419,7 @@ async fn rag_search_validates_its_parameters_and_always_names_all_three_ways() {
     let names: Vec<&str> = found["ways"].as_array().unwrap().iter().map(|w| w["way"].as_str().unwrap()).collect();
     assert_eq!(names, ["lancedb", "pgvector", "multigpt"], "immer alle drei, feste Reihenfolge: {found}");
     assert_eq!(way(&found, "pgvector")["state"], "off", "Vorgabe nur lancedb: pgvector aus: {found}");
-    assert_eq!(way(&found, "pgvector")["message"], rag::NOT_CHOSEN, "Vertragssatz: {found}");
+    assert_eq!(way(&found, "pgvector")["message"], de(rag::not_chosen), "Vertragssatz: {found}");
     assert_eq!(way(&found, "multigpt")["label"], "aus", "label auf Deutsch: {found}");
     assert_eq!(found["query"], "Senfkorn", "Anfrage beschnitten zurück: {found}");
 
@@ -422,10 +428,10 @@ async fn rag_search_validates_its_parameters_and_always_names_all_three_ways() {
     result(&set);
     let found = search(&server, json!({ "work": work, "query": "Senfkorn" })).await;
     assert_eq!(way(&found, "pgvector")["state"], "off", "ohne gewählte Sammlung aus: {found}");
-    assert_eq!(way(&found, "pgvector")["message"], rag::NO_COLLECTION, "Vertragssatz: {found}");
-    assert_eq!(way(&found, "multigpt")["message"], rag::NO_COLLECTION, "Vertragssatz: {found}");
+    assert_eq!(way(&found, "pgvector")["message"], de(rag::no_collection), "Vertragssatz: {found}");
+    assert_eq!(way(&found, "multigpt")["message"], de(rag::no_collection), "Vertragssatz: {found}");
     let found = search(&server, json!({ "work": work, "query": "Senfkorn", "ways": ["pgvector"] })).await;
-    assert_eq!(way(&found, "lancedb")["message"], rag::NOT_ASKED, "weggelassen: {found}");
+    assert_eq!(way(&found, "lancedb")["message"], de(rag::not_asked), "weggelassen: {found}");
     assert!(hits(&found).is_empty(), "ohne LanceDB keine Treffer: {found}");
     let found = search(&server, json!({ "work": work, "query": "Senfkorn", "collections": ["Predigten"] })).await;
     assert_eq!(way(&found, "lancedb")["state"], "off", "keine LanceDB-Art gewünscht: aus: {found}");
@@ -450,10 +456,10 @@ async fn rag_search_validates_its_parameters_and_always_names_all_three_ways() {
 #[tokio::test]
 async fn checking_lancedb_reports_folder_index_model_and_probe_and_saves_the_result() {
     let server = common::open().await;
-    let checked = rag::check_lancedb(&server.state).await.expect("Prüfung");
+    let checked = i18n::scope(Lang::De, rag::check_lancedb(&server.state)).await.expect("Prüfung");
     assert_eq!(checked["kind"], "lancedb", "Art: {checked}");
     assert_eq!(checked["ok"], false, "ohne Einbetter nicht bereit: {checked}");
-    assert_eq!(checked["details"]["embedder"], rag::NO_EMBEDDER, "Grund im Feld embedder: {checked}");
+    assert_eq!(checked["details"]["embedder"], de(rag::no_embedder), "Grund im Feld embedder: {checked}");
     assert_eq!(checked["details"]["writable"], true, "Ordner beschreibbar: {checked}");
     assert!(checked["at"].is_string(), "Zeitpunkt: {checked}");
 
@@ -462,7 +468,7 @@ async fn checking_lancedb_reports_folder_index_model_and_probe_and_saves_the_res
     rag::set_embedders(&server.state, rag::eliezer_embedders(&server.state));
     rag::catch_up(&server.state).await;
     rag::wait_idle(&server.state).await;
-    let checked = rag::check_lancedb(&server.state).await.expect("Prüfung");
+    let checked = i18n::scope(Lang::De, rag::check_lancedb(&server.state)).await.expect("Prüfung");
     let details = &checked["details"];
     assert_eq!(checked["ok"], true, "bereit: {checked}");
     assert_eq!(details["embedder"], "ok", "Probe gelungen: {checked}");
@@ -482,7 +488,7 @@ async fn checking_lancedb_reports_folder_index_model_and_probe_and_saves_the_res
     );
 
     result(&server.rpc("connection.set", json!({ "kind": "lancedb", "config": { "dir": "works/rag" } })).await);
-    let checked = rag::check_lancedb(&server.state).await.expect("Prüfung");
+    let checked = i18n::scope(Lang::De, rag::check_lancedb(&server.state)).await.expect("Prüfung");
     assert_eq!(checked["ok"], false, "Ordner im Git-Spiegel abgelehnt: {checked}");
     assert!(checked["message"].as_str().unwrap().contains("Git-Spiegel"), "Grund: {checked}");
     assert!(!server.path().join("works/rag").exists(), "nichts im Spiegel angelegt");

@@ -442,7 +442,8 @@ async fn without_eliezer_the_word_search_goes_on_and_the_pages_say_why() {
     .await;
     rag::set_embedders(&server.state, rag::eliezer_embedders(&server.state));
     let work = server.import(BOOK, "meer.typ").await.work;
-    rag::catch_up(&server.state).await;
+    // The start of the service runs outside a request; the scope gives the background task the German wording.
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, rag::catch_up(&server.state)).await;
     rag::wait_idle(&server.state).await;
 
     let found = ok(&server, "rag.search", json!({ "work": work, "query": "Wellen" })).await;

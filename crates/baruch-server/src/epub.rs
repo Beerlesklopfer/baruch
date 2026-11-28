@@ -349,7 +349,7 @@ pub fn epub_draft_in(
     lang: baruch_core::WorkLanguage,
 ) -> Option<baruch_typst::typeset::Draft> {
     crate::typeset::effective_draft(stored, choice).map(|d| {
-        let date = d.date.then(crate::typeset::draft_today);
+        let date = d.date.then(|| crate::typeset::draft_today_in(lang));
         let note = baruch_typst::typeset::draft_line_in(&d, date.as_deref(), lang);
         baruch_typst::typeset::Draft { note, date: false, ..d }
     })

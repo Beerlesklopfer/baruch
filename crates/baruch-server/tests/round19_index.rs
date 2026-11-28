@@ -28,6 +28,7 @@ use axum::http::{Request, header};
 use baruch_llm::mock::MockEliezer;
 use baruch_rag::{BoxFuture, Embedder, EmbedderFactory, Embeddings, RagError};
 use baruch_server::connections::multigpt::mock::MockMultigpt;
+use baruch_server::i18n::{self, Lang};
 use baruch_server::rag;
 use baruch_server::sync::mock::{Deny, MockDocs};
 use baruch_server::sync::{self, Limits};
@@ -395,11 +396,14 @@ async fn catch_up_with_own_data_and_no_saved_eliezer_binds_no_embedder_and_says_
     let now = status(&server, work).await;
     assert_eq!(
         now["index"]["problem"],
-        rag::NO_EMBEDDER_OWN_DATA,
+        i18n::sync_scope(Lang::De, rag::no_embedder_own_data),
         "Begründung: eigener Datenordner, Verbindung Eliezer nie gespeichert – beim Start keine Anfrage an die \
          Vorgabe-Adresse, und der Status sagt warum: {now}"
     );
-    assert!(rag::NO_EMBEDDER_OWN_DATA.starts_with("Kein Einbettungsmodell angebunden"), "wie NO_EMBEDDER");
+    assert!(
+        i18n::sync_scope(Lang::De, rag::no_embedder_own_data).starts_with("Kein Einbettungsmodell angebunden"),
+        "wie no_embedder"
+    );
     assert_eq!(now["index"]["pending"], 0, "nichts eingereiht (ohne Einbetter gibt es keine Aufträge): {now}");
     let refused = server.rpc("rag.reindex", json!({ "work": work, "confirm": true })).await;
     assert_eq!(error_code(&refused), -32000, "neu aufbauen ohne Einbetter: abgelehnt: {refused}");
@@ -473,7 +477,7 @@ async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_
     let lance = way(&found, "lancedb");
     assert_eq!(lance["state"], "failed", "Präfixwechsel: ausgefallen: {found}");
     assert!(
-        lance["message"].as_str().unwrap().contains(rag::index::PREFIX_CHANGED),
+        lance["message"].as_str().unwrap().contains(&i18n::sync_scope(Lang::De, rag::index::prefix_changed)),
         "Begründung: ein anderes Präfix ist wie ein anderes Modell (ModelMismatch) – ehrlicher Satz: {found}"
     );
     idle(&server).await;
@@ -482,7 +486,10 @@ async fn lancedb_embeds_documents_and_queries_with_their_prefixes_and_a_changed_
     idle(&server).await;
     assert_eq!(embedder.calls.lock().unwrap().len(), before, "nichts mit dem neuen Präfix in den alten Index gemischt");
     let now = status(&server, work).await;
-    assert!(now["index"]["problem"].as_str().unwrap().contains(rag::index::PREFIX_CHANGED), "Status: {now}");
+    assert!(
+        now["index"]["problem"].as_str().unwrap().contains(&i18n::sync_scope(Lang::De, rag::index::prefix_changed)),
+        "Status: {now}"
+    );
 
     let queued = server.rpc("rag.reindex", json!({ "work": work, "confirm": true })).await;
     assert_eq!(result(&queued)["queued"], true, "neu aufbauen: {queued}");

@@ -26,6 +26,7 @@ use std::fmt::Write as _;
 use baruch_store::{IdeaId, IdeaStatus, LinkKind};
 
 use super::tree_layout::{self, Layout, Placed, Side, findings_width, text_width};
+use crate::i18n::tc;
 use crate::idea_map::tree::{CloudHint, MindMap, Scene, TreeKind};
 
 #[derive(Debug, Clone, Default)]
@@ -448,11 +449,10 @@ fn node_svg(out: &mut String, map: &MindMap, layout: &Layout, p: &Placed, option
             let fill = if alone { format!(" fill=\"{}\"", BRANCH_COLORS[*branch]) } else { String::new() };
             let _ = write!(
                 out,
-                "<text class=\"mm-cloud-hint mm-b{branch}\" x=\"{}\" y=\"{}\" font-size=\"10.5\"{fill}>\
-                 passt zu Ast „{}“</text>",
+                "<text class=\"mm-cloud-hint mm-b{branch}\" x=\"{}\" y=\"{}\" font-size=\"10.5\"{fill}>{}</text>",
                 n(tx),
                 n(p.y + p.h - 7.0),
-                esc(title)
+                esc(&tc("ideas_msg.mindmap.fits", &[("title", title.as_str().into())]))
             );
         }
     } else if p.depth > 0 && p.below > 0 {
@@ -493,7 +493,7 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
         svg,
         "<svg{xmlns} class=\"mm-svg\" viewBox=\"0 0 {w} {h}\" width=\"{w}\" height=\"{h}\" role=\"img\" \
          aria-label=\"{}\" data-cloud-count=\"{}\" data-zu=\"{}\">",
-        esc(&format!("Mindmap: {}", map.title)),
+        esc(&tc("ideas_msg.mindmap.label", &[("title", map.title.as_str().into())])),
         layout.cloud.count,
         esc(&layout.closed.join(",")),
         w = n(width),
@@ -656,10 +656,10 @@ pub fn render(map: &MindMap, options: &RenderOptions) -> Rendered {
     // Cloud: storage of the ideas without a place (below the tree), also the drop area when dragging.
     let c = layout.cloud;
     let paint = if alone { " fill=\"#f6f7f9\" stroke=\"#8a94a3\"" } else { " fill=\"none\"" };
-    let head = match c.count {
-        0 => "Wolke – leer. Einfälle ohne Platz in der Mindmap liegen hier.".to_owned(),
-        k => format!("Wolke – {k} in der Wolke"),
-    };
+    let head = esc(&match c.count {
+        0 => tc("ideas_msg.mindmap.cloud_empty", &[]),
+        k => tc("ideas_msg.mindmap.cloud_count", &[("count", k.to_string().into())]),
+    });
     let _ = write!(
         svg,
         "<g class=\"mm-cloud\" data-count=\"{}\"><rect class=\"mm-cloud-area\" x=\"{}\" y=\"{}\" width=\"{}\" \
