@@ -4,13 +4,15 @@ Die Webseite zeigt zwei Gruppen von Bildschirmfotos:
 
 - **Bilder der Hilfe** – `site/static/bilder/hilfe/<name>.png`, dunkle Fassung daneben als `<name>-dunkel.png`. Die
   Liste steht in `site/data/hilfebilder.toml` (94 Namen); die Hilfeseiten binden sie mit dem Shortcode `hilfebild`
-  ein. Fehlt eine Datei, lässt die Seite das Bild aus und baut trotzdem ohne Warnung.
+  ein. Fehlt das helle Bild in der Sprache der Seite, bricht der Bau der Webseite ab (seit Runde 39b; die dunkle
+  Fassung bleibt freiwillig).
 - **Sieben Bilder der Seite „Funktionen“** – `site/static/bilder/*.png`. Namen und Adressen stehen im Skript
   (`FUNCTION_PICTURES`), unverändert seit Runde 24 bzw. 33.
 
 Alle entstehen aus einem **frei erfundenen Werk** (`beispielwerk.typ`, „Ein Jahr auf Mövenoog“ von Mara Tiedemann –
 Ort, Personen und Text gibt es nicht) in einem Wegwerf-Datenordner. Die Fotos macht der Integrator; Entwickler
-arbeiten mit `--liste`, `--pruefen` und `--abgleich` und starten nie Firefox.
+arbeiten mit `--liste`, `--pruefen` und `--abgleich` und starten nie Firefox. Seit Runde 39b gibt es jedes Bild in
+zwei Sprachen (`--lang de|en`, siehe „Two languages“ unten).
 
 ## Aufruf
 
@@ -19,6 +21,7 @@ arbeiten mit `--liste`, `--pruefen` und `--abgleich` und starten nie Firefox.
 ```sh
 site/tools/bildschirmfotos.py --liste                    # ohne Server: jedes Bild mit Adresse, Fenster, Thema, Schritten
 site/tools/bildschirmfotos.py --abgleich                 # ohne Server: Namen der Seiten gegen die Liste, Dateien, Größe
+site/tools/bildschirmfotos.py --abgleich --lang en       # dasselbe für die englischen Seiten und site/static/bilder/en
 site/tools/bildschirmfotos.py --pruefen --temp ~/tmp     # Server, Beispielwerk, jede Adresse über den Vermittler
 site/tools/bildschirmfotos.py --halten  --temp ~/tmp     # wie --pruefen, hält je Stufe an (Eingabetaste geht weiter)
 site/tools/bildschirmfotos.py --fotos   --temp /var/tmp/baruch-hilfe  # mit Firefox – nur der Integrator; neutraler Pfad
@@ -30,14 +33,16 @@ site/tools/bildschirmfotos.py --fotos   --temp /var/tmp/baruch-hilfe  # mit Fire
 | `--sword ORDNER` | Ordner mit Bibelmodulen (`mods.d`, `modules`) für Bilder mit `braucht = ["sword"]`. Ohne die Angabe nennt das Skript sie als übersprungen. |
 | `--temp ORDNER` | wo Wegwerf-Datenordner und Firefox-Profile entstehen. **Immer einen Ordner auf einer Platte angeben** – `/tmp` ist hier Arbeitsspeicher. |
 | `--server PFAD` | `baruch-server` (auch `BARUCH_SERVER`; ohne Angabe die zuletzt gebaute Datei aus `target/release/` oder `target/debug/`, das Skript nennt sie). |
-| `--ziel ORDNER` | wohin die Bilder kommen (Vorgabe `site/static/bilder`; die Hilfe darunter in `hilfe/`). |
+| `--lang de\|en` | Sprache der Bilder (Vorgabe `de`): Oberfläche, Werksprache und erfundene Daten, Zielordner. Siehe „Two languages“. |
+| `--ziel ORDNER` | wohin die Bilder kommen (Vorgabe: Bildordner der Sprache, `site/static/bilder` bzw. `site/static/bilder/en`; die Hilfe darunter in `hilfe/`). |
 | `--breite N` | größte Breite der fertigen Bilder (Vorgabe 1400). |
 | `--ohne-palette` | Bilder nicht auf 256 Farben verringern (siehe „Größe“). |
 
-`--abgleich` endet mit Exit 1, wenn eine Seite einen Namen verwendet, der nicht in der Liste steht, oder wenn
-`site/static/bilder` größer als 20 MB ist. Ungenutzte Namen, Bilder auf einer anderen Seite als in der Liste
-vorgesehen, fehlende Dateien und Dateien ohne Eintrag sind nur Listen. `--pruefen` endet mit Exit 1, sobald eine
-Aufnahme nicht stimmt.
+`--abgleich` endet mit Exit 1, wenn eine Seite einen Namen verwendet, der nicht in der Liste steht, wenn ein helles
+Bild fehlt, das eine Seite der Sprache verwendet (dann bräche auch der Bau der Webseite ab), oder wenn die Bilder der
+Sprache größer als 20 MB sind. Ungenutzte Namen, Bilder auf einer anderen Seite als in der Liste vorgesehen, übrige
+fehlende Dateien und Dateien ohne Eintrag sind nur Listen. `--pruefen` endet mit Exit 1, sobald eine Aufnahme nicht
+stimmt.
 
 ## Ablauf
 
@@ -146,7 +151,8 @@ Cookie `baruch_theme=dark`.
 
 ## Größe
 
-Alle Bilder zusammen (`site/static/bilder`) bleiben unter **20 MB**; `--abgleich` und `--fotos` nennen die Summe.
+Die Bilder einer Sprache bleiben unter **20 MB** (Deutsch: `site/static/bilder` ohne `en/`, Englisch:
+`site/static/bilder/en`); `--abgleich` und `--fotos` nennen die Summe.
 Nach jedem Foto bearbeitet das Skript das Bild mit `magick` (bzw. `convert`): Ausschnitt, Breite höchstens
 `--breite`, Metadaten entfernt, 256 Farben ohne Rasterung, stärkste PNG-Kompression. An einem vorhandenen Foto
 gemessen: 192 KB → 53 KB. Ohne `magick` meldet das Skript das und lässt die Bilder unbearbeitet – 104 Aufnahmen
@@ -197,6 +203,58 @@ Bewusst so:
 - `installation-erster-start` zeigt das mitgelieferte Beispielwerk; in der Werkauswahl steht zusätzlich das
   Mövenoog-Werk (zugeklappt nicht zu sehen).
 - Die Werkliste enthält neben „Ein Jahr auf Mövenoog“ das mitgelieferte Beispielwerk (erfundene Autorin).
+
+## Two languages (Round 39b)
+
+Every picture exists in German and in English. `--lang` (default `de`) chooses everything that differs:
+
+| | `--lang de` | `--lang en` |
+|---|---|---|
+| target folder | `site/static/bilder` (help in `hilfe/`) | `site/static/bilder/en` (help in `hilfe/`) |
+| interface language | cookie `baruch_lang=de`, `Accept-Language: de` | cookie `baruch_lang=en`, `Accept-Language: en` |
+| sample work | `beispielwerk.typ`, "Ein Jahr auf Mövenoog" | `beispielwerk.en.typ`, "A Year on Gull Holm" |
+| work language | RPC `work.language_set` `de` | RPC `work.language_set` `en` |
+| invented data | `SAMPLES["de"]` (the texts since Round 37, unchanged) | `SAMPLES["en"]` (the same motifs in English) |
+
+- **Interface language:** the server decides stored setting → cookie → `Accept-Language` → English
+  (`crates/baruch-server/src/i18n.rs`). Since Round 39a the German pictures need the cookie as well; the mediator
+  puts `baruch_lang` into every recipe (managed cookie, also sent to the browser), sets `Accept-Language` on every
+  request to the server, and Firefox gets `intl.accept_languages`. The form requests of the build (`Client`) carry
+  cookie and header too, so the stored answers (report and previews of reading in) come in the language of the
+  pictures. `--pruefen` demands that `<html lang>` of every page is the language of the pictures.
+- **Sample data:** `SAMPLES[lang]` in the script holds every text the build writes (second revision, proposal,
+  glossary, book details, ideas, posts, thread, findings, the invented service book as EPUB, the throwaway Markdown
+  work, the file names of the images and exports). The English work has the same parts, chapters and sections as
+  the German one, so every picture finds the same motif; it contains no German text. The names of the invented people
+  (Mara Tiedemann, Jonte Harksen) are the same in both languages; the MCP client is "Scribe" (`@mcp:scribe`).
+- **The list for both languages** (`site/data/hilfebilder.toml`, contract §2.5; additive fields only):
+
+  | Field | Meaning |
+  |---|---|
+  | `sprachen` | languages the picture is taken for, list of `"de"`/`"en"`; missing = both. |
+  | `adresse_en` | address for the English picture; missing = `adresse`. Used where the address carries words of the sample work (search word, marked word). |
+  | `ausschnitt_en` | crop for the English picture; missing = `ausschnitt`. |
+  | `schritt_en` | steps for the English picture (the whole list); missing = `schritt`. |
+
+  `erwartet` has no English field: the script translates its texts through the table `EXPECTED_EN` (words of the
+  sample work from `SAMPLES["en"]`, words of the interface from `crates/baruch-server/locales/en/*.ftl`);
+  `EXPECTED_NEUTRAL` lists texts that are the same in both languages (markup, addresses, role names). Every entry is
+  checked in both languages on every call, so a German text without an English counterpart already stops `--liste`.
+- **Shortcodes:** `hilfebild` and `bild` take the folder through the partial
+  `site/themes/baruch/layouts/_partials/bildpfad.html` (German `bilder/<datei>`, every other language
+  `bilder/<lang>/<datei>`), stop the build with `errorf` when the light picture of the page language is missing, and
+  take the title of the full-size link from the i18n key `hilfebild_gross`. English pages use the same `name`/`datei`
+  as the German ones, with English `alt` and `titel`.
+- **Checks:** `scripts/site-check.py` checks `public/` and `public/en/` in one run (`<html lang>` per language,
+  pictures of English pages from `/bilder/en/`, every language switch resolves to a page of its `hreflang`,
+  `/bedienung/` only German); `scripts/ci-site.sh` requires `public/en/index.html` as soon as `content/en` exists.
+- **Not English:** the sample work shipped with Baruch ("Beispielwerk: Leise Abhängigkeit", `{sample}`, seeded by
+  `baruch-core`) stays German; the pictures `start-werkliste` and `installation-erster-start` show it in the English
+  interface as well.
+
+For the integrator: after the full test run `--pruefen --lang en`, then `--fotos --lang en --temp /var/tmp/baruch-hilfe`
+(neutral path), look at every picture (no user name, no home path), then `--abgleich --lang en` and
+`scripts/ci-site.sh`.
 
 ## Hinweise für den Integrator
 

@@ -11,12 +11,17 @@
 #   1. params.version in hugo.toml = version in Cargo.toml (scripts/version.sh) – otherwise the site advertises
 #      a version that does not exist, and the download links point into the void.
 #   2. `hugo --minify --panicOnWarning -s ORDNER` without a warning.
-#   3. public/index.html is there; public/CNAME names exactly baruch.bernau.family (GitHub Pages).
+#   3. public/index.html is there; public/CNAME names exactly baruch.bernau.family (GitHub Pages). For every
+#      further language with content (content/en, Round 39b) public/<lang>/index.html is there as well – otherwise
+#      hugo.toml lacks [languages.<lang>] and the English pages were silently not built.
 #   3a. scripts/site-check.py over public/ (before unpacking /apt/): no dead internal links and anchors,
 #      no image without alt text, no JavaScript, no foreign address for style, font or image, no link to
 #      docs/Bedienung.md or docs/Betrieb.md at GitHub. If the site has a section content/hilfe (multilingual
 #      content/de/hilfe), /bedienung/ must redirect to /hilfe/; without it (trial in ci-selftest.sh) only this check is
-#      dropped.
+#      dropped. One run covers both languages (German in the root, English under public/en/): <html lang> per
+#      language, pictures of English pages from /bilder/en/, every language switch resolves, /bedienung/ only German.
+#   The hugo build itself stops for a help picture (hilfebild) or a screenshot (bild) that is missing in the
+#   language of the page (errorf in the shortcodes, Round 39b).
 #   4. with --apt: public/apt/dists/stable/Release and at least one package under public/apt/pool/.
 #   5. Warning (no abort) as long as placeholders would be served: `aptFingerprint` in hugo.toml empty
 #      (the page Installation then shows no fingerprint) or a page with `platzhalter: true` in the
@@ -61,6 +66,12 @@ rm -rf "$site/public"
 "$hugo" --minify --panicOnWarning -s "$site"
 
 [ -s "$site/public/index.html" ] || { echo "ci-site.sh: public/index.html fehlt oder ist leer." >&2; exit 1; }
+for lang in en; do
+    if [ -d "$site/content/$lang" ] && [ ! -s "$site/public/$lang/index.html" ]; then
+        echo "ci-site.sh: content/$lang ist da, aber public/$lang/index.html fehlt ([languages.$lang] in hugo.toml?)." >&2
+        exit 1
+    fi
+done
 if [ "$(cat "$site/public/CNAME" 2>/dev/null)" != "baruch.bernau.family" ]; then
     echo "ci-site.sh: public/CNAME muss genau baruch.bernau.family enthalten (site/static/CNAME)." >&2
     exit 1

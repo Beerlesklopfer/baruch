@@ -1,22 +1,26 @@
 {{- /*
-  Bild der Hilfe aus static/bilder/hilfe/NAME.png (Runde 37, Vertrag §2). Die Namen stehen in data/hilfebilder.toml.
-  Aufruf: {{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}
-  Das Bild ist ein Link auf die Datei in voller Größe (Integration Runde 37: in der Spalte ist die Schrift der
-  Fotos kaum lesbar; ohne JavaScript bleibt nur der Link).
-  Fehlt die Datei, gibt der Shortcode nichts aus; ein unbekannter Name oder ein fehlender alt-Text bricht den Bau ab.
+  Picture of the help (Round 37, contract §2; two languages since Round 39b). The names stand in
+  data/hilfebilder.toml. Call: {{< hilfebild name="gliederung-seite" alt="…" titel="…" breite="640" dunkel="nein" >}}
+  Files per language via the partial bildpfad.html: German static/bilder/hilfe/NAME.png, every other language
+  static/bilder/<lang>/hilfe/NAME.png; the dark variant NAME-dunkel.png next to it is optional.
+  The picture is a link to the file in full size (integration Round 37: in the column the writing of the photos is
+  hardly readable; without JavaScript only the link remains); its title comes from the i18n key hilfebild_gross.
+  The build stops for a missing name, a missing alt text, a name not in the list and (since Round 39b, open low
+  finding of Round 37) a missing light picture in the language of the page.
 */ -}}
 {{- $name := .Get "name" -}}
 {{- $alt := .Get "alt" -}}
-{{- if not $name }}{{ errorf "hilfebild ohne name: %s" .Position }}{{ end -}}
-{{- if not $alt }}{{ errorf "hilfebild „%s“ ohne alt-Text: %s" $name .Position }}{{ end -}}
+{{- if not $name }}{{ errorf "hilfebild without name: %s" .Position }}{{ end -}}
+{{- if not $alt }}{{ errorf "hilfebild %q without alt text: %s" $name .Position }}{{ end -}}
 {{- $liste := index hugo.Data "hilfebilder" | default dict -}}
-{{- if not (where (index $liste "bild" | default slice) "name" $name) }}{{ errorf "hilfebild „%s“ steht nicht in site/data/hilfebilder.toml: %s" $name .Position }}{{ end -}}
-{{- $hell := printf "bilder/hilfe/%s.png" $name -}}
-{{- $nacht := printf "bilder/hilfe/%s-dunkel.png" $name -}}
+{{- if not (where (index $liste "bild" | default slice) "name" $name) }}{{ errorf "hilfebild %q is not listed in site/data/hilfebilder.toml: %s" $name .Position }}{{ end -}}
+{{- $hell := partial "bildpfad.html" (dict "seite" .Page "datei" (printf "hilfe/%s.png" $name)) -}}
+{{- $nacht := partial "bildpfad.html" (dict "seite" .Page "datei" (printf "hilfe/%s-dunkel.png" $name)) -}}
+{{- if not (fileExists (printf "static/%s" $hell)) }}{{ errorf "hilfebild %q: the picture static/%s is missing (language %s; site/tools/bildschirmfotos.py --fotos --lang %s takes it): %s" $name $hell .Page.Language.Lang .Page.Language.Lang .Position }}{{ end -}}
 {{- if fileExists (printf "static/%s" $hell) -}}
 {{- $mass := imageConfig (printf "static/%s" $hell) -}}
 <figure class="bild hilfebild"{{ with .Get "breite" }} style="max-width: {{ int . }}px"{{ end }}>
-  <a class="hilfebild-gross" href="{{ $hell | relURL }}" title="Bild in voller Größe öffnen"><picture>
+  <a class="hilfebild-gross" href="{{ $hell | relURL }}" title="{{ i18n "hilfebild_gross" }}"><picture>
     {{- if and (ne (.Get "dunkel") "nein") (fileExists (printf "static/%s" $nacht)) }}
     <source media="(prefers-color-scheme: dark)" srcset="{{ $nacht | relURL }}">
     {{- end }}

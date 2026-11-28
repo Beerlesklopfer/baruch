@@ -6732,6 +6732,36 @@ four help pages), hilfe_en_2 (the other ten help pages). Building and writing ru
 
 Written by the task named in the heading (Round 39b).
 
+- **Tool:** `site/tools/bildschirmfotos.py --lang de|en` (default `de`). The language decides the target folder
+  (`target_dir`: German `site/static/bilder`, English `site/static/bilder/en`, help pictures in `hilfe/` below), the
+  interface language (cookie `baruch_lang` in every recipe of the mediator and on every build request,
+  `Accept-Language` towards the server, `intl.accept_languages` in each Firefox profile), the sample work
+  (`beispielwerk.typ` or `beispielwerk.en.typ`, "A Year on Gull Holm") with its work language set over RPC
+  `work.language_set`, and the invented data (`SAMPLES[lang]`: every text the build writes; the German texts are
+  byte-equal to Round 37). `--liste`, `--abgleich` and `--pruefen` work for both languages without Firefox;
+  `--pruefen` additionally demands `<html lang>` = language of the pictures and no home folder or login name in any
+  page. `--abgleich --lang L` reads `site/content/L`, exits 1 also for a missing light picture that a page uses, and
+  counts the 20 MB limit per language.
+- **List:** `site/data/hilfebilder.toml` keeps every field; additive per picture: `sprachen` (default both),
+  `adresse_en`, `ausschnitt_en`, `schritt_en` (missing = German value). Used: `adresse_en` for the search and marking
+  pictures. The texts of `erwartet` are translated by the table `EXPECTED_EN` in the tool (no `erwartet_en` field,
+  contract §2.5); each entry is validated in both languages on every call.
+- **Shortcodes:** `hilfebild` and `bild` take their path from the partial `bildpfad.html`, stop the build with
+  `errorf` for a missing light picture in the page language (closes the low finding of Round 37), keep the dark
+  variant optional, and take the full-size link title from i18n `hilfebild_gross`. `bild` now also stops for a
+  missing `datei` or `alt`.
+- **Site checks:** `scripts/site-check.py` (languages: root `de`, `SPRACHEN_UNTER = ("en",)`) adds rules 7-10:
+  `<html lang>` per language, `/bilder/en/` exactly on English pages, every `<a hreflang>` resolves to a page whose
+  `<html lang>` is its `hreflang` (and never the own language; required on every page once `en/index.html` exists),
+  `en/hilfe/index.html` present and no `en/bedienung/`. Its self-test has a bilingual normal tree and a counterexample
+  per rule. `scripts/ci-site.sh` requires `public/en/index.html` when `content/en` exists; `scripts/ci-selftest.sh`
+  builds an invented site with the real shortcodes (missing German picture, missing English picture, `content/en`
+  without `[languages.en]`, missing language switch).
+- **Tests:** `crates/baruch-server/tests/round39b_bilder.rs` reads files only (list fields for both languages,
+  `errorf` and partial in the shortcodes, `--lang` with both values and the English target in the tool).
+- **Open:** the English pictures themselves (integrator, `--fotos --lang en`); the built-in sample work of
+  `baruch-core` stays German in the English pictures `start-werkliste` and `installation-erster-start`.
+
 
 
 

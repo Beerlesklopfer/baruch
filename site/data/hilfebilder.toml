@@ -2,7 +2,9 @@
 # (site/themes/baruch/layouts/_shortcodes/hilfebild.html) bricht den Bau ab, wenn ein Name hier nicht steht.
 #
 # Dateien: site/static/bilder/hilfe/<name>.png, die dunkle Fassung daneben als <name>-dunkel.png.
-# Fehlt <name>.png, gibt der Shortcode nichts aus – die Seite baut auch ohne die Fotos.
+# Files since Round 39b: German pictures stay where they were; English pictures lie in site/static/bilder/en/hilfe/
+# (shortcode and partial bildpfad.html choose the folder by the language of the page). A missing light picture
+# stops the build in every language; the dark variant stays optional.
 #
 # Felder je [[bild]]:
 #   name    fester Name (Kleinbuchstaben, ASCII, Bindestriche). Niemand benennt um oder streicht; neue Namen trägt
@@ -46,6 +48,17 @@
 #              Anmeldung). „Konten einrichten“ gibt es nur in der Stufe „offen“, Befunde erst in der Stufe „konten“
 #              (finding.add ist den Lektoren vorbehalten).
 #
+# Fields for two languages (Round 39b, contract §2.5; additive only, every field above keeps name and meaning):
+#   sprachen      languages the picture is taken for, list of "de" and "en"; missing = both. The help pages of a
+#                 language use only pictures of that language.
+#   adresse_en    address for the English pictures (same placeholders as adresse); missing = adresse. Needed where
+#                 the address carries words of the sample work (search word, marked word).
+#   ausschnitt_en crop for the English pictures (same forms as ausschnitt); missing = ausschnitt.
+#   schritt_en    steps for the English pictures (same kinds as schritt, the whole list); missing = schritt.
+# For --lang en the tool fills the work with English invented data (site/tools/beispielwerk.en.typ) and translates
+# the texts of `erwartet` through its own table (EXPECTED_EN in site/tools/bildschirmfotos.py): a German text without
+# an English counterpart there is an error of --liste/--pruefen with --lang en.
+#
 # Regeln für Text und Bilder (Vertrag §4):
 # - Keine echten Namen, Werke oder Daten. Das Beispielwerk ist „Ein Jahr auf Mövenoog“ von Mara Tiedemann
 #   (erfunden); nichts aus fremden Werken oder Ordnern des Nutzers.
@@ -58,6 +71,7 @@
 #   Adressen für Stil, Schrift oder Bild.
 # - Ungeprüftes (macOS, Windows, echte Bibelmodule) bleibt als „nicht geprüft“ gekennzeichnet.
 # - Alle Bilder zusammen (site/static/bilder) bleiben unter 20 MB.
+#   Since Round 39b the limit holds per language: German = site/static/bilder without en/, English = bilder/en/.
 
 [[bild]]
 name = "start-werkliste"
@@ -519,6 +533,7 @@ name = "suchen-treffer"
 seite = ["suchen"]
 zeigt = "Suche im Werk mit Treffern (`/suche?work=WERK&q=…`)"
 adresse = "/suche?work={work}&q=Licht&range=work"
+adresse_en = "/suche?work={work}&q=light&range=work"
 erwartet = ["Was das Licht nicht zeigt"]
 
 [[bild]]
@@ -526,6 +541,7 @@ name = "suchen-ersetzen"
 seite = ["suchen"]
 zeigt = "Ersetzen mit Vorschau"
 adresse = "/suche?work={work}&q=Lampe&replacement=Leuchte&range=work&vorschau=1"
+adresse_en = "/suche?work={work}&q=lamp&replacement=lantern&range=work&vorschau=1"
 erwartet = ["Vorschau: „Lampe“ → „Leuchte“"]
 
 [[bild]]
@@ -554,6 +570,7 @@ name = "glossar-markierung"
 seite = ["suchen"]
 zeigt = "Formular an der Markierung (`/werke/WERK/markierung?key=KEY`)"
 adresse = "/werke/{work}/markierung?key={key}&wort=Laterne"
+adresse_en = "/werke/{work}/markierung?key={key}&wort=lantern"
 erwartet = ["Laterne"]
 
 [[bild]]

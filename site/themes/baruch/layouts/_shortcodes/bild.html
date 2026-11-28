@@ -1,15 +1,18 @@
 {{- /*
-  Bildschirmfoto aus static/bilder/ (Vorgabe 1400×860; andere Größe mit breite="…" hoehe="…").
-  Aufruf: {{< bild datei="arbeitsplatz.png" alt="…" titel="…" >}}
-  Fehlt die Datei, lässt der Shortcode das Bild samt Unterschrift aus – die Seite baut auch ohne die Fotos
-  warnungsfrei (die Fotos macht der Integrator, siehe site/tools/README.md).
+  Screenshot of the page "Funktionen" (default 1400x860; another size with breite="…" hoehe="…").
+  Call: {{< bild datei="arbeitsplatz.png" alt="…" titel="…" >}}
+  File per language via the partial bildpfad.html: German static/bilder/DATEI, every other language
+  static/bilder/<lang>/DATEI (Round 39b). The build stops for a missing datei, a missing alt text and a missing
+  picture in the language of the page (the photos are taken by the integrator, see site/tools/README.md).
 */ -}}
 {{- $datei := .Get "datei" -}}
-{{- if fileExists (printf "static/bilder/%s" $datei) -}}
+{{- if not $datei }}{{ errorf "bild without datei: %s" .Position }}{{ end -}}
+{{- if not (.Get "alt") }}{{ errorf "bild %q without alt text: %s" $datei .Position }}{{ end -}}
+{{- $pfad := partial "bildpfad.html" (dict "seite" .Page "datei" $datei) -}}
+{{- if not (fileExists (printf "static/%s" $pfad)) }}{{ errorf "bild %q: the picture static/%s is missing (language %s; site/tools/bildschirmfotos.py --fotos --lang %s takes it): %s" $datei $pfad .Page.Language.Lang .Page.Language.Lang .Position }}{{ end -}}
 <figure class="bild">
-  <img src="{{ printf "bilder/%s" $datei | relURL }}" alt="{{ .Get "alt" }}" width="{{ .Get "breite" | default 1400 }}" height="{{ .Get "hoehe" | default 860 }}" loading="lazy" decoding="async">
+  <img src="{{ $pfad | relURL }}" alt="{{ .Get "alt" }}" width="{{ .Get "breite" | default 1400 }}" height="{{ .Get "hoehe" | default 860 }}" loading="lazy" decoding="async">
   {{- with .Get "titel" }}
   <figcaption>{{ . }}</figcaption>
   {{- end }}
 </figure>
-{{- end -}}
