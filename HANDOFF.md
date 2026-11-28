@@ -5,6 +5,9 @@
 Arbeitsordner `~/Dokumente/Projekte/baruch`, Zweig `development`. Austausch über dieses Repo (Issues/Commits).
 
 ## Stand
+- **Round 39c PM close (2026-11-28):** review finding (doubled English wording-search note) fixed in `d9e0821`; two
+  low findings open (English "ways"/"paths" wording, picture `start-neues-werk`). Full run after `cargo clean -p`:
+  exit 0, 3800 passed, 0 failed, 2 ignored. Worktrees of the round removed, branches `team/r39c-*` kept. Nothing pushed.
 - **Round 39c "Developer documentation on the website, help gaps, rest of the interface literals" integrated**
   (2026-11-28, integrator, on `development`; S1 `77b4a9f`; branches `team/r39c-docs_site` `65fe698`, `-hilfe_luecken`
   `43158d0`, `-reste_1` `fb04117`, `-reste_2` `00772cb` merged with `--no-ff` in task order; one append conflict at

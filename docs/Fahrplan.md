@@ -114,10 +114,11 @@ gantt
     Review, follow-up and PM close of Round 39b   :done, r39bp, 2026-11-28 08:55, 45m
 
     Round 39c – developer docs, help gaps, rest of literals :done, r39c, 2026-11-28 11:38, 185m
+    Review, follow-up and PM close of Round 39c   :done, r39cp, 2026-11-28 14:43, 25m
 
     section Geplant (geschätzt)
     Durchsicht der Hilfe durch den Nutzer         :dh37, after r38p, 60m
-    Reste nach Runde 39c                          :rest37, after r39c, 60m
+    Reste nach Runde 39c                          :rest37, after r39cp, 60m
     Veröffentlichung 0.9.1 durch den Nutzer       :rel091, after rest37, 130m
 ```
 
@@ -175,6 +176,14 @@ gantt
 | SWORD | Eigener Zweig `team/sword` neben Runde 11: Crate `baruch-sword` (lokale SWORD-Module über `sword-modules`, CC0), Bibeln je Werk (Migration 0030), `bible.*` über RPC und MCP, `scripture_check` prüft den Wortlaut | `cb2f9a0` + Merge |
 
 ## Geplant (Reihenfolge aus `docs/Backlog.md`, Dauer geschätzt)
+
+**State 2026-11-28 (after the PM close of Round 39c):** Round 39c is closed. Review found one medium finding (English
+wording-search note doubled in `literature.rs`, fixed in `d9e0821`) and two low ones (English "Status of the ways" vs
+"Status of the paths" in `connections_msg.ftl`, picture `start-neues-werk` without the language select), both still
+open. PM close: full run after `cargo clean -p` of all 16 crates exit 0 (3800 passed, 0 failed, 2 ignored, 226
+results). About 25 minutes of review and close after the integration. Remaining estimate up to 0.9.1: rest round
+(wording "ways"/"paths", picture retake, store texts still German, `pdf_import/**`) ≈ 60, review of the help by the
+user ≈ 60 and release ≈ 130 (both work of the user) – about 250 minutes. Nothing pushed.
 
 **State 2026-11-28 (after the integration of Round 39c):** Round 39c is integrated: developer documentation on the
 website (`/en/docs/`), the help gaps closed in German and English, the listed server modules and the crate messages in

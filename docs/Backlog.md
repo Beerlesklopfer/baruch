@@ -4293,3 +4293,12 @@ tool or stub (`grep -rn "STUB:" crates` 5); one RPC change: optional `language` 
 - **Open – other:** `pdf_import/**` still German; pages of the website are published only with the next push to
   `main` (`pages.yml` unchanged); the layout of `/en/docs/` was checked by Hugo and `site-check.py` and by a look at
   the pictures of the integrator (see HANDOFF).
+
+### Round 39c – review and PM close (2026-11-28)
+
+- **Fixed:** `without_fts_note` in `literature.rs` now strips the English catalog sentence too, so the semantic-search
+  note is not doubled under an English interface (`d9e0821`, test `the_english_word_search_note_is_stripped_too`).
+- **Open (low):** English `connections_msg.ftl` lines 157 and 190 say "Status of the ways", the heading says "Status
+  of the paths" (`settings.connections.status_title`); align one of them. Picture `start-neues-werk` retake (see above).
+- **Result:** full run after `cargo clean -p` of all 16 crates exit 0, 3800 passed, 0 failed, 2 ignored (226 results);
+  `grep -rn "STUB:" crates` 5.
