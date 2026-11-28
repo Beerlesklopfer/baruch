@@ -456,3 +456,41 @@ async fn the_typeset_view_of_an_english_work_writes_and_shows_english_page_addit
     .unwrap();
     assert!(saved["body"].as_str().unwrap().contains(", S.~#context"), "German works keep S.: {saved}");
 }
+
+// ---- Work language versus interface language (Round 39b PM close) -------------------------------------------------
+
+/// The book outputs follow the work language only: the same work gives the same export, notes sheet, EPUB and typeset
+/// source under a German and an English interface. Tests above run outside a request scope, where the interface
+/// language is the default English, so "German work + English interface" is covered by the golden fixture; this test
+/// adds "English work + German interface" (review finding of Round 39b) and checks the German work the other way.
+#[tokio::test]
+async fn the_outputs_follow_the_work_language_and_not_the_interface_language() {
+    use baruch_server::i18n::{Lang, scope};
+    let server = common::open().await;
+    let english = english_work(&server).await;
+    let store = &server.state.store;
+    let german = store.import_typst(&source("Das Gartenhaus"), "gartenhaus.typ", "Erika").await.expect("import").work;
+    for (work, name) in [(english, "English work"), (german, "German work")] {
+        let under_de = scope(Lang::De, outputs(&server, work)).await;
+        let under_en = scope(Lang::En, outputs(&server, work)).await;
+        assert!(
+            under_de == under_en,
+            "{name}: export, notes sheet and EPUB must not depend on the interface language (only on the work \
+             language); first differing line {}",
+            under_de.lines().zip(under_en.lines()).position(|(a, b)| a != b).map_or(0, |i| i + 1)
+        );
+        let typeset_de = scope(Lang::De, framed_draft_source(&server, work)).await;
+        let typeset_en = scope(Lang::En, framed_draft_source(&server, work)).await;
+        assert!(
+            typeset_de == typeset_en,
+            "{name}: the typeset source of the book PDF (watermark, imprint, front matter) must not depend on the \
+             interface language"
+        );
+    }
+    let english_under_de = scope(Lang::De, outputs(&server, english)).await;
+    assert!(
+        english_under_de.contains("Chapter") && !english_under_de.contains("\"Kapitel \""),
+        "an English work under a German interface still gets English numbering words (guards against a test that \
+         compares two equally wrong outputs)"
+    );
+}

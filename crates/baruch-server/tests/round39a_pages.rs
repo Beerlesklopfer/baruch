@@ -70,7 +70,12 @@ const KNOWN_GERMAN: &[(&str, &str)] = &[
     ("(ü → ue)", "English sentence that shows the transcription of an umlaut"),
     // Labels from other crates: since Round 39b (rest_literals, integration) translated by the server (numbering.rs,
     // typeset.rs ui_labels, cover_layout.rs, findings/mod.rs, epub_preview.rs, epub_check.rs).
-    ("über EPUB", "reader warnings of baruch-epub check.rs (`reader_warnings`, crate messages with the profile name)"),
+    // Only the warning form "<profile name>: <message>" is excused; a bare German reader name (Kindle profiles) on an
+    // English page is still found (epub_preview::reader_name must translate it; review finding of Round 39b).
+    (
+        "über EPUB): ",
+        "reader warnings of baruch-epub check.rs (`reader_warnings`, crate messages with the profile name)",
+    ),
     // Server modules left open by messages_2 / excluded by messages_1 (reports R39a).
     ("Kein Einbettungsmodell angebunden", "src/rag/**: not converted (messages_2 open)"),
     ("Für dieses Werk nicht gewählt", "src/rag/mod.rs: not converted (messages_2 open)"),

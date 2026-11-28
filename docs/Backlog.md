@@ -131,7 +131,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R38b | **Closed 2026-11-28** (≈ 250 min from `174c996` to the integration `36a9e2d`, of which 111 for the contract; review with two low findings, no follow-up; PM close exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt); eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
 | R38c | **Integrated 2026-11-28** (≈ 115 min from `0dc0e09` to the integration commit; S1 `4136ba2`; six developers in two waves, three of them reported before their test runs had finished, so the integrator committed their finished working trees; full run exit 0, 3597 passed, 0 failed, 2 ignored, 218 results "ok"; details under "Round 38c – integrated"). Plan as it was: Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models; the low review findings of Round 38 | skills_plan · mcp_austausch_wysiwyg · rpc_doku · architektur_1 · architektur_2 · modell_texte (two waves) | 120 |
 | R39a | **Closed 2026-11-28** (≈ 245 min from `8e9823b` with review, follow-up `b7ef2be` and PM close; integration `a543263`; PM close exit 0, 3674 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1682, pgvector tests ran; S1 `3828d0c`, six developers in two waves: templates_1/2/3, widgets, messages_1/2; merged with `--no-ff`, conflicts only in `tests/main.rs`, the allow list and one test helper; integrator added the page walk `round39a_pages`; details under "Round 39a – integrated"). User interface English (base) and German: Fluent catalogs, `t()` in templates, widgets and server messages, language switch without JavaScript, store messages via `store_text.rs` | templates_1 · templates_2 · templates_3 · widgets · messages_1 · messages_2 | 180 |
-| R39b | **Integrated 2026-11-28** (from S1 `5c5a821`; five developers in two waves; book outputs in the work language, website and help in English with English pictures, rest of the literals; details in "Round 39b – integrated") | ausgaben · hilfe_en_1 · hilfe_en_2 · fotos_tool · rest_literals | 240 |
+| R39b | **Closed 2026-11-28** (≈ 195 min from `965b45f` with review, follow-up `6880d80` and PM close; S1 `5c5a821`, integration `bc055d8`; PM close exit 0, 3759 passed, 0 failed, 2 ignored, 225 results "ok", server bundle 1718, pgvector tests ran; five developers in two waves; book outputs in the work language, website and help in English with English pictures, rest of the literals; details in "Round 39b – integrated" and "Round 39b – review, follow-up and PM close") | ausgaben · hilfe_en_1 · hilfe_en_2 · fotos_tool · rest_literals | 240 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1826,7 +1826,7 @@ method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
 
 - **Delivered:** book outputs in the work language with one book catalog in `baruch-core` (EPUB, Typst/PDF
   numbering words, back matter, imprint, cover/front matter, notes sheet, DOCX, draft watermark, read-back words;
-  German byte-equal against golden fixtures); the website in English (`site/content/en/`, 26 pages, language switch,
+  German byte-equal against golden fixtures); the website in English (`site/content/en/`, 22 pages like the German site, language switch,
   `hreflang`), English screenshots under `site/static/bilder/en/` taken by the integrator; `bildschirmfotos.py
   --lang`; other-crate labels translated in the server; language form on sign-in and setup pages, `back` field in
   the menu form; help link per interface language; "Revisions" in the English settings.
@@ -1834,7 +1834,7 @@ method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
   `typeset::draft_rule_for_in` (book PDF, cover PDF, typesetting preview), `cover::frame` → `frame_parts_in`, cover
   sources → `wrap_source_with_rules_in`/`front_source_with_rules_in` with `cover::cover_settings` (English language
   rule), `assist::run` → `websearch::verify::check_in`, `epub_check.rs` reader names → `epub_preview::reader_name`
-  (last `KNOWN_GERMAN` entry "über EPUB" removed), English `export.epub_preview.kindle_html` aligned (exception in
+  (the `KNOWN_GERMAN` entry "über EPUB" stays for the reader warnings of `baruch-epub`; narrowed in the PM close), English `export.epub_preview.kindle_html` aligned (exception in
   `round39b_literals` removed); completeness check in `round39b_hilfe_en.rs`; stale allow entry `<kSchlüssel>`
   removed; tests for the wiring in `round39b_ausgaben.rs`.
 - **Contract wording to fix in later contracts:** the server integration test target is `--test server` (not
@@ -1864,6 +1864,31 @@ method, MCP tool or stub added (`grep -rn "STUB:" crates` 5).
   print German words on English pages; `scripts/site-check.py` checks the "no github.com link in the help" rule
   only for `hilfe/`, not for `en/hilfe/`. External link in English `impressum.md` points to the English GitHub
   privacy statement (`docs.github.com/en/…`), a deliberate deviation of hilfe_en_1.
+
+### Round 39b – review, follow-up and PM close (2026-11-28)
+
+The review after the integration reported five findings. Follow-up `6880d80` and the PM close dealt with all of them:
+
+- **Fixed (medium, follow-up):** cross references with a page number written by the typeset view got the German
+  `, S.~` in English works, and an English `, p.~` suffix was read as link text. `baruch-wysiwyg` now has
+  `emit_in`/`serialize_in`/`render_html_in`/`diff_html_in`/`hunk_html_in` with the work language; `parse` reads the
+  suffix of every work language; RPC `wysiwyg.parse`/`serialize`/`diff` pass `store.work_language`. Tests in
+  `crates/baruch-wysiwyg/tests/xref.rs` and `round39b_ausgaben`.
+- **Fixed (low, PM close):** this file said the `KNOWN_GERMAN` entry "über EPUB" was removed; it stays (reader
+  warnings of `baruch-epub`). The text above is corrected.
+- **Fixed (low, PM close):** the entry "über EPUB" excused every English page piece with that substring, so a bare
+  German reader name would have gone unseen. It now reads "über EPUB): " and only excuses the warning form
+  `<profile name>: <message>` (`tests/round39a_pages.rs`).
+- **Fixed (low, PM close):** only "German work + English interface" was tested (outputs run outside a request
+  scope, default English). New test `round39b_ausgaben::the_outputs_follow_the_work_language_and_not_the_interface_language`
+  builds export, notes sheet, EPUB and the typeset source of an English and a German work under both interface
+  languages and requires equal output.
+- **Fixed (low, PM close):** HANDOFF and this file said "26 pages" for the English website; `site/content/en` has 22
+  Markdown files, one per German page.
+- **Still open from the follow-up:** tooltip texts in `baruch-wysiwyg/src/html.rs` („Querverweis auf …“) are German
+  interface text; on Lektor pages the work language falls back to German when the work is missing from the shelf.
+- **Worktrees** `.claude/worktrees/wf_b51eb61c-fd2-{40..44}` were removed with their `target/` (all five branches
+  merged, no open changes); the branches `team/r39b-*` stay.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
