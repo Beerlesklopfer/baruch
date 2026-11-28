@@ -182,3 +182,14 @@ findings.panel.apply_solutions = Apply solutions
 findings.panel.none_open = No open findings in this section.
 findings.panel.decided = { $count } decided (adopted, rejected, moved, done)
 findings.panel.praise = { $count } praise (hidden)
+
+# Round 39b (rest_literals): status and kind of a finding (baruch-store FindingStatus/FindingKind::label),
+# translated by the server (findings/mod.rs); German verbatim as the store and the mirror write them.
+findings.status_label.open = open
+findings.status_label.adopted = adopted
+findings.status_label.rejected = rejected
+findings.status_label.deferred = deferred
+findings.status_label.done = done without a change
+findings.kind_label.praise = praise
+findings.kind_label.hint = hint
+findings.kind_label.critical = critical

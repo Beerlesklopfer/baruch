@@ -1,69 +1,15 @@
-# Round 39a (interface R39a-S1): German text in templates and widgets that the literal finder of
-# crates/baruch-server/tests/round39a_i18n.rs still sees and that is not translated yet.
+# Literals of templates and widgets that the literal finder of crates/baruch-server/tests/round39a_i18n.rs sees
+# but that are not interface text (Round 39a; cleaned up in Round 39b by rest_literals: every real text goes
+# through t(), what is left is an identifier, a form or query value, a route path, a handle or a character set).
 # Format: <repo-relative path><TAB><normalised literal>; blank lines and lines starting with # are skipped.
-# Each task removes the lines of its own files when it translates them (goal: none left); a line for a proper name
-# or a quotation stays only with a "# reason" comment above it. A line the finder no longer sees fails the test.
+# Every entry stands under a "# reason:" comment (checked by tests/round39b_literals.rs). A line the finder no
+# longer sees fails the test of round39a_i18n.rs.
 
-# templates_1: tab id of the ribbon (data-band-tab, data-band-panel), not shown text
-crates/baruch-server/templates/base.html	ansicht
-# templates_1: element id of the ribbon (aria-labelledby), not shown text
-crates/baruch-server/templates/base.html	band-panel-ansicht
-# templates_1: element id of the ribbon (aria-labelledby), not shown text
-crates/baruch-server/templates/base.html	band-panel-buch
-# templates_1: element id of the ribbon (aria-labelledby), not shown text
-crates/baruch-server/templates/base.html	band-tab-ansicht
-# templates_1: element id of the ribbon (aria-labelledby), not shown text
-crates/baruch-server/templates/base.html	band-tab-buch
-# templates_1: tab id of the ribbon (data-band-tab, data-band-panel), not shown text
-crates/baruch-server/templates/base.html	buch
-crates/baruch-server/templates/befunde.html	nur-autor
-crates/baruch-server/templates/cover.html	/werke/ /umschlag#anordnung
-# templates_1: data-name of the handle @alle (mention completion), not shown text
-crates/baruch-server/templates/fragments/assistants.html	alle
-crates/baruch-server/templates/fragments/findings_panel.html	befunde
-# templates_1: data-section identifier and accordion value, not shown text
-crates/baruch-server/templates/fragments/lektor_assistants.html	befunde
-# templates_1: form value of the numbering (vorlage|keine), not shown text
-crates/baruch-server/templates/fragments/tree.html	keine
-# templates_1: data-settings-page identifier, not shown text
-crates/baruch-server/templates/fragments/tree.html	werk
-# templates_1: band_tab block value (tab id), not shown text
-crates/baruch-server/templates/glossary.html	buch
-# templates_1: aria-labelledby element id, not shown text
-crates/baruch-server/templates/glossary.html	neu-titel
-# templates_1: aria-labelledby element id, not shown text
-crates/baruch-server/templates/index_page.html	abschnitt-titel
-# templates_1: band_tab block value (tab id), not shown text
-crates/baruch-server/templates/index_page.html	buch
-# templates_1: form origin value of the outline actions, not shown text
-crates/baruch-server/templates/outline_edit.html	gliederung
-crates/baruch-server/templates/settings/quellen.html	quellen
-crates/baruch-server/templates/settings/werk.html	aus
-crates/baruch-server/templates/settings/werk.html	werk
-crates/baruch-server/templates/sync.html	aus
-crates/baruch-server/templates/work_numbering.html	/einstellungen/werk /werke/ /nummerierung
-crates/baruch-server/web/src/context_menu.ts	/werke/ /glossar#begriff-
-crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?
-crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?t=
-crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag?ok=anordnung#anordnung
-crates/baruch-server/web/src/literature.ts	/quelle?title= & &highlight=
-crates/baruch-server/web/src/mention.ts	@alle
-crates/baruch-server/web/src/menu.ts	nur-autor
-crates/baruch-server/web/src/outline.ts	keine
-crates/baruch-server/web/src/persona_tabs.ts	/einstellungen/assistenten
-crates/baruch-server/web/src/quote_find.ts	“”\"«»‘’‹›'
-crates/baruch-server/web/src/quote_find.ts	„“\"»«‚‘‹›'
-crates/baruch-server/web/src/rpc.ts	alle
-crates/baruch-server/web/src/rpc.ts	fassungen
-crates/baruch-server/web/src/settings.ts	/einstellungen
-crates/baruch-server/web/src/settings.ts	/einstellungen/
-crates/baruch-server/web/src/sheet.ts	werk
-crates/baruch-server/web/src/threads.ts	#beitrag-
-# templates_2: identifiers that are not shown text. The ribbon tab name `{% block band_tab %}buch{% endblock %}`
-# (the finder reads the bare word „buch“, on typeset.html together with the „·“ of the page title), the CSS class
-# " nur-autor" handed to a macro, the accordion id data-section="befunde" and formaction addresses below /werke/.
+# reason: name of a ribbon tab (block band_tab, data-band-tab/data-band-panel), not shown text
 crates/baruch-server/templates/asset.html	buch
 crates/baruch-server/templates/assets.html	buch
+crates/baruch-server/templates/base.html	ansicht
+crates/baruch-server/templates/base.html	buch
 crates/baruch-server/templates/cover.html	buch
 crates/baruch-server/templates/docx_export.html	buch
 crates/baruch-server/templates/epub_check.html	buch
@@ -72,19 +18,72 @@ crates/baruch-server/templates/exchange.html	buch
 crates/baruch-server/templates/exchange_done.html	buch
 crates/baruch-server/templates/exchange_import.html	buch
 crates/baruch-server/templates/exchange_preview.html	buch
+crates/baruch-server/templates/glossary.html	buch
+crates/baruch-server/templates/index_page.html	buch
+crates/baruch-server/templates/mitwirkende.html	buch
+crates/baruch-server/templates/settings.html	· ansicht
+crates/baruch-server/templates/typeset.html	· buch
 crates/baruch-server/templates/work_edit.html	buch
 crates/baruch-server/templates/work_numbering.html	buch
-crates/baruch-server/templates/typeset.html	· buch
-# reason: name of the ribbon tab (block band_tab), not shown text
-crates/baruch-server/templates/mitwirkende.html	buch
-# reason: name of the ribbon tab (block band_tab) next to the title separator, not shown text
-crates/baruch-server/templates/settings.html	· ansicht
-# reason: page id in data-settings-page-body, not shown text
+
+# reason: element id of the ribbon (aria-labelledby, aria-controls), not shown text
+crates/baruch-server/templates/base.html	band-panel-ansicht
+crates/baruch-server/templates/base.html	band-panel-buch
+crates/baruch-server/templates/base.html	band-tab-ansicht
+crates/baruch-server/templates/base.html	band-tab-buch
+
+# reason: CSS class that hides author-only controls from Lektors, not shown text
+crates/baruch-server/templates/befunde.html	nur-autor
+crates/baruch-server/web/src/menu.ts	nur-autor
+
+# reason: route path or anchor of the server (German URL), not shown text
+crates/baruch-server/templates/cover.html	/werke/ /umschlag#anordnung
+crates/baruch-server/templates/work_numbering.html	/einstellungen/werk /werke/ /nummerierung
+crates/baruch-server/web/src/context_menu.ts	/werke/ /glossar#begriff-
+crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?
+crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag.svg?t=
+crates/baruch-server/web/src/cover_editor.ts	/werke/ /umschlag?ok=anordnung#anordnung
+crates/baruch-server/web/src/literature.ts	/quelle?title= & &highlight=
+crates/baruch-server/web/src/persona_tabs.ts	/einstellungen/assistenten
+crates/baruch-server/web/src/settings.ts	/einstellungen
+crates/baruch-server/web/src/settings.ts	/einstellungen/
+crates/baruch-server/web/src/threads.ts	#beitrag-
+
+# reason: the persona handle @alle (a name the user types in the chat), not shown text
+crates/baruch-server/templates/fragments/assistants.html	alle
+crates/baruch-server/web/src/mention.ts	@alle
+
+# reason: accordion section id (data-section) and its cookie value, not shown text
+crates/baruch-server/templates/fragments/findings_panel.html	befunde
+crates/baruch-server/templates/fragments/lektor_assistants.html	befunde
+
+# reason: form value of the numbering choice (vorlage|keine) the server reads, not shown text
+crates/baruch-server/templates/fragments/tree.html	keine
+crates/baruch-server/web/src/outline.ts	keine
+
+# reason: settings page id (data-settings-page-body, query value), not shown text
+crates/baruch-server/templates/fragments/tree.html	werk
+crates/baruch-server/templates/settings/quellen.html	quellen
+crates/baruch-server/templates/settings/werk.html	werk
+crates/baruch-server/web/src/sheet.ts	werk
+
+# reason: element id referenced by aria-labelledby, not shown text
+crates/baruch-server/templates/glossary.html	neu-titel
+crates/baruch-server/templates/index_page.html	abschnitt-titel
+
+# reason: form value naming the origin of an outline action, not shown text
+crates/baruch-server/templates/outline_edit.html	gliederung
+
 # reason: state value of data-sync-upload, not shown text
-# reason: page id in data-settings-page-body, not shown text
-# reason: state value of data-sync-upload, not shown text
-# reason (widgets): route paths and anchors of the server (German URLs), not shown text
-# reason (widgets): the persona handle @alle, a name the user types in the chat
-# reason (widgets): CSS class of the server pages, not shown text
-# reason (widgets): form and query values the server reads (outline numbering, revision filter, settings page), not shown text
-# reason (widgets): the quotation marks the quotation finder recognises (a character set), not shown text
+crates/baruch-server/templates/settings/werk.html	aus
+crates/baruch-server/templates/sync.html	aus
+
+# reason: the quotation marks the quotation finder recognises (a character set), not shown text
+crates/baruch-server/web/src/quote_find.ts	“”\"«»‘’‹›'
+crates/baruch-server/web/src/quote_find.ts	„“\"»«‚‘‹›'
+
+# reason: query value of the revision filter (fassungen=alle) the server reads, not shown text
+crates/baruch-server/web/src/rpc.ts	alle
+
+# reason: query parameter of the revision filter the server reads, not shown text
+crates/baruch-server/web/src/rpc.ts	fassungen

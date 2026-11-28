@@ -162,7 +162,7 @@
 
   <section class="outline-numbering card">
     <h2 class="pane-title">{{ t('outline.page.numbering') }}</h2>
-    <p class="small">{{ t('outline.page.now') }} <strong>{{ numbering.scheme_label }}</strong>
+    <p class="small">{{ t('outline.page.now') }} <strong>{{ numbering.scheme_label|scheme_ui }}</strong>
       {%- if numbering.scheme in ["template", "custom"] %} – {% if numbering.effective %}{{ t('outline.page.pattern_effective', effective=numbering.effective) }}{% else %}{{ t('outline.page.no_numbers') }}{% endif %}{% endif %}
       {%- if numbering.scheme == "template" and numbering.template is none %} {{ t('outline.page.template_none') }}{% endif %}{{ t('outline.page.numbering_rule') }}
       <a href="/werke/{{ work.id }}/nummerierung">{{ t('outline.page.choose_scheme') }}</a></p>

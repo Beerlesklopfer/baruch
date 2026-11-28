@@ -12,10 +12,15 @@ use serde_json::json;
 use crate::common;
 use crate::round35_rollen::{get_as, stage};
 
-/// The entry, verbatim according to contract §7.
+/// The entry, verbatim according to contract §7 (German interface; the harness pins German).
 const ENTRY: &str = "<a class=\"menu-item\" role=\"menuitem\" href=\"https://baruch.bernau.family/hilfe/\" \
                      target=\"_blank\" rel=\"noopener noreferrer\" title=\"Hilfe mit Bildern auf der Webseite von \
                      Baruch (öffnet ein neues Fenster, braucht das Internet)\">Hilfe</a>";
+
+/// The same entry in the English interface (Round 39b): English pages of the help (`about::HELP_URL_EN`).
+const ENTRY_EN: &str = "<a class=\"menu-item\" role=\"menuitem\" href=\"https://baruch.bernau.family/en/hilfe/\" \
+                        target=\"_blank\" rel=\"noopener noreferrer\" title=\"Help with pictures on the Baruch \
+                        website (opens a new window, needs the internet)\">Help</a>";
 
 /// The entry „Über Baruch“, before which the help stands.
 const ABOUT_ENTRY: &str = "<a class=\"menu-item\" role=\"menuitem\" href=\"/ueber\"";
@@ -266,6 +271,28 @@ async fn the_about_page_names_the_help_with_its_address() {
         main[homepage..data].contains("braucht das Internet"),
         "auch hier der ehrliche Hinweis: die Hilfe liegt auf der Webseite, nicht im Programm"
     );
+}
+
+#[tokio::test]
+async fn the_help_link_follows_the_interface_language() {
+    let server = common::open().await;
+    let get = |uri: &str| axum::http::Request::get(uri).body(axum::body::Body::empty()).unwrap();
+    let (status, _, english) = server.send(common::with_lang(get("/ueber"), "en")).await;
+    assert_eq!(status, StatusCode::OK, "/ueber comes in English");
+    assert_eq!(
+        baruch_menu(&english).matches(ENTRY_EN).count(),
+        1,
+        "the English menu links the English help pages (about::help_url, contract R39b §2.3)"
+    );
+    assert!(
+        !baruch_menu(&english).contains(&format!("href=\"{}\"", about::HELP_URL)),
+        "the English menu does not send English readers to the German help"
+    );
+    let english = english.replace("&#x2f;", "/");
+    let link = format!("<a href=\"{0}\" rel=\"noopener noreferrer\" data-about-help>{0}</a>", about::HELP_URL_EN);
+    assert_eq!(english.matches(&link).count(), 1, "the English about page names the English help once");
+    let (_, _, german) = server.send(common::with_lang(get("/ueber"), "de")).await;
+    assert_eq!(baruch_menu(&german).matches(ENTRY).count(), 1, "the German menu keeps the German help (/hilfe/)");
 }
 
 #[test]

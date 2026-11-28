@@ -13,6 +13,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use super::DRAFT_DIR;
+use crate::i18n::tc;
 
 /// At most this many drafts exist at the same time.
 pub const MAX_DRAFTS: usize = 20;
@@ -104,11 +105,15 @@ pub fn clean(data: &Path) -> usize {
 
 /// Write a new draft with its file. Blocks.
 pub fn save(data: &Path, draft: &Draft, bytes: &[u8]) -> Result<(), String> {
-    let dir = folder(data, &draft.id).ok_or("ungültiger Entwurf")?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Entwurf lässt sich nicht anlegen: {e}"))?;
-    std::fs::write(dir.join(SOURCE_FILE), bytes).map_err(|e| format!("Entwurf lässt sich nicht schreiben: {e}"))?;
-    let text = serde_json::to_vec(draft).map_err(|e| format!("Entwurf: {e}"))?;
-    std::fs::write(dir.join(DRAFT_FILE), text).map_err(|e| format!("Entwurf lässt sich nicht schreiben: {e}"))
+    let dir = folder(data, &draft.id).ok_or_else(|| tc("import_msg.docx_draft.invalid", &[]))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| tc("import_msg.docx_draft.create", &[("error", e.to_string().into())]))?;
+    std::fs::write(dir.join(SOURCE_FILE), bytes)
+        .map_err(|e| tc("import_msg.docx_draft.write", &[("error", e.to_string().into())]))?;
+    let text = serde_json::to_vec(draft)
+        .map_err(|e| tc("import_msg.docx_draft.encode", &[("error", e.to_string().into())]))?;
+    std::fs::write(dir.join(DRAFT_FILE), text)
+        .map_err(|e| tc("import_msg.docx_draft.write", &[("error", e.to_string().into())]))
 }
 
 /// Error when loading a draft.
@@ -123,7 +128,8 @@ pub enum LoadError {
 pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
     let dir = folder(data, id).ok_or(LoadError::Unknown)?;
     let text = std::fs::read_to_string(dir.join(DRAFT_FILE)).map_err(|_| LoadError::Unknown)?;
-    let draft: Draft = serde_json::from_str(&text).map_err(|e| LoadError::Broken(format!("Entwurf unlesbar: {e}")))?;
+    let draft: Draft = serde_json::from_str(&text)
+        .map_err(|e| LoadError::Broken(tc("import_msg.docx_draft.unreadable", &[("error", e.to_string().into())])))?;
     if draft.created < now().saturating_sub(MAX_AGE.as_secs()) {
         return Err(LoadError::Unknown);
     }
@@ -132,8 +138,9 @@ pub fn load(data: &Path, id: &str) -> Result<Draft, LoadError> {
 
 /// The Word file of a draft. Blocks.
 pub fn load_source(data: &Path, id: &str) -> Result<Vec<u8>, String> {
-    let dir = folder(data, id).ok_or("ungültiger Entwurf")?;
-    std::fs::read(dir.join(SOURCE_FILE)).map_err(|e| format!("Datei des Entwurfs fehlt: {e}"))
+    let dir = folder(data, id).ok_or_else(|| tc("import_msg.docx_draft.invalid", &[]))?;
+    std::fs::read(dir.join(SOURCE_FILE))
+        .map_err(|e| tc("import_msg.docx_draft.source_missing", &[("error", e.to_string().into())]))
 }
 
 /// Delete a draft; `true` if it existed. Blocks.

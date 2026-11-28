@@ -6669,3 +6669,49 @@ Written by the task named in the heading (Round 39b).
 ### Rest of the interface literals (rest_literals)
 
 Written by the task named in the heading (Round 39b).
+
+**Labels of other crates, translated by the server.** `baruch-typst`, `baruch-store` and `baruch-epub` keep their
+German labels (the mirror quotes them in commit texts, older tests compare against them, the contract forbids edits
+there). The server maps each identifier to a catalog key with an exhaustive `match` that names the key as a literal
+(so the orphan check of `round39a_i18n` sees it) and translates with `i18n::t`/`tc`:
+
+- outline schemes: `numbering::scheme_label`/`scheme_example` (keys `outline.scheme.*`), the missing own pattern
+  `numbering::scheme_message`; the German texts of `NumberingInfo` (`scheme_label`, `label`) pass the template
+  filter `scheme_ui` (`i18n::install` → `numbering::scheme_text`), which translates a known name, example or „keine“
+  and leaves a pattern such as `I|1` alone. Other refusals of the pattern language stay German (open);
+- typesetting settings: `typeset::ui_labels::field_label`/`choice_label` (keys `settings.typeset.field.*`,
+  `settings.typeset.choice.<list>.<id>`), used by the settings block, `work.typeset_preview` and the hints of the
+  typeset page; the default watermark of the form is `book_t(work language, "book.draft.watermark")`
+  (`BlockInput::language`), not the interface language;
+- cover: `cover_layout::face_label_in`, `block_name_in`, `kind_label_in` (keys `cover.face.*`, `cover.block.*`);
+  `cover_layout::block_line` (list of requests) is German verbatim for German and built from `cover.block_line.*`
+  with `i18n::number` for English, while the commit texts keep `kind_label`/`fields`; on the cover page the facts
+  (sheets, millimetres) go through `i18n::number` (`cover::ui_decimal`, `format_mm`: „12,5“ / „12.5“), the
+  diagnostics labels through `cover.page.diagnostic_*`;
+- findings: `findings::status_label`, `kind_label` (keys `findings.status_label.*`, `findings.kind_label.*`) on the
+  page, the panel, the matrix and in `finding_json` (RPC in the request language, MCP English; outside a request,
+  `i18n::request_lang` is `None`, the store wording stays German);
+- EPUB reader profiles: new area file `readers.ftl` (name, device, note of the nine profiles),
+  `epub_preview::reader_name`/`reader_device`/`reader_note`; `src/epub_check.rs` (not owned) still shows the crate
+  names on the EPUB check page;
+- model connections: `models::locality` stays the code `lokal|extern` (RPC, `data-locality`), the pages show
+  the words `settings.models.locality_*` (`models::locality_label` for the assistants page; RPC keeps only the
+  code); `models::kind_title` is translated (RPC in the request language, like every text since Round 39a).
+
+A unit test per group pins that the German catalog value equals the crate label, so German pages keep their
+wording; `tests/round39a_pages.rs` lost the matching `KNOWN_GERMAN` entries.
+
+**Language switch.** `i18n::layer` keeps the path of a GET request with only the place parameters
+(`i18n::BACK_PARAMS`: `work`, `key`, `rev`, `tab`, `seite`, plain values; never a search text, target or message
+code from the address) in a task-local (`i18n::page_path`, template function `page_path()`); the menu form of `base.html` sends it as `back`, so the switch no longer depends on
+the Referer (finding of Round 39a). `anmelden.html` (back = `/anmelden?next=` with the target that passed
+`safe_next`, never the raw address) and `einrichten.html` (only with the setup form; the 403 page stays without a
+form) carry the same plain form.
+
+**Help link.** `about::HELP_URL_EN` and `about::help_url(lang)`; the template function `help_url()` gives the menu
+entry „Help“ the help in the interface language, the about page uses it as `help`.
+
+**Allow list.** `scripts/i18n-literal-allow.txt` keeps only identifiers (ribbon tab names and ids, CSS classes,
+section and page ids, form and query values, route paths, the handle `@alle`, the quotation characters of the
+finder), each group under a `# reason:` comment (`tests/round39b_literals.rs`). Catalog completeness per area and
+the English catalog without German (except listed exceptions) are checked there as well.

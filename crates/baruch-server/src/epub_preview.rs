@@ -239,7 +239,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             };
             let readers: Vec<Value> = readers
                 .iter()
-                .map(|r| json!({ "slug": r.slug, "name": r.name, "url": leser_url(work, r.slug, &file, p.footnotes, false) }))
+                .map(|r| json!({ "slug": r.slug, "name": reader_name(r), "url": leser_url(work, r.slug, &file, p.footnotes, false) }))
                 .collect();
             Ok(json!({
                 "readers": readers,
@@ -368,16 +368,55 @@ async fn reader_page(
         .into_response()
 }
 
+// ---- Profile texts in the interface language (Round 39b) ------------------------------------------------------
+
+/// Catalog keys (name, device, note) of a profile; `baruch-epub` keeps its German texts, the server translates.
+fn profile_keys(slug: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    Some(match slug {
+        "apple-books-iphone" => {
+            ("readers.apple_books_iphone.name", "readers.apple_books_iphone.device", "readers.apple_books_iphone.note")
+        }
+        "apple-books-ipad" => {
+            ("readers.apple_books_ipad.name", "readers.apple_books_ipad.device", "readers.apple_books_ipad.note")
+        }
+        "google-play-books" => {
+            ("readers.google_play_books.name", "readers.google_play_books.device", "readers.google_play_books.note")
+        }
+        "kindle" => ("readers.kindle.name", "readers.kindle.device", "readers.kindle.note"),
+        "kindle-app" => ("readers.kindle_app.name", "readers.kindle_app.device", "readers.kindle_app.note"),
+        "tolino" => ("readers.tolino.name", "readers.tolino.device", "readers.tolino.note"),
+        "kobo" => ("readers.kobo.name", "readers.kobo.device", "readers.kobo.note"),
+        "thorium" => ("readers.thorium.name", "readers.thorium.device", "readers.thorium.note"),
+        "calibre" => ("readers.calibre.name", "readers.calibre.device", "readers.calibre.note"),
+        _ => return None,
+    })
+}
+
+/// Name of a reader profile in the language of the request (German verbatim [`ReaderProfile::name`]).
+pub fn reader_name(reader: &ReaderProfile) -> String {
+    profile_keys(reader.slug).map_or_else(|| reader.name.to_owned(), |(key, _, _)| tc(key, &[]))
+}
+
+/// Device of a reader profile in the language of the request.
+pub fn reader_device(reader: &ReaderProfile) -> String {
+    profile_keys(reader.slug).map_or_else(|| reader.device.to_owned(), |(_, key, _)| tc(key, &[]))
+}
+
+/// Note of a reader profile in the language of the request.
+pub fn reader_note(reader: &ReaderProfile) -> String {
+    profile_keys(reader.slug).map_or_else(|| reader.note.to_owned(), |(_, _, key)| tc(key, &[]))
+}
+
 /// A profile on the preview page.
 #[derive(serde::Serialize)]
 struct FrameView {
     slug: &'static str,
-    name: &'static str,
-    device: &'static str,
+    name: String,
+    device: String,
     width: u32,
     height: u32,
     via_conversion: bool,
-    note: &'static str,
+    note: String,
     night: bool,
     src: JinjaValue,
     open: JinjaValue,
@@ -434,7 +473,7 @@ struct FileView {
 #[derive(serde::Serialize)]
 struct ChoiceView {
     slug: &'static str,
-    name: &'static str,
+    name: String,
     required: bool,
     checked: bool,
 }
@@ -561,12 +600,12 @@ async fn preview_page(
                 let src = leser_url(id, r.slug, file, footnotes, q.night);
                 FrameView {
                     slug: r.slug,
-                    name: r.name,
-                    device: r.device,
+                    name: reader_name(r),
+                    device: reader_device(r),
                     width: r.width_px,
                     height: r.height_px,
                     via_conversion: r.via_conversion,
-                    note: r.note,
+                    note: reader_note(r),
                     night: q.night && r.supports.night_mode,
                     src: crate::typeset::href(src.clone()),
                     open: crate::typeset::href(src),
@@ -580,7 +619,7 @@ async fn preview_page(
         .iter()
         .map(|p| ChoiceView {
             slug: p.slug,
-            name: p.name,
+            name: reader_name(p),
             required: p.required,
             checked: readers.iter().any(|r| r.slug == p.slug),
         })
@@ -621,6 +660,27 @@ async fn preview_page(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reader_texts_are_translated_and_german_stays_verbatim() {
+        for reader in PROFILES {
+            assert!(profile_keys(reader.slug).is_some(), "{}: every profile has catalog keys", reader.slug);
+            crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+                assert_eq!(reader_name(reader), reader.name, "German name verbatim as baruch-epub writes it");
+                assert_eq!(reader_device(reader), reader.device, "German device verbatim");
+                assert_eq!(reader_note(reader), reader.note, "German note verbatim");
+            });
+            crate::i18n::sync_scope(crate::i18n::Lang::En, || {
+                for text in [reader_name(reader), reader_device(reader), reader_note(reader)] {
+                    assert!(
+                        !text.contains(['ä', 'ö', 'ü', 'ß', '„']) && !text.starts_with("readers."),
+                        "{}: the English text is English and not a raw key: {text}",
+                        reader.slug
+                    );
+                }
+            });
+        }
+    }
 
     #[test]
     fn only_harmless_relative_paths_are_served() {

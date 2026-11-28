@@ -136,10 +136,10 @@
         <input type="hidden" name="handle" value="{{ p.handle }}">
         {%- if work %}<input type="hidden" name="work" value="{{ work }}">{% endif %}
         <fieldset>
-          <legend class="small">{{ t("settings.assistants.backend") }} <span class="badge{% if p.backend.external %} warning{% endif %}" data-locality-badge>{{ p.backend.locality }}</span></legend>
+          <legend class="small">{{ t("settings.assistants.backend") }} <span class="badge{% if p.backend.external %} warning{% endif %}" data-locality-badge>{{ p.backend.locality_label }}</span></legend>
           <label class="small">{{ t("settings.assistants.connection") }}
             <select name="connection">
-              {%- for c in p.backend.connections %}<option value="{{ c.id }}"{% if c.selected %} selected{% endif %}>{{ c.name }} ({{ c.kind }}, {{ c.locality }})</option>{% endfor %}
+              {%- for c in p.backend.connections %}<option value="{{ c.id }}"{% if c.selected %} selected{% endif %}>{{ c.name }} ({{ c.kind }}, {{ c.locality_label }})</option>{% endfor %}
             </select></label>
           <label class="check small"><input type="checkbox" name="external_allowed" value="1"{% if p.backend.external_allowed %} checked{% endif %}> {{ t("settings.assistants.external_allowed", handle=p.handle) }}</label>
           <button class="btn" type="submit">{{ t("settings.assistants.apply") }}</button>

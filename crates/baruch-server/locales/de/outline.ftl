@@ -134,3 +134,34 @@ outline.retry.your_text = Ihr Text (noch nicht gespeichert)
 outline.retry.again = Erneut speichern
 outline.retry.back = Zurück ohne Speichern
 outline.retry.back_note = „Zurück ohne Speichern“ verwirft den Text; er ist dann nicht gespeichert.
+
+# Round 39b (rest_literals): names and examples of the outline schemes of baruch-typst (scheme.rs),
+# translated by the server (numbering.rs); the German text is verbatim the label of the crate.
+outline.scheme.template = Aus der Werkvorlage
+outline.scheme.template_example = wie #set heading(numbering: …) der Werkvorlage, sonst 1 · 1.1
+outline.scheme.decimal = Dezimal (DIN 1421)
+outline.scheme.decimal_example = 1 · 1.1 · 1.1.1
+outline.scheme.decimal_dot = Dezimal mit Schlusspunkt
+outline.scheme.decimal_dot_example = 1. · 1.1. · 1.1.1.
+outline.scheme.alphanumeric = Alphanumerisch
+outline.scheme.alphanumeric_example = I. · A. · 1. · a) · aa)
+outline.scheme.chapter_roman = Nur Kapitel römisch
+outline.scheme.chapter_roman_example = I · II · III, Abschnitte ohne Nummer
+outline.scheme.chapter_arabic = Nur Kapitel arabisch
+outline.scheme.chapter_arabic_example = 1 · 2 · 3, Abschnitte ohne Nummer
+outline.scheme.parts_chapters = Teile und Kapitel
+outline.scheme.parts_chapters_example = Teil I · Kapitel 1 · 1.1 · 1.1.1
+outline.scheme.chapter_words = Kapitel ausgeschrieben
+outline.scheme.chapter_words_example = Erster Teil · Erstes Kapitel · Zweites Kapitel
+outline.scheme.legal = Juristisch
+outline.scheme.legal_example = § 1 · Abs. 1 · Nr. 1
+outline.scheme.sermon = Predigt
+outline.scheme.sermon_example = Einleitung · I. · II. · Schluss
+outline.scheme.book = Buch
+outline.scheme.book_example = Einleitung · I. · II. · Schluss, Teile „Erster Teil“
+outline.scheme.none = Ohne Nummern
+outline.scheme.none_example = keine Nummern
+outline.scheme.custom = Eigenes Muster
+outline.scheme.custom_example = Mustersprache, z. B. I.;A.;1.;a) oder I|1
+outline.scheme.no_numbers = keine
+outline.scheme.custom_missing = Für „Eigenes Muster“ fehlt das Muster, z. B. „I.;A.;1.“ oder „I|1“.

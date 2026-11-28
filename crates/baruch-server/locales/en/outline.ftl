@@ -134,3 +134,34 @@ outline.retry.your_text = Your text (not saved yet)
 outline.retry.again = Save again
 outline.retry.back = Back without saving
 outline.retry.back_note = “Back without saving” discards the text; it is then not saved.
+
+# Round 39b (rest_literals): names and examples of the outline schemes of baruch-typst (scheme.rs),
+# translated by the server (numbering.rs); the German text is verbatim the label of the crate.
+outline.scheme.template = From the work template
+outline.scheme.template_example = like #set heading(numbering: …) of the work template, otherwise 1 · 1.1
+outline.scheme.decimal = Decimal (DIN 1421)
+outline.scheme.decimal_example = 1 · 1.1 · 1.1.1
+outline.scheme.decimal_dot = Decimal with a final dot
+outline.scheme.decimal_dot_example = 1. · 1.1. · 1.1.1.
+outline.scheme.alphanumeric = Alphanumeric
+outline.scheme.alphanumeric_example = I. · A. · 1. · a) · aa)
+outline.scheme.chapter_roman = Chapters only, Roman
+outline.scheme.chapter_roman_example = I · II · III, sections without a number
+outline.scheme.chapter_arabic = Chapters only, Arabic
+outline.scheme.chapter_arabic_example = 1 · 2 · 3, sections without a number
+outline.scheme.parts_chapters = Parts and chapters
+outline.scheme.parts_chapters_example = Part I · Chapter 1 · 1.1 · 1.1.1
+outline.scheme.chapter_words = Chapters in words
+outline.scheme.chapter_words_example = First Part · Chapter One · Chapter Two (words in the work language)
+outline.scheme.legal = Legal
+outline.scheme.legal_example = § 1 · para. 1 · no. 1
+outline.scheme.sermon = Sermon
+outline.scheme.sermon_example = Introduction · I. · II. · Conclusion
+outline.scheme.book = Book
+outline.scheme.book_example = Introduction · I. · II. · Conclusion, parts “First Part”
+outline.scheme.none = No numbers
+outline.scheme.none_example = no numbers
+outline.scheme.custom = Own pattern
+outline.scheme.custom_example = pattern language, e.g. I.;A.;1.;a) or I|1
+outline.scheme.no_numbers = none
+outline.scheme.custom_missing = For “Own pattern” the pattern is missing, e.g. “I.;A.;1.” or “I|1”.

@@ -1198,7 +1198,7 @@ pub async fn template_hints(state: &AppState, work: WorkId) -> (Vec<Value>, Opti
         .map(|c| {
             json!({
                 "field": c.field,
-                "label": baruch_typst::typeset::field_label(c.field),
+                "label": ui_labels::field_label(crate::i18n::current(), c.field),
                 "line": c.line,
                 "text": c.text,
                 "effect": c.effect,
@@ -1211,7 +1211,7 @@ pub async fn template_hints(state: &AppState, work: WorkId) -> (Vec<Value>, Opti
             "line": r.line,
             "text": r.text,
             "chapter_start": r.chapter_start.id(),
-            "label": r.chapter_start.label(),
+            "label": ui_labels::choice_label(crate::i18n::current(), "chapter_start", r.chapter_start.id()),
             "applied": settings.chapter_start == Some(r.chapter_start),
         })
     });
@@ -1321,6 +1321,187 @@ async fn svg(
         page.clone(),
     )
         .into_response()
+}
+
+// ---- Labels in the interface language (Round 39b) --------------------------------------------------------------
+
+/// Labels of the typesetting settings in the interface language. `baruch-typst` keeps its German labels
+/// (`FIELDS`, the `label()` of every choice; the mirror quotes them), the pages translate them here by identifier.
+pub mod ui_labels {
+    use crate::i18n::{self, Lang};
+
+    /// Catalog key of a field (for subfields such as `margins.inside_mm` that of the field).
+    fn field_key(field: &str) -> Option<&'static str> {
+        Some(match field.split('.').next().unwrap_or(field) {
+            "chapter_start" => "settings.typeset.field.chapter_start",
+            "part_page" => "settings.typeset.field.part_page",
+            "page_format" => "settings.typeset.field.page_format",
+            "margins" => "settings.typeset.field.margins",
+            "font" => "settings.typeset.field.font",
+            "font_size_pt" => "settings.typeset.field.font_size_pt",
+            "leading_em" => "settings.typeset.field.leading_em",
+            "paragraph" => "settings.typeset.field.paragraph",
+            "justify" => "settings.typeset.field.justify",
+            "hyphenate" => "settings.typeset.field.hyphenate",
+            "lang" => "settings.typeset.field.lang",
+            "page_numbers" => "settings.typeset.field.page_numbers",
+            "running_head" => "settings.typeset.field.running_head",
+            "footnotes" => "settings.typeset.field.footnotes",
+            "widows_orphans" => "settings.typeset.field.widows_orphans",
+            "xref_with_page" => "settings.typeset.field.xref_with_page",
+            "glossary_page" => "settings.typeset.field.glossary_page",
+            "index_pages" => "settings.typeset.field.index_pages",
+            "glossary_first_mention" => "settings.typeset.field.glossary_first_mention",
+            "draft" => "settings.typeset.field.draft",
+            _ => return None,
+        })
+    }
+
+    /// Label of a field in `lang` (German: verbatim `baruch_typst::typeset::field_label`); unknown → "".
+    pub fn field_label(lang: Lang, field: &str) -> String {
+        field_key(field).map_or_else(String::new, |key| i18n::t(lang, key, &[]))
+    }
+
+    /// Catalog key of a choice: `group` names the selection list (as in the form), `id` the serde value.
+    fn choice_key(group: &str, id: &str) -> Option<&'static str> {
+        Some(match (group, id) {
+            ("chapter_start", "continuous") => "settings.typeset.choice.chapter_start.continuous",
+            ("chapter_start", "new_page") => "settings.typeset.choice.chapter_start.new_page",
+            ("chapter_start", "right_page") => "settings.typeset.choice.chapter_start.right_page",
+            ("part_side", "right") => "settings.typeset.choice.part_side.right",
+            ("part_side", "any") => "settings.typeset.choice.part_side.any",
+            ("page_number_position", "bottom_center") => "settings.typeset.choice.page_number_position.bottom_center",
+            ("page_number_position", "bottom_outside") => "settings.typeset.choice.page_number_position.bottom_outside",
+            ("page_number_position", "top_outside") => "settings.typeset.choice.page_number_position.top_outside",
+            ("page_number_position", "hidden") => "settings.typeset.choice.page_number_position.hidden",
+            ("page_number_start", "first_page") => "settings.typeset.choice.page_number_start.first_page",
+            ("page_number_start", "first_chapter") => "settings.typeset.choice.page_number_start.first_chapter",
+            ("running_head", "off") => "settings.typeset.choice.running_head.off",
+            ("running_head", "work_title") => "settings.typeset.choice.running_head.work_title",
+            ("running_head", "chapter") => "settings.typeset.choice.running_head.chapter",
+            ("footnote_numbering", "arabic") => "settings.typeset.choice.footnote_numbering.arabic",
+            ("footnote_numbering", "symbols") => "settings.typeset.choice.footnote_numbering.symbols",
+            ("footnote_numbering", "letters") => "settings.typeset.choice.footnote_numbering.letters",
+            ("footnote_restart", "continuous") => "settings.typeset.choice.footnote_restart.continuous",
+            ("footnote_restart", "per_chapter") => "settings.typeset.choice.footnote_restart.per_chapter",
+            ("glossary_page", "before_indexes") => "settings.typeset.choice.glossary_page.before_indexes",
+            ("glossary_page", "after_indexes") => "settings.typeset.choice.glossary_page.after_indexes",
+            ("draft_placement", "diagonal") => "settings.typeset.choice.draft_placement.diagonal",
+            ("draft_placement", "header") => "settings.typeset.choice.draft_placement.header",
+            ("draft_placement", "footer") => "settings.typeset.choice.draft_placement.footer",
+            ("paragraph", "indent") => "settings.typeset.choice.paragraph.indent",
+            ("paragraph", "spacing") => "settings.typeset.choice.paragraph.spacing",
+            ("page_format", "a5") => "settings.typeset.choice.page_format.a5",
+            ("page_format", "120x190") => "settings.typeset.choice.page_format.120x190",
+            ("page_format", "135x215") => "settings.typeset.choice.page_format.135x215",
+            ("page_format", "a4") => "settings.typeset.choice.page_format.a4",
+            ("page_format", "custom") => "settings.typeset.choice.page_format.custom",
+            _ => return None,
+        })
+    }
+
+    /// Label of a choice in `lang` (German: verbatim the `label()` of the crate); unknown → the identifier.
+    pub fn choice_label(lang: Lang, group: &str, id: &str) -> String {
+        choice_key(group, id).map_or_else(|| id.to_owned(), |key| i18n::t(lang, key, &[]))
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use baruch_typst::typeset::{
+            ChapterStart, DraftPlacement, FIELDS, FootnoteNumbering, FootnoteRestart, GlossaryPosition, PageFormat,
+            PageNumberPosition, PageNumberStart, Paragraph, PartSide, RunningHead,
+        };
+
+        #[test]
+        fn german_labels_are_verbatim_the_labels_of_baruch_typst() {
+            for (id, label) in FIELDS {
+                assert_eq!(field_label(Lang::De, id), label, "German pages keep the field label of the crate");
+                let english = field_label(Lang::En, id);
+                assert!(
+                    !english.is_empty() && !english.starts_with("settings."),
+                    "{id}: an English label exists (not the raw key)"
+                );
+            }
+            assert_eq!(field_label(Lang::De, "margins.inside_mm"), "Ränder", "a subfield takes the label of its field");
+            for v in ChapterStart::ALL.iter().copied() {
+                assert_eq!(choice_label(Lang::De, "chapter_start", v.id()), v.label(), "ChapterStart: German verbatim");
+            }
+            for v in PartSide::ALL.iter().copied() {
+                assert_eq!(choice_label(Lang::De, "part_side", v.id()), v.label(), "PartSide: German verbatim");
+            }
+            for v in PageNumberPosition::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "page_number_position", v.id()),
+                    v.label(),
+                    "PageNumberPosition: German verbatim"
+                );
+            }
+            for v in PageNumberStart::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "page_number_start", v.id()),
+                    v.label(),
+                    "PageNumberStart: German verbatim"
+                );
+            }
+            for v in RunningHead::ALL.iter().copied() {
+                assert_eq!(choice_label(Lang::De, "running_head", v.id()), v.label(), "RunningHead: German verbatim");
+            }
+            for v in FootnoteNumbering::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "footnote_numbering", v.id()),
+                    v.label(),
+                    "FootnoteNumbering: German verbatim"
+                );
+            }
+            for v in FootnoteRestart::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "footnote_restart", v.id()),
+                    v.label(),
+                    "FootnoteRestart: German verbatim"
+                );
+            }
+            for v in GlossaryPosition::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "glossary_page", v.id()),
+                    v.label(),
+                    "GlossaryPosition: German verbatim"
+                );
+            }
+            for v in DraftPlacement::ALL.iter().copied() {
+                assert_eq!(
+                    choice_label(Lang::De, "draft_placement", v.id()),
+                    v.label(),
+                    "DraftPlacement: German verbatim"
+                );
+            }
+            for v in Paragraph::ALL.iter().copied() {
+                assert_eq!(choice_label(Lang::De, "paragraph", v.id()), v.label(), "Paragraph: German verbatim");
+            }
+            for v in PageFormat::ALL.iter().copied() {
+                assert_eq!(choice_label(Lang::De, "page_format", v.id()), v.label(), "PageFormat: German verbatim");
+            }
+            assert_eq!(
+                choice_label(Lang::De, "page_format", "custom"),
+                PageFormat::Custom { width_mm: 1.0, height_mm: 1.0 }.label(),
+                "the own format is verbatim too"
+            );
+        }
+
+        #[test]
+        fn english_labels_carry_no_german_letter() {
+            for (id, _) in FIELDS {
+                let text = field_label(Lang::En, id);
+                assert!(!text.contains(['ä', 'ö', 'ü', 'ß']), "{id}: the English label is English: {text}");
+            }
+            assert_eq!(
+                choice_label(Lang::En, "draft_placement", "diagonal"),
+                "diagonally across the page",
+                "a choice in English"
+            );
+            assert_eq!(choice_label(Lang::En, "nope", "x"), "x", "an unknown choice shows its identifier");
+        }
+    }
 }
 
 #[cfg(test)]

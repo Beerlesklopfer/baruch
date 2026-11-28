@@ -523,3 +523,64 @@ settings.typeset.preview_alt = Vorschau Seite { $index }
 settings.typeset.preview_help = „Vorschau“ setzt einen erfundenen Mustertext (ein Teil, drei Kapitel mit Fußnoten) mit der Werkvorlage und den Werten oben, ohne sie zu speichern.
 settings.typeset.reset_confirm = Ja, alle Satz-Einstellungen zurücksetzen (dann gilt wieder nur die Werkvorlage)
 settings.typeset.reset = Zurücksetzen
+
+# Round 39b (rest_literals): labels and choices of the typesetting settings of baruch-typst (typeset/model.rs),
+# translated by the server (typeset.rs, ui_labels); the German text is verbatim the label of the crate.
+settings.typeset.field.chapter_start = Kapitelanfang
+settings.typeset.field.part_page = Teil-Seite
+settings.typeset.field.page_format = Seitenformat
+settings.typeset.field.margins = Ränder
+settings.typeset.field.font = Grundschrift
+settings.typeset.field.font_size_pt = Schriftgröße
+settings.typeset.field.leading_em = Zeilenabstand
+settings.typeset.field.paragraph = Absatz
+settings.typeset.field.justify = Blocksatz
+settings.typeset.field.hyphenate = Silbentrennung
+settings.typeset.field.lang = Sprache
+settings.typeset.field.page_numbers = Seitenzahlen
+settings.typeset.field.running_head = Kolumnentitel
+settings.typeset.field.footnotes = Fußnoten
+settings.typeset.field.widows_orphans = Schusterjungen/Hurenkinder
+settings.typeset.field.xref_with_page = Verweis mit Seitenzahl
+settings.typeset.field.glossary_page = Glossarseite
+settings.typeset.field.index_pages = Registerseiten
+settings.typeset.field.glossary_first_mention = Erste Erwähnung im Glossar auszeichnen
+settings.typeset.field.draft = Entwurf
+settings.typeset.choice.chapter_start.continuous = fortlaufend
+settings.typeset.choice.chapter_start.new_page = neue Seite
+settings.typeset.choice.chapter_start.right_page = neue rechte Seite
+settings.typeset.choice.part_side.right = rechte Seite
+settings.typeset.choice.part_side.any = beliebige Seite
+settings.typeset.choice.page_number_position.bottom_center = unten mittig
+settings.typeset.choice.page_number_position.bottom_outside = unten außen
+settings.typeset.choice.page_number_position.top_outside = oben außen
+settings.typeset.choice.page_number_position.hidden = keine
+settings.typeset.choice.page_number_start.first_page = ab der ersten Seite
+settings.typeset.choice.page_number_start.first_chapter = ab dem ersten Kapitel
+settings.typeset.choice.running_head.off = aus
+settings.typeset.choice.running_head.work_title = Werktitel
+settings.typeset.choice.running_head.chapter = Kapitel
+settings.typeset.choice.footnote_numbering.arabic = 1, 2, 3
+settings.typeset.choice.footnote_numbering.symbols = *, †, ‡
+settings.typeset.choice.footnote_numbering.letters = a, b, c
+settings.typeset.choice.footnote_restart.continuous = fortlaufend
+settings.typeset.choice.footnote_restart.per_chapter = je Kapitel neu
+settings.typeset.choice.glossary_page.before_indexes = vor den Registern
+settings.typeset.choice.glossary_page.after_indexes = nach den Registern
+settings.typeset.choice.draft_placement.diagonal = diagonal über die Seite
+settings.typeset.choice.draft_placement.header = Kopfzeile
+settings.typeset.choice.draft_placement.footer = Fußzeile
+settings.typeset.choice.paragraph.indent = Einzug
+settings.typeset.choice.paragraph.spacing = Abstand
+settings.typeset.choice.page_format.a5 = A5 (148 × 210 mm)
+settings.typeset.choice.page_format.120x190 = 120 × 190 mm
+settings.typeset.choice.page_format.135x215 = 135 × 215 mm
+settings.typeset.choice.page_format.a4 = A4 (210 × 297 mm)
+settings.typeset.choice.page_format.custom = eigenes Format
+
+# Round 39b (rest_literals): display words of the model connections (models.rs); `locality` stays the code
+# lokal|extern of RPC and data-locality, the page shows these words.
+settings.models.locality_local = lokal
+settings.models.locality_external = extern
+settings.models.kind_openai = OpenAI-kompatibel
+settings.models.kind_unknown = unbekannt

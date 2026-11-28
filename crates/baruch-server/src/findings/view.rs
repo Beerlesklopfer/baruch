@@ -159,7 +159,7 @@ pub fn status_words_amend(
     deferred: Option<&DeferTarget>,
     deferred_uuid: Option<&str>,
 ) -> String {
-    let label = status.label();
+    let label = super::status_label(status);
     match status {
         FindingStatus::Adopted => match rev {
             Some(rev) => tc(
@@ -196,7 +196,7 @@ pub fn entry_json(work: &Work, entry: &FindingStatusEntry) -> Value {
     );
     let mut value = json!(entry);
     value["words"] = json!(words);
-    value["status_label"] = json!(entry.status.label());
+    value["status_label"] = json!(super::status_label(entry.status));
     value["status_sign"] = json!(status_sign(entry.status));
     value["actor_label"] = json!(actor_label(&entry.actor));
     value["time"] = json!(crate::localtime::minutes(&entry.created));
@@ -258,7 +258,7 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
     ));
     // Round 23a (PM decision): an open collective finding whose origins are all decided is “stale”.
     if finding.stale_summary {
-        value["status_words"] = json!(format!("{} · {}", finding.status.label(), stale_summary_words()));
+        value["status_words"] = json!(format!("{} · {}", super::status_label(finding.status), stale_summary_words()));
     }
     value["time"] = json!(crate::localtime::minutes(&finding.created));
     value["node_label"] = json!(finding.key.and_then(|k| node_label(work, k)));
@@ -293,7 +293,7 @@ pub fn card(work_id: WorkId, work: &Work, finding: &Finding, all: &[Finding]) ->
         .map(|uuid| match all.iter().find(|o| &o.uuid == uuid) {
             Some(origin) => json!({
                 "id": origin.id, "ref": reference(origin.id), "url": finding_url(work_id, origin),
-                "persona": origin.persona, "label": short(&origin.body, 80), "status_label": origin.status.label(),
+                "persona": origin.persona, "label": short(&origin.body, 80), "status_label": super::status_label(origin.status),
             }),
             None => json!({ "uuid": uuid, "missing": true }),
         })
@@ -383,7 +383,12 @@ mod tests {
     #[test]
     fn an_adopted_finding_names_the_stand_of_the_amended_version_only_above_zero() {
         let work = keyed_sample();
-        let words = |amend| status_words_amend(&work, FindingStatus::Adopted, Some(3), amend, None, None);
+        // The German page (Round 39b: the status word follows the request language).
+        let words = |amend| {
+            crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+                status_words_amend(&work, FindingStatus::Adopted, Some(3), amend, None, None)
+            })
+        };
         assert_eq!(words(Some(2)), "übernommen in Fassung 3 · Stand 2", "Runde 22: Stand der Fortschreibung");
         assert_eq!(words(Some(0)), "übernommen in Fassung 3", "Stand 0 = nie fortgeschrieben, ohne Zusatz");
         assert_eq!(words(None), "übernommen in Fassung 3", "ohne gemerkten Stand wie bisher");

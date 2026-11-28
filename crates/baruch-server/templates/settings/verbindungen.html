@@ -165,7 +165,7 @@
     {%- endif %}
     {%- for m in models.connections %}
     <article class="model-connection" id="modell-{{ m.id }}" data-model-connection="{{ m.id }}" data-locality="{{ m.locality }}">
-      <h4 class="small">{{ m.name }} <span class="badge">{{ m.kind_title }}</span> <span class="badge{% if m.external %} warning{% endif %}" data-locality-badge>{{ m.locality }}</span>
+      <h4 class="small">{{ m.name }} <span class="badge">{{ m.kind_title }}</span> <span class="badge{% if m.external %} warning{% endif %}" data-locality-badge>{% if m.external %}{{ t("settings.models.locality_external") }}{% else %}{{ t("settings.models.locality_local") }}{% endif %}</span>
         {%- if m.personas %} <span class="muted tiny">{{ t("settings.connections.used_by", personas=m.personas | join(", ")) }}</span>{% endif %}</h4>
       {%- if m.locality_warning %}
       <p class="notice error small" role="alert" data-locality-warning>{{ m.locality_warning }}</p>

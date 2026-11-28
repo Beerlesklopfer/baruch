@@ -31,6 +31,14 @@
     <a class="btn" href="/">{{ t("common.cancel") }}</a>
   </form>
   <p class="muted small">{{ t("accounts.setup.hash_html", password_cmd=password_cmd) }}</p>
+  {#- Round 39b: language of the interface (the switch is public, auth::PUBLIC_PATHS): a plain form without JavaScript,
+      back to this page; only with the setup form (a visitor from elsewhere gets the explanation alone). #}
+  <form class="konto-sprache small" method="post" action="/einstellungen/sprache" aria-label="{{ t("common.lang.label") }}">
+    <input type="hidden" name="back" value="/einrichten">
+    <span class="muted">{{ t("common.lang.label") }}:</span>
+    <button class="btn" type="submit" name="lang" value="en" lang="en"{% if ui_lang() == "en" %} aria-current="true"{% endif %}>{{ t("common.lang.en") }}</button>
+    <button class="btn" type="submit" name="lang" value="de" lang="de"{% if ui_lang() == "de" %} aria-current="true"{% endif %}>{{ t("common.lang.de") }}</button>
+  </form>
   {%- else %}
   <p class="notice error" role="alert">{{ t("accounts.setup.local_only") }}</p>
   <p>{{ t("accounts.setup.remote") }}</p>

@@ -126,13 +126,16 @@ pub(super) async fn render(
             .iter()
             .map(|c| {
                 context! { id => c.id, name => c.name.as_str(), kind => crate::models::kind_title(&c.kind),
-                locality => crate::models::locality(c), selected => c.id == backend.connection }
+                locality => crate::models::locality(c),
+                locality_label => crate::models::locality_label(crate::models::locality(c)),
+                selected => c.id == backend.connection }
             })
             .collect();
         extra.push(context! {
             connections => options,
             connection_name => connection.map(|c| c.name.clone()),
             locality => connection.map_or("lokal", crate::models::locality),
+            locality_label => crate::models::locality_label(connection.map_or("lokal", crate::models::locality)),
             external => external, external_allowed => backend.external_allowed,
             blocked => external && !backend.external_allowed,
             context_tokens => budget.tokens, context_reported => budget.reported, context_warning => budget.warning,

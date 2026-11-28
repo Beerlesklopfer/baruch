@@ -245,11 +245,69 @@ pub fn finding_url(work: WorkId, finding: &Finding) -> String {
     format!("/werke/{work}/befunde?befund={}", finding.id)
 }
 
-/// Finding as JSON: the fields of [`Finding`] plus `kind_label`, `status_label`, `url`.
+/// Status of a finding in the language of the request (Round 39b; German verbatim [`FindingStatus::label`], also
+/// outside a request, where the store wording stays).
+pub fn status_label(status: FindingStatus) -> String {
+    let key = match status {
+        FindingStatus::Open => "findings.status_label.open",
+        FindingStatus::Adopted => "findings.status_label.adopted",
+        FindingStatus::Rejected => "findings.status_label.rejected",
+        FindingStatus::Deferred => "findings.status_label.deferred",
+        FindingStatus::Done => "findings.status_label.done",
+    };
+    crate::i18n::t(label_lang(), key, &[])
+}
+
+/// Kind of a finding in the language of the request (Round 39b; German verbatim [`FindingKind::label`]).
+pub fn kind_label(kind: FindingKind) -> String {
+    let key = match kind {
+        FindingKind::Praise => "findings.kind_label.praise",
+        FindingKind::Hint => "findings.kind_label.hint",
+        FindingKind::Critical => "findings.kind_label.critical",
+    };
+    crate::i18n::t(label_lang(), key, &[])
+}
+
+/// Language of the labels: that of the request, German outside a request (the wording of the store, which direct
+/// calls and older tests expect).
+fn label_lang() -> crate::i18n::Lang {
+    crate::i18n::request_lang().unwrap_or(crate::i18n::Lang::De)
+}
+
+/// Finding as JSON: the fields of [`Finding`] plus `kind_label`, `status_label` (language of the request), `url`.
 pub fn finding_json(work: WorkId, finding: &Finding) -> serde_json::Value {
     let mut value = json!(finding);
-    value["kind_label"] = json!(finding.kind.label());
-    value["status_label"] = json!(finding.status.label());
+    value["kind_label"] = json!(kind_label(finding.kind));
+    value["status_label"] = json!(status_label(finding.status));
     value["url"] = json!(finding_url(work, finding));
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::{Lang, sync_scope};
+
+    #[test]
+    fn status_and_kind_follow_the_language_and_german_stays_verbatim() {
+        sync_scope(Lang::De, || {
+            for status in FindingStatus::ALL {
+                assert_eq!(status_label(status), status.label(), "German pages keep the word of the store");
+            }
+            for kind in FindingKind::ALL {
+                assert_eq!(kind_label(kind), kind.label(), "German pages keep the word of the store");
+            }
+        });
+        sync_scope(Lang::En, || {
+            assert_eq!(status_label(FindingStatus::Done), "done without a change", "English status word");
+            assert_eq!(kind_label(FindingKind::Critical), "critical", "English kind word");
+            for status in FindingStatus::ALL {
+                let word = status_label(status);
+                assert!(
+                    !word.contains(['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß']),
+                    "{word}: English carries no German letter"
+                );
+            }
+        });
+    }
 }

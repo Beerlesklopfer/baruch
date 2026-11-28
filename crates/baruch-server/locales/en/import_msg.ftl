@@ -41,3 +41,11 @@ import_msg.docx.draft_unknown = Draft “{ $id }” does not exist (discarded, a
 import_msg.docx.draft_busy = Draft “{ $id }” is being taken over right now.
 import_msg.docx.draft_id = draft: 32 lower-case hex characters (from docx_import.preview).
 import_msg.docx.delete_aborted = Deleting aborted: { $detail }
+
+# Round 39b (rest_literals): the stored drafts of the Word import (src/docx_import/draft.rs).
+import_msg.docx_draft.invalid = invalid draft
+import_msg.docx_draft.create = The draft cannot be created: { $error }
+import_msg.docx_draft.write = The draft cannot be written: { $error }
+import_msg.docx_draft.encode = Draft: { $error }
+import_msg.docx_draft.unreadable = Draft unreadable: { $error }
+import_msg.docx_draft.source_missing = The file of the draft is missing: { $error }

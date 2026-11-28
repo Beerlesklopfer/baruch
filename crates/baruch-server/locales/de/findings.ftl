@@ -182,3 +182,14 @@ findings.panel.apply_solutions = Lösungen umsetzen
 findings.panel.none_open = Keine offenen Befunde in diesem Abschnitt.
 findings.panel.decided = { $count } entschieden (übernommen, verworfen, verschoben, erledigt)
 findings.panel.praise = { $count } Lob (ausgeblendet)
+
+# Round 39b (rest_literals): status and kind of a finding (baruch-store FindingStatus/FindingKind::label),
+# translated by the server (findings/mod.rs); German verbatim as the store and the mirror write them.
+findings.status_label.open = offen
+findings.status_label.adopted = übernommen
+findings.status_label.rejected = verworfen
+findings.status_label.deferred = verschoben
+findings.status_label.done = erledigt ohne Änderung
+findings.kind_label.praise = Lob
+findings.kind_label.hint = Hinweis
+findings.kind_label.critical = kritisch

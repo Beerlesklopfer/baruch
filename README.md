@@ -13,8 +13,11 @@ writing tools. It runs locally on your own machine, and the data stays there.
 
 Website: <https://baruch.bernau.family>
 
-> The website and the user interface are in German: <https://baruch.bernau.family/>. Menu entries, buttons and
-> messages are quoted in German in this document, with an English explanation where needed.
+> The user interface is German and English (menu „Baruch ▾“ or Settings → Display; without a choice Baruch follows
+> the browser). The help on the website exists in both languages: English <https://baruch.bernau.family/en/hilfe/>,
+> German <https://baruch.bernau.family/hilfe/>. Menu entries, buttons and messages of older parts of this document
+> are quoted in German, with an English explanation where needed. Book outputs follow the language of the work, not
+> the language of the interface.
 
 **Status:** version 0.9.0. Baruch is used daily for a real book and for sermons. There are packages
 for Debian and Ubuntu (also through an APT repository), an AppImage, and unsigned packages for macOS and
@@ -408,9 +411,10 @@ TypeScript (`crates/baruch-server/web/src`) and are compiled by `build.rs` durin
 
 ## Documentation
 
-- [Help on the website](https://baruch.bernau.family/hilfe/) (German): usage step by step, with images
-  (source: `site/content/de/hilfe/`); [Betrieb](https://baruch.bernau.family/betrieb/) for operators
-  (`site/content/de/betrieb.md`)
+- Help on the website, usage step by step with images: [English](https://baruch.bernau.family/en/hilfe/)
+  (source: `site/content/en/hilfe/`) and [German](https://baruch.bernau.family/hilfe/) (source:
+  `site/content/de/hilfe/`); operation for operators: [English](https://baruch.bernau.family/en/betrieb/)
+  (`site/content/en/betrieb.md`) and [German](https://baruch.bernau.family/betrieb/) (`site/content/de/betrieb.md`)
 - [docs/Bedienung.md](docs/Bedienung.md): entry point for developers – "where is what" and technical notes on
   the help
 - [docs/Verteilung.md](docs/Verteilung.md): packages, installation, APT repository, release, delivery through
@@ -429,7 +433,9 @@ TypeScript (`crates/baruch-server/web/src`) and are compiled by `build.rs` durin
 ## Contributing
 
 The primary language is English for code, comments, commits, developer docs, MCP and RPC; the user interface is
-German (German and English through catalogs from Round 39). Work happens on the branch
+German and English through catalogs (`crates/baruch-server/locales/{en,de}/*.ftl`, English the base; words of book
+outputs in `crates/baruch-core/locales/{en,de}/book.ftl` by work language; how to add a text: see
+[docs/Bedienung.md](docs/Bedienung.md)). Work happens on the branch
 `development`; `main` follows after approval. Every change to the user interface, RPC or MCP updates the docs
 in the same commit. The remaining rules are in [AGENTS.md](AGENTS.md).
 
