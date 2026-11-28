@@ -30,6 +30,7 @@ use regex::Regex;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::search::TextKind;
 use crate::view::Settings;
@@ -414,7 +415,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 /// store them as a new revision on `rev` (one commit). Answer `{node, key, rev, converted}`.
 pub async fn convert(state: &AppState, work: WorkId, key: i64, rev: u32, picks: &[usize]) -> Result<Value, RpcError> {
     if picks.is_empty() {
-        return Err(invalid("Bitte mindestens einen möglichen Verweis wählen (picks)."));
+        return Err(invalid(tc("reference_msg.xref.picks", &[])));
     }
     let held = state.write_lock.lock().await;
     let loaded = state.store.load_work(work).await?;
@@ -422,13 +423,13 @@ pub async fn convert(state: &AppState, work: WorkId, key: i64, rev: u32, picks: 
         .nodes
         .iter()
         .find(|n| n.key == key)
-        .ok_or_else(|| invalid(format!("Den Abschnitt {key} gibt es in diesem Werk nicht.")))?;
+        .ok_or_else(|| invalid(tc("reference_msg.marks.no_section", &[("key", key.into())])))?;
     let revision =
-        node.revision(rev).ok_or_else(|| invalid(format!("Fassung {rev} gibt es in diesem Abschnitt nicht.")))?;
+        node.revision(rev).ok_or_else(|| invalid(tc("reference_msg.marking.no_revision", &[("rev", rev.into())])))?;
     let list = candidates_in(&loaded, key, rev, &revision.body);
     let mut chosen: Vec<&Candidate> = Vec::new();
     for &i in picks {
-        let c = list.get(i).ok_or_else(|| invalid(format!("Möglichen Verweis {i} gibt es nicht (mehr).")))?;
+        let c = list.get(i).ok_or_else(|| invalid(tc("reference_msg.xref.no_candidate", &[("i", i.into())])))?;
         if !chosen.contains(&c) {
             chosen.push(c);
         }
@@ -466,10 +467,14 @@ pub fn handles(method: &str) -> bool {
 fn key_param(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(|| invalid(format!("{name}: Zahl erwartet"))),
+        Some(Value::Number(n)) => {
+            n.as_i64().map(Some).ok_or_else(|| invalid(tc("reference_msg.param.number", &[("name", name.into())])))
+        }
         Some(Value::String(s)) if s.trim().is_empty() => Ok(None),
-        Some(Value::String(s)) => s.trim().parse().map(Some).map_err(|_| invalid(format!("{name}: Zahl erwartet"))),
-        Some(_) => Err(invalid(format!("{name}: Zahl erwartet"))),
+        Some(Value::String(s)) => {
+            s.trim().parse().map(Some).map_err(|_| invalid(tc("reference_msg.param.number", &[("name", name.into())])))
+        }
+        Some(_) => Err(invalid(tc("reference_msg.param.number", &[("name", name.into())]))),
     }
 }
 
@@ -485,14 +490,14 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         "xref.resolve" => {
             let label = params.get("label").and_then(Value::as_str).unwrap_or("").trim();
             let label = label.trim_start_matches('<').trim_end_matches('>');
-            let key =
-                parse_key_label(label).ok_or_else(|| invalid(format!("„{label}“ ist keine Sprungmarke (kN).")))?;
+            let key = parse_key_label(label)
+                .ok_or_else(|| invalid(tc("reference_msg.xref.not_a_label", &[("label", label.into())])))?;
             let loaded = state.store.load_work(work).await?;
             let node = loaded
                 .nodes
                 .iter()
                 .find(|n| n.key == key)
-                .ok_or_else(|| invalid(format!("Die Sprungmarke {label} gehört zu keinem Gliederungspunkt.")))?;
+                .ok_or_else(|| invalid(tc("reference_msg.xref.label_unknown", &[("label", label.into())])))?;
             let url = jump_url(&JumpTarget { work, key, rev: None, find: None, at: None });
             Ok(json!({ "key": key, "url": url, "number": node.number, "title": node.title }))
         }
@@ -502,16 +507,17 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         }
         "xref.convert" => {
             if params.get("confirm") != Some(&Value::Bool(true)) {
-                return Err(invalid("Umwandeln bitte bestätigen (confirm: true)."));
+                return Err(invalid(tc("reference_msg.xref.confirm", &[])));
             }
-            let key = key_param(&params, "key")?.ok_or_else(|| invalid("key: Abschnitt fehlt"))?;
-            let rev = key_param(&params, "rev")?.ok_or_else(|| invalid("rev: Fassung fehlt"))?;
+            let key = key_param(&params, "key")?.ok_or_else(|| invalid(tc("reference_msg.marks.key_missing", &[])))?;
+            let rev = key_param(&params, "rev")?.ok_or_else(|| invalid(tc("reference_msg.marks.rev_missing", &[])))?;
             let picks: Vec<usize> = params
                 .get("picks")
                 .and_then(Value::as_array)
                 .map(|a| a.iter().filter_map(Value::as_u64).map(|p| p as usize).collect())
                 .unwrap_or_default();
-            convert(state, work, key, u32::try_from(rev).map_err(|_| invalid("rev: Nummer erwartet"))?, &picks).await
+            let rev = u32::try_from(rev).map_err(|_| invalid(tc("reference_msg.xref.rev_number", &[])))?;
+            convert(state, work, key, rev, &picks).await
         }
         "xref.broken" => {
             let loaded = state.store.load_work(work).await?;
@@ -540,7 +546,8 @@ fn plain(status: StatusCode, message: &str) -> Response {
     (
         status,
         Html(format!(
-            "<!doctype html><meta charset=\"utf-8\"><title>Querverweise</title><p>{}</p>",
+            "<!doctype html><meta charset=\"utf-8\"><title>{}</title><p>{}</p>",
+            crate::search::replace::escape(&tc("reference_msg.xref.title", &[])),
             crate::search::replace::escape(message)
         )),
     )
@@ -574,7 +581,7 @@ async fn page(
         },
     };
     let Ok(loaded) = state.store.load_work(work).await else {
-        return plain(StatusCode::NOT_FOUND, "Unbekanntes Werk.");
+        return plain(StatusCode::NOT_FOUND, &tc("reference_msg.glossary.unknown_work", &[]));
     };
     let key = first(&pairs, "key").and_then(|k| k.parse::<i64>().ok());
     // Possible references per section (one form per section).
@@ -620,7 +627,10 @@ async fn page(
     };
     match templates().get_template("xrefs.html").and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, &format!("Vorlage xrefs.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &tc("reference_msg.page.template_error", &[("name", "xrefs.html".into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 
@@ -639,12 +649,12 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
         None => format!("/verweise?work={work}"),
     };
     if first(&pairs, "method") != Some("xref.convert") {
-        return plain(StatusCode::BAD_REQUEST, "Unbekannte Aktion (method).");
+        return plain(StatusCode::BAD_REQUEST, &tc("reference_msg.xref.unknown_action", &[]));
     }
     if !matches!(first(&pairs, "confirm"), Some("1" | "true" | "on")) {
         return Redirect::to(&format!(
             "{back}&fehler={}",
-            crate::view::query_escape("Bitte das Häkchen „Ja, umwandeln“ setzen.")
+            crate::view::query_escape(&tc("reference_msg.xref.tick", &[]))
         ))
         .into_response();
     }
@@ -653,7 +663,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
     let picks: Vec<usize> =
         pairs.iter().filter(|(k, _)| k == "picks").filter_map(|(_, v)| v.trim().parse().ok()).collect();
     let (Some(key), Some(rev)) = (key, rev) else {
-        return plain(StatusCode::BAD_REQUEST, "key und rev fehlen.");
+        return plain(StatusCode::BAD_REQUEST, &tc("reference_msg.xref.key_rev_missing", &[]));
     };
     match convert(&state, work, key, rev, &picks).await {
         Ok(answer) => Redirect::to(&format!("{back}&ok={}", answer["converted"])).into_response(),

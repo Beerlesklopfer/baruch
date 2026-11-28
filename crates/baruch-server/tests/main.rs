@@ -184,6 +184,7 @@ mod round39a_templates_1;
 mod round39a_templates_2;
 mod round39a_templates_3;
 mod round39a_widgets;
+mod round39a_messages_1;
 mod round4;
 mod round5;
 mod round5_fixes;

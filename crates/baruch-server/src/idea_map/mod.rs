@@ -212,7 +212,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Integer from a JSON value: number or digits as text (forms); missing, `null` or `""` → `None`.
 fn opt_int(params: &Json, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(crate::i18n::tc("ideas_msg.param.number", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
         Some(Json::String(s)) if s.trim().is_empty() => Ok(None),
@@ -223,15 +223,23 @@ fn opt_int(params: &Json, name: &str) -> Result<Option<i64>, RpcError> {
 }
 
 /// Mandatory integer.
-fn int(params: &Json, name: &str, what: &str) -> Result<i64, RpcError> {
-    opt_int(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt ({what})")))
+fn int(params: &Json, name: &str) -> Result<i64, RpcError> {
+    opt_int(params, name)?.ok_or_else(|| {
+        invalid(match name {
+            "work" => crate::i18n::tc("ideas_msg.map.work_missing", &[]),
+            "from" => crate::i18n::tc("ideas_msg.map.from_missing", &[]),
+            "to" => crate::i18n::tc("ideas_msg.map.to_missing", &[]),
+            "id" => crate::i18n::tc("ideas_msg.map.link_id_missing", &[]),
+            _ => crate::i18n::tc("ideas_msg.map.idea_missing", &[]),
+        })
+    })
 }
 
 /// Decimal number (number or text); missing → -32602.
 fn number(params: &Json, name: &str) -> Result<f64, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(crate::i18n::tc("ideas_msg.param.number", &[("name", name.into())]));
     match params.get(name) {
-        None | Some(Json::Null) => Err(invalid(format!("{name} fehlt"))),
+        None | Some(Json::Null) => Err(invalid(crate::i18n::tc("ideas_msg.map.missing", &[("name", name.into())]))),
         Some(Json::Number(n)) => n.as_f64().ok_or_else(wrong),
         Some(Json::String(s)) => s.trim().parse().map_err(|_| wrong()),
         Some(_) => Err(wrong()),
@@ -244,13 +252,13 @@ fn opt_text(params: &Json, name: &str) -> Result<Option<String>, RpcError> {
         None | Some(Json::Null) => Ok(None),
         Some(Json::String(s)) if s.trim().is_empty() => Ok(None),
         Some(Json::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(crate::i18n::tc("ideas_msg.param.text", &[("name", name.into())]))),
     }
 }
 
 /// Boolean: `true`/`false`, `1`/`0`, `"1"`/`"0"`/`"true"`/`"false"`/`"on"` (forms); missing → `None`.
 fn opt_bool(params: &Json, name: &str) -> Result<Option<bool>, RpcError> {
-    let wrong = || invalid(format!("{name}: true oder false erwartet"));
+    let wrong = || invalid(crate::i18n::tc("ideas_msg.param.flag", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Json::Null) => Ok(None),
         Some(Json::Bool(b)) => Ok(Some(*b)),
@@ -277,20 +285,20 @@ pub fn filter_from_params(params: &Json) -> Result<MapFilter, RpcError> {
         None | Some("all") => None,
         Some(word) => Some(
             IdeaStatus::parse(word)
-                .ok_or_else(|| invalid(format!("status: „open“, „done“ oder „all“ erwartet, nicht „{word}“")))?,
+                .ok_or_else(|| invalid(crate::i18n::tc("ideas_msg.map.status", &[("word", word.into())])))?,
         ),
     };
     let origin = match opt_text(params, "origin")?.as_deref().map(str::trim) {
         None => None,
         Some(kind @ ("human" | "persona" | "mcp")) => Some(kind.to_owned()),
         Some(other) => {
-            return Err(invalid(format!("origin: „human“, „persona“ oder „mcp“ erwartet, nicht „{other}“")));
+            return Err(invalid(crate::i18n::tc("ideas_msg.map.origin", &[("other", other.into())])));
         }
     };
     let near_limit = match opt_int(params, "near_limit")? {
         None => None,
         Some(n @ 1..=5) => Some(n as u32),
-        Some(n) => return Err(invalid(format!("near_limit: 1 bis 5, nicht {n}"))),
+        Some(n) => return Err(invalid(crate::i18n::tc("ideas_msg.map.near_limit", &[("n", n.into())]))),
     };
     let near_threshold = match params.get("near_threshold") {
         None | Some(Json::Null) => None,
@@ -298,7 +306,7 @@ pub fn filter_from_params(params: &Json) -> Result<MapFilter, RpcError> {
         Some(_) => {
             let t = number(params, "near_threshold")?;
             if !(0.0..=1.0).contains(&t) {
-                return Err(invalid(format!("near_threshold: 0 bis 1, nicht {t}")));
+                return Err(invalid(crate::i18n::tc("ideas_msg.map.near_threshold", &[("t", t.to_string().into())])));
             }
             Some(t as f32)
         }
@@ -332,13 +340,9 @@ pub fn filter_from_params(params: &Json) -> Result<MapFilter, RpcError> {
 
 /// `kind` of a link (exactly the words from [`LinkKind::as_str`]).
 fn kind_param(params: &Json) -> Result<LinkKind, RpcError> {
-    let word = opt_text(params, "kind")?.ok_or_else(|| invalid("kind fehlt (Art der Verbindung)"))?;
-    LinkKind::parse(word.trim()).ok_or_else(|| {
-        invalid(format!(
-            "kind: „leads_to“, „belongs_to“, „example_of“ oder „contradicts“ erwartet, nicht „{}“",
-            word.trim()
-        ))
-    })
+    let word = opt_text(params, "kind")?.ok_or_else(|| invalid(crate::i18n::tc("ideas_msg.map.kind_missing", &[])))?;
+    LinkKind::parse(word.trim())
+        .ok_or_else(|| invalid(crate::i18n::tc("ideas_msg.map.kind", &[("word", word.trim().into())])))
 }
 
 /// Check the work (unknown → error as for the other methods).
@@ -352,12 +356,12 @@ async fn check_work(state: &AppState, work: WorkId) -> Result<(), RpcError> {
 pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(invalid("Parameter als Objekt erwartet"));
+        return Err(invalid(crate::i18n::tc("ideas_msg.map.object", &[])));
     }
     let human = IdeaOrigin::Human { name: mirror::HUMAN_NAME.to_owned() };
     match method {
         "idea.map" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let filter = filter_from_params(&params)?;
             let map = build(state, work, &filter).await?;
             let mut answer = serde_json::to_value(map).map_err(|e| RpcError::new(INTERNAL, e.to_string()))?;
@@ -378,7 +382,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             Ok(answer)
         }
         "idea.tree" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let filter = filter_from_params(&params)?;
             let (map, cloud) = tree::tree_and_cloud(state, work, &filter).await?;
             Ok(json!({ "map": map, "cloud": cloud }))
@@ -388,33 +392,33 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let links = match (opt_int(&params, "work")?, opt_int(&params, "idea")?) {
                 (Some(work), None) => state.store.idea_links_of_work(work, deleted).await?,
                 (None, Some(idea)) => state.store.idea_links_of_idea(idea, deleted).await?,
-                _ => return Err(invalid("idea.links: genau eins von work und idea angeben")),
+                _ => return Err(invalid(crate::i18n::tc("ideas_msg.map.links_scope", &[]))),
             };
             Ok(json!({ "links": links }))
         }
         "idea.link" => {
             let note = opt_text(&params, "note")?.unwrap_or_default();
             let new = NewIdeaLink {
-                from: int(&params, "from", "Einfall, von dem die Verbindung ausgeht")?,
-                to: int(&params, "to", "Einfall, zu dem sie führt")?,
+                from: int(&params, "from")?,
+                to: int(&params, "to")?,
                 kind: kind_param(&params)?,
                 note: &note,
                 origin: human,
             };
             links::link(state, &new).await
         }
-        "idea.unlink" => links::unlink(state, int(&params, "id", "Verbindung")?, &human).await,
-        "idea.link_restore" => links::restore(state, int(&params, "id", "Verbindung")?, &human).await,
+        "idea.unlink" => links::unlink(state, int(&params, "id")?, &human).await,
+        "idea.link_restore" => links::restore(state, int(&params, "id")?, &human).await,
         "idea.map_pos_set" => {
-            let work = int(&params, "work", "Werk")?;
-            let idea = int(&params, "idea", "Einfall")?;
+            let work = int(&params, "work")?;
+            let idea = int(&params, "idea")?;
             let (x, y) = (number(&params, "x")?, number(&params, "y")?);
             check_work(state, work).await?;
             let pos = state.store.idea_map_pos_set(work, idea, x, y).await?;
             Ok(json!({ "pos": pos }))
         }
         "idea.map_pos_reset" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let idea = opt_int(&params, "idea")?;
             check_work(state, work).await?;
             let removed = state.store.idea_map_pos_reset(work, idea).await?;
@@ -422,20 +426,20 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         }
         // Round 19b: groups and their names (groups.rs).
         "idea.map_groups" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let filter = filter_from_params(&params)?;
             check_work(state, work).await?;
             Ok(json!({ "groups": groups::groups(state, work, &filter).await? }))
         }
         "idea.map_groups_name" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let filter = filter_from_params(&params)?;
             let persona = opt_text(&params, "persona")?;
             check_work(state, work).await?;
             groups::name_groups(state, work, &filter, persona.as_deref()).await
         }
         "idea.map_group_accept" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let group = groups::group_param(&params)?;
             let filter = filter_from_params(&params)?;
             let name = opt_text(&params, "name")?;
@@ -443,7 +447,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             groups::accept(state, work, &group, name.as_deref(), &filter).await
         }
         "idea.map_group_dismiss" => {
-            let work = int(&params, "work", "Werk")?;
+            let work = int(&params, "work")?;
             let group = groups::group_param(&params)?;
             check_work(state, work).await?;
             Ok(groups::dismiss(state, work, &group))

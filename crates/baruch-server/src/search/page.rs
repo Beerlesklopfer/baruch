@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 use super::replace::{Pick, escape};
 use super::{ALL_KINDS, RevChoice, SEARCH_KINDS, SearchQuery, SearchRange, TextKind};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::view::Settings;
 
 fn templates() -> &'static Environment<'static> {
@@ -132,7 +133,15 @@ fn href(url: &str) -> JinjaValue {
 }
 
 fn error_page(status: StatusCode, message: &str) -> Response {
-    (status, Html(format!("<!doctype html><meta charset=\"utf-8\"><title>Suchen</title><p>{}</p>", escape(message))))
+    let title = tc("reference_msg.search.title", &[]);
+    (
+        status,
+        Html(format!(
+            "<!doctype html><meta charset=\"utf-8\"><title>{}</title><p>{}</p>",
+            escape(&title),
+            escape(message)
+        )),
+    )
         .into_response()
 }
 
@@ -177,7 +186,7 @@ async fn search_page(
     };
     let loaded = match state.store.load_work(work).await {
         Ok(w) => w,
-        Err(_) => return error_page(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
+        Err(_) => return error_page(StatusCode::NOT_FOUND, &tc("reference_msg.glossary.unknown_work", &[])),
     };
     let query = query_from_pairs(&pairs);
     let replacement = first(&pairs, "replacement").map(str::to_owned);
@@ -188,10 +197,7 @@ async fn search_page(
     if !query.q.is_empty() {
         if flag(&pairs, "vorschau") && query.range != SearchRange::All && crate::guard::cross_site_get(&headers) {
             // The preview computes every replacement: not on the request of a foreign page (such as an <img>).
-            return error_page(
-                StatusCode::FORBIDDEN,
-                "Abgelehnt: Die Ersetzen-Vorschau startet nicht auf Anfrage einer fremden Seite.",
-            );
+            return error_page(StatusCode::FORBIDDEN, &tc("reference_msg.search.foreign", &[]));
         }
         if flag(&pairs, "vorschau") && query.range != SearchRange::All {
             // Replacing always happens on the current revision (search.replace): so the preview shows it too.
@@ -253,7 +259,7 @@ async fn search_page(
                         .nodes
                         .iter()
                         .find(|n| n.key == i.key)
-                        .map_or(format!("Abschnitt {}", i.key), |n| super::label_of(&n.number, &n.title));
+                        .map_or_else(|| tc("reference_msg.index.section", &[("key", i.key.into())]), |n| super::label_of(&n.number, &n.title));
                     json!({ "label": label, "url": format!("/werke/{work}/pruefung?key={}", i.key).replace('&', "&amp;") })
                 })
                 .collect();
@@ -275,18 +281,18 @@ async fn search_page(
     // Round 30 (follow-up fix): „Markierung im Editor“ only if the address carries a selection (start/end from
     // the editor); without it there would be nothing to choose.
     let selection_label = match (query.start, query.end) {
-        (Some(s), Some(e)) => Some(format!("Markierung im Editor (Zeichen {s}–{e})")),
+        (Some(s), Some(e)) => Some(tc("reference_msg.search.selection", &[("start", s.into()), ("end", e.into())])),
         _ => None,
     };
     let ranges: Vec<Value> = [
-        (SearchRange::Selection, selection_label.as_deref().unwrap_or("")),
-        (SearchRange::Section, "Abschnitt"),
-        (SearchRange::Chapter, "Kapitel"),
-        (SearchRange::Part, "Teil"),
-        (SearchRange::From, "ab Abschnitt bis zum Ende"),
-        (SearchRange::Picked, "Auswahl aus der Gliederung"),
-        (SearchRange::Work, "ganzes Werk"),
-        (SearchRange::All, "alle Werke (nur Suchen)"),
+        (SearchRange::Selection, selection_label.clone().unwrap_or_default()),
+        (SearchRange::Section, tc("reference_msg.search.choice_section", &[])),
+        (SearchRange::Chapter, tc("reference_msg.search.choice_chapter", &[])),
+        (SearchRange::Part, tc("reference_msg.search.choice_part", &[])),
+        (SearchRange::From, tc("reference_msg.search.choice_from", &[])),
+        (SearchRange::Picked, tc("reference_msg.search.choice_picked", &[])),
+        (SearchRange::Work, tc("reference_msg.search.choice_work", &[])),
+        (SearchRange::All, tc("reference_msg.search.choice_all", &[])),
     ]
     .into_iter()
     .filter(|(r, _)| *r != SearchRange::Selection || selection_label.is_some())
@@ -366,7 +372,13 @@ async fn search_page(
     };
     match templates().get_template("search.html").and_then(|t| t.render(ctx)) {
         Ok(html) => Html(html).into_response(),
-        Err(e) => error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Vorlage search.html: {e}")),
+        Err(e) => error_page(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            &tc(
+                "reference_msg.page.template_error",
+                &[("name", "search.html".into()), ("error", e.to_string().into())],
+            ),
+        ),
     }
 }
 
@@ -383,7 +395,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
     let replacement = first(&pairs, "replacement").unwrap_or("").to_owned();
     let back = query_string(work, &query, None);
     if !flag(&pairs, "confirm") {
-        let url = format!("{back}&fehler={}", crate::view::query_escape("Bitte das Häkchen „Ja, ersetzen“ setzen."));
+        let url = format!("{back}&fehler={}", crate::view::query_escape(&tc("reference_msg.search.tick", &[])));
         return Redirect::to(&url).into_response();
     }
     match first(&pairs, "method").unwrap_or("") {
@@ -412,7 +424,10 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
                 }
             }
             if picks.is_empty() {
-                let url = format!("{back}&fehler={}", crate::view::query_escape("Kein Abschnitt ausgewählt."));
+                let url = format!(
+                    "{back}&fehler={}",
+                    crate::view::query_escape(&tc("reference_msg.search.none_picked", &[]))
+                );
                 return Redirect::to(&url).into_response();
             }
             match super::replace::replace(&state, work, &query, &replacement, Some(&picks)).await {
@@ -438,7 +453,7 @@ async fn act(State(state): State<Arc<AppState>>, Form(pairs): Form<Vec<(String, 
                 }
             }
         }
-        _ => error_page(StatusCode::BAD_REQUEST, "Unbekannte Aktion (method)."),
+        _ => error_page(StatusCode::BAD_REQUEST, &tc("reference_msg.xref.unknown_action", &[])),
     }
 }
 

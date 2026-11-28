@@ -66,6 +66,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
 const METHODS: &[&str] = &[
@@ -86,11 +87,15 @@ const METHODS: &[&str] = &[
     "persona.chat_scope_set",
 ];
 
-/// Message when another persona is to get Bible evidence from SWORD.
-pub const BIBLE_REFUSED: &str = "Bibel-Belege aus SWORD gibt es nur für @belege und den Lektor.";
+/// Message when another persona is to get Bible evidence from SWORD (language of the request, Round 39a).
+pub fn bible_refused() -> String {
+    tc("assist_msg.persona.bible_refused", &[])
+}
 
 /// Message when another persona is to get hits of the semantic search.
-pub const RAG_REFUSED: &str = "Bedeutungs-Treffer gibt es nur für @belege und den Lektor.";
+pub fn rag_refused() -> String {
+    tc("assist_msg.persona.rag_refused", &[])
+}
 
 /// Text in the light theme (`--text` in app.css) and the surface it is mixed with.
 pub const LIGHT_TEXT: &str = "#1d2125";
@@ -293,9 +298,9 @@ pub(crate) async fn chat_scope_json(state: &AppState) -> Result<Json, RpcError> 
 
 /// `scope` from `chapter` | `section`; otherwise -32602.
 pub(crate) fn chat_scope_from(value: Option<&str>) -> Result<baruch_store::ChatScope, RpcError> {
-    value.and_then(baruch_store::ChatScope::parse).ok_or_else(|| {
-        RpcError::new(INVALID_PARAMS, "scope: „chapter“ (ganzes Kapitel) oder „section“ (nur Abschnitt)")
-    })
+    value
+        .and_then(baruch_store::ChatScope::parse)
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.scope", &[])))
 }
 
 /// Personas with role, model, context, active, lector and colour, everything from the table `persona`
@@ -383,7 +388,7 @@ pub(crate) async fn bible_state(state: &AppState, handle: &str) -> Result<(Perso
 pub(crate) async fn set_bible(state: &AppState, handle: &str, on: bool) -> Result<(PersonaRow, bool), RpcError> {
     let (row, allowed, ..) = bible_state(state, handle).await?;
     if !allowed {
-        return Err(RpcError::new(INVALID_PARAMS, BIBLE_REFUSED));
+        return Err(RpcError::new(INVALID_PARAMS, bible_refused()));
     }
     let on = state.store.set_persona_bible(&row.handle, on).await?;
     Ok((row, on))
@@ -392,7 +397,7 @@ pub(crate) async fn set_bible(state: &AppState, handle: &str, on: bool) -> Resul
 fn bool_param(params: &Json, name: &str) -> Result<bool, RpcError> {
     match params.get(name) {
         Some(Json::Bool(b)) => Ok(*b),
-        _ => Err(RpcError::new(INVALID_PARAMS, format!("{name}: true oder false erwartet"))),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.flag", &[("name", name.into())]))),
     }
 }
 
@@ -429,7 +434,7 @@ pub(crate) async fn rag_state(state: &AppState, handle: &str) -> Result<(Persona
 pub(crate) async fn set_rag(state: &AppState, handle: &str, on: bool) -> Result<(PersonaRow, bool), RpcError> {
     let (row, allowed, _) = rag_state(state, handle).await?;
     if !allowed {
-        return Err(RpcError::new(INVALID_PARAMS, RAG_REFUSED));
+        return Err(RpcError::new(INVALID_PARAMS, rag_refused()));
     }
     let on = state.store.set_persona_rag(&row.handle, on).await?;
     Ok((row, on))
@@ -438,7 +443,7 @@ pub(crate) async fn set_rag(state: &AppState, handle: &str, on: bool) -> Result<
 fn persona_param(params: &Json) -> Result<String, RpcError> {
     match params.get("persona").or_else(|| params.get("handle")) {
         Some(Json::String(h)) if !h.trim().is_empty() => Ok(h.trim().to_owned()),
-        _ => Err(RpcError::new(INVALID_PARAMS, "persona fehlt (z. B. „@belege“)")),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.persona_missing", &[]))),
     }
 }
 
@@ -459,9 +464,9 @@ pub(crate) fn lector_choice_from(mode: Option<&str>, handle: Option<&str>) -> Re
         Some("auto") => Ok(LectorChoice::Auto),
         Some("fixed") => match handle.map(str::trim).filter(|h| !h.is_empty()) {
             Some(handle) => Ok(LectorChoice::Fixed(handle.to_owned())),
-            None => Err(RpcError::new(INVALID_PARAMS, "handle fehlt: welche Persona ist fest Lektor?")),
+            None => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.fixed_handle", &[]))),
         },
-        _ => Err(RpcError::new(INVALID_PARAMS, "mode: „fixed“ oder „auto“ erwartet")),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.lector_mode", &[]))),
     }
 }
 
@@ -470,13 +475,13 @@ pub(crate) fn lector_choice_from(mode: Option<&str>, handle: Option<&str>) -> Re
 pub(crate) fn update_params(params: &Json) -> Result<Update, RpcError> {
     let handle = match params.get("handle") {
         Some(Json::String(h)) if !h.trim().is_empty() => h.trim().to_owned(),
-        _ => return Err(RpcError::new(INVALID_PARAMS, "handle fehlt (z. B. „@lektor“)")),
+        _ => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.handle_missing", &[]))),
     };
     let text = |name: &str| -> Result<Option<String>, RpcError> {
         match params.get(name) {
             None | Some(Json::Null) => Ok(None),
             Some(Json::String(s)) => Ok(Some(s.clone())),
-            Some(_) => Err(RpcError::new(INVALID_PARAMS, format!("{name}: Text erwartet"))),
+            Some(_) => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.text", &[("name", name.into())]))),
         }
     };
     let context_length = match params.get("context_length") {
@@ -484,17 +489,14 @@ pub(crate) fn update_params(params: &Json) -> Result<Update, RpcError> {
         Some(value) => match value.as_u64().and_then(|n| u32::try_from(n).ok()) {
             Some(n) => Some(n),
             None => {
-                return Err(RpcError::new(
-                    INVALID_PARAMS,
-                    "Die Kontextlänge muss zwischen 1 und 10000000 Tokens liegen.",
-                ));
+                return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.context_range", &[])));
             }
         },
     };
     let active = match params.get("active") {
         None | Some(Json::Null) => None,
         Some(Json::Bool(b)) => Some(*b),
-        Some(_) => return Err(RpcError::new(INVALID_PARAMS, "active: true oder false erwartet")),
+        Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.active_flag", &[]))),
     };
     let name = text("name")?
         .map(|n| PersonaEdit::check_name(&n).map_err(|why| RpcError::new(INVALID_PARAMS, why)))
@@ -528,7 +530,7 @@ fn color_param(params: &Json) -> Result<Option<String>, RpcError> {
     match params.get("color") {
         Some(Json::Null) => Ok(None),
         Some(Json::String(s)) => Ok(Some(s.clone())),
-        _ => Err(RpcError::new(INVALID_PARAMS, "color: \"#rrggbb\" oder null erwartet")),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.color_param", &[]))),
     }
 }
 
@@ -545,7 +547,7 @@ pub(crate) fn optional_color(params: &Json) -> Result<Option<Option<String>>, Rp
 fn handle_param(params: &Json) -> Result<String, RpcError> {
     match params.get("handle") {
         Some(Json::String(h)) if !h.trim().is_empty() => Ok(h.trim().to_owned()),
-        _ => Err(RpcError::new(INVALID_PARAMS, "handle fehlt (z. B. „@lektor“)")),
+        _ => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.handle_missing", &[]))),
     }
 }
 
@@ -555,7 +557,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
         "persona.set_color" => {
             let handle = match params.get("handle") {
                 Some(Json::String(h)) if !h.trim().is_empty() => h.clone(),
-                _ => return Err(RpcError::new(INVALID_PARAMS, "handle fehlt (z. B. „@lektor“)")),
+                _ => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.handle_missing", &[]))),
             };
             let color = color_param(&params)?;
             let set = set_color(state, &handle, color.as_deref()).await?;
@@ -574,7 +576,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let prompt = match params.get("prompt") {
                 Some(Json::Null) => None,
                 Some(Json::String(s)) => Some(s.clone()),
-                _ => return Err(RpcError::new(INVALID_PARAMS, "prompt: Text oder null (Vorgabe) erwartet")),
+                _ => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.prompt_param", &[]))),
             };
             Ok(prompt_json(&set_prompt(state, &handle, prompt.as_deref()).await?))
         }
@@ -601,7 +603,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
             let handle = persona_param(&params)?;
             let on = match params.get("on") {
                 Some(Json::Bool(on)) => *on,
-                _ => return Err(RpcError::new(INVALID_PARAMS, "on: true oder false erwartet")),
+                _ => return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.on_flag", &[]))),
             };
             let (row, on) = set_rag(state, &handle, on).await?;
             Ok(json!({ "persona": row.handle, "rag_context": on }))
@@ -614,7 +616,7 @@ pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, 
                 Some(Json::String(s)) => s.trim().parse().ok(),
                 _ => None,
             }
-            .ok_or_else(|| RpcError::new(INVALID_PARAMS, "connection: id der Modell-Verbindung erwartet"))?;
+            .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.connection_param", &[])))?;
             let allowed = match params.get("external_allowed") {
                 None | Some(Json::Null) => false,
                 Some(_) => bool_param(&params, "external_allowed")?,
@@ -730,9 +732,10 @@ fn tab_url(handle: &str, extra: &str, work: Option<i64>) -> String {
 async fn save(state: &AppState, handle: &str, form: &ActForm) -> Result<(), RpcError> {
     let context_length = match form.context_length.as_deref().map(str::trim) {
         None | Some("") => None,
-        Some(text) => Some(text.parse::<u32>().map_err(|_| {
-            RpcError::new(INVALID_PARAMS, "Die Kontextlänge muss zwischen 1 und 10000000 Tokens liegen.")
-        })?),
+        Some(text) => Some(
+            text.parse::<u32>()
+                .map_err(|_| RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.context_range", &[])))?,
+        ),
     };
     let edit = PersonaEdit {
         role: form.role.clone(),
@@ -749,7 +752,7 @@ async fn save(state: &AppState, handle: &str, form: &ActForm) -> Result<(), RpcE
     if let Some(c) = color
         && valid_color(c).is_none()
     {
-        return Err(RpcError::new(INVALID_PARAMS, "Farbe als #rrggbb angeben."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.color_form", &[])));
     }
     let row = row_of(state, handle).await?;
     // The colour picker always sends a value; only a change makes it an own colour.
@@ -788,7 +791,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     if !["persona.set_color", "persona.update", "persona.set_prompt", "persona.set_lector", "persona.chat_scope_set"]
         .contains(&method)
     {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("assist_msg.page.unknown_action", &[])).into_response();
     }
     let handle = form.handle.as_deref().unwrap_or("").trim().to_owned();
     let reset = form.reset.as_deref().is_some_and(|r| matches!(r, "1" | "on"));
@@ -803,7 +806,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             Err(e) => Err(e),
         }
     } else if handle.is_empty() {
-        Err(RpcError::new(INVALID_PARAMS, "handle fehlt (z. B. „@lektor“)"))
+        Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.handle_missing", &[])))
     } else if method == "persona.set_prompt" {
         let prompt = if reset { None } else { Some(form.prompt.clone().unwrap_or_default()) };
         set_prompt(&state, &handle, prompt.as_deref()).await.map(|_| if reset { "vorgabe" } else { "prompt" })
@@ -818,9 +821,10 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     } else {
         let context_length = match form.context_length.as_deref().map(str::trim) {
             None | Some("") => Ok(None),
-            Some(text) => text.parse::<u32>().map(Some).map_err(|_| {
-                RpcError::new(INVALID_PARAMS, "Die Kontextlänge muss zwischen 1 und 10000000 Tokens liegen.")
-            }),
+            Some(text) => text
+                .parse::<u32>()
+                .map(Some)
+                .map_err(|_| RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.context_range", &[]))),
         };
         match context_length {
             Ok(context_length) => {
@@ -848,7 +852,8 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             Redirect::to(&to).into_response()
         }
         Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
+            (StatusCode::INTERNAL_SERVER_ERROR, tc("assist_msg.page.error", &[("error", e.message.as_str().into())]))
+                .into_response()
         }
         Err(e) => crate::settings::error_page(&state, &headers, "assistenten", work, &e.message).await,
     }
@@ -865,8 +870,8 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
 async fn tab_act(state: &AppState, headers: &HeaderMap, work: Option<i64>, action: &str, form: &ActForm) -> Response {
     let handle = form.handle.as_deref().unwrap_or("").trim().to_owned();
     if handle.is_empty() {
-        let message = "handle fehlt (z. B. „@lektor“)";
-        return crate::settings::error_page(state, headers, "assistenten", work, message).await;
+        let message = tc("assist_msg.persona.handle_missing", &[]);
+        return crate::settings::error_page(state, headers, "assistenten", work, &message).await;
     }
     let result = match action {
         "save" => save(state, &handle, form).await.map(|()| "&ok=persona"),
@@ -880,18 +885,19 @@ async fn tab_act(state: &AppState, headers: &HeaderMap, work: Option<i64>, actio
             Some(connection) => set_backend(state, &handle, connection, ticked(form.external_allowed.as_deref()))
                 .await
                 .map(|_| "&ok=verbindung"),
-            None => Err(RpcError::new(INVALID_PARAMS, "Bitte eine Modell-Verbindung wählen.")),
+            None => Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.persona.choose_connection", &[]))),
         },
         "reset_prompt" => match row_of(state, &handle).await {
             Ok(_) => Ok("&rueckfrage=vorgabe"),
             Err(e) => Err(e),
         },
-        _ => return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+        _ => return (StatusCode::BAD_REQUEST, tc("assist_msg.page.unknown_action", &[])).into_response(),
     };
     match result {
         Ok(extra) => Redirect::to(&tab_url(&handle, extra, work)).into_response(),
         Err(e) if e.code == INTERNAL => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
+            (StatusCode::INTERNAL_SERVER_ERROR, tc("assist_msg.page.error", &[("error", e.message.as_str().into())]))
+                .into_response()
         }
         Err(e) => {
             let retry = PersonaRetry {

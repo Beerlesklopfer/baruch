@@ -66,12 +66,12 @@ pub struct Raw {
 
 /// Message “too many nodes” (same for reader and [`check`]).
 pub fn too_many_nodes() -> String {
-    format!("Die Datei hat mehr als {MAX_IMPORT_NODES} Knoten; so große Mindmaps liest Baruch nicht ein.")
+    crate::i18n::tc("ideas_msg.import.file_too_many", &[("max", MAX_IMPORT_NODES.into())])
 }
 
 /// Message “too deep” (same for reader and [`check`]).
 pub fn too_deep() -> String {
-    format!("Die Mindmap ist tiefer als {MAX_TREE_DEPTH} Ebenen; so tiefe Mindmaps liest Baruch nicht ein.")
+    crate::i18n::tc("ideas_msg.import.file_too_deep", &[("max", MAX_TREE_DEPTH.into())])
 }
 
 /// Read a file by its content: ZIP („PK“) as XMind, XML as FreeMind/Freeplane. The file name decides nothing.
@@ -80,7 +80,7 @@ pub fn read(bytes: &[u8]) -> Result<ImportTree, String> {
         return Err(too_large());
     }
     if bytes.is_empty() {
-        return Err("Die Datei ist leer.".to_owned());
+        return Err(crate::i18n::tc("ideas_msg.import.empty", &[]));
     }
     let raw = if bytes.starts_with(b"PK") {
         super::xmind::read(bytes)?
@@ -88,9 +88,7 @@ pub fn read(bytes: &[u8]) -> Result<ImportTree, String> {
         let text = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
         let first = text.iter().find(|b| !b.is_ascii_whitespace());
         if first != Some(&b'<') {
-            return Err(
-                "Die Datei ist weder eine FreeMind-/Freeplane-Datei (.mm) noch eine XMind-Datei (.xmind).".to_owned()
-            );
+            return Err(crate::i18n::tc("ideas_msg.import.wrong_format", &[]));
         }
         super::freemind::read(text)?
     };
@@ -99,10 +97,7 @@ pub fn read(bytes: &[u8]) -> Result<ImportTree, String> {
 
 /// Message “file too large”.
 pub fn too_large() -> String {
-    format!(
-        "Die Datei ist größer als {} MiB; so große Mindmaps liest Baruch nicht ein.",
-        MAX_UPLOAD_BYTES / (1024 * 1024)
-    )
+    crate::i18n::tc("ideas_msg.import.too_large", &[("mib", (MAX_UPLOAD_BYTES / (1024 * 1024)).into())])
 }
 
 fn convert(node: RawNode, path: &mut Vec<usize>, ids: &mut HashMap<String, Vec<usize>>) -> ImportNode {
@@ -148,9 +143,7 @@ pub fn finish(raw: Raw) -> Result<ImportTree, String> {
         }
     }
     if lost > 0 {
-        warnings.push(format!(
-            "{lost} Beziehung(en) nicht übernommen: Ein Ende fehlt in der Datei, ist das Hauptthema oder beide Enden sind derselbe Knoten."
-        ));
+        warnings.push(crate::i18n::tc("ideas_msg.import.links_lost", &[("count", lost.into())]));
     }
     check(ImportTree { title: raw.root.title, nodes, links, warnings })
 }
@@ -225,9 +218,9 @@ fn clean(node: &mut ImportNode, depth: usize, stats: &mut Stats) -> Result<(), S
     node.words = words;
     stats.bytes += node.title.len() + node.note.len() + node.words.iter().map(String::len).sum::<usize>();
     if stats.bytes > MAX_TEXT_BYTES {
-        return Err(format!(
-            "Die Mindmap trägt mehr als {} MiB Text; so viel liest Baruch nicht ein.",
-            MAX_TEXT_BYTES / (1024 * 1024)
+        return Err(crate::i18n::tc(
+            "ideas_msg.import.too_much_text",
+            &[("mib", (MAX_TEXT_BYTES / (1024 * 1024)).into())],
         ));
     }
     for child in &mut node.children {
@@ -260,7 +253,7 @@ pub fn check(mut tree: ImportTree) -> Result<ImportTree, String> {
         clean(node, 1, &mut stats)?;
     }
     if tree.nodes.is_empty() {
-        return Err("Die Datei enthält außer dem Hauptthema keine Knoten; es gibt nichts einzulesen.".to_owned());
+        return Err(crate::i18n::tc("ideas_msg.import.only_root", &[]));
     }
     let mut warnings: Vec<String> =
         tree.warnings.iter().map(|w| cut(one_line(w), 300).0).filter(|w| !w.is_empty()).take(40).collect();
@@ -271,18 +264,30 @@ pub fn check(mut tree: ImportTree) -> Result<ImportTree, String> {
     };
     note(
         stats.cut_titles,
-        format!("{} Titel waren länger als {MAX_TITLE_CHARS} Zeichen und wurden gekürzt.", stats.cut_titles),
+        crate::i18n::tc(
+            "ideas_msg.import.cut_titles",
+            &[("count", stats.cut_titles.into()), ("max", MAX_TITLE_CHARS.into())],
+        ),
     );
     note(
         stats.cut_notes,
-        format!("{} Notiz(en) waren länger als {MAX_NOTE_CHARS} Zeichen und wurden gekürzt.", stats.cut_notes),
+        crate::i18n::tc(
+            "ideas_msg.import.cut_notes",
+            &[("count", stats.cut_notes.into()), ("max", MAX_NOTE_CHARS.into())],
+        ),
     );
-    note(stats.untitled, format!("{} Knoten ohne Titel heißen jetzt „{UNTITLED}“.", stats.untitled));
+    note(
+        stats.untitled,
+        crate::i18n::tc(
+            "ideas_msg.import.untitled",
+            &[("count", stats.untitled.into()), ("untitled", UNTITLED.into())],
+        ),
+    );
     note(
         stats.cut_words,
-        format!(
-            "Bei {} Knoten wurden Schlagwörter gekürzt (höchstens {MAX_IDEA_WORDS} je Knoten, je {MAX_WORD_CHARS} Zeichen).",
-            stats.cut_words
+        crate::i18n::tc(
+            "ideas_msg.import.cut_words",
+            &[("count", stats.cut_words.into()), ("max", MAX_IDEA_WORDS.into()), ("chars", MAX_WORD_CHARS.into())],
         ),
     );
     let before = tree.links.len();
@@ -291,7 +296,7 @@ pub fn check(mut tree: ImportTree) -> Result<ImportTree, String> {
     tree.links.truncate(MAX_IMPORT_LINKS);
     if tree.links.len() < before {
         warnings
-            .push(format!("{} Beziehung(en) nicht übernommen (ungültig oder zu viele).", before - tree.links.len()));
+            .push(crate::i18n::tc("ideas_msg.import.links_dropped", &[("count", (before - tree.links.len()).into())]));
     }
     for link in &mut tree.links {
         link.note = cut(one_line(&link.note), MAX_LINK_NOTE_CHARS).0;
@@ -408,24 +413,35 @@ mod tests {
 
     #[test]
     fn check_cuts_long_texts_and_says_so() {
-        let mut long = leaf(&"t".repeat(MAX_TITLE_CHARS + 50));
-        long.note = "n".repeat(MAX_NOTE_CHARS + 1);
-        long.words = vec!["Deich".to_owned(), "deich".to_owned(), " ".to_owned(), "w".repeat(MAX_WORD_CHARS + 5)];
-        let tree =
-            check(ImportTree { title: "Karte".to_owned(), nodes: vec![long, leaf(" \u{7}")], ..ImportTree::default() })
-                .expect("überlange Texte sind kein Grund zur Ablehnung");
-        assert_eq!(tree.nodes[0].title.chars().count(), MAX_TITLE_CHARS, "Titel auf die Höchstlänge gekürzt");
-        assert_eq!(tree.nodes[0].note.chars().count(), MAX_NOTE_CHARS, "Notiz auf die Höchstlänge gekürzt");
-        assert_eq!(tree.nodes[0].words.len(), 2, "doppelte und leere Schlagwörter fallen weg");
-        assert_eq!(tree.nodes[0].words[1].chars().count(), MAX_WORD_CHARS, "zu langes Schlagwort gekürzt");
-        assert_eq!(tree.nodes[1].title, UNTITLED, "ein Knoten ohne Titel bekommt einen (ein Einfall braucht einen)");
-        let all = tree.warnings.join(" | ");
-        assert!(all.contains("1 Titel waren länger"), "Hinweis auf gekürzte Titel: {all}");
-        assert!(all.contains("1 Notiz(en) waren länger"), "Hinweis auf gekürzte Notizen: {all}");
-        assert!(all.contains("ohne Titel"), "Hinweis auf Knoten ohne Titel: {all}");
-        assert!(all.contains("Schlagwörter gekürzt"), "Hinweis auf gekürzte Schlagwörter: {all}");
-        let again = check(tree.clone()).unwrap();
-        assert_eq!(again, tree, "ein geprüfter Baum bleibt beim zweiten Prüfen (Bestätigung der Vorschau) unverändert");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let mut long = leaf(&"t".repeat(MAX_TITLE_CHARS + 50));
+            long.note = "n".repeat(MAX_NOTE_CHARS + 1);
+            long.words = vec!["Deich".to_owned(), "deich".to_owned(), " ".to_owned(), "w".repeat(MAX_WORD_CHARS + 5)];
+            let tree = check(ImportTree {
+                title: "Karte".to_owned(),
+                nodes: vec![long, leaf(" \u{7}")],
+                ..ImportTree::default()
+            })
+            .expect("überlange Texte sind kein Grund zur Ablehnung");
+            assert_eq!(tree.nodes[0].title.chars().count(), MAX_TITLE_CHARS, "Titel auf die Höchstlänge gekürzt");
+            assert_eq!(tree.nodes[0].note.chars().count(), MAX_NOTE_CHARS, "Notiz auf die Höchstlänge gekürzt");
+            assert_eq!(tree.nodes[0].words.len(), 2, "doppelte und leere Schlagwörter fallen weg");
+            assert_eq!(tree.nodes[0].words[1].chars().count(), MAX_WORD_CHARS, "zu langes Schlagwort gekürzt");
+            assert_eq!(
+                tree.nodes[1].title, UNTITLED,
+                "ein Knoten ohne Titel bekommt einen (ein Einfall braucht einen)"
+            );
+            let all = tree.warnings.join(" | ");
+            assert!(all.contains("1 Titel waren länger"), "Hinweis auf gekürzte Titel: {all}");
+            assert!(all.contains("1 Notiz(en) waren länger"), "Hinweis auf gekürzte Notizen: {all}");
+            assert!(all.contains("ohne Titel"), "Hinweis auf Knoten ohne Titel: {all}");
+            assert!(all.contains("Schlagwörter gekürzt"), "Hinweis auf gekürzte Schlagwörter: {all}");
+            let again = check(tree.clone()).unwrap();
+            assert_eq!(
+                again, tree,
+                "ein geprüfter Baum bleibt beim zweiten Prüfen (Bestätigung der Vorschau) unverändert"
+            );
+        })
     }
 
     #[test]
@@ -451,50 +467,52 @@ mod tests {
 
     #[test]
     fn finish_resolves_the_cloud_branch_and_turns_ids_into_paths() {
-        let raw = Raw {
-            root: RawNode {
-                id: "r".to_owned(),
-                title: "Karte".to_owned(),
-                children: vec![
-                    RawNode { id: "a".to_owned(), title: "A".to_owned(), ..RawNode::default() },
-                    RawNode {
-                        id: "c".to_owned(),
-                        title: "Wolke".to_owned(),
-                        cloud: true,
-                        children: vec![RawNode { id: "b".to_owned(), title: "B".to_owned(), ..RawNode::default() }],
-                        ..RawNode::default()
-                    },
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let raw = Raw {
+                root: RawNode {
+                    id: "r".to_owned(),
+                    title: "Karte".to_owned(),
+                    children: vec![
+                        RawNode { id: "a".to_owned(), title: "A".to_owned(), ..RawNode::default() },
+                        RawNode {
+                            id: "c".to_owned(),
+                            title: "Wolke".to_owned(),
+                            cloud: true,
+                            children: vec![RawNode { id: "b".to_owned(), title: "B".to_owned(), ..RawNode::default() }],
+                            ..RawNode::default()
+                        },
+                    ],
+                    ..RawNode::default()
+                },
+                links: vec![
+                    RawLink { from: "a".to_owned(), to: "b".to_owned(), note: "passt".to_owned() },
+                    RawLink { from: "a".to_owned(), to: "r".to_owned(), note: String::new() },
+                    RawLink { from: "a".to_owned(), to: "fehlt".to_owned(), note: String::new() },
                 ],
-                ..RawNode::default()
-            },
-            links: vec![
-                RawLink { from: "a".to_owned(), to: "b".to_owned(), note: "passt".to_owned() },
-                RawLink { from: "a".to_owned(), to: "r".to_owned(), note: String::new() },
-                RawLink { from: "a".to_owned(), to: "fehlt".to_owned(), note: String::new() },
-            ],
-            warnings: Vec::new(),
-        };
-        let tree = finish(raw).unwrap();
-        assert_eq!(tree.title, "Karte", "die Wurzel wird Titel, nicht Knoten");
-        assert_eq!(
-            tree.nodes.iter().map(|n| n.title.as_str()).collect::<Vec<_>>(),
-            vec!["A", "B"],
-            "der Ast „Wolke“ ist aufgelöst: sein Kind steht auf der obersten Ebene"
-        );
-        assert_eq!(
-            tree.nodes.iter().map(|n| n.cloud).collect::<Vec<_>>(),
-            vec![false, true],
-            "Runde 36: Das Kind des Astes „Wolke“ merkt sich die Wolke, der gewöhnliche Ast nicht"
-        );
-        assert_eq!(
-            tree.links,
-            vec![ImportLink { from: vec![0], to: vec![1], note: "passt".to_owned() }],
-            "Beziehungen als Pfade; Beziehungen zur Wurzel oder ins Leere fallen weg"
-        );
-        assert!(
-            tree.warnings.iter().any(|w| w.starts_with("2 Beziehung(en) nicht übernommen")),
-            "mit Hinweis: {:?}",
-            tree.warnings
-        );
+                warnings: Vec::new(),
+            };
+            let tree = finish(raw).unwrap();
+            assert_eq!(tree.title, "Karte", "die Wurzel wird Titel, nicht Knoten");
+            assert_eq!(
+                tree.nodes.iter().map(|n| n.title.as_str()).collect::<Vec<_>>(),
+                vec!["A", "B"],
+                "der Ast „Wolke“ ist aufgelöst: sein Kind steht auf der obersten Ebene"
+            );
+            assert_eq!(
+                tree.nodes.iter().map(|n| n.cloud).collect::<Vec<_>>(),
+                vec![false, true],
+                "Runde 36: Das Kind des Astes „Wolke“ merkt sich die Wolke, der gewöhnliche Ast nicht"
+            );
+            assert_eq!(
+                tree.links,
+                vec![ImportLink { from: vec![0], to: vec![1], note: "passt".to_owned() }],
+                "Beziehungen als Pfade; Beziehungen zur Wurzel oder ins Leere fallen weg"
+            );
+            assert!(
+                tree.warnings.iter().any(|w| w.starts_with("2 Beziehung(en) nicht übernommen")),
+                "mit Hinweis: {:?}",
+                tree.warnings
+            );
+        })
     }
 }

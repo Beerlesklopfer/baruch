@@ -24,6 +24,7 @@ use serde_json::{Value, json};
 
 use crate::AppState;
 use crate::bibles::{marks_with, state_label};
+use crate::i18n::tc;
 use crate::view::Settings;
 
 /// Routes of the page (merged in `lib.rs`).
@@ -57,7 +58,8 @@ fn error_page(status: StatusCode, message: &str) -> Response {
     (
         status,
         Html(format!(
-            "<!doctype html><meta charset=\"utf-8\"><title>Zitate prüfen</title><p>{}</p>",
+            "<!doctype html><meta charset=\"utf-8\"><title>{}</title><p>{}</p>",
+            crate::bibles::html_escape(&tc("reference_msg.check.title", &[])),
             crate::bibles::html_escape(message)
         )),
     )
@@ -89,18 +91,23 @@ pub async fn check_page(
     let work_title = match state.store.works().await {
         Ok(list) => match list.into_iter().find(|(w, _, _)| *w == id) {
             Some((_, _, title)) => title,
-            None => return error_page(StatusCode::NOT_FOUND, "Unbekanntes Werk."),
+            None => return error_page(StatusCode::NOT_FOUND, &tc("reference_msg.glossary.unknown_work", &[])),
         },
-        Err(e) => return error_page(StatusCode::INTERNAL_SERVER_ERROR, &format!("Fehler: {e}")),
+        Err(e) => {
+            return error_page(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                &tc("reference_msg.page.error", &[("error", e.to_string().into())]),
+            );
+        }
     };
     let Some(key) = query.key.as_deref().and_then(|k| k.trim().parse::<i64>().ok()) else {
-        return error_page(StatusCode::BAD_REQUEST, "Bitte einen Abschnitt angeben (key = fester Schlüssel).");
+        return error_page(StatusCode::BAD_REQUEST, &tc("reference_msg.check.key_missing", &[]));
     };
     let rev = match query.rev.as_deref().map(str::trim).filter(|r| !r.is_empty()) {
         None => None,
         Some(r) => match r.parse::<u32>() {
             Ok(n) => Some(n),
-            Err(_) => return error_page(StatusCode::BAD_REQUEST, "rev: Nummer der Fassung erwartet."),
+            Err(_) => return error_page(StatusCode::BAD_REQUEST, &tc("reference_msg.check.rev_number", &[])),
         },
     };
     let (title, number, body) = match crate::bibles::shown_text(&state, id, key, rev).await {

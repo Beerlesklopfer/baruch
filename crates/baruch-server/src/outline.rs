@@ -59,6 +59,7 @@ use minijinja::{Environment, Value, context};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
+use crate::i18n::tc;
 use crate::rpc::{self, INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{self, Settings, lq_param};
 use crate::{AppState, mirror};
@@ -90,7 +91,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Number from 0 from `params[key]`, also as text (forms); missing, `null` or empty → `None`.
 fn number(params: &Json, key: &str) -> Result<Option<u64>, RpcError> {
-    let wrong = || invalid(format!("{key}: Zahl ab 0 erwartet"));
+    let wrong = || invalid(tc("outline_msg.param.number", &[("name", key.into())]));
     match params.get(key) {
         None | Some(Json::Null) => Ok(None),
         Some(Json::Number(n)) => n.as_u64().map(Some).ok_or_else(wrong),
@@ -101,8 +102,9 @@ fn number(params: &Json, key: &str) -> Result<Option<u64>, RpcError> {
 }
 
 fn required(params: &Json, key: &str) -> Result<usize, RpcError> {
-    let value = number(params, key)?.ok_or_else(|| invalid(format!("{key} fehlt")))?;
-    usize::try_from(value).map_err(|_| invalid(format!("{key}: zu groß")))
+    let value =
+        number(params, key)?.ok_or_else(|| invalid(tc("outline_msg.param.missing", &[("name", key.into())])))?;
+    usize::try_from(value).map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", key.into())])))
 }
 
 /// Boolean: `true`, `1`, `"1"`, `"on"` or `"true"`; everything else is false.
@@ -118,7 +120,7 @@ fn flag(params: &Json, key: &str) -> bool {
 fn text(params: &Json, key: &str) -> Result<String, RpcError> {
     match params.get(key) {
         Some(Json::String(s)) => Ok(s.clone()),
-        _ => Err(invalid(format!("{key} fehlt (Text)"))),
+        _ => Err(invalid(tc("outline_msg.param.text_missing", &[("name", key.into())]))),
     }
 }
 
@@ -127,7 +129,7 @@ fn place(params: &Json) -> Result<Place, RpcError> {
         Some("before") => Ok(Place::Before),
         Some("after") => Ok(Place::After),
         Some("into") => Ok(Place::Into),
-        _ => Err(invalid("place: before, after oder into erwartet")),
+        _ => Err(invalid(tc("outline_msg.param.place", &[]))),
     }
 }
 
@@ -192,13 +194,14 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
         }
         "outline.request_decide" => {
             let id = required(&params, "id")?;
-            let id = i64::try_from(id).map_err(|_| invalid("id: zu groß"))?;
+            let id =
+                i64::try_from(id).map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "id".into())])))?;
             let confirm = match params.get("decision").and_then(Json::as_str).map(str::trim) {
                 Some("confirm") => true,
                 Some("reject") => false,
-                _ => return Err(invalid("decision: confirm oder reject erwartet")),
+                _ => return Err(invalid(tc("outline_msg.param.decision", &[]))),
             };
-            let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
+            let held = held.ok_or_else(|| RpcError::new(INTERNAL, tc("outline_msg.param.no_lock", &[])))?;
             // Round 36 (store-5): if the human confirms a request „Löschen“, what is deleted besides the current
             // revision is read beforehand (other revisions, posts) – for the mirror commit.
             let mut losses = baruch_store::OutlineLosses::default();
@@ -243,15 +246,21 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
             // (authoritative rule `baruch_typst::markdown`); afterwards `outline_save` reconciles the outline.
             let body = baruch_typst::markdown_headings(&text(&params, "body")?).into_owned();
             let based_on = number(&params, "based_on")?
-                .map(|b| u32::try_from(b).map_err(|_| invalid("based_on: zu groß")))
+                .map(|b| {
+                    u32::try_from(b)
+                        .map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "based_on".into())])))
+                })
                 .transpose()?;
             // Follow-up fix R22: state of the base the editor had loaded (missing: only the revision number counts).
             let based_on_amend = number(&params, "based_on_amend")?
-                .map(|b| u32::try_from(b).map_err(|_| invalid("based_on_amend: zu groß")))
+                .map(|b| {
+                    u32::try_from(b)
+                        .map_err(|_| invalid(tc("outline_msg.param.too_large", &[("name", "based_on_amend".into())])))
+                })
                 .transpose()?;
             let allow = Restructure { split: flag(&params, "split"), merge: flag(&params, "merge") };
             let mode = rpc::save_mode(&params)?;
-            let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
+            let held = held.ok_or_else(|| RpcError::new(INTERNAL, tc("outline_msg.param.no_lock", &[])))?;
             let saved = store.outline_save_at(work, node, &body, based_on, based_on_amend, allow, human, mode).await?;
             let shown = saved.outline.as_ref().map_or(node, |o| o.node);
             let rev = store.load_work(work).await?.nodes.get(shown).and_then(|n| n.current_number());
@@ -272,9 +281,9 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
             let numbering = match params.get("numbering") {
                 None | Some(Json::Null) => None,
                 Some(Json::String(s)) => Some(s.clone()),
-                Some(_) => return Err(invalid("numbering: Text oder null erwartet")),
+                Some(_) => return Err(invalid(tc("outline_msg.param.numbering", &[]))),
             };
-            let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
+            let held = held.ok_or_else(|| RpcError::new(INTERNAL, tc("outline_msg.param.no_lock", &[])))?;
             let change = store.set_numbering(work, numbering.as_deref()).await?;
             let mut answer = outline_answer(&change);
             add_key(state, work, &mut answer).await;
@@ -300,29 +309,32 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Json) ->
                 "outline.move" => Op::Move(required(&params, "node")?, required(&params, "target")?, place(&params)?),
                 "outline.set_level" => {
                     let level = required(&params, "level")?;
-                    Op::Level(required(&params, "node")?, u8::try_from(level).map_err(|_| invalid("level: 1 bis 3"))?)
+                    Op::Level(
+                        required(&params, "node")?,
+                        u8::try_from(level).map_err(|_| invalid(tc("outline_msg.param.level_1_3", &[])))?,
+                    )
                 }
                 "outline.rename" => Op::Rename(required(&params, "node")?, text(&params, "title")?),
                 "outline.add" => {
                     let level = number(&params, "level")?
-                        .map(|l| u8::try_from(l).map_err(|_| invalid("level: 0 bis 3")))
+                        .map(|l| u8::try_from(l).map_err(|_| invalid(tc("outline_msg.param.level_0_3", &[]))))
                         .transpose()?;
                     Op::Add(required(&params, "target")?, place(&params)?, text(&params, "title")?, level)
                 }
                 "outline.set_numbered" => {
                     if params.get("numbered").is_none() {
-                        return Err(invalid("numbered fehlt (true = mit Nummer, false = ohne)"));
+                        return Err(invalid(tc("outline_msg.param.numbered", &[])));
                     }
                     Op::Numbered(required(&params, "node")?, flag(&params, "numbered"))
                 }
                 _ => {
                     if !flag(&params, "confirm") {
-                        return Err(invalid("Löschen bitte bestätigen (confirm)."));
+                        return Err(invalid(tc("outline_msg.param.confirm_delete", &[])));
                     }
                     Op::Delete(required(&params, "node")?)
                 }
             };
-            let held = held.ok_or_else(|| RpcError::new(INTERNAL, "Schreibsperre fehlt"))?;
+            let held = held.ok_or_else(|| RpcError::new(INTERNAL, tc("outline_msg.param.no_lock", &[])))?;
             let mut adopted = None;
             // Round 36 (store-5): before deleting, read what is deleted besides the current revision.
             let mut losses = baruch_store::OutlineLosses::default();
@@ -410,7 +422,11 @@ pub(crate) fn preview_label(kind: baruch_core::WorkKind, level: u8, number: &str
         baruch_core::WorkKind::Sermon => number.trim(),
         baruch_core::WorkKind::Book => number.trim().trim_end_matches('.'),
     };
-    if number.is_empty() { format!("{word} (ohne Nummer)") } else { format!("{word} {number}") }
+    if number.is_empty() {
+        tc("outline_msg.preview.unnumbered", &[("word", word.into())])
+    } else {
+        format!("{word} {number}")
+    }
 }
 
 /// A request as JSON (RPC, MCP): like [`baruch_store::OutlineRequest`], plus `origin_label`
@@ -444,10 +460,12 @@ fn templates() -> &'static Environment<'static> {
 }
 
 fn render(name: &str, ctx: Value) -> Result<String, RpcError> {
-    templates()
-        .get_template(name)
-        .and_then(|t| t.render(ctx))
-        .map_err(|e| RpcError::new(INTERNAL, format!("Vorlage {name}: {e}")))
+    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| {
+        RpcError::new(
+            INTERNAL,
+            tc("outline_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+    })
 }
 
 /// Self-built address (only digits, fixed names, percent-encoded values) as a safe value for
@@ -466,7 +484,7 @@ fn status_of(e: &RpcError) -> StatusCode {
 }
 
 fn error_response(e: RpcError) -> Response {
-    (status_of(&e), format!("Fehler: {}", e.message)).into_response()
+    (status_of(&e), tc("outline_msg.page.error", &[("error", e.message.as_str().into())])).into_response()
 }
 
 fn page_settings(headers: &HeaderMap) -> Value {
@@ -482,7 +500,7 @@ fn parse<T: std::str::FromStr>(value: Option<&str>) -> Option<T> {
 async fn resolve_work(state: &AppState, work: Option<&str>) -> Result<WorkId, RpcError> {
     match work.map(str::trim).filter(|w| !w.is_empty()) {
         Some(text) => {
-            let id: WorkId = text.parse().map_err(|_| invalid("work: Werk-id (Zahl) erwartet"))?;
+            let id: WorkId = text.parse().map_err(|_| invalid(tc("outline_msg.param.work_number", &[])))?;
             state.store.work_slug(id).await?;
             Ok(id)
         }
@@ -503,7 +521,7 @@ struct Entry {
     number: String,
     title: String,
     level: u8,
-    level_name: &'static str,
+    level_name: String,
     up: Option<usize>,
     up_key: Option<i64>,
     up_title: Option<String>,
@@ -624,8 +642,8 @@ impl PageBase {
 }
 
 fn page_error(e: RpcError) -> Response {
-    if e.code == INVALID_PARAMS && e.message.starts_with("unbekanntes Werk") {
-        return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response();
+    if e.code == INVALID_PARAMS && crate::ideas::is_unknown_work(&e.message) {
+        return (StatusCode::NOT_FOUND, tc("outline_msg.page.unknown_work", &[])).into_response();
     }
     error_response(e)
 }
@@ -739,9 +757,9 @@ async fn edit_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query
     };
     let all = entries(&base.work, base.node, &unnumbered);
     let Some(entry) = all.iter().find(|e| e.selected) else {
-        return (StatusCode::NOT_FOUND, "Das Werk hat keine Gliederung.").into_response();
+        return (StatusCode::NOT_FOUND, tc("outline_msg.page.no_outline", &[])).into_response();
     };
-    let names: Vec<&str> = (0..=3).map(|l| view::level_name(base.work.kind, l)).collect();
+    let names: Vec<String> = (0..=3).map(|l| view::level_name(base.work.kind, l)).collect();
     let ctx = context! {
         settings => page_settings(&headers),
         entry => Value::from(Serde(entry)),
@@ -794,7 +812,7 @@ struct OutlineForm {
 /// would split or merge first asks on a page of its own.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<OutlineForm>) -> Response {
     if !handles(&form.method) || matches!(form.method.as_str(), "outline.check" | "outline.requests") {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("outline_msg.page.unknown_action", &[])).into_response();
     }
     let work = match resolve_work(&state, form.work.as_deref()).await {
         Ok(work) => work,

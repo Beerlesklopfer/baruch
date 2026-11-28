@@ -35,6 +35,7 @@ use serde_json::{Value as Json, json};
 use super::view::{card, entry_json, kind_sign, node_label, status_sign};
 use super::{Finding, FindingKind, FindingStatus};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::view::{Settings, levels, query_escape};
 
@@ -79,9 +80,8 @@ fn invalid(message: impl Into<String>) -> RpcError {
 fn parse_statuses(words: &[String]) -> Result<Vec<FindingStatus>, String> {
     let mut out = Vec::new();
     for word in words.iter().flat_map(|w| w.split(',')).map(str::trim).filter(|w| !w.is_empty()) {
-        let status = FindingStatus::from_db(word).ok_or_else(|| {
-            format!("status: „open“, „adopted“, „rejected“, „deferred“ oder „done“ erwartet, nicht „{word}“")
-        })?;
+        let status =
+            FindingStatus::from_db(word).ok_or_else(|| tc("findings_msg.filter.status", &[("word", word.into())]))?;
         if !out.contains(&status) {
             out.push(status);
         }
@@ -92,8 +92,8 @@ fn parse_statuses(words: &[String]) -> Result<Vec<FindingStatus>, String> {
 fn parse_kinds(words: &[String]) -> Result<Vec<FindingKind>, String> {
     let mut out = Vec::new();
     for word in words.iter().flat_map(|w| w.split(',')).map(str::trim).filter(|w| !w.is_empty()) {
-        let kind = FindingKind::from_db(word)
-            .ok_or_else(|| format!("kind: „praise“, „hint“ oder „critical“ erwartet, nicht „{word}“"))?;
+        let kind =
+            FindingKind::from_db(word).ok_or_else(|| tc("findings_msg.filter.kind", &[("word", word.into())]))?;
         if !out.contains(&kind) {
             out.push(kind);
         }
@@ -127,9 +127,13 @@ impl MatrixFilter {
                 Some(Json::String(s)) => Ok(vec![s.clone()]),
                 Some(Json::Array(list)) => list
                     .iter()
-                    .map(|v| v.as_str().map(str::to_owned).ok_or_else(|| invalid(format!("{name}: Texte erwartet"))))
+                    .map(|v| {
+                        v.as_str()
+                            .map(str::to_owned)
+                            .ok_or_else(|| invalid(tc("findings_msg.param.texts", &[("name", name.into())])))
+                    })
                     .collect(),
-                Some(_) => Err(invalid(format!("{name}: Text oder Liste erwartet"))),
+                Some(_) => Err(invalid(tc("findings_msg.param.text_or_list", &[("name", name.into())]))),
             }
         };
         let text = |name: &str| -> Result<Option<String>, RpcError> {
@@ -137,32 +141,32 @@ impl MatrixFilter {
                 None | Some(Json::Null) => Ok(None),
                 Some(Json::String(s)) if s.trim().is_empty() => Ok(None),
                 Some(Json::String(s)) => Ok(Some(s.clone())),
-                Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+                Some(_) => Err(invalid(tc("findings_msg.param.text", &[("name", name.into())]))),
             }
         };
         let time = |name: &str| -> Result<Option<String>, RpcError> {
             text(name)?
-                .map(|t| clean_time(&t).ok_or_else(|| invalid(format!("{name}: Zeit wie 2026-11-01 erwartet"))))
+                .map(|t| clean_time(&t).ok_or_else(|| invalid(tc("findings_msg.param.time", &[("name", name.into())]))))
                 .transpose()
         };
         let include_praise = match params.get("include_praise") {
             None | Some(Json::Null) => false,
             Some(Json::Bool(b)) => *b,
-            Some(_) => return Err(invalid("include_praise: true oder false erwartet")),
+            Some(_) => return Err(invalid(tc("findings_msg.param.include_praise", &[]))),
         };
         let older_than_days = match params.get("older_than_days") {
             None | Some(Json::Null) => None,
             Some(Json::Number(n)) => match n.as_u64() {
                 Some(days) if days <= u64::from(MAX_OLDER_DAYS) => Some(days as u32),
-                _ => return Err(invalid(format!("older_than_days: 0 bis {MAX_OLDER_DAYS} erwartet"))),
+                _ => return Err(invalid(tc("findings_msg.param.older_range", &[("max", MAX_OLDER_DAYS.into())]))),
             },
-            Some(_) => return Err(invalid("older_than_days: Zahl erwartet")),
+            Some(_) => return Err(invalid(tc("findings_msg.param.older_number", &[]))),
         };
         Ok(MatrixFilter {
             status: parse_statuses(&words("status")?).map_err(invalid)?,
             kind: parse_kinds(&words("kind")?).map_err(invalid)?,
             persona: text("persona")?
-                .map(|p| clean_persona(&p).ok_or_else(|| invalid("persona: ungültig")))
+                .map(|p| clean_persona(&p).ok_or_else(|| invalid(tc("findings_msg.param.persona", &[]))))
                 .transpose()?,
             since: time("since")?,
             until: time("until")?,
@@ -320,7 +324,7 @@ impl Counts {
         if self.solved + self.unsolved == 0 {
             return String::new();
         }
-        format!("{} mit Lösung, {} ohne Lösung", self.solved, self.unsolved)
+        tc("findings_msg.matrix.solutions", &[("solved", self.solved.into()), ("unsolved", self.unsolved.into())])
     }
 
     /// Number for a status.
@@ -355,9 +359,9 @@ impl Counts {
             .map(|s| format!("{} {}", self.of(s), s.label()))
             .collect();
         if self.praise > 0 {
-            parts.push(format!("{} Lob", self.praise));
+            parts.push(tc("findings_msg.matrix.praise", &[("count", self.praise.into())]));
         }
-        if parts.is_empty() { "keine Befunde".to_owned() } else { parts.join(", ") }
+        if parts.is_empty() { tc("findings_msg.matrix.none", &[]) } else { parts.join(", ") }
     }
 }
 
@@ -558,7 +562,7 @@ pub fn build_matrix(
         let g = *group_of_part.entry(part).or_insert_with(|| {
             let (kind, key, number, title) = match part {
                 Some(p) => ("part", Some(work.nodes[p].key), work.nodes[p].number.clone(), work.nodes[p].title.clone()),
-                None => ("none", None, String::new(), "Ohne Teil".to_owned()),
+                None => ("none", None, String::new(), tc("findings_msg.matrix.no_part", &[])),
             };
             groups.push(MatrixGroup {
                 kind,
@@ -585,7 +589,11 @@ pub fn build_matrix(
         groups[g].rows.push(MatrixRow {
             key: Some(node.key),
             number: node.number.clone(),
-            title: if levels[node.id] == 0 { format!("{} (Teil selbst)", node.title) } else { node.title.clone() },
+            title: if levels[node.id] == 0 {
+                tc("findings_msg.matrix.part_itself", &[("title", node.title.as_str().into())])
+            } else {
+                node.title.clone()
+            },
             level: levels[node.id],
             part: levels[node.id] == 0,
             keys,
@@ -598,7 +606,7 @@ pub fn build_matrix(
     let mut unplaced = MatrixRow {
         key: None,
         number: String::new(),
-        title: "Ohne Abschnitt (Fäden, gelöschte Abschnitte)".to_owned(),
+        title: tc("findings_msg.matrix.no_section_long", &[]),
         level: 1,
         part: false,
         keys: Vec::new(),
@@ -641,7 +649,7 @@ pub fn build_matrix(
             kind: "unplaced",
             key: None,
             number: String::new(),
-            title: "Ohne Abschnitt".to_owned(),
+            title: tc("findings_msg.matrix.no_section", &[]),
             rows: vec![unplaced],
             totals,
             total,
@@ -706,7 +714,7 @@ pub fn build_matrix(
 pub async fn call(state: &AppState, method: &str, params: Json) -> Result<Json, RpcError> {
     let params = if params.is_null() { json!({}) } else { params };
     if !params.is_object() {
-        return Err(invalid("Parameter als Objekt erwartet"));
+        return Err(invalid(tc("findings_msg.param.object", &[])));
     }
     match method {
         "finding.matrix" => {
@@ -809,11 +817,11 @@ fn page_view(pairs: &[(String, String)]) -> PageView {
     view
 }
 
-fn notice_of(ok: &str) -> &'static str {
+fn notice_of(ok: &str) -> String {
     match ok {
-        "status" => "Status gespeichert (ein Commit im Spiegel).",
-        "entscheidung" => "Entscheidung gespeichert (ein Commit im Spiegel).",
-        _ => "Gespeichert.",
+        "status" => tc("findings_msg.notice.status", &[]),
+        "entscheidung" => tc("findings_msg.notice.decision", &[]),
+        _ => tc("findings_msg.notice.saved", &[]),
     }
 }
 
@@ -823,8 +831,10 @@ fn plain(status: StatusCode, text: impl Into<String>) -> Response {
 
 fn store_error(e: StoreError) -> Response {
     match e {
-        StoreError::UnknownWork(_) => plain(StatusCode::NOT_FOUND, "unbekanntes Werk"),
-        e => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")),
+        StoreError::UnknownWork(_) => plain(StatusCode::NOT_FOUND, tc("findings_msg.page.unknown_work", &[])),
+        e => {
+            plain(StatusCode::INTERNAL_SERVER_ERROR, tc("findings_msg.page.error", &[("error", e.to_string().into())]))
+        }
     }
 }
 
@@ -911,7 +921,12 @@ async fn page_response(
     }
     let matrix = match matrix(state, work_id, &filter).await {
         Ok(m) => m,
-        Err(e) => return plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) => {
+            return plain(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                tc("findings_msg.page.error", &[("error", e.message.as_str().into())]),
+            );
+        }
     };
     // All findings (with praise and attached ones) for origins, attached ones and collective proposals.
     let all_filter = FindingFilter {
@@ -1067,7 +1082,10 @@ async fn page_response(
     };
     match templates().get_template("befunde.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (StatusCode::OK, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage befunde.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("findings_msg.page.template_error", &[("name", "befunde.html".into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 
@@ -1131,10 +1149,10 @@ pub fn change_params(
 /// `back` or the finding, errors 200 with notice and draft.
 async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form): Form<ActForm>) -> Response {
     if !matches!(form.method.as_str(), "finding.set_status" | "finding.decide") {
-        return plain(StatusCode::BAD_REQUEST, "unbekannte Aktion");
+        return plain(StatusCode::BAD_REQUEST, tc("findings_msg.page.unknown_action", &[]));
     }
     let Some(work) = number(&form.work) else {
-        return plain(StatusCode::BAD_REQUEST, "work fehlt (Werk-id)");
+        return plain(StatusCode::BAD_REQUEST, tc("findings_msg.page.work_missing", &[]));
     };
     if let Err(e) = state.store.work_slug(work).await {
         return store_error(e);
@@ -1150,7 +1168,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
     };
     let result = match form.method.as_str() {
         "finding.set_status" => match id {
-            None => Err(invalid("id fehlt (Befund)")),
+            None => Err(invalid(tc("findings_msg.param.id_missing", &[]))),
             Some(id) => {
                 let params = change_params(
                     work,
@@ -1168,7 +1186,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             }
         },
         _ => match number(&form.entry) {
-            None => Err(invalid("entry fehlt (Vorschlag)")),
+            None => Err(invalid(tc("findings_msg.param.entry_missing", &[]))),
             Some(entry) => {
                 let confirm = matches!(form.confirm.as_deref().map(str::trim), Some("1" | "true" | "on"));
                 super::rpc::decide(&state, work, entry, confirm).await
@@ -1186,7 +1204,10 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
             };
             Redirect::to(&url).into_response()
         }
-        Err(e) if e.code == INTERNAL => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)),
+        Err(e) if e.code == INTERNAL => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("findings_msg.page.error", &[("error", e.message.as_str().into())]),
+        ),
         Err(e) => {
             // Error: the same page with a notice, the draft stays in the form (nothing is lost).
             let pairs: Vec<(String, String)> = Vec::new();
@@ -1259,11 +1280,13 @@ mod tests {
 
     #[test]
     fn counts_show_sign_and_number_not_only_color() {
-        let c = Counts { open: 2, adopted: 1, praise: 1, total: 4, ..Counts::default() };
-        assert_eq!(c.label(), "○2 ✓1 +1", "Zeichen und Zahl je Status");
-        assert_eq!(c.words(), "2 offen, 1 übernommen, 1 Lob", "in Worten für title und Bildschirmleser");
-        assert_eq!(Counts::default().label(), "–", "leer");
-        assert_eq!(safe_back(Some("//fremd.example/")), None, "fremde Ziele abgelehnt");
-        assert_eq!(safe_back(Some("/?work=1&key=2")).as_deref(), Some("/?work=1&key=2"), "eigene Adresse bleibt");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let c = Counts { open: 2, adopted: 1, praise: 1, total: 4, ..Counts::default() };
+            assert_eq!(c.label(), "○2 ✓1 +1", "Zeichen und Zahl je Status");
+            assert_eq!(c.words(), "2 offen, 1 übernommen, 1 Lob", "in Worten für title und Bildschirmleser");
+            assert_eq!(Counts::default().label(), "–", "leer");
+            assert_eq!(safe_back(Some("//fremd.example/")), None, "fremde Ziele abgelehnt");
+            assert_eq!(safe_back(Some("/?work=1&key=2")).as_deref(), Some("/?work=1&key=2"), "eigene Adresse bleibt");
+        })
     }
 }

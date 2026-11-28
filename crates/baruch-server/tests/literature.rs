@@ -655,9 +655,13 @@ async fn the_source_page_carries_the_key_and_citing_from_an_old_tab_lands_in_the
 fn literature_stubs_name_an_open_round_not_the_finished_stage_b2() {
     // B2 (personas for real) is done with Round 10; a stub must honestly name the round that is still outstanding
     // (AGENTS.md „Stub antwortet ehrlich … mit Stufe“).
+    // Round 39a: the notices follow the interface language; the German wording is checked.
+    let de = baruch_server::i18n::Lang::De;
+    let pick_section = baruch_server::i18n::sync_scope(de, baruch_server::literature::pick_section);
+    let not_linked = baruch_server::i18n::sync_scope(de, baruch_server::literature::not_linked);
     let texts = [
-        baruch_server::literature::PICK_SECTION,
-        baruch_server::literature::NOT_LINKED,
+        pick_section.as_str(),
+        not_linked.as_str(),
         include_str!("../templates/source.html"),
         include_str!("../web/src/literature.ts"),
     ];
@@ -666,7 +670,7 @@ fn literature_stubs_name_an_open_round_not_the_finished_stage_b2() {
         assert!(!text.contains("Literatur (Rest)"), "Runde 15: „an Persona geben“ ist umgesetzt, kein Verweis mehr");
     }
     assert!(
-        !baruch_server::literature::NOT_LINKED.contains("Noch nicht umgesetzt"),
+        !not_linked.contains("Noch nicht umgesetzt"),
         "Runde 13: Der Volltext ist umgesetzt; der Hinweis ohne Verknüpfung ist kein Stub"
     );
 }

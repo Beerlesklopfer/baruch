@@ -17,6 +17,7 @@ use serde_json::{Value, json};
 use super::port::{Message, ModelCall, Role};
 use super::{Mode, context, prompts};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{REFUSED, RpcError};
 
 /// At most this many proposals from one answer.
@@ -74,7 +75,7 @@ pub async fn suggest(
         Some(p) => p.to_owned(),
         None => {
             let (_, _, lector) = crate::personas::rows_and_lector(state).await?;
-            lector.ok_or_else(|| RpcError::new(REFUSED, "Kein Lektor aktiv (Einstellungen → Assistenten)."))?
+            lector.ok_or_else(|| RpcError::new(REFUSED, tc("assist_msg.variant.no_lector", &[])))?
         }
     };
     let persona = context::active_persona(state, &handle).await?;
@@ -101,7 +102,7 @@ pub async fn suggest(
         }
     };
     if text.trim().is_empty() {
-        return Err(RpcError::new(REFUSED, "Kein Text, aus dem sich Begriffe vorschlagen ließen; nichts angelegt."));
+        return Err(RpcError::new(REFUSED, tc("assist_msg.glossary.no_text", &[])));
     }
     let language = crate::work_language::of(state, work).await;
     let mut system =
@@ -148,10 +149,7 @@ pub async fn suggest(
     if suggestions.is_empty() {
         return Err(RpcError::new(
             REFUSED,
-            format!(
-                "{} hat keine Begriffe in der Form „Begriff | Erklärung“ genannt; nichts angelegt.",
-                persona.handle
-            ),
+            tc("assist_msg.glossary.no_terms", &[("handle", persona.handle.as_str().into())]),
         ));
     }
     let mut proposed = Vec::new();

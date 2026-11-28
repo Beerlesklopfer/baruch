@@ -687,7 +687,8 @@ async fn mcp_ask_persona_names_the_basis_and_post_delete_removes_only_own_thread
     let human = read.entries.iter().find(|p| p.author == "Autor").unwrap().id;
     let foreign = tool(&c, &session, "post_delete", json!({ "work": c.work, "id": human, "thread": thread })).await;
     assert_eq!(foreign["isError"], true, "fremder Fadenbeitrag: isError: {foreign}");
-    assert!(foreign["content"][0]["text"].as_str().unwrap().contains("Nur eigene"), "ehrliche Meldung: {foreign}");
+    // Round 39a: MCP answers in English.
+    assert!(foreign["content"][0]["text"].as_str().unwrap().contains("Only your own"), "ehrliche Meldung: {foreign}");
     let own =
         tool(&c, &session, "chat", json!({ "work": c.work, "thread": thread, "message": "Notiz vom Client." })).await;
     assert_ne!(own["isError"], true, "chat in den Faden: {own}");

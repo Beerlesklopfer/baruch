@@ -13,7 +13,7 @@ use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode, header};
 use baruch_server::rpc::{INVALID_PARAMS, REFUSED};
-use baruch_server::typeset_settings::{ADOPT_NOTE, NO_RULE};
+use baruch_server::typeset_settings::{ADOPT_NOTE, no_rule};
 use baruch_typst::typeset::{CANONICAL_CHAPTER_BREAK, FIELDS, TypesetSettings, rules};
 use serde_json::{Value, json};
 
@@ -239,7 +239,8 @@ async fn adopting_the_canonical_rule_moves_it_into_the_settings_with_one_commit(
     // Without a recognised rule: rejected, nothing changed.
     let again = server.rpc("work.typeset_adopt_rule", json!({ "work": work, "confirm": true })).await;
     assert_eq!(error_code(&again), REFUSED, "keine Regel → -32000");
-    assert_eq!(again["error"]["message"], NO_RULE, "Meldung des Vertrags §6.1");
+    let no_rule = baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, no_rule);
+    assert_eq!(again["error"]["message"], no_rule, "Meldung des Vertrags §6.1");
     assert_eq!(commits(&server, &slug), before + 1, "kein weiterer Commit");
     assert_eq!(server.state.store.template_revisions(work).await.unwrap().len(), revisions_before + 1, "keine Fassung");
 }

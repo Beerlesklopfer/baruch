@@ -19,6 +19,7 @@ use baruch_typst::typeset::{
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{self, HUMAN_NAME, TypesetAction, WriteGuard};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 
@@ -49,7 +50,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             // Through RPC it therefore requires the explicit confirmation, as the form requires its checkbox. No
             // widget calls it (`grep -rn typeset_adopt_rule crates/baruch-server/web/src` without a hit).
             if params.get("confirm") != Some(&Value::Bool(true)) {
-                return Err(RpcError::new(INVALID_PARAMS, "confirm: true erwartet"));
+                return Err(RpcError::new(INVALID_PARAMS, tc("export_msg.typeset_settings.confirm", &[])));
             }
             let saved = adopt_template_rule(state, work).await?;
             let after = load(state, work).await?;
@@ -64,8 +65,12 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
 
 /// `params.settings` as [`TypesetSettings`]; missing or not fitting (unknown fields) → `INVALID_PARAMS`.
 fn settings_param(params: &Value) -> Result<TypesetSettings, RpcError> {
-    let value = params.get("settings").ok_or_else(|| RpcError::new(INVALID_PARAMS, "settings fehlt"))?;
-    serde_json::from_value(value.clone()).map_err(|e| RpcError::new(INVALID_PARAMS, format!("settings: {e}")))
+    let value = params
+        .get("settings")
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("export_msg.typeset_settings.missing", &[])))?;
+    serde_json::from_value(value.clone()).map_err(|e| {
+        RpcError::new(INVALID_PARAMS, tc("export_msg.typeset_settings.invalid", &[("error", e.to_string().into())]))
+    })
 }
 
 /// `{work, changed, commit?, mirror?}` of a change.
@@ -159,12 +164,15 @@ pub struct Saved {
 /// Note of the new template revision for [`adopt_template_rule`] (contract §6.1).
 pub const ADOPT_NOTE: &str = "Kapitelanfang in die Satz-Einstellungen übernommen (Runde 29)";
 
-/// Message when the work template has no recognisable chapter start rule (contract §6.1).
-pub const NO_RULE: &str = "Die Werkvorlage hat keine erkennbare Regel für den Kapitelanfang; nichts geändert.";
+/// Message when the work template has no recognisable chapter start rule (contract §6.1); language of the request.
+pub fn no_rule() -> String {
+    tc("export_msg.typeset_settings.no_rule", &[])
+}
 
 /// Note when the running head „Werktitel“ is chosen but the work template sets no title (integrator R29).
-pub const NO_DOCUMENT_TITLE: &str = "Kolumnentitel „Werktitel“: Die Werkvorlage setzt keinen Titel \
-     (#set document(title: …)); die Kolumne bleibt leer";
+pub fn no_document_title() -> String {
+    tc("export_msg.typeset_settings.no_document_title", &[])
+}
 
 /// Does the work template set `document(… title: …)`? Comments (`//`, `/* */`) do not count; the arguments may
 /// span several lines (up to the matching closing bracket).
@@ -232,12 +240,12 @@ fn strip_comments(text: &str) -> String {
 async fn warnings(settings: &TypesetSettings, template: &str) -> Vec<String> {
     let mut out = Vec::new();
     if settings.running_head == Some(baruch_typst::typeset::RunningHead::WorkTitle) && !template_sets_title(template) {
-        out.push(NO_DOCUMENT_TITLE.to_owned());
+        out.push(no_document_title());
     }
     if let Some(font) = &settings.font {
         let families = tokio::task::spawn_blocking(baruch_render::font_families).await.unwrap_or_default();
         if !families.iter().any(|f| f.name.eq_ignore_ascii_case(font)) {
-            out.push(format!("Schrift „{font}“ fehlt; Typst setzt mit der eingebetteten Schrift"));
+            out.push(tc("export_msg.typeset_settings.font_missing", &[("font", font.into())]));
         }
     }
     out
@@ -285,7 +293,7 @@ pub async fn reset(state: &AppState, work: WorkId) -> Result<Saved, RpcError> {
 pub async fn adopt_template_rule(state: &AppState, work: WorkId) -> Result<Saved, RpcError> {
     let held = state.write_lock.lock().await;
     let template = state.store.work_template(work).await?;
-    let rule = detect_chapter_break(&template).ok_or_else(|| RpcError::new(REFUSED, NO_RULE))?;
+    let rule = detect_chapter_break(&template).ok_or_else(|| RpcError::new(REFUSED, no_rule()))?;
     let mut settings = state.store.work_typeset(work).await?.map(|s| s.settings).unwrap_or_default();
     settings.chapter_start = Some(rule.chapter_start);
     let without = remove_rule(&template, &rule);

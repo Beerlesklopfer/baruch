@@ -344,9 +344,13 @@ async fn thread_posts_are_deleted_by_the_human_with_a_commit_and_by_mcp_only_whe
     assert!(message.contains("Hallo zurück."), "der Text bleibt im Protokoll wiederherstellbar: {message}");
 
     let mcp = IdeaOrigin::Mcp { handle: "@mcp:probe".into() };
-    let foreign = baruch_server::threads::delete_post_as(&b.server.state, b.work, thread, human, mcp.clone(), true)
-        .await
-        .unwrap_err();
+    // Round 39a: a direct call outside a request runs in the German scope of the older wording.
+    let foreign = baruch_server::i18n::scope(
+        baruch_server::i18n::Lang::De,
+        baruch_server::threads::delete_post_as(&b.server.state, b.work, thread, human, mcp.clone(), true),
+    )
+    .await
+    .unwrap_err();
     assert!(foreign.message.contains("Nur eigene"), "MCP löscht keine fremden Beiträge: {}", foreign.message);
     let own = b.server.state.store.thread_add_post(b.work, thread, "@mcp:probe", "Mein Beitrag.", &[]).await.unwrap();
     baruch_server::threads::delete_post_as(&b.server.state, b.work, thread, own.id, mcp, true)

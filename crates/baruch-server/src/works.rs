@@ -61,6 +61,7 @@ use minijinja::{Environment, Value, context};
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::i18n::tc;
 use crate::import::{self, ImportReport, MAX_SOURCE_BYTES};
 use crate::markdown_import::{self, Bundle};
 use crate::mirror::{self, HUMAN_EMAIL, HUMAN_NAME, WriteGuard};
@@ -87,9 +88,10 @@ pub const IMPORT_UPLOAD_LIMIT: usize = 80 * 1024 * 1024 + 64 * 1024;
 pub const RPC_BODY_LIMIT: usize = 2 * MAX_SOURCE_BYTES as usize + 64 * 1024;
 
 /// Round 32: answer of `POST /werke/import` (422) and `work.import` (-32602) to a Word file – it points to
-/// the dedicated import with preview ([`crate::docx_import`]).
-pub const USE_WORD_IMPORT: &str = "Word-Dateien liest der eigene Import mit Vorschau: Baruch ▾ → Word (.docx) \
-     importieren… (/werke/import/word) bzw. RPC docx_import.preview.";
+/// the dedicated import with preview ([`crate::docx_import`]); in the language of the request (Round 39a).
+pub fn use_word_import() -> String {
+    tc("works_msg.import.use_word_import", &[])
+}
 
 // ---- RPC ---------------------------------------------------------------------------------------
 
@@ -186,7 +188,7 @@ fn kind_param(value: Option<&str>) -> Result<Option<WorkKind>, RpcError> {
         None => Ok(None),
         Some("book") => Ok(Some(WorkKind::Book)),
         Some("sermon") => Ok(Some(WorkKind::Sermon)),
-        Some(other) => Err(invalid(format!("kind: „book“ oder „sermon“ erwartet, nicht „{other}“"))),
+        Some(other) => Err(invalid(tc("works_msg.rpc.kind_invalid", &[("other", other.into())]))),
     }
 }
 
@@ -195,12 +197,12 @@ fn preset_param(value: Option<&str>) -> Result<Option<Preset>, RpcError> {
         None => Ok(None),
         Some("book") => Ok(Some(Preset::Book)),
         Some("sermon") => Ok(Some(Preset::Sermon)),
-        Some(other) => Err(invalid(format!("preset: „book“ oder „sermon“ erwartet, nicht „{other}“"))),
+        Some(other) => Err(invalid(tc("works_msg.rpc.preset_invalid", &[("other", other.into())]))),
     }
 }
 
 fn required_work(work: Option<WorkId>) -> Result<WorkId, RpcError> {
-    work.ok_or_else(|| invalid("work fehlt: Welches Werk? (Werk-id, Zahl)"))
+    work.ok_or_else(|| invalid(tc("works_msg.rpc.work_missing", &[])))
 }
 
 /// Result of the mirror into the answer: `commit` for a new commit, `mirror` for an error.
@@ -236,12 +238,12 @@ pub async fn call(
             let base = p.file_name.rsplit(['/', '\\']).next().unwrap_or("").trim();
             // Round 32: Word files are read only by the dedicated import with preview.
             if crate::docx_import::is_docx_name(base) {
-                return Err(invalid(USE_WORD_IMPORT));
+                return Err(invalid(use_word_import()));
             }
             let report = if markdown_import::is_markdown_name(base) {
                 markdown_import::import_text(state, &p.source, &p.file_name, p.title.as_deref()).await?
             } else if markdown_import::is_archive_name(base) {
-                return Err(invalid("Ein ZIP-Archiv geht über work.import_archive (Inhalt als Base64)."));
+                return Err(invalid(tc("works_msg.rpc.zip_via_archive", &[])));
             } else {
                 import::import_upload(state, &p.source, &p.file_name, p.title.as_deref()).await?
             };
@@ -251,7 +253,7 @@ pub async fn call(
             let p: ArchiveParams = params(params_value)?;
             let base = p.file_name.rsplit(['/', '\\']).next().unwrap_or("").trim().to_owned();
             if !markdown_import::is_archive_name(&base) {
-                return Err(invalid(format!("„{base}“ ist kein ZIP-Archiv; work.import_archive nimmt nur .zip.")));
+                return Err(invalid(tc("works_msg.rpc.not_zip", &[("base", base.as_str().into())])));
             }
             let bytes = baruch_store::decode_base64(p.content.trim()).map_err(|e| invalid(e.to_string()))?;
             let report = markdown_import::import_archive(state, &bytes, &base, p.title.as_deref()).await?;
@@ -261,8 +263,7 @@ pub async fn call(
         "work.delete" => {
             let p: DeleteParams = params(params_value)?;
             let work = required_work(p.work)?;
-            let confirm =
-                p.confirm_title.ok_or_else(|| invalid("confirm_title fehlt: Titel des Werks zur Bestätigung"))?;
+            let confirm = p.confirm_title.ok_or_else(|| invalid(tc("works_msg.rpc.confirm_title_missing", &[])))?;
             delete(state, work, &confirm).await
         }
         "work.archives" => Ok(json!({ "archives": archives(state).await? })),
@@ -271,7 +272,7 @@ pub async fn call(
             let slug = p
                 .slug
                 .filter(|s| !s.trim().is_empty())
-                .ok_or_else(|| invalid("slug fehlt: Ordnername des archivierten Werks (aus work.archives)"))?;
+                .ok_or_else(|| invalid(tc("works_msg.rpc.slug_missing", &[])))?;
             restore(state, slug.trim()).await
         }
         _ => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {method}"))),
@@ -310,23 +311,24 @@ async fn sermon_text(
 ) -> Result<SermonText, RpcError> {
     let text_ref = text_ref.trim();
     if text_ref.chars().count() > MAX_TEXT_REF_CHARS {
-        return Err(invalid(format!("text_ref: höchstens {MAX_TEXT_REF_CHARS} Zeichen")));
+        return Err(invalid(tc("works_msg.sermon.ref_too_long", &[("max", MAX_TEXT_REF_CHARS.into())])));
     }
     // Round 23: the module name becomes the Bible of the work (`work_bible`: 1–100 characters, one line). Invalid
     // values are rejected already at the input instead of letting the writing fail first.
     if module.is_some_and(|m| m.chars().count() > MAX_MODULE_CHARS || m.chars().any(char::is_control)) {
-        return Err(invalid(format!(
-            "module: Modulname mit höchstens {MAX_MODULE_CHARS} Zeichen in einer Zeile erwartet"
-        )));
+        return Err(invalid(tc("works_msg.sermon.module_invalid", &[("max", MAX_MODULE_CHARS.into())])));
     }
     let found = baruch_scripture::parse(text_ref);
     let one = match found.as_slice() {
         [one] => one,
-        [] => return Err(invalid(format!("Predigttext: „{text_ref}“ ist keine Bibelstelle (z. B. „Joh 3,16“)."))),
-        _ => return Err(invalid(format!("Predigttext: bitte genau eine Bibelstelle angeben, nicht „{text_ref}“."))),
+        [] => return Err(invalid(tc("works_msg.sermon.not_a_passage", &[("text_ref", text_ref.into())]))),
+        _ => return Err(invalid(tc("works_msg.sermon.one_passage", &[("text_ref", text_ref.into())]))),
     };
     let (Some(passage), baruch_scripture::RefStatus::Valid) = (one.passage.as_ref(), &one.status) else {
-        return Err(invalid(format!("Predigttext „{}“: {}", one.input, one.message())));
+        return Err(invalid(tc(
+            "works_msg.sermon.passage_problem",
+            &[("input", one.input.as_str().into()), ("problem", one.message().into())],
+        )));
     };
     let normalized = one.normalized.clone().unwrap_or_else(|| one.input.clone());
     let choice = match module {
@@ -358,21 +360,17 @@ async fn sermon_text(
     let bible = match &choice {
         crate::bibles::Choice::Ready(bible) => Arc::clone(bible),
         crate::bibles::Choice::None => {
-            return Ok(plain(
-                "Keine SWORD-Bibel eingerichtet (Einstellungen → Quellen → Bibeln); nur die Stellenangabe steht da."
-                    .to_owned(),
-                None,
-            ));
+            return Ok(plain(tc("works_msg.sermon.no_bible", &[]), None));
         }
         crate::bibles::Choice::Missing(name) => {
-            return Ok(plain(
-                format!("Bibelmodul {name} in keinem Modulordner gefunden; nur die Stellenangabe steht da."),
-                Some(name.clone()),
-            ));
+            return Ok(plain(tc("works_msg.sermon.module_missing", &[("name", name.into())]), Some(name.clone())));
         }
         crate::bibles::Choice::Unusable(info, why) => {
             return Ok(plain(
-                format!("Bibelmodul {}: {why}; nur die Stellenangabe steht da.", info.name),
+                tc(
+                    "works_msg.sermon.module_error",
+                    &[("name", info.name.as_str().into()), ("error", why.to_string().into())],
+                ),
                 Some(info.name.clone()),
             ));
         }
@@ -390,7 +388,11 @@ async fn sermon_text(
     };
     let passage = match read {
         Ok(passage) => passage,
-        Err(e) => return Ok(plain(format!("Bibelmodul {name}: {e}; nur die Stellenangabe steht da."), Some(name))),
+        Err(e) => {
+            let notice =
+                tc("works_msg.sermon.module_error", &[("name", name.as_str().into()), ("error", e.to_string().into())]);
+            return Ok(plain(notice, Some(name)));
+        }
     };
     let verses = passage.verses;
     let texts: Vec<&str> = verses.iter().filter_map(|v| v.text.as_deref()).map(str::trim).collect();
@@ -398,7 +400,7 @@ async fn sermon_text(
     let truncated = passage.truncated;
     if texts.is_empty() {
         let mut out = plain(
-            format!("Die Stelle fehlt im Bibelmodul {name} ({missing} Verse); nur die Stellenangabe steht da."),
+            tc("works_msg.sermon.passage_missing", &[("name", name.as_str().into()), ("missing", missing.into())]),
             Some(name.clone()),
         );
         out.info["missing"] = json!(missing);
@@ -408,10 +410,13 @@ async fn sermon_text(
     let body = format!("#quote(block: true, attribution: [{reference} ({})])[{quote}]", typst_text(&name));
     let mut notes: Vec<String> = Vec::new();
     if missing > 0 {
-        notes.push(format!("{missing} Verse fehlen im Bibelmodul {name}; der Wortlaut ist unvollständig."));
+        notes.push(tc(
+            "works_msg.sermon.verses_missing",
+            &[("name", name.as_str().into()), ("missing", missing.into())],
+        ));
     }
     if truncated {
-        notes.push(format!("Nur die ersten {} Verse eingefügt.", baruch_sword::MAX_PASSAGE_VERSES));
+        notes.push(tc("works_msg.sermon.truncated", &[("max", baruch_sword::MAX_PASSAGE_VERSES.into())]));
     }
     let notice = (!notes.is_empty()).then(|| notes.join(" "));
     Ok(SermonText {
@@ -447,7 +452,7 @@ async fn create(state: &AppState, p: &CreateParams) -> Result<serde_json::Value,
     };
     let sermon = match given(p.text_ref.as_deref()) {
         Some(_) if preset != Preset::Sermon => {
-            return Err(invalid("Einen Predigttext gibt es nur beim Grundgerüst „Predigt“."));
+            return Err(invalid(tc("works_msg.sermon.only_sermon_preset", &[])));
         }
         Some(text_ref) => Some(sermon_text(state, text_ref, given(p.module.as_deref()), p.from_work).await?),
         None => None,
@@ -537,7 +542,7 @@ async fn delete(state: &AppState, work: WorkId, confirm_title: &str) -> Result<s
     let held = state.write_lock.lock().await;
     let meta = state.store.work_meta(work).await?;
     if title_key(confirm_title) != title_key(&meta.title) {
-        return Err(StoreError::Refused("Der eingegebene Titel passt nicht; nichts gelöscht.").into());
+        return Err(refused(tc("works_msg.delete.title_mismatch", &[])));
     }
     let prepared = prepare_mirror(state, work).await;
     let deleted = state.store.delete_work(work, confirm_title).await?;
@@ -628,7 +633,7 @@ async fn archive_mirror(
             None
         }
         Err(e) => {
-            errors.push(format!("Verschieben abgebrochen: {e}"));
+            errors.push(tc("works_msg.trash.move_aborted", &[("error", e.to_string().into())]));
             None
         }
     };
@@ -646,9 +651,14 @@ pub fn move_to_trash(data: &FsPath, slug: &str, date: &str) -> Result<Option<Str
     }
     let trash = data.join("works").join(TRASH_DIR);
     if std::fs::symlink_metadata(&trash).is_ok_and(|m| m.file_type().is_symlink()) {
-        return Err(format!("{} ist eine symbolische Verknüpfung; der Spiegel bleibt, wo er ist", trash.display()));
+        return Err(tc("works_msg.trash.symlink", &[("path", trash.display().to_string().into())]));
     }
-    std::fs::create_dir_all(&trash).map_err(|e| format!("{} lässt sich nicht anlegen: {e}", trash.display()))?;
+    std::fs::create_dir_all(&trash).map_err(|e| {
+        tc(
+            "works_msg.trash.create_failed",
+            &[("path", trash.display().to_string().into()), ("error", e.to_string().into())],
+        )
+    })?;
     let base = format!("{slug}-{date}");
     let mut name = base.clone();
     let mut n = 2;
@@ -660,8 +670,16 @@ pub fn move_to_trash(data: &FsPath, slug: &str, date: &str) -> Result<Option<Str
         name = format!("{base}-{n}");
         n += 1;
     };
-    std::fs::rename(&dir, &target)
-        .map_err(|e| format!("{} lässt sich nicht nach {} verschieben: {e}", dir.display(), target.display()))?;
+    std::fs::rename(&dir, &target).map_err(|e| {
+        tc(
+            "works_msg.trash.move_failed",
+            &[
+                ("from", dir.display().to_string().into()),
+                ("to", target.display().to_string().into()),
+                ("error", e.to_string().into()),
+            ],
+        )
+    })?;
     Ok(Some(format!("works/{TRASH_DIR}/{name}")))
 }
 
@@ -723,16 +741,18 @@ pub fn archive_folder(data: &FsPath, slug: &str) -> Result<Option<String>, Strin
         match std::fs::symlink_metadata(path) {
             Err(_) => return Ok(None),
             Ok(m) if m.file_type().is_symlink() => {
-                return Err(format!(
-                    "{} ist eine symbolische Verknüpfung; das Archiv wird nicht gelesen",
-                    path.display()
-                ));
+                return Err(tc("works_msg.archive.trash_symlink", &[("path", path.display().to_string().into())]));
             }
             Ok(m) if !m.is_dir() => return Ok(None),
             Ok(_) => {}
         }
     }
-    let entries = std::fs::read_dir(&trash).map_err(|e| format!("{} lässt sich nicht lesen: {e}", trash.display()))?;
+    let entries = std::fs::read_dir(&trash).map_err(|e| {
+        tc(
+            "works_msg.archive.unreadable",
+            &[("path", trash.display().to_string().into()), ("error", e.to_string().into())],
+        )
+    })?;
     let mut best: Option<(String, u32, String)> = None;
     for entry in entries.flatten() {
         let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
@@ -783,21 +803,23 @@ fn read_plain(dir: &FsPath, rel: &str, budget: &mut u64) -> Result<String, Strin
     if let Some(parent) = path.parent().filter(|p| *p != dir)
         && std::fs::symlink_metadata(parent).is_ok_and(|m| m.file_type().is_symlink())
     {
-        return Err(format!("{rel}: Ordner ist eine symbolische Verknüpfung; nichts gelesen"));
+        return Err(tc("works_msg.archive.parent_symlink", &[("path", rel.into())]));
     }
-    let meta = std::fs::symlink_metadata(&path).map_err(|_| format!("{rel} fehlt im Archivordner"))?;
+    let meta =
+        std::fs::symlink_metadata(&path).map_err(|_| tc("works_msg.archive.missing_file", &[("path", rel.into())]))?;
     if meta.file_type().is_symlink() {
-        return Err(format!("{rel} ist eine symbolische Verknüpfung; nichts gelesen"));
+        return Err(tc("works_msg.archive.symlink", &[("path", rel.into())]));
     }
     if !meta.is_file() {
-        return Err(format!("{rel} ist keine Datei"));
+        return Err(tc("works_msg.archive.not_a_file", &[("path", rel.into())]));
     }
     if meta.len() > *budget {
-        return Err("Der Archivordner ist größer als 16 MiB (Grenze wie beim Import); nichts wiederhergestellt.".into());
+        return Err(tc("works_msg.archive.too_large", &[]));
     }
     *budget -= meta.len();
-    let bytes = std::fs::read(&path).map_err(|e| format!("{rel} lässt sich nicht lesen: {e}"))?;
-    String::from_utf8(bytes).map_err(|_| format!("{rel} ist kein UTF-8-Text"))
+    let bytes = std::fs::read(&path)
+        .map_err(|e| tc("works_msg.archive.unreadable", &[("path", rel.into()), ("error", e.to_string().into())]))?;
+    String::from_utf8(bytes).map_err(|_| tc("works_msg.archive.not_utf8", &[("path", rel.into())]))
 }
 
 /// Assemble the Typst text of an archive folder (`folder` relative to the data folder, from [`archive_folder`])
@@ -811,24 +833,26 @@ pub fn read_archive(data: &FsPath, folder: &str) -> Result<Archived, String> {
     let prefix = format!("works/{TRASH_DIR}/");
     let name = folder.strip_prefix(&prefix).unwrap_or("");
     if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') {
-        return Err(format!("ungültiger Archivordner {folder:?}"));
+        return Err(tc("works_msg.archive.invalid_folder", &[("folder", format!("{folder:?}").into())]));
     }
     let works = data.join("works");
     let trash = works.join(TRASH_DIR);
     let dir = trash.join(name);
     for path in [&works, &trash, &dir] {
-        let meta = std::fs::symlink_metadata(path).map_err(|_| format!("{} fehlt", path.display()))?;
+        let shown = path.display().to_string();
+        let meta = std::fs::symlink_metadata(path)
+            .map_err(|_| tc("works_msg.archive.missing", &[("path", shown.as_str().into())]))?;
         if meta.file_type().is_symlink() {
-            return Err(format!("{} ist eine symbolische Verknüpfung; nichts gelesen", path.display()));
+            return Err(tc("works_msg.archive.symlink", &[("path", shown.as_str().into())]));
         }
         if !meta.is_dir() {
-            return Err(format!("{} ist kein Ordner", path.display()));
+            return Err(tc("works_msg.archive.not_a_folder", &[("path", shown.as_str().into())]));
         }
     }
     let mut budget = MAX_SOURCE_BYTES;
     let main = read_plain(&dir, "main.typ", &mut budget)?;
     let has_template = match std::fs::symlink_metadata(dir.join("vorlage.typ")) {
-        Ok(m) if m.file_type().is_symlink() => return Err("vorlage.typ ist eine symbolische Verknüpfung".into()),
+        Ok(m) if m.file_type().is_symlink() => return Err(tc("works_msg.archive.template_symlink", &[])),
         Ok(m) => m.is_file(),
         Err(_) => false,
     };
@@ -851,11 +875,14 @@ pub fn read_archive(data: &FsPath, folder: &str) -> Result<Archived, String> {
         match include_path(bare) {
             Some(path) => {
                 if !section_path_ok(path) {
-                    return Err(format!("main.typ bindet {path:?} ein; erlaubt sind nur abschnitte/<name>.typ"));
+                    return Err(tc(
+                        "works_msg.archive.bad_include",
+                        &[("lt", "<".into()), ("gt", ">".into()), ("path", format!("{path:?}").into())],
+                    ));
                 }
                 sections += 1;
                 if sections > MAX_ARCHIVE_SECTIONS {
-                    return Err(format!("mehr als {MAX_ARCHIVE_SECTIONS} Abschnittsdateien; nichts wiederhergestellt"));
+                    return Err(tc("works_msg.archive.too_many_sections", &[("max", MAX_ARCHIVE_SECTIONS.into())]));
                 }
                 let text = read_plain(&dir, path, &mut budget)?;
                 out.push_str(text.strip_prefix(ARCHIVE_TEMPLATE_IMPORT).unwrap_or(&text));
@@ -899,17 +926,23 @@ pub async fn archives(state: &AppState) -> Result<Vec<ArchiveEntry>, RpcError> {
             .collect::<Vec<_>>()
     }))
     .await
-    .map_err(|e| RpcError::new(INTERNAL, format!("Archiv lesen abgebrochen: {e}")))?;
+    .map_err(|e| RpcError::new(INTERNAL, tc("works_msg.archive.read_aborted", &[("error", e.to_string().into())])))?;
     Ok(retired
         .into_iter()
         .zip(folders)
         .map(|(r, found)| {
             let (folder, reason) = match found {
                 Err(e) => (None, Some(e)),
-                Ok((None, _)) => (None, Some(format!("Kein Archivordner works/{TRASH_DIR}/{}-… gefunden.", r.slug))),
-                Ok((Some(f), false)) => (Some(f), Some("Im Archivordner fehlt main.typ.".to_owned())),
+                Ok((None, _)) => (
+                    None,
+                    Some(tc(
+                        "works_msg.archive.no_folder",
+                        &[("trash", TRASH_DIR.into()), ("slug", r.slug.as_str().into())],
+                    )),
+                ),
+                Ok((Some(f), false)) => (Some(f), Some(tc("works_msg.archive.no_main", &[]))),
                 Ok((Some(f), true)) if live.contains(&title_key(&r.title)) => {
-                    (Some(f), Some("Ein lebendes Werk trägt denselben Titel; erst jenes umbenennen.".to_owned()))
+                    (Some(f), Some(tc("works_msg.archive.live_title", &[])))
                 }
                 Ok((Some(f), true)) => (Some(f), None),
             };
@@ -936,23 +969,23 @@ fn refused(message: impl Into<String>) -> RpcError {
 pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, RpcError> {
     let held = state.write_lock.lock().await;
     if !state.store.retired_works().await?.iter().any(|r| r.slug == slug) {
-        return Err(refused(format!("„{slug}“ steht nicht im Archiv der gelöschten Werke; nichts wiederhergestellt.")));
+        return Err(refused(tc("works_msg.restore.not_archived", &[("slug", slug.into())])));
     }
     let data = state.data.clone();
     let wanted = slug.to_owned();
     let (folder, archived) = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let folder = archive_folder(&data, &wanted)?.ok_or_else(|| {
-            format!("Kein Archivordner works/{TRASH_DIR}/{wanted}-… gefunden; nichts wiederhergestellt.")
+            tc("works_msg.restore.no_folder", &[("trash", TRASH_DIR.into()), ("slug", wanted.as_str().into())])
         })?;
         let archived = read_archive(&data, &folder)?;
         let target = mirror_dir(&data, &wanted)?;
         if std::fs::symlink_metadata(&target).is_ok() {
-            return Err(format!("works/{wanted} gibt es schon; nichts wiederhergestellt."));
+            return Err(tc("works_msg.restore.exists", &[("slug", wanted.as_str().into())]));
         }
         Ok::<_, String>((folder, archived))
     }))
     .await
-    .map_err(|e| RpcError::new(INTERNAL, format!("Archiv lesen abgebrochen: {e}")))?
+    .map_err(|e| RpcError::new(INTERNAL, tc("works_msg.archive.read_aborted", &[("error", e.to_string().into())])))?
     .map_err(refused)?;
     let restored = state.store.restore_retired(slug, &archived.source, HUMAN_NAME).await?;
     crate::rag::notify(state, Some(restored.work));
@@ -961,14 +994,18 @@ pub async fn restore(state: &AppState, slug: &str) -> Result<serde_json::Value, 
     let (from, to_slug) = (folder.clone(), slug.to_owned());
     let moved = tokio::task::spawn_blocking(crate::i18n::carry(move || {
         let target = mirror_dir(&data, &to_slug)?;
-        std::fs::rename(data.join(&from), &target)
-            .map_err(|e| format!("{from} lässt sich nicht nach works/{to_slug} verschieben: {e}"))
+        std::fs::rename(data.join(&from), &target).map_err(|e| {
+            tc(
+                "works_msg.restore.move_failed",
+                &[("from", from.as_str().into()), ("slug", to_slug.as_str().into()), ("error", e.to_string().into())],
+            )
+        })
     }))
     .await;
     match moved {
         Ok(Ok(())) => {}
         Ok(Err(e)) => errors.push(e),
-        Err(e) => errors.push(format!("Verschieben abgebrochen: {e}")),
+        Err(e) => errors.push(tc("works_msg.trash.move_aborted", &[("error", e.to_string().into())])),
     }
     state.forget_mirror(restored.work);
     let mut commit = None;
@@ -1047,7 +1084,11 @@ fn page_settings(headers: &HeaderMap) -> Value {
 fn render(status: StatusCode, name: &str, ctx: Value) -> Response {
     match templates().get_template(name).and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage {name}: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("works_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+            .into_response(),
     }
 }
 
@@ -1060,11 +1101,21 @@ fn status_of(e: &RpcError) -> StatusCode {
     }
 }
 
-fn kind_label(kind: WorkKind) -> &'static str {
+fn kind_label(kind: WorkKind) -> String {
     match kind {
-        WorkKind::Book => "Buch",
-        WorkKind::Sermon => "Predigt",
+        WorkKind::Book => tc("works_msg.kind.book", &[]),
+        WorkKind::Sermon => tc("works_msg.kind.sermon", &[]),
     }
+}
+
+/// Body of a 500 answer: „Fehler: …“ in the language of the request.
+fn error_text(error: impl std::fmt::Display) -> String {
+    tc("works_msg.page.error", &[("error", error.to_string().into())])
+}
+
+/// Body of a 404 answer for an unknown work.
+fn unknown_work() -> Response {
+    (StatusCode::NOT_FOUND, tc("works_msg.page.unknown_work", &[])).into_response()
 }
 
 pub(crate) fn kind_word(kind: WorkKind) -> &'static str {
@@ -1115,14 +1166,14 @@ async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query
     // Round 35: filtered by role (a Lektor sees only released works).
     let works = match crate::roles::visible_works(&state, &crate::auth::current()).await {
         Ok(works) => works,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let mut rows: Vec<Value> = Vec::with_capacity(works.len());
     for w in &works {
         // Round 11: cover per work (image name; the thumbnail comes through /vorschau?b=320).
         let cover = match crate::cover::cover_info(&state, w.id).await {
             Ok(cover) => cover.map(|c| Value::from(Serde(c))),
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
         };
         rows.push(context! {
             id => w.id, slug => w.slug.as_str(), title => w.title.as_str(), subtitle => w.subtitle.as_str(),
@@ -1131,9 +1182,11 @@ async fn list_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Query
             created => short_time(&w.created), cover => cover,
         });
     }
-    let notice = q.geloescht.as_deref().filter(|t| !t.trim().is_empty()).map(|t| {
-        format!("Das Werk „{}“ ist gelöscht; sein Git-Spiegel liegt jetzt unter works/{TRASH_DIR}/.", t.trim())
-    });
+    let notice = q
+        .geloescht
+        .as_deref()
+        .filter(|t| !t.trim().is_empty())
+        .map(|t| tc("works_msg.list.deleted", &[("title", t.trim().into()), ("trash", TRASH_DIR.into())]));
     let ctx = context! {
         settings => page_settings(&headers), works => rows, notice => notice, back_url => back_url(&state).await,
         // Round 36: for Lektors the page of the cover is locked – the small image stays, the link is dropped
@@ -1285,8 +1338,8 @@ async fn edit_response(
 ) -> Response {
     let ctx = match edit_context(state, work, shown, form, error, back).await {
         Ok(ctx) => ctx,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => return unknown_work(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     render(status, "work_edit.html", context! { settings => page_settings(headers), ..ctx })
 }
@@ -1310,8 +1363,8 @@ async fn delete_response(
 ) -> Response {
     let meta = match state.store.work_meta(work).await {
         Ok(meta) => meta,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => return unknown_work(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response(),
     };
     let summary = state.store.work_list().await.ok().and_then(|list| list.into_iter().find(|w| w.id == work));
     let ctx = context! {
@@ -1331,10 +1384,10 @@ async fn export(State(state): State<Arc<AppState>>, Path(id): Path<WorkId>) -> R
     let (slug, typst) = match (state.store.work_slug(id).await, state.store.export_typst(id).await) {
         (Ok(slug), Ok(typst)) => (slug, typst),
         (Err(StoreError::UnknownWork(_)), _) | (_, Err(StoreError::UnknownWork(_))) => {
-            return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response();
+            return unknown_work();
         }
         (Err(e), _) | (_, Err(e)) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response();
+            return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e)).into_response();
         }
     };
     // The slug consists only of [a-z0-9-] and may therefore go into the header without escaping.
@@ -1360,7 +1413,7 @@ async fn archive_response(
 ) -> Response {
     let list = match archives(state).await {
         Ok(list) => list,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, error_text(e.message)).into_response(),
     };
     let rows: Vec<Value> = list
         .iter()
@@ -1398,11 +1451,11 @@ async fn restore_form(
 ) -> Response {
     let slug = form.slug.as_deref().map(str::trim).unwrap_or("");
     if slug.is_empty() {
-        let message = "Welches Werk? Der Ordnername fehlt.".to_owned();
+        let message = tc("works_msg.restore.slug_missing", &[]);
         return archive_response(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, Some(message)).await;
     }
     if !matches!(form.confirm.as_deref().map(str::trim), Some("1" | "on" | "true" | "ja")) {
-        let message = "Bitte das Wiederherstellen mit dem Kästchen bestätigen; nichts wiederhergestellt.".to_owned();
+        let message = tc("works_msg.restore.confirm", &[]);
         return archive_response(&state, &headers, StatusCode::UNPROCESSABLE_ENTITY, Some(message)).await;
     }
     match restore(&state, slug).await {
@@ -1429,11 +1482,11 @@ async fn upload(
         let headers = headers.clone();
         async move { new_page_response(&state, &headers, status, form, Some(message)).await }
     };
-    let too_large = || "Die Anfrage ist größer als 80 MiB (Grenze für ZIP und Ordner).".to_owned();
+    let too_large = || tc("works_msg.import.request_too_large", &[]);
     let mut multipart = match multipart {
         Ok(multipart) => multipart,
         Err(e) => {
-            let message = format!("Das Formular kam nicht als Datei-Upload an ({}).", e.body_text());
+            let message = tc("works_msg.import.not_multipart", &[("detail", e.body_text().into())]);
             return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
         }
     };
@@ -1450,7 +1503,7 @@ async fn upload(
                 } else {
                     (
                         StatusCode::UNPROCESSABLE_ENTITY,
-                        format!("Das Formular ließ sich nicht lesen ({}).", e.body_text()),
+                        tc("works_msg.import.form_unreadable", &[("detail", e.body_text().into())]),
                     )
                 };
                 return failed(status, form, message).await;
@@ -1469,7 +1522,7 @@ async fn upload(
                         } else {
                             (
                                 StatusCode::UNPROCESSABLE_ENTITY,
-                                format!("Die Datei ließ sich nicht lesen ({}).", e.body_text()),
+                                tc("works_msg.import.file_unreadable", &[("detail", e.body_text().into())]),
                             )
                         };
                         return failed(status, form, message).await;
@@ -1493,11 +1546,11 @@ async fn upload(
     let title = Some(title.as_str()).filter(|t| !t.is_empty());
     let result = match (file, folder.is_empty()) {
         (Some(_), false) => {
-            let message = "Bitte entweder eine Datei oder einen Ordner wählen, nicht beides.".to_owned();
+            let message = tc("works_msg.import.not_both", &[]);
             return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
         }
         (None, true) => {
-            let message = "Bitte eine Datei (.typ, .md, .markdown, .zip) oder einen Ordner wählen.".to_owned();
+            let message = tc("works_msg.import.choose", &[]);
             return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
         }
         (None, false) => {
@@ -1508,7 +1561,8 @@ async fn upload(
                 Ok(bundle) => markdown_import::import_bundle(&state, bundle, &origin, title).await,
                 Err(e) => {
                     let status = archive_status(&e);
-                    return failed(status, form, format!("Der Ordner lässt sich nicht importieren: {e}.")).await;
+                    let message = tc("works_msg.import.folder_failed", &[("error", e.to_string().into())]);
+                    return failed(status, form, message).await;
                 }
             }
         }
@@ -1519,29 +1573,30 @@ async fn upload(
                     Ok(bundle) => markdown_import::import_bundle(&state, bundle, &base, title).await,
                     Err(e) => {
                         let status = archive_status(&e);
-                        return failed(status, form, format!("„{base}“ lässt sich nicht importieren: {e}.")).await;
+                        let message = tc(
+                            "works_msg.import.file_failed",
+                            &[("base", base.as_str().into()), ("error", e.to_string().into())],
+                        );
+                        return failed(status, form, message).await;
                     }
                 }
             } else {
                 // Round 32: Word files are read only by the dedicated import with preview.
                 if crate::docx_import::is_docx_name(&base) {
-                    return failed(StatusCode::UNPROCESSABLE_ENTITY, form, USE_WORD_IMPORT.into()).await;
+                    return failed(StatusCode::UNPROCESSABLE_ENTITY, form, use_word_import()).await;
                 }
                 let markdown = markdown_import::is_markdown_name(&base);
                 if !markdown && !import::is_typst_name(&base) {
-                    let message = format!(
-                        "„{base}“ lässt sich nicht importieren; nur .typ lässt sich importieren, dazu Markdown (.md, \
-                         .markdown) und ZIP-Archive (.zip)."
-                    );
+                    let message = tc("works_msg.import.wrong_type", &[("base", base.as_str().into())]);
                     return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
                 }
                 if bytes.len() as u64 > MAX_SOURCE_BYTES {
-                    return failed(StatusCode::PAYLOAD_TOO_LARGE, form, "Die Datei ist größer als 16 MiB.".into())
-                        .await;
+                    let message = tc("works_msg.import.file_too_large", &[]);
+                    return failed(StatusCode::PAYLOAD_TOO_LARGE, form, message).await;
                 }
                 let Ok(source) = String::from_utf8(bytes) else {
-                    return failed(StatusCode::UNPROCESSABLE_ENTITY, form, format!("„{base}“ ist kein UTF-8-Text."))
-                        .await;
+                    let message = tc("works_msg.import.not_utf8", &[("base", base.as_str().into())]);
+                    return failed(StatusCode::UNPROCESSABLE_ENTITY, form, message).await;
                 };
                 if markdown {
                     markdown_import::import_text(&state, &source, &base, title).await
@@ -1558,8 +1613,9 @@ async fn upload(
         Ok(report) => report_page(&headers, &report),
         Err(e) => {
             let mut message = e.message.clone();
-            if e.code == REFUSED && message.starts_with("Es gibt schon ein Werk") {
-                message.push_str(" Bitte unten einen anderen Titel eintragen und die Datei noch einmal wählen.");
+            if e.code == REFUSED && is_duplicate_title(&message) {
+                message.push(' ');
+                message.push_str(&tc("works_msg.import.choose_other_title", &[]));
             }
             failed(status_of(&e), form, message).await
         }
@@ -1567,6 +1623,18 @@ async fn upload(
 }
 
 /// HTTP status for an error while reading an archive or folder: limit exceeded → 413, otherwise 422.
+/// Is `message` the store's refusal of a title already taken (`StoreError::DuplicateTitle`)? Compared with the
+/// German store text and with its text in the language of the request (Round 39a: `store_text` may translate it),
+/// both up to the quoted title.
+fn is_duplicate_title(message: &str) -> bool {
+    const MARK: &str = "\u{1}";
+    let probe = |text: String| text.split(MARK).next().unwrap_or("").to_owned();
+    let duplicate = || StoreError::DuplicateTitle { work: 0, slug: String::new(), title: MARK.to_owned() };
+    let german = probe(duplicate().to_string());
+    let shown = probe(crate::store_text::store_error_text(crate::i18n::current(), &duplicate()));
+    [german, shown].iter().any(|prefix| !prefix.is_empty() && message.starts_with(prefix.as_str()))
+}
+
 fn archive_status(e: &crate::archive::ArchiveError) -> StatusCode {
     match e {
         crate::archive::ArchiveError::TooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
@@ -1645,7 +1713,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         }
         "update" => {
             let Some(work) = work else {
-                return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+                return (StatusCode::UNPROCESSABLE_ENTITY, tc("works_msg.act.work_missing", &[])).into_response();
             };
             let p = UpdateParams {
                 work: Some(work),
@@ -1678,7 +1746,7 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
         }
         "delete" => {
             let Some(work) = work else {
-                return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+                return (StatusCode::UNPROCESSABLE_ENTITY, tc("works_msg.act.work_missing", &[])).into_response();
             };
             let confirm = form.confirm_title.unwrap_or_default();
             match delete(&state, work, &confirm).await {
@@ -1687,12 +1755,12 @@ async fn act(State(state): State<Arc<AppState>>, headers: HeaderMap, Form(form):
                     Redirect::to(&format!("/werke?geloescht={}", crate::view::query_escape(title))).into_response()
                 }
                 Err(e) if e.code == INTERNAL => {
-                    (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response()
+                    (StatusCode::INTERNAL_SERVER_ERROR, error_text(e.message)).into_response()
                 }
                 Err(e) => delete_response(&state, &headers, work, status_of(&e), Some(e.message)).await,
             }
         }
-        _ => (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response(),
+        _ => (StatusCode::BAD_REQUEST, tc("works_msg.act.unknown_action", &[])).into_response(),
     }
 }
 

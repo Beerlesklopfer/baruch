@@ -104,6 +104,7 @@ async fn a_chat_with_a_failing_persona_says_what_was_saved_on_the_notice_page() 
 
 #[tokio::test]
 async fn a_compressed_result_without_javascript_shows_the_notice_page_with_the_toast() {
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
     // Without „compressed“ (today in the branch without chunking) the form redirects as before; the notice page with
     // toast building block is checked by the building block itself (rendering with a result that carries compressed).
     let compressed = json!({ "message": "Komprimiert: Teile 2 und 3 nur zusammengefasst.", "summarized": ["== Ernte"], "chunks": 2 });
@@ -121,6 +122,8 @@ async fn a_compressed_result_without_javascript_shows_the_notice_page_with_the_t
     let body = axum::body::to_bytes(unsafe_back.into_body(), usize::MAX).await.unwrap();
     let page = String::from_utf8(body.to_vec()).unwrap();
     assert!(!page.contains("fremd.example"), "fremde oder unsichere Rücksprünge werden nicht verlinkt: {page}");
+})
+    .await
 }
 
 // ---- Processing an idea -------------------------------------------------------------------------

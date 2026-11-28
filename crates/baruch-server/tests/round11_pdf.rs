@@ -222,7 +222,11 @@ async fn a_second_pdf_for_the_same_work_is_refused_while_one_is_running() {
     assert!(String::from_utf8(body).unwrap().contains("entsteht gerade ein PDF"), "mit ehrlicher Meldung");
     let answer = server.rpc("work.pdf", json!({ "work": work })).await;
     assert_eq!(answer["error"]["code"], -32000, "über RPC REFUSED: {answer}");
-    assert_eq!(answer["error"]["message"], baruch_server::pdf::BUSY, "dieselbe Meldung");
+    assert_eq!(
+        answer["error"]["message"],
+        baruch_server::i18n::t(baruch_server::i18n::Lang::De, "export_msg.pdf.busy", &[]),
+        "dieselbe Meldung"
+    );
     let (status, _, _) = get_bytes(&server, &format!("/werke/{other}/pdf")).await;
     assert_eq!(status, StatusCode::OK, "ein anderes Werk ist nicht betroffen");
     drop(running);
@@ -232,26 +236,29 @@ async fn a_second_pdf_for_the_same_work_is_refused_while_one_is_running() {
 
 #[tokio::test]
 async fn the_time_limit_refuses_honestly() {
-    let _serial = SERIAL.lock().await;
-    let server = common::open().await;
-    let (work, _) = book_work(&server, "Bohnenbuch Vier").await;
-    let refused = baruch_server::pdf::book_pdf_with_limit(&server.state, work, Duration::ZERO)
-        .await
-        .expect_err("Limit 0 läuft ab");
-    assert_eq!(refused.code, -32000, "Zeit abgelaufen → REFUSED");
-    assert_eq!(refused.message, "Typst brauchte länger als 0 s", "die Meldung nennt das Limit");
-    assert_eq!(baruch_server::pdf::PDF_TIMEOUT, Duration::from_secs(120), "im Betrieb 120 s");
-    // The timed-out run finishes computing in the background and holds the work for that long; afterwards it is free.
-    let freed = async {
-        loop {
-            if let Some(claim) = baruch_server::pdf::claim(work) {
-                break claim;
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let _serial = SERIAL.lock().await;
+        let server = common::open().await;
+        let (work, _) = book_work(&server, "Bohnenbuch Vier").await;
+        let refused = baruch_server::pdf::book_pdf_with_limit(&server.state, work, Duration::ZERO)
+            .await
+            .expect_err("Limit 0 läuft ab");
+        assert_eq!(refused.code, -32000, "Zeit abgelaufen → REFUSED");
+        assert_eq!(refused.message, "Typst brauchte länger als 0 s", "die Meldung nennt das Limit");
+        assert_eq!(baruch_server::pdf::PDF_TIMEOUT, Duration::from_secs(120), "im Betrieb 120 s");
+        // The timed-out run finishes computing in the background and holds the work for that long; afterwards it is free.
+        let freed = async {
+            loop {
+                if let Some(claim) = baruch_server::pdf::claim(work) {
+                    break claim;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
             }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-    };
-    let claim = tokio::time::timeout(Duration::from_secs(60), freed).await.expect("der Hintergrundlauf endet");
-    drop(claim);
+        };
+        let claim = tokio::time::timeout(Duration::from_secs(60), freed).await.expect("der Hintergrundlauf endet");
+        drop(claim);
+    })
+    .await
 }
 
 #[tokio::test]

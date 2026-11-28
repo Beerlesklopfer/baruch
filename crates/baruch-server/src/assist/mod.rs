@@ -96,6 +96,7 @@ use serde::Serialize;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
 /// Longest question, instruction or chat message in characters.
@@ -326,13 +327,17 @@ fn failure(e: ModelFailure) -> RpcError {
     refused(e.to_string())
 }
 
-/// Check the text: at most [`MAX_QUESTION_CHARS`] characters.
+/// Check the text: at most [`MAX_QUESTION_CHARS`] characters. `what` names the text: `"question"`, `"message"` or
+/// `"post"` (Round 39a: the message comes from the catalog in the language of the request).
 pub fn check_text(text: &str, what: &str) -> Result<(), RpcError> {
     if text.chars().count() > MAX_QUESTION_CHARS {
-        return Err(RpcError::new(
-            INVALID_PARAMS,
-            format!("{what} darf höchstens {MAX_QUESTION_CHARS} Zeichen haben."),
-        ));
+        let args = [("max", MAX_QUESTION_CHARS.into())];
+        let message = match what {
+            "message" => tc("assist_msg.check.message_too_long", &args),
+            "post" => tc("assist_msg.check.post_too_long", &args),
+            _ => tc("assist_msg.check.question_too_long", &args),
+        };
+        return Err(RpcError::new(INVALID_PARAMS, message));
     }
     Ok(())
 }
@@ -423,14 +428,15 @@ async fn ask_model(
     let mut answer = call_model(state, call.clone(), progress, check).await.map_err(failure)?;
     if check && prompts::forbidden_opening(&answer.text) {
         let again = with_note(call, prompts::RETRY_NOTE);
-        send(progress, Progress::Retry { persona: persona.to_owned(), reason: "verbotene Einleitung".to_owned() });
+        let reason = tc("assist_msg.retry.forbidden_opening", &[]);
+        send(progress, Progress::Retry { persona: persona.to_owned(), reason });
         answer = call_model(state, again, progress, check).await.map_err(failure)?;
         if prompts::forbidden_opening(&answer.text) {
             answer.text = prompts::drop_first_sentence(&answer.text);
         }
     }
     if answer.text.trim().is_empty() {
-        return Err(refused("Das Modell hat keine verwertbare Antwort geliefert; nichts gespeichert."));
+        return Err(refused(tc("assist_msg.answer.empty", &[])));
     }
     Ok(answer)
 }
@@ -594,9 +600,9 @@ pub async fn run_inputs(
     bible: context::BibleInput,
 ) -> Result<Outcome, RpcError> {
     let _typing = crate::chat_live::typing(order.work, order.key, &order.persona);
-    check_text(&order.text, "Die Frage")?;
+    check_text(&order.text, "question")?;
     if order.mode == Mode::Ask && order.text.trim().is_empty() {
-        return Err(RpcError::new(INVALID_PARAMS, "Die Frage fehlt."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("assist_msg.check.question_missing", &[])));
     }
     let persona = context::active_persona(state, &order.persona).await?;
     // Round 30b: without a chosen review basis (asking, reviewing, MCP) Baruch chooses it here – the shown revision,
@@ -627,10 +633,7 @@ pub async fn run_inputs(
         (squeezed.answer, Some(squeezed.compression), squeezed.corpus)
     };
     if order.mode == Mode::Propose && cut_off(&answer) {
-        return Err(refused(
-            "Die Antwort des Modells brach an der Längengrenze (max_tokens) ab; ein unvollständiger Vorschlag \
-             wird nicht angelegt. Nichts gespeichert.",
-        ));
+        return Err(refused(tc("assist_msg.answer.cut_off", &[])));
     }
     let text = match order.mode {
         Mode::Propose => proposal_text(&answer.text, &prepared.heading),
@@ -740,13 +743,10 @@ async fn save(
     };
     if order.mode == Mode::Propose {
         if text.trim_end() == prepared.current.trim_end() {
-            return Err(refused("Der Vorschlag gleicht der aktuellen Fassung; nichts angelegt."));
+            return Err(refused(tc("assist_msg.answer.equals_current", &[])));
         }
         if text.trim_end() == prepared.section.trim_end() {
-            return Err(refused(format!(
-                "Der Vorschlag gleicht Fassung {}, auf der er beruht; nichts angelegt.",
-                prepared.shown_rev
-            )));
+            return Err(refused(tc("assist_msg.answer.equals_basis", &[("rev", prepared.shown_rev.into())])));
         }
         let note = proposal_note(handle, "", prepared.truncated, compressed.as_ref());
         // Bug 0.9.0 (critique cycle): the proposal is based on the revision the persona saw (`rev`, e.g.
@@ -1162,10 +1162,9 @@ async fn summarize(
             Ok(text)
         }
         Ok(_) => Ok(NO_SUMMARY.to_owned()),
-        Err(e) => Err(refused(format!(
-            "Der Kontext war zu lang und musste komprimiert werden, aber das Zusammenfassen von „{}“ scheiterte: \
-             {e} Nichts gespeichert.",
-            segment.label
+        Err(e) => Err(refused(tc(
+            "assist_msg.compress.summary_failed",
+            &[("label", segment.label.as_str().into()), ("error", e.to_string().into())],
         ))),
     }
 }
@@ -1201,7 +1200,7 @@ fn check_calls(prepared: &context::Prepared, calls: &[(ModelCall, String)]) -> R
     for (k, (call, what)) in calls.iter().enumerate() {
         let (size, budget) = (input_chars(call), input_budget(prepared, call.max_tokens));
         if size > budget {
-            let piece = if count > 1 { format!("Stück {} von {count} ({what})", k + 1) } else { what.clone() };
+            let piece = if count > 1 { piece_label(k + 1, count, what) } else { what.clone() };
             return Err(too_many_parts(prepared, &piece, size, budget));
         }
     }
@@ -1210,13 +1209,21 @@ fn check_calls(prepared: &context::Prepared, calls: &[(ModelCall, String)]) -> R
 
 /// Honest refusal: even compressed, a piece does not fit the context length.
 fn too_many_parts(prepared: &context::Prepared, piece: &str, size: usize, budget: usize) -> RpcError {
-    refused(format!(
-        "Die Kontextlänge von {} ({} Tokens) reicht auch komprimiert nicht: {piece} bräuchte mit Umfeld \
-         mindestens {size} Zeichen, Platz ist für {budget} – das Kapitel hat zu viele Teile für diese Kontextlänge \
-         (auch ausgelassene Teile stehen mit ihrem Titel im Aufruf). Nichts gespeichert. Kontextlänge unter \
-         Einstellungen → Assistenten erhöhen oder einen einzelnen Abschnitt prüfen lassen.",
-        prepared.frame.handle, prepared.budget.tokens
+    refused(tc(
+        "assist_msg.compress.too_many_parts",
+        &[
+            ("handle", prepared.frame.handle.as_str().into()),
+            ("tokens", prepared.budget.tokens.into()),
+            ("piece", piece.into()),
+            ("size", size.into()),
+            ("budget", budget.into()),
+        ],
     ))
+}
+
+/// „Stück k von n (…)“ in the language of the request (part of [`too_many_parts`]).
+fn piece_label(number: usize, count: usize, what: &str) -> String {
+    tc("assist_msg.compress.piece", &[("number", number.into()), ("count", count.into()), ("what", what.into())])
 }
 
 /// Lower bound per piece before a model is asked: the core verbatim, every other part verbatim or as a
@@ -1295,7 +1302,7 @@ async fn plan_and_summarize(
     if let Some((k, floor)) = floor_violation(layout, rooms) {
         let what = layout.pieces[k].iter().map(|&i| layout.segments[i].label.as_str()).collect::<Vec<_>>().join("; ");
         let count = layout.pieces.len();
-        let piece = if count > 1 { format!("Stück {} von {count} ({what})", k + 1) } else { what };
+        let piece = if count > 1 { piece_label(k + 1, count, &what) } else { what };
         let fixed = frame.budget_chars.saturating_sub(frame.room);
         return Err(too_many_parts(prepared, &piece, floor + fixed + (frame.room - rooms[k]), frame.budget_chars));
     }
@@ -1466,7 +1473,7 @@ async fn compressed_run(
         texts.push(answer.text.clone());
         last = Some(answer);
     }
-    let mut answer = last.ok_or_else(|| refused("Nichts zu prüfen: Der Text ist leer; nichts gespeichert."))?;
+    let mut answer = last.ok_or_else(|| refused(tc("assist_msg.answer.nothing_to_check", &[])))?;
     if count > 1 {
         answer.text = chunk::merge_pieces(&texts, &layout.overlaps_previous());
         if any_cut {
@@ -1499,7 +1506,7 @@ async fn propose_chapter(
     let handle = frame.handle.as_str();
     let targets: Vec<usize> = (0..frame.units.len()).filter(|&i| !frame.units[i].text.trim().is_empty()).collect();
     if targets.is_empty() {
-        return Err(refused("Das Kapitel hat keinen Text; nichts zu überarbeiten, nichts angelegt."));
+        return Err(refused(tc("assist_msg.answer.chapter_empty", &[])));
     }
     for &i in &targets {
         if frame.units[i].size() > frame.room {
@@ -1574,7 +1581,7 @@ async fn propose_chapter(
         drafts.push((unit.key, unit.label.clone(), text, answer.model));
     }
     if drafts.is_empty() {
-        return Err(refused(format!("Kein Vorschlag angelegt: {}. Nichts gespeichert.", skipped.join("; "))));
+        return Err(refused(tc("assist_msg.answer.no_proposal", &[("skipped", skipped.join("; ").into())])));
     }
     let note = proposal_note(handle, " (ganzes Kapitel)", prepared.truncated, compressed.as_ref());
     let mut proposals = Vec::new();

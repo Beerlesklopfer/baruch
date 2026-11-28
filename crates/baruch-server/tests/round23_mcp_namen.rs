@@ -297,7 +297,8 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
     // Nobody else: another token, a client without token with the legacy handle or with the name of the token.
     let other = remote(&m, &other_secret).await;
     let text = refused(&m, &other, "post_edit", json!({ "work": m.work, "id": old, "body": "gekapert" })).await;
-    assert!(text.contains("Nur eigene"), "ein anderer Token besitzt den Beitrag nicht: {text}");
+    // Round 39a: MCP answers in English.
+    assert!(text.contains("Only your own"), "ein anderer Token besitzt den Beitrag nicht: {text}");
     for name in ["laptop-k-che", "Laptop Küche", "laptop kueche"] {
         let intruder = local(&m, name).await;
         let mine =
@@ -313,7 +314,8 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
             let mut arguments = json!({ "work": m.work, "id": old });
             arguments.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
             let text = refused(&m, &intruder, tool, arguments).await;
-            assert!(text.contains("eigene"), "{name:?} ohne Token: {tool} am alten Beitrag abgelehnt: {text}");
+            // Round 39a: MCP answers in English.
+            assert!(text.contains("own"), "{name:?} ohne Token: {tool} am alten Beitrag abgelehnt: {text}");
         }
     }
     let untouched = m.server.state.store.post_get(m.work, old).await.unwrap();
@@ -369,7 +371,8 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
             let mut arguments = json!({ "work": m.work, "id": foreign_post });
             arguments.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
             let text = refused(&m, caller, tool, arguments).await;
-            assert!(text.contains("eigene"), "Token „{who}“: {tool} am Beitrag des anderen Tokens abgelehnt: {text}");
+            // Round 39a: MCP answers in English.
+            assert!(text.contains("own"), "Token „{who}“: {tool} am Beitrag des anderen Tokens abgelehnt: {text}");
         }
     }
     for (id, body, author) in [

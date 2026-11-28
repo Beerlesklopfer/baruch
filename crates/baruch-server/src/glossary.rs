@@ -21,6 +21,7 @@ use baruch_typst::index::{Register, builtin_registers};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::mirror::{self, HUMAN_NAME};
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
@@ -52,7 +53,10 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Integer `name` from the parameters; missing or not a number → `INVALID_PARAMS`.
 fn int_param(params: &Value, name: &str) -> Result<i64, RpcError> {
-    params.get(name).and_then(Value::as_i64).ok_or_else(|| invalid(format!("{name}: Zahl erwartet")))
+    params
+        .get(name)
+        .and_then(Value::as_i64)
+        .ok_or_else(|| invalid(tc("reference_msg.param.number", &[("name", name.into())])))
 }
 
 /// Text `name`; missing → `None`, not a text → `INVALID_PARAMS`.
@@ -60,16 +64,19 @@ fn str_param<'a>(params: &'a Value, name: &str) -> Result<Option<&'a str>, RpcEr
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.as_str())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("reference_msg.param.text", &[("name", name.into())]))),
     }
 }
 
 fn required_str<'a>(params: &'a Value, name: &str) -> Result<&'a str, RpcError> {
-    str_param(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt")))
+    str_param(params, name)?.ok_or_else(|| invalid(tc("reference_msg.param.missing", &[("name", name.into())])))
 }
 
 fn bool_param(params: &Value, name: &str) -> Result<bool, RpcError> {
-    params.get(name).and_then(Value::as_bool).ok_or_else(|| invalid(format!("{name}: true oder false erwartet")))
+    params
+        .get(name)
+        .and_then(Value::as_bool)
+        .ok_or_else(|| invalid(tc("reference_msg.param.flag", &[("name", name.into())])))
 }
 
 /// List of texts `name`; missing → empty. A single text counts as a list of lines (one entry per line).
@@ -79,9 +86,13 @@ fn list_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
         Some(Value::String(s)) => Ok(s.lines().map(str::to_owned).collect()),
         Some(Value::Array(items)) => items
             .iter()
-            .map(|v| v.as_str().map(str::to_owned).ok_or_else(|| invalid(format!("{name}: Liste von Texten erwartet"))))
+            .map(|v| {
+                v.as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| invalid(tc("reference_msg.param.text_list", &[("name", name.into())])))
+            })
             .collect(),
-        Some(_) => Err(invalid(format!("{name}: Liste von Texten erwartet"))),
+        Some(_) => Err(invalid(tc("reference_msg.param.text_list", &[("name", name.into())]))),
     }
 }
 
@@ -90,7 +101,7 @@ fn confirmed(params: &Value) -> Result<(), RpcError> {
     if params.get("confirm") == Some(&Value::Bool(true)) {
         Ok(())
     } else {
-        Err(invalid("Löschen bitte bestätigen (confirm)."))
+        Err(invalid(tc("reference_msg.param.confirm_delete", &[])))
     }
 }
 
@@ -118,7 +129,7 @@ pub fn normalize_bible_refs(refs: &[String]) -> Result<Vec<String>, RpcError> {
         }
         let found = baruch_scripture::parse(reference);
         if found.is_empty() {
-            return Err(invalid(format!("Bibelstelle „{reference}“: nicht lesbar")));
+            return Err(invalid(tc("reference_msg.glossary.ref_unreadable", &[("reference", reference.into())])));
         }
         for item in found {
             match (&item.status, &item.normalized) {
@@ -127,7 +138,12 @@ pub fn normalize_bible_refs(refs: &[String]) -> Result<Vec<String>, RpcError> {
                         out.push(normalized.clone());
                     }
                 }
-                _ => return Err(invalid(format!("Bibelstelle „{reference}“: {}", item.message()))),
+                _ => {
+                    return Err(invalid(tc(
+                        "reference_msg.glossary.ref_problem",
+                        &[("reference", reference.into()), ("problem", item.message().into())],
+                    )));
+                }
             }
         }
     }
@@ -143,7 +159,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
                 "all" => None,
                 "accepted" => Some(GlossaryStatus::Accepted),
                 "proposed" => Some(GlossaryStatus::Proposed),
-                other => return Err(invalid(format!("status: accepted, proposed oder all, nicht „{other}“"))),
+                other => return Err(invalid(tc("reference_msg.glossary.status", &[("other", other.into())]))),
             };
             let terms = state.store.glossary(work, status).await?;
             Ok(json!({ "work": work, "terms": terms.iter().map(term_json).collect::<Vec<_>>() }))
@@ -196,7 +212,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             let status = match str_param(&params, "status")?.unwrap_or("open") {
                 "open" => Some(IndexProposalStatus::Open),
                 "all" => None,
-                other => return Err(invalid(format!("status: open oder all, nicht „{other}“"))),
+                other => return Err(invalid(tc("reference_msg.index.status", &[("other", other.into())]))),
             };
             let list = state.store.index_proposals(work, status).await?;
             Ok(json!({ "work": work, "proposals": list.iter().map(proposal_json).collect::<Vec<_>>() }))

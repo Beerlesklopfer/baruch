@@ -241,7 +241,8 @@ async fn posts_are_converted_moved_and_deleted_and_mcp_may_not_touch_foreign_one
     ] {
         let answer = tool(&b.server, &s, name, args).await;
         assert_eq!(answer["isError"], true, "{name} an einem fremden Beitrag ist verboten: {answer}");
-        assert!(answer["content"][0]["text"].as_str().unwrap().starts_with("Nur eigene Beiträge"), "{answer}");
+        // Round 39a: MCP answers in English.
+        assert!(answer["content"][0]["text"].as_str().unwrap().starts_with("Only your own posts"), "{answer}");
     }
     assert_eq!((post_ids(&b.server, b.work, teich).await, commits(&b.dir)), before, "nichts geändert");
 

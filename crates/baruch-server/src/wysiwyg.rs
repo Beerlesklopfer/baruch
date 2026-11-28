@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, RpcError, resolve_keys};
 
 /// Methods of this module.
@@ -156,11 +157,10 @@ impl ImageView {
         let expr = match self.template.first()? {
             TemplateImage::Unknown { expr } => expr.clone(),
             TemplateImage::PerChapter { list, offset } => {
-                let at = chapter
-                    .map_or_else(|| "unbekannt (Nummerierung der Vorlage nicht lesbar)".to_owned(), |c| c.to_string());
-                format!(
-                    "Liste mit {} Bildern, Index Kapitel {offset:+}; Kapitelzähler {at} liegt außerhalb",
-                    list.len()
+                let at = chapter.map_or_else(|| tc("view_msg.wysiwyg.chapter_unknown", &[]), |c| c.to_string());
+                tc(
+                    "view_msg.wysiwyg.image_list",
+                    &[("count", list.len().into()), ("offset", format!("{offset:+}").into()), ("at", at.into())],
                 )
             }
             TemplateImage::Fixed { path } => path.clone(),

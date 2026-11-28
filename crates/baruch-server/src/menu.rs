@@ -34,6 +34,7 @@ use minijinja::{Value, context};
 use serde_json::json;
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{self, INVALID_PARAMS, LibraryView, METHOD_NOT_FOUND, RpcError};
 use crate::view::{self, Resolved, Shelf};
 
@@ -140,7 +141,7 @@ pub async fn call(state: &AppState, method: &str, params: serde_json::Value) -> 
     match method {
         "menu.badges" => {
             if !(params.is_null() || params.is_object()) {
-                return Err(RpcError::new(INVALID_PARAMS, "menu.badges: Parameter als Objekt erwartet"));
+                return Err(RpcError::new(INVALID_PARAMS, tc("view_msg.menu.badges_params", &[])));
             }
             let work = rpc::work_param(state, &params).await?;
             let badges = badges(state, work).await?;
@@ -161,7 +162,11 @@ fn work_options(shelf: &Shelf) -> Vec<Value> {
         .works
         .iter()
         .map(|w| {
-            let sections = if w.sections == 1 { "1 Abschnitt".to_owned() } else { format!("{} Abschnitte", w.sections) };
+            let sections = if w.sections == 1 {
+                tc("view_msg.menu.one_section", &[("count", w.sections.into())])
+            } else {
+                tc("view_msg.menu.sections", &[("count", w.sections.into())])
+            };
             let label = match w.author.trim() {
                 "" => format!("{} · {sections}", w.title),
                 author => format!("{} · {author} · {sections}", w.title),

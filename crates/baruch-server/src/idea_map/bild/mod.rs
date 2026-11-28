@@ -41,6 +41,7 @@ use minijinja::value::Serde;
 use minijinja::{Environment, Value, context};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::idea_map::files::export;
 use crate::idea_map::tree::{Scene, TreeNode};
 use crate::idea_map::{IdeaMap, MapFilter, NearState};
@@ -229,35 +230,36 @@ pub(crate) fn plain(status: StatusCode, text: impl Into<String>) -> Response {
 pub(crate) async fn work_info(state: &AppState, work: WorkId) -> Result<Option<(String, String)>, Response> {
     match state.store.works().await {
         Ok(works) => Ok(works.into_iter().find(|(id, ..)| *id == work).map(|(_, slug, title)| (slug, title))),
-        Err(e) => Err(plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}"))),
+        Err(e) => Err(plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("ideas_msg.page.error", &[("error", e.to_string().into())]),
+        )),
     }
 }
 
 /// Feedback for `ok=<wort>`.
-fn notice_of(ok: &str) -> &'static str {
+fn notice_of(ok: &str) -> String {
     match ok {
-        "bezug" => "Bezug gesetzt.",
-        "verbunden" => "Verbunden.",
-        "unveraendert" => "Diese Verbindung gibt es schon; nichts geändert.",
-        "geloest" => "Verbindung gelöst.",
-        "wiederhergestellt" => "Verbindung wiederhergestellt.",
-        "zurueckgesetzt" => "Gespeicherte Lagen verworfen (in der Mindmap ohne Wirkung: Der Baum ordnet sich selbst).",
-        "angelegt" => "Einfall angelegt.",
-        "umbenannt" => "Umbenannt.",
-        "umgehaengt" => "Einfall umgehängt.",
-        "in-wolke" => "In die Wolke gelegt (mit seinen Unterknoten).",
-        "ort-unveraendert" => "Der Einfall steht schon dort; nichts geändert.",
-        "geloescht" => "Einfall gelöscht samt Unterknoten (wiederherstellbar in der Gliederungsansicht).",
-        "einfall-wieder" => "Einfall wiederhergestellt.",
-        "eingelesen" => "Datei eingelesen: Die Knoten sind als Einfälle angelegt.",
-        "benannt" => {
-            "Der Assistent hat Namen vorgeschlagen (unten bei „Gruppen“). Schlagwort wird ein Name erst, wenn du ihn übernimmst."
-        }
-        "unbenannt" => "Der Assistent hat keinen brauchbaren Namen geliefert; es gibt keinen neuen Vorschlag.",
-        "keine-gruppen" => "Keine Gruppe: Es gibt keine nahen Einfälle (mindestens zwei je Gruppe).",
-        "uebernommen" => "Name übernommen: Er ist jetzt Schlagwort an den Einfällen der Gruppe.",
-        "verworfen" => "Vorschlag verworfen.",
-        _ => "Gespeichert.",
+        "bezug" => tc("ideas_msg.map_notice.reference", &[]),
+        "verbunden" => tc("ideas_msg.map_notice.linked", &[]),
+        "unveraendert" => tc("ideas_msg.map_notice.link_exists", &[]),
+        "geloest" => tc("ideas_msg.map_notice.unlinked", &[]),
+        "wiederhergestellt" => tc("ideas_msg.map_notice.link_restored", &[]),
+        "zurueckgesetzt" => tc("ideas_msg.map_notice.positions_reset", &[]),
+        "angelegt" => tc("ideas_msg.map_notice.created", &[]),
+        "umbenannt" => tc("ideas_msg.map_notice.renamed", &[]),
+        "umgehaengt" => tc("ideas_msg.map_notice.moved", &[]),
+        "in-wolke" => tc("ideas_msg.map_notice.to_cloud", &[]),
+        "ort-unveraendert" => tc("ideas_msg.map_notice.place_unchanged", &[]),
+        "geloescht" => tc("ideas_msg.map_notice.deleted", &[]),
+        "einfall-wieder" => tc("ideas_msg.map_notice.restored", &[]),
+        "eingelesen" => tc("ideas_msg.map_notice.imported", &[]),
+        "benannt" => tc("ideas_msg.map_notice.named", &[]),
+        "unbenannt" => tc("ideas_msg.map_notice.not_named", &[]),
+        "keine-gruppen" => tc("ideas_msg.map_notice.no_groups", &[]),
+        "uebernommen" => tc("ideas_msg.map_notice.name_adopted", &[]),
+        "verworfen" => tc("ideas_msg.map_notice.rejected", &[]),
+        _ => tc("ideas_msg.notice.saved", &[]),
     }
 }
 
@@ -293,11 +295,11 @@ fn draw(scene: &Scene, extra: &Extra) -> String {
 #[allow(clippy::result_large_err)]
 async fn load_tree(state: &AppState, work: WorkId, filter: &MapFilter) -> Result<Scene, Response> {
     if work_info(state, work).await?.is_none() {
-        return Err(plain(StatusCode::NOT_FOUND, "unbekanntes Werk"));
+        return Err(plain(StatusCode::NOT_FOUND, tc("ideas_msg.page.unknown_work", &[])));
     }
     crate::idea_map::tree::scene(state, work, filter)
         .await
-        .map_err(|e| plain(status_of(&e), format!("Fehler: {}", e.message)))
+        .map_err(|e| plain(status_of(&e), tc("ideas_msg.page.error", &[("error", e.message.as_str().into())])))
 }
 
 /// The page of the mind map (also as the error page of a form: `status` and `error`).
@@ -447,7 +449,10 @@ pub(crate) async fn page_response(
     };
     match templates().get_template("karte.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => plain(StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage karte.html: {e}")),
+        Err(e) => plain(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc("ideas_msg.page.template_error", &[("name", "karte.html".into()), ("error", e.to_string().into())]),
+        ),
     }
 }
 

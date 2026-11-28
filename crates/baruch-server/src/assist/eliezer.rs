@@ -75,7 +75,9 @@ impl ModelPort for EliezerPort {
         Box::pin(async move {
             let listing = crate::models::list(state).await.map_err(failure)?;
             let message = listing.message.clone().or_else(|| {
-                (!listing.live).then(|| format!("Liste aus dem Zwischenspeicher (Stand {}).", listing.fetched))
+                (!listing.live).then(|| {
+                    crate::i18n::tc("assist_msg.model.cached_list", &[("fetched", listing.fetched.as_str().into())])
+                })
             });
             Ok(ModelList { models: listing.models, live: listing.live, message })
         })

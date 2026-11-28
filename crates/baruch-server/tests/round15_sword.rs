@@ -206,34 +206,42 @@ async fn mcp_offers_three_read_only_tools_naming_the_licence() {
 
 #[tokio::test]
 async fn the_commentary_panel_is_escaped_html_that_folds_without_javascript() {
-    let (server, _modules, work) = chosen().await;
-    let html = commentary_panel_html(&server.state, work, "Ps 139,23").await;
-    assert!(
-        html.starts_with("<details class=\"commentaries\" data-widget=\"commentaries\">")
-            && html.ends_with("</details>"),
-        "ein-/ausklappbar ohne JavaScript: {html}"
-    );
-    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"), "Modultext maskiert: {html}");
-    assert!(!html.contains("<script"), "kein ausführbares Skript aus dem Modul: {html}");
-    assert!(html.contains("Moorkommentar") && html.contains("Lizenz: Copyrighted"), "Modulname und Lizenz: {html}");
-    assert!(commentary_panel_html(&server.state, work, "Ps 1,1").await.is_empty(), "ohne Eintrag leer");
-    let (bare, _modules2, other) = setup().await;
-    assert!(commentary_panel_html(&bare.state, other, "Ps 139,23").await.is_empty(), "ohne Auswahl leer");
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let (server, _modules, work) = chosen().await;
+        let html = commentary_panel_html(&server.state, work, "Ps 139,23").await;
+        assert!(
+            html.starts_with("<details class=\"commentaries\" data-widget=\"commentaries\">")
+                && html.ends_with("</details>"),
+            "ein-/ausklappbar ohne JavaScript: {html}"
+        );
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"), "Modultext maskiert: {html}");
+        assert!(!html.contains("<script"), "kein ausführbares Skript aus dem Modul: {html}");
+        assert!(html.contains("Moorkommentar") && html.contains("Lizenz: Copyrighted"), "Modulname und Lizenz: {html}");
+        assert!(commentary_panel_html(&server.state, work, "Ps 1,1").await.is_empty(), "ohne Eintrag leer");
+        let (bare, _modules2, other) = setup().await;
+        assert!(commentary_panel_html(&bare.state, other, "Ps 139,23").await.is_empty(), "ohne Auswahl leer");
+    })
+    .await
 }
 
 #[tokio::test]
 async fn commentary_hits_link_to_the_bible_page_with_the_given_tail() {
-    let (server, _modules, work) = chosen().await;
-    let started = std::time::Instant::now();
-    let html = commentary_hits_html(&server.state, work, "Licht", "&key=7&lq=Licht").await;
-    assert!(started.elapsed() < std::time::Duration::from_secs(4), "Zeitgrenze 3 s (plus Rand) eingehalten");
-    assert!(html.contains("data-hit-group=\"commentary\"") && html.contains("Kommentar · Moorkommentar"), "{html}");
-    assert!(
-        html.contains(&format!("href=\"/literatur/bibel?work={work}&amp;ref=Ps%20139%2C23&amp;kom=1&key=7&lq=Licht\"")),
-        "Link nach /literatur/bibel mit Stelle, kom=1 und Anfragerest: {html}"
-    );
-    assert!(!html.contains("<script"), "auch der Ausschnitt ist maskiert: {html}");
-    assert!(commentary_hits_html(&server.state, work, "Elefant", "").await.is_empty(), "ohne Treffer leer");
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let (server, _modules, work) = chosen().await;
+        let started = std::time::Instant::now();
+        let html = commentary_hits_html(&server.state, work, "Licht", "&key=7&lq=Licht").await;
+        assert!(started.elapsed() < std::time::Duration::from_secs(4), "Zeitgrenze 3 s (plus Rand) eingehalten");
+        assert!(html.contains("data-hit-group=\"commentary\"") && html.contains("Kommentar · Moorkommentar"), "{html}");
+        assert!(
+            html.contains(&format!(
+                "href=\"/literatur/bibel?work={work}&amp;ref=Ps%20139%2C23&amp;kom=1&key=7&lq=Licht\""
+            )),
+            "Link nach /literatur/bibel mit Stelle, kom=1 und Anfragerest: {html}"
+        );
+        assert!(!html.contains("<script"), "auch der Ausschnitt ist maskiert: {html}");
+        assert!(commentary_hits_html(&server.state, work, "Elefant", "").await.is_empty(), "ohne Treffer leer");
+    })
+    .await
 }
 
 #[tokio::test]

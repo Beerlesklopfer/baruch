@@ -478,104 +478,113 @@ fn leaf(title: &str) -> ImportNode {
 
 #[tokio::test]
 async fn import_creates_the_tree_in_one_transaction_with_one_commit_and_the_given_origin() {
-    let b = book().await;
-    let import = ImportTree {
-        title: "Fremde Mindmap".into(),
-        nodes: vec![
-            ImportNode {
-                title: "Küste".into(),
-                note: "Salz in der Luft.".into(),
-                words: vec!["Meer".into()],
-                children: vec![ImportNode { children: vec![leaf("Strandhafer")], ..leaf("Düne") }, leaf("Watt")],
-                cloud: false,
-            },
-            leaf("Insel"),
-        ],
-        links: vec![ImportLink { from: vec![0, 0, 0], to: vec![0, 1], note: "hält den Sand".into() }],
-        warnings: vec!["nur ein Hinweis".into()],
-    };
-    let origin = IdeaOrigin::Persona { handle: "@lektor".into() };
-    let before = b.commits();
-    let report = tree::import(&b.server.state, b.work, None, &import, &origin).await.expect("der Baum wird angelegt");
-    assert_eq!((report.ideas.len(), report.links), (5, 1), "fünf Einfälle, eine Verbindung");
-    assert_eq!(b.commits(), before + 1, "genau ein Spiegel-Commit für den ganzen Baum");
-    let log = b.last_commit();
-    assert!(
-        log.lines().next().is_some_and(|author| author.contains("@lektor")),
-        "Autor des Commits ist die übergebene Herkunft: {log}"
-    );
-    assert!(log.contains("Mindmap eingelesen: 5 Einfälle"), "Betreff nennt den Umfang: {log}");
-    assert!(log.contains("Baruch-Origin: persona") && log.contains("Baruch-Action: idea-import"), "Trailer: {log}");
-    assert!(log.contains("Quelle: „Fremde Mindmap“"), "der Titel der Datei steht im Rumpf: {log}");
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
+        let b = book().await;
+        let import = ImportTree {
+            title: "Fremde Mindmap".into(),
+            nodes: vec![
+                ImportNode {
+                    title: "Küste".into(),
+                    note: "Salz in der Luft.".into(),
+                    words: vec!["Meer".into()],
+                    children: vec![ImportNode { children: vec![leaf("Strandhafer")], ..leaf("Düne") }, leaf("Watt")],
+                    cloud: false,
+                },
+                leaf("Insel"),
+            ],
+            links: vec![ImportLink { from: vec![0, 0, 0], to: vec![0, 1], note: "hält den Sand".into() }],
+            warnings: vec!["nur ein Hinweis".into()],
+        };
+        let origin = IdeaOrigin::Persona { handle: "@lektor".into() };
+        let before = b.commits();
+        let report =
+            tree::import(&b.server.state, b.work, None, &import, &origin).await.expect("der Baum wird angelegt");
+        assert_eq!((report.ideas.len(), report.links), (5, 1), "fünf Einfälle, eine Verbindung");
+        assert_eq!(b.commits(), before + 1, "genau ein Spiegel-Commit für den ganzen Baum");
+        let log = b.last_commit();
+        assert!(
+            log.lines().next().is_some_and(|author| author.contains("@lektor")),
+            "Autor des Commits ist die übergebene Herkunft: {log}"
+        );
+        assert!(log.contains("Mindmap eingelesen: 5 Einfälle"), "Betreff nennt den Umfang: {log}");
+        assert!(log.contains("Baruch-Origin: persona") && log.contains("Baruch-Action: idea-import"), "Trailer: {log}");
+        assert!(log.contains("Quelle: „Fremde Mindmap“"), "der Titel der Datei steht im Rumpf: {log}");
 
-    let map = b.tree(&quiet()).await;
-    let coast = map.root.children.iter().find(|n| n.title == "Küste").expect("oberste Knoten werden freie Hauptthemen");
-    assert_eq!(
-        (coast.note.as_str(), coast.words.clone()),
-        ("Salz in der Luft.", vec!["Meer".to_owned()]),
-        "Notiz, Schlagwörter"
-    );
-    assert_eq!(coast.origin, Some(origin.clone()), "die Herkunft steht am Einfall");
-    assert_eq!(
-        coast.children.iter().map(|n| n.title.as_str()).collect::<Vec<_>>(),
-        ["Düne", "Watt"],
-        "Reihenfolge der Eingabe"
-    );
-    assert_eq!(coast.children[0].children[0].title, "Strandhafer", "die Verschachtelung bleibt");
-    assert_eq!(map.links.len(), 1, "die Verbindung steht in der Mindmap");
-    assert_eq!(
-        (map.links[0].kind, map.links[0].note.as_str()),
-        (baruch_store::LinkKind::LeadsTo, "hält den Sand"),
-        "als leads_to mit der Beschriftung als Notiz"
-    );
-    let mirror = std::fs::read_to_string(b.mirror().join("einfaelle.md")).expect("einfaelle.md im Spiegel");
-    assert!(mirror.contains("- Titel: Strandhafer\n"), "die neuen Einfälle stehen im Spiegel:\n{mirror}");
+        let map = b.tree(&quiet()).await;
+        let coast =
+            map.root.children.iter().find(|n| n.title == "Küste").expect("oberste Knoten werden freie Hauptthemen");
+        assert_eq!(
+            (coast.note.as_str(), coast.words.clone()),
+            ("Salz in der Luft.", vec!["Meer".to_owned()]),
+            "Notiz, Schlagwörter"
+        );
+        assert_eq!(coast.origin, Some(origin.clone()), "die Herkunft steht am Einfall");
+        assert_eq!(
+            coast.children.iter().map(|n| n.title.as_str()).collect::<Vec<_>>(),
+            ["Düne", "Watt"],
+            "Reihenfolge der Eingabe"
+        );
+        assert_eq!(coast.children[0].children[0].title, "Strandhafer", "die Verschachtelung bleibt");
+        assert_eq!(map.links.len(), 1, "die Verbindung steht in der Mindmap");
+        assert_eq!(
+            (map.links[0].kind, map.links[0].note.as_str()),
+            (baruch_store::LinkKind::LeadsTo, "hält den Sand"),
+            "als leads_to mit der Beschriftung als Notiz"
+        );
+        let mirror = std::fs::read_to_string(b.mirror().join("einfaelle.md")).expect("einfaelle.md im Spiegel");
+        assert!(mirror.contains("- Titel: Strandhafer\n"), "die neuen Einfälle stehen im Spiegel:\n{mirror}");
 
-    // Below a node.
-    let under = tree::import(
-        &b.server.state,
-        b.work,
-        coast.idea,
-        &ImportTree { nodes: vec![leaf("Priel")], ..ImportTree::default() },
-        &origin,
-    )
+        // Below a node.
+        let under = tree::import(
+            &b.server.state,
+            b.work,
+            coast.idea,
+            &ImportTree { nodes: vec![leaf("Priel")], ..ImportTree::default() },
+            &origin,
+        )
+        .await
+        .unwrap();
+        let map = b.tree(&quiet()).await;
+        let coast = map.root.children.iter().find(|n| n.title == "Küste").unwrap();
+        assert_eq!(
+            coast.children.last().and_then(|n| n.idea),
+            Some(under.ideas[0]),
+            "hinter den vorhandenen Unterknoten"
+        );
+
+        // Limits exceeded: rejected, nothing created, no commit.
+        let (ideas, commits) = (map.total_ideas, b.commits());
+        let too_many = ImportTree {
+            nodes: (0..=MAX_IMPORT_NODES).map(|n| leaf(&format!("Knoten {n}"))).collect(),
+            ..ImportTree::default()
+        };
+        let error = tree::import(&b.server.state, b.work, None, &too_many, &origin).await.unwrap_err();
+        assert_eq!(error.code, baruch_server::rpc::REFUSED, "mehr als MAX_IMPORT_NODES Knoten: abgelehnt");
+        assert!(error.message.contains("2000") && error.message.contains("Nichts angelegt"), "{}", error.message);
+        let mut deep = leaf("unten");
+        for n in 0..MAX_TREE_DEPTH {
+            deep = ImportNode { children: vec![deep], ..leaf(&format!("Ebene {n}")) };
+        }
+        let error = tree::import(
+            &b.server.state,
+            b.work,
+            None,
+            &ImportTree { nodes: vec![deep], ..ImportTree::default() },
+            &origin,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(error.code, baruch_server::rpc::REFUSED, "tiefer als MAX_TREE_DEPTH: abgelehnt");
+        assert!(error.message.contains("32"), "{}", error.message);
+        let half = ImportTree { nodes: vec![leaf("gültig"), leaf(&"x".repeat(201))], ..ImportTree::default() };
+        let error = tree::import(&b.server.state, b.work, None, &half, &origin).await.unwrap_err();
+        assert_eq!(error.code, baruch_server::rpc::REFUSED, "ein zu langer Titel lehnt den ganzen Baum ab");
+        let empty = tree::import(&b.server.state, b.work, None, &ImportTree::default(), &origin).await.unwrap_err();
+        assert_eq!(empty.code, baruch_server::rpc::REFUSED, "ein leerer Baum wird abgelehnt");
+        assert_eq!(b.tree(&quiet()).await.total_ideas, ideas, "nichts angelegt – auch nicht der gültige Anfang");
+        assert_eq!(b.commits(), commits, "und kein Commit");
+    })
     .await
-    .unwrap();
-    let map = b.tree(&quiet()).await;
-    let coast = map.root.children.iter().find(|n| n.title == "Küste").unwrap();
-    assert_eq!(coast.children.last().and_then(|n| n.idea), Some(under.ideas[0]), "hinter den vorhandenen Unterknoten");
-
-    // Limits exceeded: rejected, nothing created, no commit.
-    let (ideas, commits) = (map.total_ideas, b.commits());
-    let too_many = ImportTree {
-        nodes: (0..=MAX_IMPORT_NODES).map(|n| leaf(&format!("Knoten {n}"))).collect(),
-        ..ImportTree::default()
-    };
-    let error = tree::import(&b.server.state, b.work, None, &too_many, &origin).await.unwrap_err();
-    assert_eq!(error.code, baruch_server::rpc::REFUSED, "mehr als MAX_IMPORT_NODES Knoten: abgelehnt");
-    assert!(error.message.contains("2000") && error.message.contains("Nichts angelegt"), "{}", error.message);
-    let mut deep = leaf("unten");
-    for n in 0..MAX_TREE_DEPTH {
-        deep = ImportNode { children: vec![deep], ..leaf(&format!("Ebene {n}")) };
-    }
-    let error = tree::import(
-        &b.server.state,
-        b.work,
-        None,
-        &ImportTree { nodes: vec![deep], ..ImportTree::default() },
-        &origin,
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(error.code, baruch_server::rpc::REFUSED, "tiefer als MAX_TREE_DEPTH: abgelehnt");
-    assert!(error.message.contains("32"), "{}", error.message);
-    let half = ImportTree { nodes: vec![leaf("gültig"), leaf(&"x".repeat(201))], ..ImportTree::default() };
-    let error = tree::import(&b.server.state, b.work, None, &half, &origin).await.unwrap_err();
-    assert_eq!(error.code, baruch_server::rpc::REFUSED, "ein zu langer Titel lehnt den ganzen Baum ab");
-    let empty = tree::import(&b.server.state, b.work, None, &ImportTree::default(), &origin).await.unwrap_err();
-    assert_eq!(empty.code, baruch_server::rpc::REFUSED, "ein leerer Baum wird abgelehnt");
-    assert_eq!(b.tree(&quiet()).await.total_ideas, ideas, "nichts angelegt – auch nicht der gültige Anfang");
-    assert_eq!(b.commits(), commits, "und kein Commit");
 }
 
 // ---- MCP ----------------------------------------------------------------------------------------------------------

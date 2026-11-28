@@ -478,7 +478,8 @@ async fn mcp_manages_only_its_own_posts() {
         ("post_delete", json!({ "work": work, "id": lektor })),
     ] {
         let text = tool_refused(&server, &s, name, args).await;
-        assert!(text.starts_with("Nur eigene Beiträge"), "{name}: verständliche Ablehnung: {text}");
+        // Round 39a: MCP answers in English.
+        assert!(text.starts_with("Only your own posts"), "{name}: verständliche Ablehnung: {text}");
     }
     let text = tool_refused(&server, &other, "post_delete", json!({ "work": work, "id": own })).await;
     assert!(text.contains("@mcp:probe"), "ein anderer Client darf den Beitrag von probe nicht löschen: {text}");
@@ -490,7 +491,8 @@ async fn mcp_manages_only_its_own_posts() {
         (&impostor, json!({ "work": work, "id": human })),
     ] {
         let text = tool_refused(&server, who, "post_delete", args).await;
-        assert!(text.starts_with("Nur eigene Beiträge"), "der Beitrag des Menschen bleibt geschützt: {text}");
+        // Round 39a: MCP answers in English.
+        assert!(text.starts_with("Only your own posts"), "der Beitrag des Menschen bleibt geschützt: {text}");
     }
     assert_eq!((posts_at(&server, work, keys[1]).await, commit_count(&dir)), before, "nichts geändert, kein Commit");
 

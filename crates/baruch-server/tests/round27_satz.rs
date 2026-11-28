@@ -236,6 +236,7 @@ fn has(warnings: &[CoverWarning], code: &str, kind: CoverBlockKind) -> bool {
 
 #[tokio::test]
 async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fonts() {
+    baruch_server::i18n::scope(baruch_server::i18n::Lang::De, async {
     let server = common::open().await;
     let work = garden_with_cover(&server).await;
     // Garden book: A4 (210 × 297 mm), bleed 3 mm. The image (60 × 90 px) fills the front including the bleed (213 × 303
@@ -320,6 +321,8 @@ async fn the_print_check_warns_about_bleed_safety_barcode_spine_contrast_and_fon
             .any(|w| w.code == "contrast" && w.block.is_some_and(|k| k.face() == baruch_store::CoverFace::Front)),
         "SVG-Umschlag: kein Kontrast auf der Vorderseite gemessen: {warnings:#?}"
     );
+})
+    .await
 }
 
 #[tokio::test]

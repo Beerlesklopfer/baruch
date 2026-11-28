@@ -6498,4 +6498,48 @@ comment (1 227 keys); shared words come from `common.*` (save, delete, close).
 
 #### messages_1
 
+Server messages of the content, work, output and literature modules (works, outline, numbering, revisions, posts,
+threads, chat rendering, ideas and idea map, images and image requests, cover, findings, glossary, index, cross
+references, search and replace, scripture check and mapping, view, ribbon, menu, consent bar, speaking time, personas,
+assistant UI parts, exchange, EPUB, PDF, typesetting, Word export, literature and Bibles) come from twelve area files
+`locales/{en,de}/{works,outline,posts,ideas,assets,cover,findings,reference,view,assist,export,sources}_msg.ftl`
+(about 1 100 keys; German verbatim to the former Rust strings, English as base catalog).
+
+- **Call sites:** `crate::i18n::tc("…", &[…])` with the complete key literal; arguments by name (`{ $name }`). Notice
+  maps (`?ok=`, `?hinweis=`) return `String` instead of `&'static str`. Former German `pub const` texts that tests or
+  other modules used became functions with the same meaning: `works::use_word_import`, `literature::{pick_section,
+  not_linked, foreign_fulltext, foreign_page, not_checkable}`, `literature::bibles::{no_bible, no_highlight}`,
+  `personas::{bible_refused, rag_refused}`, `cover_print::draft_warning`, `typeset::{cancelled_text, timeout_text,
+  tail_label}`, `pdf::busy_text`, `findings::view::stale_summary_words`, `typeset_settings::{no_rule,
+  no_document_title}`, `exchange::import::title_hint`, `idea_map::near::off`.
+- **Comparisons across languages:** status mappings that used to compare German texts now check both languages:
+  `pdf::is_busy`, `typeset::is_timeout`, `ideas::is_unknown_work` (store text of `UnknownWork` through
+  `store_text`), `works::is_duplicate_title` (store text of `DuplicateTitle`).
+- **Plural:** counted words of the exchange preview use Fluent number selectors (`export_msg.exchange.add.*`); other
+  singular/plural pairs are two keys. Decimal numbers keep the comma in German and the point in English (cover guides
+  and bounds, image sizes, Typst time limits); the contrast ratio uses `i18n::number`.
+- **`<` in texts:** keys without `_html` must not contain `<` (catalog check 4); placeholders like `block:<Nummer>`
+  are written `{ $lt }Nummer{ $gt }` with the arguments `lt = "<"`, `gt = ">"`.
+- **Command line stays German:** the CLI entry points in owned modules (`exchange::import::cli_import`,
+  `pdf::write_pdf_file`, `pdf::notes::write_notes_file`, `epub::write_epub_file`, `docx_export::cli_export`) run in
+  `i18n::scope(Lang::De, …)`, so shared messages keep the former German output.
+- **Not translated (by contract or because the text is data):** mirror commit texts, model task texts and facts
+  (`assist::prompts`, `context`, `ref_claims`, `rag_facts`, `bible_research` problems, chunk labels), marker
+  recognition (`chat_render`, `xref` patterns, `findings::parse`, `assist::chat` order markers, `basis` labels),
+  stored data (proposal notes, post texts written by Baruch such as `assist::chat::order_note`, library notes,
+  status-proposal reasons, `TRUNCATED_NOTE`/`CUT_NOTE`, compression messages stored with posts), book outputs
+  (Typst, EPUB/Word content, cover print source, exchange file contents, FreeMind/XMind and Markdown exports of the
+  mind map including the titles of its tree), log lines, panic messages.
+- **Open (German still visible):** labels taken from other crates (`CoverBlockKind::label`, `CoverFace::label`,
+  `FindingStatus::label`, `RevisionReason::label`, scripture-check messages of `baruch_scripture`, docx reader
+  warnings); the wording-check labels of `bibles` (`Wortlaut stimmt …`, `state_label`, `MISMATCH_PREFIX`,
+  `module_note`) and `bibles::CIPHER_KEY_WRONG` (compared by `connections/pages.rs`), because they feed model facts
+  or comparisons outside this task; the field labels of the cover layout in request lines (`cover_layout::block_line`,
+  shared with commit texts); the tooltips inside the mind-map SVG (`idea_map/bild/mindmap.rs`, also the picture
+  export); `band::TABS` labels (unused by rendering).
+- **Tests:** `tests/round39a_messages_1.rs` (notice, form error, RPC refusal and error page in en and de, direct calls
+  in a language scope, plural selectors, own catalogs complete without German letters in English). Older tests that
+  call owned functions outside a request now pin German with `i18n::sync_scope`/`scope`; MCP tests that asserted
+  German texts of owned modules assert the English text (MCP is always English).
+
 #### messages_2

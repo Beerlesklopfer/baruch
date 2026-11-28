@@ -24,6 +24,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use super::port::{Message, ModelCall, Role};
 use super::{Mode, Progress, context, prompts, send};
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, REFUSED, RpcError};
 
 /// Default and upper limit of the number of variants.
@@ -108,7 +109,10 @@ pub fn is_variants_order(message: &str) -> bool {
 pub fn revision_variant(info: &baruch_store::RevisionInfo) -> Option<Value> {
     info.variant.as_ref().map(|v| {
         let mut value = serde_json::to_value(v).expect("Variante ist immer JSON");
-        value["title"] = Value::String(format!("Variante {}: {}", v.label, v.summary));
+        value["title"] = Value::String(tc(
+            "assist_msg.variant.title",
+            &[("label", v.label.as_str().into()), ("summary", v.summary.as_str().into())],
+        ));
         value
     })
 }
@@ -269,7 +273,7 @@ async fn order_findings(
     for &id in order.findings.iter().take(MAX_VARIANT_FINDINGS) {
         match state.store.finding_get(order.work, id).await {
             Ok(f) if f.key == Some(order.key) => out.push(f),
-            Ok(_) => notes.push(format!("[B{id}] gehört nicht zu diesem Abschnitt und bleibt außen vor.")),
+            Ok(_) => notes.push(tc("assist_msg.variant.finding_elsewhere", &[("id", id.into())])),
             Err(e) => notes.push(format!("[B{id}]: {}", RpcError::from(e).message)),
         }
     }
@@ -325,31 +329,30 @@ pub async fn run(
     if !(2..=MAX_VARIANTS).contains(&count) {
         return Err(RpcError::new(
             INVALID_PARAMS,
-            format!("2 oder 3 Varianten (höchstens {MAX_VARIANTS}), nicht {count}"),
+            tc(
+                "assist_msg.variant.count",
+                &[("max", usize::from(MAX_VARIANTS).into()), ("count", usize::from(count).into())],
+            ),
         ));
     }
     let (_, _, lector) = crate::personas::rows_and_lector(state).await?;
-    let lector = lector.ok_or_else(|| RpcError::new(REFUSED, "Kein Lektor aktiv (Einstellungen → Assistenten)."))?;
+    let lector = lector.ok_or_else(|| RpcError::new(REFUSED, tc("assist_msg.variant.no_lector", &[])))?;
     let persona = context::active_persona(state, &lector).await?;
     let work = state.store.load_work(order.work).await?;
     let node = work.nodes.iter().find(|n| n.key == order.key).ok_or_else(|| {
-        RpcError::new(INVALID_PARAMS, format!("Abschnitt {} gibt es in diesem Werk nicht.", order.key))
+        RpcError::new(INVALID_PARAMS, tc("assist_msg.solution.no_section", &[("key", order.key.into())]))
     })?;
     let base = order
         .rev
         .or_else(|| node.current_number())
-        .ok_or_else(|| RpcError::new(REFUSED, "Der Abschnitt hat keine Fassung."))?;
-    let base_text = node
-        .revision(base)
-        .map(|r| r.body.clone())
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("Fassung {base} gibt es in diesem Abschnitt nicht.")))?;
+        .ok_or_else(|| RpcError::new(REFUSED, tc("assist_msg.solution.no_revision_at_all", &[])))?;
+    let base_text = node.revision(base).map(|r| r.body.clone()).ok_or_else(|| {
+        RpcError::new(INVALID_PARAMS, tc("assist_msg.solution.no_such_revision", &[("number", base.into())]))
+    })?;
     let mut notes = Vec::new();
     let findings = order_findings(state, order, &mut notes).await?;
     if findings.is_empty() {
-        return Err(RpcError::new(
-            REFUSED,
-            "Keine Befunde zum Umsetzen: weder genannt noch offen in diesem Abschnitt. Nichts angelegt.",
-        ));
+        return Err(RpcError::new(REFUSED, tc("assist_msg.variant.no_findings", &[])));
     }
     let heading = context::heading_line(&base_text);
     let language = crate::work_language::of(state, order.work).await;
@@ -378,10 +381,13 @@ pub async fn run(
         if wanted.is_empty() {
             return Err(RpcError::new(
                 REFUSED,
-                format!(
-                    "„{title}“ ist zu lang für die Kontextlänge von {} ({} Tokens), und kein Zitat der Befunde steht im \
-                     Text – ein Teilvorschlag lässt sich nicht abgrenzen. Nichts angelegt.",
-                    persona.handle, budget.tokens
+                tc(
+                    "assist_msg.variant.too_long",
+                    &[
+                        ("title", title.as_str().into()),
+                        ("handle", persona.handle.as_str().into()),
+                        ("tokens", budget.tokens.into()),
+                    ],
                 ),
             ));
         }
@@ -395,16 +401,19 @@ pub async fn run(
         if !fits(&subject) {
             return Err(RpcError::new(
                 REFUSED,
-                format!(
-                    "Auch die betroffenen Absätze von „{title}“ passen nicht in die Kontextlänge von {} ({} Tokens). \
-                     Nichts angelegt.",
-                    persona.handle, budget.tokens
+                tc(
+                    "assist_msg.variant.paragraphs_too_long",
+                    &[
+                        ("title", title.as_str().into()),
+                        ("handle", persona.handle.as_str().into()),
+                        ("tokens", budget.tokens.into()),
+                    ],
                 ),
             ));
         }
-        notes.push(format!(
-            "Langer Abschnitt: Teilvorschlag für die Absätze {} (der Rest bleibt wörtlich).",
-            wanted.iter().map(usize::to_string).collect::<Vec<_>>().join(", ")
+        notes.push(tc(
+            "assist_msg.variant.partial",
+            &[("paragraphs", wanted.iter().map(usize::to_string).collect::<Vec<_>>().join(", ").into())],
         ));
         (subject, Some(wanted))
     };
@@ -450,7 +459,7 @@ pub async fn run(
         };
         let answer = super::ask_model(state, &call, &persona.handle, Mode::Propose, progress).await?;
         if super::cut_off(&answer) {
-            notes.push(format!("Variante {label}: an der Längengrenze abgebrochen, nicht angelegt."));
+            notes.push(tc("assist_msg.variant.cut_off", &[("label", label.to_string().into())]));
             continue;
         }
         let mut parsed = parse_variant(&answer.text);
@@ -459,7 +468,7 @@ pub async fn run(
             None => super::proposal_text(&parsed.text, &heading),
         };
         if text.trim_end() == base_text.trim_end() || parsed.text.trim().is_empty() {
-            notes.push(format!("Variante {label}: unverändert, nicht angelegt."));
+            notes.push(tc("assist_msg.variant.unchanged", &[("label", label.to_string().into())]));
             continue;
         }
         parsed.findings.retain(|id| allowed.contains(id));
@@ -473,7 +482,7 @@ pub async fn run(
         drafts.push((label, parsed, text, answer.model));
     }
     if drafts.is_empty() {
-        return Err(RpcError::new(REFUSED, format!("Keine Variante angelegt: {}", notes.join(" "))));
+        return Err(RpcError::new(REFUSED, tc("assist_msg.variant.none", &[("notes", notes.join(" ").into())])));
     }
     let group = baruch_store::new_uuid();
     let mut variants = Vec::new();

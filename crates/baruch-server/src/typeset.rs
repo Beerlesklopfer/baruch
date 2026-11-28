@@ -80,6 +80,7 @@ use serde_json::{Value, json};
 use tokio::sync::Semaphore;
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, REFUSED, RpcError};
 use crate::view::Settings;
 
@@ -94,8 +95,22 @@ pub const CACHE_SIZE: usize = 8;
 /// MiB. The newest state stays even if it alone is larger.
 pub const CACHE_BYTES: usize = 192 * 1024 * 1024;
 
-/// Message of a cancelled run (`REFUSED`).
-pub const CANCELLED: &str = "Satz abgebrochen.";
+/// Message of a cancelled run (`REFUSED`), in the language of the request (Round 39a).
+pub fn cancelled_text() -> String {
+    tc("export_msg.typeset.cancelled", &[])
+}
+
+/// Time-out refusal (`REFUSED`, „Typst took longer than …“) in the language of the request.
+pub fn timeout_text(limit: Duration) -> String {
+    tc("export_msg.typeset.timeout", &[("limit", seconds(limit).into())])
+}
+
+/// Is `message` the time-out refusal of [`timeout_text`] (in German or in the language of the request)?
+pub fn is_timeout(message: &str) -> bool {
+    let shown = tc("export_msg.typeset.timeout", &[("limit", "\u{1}".into())]);
+    let prefix = shown.split('\u{1}').next().unwrap_or("").trim_end();
+    message.starts_with("Typst brauchte länger") || (!prefix.is_empty() && message.starts_with(prefix))
+}
 
 /// At most one Typst run at a time (machine load; Typst itself does not use several cores). The
 /// PDF generation ([`crate::pdf`]) shares this lock.
@@ -254,7 +269,7 @@ async fn until_cancelled(cancel: &Cancel) {
 }
 
 fn cancelled() -> RpcError {
-    RpcError::new(REFUSED, CANCELLED)
+    RpcError::new(REFUSED, cancelled_text())
 }
 
 /// Font search in advance (Round 18a, proposal for the start in `main.rs`): loads embedded and system fonts
@@ -349,10 +364,7 @@ pub fn draft_param(params: &Value) -> Result<Option<bool>, RpcError> {
     match params.get("draft") {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Bool(b)) => Ok(Some(*b)),
-        Some(_) => Err(RpcError::new(
-            INVALID_PARAMS,
-            "draft: true (mit Wasserzeichen), false (ohne) oder weglassen (nach Einstellung)",
-        )),
+        Some(_) => Err(RpcError::new(INVALID_PARAMS, tc("export_msg.typeset.draft_param", &[]))),
     }
 }
 
@@ -362,7 +374,7 @@ pub fn draft_query(value: Option<&str>) -> Result<Option<bool>, String> {
         None | Some("") => Ok(None),
         Some("1" | "ja" | "true") => Ok(Some(true)),
         Some("0" | "nein" | "false") => Ok(Some(false)),
-        Some(other) => Err(format!("entwurf „{other}“: 1 (mit Wasserzeichen) oder 0 (ohne) erwartet")),
+        Some(other) => Err(tc("export_msg.typeset.draft_form", &[("other", other.into())])),
     }
 }
 
@@ -494,8 +506,10 @@ fn rewrite_sections(
 pub(crate) fn seconds(limit: Duration) -> String {
     if limit.subsec_millis() == 0 {
         format!("{} s", limit.as_secs())
-    } else {
+    } else if crate::i18n::current() == crate::i18n::Lang::De {
         format!("{:.3} s", limit.as_secs_f64()).replace('.', ",")
+    } else {
+        format!("{:.3} s", limit.as_secs_f64())
     }
 }
 
@@ -535,7 +549,7 @@ async fn compile_run(
     let stand = stand.to_owned();
     let run = async move {
         let permit = tokio::select! {
-            permit = RUNS.acquire() => permit.map_err(|e| RpcError::new(INTERNAL, format!("Typst-Sperre: {e}")))?,
+            permit = RUNS.acquire() => permit.map_err(|e| RpcError::new(INTERNAL, tc("export_msg.typeset.lock", &[("error", e.to_string().into())])))?,
             () = until_cancelled(&cancel) => return Err(cancelled()),
         };
         // While waiting, another run can have typeset exactly this state.
@@ -562,7 +576,7 @@ async fn compile_run(
         }));
         // Cancelled: the request returns at once, even if Typst still computes up to the next check point.
         tokio::select! {
-            joined = handle => match joined.map_err(|e| RpcError::new(INTERNAL, format!("Typst ist abgestürzt: {e}")))? {
+            joined = handle => match joined.map_err(|e| RpcError::new(INTERNAL, tc("export_msg.typeset.crashed", &[("error", e.to_string().into())])))? {
                 Some(compiled) => Ok((compiled, false)),
                 None => Err(cancelled()),
             },
@@ -574,11 +588,9 @@ async fn compile_run(
     // also comes after the limit has expired (always possible with 0). Therefore the measured time counts in
     // addition; the finished typesetting then already lies in the cache.
     match tokio::time::timeout(limit, run).await {
-        Ok(_) if begun.elapsed() >= limit => {
-            Err(RpcError::new(REFUSED, format!("Typst brauchte länger als {}", seconds(limit))))
-        }
+        Ok(_) if begun.elapsed() >= limit => Err(RpcError::new(REFUSED, timeout_text(limit))),
         Ok(result) => result,
-        Err(_) => Err(RpcError::new(REFUSED, format!("Typst brauchte länger als {}", seconds(limit)))),
+        Err(_) => Err(RpcError::new(REFUSED, timeout_text(limit))),
     }
 }
 
@@ -769,7 +781,7 @@ impl Typeset {
                         }
                         // Round 23a: lines behind the last section belong to the book end, not to it.
                         None => match map.tail_first_line().filter(|first| line >= *first) {
-                            Some(first) => (None, Some(TAIL_LABEL.to_owned()), Some(line - first + 1)),
+                            Some(first) => (None, Some(tail_label()), Some(line - first + 1)),
                             None => (None, Some("Werkvorlage".to_owned()), Some(line)),
                         },
                     },
@@ -797,7 +809,9 @@ impl Typeset {
 }
 
 /// Round 23a: name of the book end in typesetting messages (index, glossary and lists behind the last section).
-pub const TAIL_LABEL: &str = "Buchende (Register, Glossar)";
+pub fn tail_label() -> String {
+    tc("export_msg.typeset.tail", &[])
+}
 
 /// A message for RPC, MCP and page.
 #[derive(Debug, Clone, Serialize)]
@@ -818,7 +832,7 @@ pub struct DiagnosticView {
 
 /// Fixed key as a number or digits (forms); empty → `None`.
 fn key_value(value: Option<&Value>, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || RpcError::new(INVALID_PARAMS, format!("{name}: Zahl erwartet"));
+    let wrong = || RpcError::new(INVALID_PARAMS, tc("export_msg.typeset.number", &[("name", name.into())]));
     match value {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -833,7 +847,7 @@ fn check_key(work: &Work, work_id: WorkId, key: Option<i64>) -> Result<(), RpcEr
     match key {
         Some(key) if !work.nodes.iter().any(|n| n.key == key) => Err(RpcError::new(
             INVALID_PARAMS,
-            format!("Abschnitt mit Schlüssel {key} gibt es in Werk {work_id} nicht."),
+            tc("export_msg.typeset.no_section", &[("key", key.into()), ("work", work_id.into())]),
         )),
         _ => Ok(()),
     }
@@ -874,7 +888,12 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             .ok()
             .filter(|&p| p >= 1)
             .and_then(|p| typeset.rendered().pages.get(p - 1))
-            .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("Seite {page} gibt es nicht (1–{total}).")))?;
+            .ok_or_else(|| {
+                RpcError::new(
+                    INVALID_PARAMS,
+                    tc("export_msg.typeset.no_page", &[("page", page.into()), ("total", total.into())]),
+                )
+            })?;
         answer["page"] = json!(page);
         answer["svg"] = json!(svg);
     }
@@ -903,8 +922,8 @@ async fn cancel_act(
 ) -> Response {
     match state.store.works().await {
         Ok(works) if works.iter().any(|(w, _, _)| *w == id) => {}
-        Ok(_) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Ok(_) => return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, typeset_error(e)).into_response(),
     }
     let flag = if cancel_in(&state.data, id) { 1 } else { 0 };
     let key = pairs
@@ -919,7 +938,12 @@ async fn cancel_act(
 /// 403 for a GET that a foreign page has triggered (Round 18a): images, links and forms of other
 /// pages are not to start a Typst run.
 pub(crate) fn foreign_get() -> Response {
-    (StatusCode::FORBIDDEN, "Abgelehnt: Der Satz startet nicht auf Anfrage einer fremden Seite.").into_response()
+    (StatusCode::FORBIDDEN, tc("export_msg.typeset.foreign", &[])).into_response()
+}
+
+/// „Fehler: …“ in the language of the request.
+fn typeset_error(error: impl std::fmt::Display) -> String {
+    tc("export_msg.page.error", &[("error", error.to_string().into())])
 }
 
 fn templates() -> &'static Environment<'static> {
@@ -990,7 +1014,14 @@ pub(crate) fn render(status: StatusCode, ctx: JinjaValue) -> Response {
     let ctx = minijinja::context! { scriptless => true, ..ctx };
     match templates().get_template("typeset.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage typeset.html: {e}")).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            tc(
+                "export_msg.typeset.template_error",
+                &[("name", "typeset.html".into()), ("error", e.to_string().into())],
+            ),
+        )
+            .into_response(),
     }
 }
 
@@ -1012,9 +1043,9 @@ async fn page(
     let title = match state.store.works().await {
         Ok(works) => match works.into_iter().find(|(w, _, _)| *w == id) {
             Some((_, _, title)) => title,
-            None => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
+            None => return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response(),
         },
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, typeset_error(e)).into_response(),
     };
     let back = href(match key {
         Some(key) => format!("/?work={id}&key={key}"),
@@ -1023,7 +1054,11 @@ async fn page(
     let work_ctx = json!({ "id": id, "title": title });
     // After „Satz abbrechen“: do not typeset anew, only show a state already typeset.
     let cancelled_notice = q.abgebrochen.as_deref().map(|flag| {
-        if flag == "0" { "Es lief kein Satz, der abzubrechen war." } else { "Der Satz wurde abgebrochen." }
+        if flag == "0" {
+            tc("export_msg.typeset.nothing_to_cancel", &[])
+        } else {
+            tc("export_msg.typeset.was_cancelled", &[])
+        }
     });
     let restart = href(match (key, pair) {
         (Some(key), "") => format!("/werke/{id}/satz?key={key}"),
@@ -1047,11 +1082,11 @@ async fn page(
             return render(StatusCode::OK, ctx);
         }
         Err(e) => {
-            let cancelled = e.message == CANCELLED;
+            let cancelled = e.message == cancelled_text();
             let ctx = minijinja::context! {
                 settings, work => sv(work_ctx), back, key, restart,
                 error => (!cancelled).then(|| e.message.clone()),
-                cancelled_notice => cancelled.then_some("Der Satz wurde abgebrochen."),
+                cancelled_notice => cancelled.then(|| tc("export_msg.typeset.was_cancelled", &[])),
                 idle => cancelled,
                 draft_links => sv(&draft_links),
             };
@@ -1131,13 +1166,17 @@ struct DraftLinks {
     pdf_plain: Option<JinjaValue>,
     /// Toggle the preview: address and label.
     toggle: JinjaValue,
-    toggle_label: &'static str,
+    toggle_label: String,
 }
 
 fn draft_links(id: WorkId, key: Option<i64>, draft: Option<bool>, stored: bool) -> DraftLinks {
     let shown = draft.unwrap_or(stored);
     let key_part = key.map(|k| format!("key={k}&")).unwrap_or_default();
-    let (flag, label) = if shown { ("0", "Vorschau ohne Wasserzeichen") } else { ("1", "Vorschau als Entwurf") };
+    let (flag, label) = if shown {
+        ("0", tc("export_msg.typeset.preview_plain", &[]))
+    } else {
+        ("1", tc("export_msg.typeset.preview_draft", &[]))
+    };
     DraftLinks {
         pdf_draft: href(format!("/werke/{id}/pdf?entwurf=1")),
         pdf_plain: stored.then(|| href(format!("/werke/{id}/pdf?entwurf=0"))),
@@ -1233,7 +1272,7 @@ pub fn missing_images(source: &Source) -> Vec<String> {
 }
 
 fn not_found() -> Response {
-    (StatusCode::NOT_FOUND, "Seite gibt es nicht (anderer oder veralteter Stand)").into_response()
+    (StatusCode::NOT_FOUND, tc("export_msg.typeset.page_gone", &[])).into_response()
 }
 
 #[derive(Deserialize)]
@@ -1262,7 +1301,7 @@ async fn svg(
     let prepared = match prepare_with(&state, id, draft).await {
         Ok(prepared) => prepared,
         Err(StoreError::UnknownWork(_)) => return not_found(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, typeset_error(e)).into_response(),
     };
     if prepared.stand != stand {
         return not_found();
@@ -1292,56 +1331,59 @@ mod tests {
     /// one after another, so that filling the cache does not push out the expired run.
     #[tokio::test]
     async fn the_cache_holds_eight_stands_and_a_timed_out_run_still_fills_it() {
-        let entry = |stand: &str| {
-            Arc::new(Compiled {
-                rendered: Rendered {
-                    stand: stand.into(),
-                    pages: vec![],
-                    headings: vec![],
-                    diagnostics: vec![],
-                    print: vec![],
-                    page_lines: vec![],
-                },
-                millis: 0,
-            })
-        };
-        let sized = |stand: &str, bytes: usize| {
-            let compiled = entry(stand);
-            let mut rendered = compiled.rendered.clone();
-            rendered.pages = vec!["x".repeat(bytes)];
-            Arc::new(Compiled { rendered, millis: 0 })
-        };
-        for i in 0..CACHE_SIZE {
-            cache_put(entry(&format!("unit-{i}")));
-        }
-        assert!(cache_get("unit-0").is_some(), "unit-0 ist noch da und rückt nach hinten");
-        cache_put(entry("unit-neu"));
-        assert_eq!(cache_len(), CACHE_SIZE, "nie mehr als {CACHE_SIZE} Einträge");
-        assert!(cache_get("unit-0").is_some(), "zuletzt gebraucht: bleibt");
-        assert!(cache_get("unit-1").is_none(), "am längsten nicht gebraucht: fliegt zuerst");
+        crate::i18n::scope(crate::i18n::Lang::De, async {
+            let entry = |stand: &str| {
+                Arc::new(Compiled {
+                    rendered: Rendered {
+                        stand: stand.into(),
+                        pages: vec![],
+                        headings: vec![],
+                        diagnostics: vec![],
+                        print: vec![],
+                        page_lines: vec![],
+                    },
+                    millis: 0,
+                })
+            };
+            let sized = |stand: &str, bytes: usize| {
+                let compiled = entry(stand);
+                let mut rendered = compiled.rendered.clone();
+                rendered.pages = vec!["x".repeat(bytes)];
+                Arc::new(Compiled { rendered, millis: 0 })
+            };
+            for i in 0..CACHE_SIZE {
+                cache_put(entry(&format!("unit-{i}")));
+            }
+            assert!(cache_get("unit-0").is_some(), "unit-0 ist noch da und rückt nach hinten");
+            cache_put(entry("unit-neu"));
+            assert_eq!(cache_len(), CACHE_SIZE, "nie mehr als {CACHE_SIZE} Einträge");
+            assert!(cache_get("unit-0").is_some(), "zuletzt gebraucht: bleibt");
+            assert!(cache_get("unit-1").is_none(), "am längsten nicht gebraucht: fliegt zuerst");
 
-        // Byte limit (Round 18a): three states of 1000 bytes each with 2500 allowed – the oldest goes although
-        // fewer than CACHE_SIZE states are there; a single state that is too large stays nevertheless.
-        cache_put_within(sized("groß-1", 1000), 2500);
-        cache_put_within(sized("groß-2", 1000), 2500);
-        cache_put_within(sized("groß-3", 1000), 2500);
-        assert!(cache_contains("groß-3") && cache_contains("groß-2"), "die beiden neuesten passen in die Grenze");
-        assert!(!cache_contains("groß-1"), "der älteste große Stand fliegt wegen der Bytegrenze");
-        assert!(!cache_contains("unit-0"), "auch kleine ältere Stände weichen, bis die Summe passt");
-        cache_put_within(sized("riesig", 5000), 2500);
-        assert!(cache_contains("riesig"), "der neueste Stand bleibt, auch wenn er allein über der Grenze liegt");
-        assert_eq!(cache_len(), 1, "alles Ältere ist gewichen: {}", cache_len());
+            // Byte limit (Round 18a): three states of 1000 bytes each with 2500 allowed – the oldest goes although
+            // fewer than CACHE_SIZE states are there; a single state that is too large stays nevertheless.
+            cache_put_within(sized("groß-1", 1000), 2500);
+            cache_put_within(sized("groß-2", 1000), 2500);
+            cache_put_within(sized("groß-3", 1000), 2500);
+            assert!(cache_contains("groß-3") && cache_contains("groß-2"), "die beiden neuesten passen in die Grenze");
+            assert!(!cache_contains("groß-1"), "der älteste große Stand fliegt wegen der Bytegrenze");
+            assert!(!cache_contains("unit-0"), "auch kleine ältere Stände weichen, bis die Summe passt");
+            cache_put_within(sized("riesig", 5000), 2500);
+            assert!(cache_contains("riesig"), "der neueste Stand bleibt, auch wenn er allein über der Grenze liegt");
+            assert_eq!(cache_len(), 1, "alles Ältere ist gewichen: {}", cache_len());
 
-        // The run with limit 0 certainly begins (nobody else holds the lock), expires and computes to the end
-        // in the background; the next call waits for the lock and finds the state.
-        let source = Source { main: "= Zeitlimit\nNur für den Unit-Test.\n".into(), files: Vec::new() };
-        let stand = baruch_render::stand(&source);
-        let refused = compile(source.clone(), &stand, Duration::ZERO).await.err().expect("Limit 0 läuft ab");
-        assert_eq!(refused.code, REFUSED, "Zeitüberschreitung → REFUSED");
-        assert_eq!(refused.message, "Typst brauchte länger als 0 s", "Meldung nennt das Limit");
-        let (compiled, cached) = compile(source, &stand, COMPILE_TIMEOUT).await.expect("mit 60 s gelingt es");
-        assert!(cached, "der abgelaufene Lauf hat zu Ende gerechnet und den Stand abgelegt");
-        assert_eq!(compiled.rendered.pages.len(), 1, "eine Seite");
+            // The run with limit 0 certainly begins (nobody else holds the lock), expires and computes to the end
+            // in the background; the next call waits for the lock and finds the state.
+            let source = Source { main: "= Zeitlimit\nNur für den Unit-Test.\n".into(), files: Vec::new() };
+            let stand = baruch_render::stand(&source);
+            let refused = compile(source.clone(), &stand, Duration::ZERO).await.err().expect("Limit 0 läuft ab");
+            assert_eq!(refused.code, REFUSED, "Zeitüberschreitung → REFUSED");
+            assert_eq!(refused.message, "Typst brauchte länger als 0 s", "Meldung nennt das Limit");
+            let (compiled, cached) = compile(source, &stand, COMPILE_TIMEOUT).await.expect("mit 60 s gelingt es");
+            assert!(cached, "der abgelaufene Lauf hat zu Ende gerechnet und den Stand abgelegt");
+            assert_eq!(compiled.rendered.pages.len(), 1, "eine Seite");
+        })
+        .await
     }
 
     /// Round 29: conflicts and the detected template rule stand in the section `#druckpruefung` (without JavaScript),
@@ -1403,8 +1445,10 @@ mod tests {
 
     #[test]
     fn limits_are_named_in_seconds() {
-        assert_eq!(seconds(COMPILE_TIMEOUT), "60 s", "die Meldung nennt das Zeitlimit wie im Vertrag");
-        assert_eq!(seconds(Duration::from_millis(50)), "0,050 s", "kurze Limits mit Dezimalkomma");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            assert_eq!(seconds(COMPILE_TIMEOUT), "60 s", "die Meldung nennt das Zeitlimit wie im Vertrag");
+            assert_eq!(seconds(Duration::from_millis(50)), "0,050 s", "kurze Limits mit Dezimalkomma");
+        })
     }
 
     #[test]

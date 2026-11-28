@@ -16,6 +16,7 @@ use baruch_typst::timing::{clock, speaking_seconds, spoken_words};
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::RpcError;
 
 /// State compared with the target time.
@@ -163,7 +164,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 /// Whole number from `params[name]` (number or digits as text, forms): missing → `None`, `null` or
 /// empty text → `Some(None)`.
 fn whole_number(params: &Value, name: &str) -> Result<Option<Option<i64>>, RpcError> {
-    let wrong = || invalid(format!("{name}: ganze Zahl erwartet"));
+    let wrong = || invalid(tc("view_msg.timing.whole_number", &[("name", name.into())]));
     match params.get(name) {
         None => Ok(None),
         Some(Value::Null) => Ok(Some(None)),
@@ -189,10 +190,10 @@ pub fn settings_from_params(
     let mut new = old;
     match whole_number(params, "words_per_minute")? {
         None => {}
-        Some(None) => return Err(invalid("words_per_minute: ganze Zahl von 60 bis 250 erwartet")),
+        Some(None) => return Err(invalid(tc("view_msg.timing.wpm_param", &[]))),
         Some(Some(wpm)) => {
             if !(i64::from(MIN_WORDS_PER_MINUTE)..=i64::from(MAX_WORDS_PER_MINUTE)).contains(&wpm) {
-                return Err(invalid("Wörter je Minute: erlaubt sind 60 bis 250."));
+                return Err(invalid(tc("view_msg.timing.wpm_range", &[])));
             }
             new.words_per_minute = wpm as u32;
         }
@@ -202,7 +203,7 @@ pub fn settings_from_params(
         Some(None) => new.target_seconds = None,
         Some(Some(minutes)) => {
             if !(1..=i64::from(MAX_TARGET_MINUTES)).contains(&minutes) {
-                return Err(invalid("Zielzeit: erlaubt sind 1 bis 240 Minuten (leer bzw. null = keine Zielzeit)."));
+                return Err(invalid(tc("view_msg.timing.target_range", &[])));
             }
             new.target_seconds = Some(minutes as u32 * 60);
         }
@@ -230,18 +231,18 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
         "work.timing" => Ok(timing_json(&work_timing(state, work).await?)),
         "work.timing_set" => {
             if matches!(params.get("work"), None | Some(Value::Null)) {
-                return Err(invalid("work fehlt: Zeiten setzt man je Werk (work: Werk-id)."));
+                return Err(invalid(tc("view_msg.timing.work_missing", &[])));
             }
             set_timing(state, work, &params).await
         }
         "timing.count" => {
             let text = match params.get("text") {
                 Some(Value::String(s)) => s,
-                Some(_) => return Err(invalid("text: Text erwartet")),
-                None => return Err(invalid("text fehlt")),
+                Some(_) => return Err(invalid(tc("view_msg.timing.text", &[]))),
+                None => return Err(invalid(tc("view_msg.timing.text_missing", &[]))),
             };
             if text.chars().count() > MAX_COUNT_CHARS {
-                return Err(invalid("text: höchstens 1 000 000 Zeichen"));
+                return Err(invalid(tc("view_msg.timing.text_too_long", &[])));
             }
             let wpm = state.store.timing_settings(work).await?.words_per_minute;
             let words = spoken_words(text);

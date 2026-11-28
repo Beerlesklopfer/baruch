@@ -26,6 +26,7 @@ use minijinja::{Environment, context};
 use serde_json::{Value as Json, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 
 /// Placeholder in `base.html` (directly below the header).
 pub const MARKER: &str = "<!--baruch-consent-->";
@@ -80,7 +81,7 @@ async fn build(state: &AppState) -> Result<String, String> {
     templates()
         .get_template("consent.html")
         .and_then(|t| t.render(ctx))
-        .map_err(|e| format!("Vorlage consent.html: {e}"))
+        .map_err(|e| tc("view_msg.consent.template_error", &[("error", e.to_string().into())]))
 }
 
 /// Layer above all routes: inserts the notice bar into HTML responses with [`MARKER`] (or removes
@@ -109,7 +110,7 @@ pub async fn inject(State(state): State<Arc<AppState>>, request: Request, next: 
         Err(e) => {
             eprintln!("Zustimmung: Seite nicht lesbar: {e}");
             parts.headers.remove(header::CONTENT_LENGTH);
-            return Response::from_parts(parts, Body::from("Fehler: Seite zu groß"));
+            return Response::from_parts(parts, Body::from(tc("view_msg.consent.page_too_large", &[])));
         }
     };
     let Some(text) = std::str::from_utf8(&bytes).ok().filter(|t| t.contains(MARKER)) else {

@@ -105,14 +105,16 @@ fn a_taken_archive_name_gets_dash_two_then_dash_three() {
 #[cfg(unix)]
 #[test]
 fn a_trash_folder_that_is_a_symlink_is_refused_and_the_mirror_stays() {
-    let data = tempfile::tempdir().unwrap();
-    let elsewhere = tempfile::tempdir().unwrap();
-    mirror_with_file(data.path(), "probe");
-    std::os::unix::fs::symlink(elsewhere.path(), data.path().join("works").join(TRASH_DIR)).unwrap();
-    let err = move_to_trash(data.path(), "probe", DATE).expect_err(".geloescht als Verknüpfung");
-    assert!(err.contains("symbolische Verknüpfung"), "Meldung nennt den Grund: {err}");
-    assert!(data.path().join("works/probe/main.typ").is_file(), "der Spiegel bleibt, wo er ist");
-    assert_eq!(std::fs::read_dir(elsewhere.path()).unwrap().count(), 0, "nichts landet am Ziel der Verknüpfung");
+    baruch_server::i18n::sync_scope(baruch_server::i18n::Lang::De, || {
+        let data = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        mirror_with_file(data.path(), "probe");
+        std::os::unix::fs::symlink(elsewhere.path(), data.path().join("works").join(TRASH_DIR)).unwrap();
+        let err = move_to_trash(data.path(), "probe", DATE).expect_err(".geloescht als Verknüpfung");
+        assert!(err.contains("symbolische Verknüpfung"), "Meldung nennt den Grund: {err}");
+        assert!(data.path().join("works/probe/main.typ").is_file(), "der Spiegel bleibt, wo er ist");
+        assert_eq!(std::fs::read_dir(elsewhere.path()).unwrap().count(), 0, "nichts landet am Ziel der Verknüpfung");
+    })
 }
 
 #[cfg(unix)]

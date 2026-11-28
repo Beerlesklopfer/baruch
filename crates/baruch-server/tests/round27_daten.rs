@@ -452,7 +452,8 @@ async fn without_a_page_size_rpc_refuses_but_mcp_reads_the_stored_blocks_and_sav
     let session = initialize(&server).await;
     let read = ok_tool(&server, &session, "cover_layout", json!({ "work": work })).await;
     assert!(read["geometry"].is_null(), "geometry: null (Vertrag 4): {read}");
-    assert!(read["geometry_error"].as_str().is_some_and(|e| e.contains("Fehler")), "geometry_error mit Grund: {read}");
+    // Round 39a: MCP answers in English.
+    assert!(read["geometry_error"].as_str().is_some_and(|e| e.contains("errors")), "geometry_error mit Grund: {read}");
     assert_eq!(read["stored"], true, "die gespeicherte Anordnung");
     assert_eq!(read["blocks"][0]["color"], "dark", "gespeicherter Block gelesen");
 }

@@ -87,6 +87,7 @@ use minijinja::{Environment, Value, context};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::{Settings, query_escape};
 use crate::{AppState, mirror};
@@ -107,18 +108,21 @@ pub const CITE_MODEL: &str = "baruch-zitat";
 pub const MAX_PERSONA_TEXT: usize = 4000;
 /// Longest source reference for „an Persona geben“ (characters, one line).
 pub const MAX_SOURCE_CHARS: usize = 300;
-/// Notice when „an Persona geben“ comes without a section.
-pub const PICK_SECTION: &str = "Abschnitt wählen: Die Persona antwortet im Abschnitts-Chat. Die Literatur aus einem \
-     Abschnitt heraus öffnen (Arbeitsseite → Literatur) und den Text dann an die Persona geben.";
+/// Notice when „an Persona geben“ comes without a section (language of the request, Round 39a).
+pub fn pick_section() -> String {
+    tc("sources_msg.literature.pick_section", &[])
+}
 
 /// Notice for a source without a link to MultiGPT (not a stub: a full text exists only for
 /// adopted documents).
-pub const NOT_LINKED: &str = "Diese Quelle ist nicht mit MultiGPT verknüpft; einen Volltext gibt es nur für \
-     Dokumente aus MultiGPT (Bedeutungssuche → „Volltext“ → „In die Bibliothek übernehmen“).";
+pub fn not_linked() -> String {
+    tc("sources_msg.literature.not_linked", &[])
+}
 
 /// Reason when a foreign page wants to load the full text by GET (`Sec-Fetch-Site`/`Origin`).
-pub const FOREIGN_FULLTEXT: &str = "Aufruf von einer fremden Seite; Baruch lädt den Volltext über MultiGPT nur, \
-     wenn die Seite hier in Baruch geöffnet wird.";
+pub fn foreign_fulltext() -> String {
+    tc("sources_msg.literature.foreign_fulltext", &[])
+}
 
 /// Wording search (FTS5, default) or semantic search (RAG) – `lmode` in address and forms.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -153,7 +157,7 @@ pub const MAX_IMAGE_HITS: usize = 24;
 /// Box „Bilder des Werks“ (text escaped automatically, addresses from [`href`]).
 const IMAGE_HITS_TEMPLATE: &str = r#"{#- Bilder des Werks zur Suche (Runde 21c): images [{name, caption, alt, href, thumb}], query. -#}
 <section class="library-images" data-library-images aria-labelledby="library-images-title">
-  <div class="muted tiny" id="library-images-title">Bilder des Werks für „{{ query }}“</div>
+  <div class="muted tiny" id="library-images-title">{{ t("sources_msg.images.title", query=query) }}</div>
   {%- if images %}
   <ul class="library-image-list">
   {%- for i in images %}
@@ -161,13 +165,13 @@ const IMAGE_HITS_TEMPLATE: &str = r#"{#- Bilder des Werks zur Suche (Runde 21c):
       <a href="{{ i.href }}"><img src="{{ i.thumb }}" alt="{{ i.alt }}" loading="eager" width="80"></a>
       <span class="library-image-text"><a href="{{ i.href }}">{{ i.name }}</a>
         {%- if i.caption %}<br><span class="small">{{ i.caption }}</span>{% endif %}
-        {%- if i.alt %}<br><span class="muted tiny">Alternativtext: {{ i.alt }}</span>{% endif %}</span>
+        {%- if i.alt %}<br><span class="muted tiny">{{ t("sources_msg.images.alt", alt=i.alt) }}</span>{% endif %}</span>
     </li>
   {%- endfor %}
   </ul>
-  {%- if more %}<p class="muted tiny">Nur die ersten {{ images | length }} Bilder; mehr auf der Seite <a href="{{ all_href }}">Bilder</a>.</p>{% endif %}
+  {%- if more %}<p class="muted tiny">{{ t("sources_msg.images.only_first", count=images | length) }} <a href="{{ all_href }}">{{ t("sources_msg.images.page_link") }}</a>.</p>{% endif %}
   {%- else %}
-  <p class="muted small">Kein Bild passt (gesucht in Name, Bildunterschrift und Alternativtext).</p>
+  <p class="muted small">{{ t("sources_msg.images.none") }}</p>
   {%- endif %}
 </section>
 "#;
@@ -214,12 +218,14 @@ pub(crate) async fn image_hits_box(state: &AppState, work: WorkId, lq: Option<&s
     crate::i18n::install(&mut env);
     env.set_auto_escape_callback(|_| minijinja::AutoEscape::Html);
     if let Err(e) = env.add_template("images", IMAGE_HITS_TEMPLATE) {
-        return format!("<p class=\"notice error\">Bilder: Vorlage fehlerhaft ({})</p>", escape_text(&e.to_string()));
+        let text = tc("sources_msg.images.template_error", &[("error", e.to_string().into())]);
+        return format!("<p class=\"notice error\">{}</p>", escape_text(&text));
     }
     let (images, more) = match image_hits(state, work, query, MAX_IMAGE_HITS).await {
         Ok(found) => found,
         Err(e) => {
-            return format!("<p class=\"notice error\">Bilder des Werks: {}</p>", escape_text(&e.to_string()));
+            let text = tc("sources_msg.images.read_error", &[("error", e.to_string().into())]);
+            return format!("<p class=\"notice error\">{}</p>", escape_text(&text));
         }
     };
     let rows: Vec<Value> = images
@@ -284,10 +290,12 @@ fn href(url: String) -> Value {
 }
 
 fn render(name: &str, ctx: Value) -> Result<String, RpcError> {
-    templates()
-        .get_template(name)
-        .and_then(|t| t.render(ctx))
-        .map_err(|e| RpcError::new(INTERNAL, format!("Vorlage {name}: {e}")))
+    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| {
+        RpcError::new(
+            INTERNAL,
+            tc("sources_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]),
+        )
+    })
 }
 
 // ---- Errors ------------------------------------------------------------------------------------
@@ -317,7 +325,7 @@ fn status_of(e: &RpcError) -> StatusCode {
 }
 
 fn error_response(e: RpcError) -> Response {
-    (status_of(&e), format!("Fehler: {}", e.message)).into_response()
+    (status_of(&e), tc("sources_msg.page.error", &[("error", e.message.as_str().into())])).into_response()
 }
 
 // ---- Position in the work ----------------------------------------------------------------------
@@ -360,7 +368,7 @@ fn given(params: &serde_json::Value, name: &str) -> bool {
 
 /// Fixed key from RPC parameters: a number or digits as text; missing → `None`.
 fn key_param(params: &serde_json::Value) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid("key: fester Schlüssel des Abschnitts (Zahl) erwartet");
+    let wrong = || invalid(tc("sources_msg.rpc.key_number", &[]));
     match params.get("key") {
         None | Some(serde_json::Value::Null) => Ok(None),
         Some(serde_json::Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -570,7 +578,7 @@ async fn literature(state: &AppState, at: &At, own_page: bool) -> Result<Literat
         .collect();
     if let (Some(_), SearchMode::Rag, false) = (&at.lq, at.mode, own_page) {
         let bibles = bibles::shelf(state, at, None).await;
-        return Ok(Literature { titles, hits: Vec::new(), rag: Some(rag_unavailable(FOREIGN_PAGE, None)), bibles });
+        return Ok(Literature { titles, hits: Vec::new(), rag: Some(rag_unavailable(&foreign_page(), None)), bibles });
     }
     if let (Some(q), SearchMode::Rag) = (&at.lq, at.mode) {
         let request = SearchRequest {
@@ -699,7 +707,7 @@ pub fn rag_view(answer: &Answer) -> serde_json::Value {
             .filter(|w| !w.message.is_empty())
             .map(|w| format!("{}: {}", short_title(w.way), without_fts_note(&w.message)))
             .collect();
-        let reason = if reasons.is_empty() { "kein Weg hat geantwortet".to_owned() } else { reasons.join("; ") };
+        let reason = if reasons.is_empty() { tc("sources_msg.rag.no_way", &[]) } else { reasons.join("; ") };
         return rag_unavailable(&reason, Some(ways_line(answer)));
     }
     let mut ordered: Vec<&MergedHit> = answer.hits.iter().collect();
@@ -755,8 +763,9 @@ fn without_fts_note(message: &str) -> String {
 }
 
 /// Reason when a foreign page wants to trigger the semantic search by GET (`Sec-Fetch-Site`/`Origin`).
-pub const FOREIGN_PAGE: &str = "Aufruf von einer fremden Seite; Baruch sucht nach Bedeutung nur, wenn die Suche hier \
-in Baruch abgeschickt wird";
+pub fn foreign_page() -> String {
+    tc("sources_msg.rag.foreign_page", &[])
+}
 
 /// Semantic search not available: „Bedeutungssuche nicht verfügbar: <Grund>. Die Wortlaut-Suche (FTS)
 /// geht weiter.“ (with the status line if there was an answer).
@@ -764,7 +773,7 @@ pub fn rag_unavailable(reason: &str, ways_line: Option<String>) -> serde_json::V
     let reason = reason.trim().trim_end_matches('.');
     json!({
         "available": false,
-        "message": format!("Bedeutungssuche nicht verfügbar: {reason}. Die Wortlaut-Suche (FTS) geht weiter."),
+        "message": tc("sources_msg.rag.unavailable", &[("reason", reason.into())]),
         "ways_line": ways_line,
         "hits": [],
     })
@@ -824,7 +833,9 @@ impl PageQuery {
         .await
         .map_err(|e| {
             Box::new(match e {
-                StoreError::UnknownWork(_) => (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
+                StoreError::UnknownWork(_) => {
+                    (StatusCode::NOT_FOUND, tc("sources_msg.page.unknown_work", &[])).into_response()
+                }
                 e => error_response(e.into()),
             })
         })
@@ -832,13 +843,13 @@ impl PageQuery {
 }
 
 /// Notice from `?notice=…`; only fixed texts, nothing from the address is shown.
-fn notice_text(notice: Option<&str>) -> Option<&'static str> {
+fn notice_text(notice: Option<&str>) -> Option<String> {
     match notice? {
-        "owned" => Some("Als eigene Hervorhebung übernommen; der Vorschlag der Persona bleibt, wie er war."),
-        "deleted" => Some("Hervorhebung gelöscht."),
-        "saved" => Some("Hervorhebung gespeichert."),
-        "adopted" => Some("In die Bibliothek übernommen; der Titel ist mit dem Dokument in MultiGPT verknüpft."),
-        "checked" => Some("Hervorhebung gegen den Volltext geprüft."),
+        "owned" => Some(tc("sources_msg.notice.owned", &[])),
+        "deleted" => Some(tc("sources_msg.notice.deleted", &[])),
+        "saved" => Some(tc("sources_msg.notice.saved", &[])),
+        "adopted" => Some(tc("sources_msg.notice.adopted", &[])),
+        "checked" => Some(tc("sources_msg.notice.checked", &[])),
         _ => None,
     }
 }
@@ -943,12 +954,18 @@ async fn source_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Que
         Err(response) => return *response,
     };
     let Some(title_id) = number::<i64>(&q.title) else {
-        return (StatusCode::NOT_FOUND, "Quelle fehlt: title=<id> angeben").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            tc("sources_msg.page.title_missing", &[("lt", "<".into()), ("gt", ">".into())]),
+        )
+            .into_response();
     };
     let pool = state.store.pool();
     let entry = match baruch_library::get_title(pool, title_id).await {
         Ok(entry) => entry,
-        Err(LibraryError::UnknownTitle(_)) => return (StatusCode::NOT_FOUND, "unbekannte Quelle").into_response(),
+        Err(LibraryError::UnknownTitle(_)) => {
+            return (StatusCode::NOT_FOUND, tc("sources_msg.page.unknown_title", &[])).into_response();
+        }
         Err(e) => return error_response(e.into()),
     };
     let highlights = match baruch_library::list_highlights(pool, Some(title_id)).await {
@@ -966,10 +983,10 @@ async fn source_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Que
     };
     let teil = number::<usize>(&q.teil).unwrap_or(1).max(1);
     let fulltext = if !linked {
-        context! { linked => false, note => NOT_LINKED }
+        context! { linked => false, note => not_linked() }
     } else if crate::guard::check(&headers).is_err() {
         let load = href(at.source_part_url(title_id, teil));
-        context! { linked => true, available => false, reason => FOREIGN_FULLTEXT, load_url => load }
+        context! { linked => true, available => false, reason => foreign_fulltext(), load_url => load }
     } else {
         let mark = text(&q.q).or(at.lq.as_deref());
         match read_source(&state, &Target::Title(title_id), teil, mark).await {
@@ -1126,7 +1143,11 @@ async fn multigpt_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Q
         Err(response) => return *response,
     };
     let Some(document) = text(&q.document) else {
-        return (StatusCode::NOT_FOUND, "Dokument fehlt: document=<id> angeben").into_response();
+        return (
+            StatusCode::NOT_FOUND,
+            tc("sources_msg.page.document_missing", &[("lt", "<".into()), ("gt", ">".into())]),
+        )
+            .into_response();
     };
     let document = match fulltext::checked_document(document) {
         Ok(document) => document,
@@ -1156,7 +1177,7 @@ async fn multigpt_page(State(state): State<Arc<AppState>>, headers: HeaderMap, Q
     let mut give_text = String::new();
     let mut give_title = document.clone();
     let view = if crate::guard::check(&headers).is_err() {
-        context! { linked => true, available => false, reason => FOREIGN_FULLTEXT, load_url => href(part_url(teil)) }
+        context! { linked => true, available => false, reason => foreign_fulltext(), load_url => href(part_url(teil)) }
     } else {
         let target = Target::Document { document: document.clone(), collection: collection.clone() };
         match read_source(&state, &target, teil, search.as_deref()).await {
@@ -1332,7 +1353,7 @@ async fn source_line(state: &AppState, form_source: Option<&str>, title: Option<
 async fn persona_act(state: &AppState, at: &At, form: &ActForm) -> Response {
     let back = at.work_url();
     let Some(key) = number::<i64>(&form.key) else {
-        return crate::assist::routes::notice_page(PICK_SECTION, &back, None);
+        return crate::assist::routes::notice_page(&pick_section(), &back, None);
     };
     let source = source_line(state, text(&form.source), number(&form.title), text(&form.locator)).await;
     let order = ToPersona {
@@ -1350,7 +1371,7 @@ async fn persona_act(state: &AppState, at: &At, form: &ActForm) -> Response {
             let url = crate::view::node_url(at.work, key, at.rev, at.preview, "", &at.lq_tail());
             if let Some(compressed) = answer.get("compressed").filter(|c| c.is_object()) {
                 return crate::assist::routes::notice_page(
-                    "Die Antwort der Persona ist gespeichert.",
+                    &tc("sources_msg.persona.answer_saved", &[]),
                     &url,
                     Some(compressed),
                 );
@@ -1382,14 +1403,14 @@ pub struct ToPersona {
 pub async fn to_persona(state: &AppState, order: &ToPersona) -> Result<serde_json::Value, RpcError> {
     let text = order.text.trim();
     if text.is_empty() {
-        return Err(invalid("text: markierten Text angeben"));
+        return Err(invalid(tc("sources_msg.persona.text_missing", &[])));
     }
     if text.chars().count() > MAX_PERSONA_TEXT {
-        return Err(invalid(format!("text: höchstens {MAX_PERSONA_TEXT} Zeichen")));
+        return Err(invalid(tc("sources_msg.persona.text_too_long", &[("max", MAX_PERSONA_TEXT.into())])));
     }
     let source: String = order.source.split_whitespace().collect::<Vec<_>>().join(" ");
     if source.chars().count() > MAX_SOURCE_CHARS {
-        return Err(invalid(format!("source: höchstens {MAX_SOURCE_CHARS} Zeichen in einer Zeile")));
+        return Err(invalid(tc("sources_msg.persona.source_too_long", &[("max", MAX_SOURCE_CHARS.into())])));
     }
     let source = if source.is_empty() { "Literatur".to_owned() } else { source };
     state.store.node_seq(order.work, order.key).await?;
@@ -1400,7 +1421,7 @@ pub async fn to_persona(state: &AppState, order: &ToPersona) -> Result<serde_jso
             loaded
                 .lector()
                 .map(|p| p.handle.clone())
-                .ok_or_else(|| invalid("Keine Persona ist aktiv (kein Lektor)."))?
+                .ok_or_else(|| invalid(tc("sources_msg.persona.no_lector", &[])))?
         }
     };
     let question = order
@@ -1447,7 +1468,7 @@ pub async fn own_highlight(state: &AppState, id: i64) -> Result<(Highlight, High
     let pool = state.store.pool();
     let original = baruch_library::get_highlight(pool, id).await?;
     let HighlightAuthor::Persona { handle, .. } = &original.author else {
-        return Err(RpcError::new(REFUSED, "Diese Hervorhebung ist schon deine eigene."));
+        return Err(RpcError::new(REFUSED, tc("sources_msg.highlight.already_own", &[])));
     };
     let note = match original.note.trim() {
         "" => format!("übernommen von {handle} (Hervorhebung {id})"),
@@ -1456,7 +1477,7 @@ pub async fn own_highlight(state: &AppState, id: i64) -> Result<(Highlight, High
     let existing = baruch_library::list_highlights(pool, Some(original.title_id)).await?;
     let marker = format!("(Hervorhebung {id})");
     if existing.iter().any(|h| matches!(h.author, HighlightAuthor::Human { .. }) && h.note.ends_with(&marker)) {
-        return Err(RpcError::new(REFUSED, "Diesen Vorschlag hast du schon als eigene Hervorhebung übernommen."));
+        return Err(RpcError::new(REFUSED, tc("sources_msg.highlight.already_adopted", &[])));
     }
     let new = NewHighlight {
         title_id: original.title_id,
@@ -1482,7 +1503,7 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
     let title = number::<i64>(&form.title);
     let quote = number::<i64>(&form.quote);
     let highlight = number::<i64>(&form.highlight);
-    let need_title = || title.ok_or_else(|| invalid("title: Quelle fehlt"));
+    let need_title = || title.ok_or_else(|| invalid(tc("sources_msg.form.title_missing", &[])));
     let add = |kind: HighlightKind| -> Result<NewHighlight, RpcError> {
         Ok(new_highlight(
             need_title()?,
@@ -1507,15 +1528,15 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             Ok(at.source_url(new.title_id, new.quote_id, Some(id), None))
         }
         "adopt" => {
-            let document = text(&form.document).ok_or_else(|| invalid("document: Dokument fehlt"))?;
+            let document = text(&form.document).ok_or_else(|| invalid(tc("sources_msg.form.document_missing", &[])))?;
             let (entry, _) = adopt_source(state, document, text(&form.collection)).await?;
             Ok(at.source_url(entry.title.id, None, None, Some("adopted")))
         }
         "check" => {
-            let id = highlight.ok_or_else(|| invalid("highlight: Hervorhebung fehlt"))?;
+            let id = highlight.ok_or_else(|| invalid(tc("sources_msg.form.highlight_missing", &[])))?;
             let h = baruch_library::get_highlight(pool, id).await?;
             if !fulltext::checkable(&h) {
-                return Err(invalid(NOT_CHECKABLE));
+                return Err(invalid(not_checkable()));
             }
             check_highlight(state, &h).await?;
             Ok(at.source_url(h.title_id, h.quote_id, Some(id), Some("checked")))
@@ -1524,7 +1545,7 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             // Without a section no quote (formerly it landed silently in section 0). The section comes
             // only from the fixed key (`key`), not from the position. Before creating a
             // highlight check that it exists, so that nothing is created halfway.
-            let key = number::<i64>(&form.key).ok_or_else(|| invalid("Abschnitt fehlt."))?;
+            let key = number::<i64>(&form.key).ok_or_else(|| invalid(tc("sources_msg.form.section_missing", &[])))?;
             state.store.node_seq(at.work, key).await?;
             let id = match highlight {
                 Some(id) => id,
@@ -1538,7 +1559,7 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             Ok(crate::view::node_url(at.work, key, Some(rev), false, "", &at.lq_tail()))
         }
         "own" => {
-            let id = highlight.ok_or_else(|| invalid("highlight: Hervorhebung fehlt"))?;
+            let id = highlight.ok_or_else(|| invalid(tc("sources_msg.form.highlight_missing", &[])))?;
             let (own, _) = own_highlight(state, id).await?;
             crate::search_hooks::changed(state, at.work);
             Ok(at.source_url(own.title_id, own.quote_id, Some(own.id), Some("owned")))
@@ -1549,7 +1570,7 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             Ok(target.literature_url())
         }
         "update" => {
-            let id = highlight.ok_or_else(|| invalid("highlight: Hervorhebung fehlt"))?;
+            let id = highlight.ok_or_else(|| invalid(tc("sources_msg.form.highlight_missing", &[])))?;
             let kind = kind_param(text(&form.kind))?;
             let status = status_param(text(&form.status))?;
             let updated = update(state, id, kind, form.note.as_deref(), status).await?;
@@ -1557,16 +1578,16 @@ async fn act_on(state: &AppState, at: &At, form: &ActForm) -> Result<String, Rpc
             Ok(at.source_url(updated.title_id, updated.quote_id, Some(id), None))
         }
         "delete" => {
-            let id = highlight.ok_or_else(|| invalid("highlight: Hervorhebung fehlt"))?;
+            let id = highlight.ok_or_else(|| invalid(tc("sources_msg.form.highlight_missing", &[])))?;
             if form.confirm.as_deref() != Some("on") && form.confirm.as_deref() != Some("1") {
-                return Err(RpcError::new(REFUSED, "Zum Löschen das Kästchen „wirklich löschen“ ankreuzen."));
+                return Err(RpcError::new(REFUSED, tc("sources_msg.form.confirm_delete", &[])));
             }
             let old = baruch_library::get_highlight(pool, id).await?;
             baruch_library::delete_highlight(pool, id).await?;
             crate::search_hooks::changed(state, at.work);
             Ok(at.source_url(old.title_id, None, None, Some("deleted")))
         }
-        other => Err(invalid(format!("unbekannte Aktion {other:?}"))),
+        other => Err(invalid(tc("sources_msg.form.unknown_action", &[("action", format!("{other:?}").into())]))),
     }
 }
 
@@ -1602,7 +1623,7 @@ async fn update(
     let pool = state.store.pool();
     let old = baruch_library::get_highlight(pool, id).await?;
     if status == Some(HighlightStatus::Active) && matches!(old.author, HighlightAuthor::Persona { .. }) {
-        return Err(RpcError::new(REFUSED, "Hervorhebungen von Personas bleiben Vorschläge; aktiv sind nur eigene."));
+        return Err(RpcError::new(REFUSED, tc("sources_msg.highlight.persona_stays_proposal", &[])));
     }
     Ok(baruch_library::update_highlight(pool, id, kind, note, status).await?)
 }
@@ -1652,8 +1673,9 @@ pub fn handles(method: &str) -> bool {
 }
 
 /// Message when a highlight cannot be checked against the full text.
-pub const NOT_CHECKABLE: &str =
-    "Gegen den Volltext prüfen lassen sich nur Hervorhebungen ohne Zitat mit Zeichenbereich (start, end).";
+pub fn not_checkable() -> String {
+    tc("sources_msg.highlight.not_checkable", &[])
+}
 
 /// Highlight as JSON with its check (`check`, otherwise `null`).
 fn with_check(h: &Highlight, check: Option<&HighlightCheck>) -> serde_json::Value {
@@ -1683,15 +1705,15 @@ pub async fn source_read(state: &AppState, params_value: serde_json::Value) -> R
     let target = match (p.title, p.document) {
         (Some(title), _) => Target::Title(title),
         (None, Some(document)) => Target::Document { document, collection: p.collection.unwrap_or_default() },
-        (None, None) => return Err(invalid("title (verknüpfter Titel) oder document (Dokument in MultiGPT) angeben")),
+        (None, None) => return Err(invalid(tc("sources_msg.rpc.title_or_document", &[]))),
     };
     let q = p.q.as_deref().map(str::trim).filter(|q| !q.is_empty());
     // Round 23a (code review ki-1): `q` only serves the marking; an overlong request is refused instead of searching
     // the part text for each of its words (`/mcp` accepts up to 32 MiB).
     if q.is_some_and(|q| q.chars().count() > fulltext::MAX_MARK_QUERY_CHARS) {
-        return Err(invalid(format!(
-            "q: höchstens {} Zeichen (die Anfrage dient nur dem Markieren der Fundstellen).",
-            fulltext::MAX_MARK_QUERY_CHARS
+        return Err(invalid(tc(
+            "sources_msg.rpc.mark_query_too_long",
+            &[("max", fulltext::MAX_MARK_QUERY_CHARS.into())],
         )));
     }
     let reading = read_source(state, &target, p.part.unwrap_or(1), q).await?;
@@ -1804,7 +1826,7 @@ pub async fn call(
             let p: IdParams = params(params_value)?;
             let h = baruch_library::get_highlight(pool, p.highlight).await?;
             if !fulltext::checkable(&h) {
-                return Err(invalid(NOT_CHECKABLE));
+                return Err(invalid(not_checkable()));
             }
             let check = check_highlight(state, &h).await?;
             Ok(json!({ "highlight": with_check(&h, check.as_ref()), "check": check }))
@@ -1823,9 +1845,9 @@ pub async fn call(
         }
         "literature.to_persona" => {
             if given(&params_value, "node") {
-                return Err(invalid("node (Stelle) wird nicht angenommen; key mitgeben"));
+                return Err(invalid(tc("sources_msg.rpc.node_refused", &[])));
             }
-            let key = key_param(&params_value)?.ok_or_else(|| invalid(PICK_SECTION))?;
+            let key = key_param(&params_value)?.ok_or_else(|| invalid(pick_section()))?;
             let p: ToPersonaParams = params(params_value)?;
             let order = ToPersona {
                 work,
@@ -1853,10 +1875,9 @@ pub async fn call(
         }
         "highlight.cite" => {
             if given(&params_value, "node") {
-                return Err(invalid("node (Stelle) wird nicht angenommen; key mitgeben"));
+                return Err(invalid(tc("sources_msg.rpc.node_refused", &[])));
             }
-            let key = key_param(&params_value)?
-                .ok_or_else(|| invalid("key fehlt: Abschnitt über seinen festen Schlüssel angeben"))?;
+            let key = key_param(&params_value)?.ok_or_else(|| invalid(tc("sources_msg.rpc.key_missing", &[])))?;
             let p: CiteParams = params(params_value)?;
             let (node, rev) = cite(state, work, p.highlight, key).await?;
             Ok(json!({ "node": node, "key": key, "rev": rev }))
@@ -1880,31 +1901,36 @@ mod tests {
 
     #[test]
     fn the_word_search_note_appears_once_when_no_way_answers() {
-        use baruch_rag::{Answer, Way, WayReport, WayState};
-        let answer = Answer {
-            work: 1,
-            query: "x".into(),
-            hits: vec![],
-            ways: vec![
-                WayReport::new(
-                    Way::Lancedb,
-                    WayState::Failed,
-                    "Kein Einbettungsmodell erreichbar: aus. Die Wortlaut-Suche (FTS) geht weiter.",
-                    0,
-                    1,
-                ),
-                WayReport::new(Way::Pgvector, WayState::Off, "Für dieses Werk nicht gewählt.", 0, 0),
-                WayReport::new(Way::Multigpt, WayState::Off, "In dieser Anfrage nicht gefragt.", 0, 0),
-            ],
-        };
-        let view = super::rag_view(&answer);
-        let message = view["message"].as_str().unwrap();
-        assert_eq!(
-            message.matches("Wortlaut-Suche (FTS) geht weiter").count(),
-            1,
-            "der Satz zur Wortlaut-Suche steht genau einmal (am Ende), nicht je Weg: {message}"
-        );
-        assert!(message.contains("LanceDB: Kein Einbettungsmodell erreichbar: aus;"), "Grund je Weg bleibt: {message}");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            use baruch_rag::{Answer, Way, WayReport, WayState};
+            let answer = Answer {
+                work: 1,
+                query: "x".into(),
+                hits: vec![],
+                ways: vec![
+                    WayReport::new(
+                        Way::Lancedb,
+                        WayState::Failed,
+                        "Kein Einbettungsmodell erreichbar: aus. Die Wortlaut-Suche (FTS) geht weiter.",
+                        0,
+                        1,
+                    ),
+                    WayReport::new(Way::Pgvector, WayState::Off, "Für dieses Werk nicht gewählt.", 0, 0),
+                    WayReport::new(Way::Multigpt, WayState::Off, "In dieser Anfrage nicht gefragt.", 0, 0),
+                ],
+            };
+            let view = super::rag_view(&answer);
+            let message = view["message"].as_str().unwrap();
+            assert_eq!(
+                message.matches("Wortlaut-Suche (FTS) geht weiter").count(),
+                1,
+                "der Satz zur Wortlaut-Suche steht genau einmal (am Ende), nicht je Weg: {message}"
+            );
+            assert!(
+                message.contains("LanceDB: Kein Einbettungsmodell erreichbar: aus;"),
+                "Grund je Weg bleibt: {message}"
+            );
+        })
     }
 
     use super::*;

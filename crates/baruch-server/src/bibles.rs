@@ -33,6 +33,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError, work_param};
 
 /// Maximum number of module folders.
@@ -635,9 +636,8 @@ async fn open_source<T: Send + Sync + 'static>(
     open: fn(&BibleInfo, Option<&str>) -> Result<T, BibleError>,
 ) -> Result<Source<T>, RpcError> {
     let (found, ..) = scan(state).await?;
-    let word = if kind == SourceKind::Commentary { "Kommentar" } else { "Lexikon" };
     let Some(info) = found.find_kind(kind, name).cloned() else {
-        return Ok(Source::problem(name, None, format!("{word} {name} in keinem Modulordner gefunden")));
+        return Ok(Source::problem(name, None, source_missing(kind, name)));
     };
     if let Some(why) = info.problem.clone() {
         return Ok(Source::problem(&info.name, Some(&info), why));
@@ -653,6 +653,15 @@ async fn open_source<T: Send + Sync + 'static>(
         Ok(source) => Source::Ready(source),
         Err(e) => Source::problem(&info.name, Some(&info), e.to_string()),
     })
+}
+
+/// „Kommentar/Lexikon <name> in keinem Modulordner gefunden“ in the language of the request.
+fn source_missing(kind: SourceKind, name: &str) -> String {
+    if kind == SourceKind::Commentary {
+        tc("sources_msg.sword.commentary_missing", &[("name", name.into())])
+    } else {
+        tc("sources_msg.sword.lexicon_missing", &[("name", name.into())])
+    }
 }
 
 /// Commentary by module name.
@@ -731,7 +740,10 @@ pub async fn commentary_lookup(
                 let mut problems: Vec<String> = Vec::new();
                 for f in found.iter().take(20) {
                     let (Some(p), RefStatus::Valid) = (f.passage.as_ref(), &f.status) else {
-                        problems.push(format!("„{}“: {}", f.input, f.message()));
+                        problems.push(tc(
+                            "sources_msg.sword.ref_problem",
+                            &[("input", f.input.as_str().into()), ("problem", f.message().into())],
+                        ));
                         continue;
                     };
                     let source = Arc::clone(&commentary);
@@ -756,10 +768,10 @@ pub async fn commentary_lookup(
                 let mut v = source_json(&commentary.info);
                 v["entries"] = json!(entries);
                 if found.is_empty() {
-                    problems.push(format!("„{reference}“ ist keine lesbare Stellenangabe"));
+                    problems.push(tc("sources_msg.sword.unreadable_ref", &[("reference", reference.into())]));
                 }
                 if entries.is_empty() && problems.is_empty() {
-                    problems.push(format!("{} hat zu dieser Stelle keinen Eintrag", commentary.info.name));
+                    problems.push(tc("sources_msg.sword.no_entry", &[("name", commentary.info.name.as_str().into())]));
                 }
                 if !problems.is_empty() {
                     v["problem"] = json!(problems.join("; "));
@@ -782,7 +794,7 @@ pub async fn commentary_search(
     time: Duration,
 ) -> Result<Value, RpcError> {
     if query.trim().is_empty() || query.chars().count() > 200 {
-        return Err(RpcError::new(INVALID_PARAMS, "query: 1 bis 200 Zeichen"));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.query_length", &[])));
     }
     let deadline = Instant::now() + time;
     let mut out = Vec::new();
@@ -830,10 +842,7 @@ pub async fn commentary_search(
 async fn one_lexicon(state: &AppState, work: WorkId, module: Option<&str>) -> Result<Arc<Lexicon>, RpcError> {
     let names = chosen(state, work, module, SourceKind::Lexicon).await?;
     if names.is_empty() {
-        return Err(RpcError::new(
-            REFUSED,
-            "Kein Lexikon gewählt: Einstellungen → Werk → Kommentare und Lexika oder module angeben.",
-        ));
+        return Err(RpcError::new(REFUSED, tc("sources_msg.sword.no_lexicon", &[])));
     }
     let mut problems = Vec::new();
     for name in names {
@@ -842,7 +851,7 @@ async fn one_lexicon(state: &AppState, work: WorkId, module: Option<&str>) -> Re
             Source::Problem { module, problem, .. } => problems.push(format!("{module}: {problem}")),
         }
     }
-    Err(RpcError::new(REFUSED, format!("Lexikon nicht lesbar: {}", problems.join("; "))))
+    Err(RpcError::new(REFUSED, tc("sources_msg.sword.lexicon_unreadable", &[("problems", problems.join("; ").into())])))
 }
 
 /// `lexicon.lookup {key, module?, work?}` → `{module, key, found, text, notice, truncated}`.
@@ -853,7 +862,7 @@ pub async fn lexicon_lookup(
     module: Option<&str>,
 ) -> Result<Value, RpcError> {
     if key.trim().is_empty() || key.chars().count() > 200 {
-        return Err(RpcError::new(INVALID_PARAMS, "key: 1 bis 200 Zeichen"));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.key_length", &[])));
     }
     let lexicon = one_lexicon(state, work, module).await?;
     let source = Arc::clone(&lexicon);
@@ -904,7 +913,7 @@ pub async fn lexicon_search(
     limit: usize,
 ) -> Result<Value, RpcError> {
     if query.trim().is_empty() || query.chars().count() > 200 {
-        return Err(RpcError::new(INVALID_PARAMS, "query: 1 bis 200 Zeichen"));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.query_length", &[])));
     }
     let lexicon = one_lexicon(state, work, module).await?;
     let source = Arc::clone(&lexicon);
@@ -929,12 +938,12 @@ pub async fn work_sources_value(state: &AppState, work: WorkId) -> Result<Value,
 fn names_param(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(Vec::new()),
-        Some(Value::Array(list)) => list
-            .iter()
-            .map(|v| v.as_str().map(str::to_owned))
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("{name}: Liste von Modulnamen erwartet"))),
-        Some(_) => Err(RpcError::new(INVALID_PARAMS, format!("{name}: Liste von Modulnamen erwartet"))),
+        Some(Value::Array(list)) => {
+            list.iter().map(|v| v.as_str().map(str::to_owned)).collect::<Option<Vec<_>>>().ok_or_else(|| {
+                RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.name_list", &[("name", name.into())]))
+            })
+        }
+        Some(_) => Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.name_list", &[("name", name.into())]))),
     }
 }
 
@@ -948,17 +957,21 @@ pub async fn set_work_sources(
 ) -> Result<Value, RpcError> {
     let (found, ..) = scan(state).await?;
     let check = |kind: SourceKind, names: &[String]| -> Result<Vec<String>, RpcError> {
-        let word = if kind == SourceKind::Commentary { "Kommentar" } else { "Lexikon" };
         names
             .iter()
             .map(|n| n.trim())
             .filter(|n| !n.is_empty())
             .map(|n| {
-                let info = found.find_kind(kind, n).ok_or_else(|| {
-                    RpcError::new(INVALID_PARAMS, format!("{word} {n} in keinem Modulordner gefunden"))
-                })?;
+                let info =
+                    found.find_kind(kind, n).ok_or_else(|| RpcError::new(INVALID_PARAMS, source_missing(kind, n)))?;
                 if let Some(why) = &info.problem {
-                    return Err(RpcError::new(INVALID_PARAMS, format!("{word} {}: {why}", info.name)));
+                    let args = [("name", info.name.as_str().into()), ("problem", why.as_str().into())];
+                    let message = if kind == SourceKind::Commentary {
+                        tc("sources_msg.sword.commentary_problem", &args)
+                    } else {
+                        tc("sources_msg.sword.lexicon_problem", &args)
+                    };
+                    return Err(RpcError::new(INVALID_PARAMS, message));
                 }
                 Ok(info.name.clone())
             })
@@ -999,11 +1012,16 @@ pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &s
         return String::new();
     }
     let count: usize = groups.iter().map(|g| g["entries"].as_array().map_or(0, Vec::len)).sum();
+    let summary = tc("sources_msg.commentary.summary", &[("reference", reference.trim().into())]);
+    let entries = if count == 1 {
+        tc("sources_msg.commentary.one_entry", &[("count", count.into())])
+    } else {
+        tc("sources_msg.commentary.entries", &[("count", count.into())])
+    };
     let mut html = format!(
-        "<details class=\"commentaries\" data-widget=\"commentaries\"><summary>Kommentare zu {} <span class=\"muted tiny\">({} {})</span></summary>",
-        html_escape(reference.trim()),
-        count,
-        if count == 1 { "Eintrag" } else { "Einträge" }
+        "<details class=\"commentaries\" data-widget=\"commentaries\"><summary>{} <span class=\"muted tiny\">({})</span></summary>",
+        html_escape(&summary),
+        html_escape(&entries)
     );
     for group in groups {
         let module = group["module"].as_str().unwrap_or("");
@@ -1011,9 +1029,9 @@ pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &s
         // R17c: one <details> per module (opens/closes without JavaScript); the widget “commentaries”
         // (web/src/commentaries.ts) opens or closes all and remembers the state.
         html.push_str(&format!(
-            "<details class=\"commentary\" data-commentary=\"{}\" open><summary class=\"hit-group-title\">Kommentar · {}{}</summary>",
+            "<details class=\"commentary\" data-commentary=\"{}\" open><summary class=\"hit-group-title\">{}{}</summary>",
             html_escape(module),
-            html_escape(module),
+            html_escape(&tc("sources_msg.commentary.group", &[("module", module.into())])),
             if description.is_empty() {
                 String::new()
             } else {
@@ -1025,12 +1043,19 @@ pub async fn commentary_panel_html(state: &AppState, work: WorkId, reference: &s
                 "<div class=\"commentary-entry\"><strong class=\"small\">{}</strong><p>{}{}</p></div>",
                 html_escape(entry["ref"].as_str().unwrap_or("")),
                 html_escape(entry["text"].as_str().unwrap_or("")),
-                if entry["truncated"] == json!(true) { " <span class=\"muted tiny\">(gekürzt)</span>" } else { "" }
+                if entry["truncated"] == json!(true) {
+                    format!(
+                        " <span class=\"muted tiny\">{}</span>",
+                        html_escape(&tc("sources_msg.commentary.shortened", &[]))
+                    )
+                } else {
+                    String::new()
+                }
             ));
         }
         html.push_str(&format!(
-            "<p class=\"muted tiny commentary-notice\">Lizenz: {}</p></details>",
-            html_escape(group["notice"].as_str().unwrap_or("keine Angabe"))
+            "<p class=\"muted tiny commentary-notice\">{}</p></details>",
+            html_escape(&license(group["notice"].as_str()))
         ));
     }
     html.push_str("</details>");
@@ -1057,9 +1082,9 @@ pub async fn commentary_hits_html(state: &AppState, work: WorkId, query: &str, t
         }
         let module = group["module"].as_str().unwrap_or("");
         html.push_str(&format!(
-            "<section class=\"hit-group commentary-hits\" data-hit-group=\"commentary\" data-module=\"{}\"><div class=\"muted tiny hit-group-title\">Kommentar · {}</div><ul>",
+            "<section class=\"hit-group commentary-hits\" data-hit-group=\"commentary\" data-module=\"{}\"><div class=\"muted tiny hit-group-title\">{}</div><ul>",
             html_escape(module),
-            html_escape(module)
+            html_escape(&tc("sources_msg.commentary.group", &[("module", module.into())]))
         ));
         for hit in hits.iter().take(HITS_PER_GROUP) {
             let reference = hit["ref"].as_str().unwrap_or("");
@@ -1076,24 +1101,36 @@ pub async fn commentary_hits_html(state: &AppState, work: WorkId, query: &str, t
         }
         html.push_str("</ul>");
         if group["truncated"] == json!(true) {
-            html.push_str("<p class=\"muted tiny\">weitere Treffer nicht gezeigt (Grenze erreicht)</p>");
+            html.push_str(&format!(
+                "<p class=\"muted tiny\">{}</p>",
+                html_escape(&tc("sources_msg.commentary.more_hits", &[]))
+            ));
         }
         html.push_str(&format!(
-            "<p class=\"muted tiny\">Lizenz: {}</p></section>",
-            html_escape(group["notice"].as_str().unwrap_or("keine Angabe"))
+            "<p class=\"muted tiny\">{}</p></section>",
+            html_escape(&license(group["notice"].as_str()))
         ));
     }
     html
 }
 
+/// „Lizenz: <notice>“ (without a notice „keine Angabe“) in the language of the request.
+fn license(notice: Option<&str>) -> String {
+    let notice = notice.map(str::to_owned).unwrap_or_else(|| tc("sources_msg.commentary.no_notice", &[]));
+    tc("sources_msg.commentary.license", &[("notice", notice.into())])
+}
+
 // ---- RPC -------------------------------------------------------------------------------------------
 
 fn text_param<'a>(params: &'a Value, name: &str) -> Result<&'a str, RpcError> {
-    params.get(name).and_then(Value::as_str).ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("{name} fehlt")))
+    params
+        .get(name)
+        .and_then(Value::as_str)
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.param_missing", &[("name", name.into())])))
 }
 
 fn key_param(params: &Value) -> Result<i64, RpcError> {
-    let wrong = || RpcError::new(INVALID_PARAMS, "key: fester Schlüssel (Zahl) erwartet");
+    let wrong = || RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.key_number", &[]));
     match params.get("key") {
         Some(Value::Number(n)) => n.as_i64().ok_or_else(wrong),
         Some(Value::String(s)) => s.trim().parse().map_err(|_| wrong()),
@@ -1112,25 +1149,25 @@ pub fn parse_dirs(lines: &[String]) -> Result<Vec<String>, RpcError> {
         if line.chars().count() > MAX_DIR_CHARS || line.chars().any(char::is_control) {
             return Err(RpcError::new(
                 INVALID_PARAMS,
-                format!("Ordner zu lang oder mit Steuerzeichen (höchstens {MAX_DIR_CHARS} Zeichen)"),
+                tc("sources_msg.sword.dir_invalid", &[("max", MAX_DIR_CHARS.into())]),
             ));
         }
         let path = match line.strip_prefix("~/") {
             Some(rest) => match std::env::var_os("HOME").filter(|h| !h.is_empty()) {
                 Some(home) => PathBuf::from(home).join(rest).display().to_string(),
-                None => return Err(RpcError::new(INVALID_PARAMS, "~ lässt sich nicht auflösen (HOME fehlt)")),
+                None => return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.no_home", &[]))),
             },
             None => line.to_owned(),
         };
         if !PathBuf::from(&path).is_absolute() {
-            return Err(RpcError::new(INVALID_PARAMS, format!("Ordner „{line}“: bitte einen absoluten Pfad angeben")));
+            return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.dir_relative", &[("dir", line.into())])));
         }
         if !out.contains(&path) {
             out.push(path);
         }
     }
     if out.len() > MAX_DIRS {
-        return Err(RpcError::new(INVALID_PARAMS, format!("höchstens {MAX_DIRS} Modulordner")));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.too_many_dirs", &[("max", MAX_DIRS.into())])));
     }
     Ok(out)
 }
@@ -1224,18 +1261,23 @@ pub fn german_of(bible: &Bible, at: VerseRef) -> (Option<String>, Option<String>
 
 fn no_bible(choice: &Choice) -> String {
     match choice {
-        Choice::None => "Keine Bibel gewählt: Einstellungen → Quellen → Bibeln (SWORD) oder module angeben.".to_owned(),
-        Choice::Missing(name) => format!("Bibelmodul {name} in keinem Modulordner gefunden."),
-        Choice::Unusable(info, why) => format!("Bibelmodul {}: {why}", info.name),
+        Choice::None => tc("sources_msg.sword.no_bible_chosen", &[]),
+        Choice::Missing(name) => tc("sources_msg.sword.bible_missing", &[("name", name.into())]),
+        Choice::Unusable(info, why) => bible_problem(&info.name, why),
         Choice::Ready(_) => String::new(),
     }
 }
 
 /// Linear search (`bible.search`).
+/// „Bibelmodul <name>: <why>“ in the language of the request.
+fn bible_problem(name: &str, why: &str) -> String {
+    tc("sources_msg.sword.bible_problem", &[("name", name.into()), ("problem", why.into())])
+}
+
 pub async fn search(choice: &Choice, query: &str, limit: usize) -> Result<Value, RpcError> {
     let Choice::Ready(bible) = choice else { return Err(RpcError::new(REFUSED, no_bible(choice))) };
     if query.trim().is_empty() || query.chars().count() > 200 {
-        return Err(RpcError::new(INVALID_PARAMS, "query: 1 bis 200 Zeichen"));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.query_length", &[])));
     }
     let bible = Arc::clone(bible);
     let query_owned = query.to_owned();
@@ -1263,7 +1305,10 @@ pub async fn search(choice: &Choice, query: &str, limit: usize) -> Result<Value,
 pub async fn check_section(state: &AppState, work: WorkId, key: i64) -> Result<Value, RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let loaded = state.store.load_work(work).await?;
-    let node = loaded.nodes.get(seq).ok_or_else(|| RpcError::new(INVALID_PARAMS, "Abschnitt unbekannt"))?;
+    let node = loaded
+        .nodes
+        .get(seq)
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.unknown_section", &[])))?;
     let body = node.current_index().map(|i| node.revisions[i].body.clone()).unwrap_or_default();
     let mut result = crate::scripture::check_for_work(state, Some(work), &body).await?;
     result["work"] = json!(work);
@@ -1306,16 +1351,19 @@ pub async fn shown_text(
 ) -> Result<(String, u32, String), RpcError> {
     let seq = state.store.node_seq(work, key).await?;
     let loaded = state.store.load_work(work).await?;
-    let node = loaded.nodes.get(seq).ok_or_else(|| RpcError::new(INVALID_PARAMS, "Abschnitt unbekannt"))?;
+    let node = loaded
+        .nodes
+        .get(seq)
+        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.unknown_section", &[])))?;
     let revision = match rev {
-        Some(number) => node
-            .revision(number)
-            .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("Fassung {number} gibt es nicht")))?,
+        Some(number) => node.revision(number).ok_or_else(|| {
+            RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.no_revision", &[("number", number.into())]))
+        })?,
         None => node
             .current_index()
             .and_then(|i| node.revisions.get(i))
             .or_else(|| node.revisions.last())
-            .ok_or_else(|| RpcError::new(INVALID_PARAMS, "Abschnitt ohne Fassung"))?,
+            .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.section_without_revision", &[])))?,
     };
     Ok((node.title.clone(), revision.number, revision.body.clone()))
 }
@@ -1332,7 +1380,7 @@ pub async fn marks(state: &AppState, work: WorkId, key: i64, rev: Option<u32>) -
 /// Like [`marks`] with a given Bible and a given text (for page and tests).
 pub fn marks_with(choice: &Choice, work: WorkId, key: i64, rev: u32, title: &str, body: &str) -> Result<Value, String> {
     if body.chars().count() > crate::scripture::MAX_TEXT_CHARS {
-        return Err(format!("text: höchstens {} Zeichen", crate::scripture::MAX_TEXT_CHARS));
+        return Err(tc("sources_msg.sword.text_too_long", &[("max", crate::scripture::MAX_TEXT_CHARS.into())]));
     }
     let found: Vec<Found> = crate::scripture::refs(body).into_iter().take(crate::scripture::MAX_REFS).collect();
     let wording = check_wording(choice.bible(), body, &found);
@@ -1383,7 +1431,7 @@ fn checked_cipher_key(key: &str) -> Result<&str, RpcError> {
     if key.is_empty() || key.chars().count() > MAX_CIPHER_KEY_CHARS || key.chars().any(char::is_control) {
         return Err(RpcError::new(
             INVALID_PARAMS,
-            format!("key: 1 bis {MAX_CIPHER_KEY_CHARS} Zeichen in einer Zeile; nichts gespeichert."),
+            tc("sources_msg.sword.cipher_key_length", &[("max", MAX_CIPHER_KEY_CHARS.into())]),
         ));
     }
     Ok(key)
@@ -1398,11 +1446,13 @@ async fn enciphered_module(state: &AppState, module: &str) -> Result<BibleInfo, 
         .find(|m| m.name == name)
         .or_else(|| found.all().find(|m| m.name.eq_ignore_ascii_case(name)))
         .cloned()
-        .ok_or_else(|| RpcError::new(INVALID_PARAMS, format!("Modul {name} in keinem Modulordner gefunden")))?;
+        .ok_or_else(|| {
+            RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.module_missing", &[("name", name.into())]))
+        })?;
     if !info.enciphered {
         return Err(RpcError::new(
             INVALID_PARAMS,
-            format!("Modul {} ist nicht verschlüsselt; kein Schlüssel nötig", info.name),
+            tc("sources_msg.sword.not_enciphered", &[("name", info.name.as_str().into())]),
         ));
     }
     Ok(info)
@@ -1433,9 +1483,9 @@ pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result
         // No reason in its wording: it could carry fragments of the wrongly decrypted content.
         return Err(RpcError::new(REFUSED, CIPHER_KEY_WRONG));
     }
-    crate::connections::secrets::set(&state.secrets, &cipher_account(&info.name), &key)
-        .await
-        .map_err(|e| RpcError::new(REFUSED, format!("Schlüsselbund lehnt ab ({e}); nichts gespeichert.")))?;
+    crate::connections::secrets::set(&state.secrets, &cipher_account(&info.name), &key).await.map_err(|e| {
+        RpcError::new(REFUSED, tc("sources_msg.sword.keyring_refused_set", &[("error", e.to_string().into())]))
+    })?;
     Ok(json!({ "module": info.name, "cipher": "unlocked" }))
 }
 
@@ -1443,12 +1493,12 @@ pub async fn cipher_key_set(state: &AppState, module: &str, key: &str) -> Result
 /// conf itself carries a key). Human only.
 pub async fn cipher_key_delete(state: &AppState, module: &str, confirm: bool) -> Result<Value, RpcError> {
     if !confirm {
-        return Err(RpcError::new(INVALID_PARAMS, "Löschen bitte bestätigen (confirm: true); nichts geändert."));
+        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.confirm_delete", &[])));
     }
     let info = enciphered_module(state, module).await?;
-    crate::connections::secrets::delete(&state.secrets, &cipher_account(&info.name))
-        .await
-        .map_err(|e| RpcError::new(REFUSED, format!("Schlüsselbund lehnt ab ({e}); nichts geändert.")))?;
+    crate::connections::secrets::delete(&state.secrets, &cipher_account(&info.name)).await.map_err(|e| {
+        RpcError::new(REFUSED, tc("sources_msg.sword.keyring_refused_delete", &[("error", e.to_string().into())]))
+    })?;
     Ok(json!({ "module": info.name, "cipher": cipher_state(&info, false) }))
 }
 
@@ -1470,12 +1520,12 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 Some(Value::Array(list)) => {
                     let lines: Vec<String> = list.iter().map(|v| v.as_str().unwrap_or_default().to_owned()).collect();
                     if list.iter().any(|v| !v.is_string()) {
-                        return Err(RpcError::new(INVALID_PARAMS, "dirs: Liste von Texten erwartet"));
+                        return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.dirs_list", &[])));
                     }
                     let dirs = parse_dirs(&lines)?;
                     state.store.set_bible_dirs(Some(&dirs)).await?;
                 }
-                Some(_) => return Err(RpcError::new(INVALID_PARAMS, "dirs: Liste von Texten oder null (Vorgaben)")),
+                Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.dirs_list_or_null", &[]))),
             }
             modules_value(state, work).await
         }
@@ -1484,15 +1534,18 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                 None | Some(Value::Null) => None,
                 Some(Value::String(s)) if s.trim().is_empty() => None,
                 Some(Value::String(s)) => Some(s.trim().to_owned()),
-                Some(_) => return Err(RpcError::new(INVALID_PARAMS, "module: Modulname oder null")),
+                Some(_) => return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.module_or_null", &[]))),
             };
             if let Some(name) = &chosen {
                 let (found, ..) = scan(state).await?;
                 let info = found.find(name).ok_or_else(|| {
-                    RpcError::new(INVALID_PARAMS, format!("Bibelmodul {name} in keinem Modulordner gefunden"))
+                    RpcError::new(
+                        INVALID_PARAMS,
+                        tc("sources_msg.sword.bible_missing", &[("name", name.as_str().into())]),
+                    )
                 })?;
                 if let Some(why) = &info.problem {
-                    return Err(RpcError::new(INVALID_PARAMS, format!("Bibelmodul {}: {why}", info.name)));
+                    return Err(RpcError::new(INVALID_PARAMS, bible_problem(&info.name, why)));
                 }
                 state.store.set_work_bible(work, Some(&info.name)).await?;
             } else {
@@ -1503,7 +1556,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
         "bible.lookup" => {
             let reference = text_param(&params, "ref")?;
             if reference.chars().count() > 500 {
-                return Err(RpcError::new(INVALID_PARAMS, "ref: höchstens 500 Zeichen"));
+                return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.ref_too_long", &[])));
             }
             lookup(state, &choice().await?, reference).await
         }
@@ -1521,7 +1574,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
                     v.as_u64()
                         .and_then(|r| u32::try_from(r).ok())
                         .or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))
-                        .ok_or_else(|| RpcError::new(INVALID_PARAMS, "rev: Nummer der Fassung erwartet"))?,
+                        .ok_or_else(|| RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.rev_number", &[])))?,
                 ),
             };
             marks(state, work, key_param(&params)?, rev).await
@@ -1542,7 +1595,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
         "commentary.lookup" => {
             let reference = text_param(&params, "ref")?;
             if reference.trim().is_empty() || reference.chars().count() > 500 {
-                return Err(RpcError::new(INVALID_PARAMS, "ref: 1 bis 500 Zeichen"));
+                return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.ref_length", &[])));
             }
             commentary_lookup(state, work, reference, module).await
         }
@@ -1556,7 +1609,7 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
         "lexicon.keys" => {
             let prefix = params.get("prefix").and_then(Value::as_str).unwrap_or("");
             if prefix.chars().count() > 200 {
-                return Err(RpcError::new(INVALID_PARAMS, "prefix: höchstens 200 Zeichen"));
+                return Err(RpcError::new(INVALID_PARAMS, tc("sources_msg.sword.prefix_too_long", &[])));
             }
             let limit = params.get("limit").and_then(Value::as_u64).map_or(100, |l| (l as usize).clamp(1, 500));
             lexicon_keys(state, work, prefix, module, limit).await

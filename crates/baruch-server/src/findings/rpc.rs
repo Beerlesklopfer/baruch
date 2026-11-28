@@ -20,6 +20,7 @@ use baruch_store::{FindingFilter, IdeaOrigin, WorkId};
 use serde_json::{Value, json};
 
 use super::{DeferTarget, FindingKind, FindingStatus, StatusChange, finding_json};
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 use crate::{AppState, mirror};
 
@@ -36,7 +37,7 @@ fn invalid(message: impl Into<String>) -> RpcError {
 
 /// Integer from `params[name]` (number or digits as text from forms); missing, `null` or empty → `None`.
 fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
-    let wrong = || invalid(format!("{name}: Zahl erwartet"));
+    let wrong = || invalid(tc("findings_msg.param.number", &[("name", name.into())]));
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(wrong),
@@ -46,8 +47,13 @@ fn int(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     }
 }
 
-fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
-    int(params, name)?.ok_or_else(|| invalid(format!("{name} fehlt ({what})")))
+fn required(params: &Value, name: &str) -> Result<i64, RpcError> {
+    int(params, name)?.ok_or_else(|| {
+        invalid(match name {
+            "entry" => tc("findings_msg.param.entry_history_missing", &[]),
+            _ => tc("findings_msg.param.id_missing", &[]),
+        })
+    })
 }
 
 /// Boolean (true/false or from forms „1“, „true“, „on“, „0“, „false“); missing → `None`.
@@ -58,9 +64,9 @@ fn flag(params: &Value, name: &str) -> Result<Option<bool>, RpcError> {
         Some(Value::String(s)) => match s.trim() {
             "1" | "true" | "on" | "ja" => Ok(Some(true)),
             "0" | "false" | "off" | "nein" | "" => Ok(Some(false)),
-            _ => Err(invalid(format!("{name}: true oder false erwartet"))),
+            _ => Err(invalid(tc("findings_msg.param.flag", &[("name", name.into())]))),
         },
-        Some(_) => Err(invalid(format!("{name}: true oder false erwartet"))),
+        Some(_) => Err(invalid(tc("findings_msg.param.flag", &[("name", name.into())]))),
     }
 }
 
@@ -68,7 +74,7 @@ fn text(params: &Value, name: &str) -> Result<Option<String>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("findings_msg.param.text", &[("name", name.into())]))),
     }
 }
 
@@ -84,11 +90,11 @@ fn words(params: &Value, name: &str) -> Result<Vec<String>, RpcError> {
             .map(|v| match v {
                 Value::String(s) => Ok(s.trim().to_owned()),
                 Value::Number(n) => Ok(n.to_string()),
-                _ => Err(invalid(format!("{name}: Liste von Texten erwartet"))),
+                _ => Err(invalid(tc("findings_msg.param.text_list", &[("name", name.into())]))),
             })
             .collect(),
         Some(Value::Number(n)) => Ok(vec![n.to_string()]),
-        Some(_) => Err(invalid(format!("{name}: Liste oder Text „a,b“ erwartet"))),
+        Some(_) => Err(invalid(tc("findings_msg.param.list_or_text", &[("name", name.into())]))),
     }
 }
 
@@ -109,16 +115,16 @@ pub async fn call(state: &AppState, method: &str, params: Value) -> Result<Value
     let work = work_of(state, &params).await?;
     match method {
         "finding.list" => list(state, work, &params).await,
-        "finding.get" => get(state, work, required(&params, "id", "Befund")?).await,
+        "finding.get" => get(state, work, required(&params, "id")?).await,
         "finding.set_status" => {
-            let id = required(&params, "id", "Befund")?;
+            let id = required(&params, "id")?;
             let change = parse_change(&params)?;
             set_status(state, work, id, &change).await
         }
         "finding.decide" => {
-            let entry = required(&params, "entry", "Vorschlag im Verlauf")?;
-            let confirm = flag(&params, "confirm")?
-                .ok_or_else(|| invalid("confirm fehlt (true = bestätigen, false = ablehnen)"))?;
+            let entry = required(&params, "entry")?;
+            let confirm =
+                flag(&params, "confirm")?.ok_or_else(|| invalid(tc("findings_msg.param.confirm_missing", &[])))?;
             decide(state, work, entry, confirm).await
         }
         other => Err(RpcError::new(METHOD_NOT_FOUND, format!("unknown method {other}"))),
@@ -132,7 +138,7 @@ async fn filter_of(state: &AppState, work: WorkId, params: &Value) -> Result<Fin
         keys.push(key);
     }
     for key in words(params, "keys")? {
-        keys.push(key.parse().map_err(|_| invalid(format!("keys: fester Schlüssel (Zahl) erwartet, nicht „{key}“")))?);
+        keys.push(key.parse().map_err(|_| invalid(tc("findings_msg.param.keys", &[("key", key.as_str().into())])))?);
     }
     if flag(params, "subtree")?.unwrap_or(false) && !keys.is_empty() {
         let loaded = state.store.load_work(work).await?;
@@ -149,16 +155,22 @@ async fn filter_of(state: &AppState, work: WorkId, params: &Value) -> Result<Fin
     }
     let statuses = words(params, "status")?
         .iter()
-        .map(|s| FindingStatus::from_db(s).ok_or_else(|| invalid(format!("status: unbekannter Status „{s}“"))))
+        .map(|s| {
+            FindingStatus::from_db(s)
+                .ok_or_else(|| invalid(tc("findings_msg.param.status_unknown", &[("status", s.as_str().into())])))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let kinds = words(params, "kind")?
         .iter()
-        .map(|s| FindingKind::from_db(s).ok_or_else(|| invalid(format!("kind: unbekannte Art „{s}“"))))
+        .map(|s| {
+            FindingKind::from_db(s)
+                .ok_or_else(|| invalid(tc("findings_msg.param.kind_unknown", &[("kind", s.as_str().into())])))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let limit = match int(params, "limit")? {
         None => None,
         Some(n) if (1..=2000).contains(&n) => Some(n as u32),
-        Some(_) => return Err(invalid("limit: 1 bis 2000")),
+        Some(_) => return Err(invalid(tc("findings_msg.param.limit", &[]))),
     };
     Ok(FindingFilter {
         keys,
@@ -209,30 +221,27 @@ pub fn parse_change(params: &Value) -> Result<StatusChange, RpcError> {
     match status.trim() {
         "open" => Ok(StatusChange::Open),
         "adopted" => {
-            let rev = int(params, "rev")?.ok_or_else(|| invalid("„übernommen“ braucht die Fassung (rev)."))?;
-            let rev = u32::try_from(rev).ok().filter(|r| *r >= 1).ok_or_else(|| invalid("rev: Fassungsnummer ab 1"))?;
+            let rev = int(params, "rev")?.ok_or_else(|| invalid(tc("findings_msg.status.adopted_rev", &[])))?;
+            let rev = u32::try_from(rev)
+                .ok()
+                .filter(|r| *r >= 1)
+                .ok_or_else(|| invalid(tc("findings_msg.status.rev_number", &[])))?;
             Ok(StatusChange::Adopted { rev })
         }
         "rejected" => {
             if reason.trim().is_empty() {
-                return Err(invalid("Verwerfen braucht eine Begründung (reason)."));
+                return Err(invalid(tc("findings_msg.status.reason_missing", &[])));
             }
             Ok(StatusChange::Rejected { reason })
         }
         "deferred" => match (int(params, "target_key")?, int(params, "target_idea")?) {
             (Some(key), None) => Ok(StatusChange::Deferred { target: DeferTarget::Node { key }, reason }),
             (None, Some(id)) => Ok(StatusChange::Deferred { target: DeferTarget::Idea { id }, reason }),
-            (None, None) => {
-                Err(invalid("„verschoben“ braucht ein Ziel: target_key (Abschnitt) oder target_idea (Einfall)."))
-            }
-            (Some(_), Some(_)) => {
-                Err(invalid("„verschoben“ braucht genau ein Ziel: target_key oder target_idea, nicht beide."))
-            }
+            (None, None) => Err(invalid(tc("findings_msg.status.target_missing", &[]))),
+            (Some(_), Some(_)) => Err(invalid(tc("findings_msg.status.target_both", &[]))),
         },
         "done" => Ok(StatusChange::Done { reason }),
-        other => {
-            Err(invalid(format!("status: unbekannter Status „{other}“ (open, adopted, rejected, deferred, done)")))
-        }
+        other => Err(invalid(tc("findings_msg.status.unknown", &[("status", other.into())]))),
     }
 }
 
@@ -271,7 +280,7 @@ pub async fn set_status(state: &AppState, work: WorkId, id: i64, change: &Status
     let mut answer = json!({ "finding": finding_json(work, &after), "before": finding_json(work, &before) });
     let result = match history.last() {
         Some(entry) => record(state, &held, work, &after, entry, mirror::FindingAction::Status).await,
-        None => Err("Verlauf des Befunds fehlt nach dem Setzen".to_owned()),
+        None => Err(tc("findings_msg.status.history_missing", &[])),
     };
     add_mirror(&mut answer, result);
     Ok(answer)

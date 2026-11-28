@@ -41,6 +41,7 @@ use tokio_stream::Stream;
 
 use super::Progress;
 use crate::AppState;
+use crate::i18n::tc;
 
 /// Allowed methods of both routes.
 const ALLOWED: &[&str] = &["persona.ask", "persona.review", "persona.propose", "persona.chat"];
@@ -133,8 +134,10 @@ pub fn notice_page_with(message: &str, lines: &[String], back: &str, compressed:
             summarized => minijinja::Value::from(minijinja::value::Serde(c["summarized"].clone())),
         }
     });
-    let title = if toast.is_some() { "Antwort gespeichert" } else { "Hinweis" };
-    let back_label = if toast.is_some() { "Weiter zum Abschnitt" } else { "Zurück zum Abschnitt" };
+    let title =
+        if toast.is_some() { tc("assist_msg.notice.title_saved", &[]) } else { tc("assist_msg.notice.title", &[]) };
+    let back_label =
+        if toast.is_some() { tc("assist_msg.notice.onward", &[]) } else { tc("assist_msg.notice.back", &[]) };
     let ctx = minijinja::context! {
         settings => minijinja::Value::from(minijinja::value::Serde(crate::view::Settings::default())),
         title => title, message => message, lines => lines.to_vec(), back => safe_back(back), back_label => back_label,
@@ -143,7 +146,11 @@ pub fn notice_page_with(message: &str, lines: &[String], back: &str, compressed:
     match env.get_template("assist_notice.html").and_then(|t| t.render(ctx)) {
         Ok(html) => (StatusCode::OK, axum::response::Html(html)).into_response(),
         Err(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: Vorlage assist_notice.html: {e}")).into_response()
+            let text = tc(
+                "assist_msg.page.template_error",
+                &[("name", "assist_notice.html".into()), ("error", e.to_string().into())],
+            );
+            (StatusCode::INTERNAL_SERVER_ERROR, text).into_response()
         }
     }
 }
@@ -165,7 +172,7 @@ async fn remember_failure(state: &AppState, method: &str, params: &Value, messag
 pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) -> Response {
     let method = form.method.as_deref().unwrap_or("").trim().to_owned();
     if !ALLOWED.contains(&method.as_str()) {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("assist_msg.page.unknown_action", &[])).into_response();
     }
     let params = act_params(&form);
     let preview = form.view.as_deref() == Some("preview");
@@ -204,20 +211,15 @@ pub async fn act(State(state): State<Arc<AppState>>, Form(form): Form<ActForm>) 
             .map(|e| format!("{}: {}", e["persona"].as_str().unwrap_or("?"), e["message"].as_str().unwrap_or("")))
             .collect();
         let compressed = answer.get("compressed").filter(|c| c.is_object());
-        return notice_page_with(
-            "Dein Beitrag und die fertigen Antworten sind gespeichert, aber nicht jede Persona hat geantwortet:",
-            &lines,
-            &url,
-            compressed,
-        );
+        return notice_page_with(&tc("assist_msg.notice.partly_answered", &[]), &lines, &url, compressed);
     }
     // Compressed (Round 15): do not redirect silently, but show the notice and the link onward.
     if let Some(compressed) = answer.get("compressed").filter(|c| c.is_object()) {
         let message = match method.as_str() {
-            "persona.propose" => "Der Vorschlag ist angelegt.",
-            _ => "Die Antwort ist gespeichert.",
+            "persona.propose" => tc("assist_msg.notice.proposal_created", &[]),
+            _ => tc("assist_msg.notice.answer_saved", &[]),
         };
-        return notice_page(message, &url, Some(compressed));
+        return notice_page(&message, &url, Some(compressed));
     }
     // Round 28: after a chat message without JavaScript to the newest post (anchor at the end of the chat).
     if method == "persona.chat" {
@@ -269,11 +271,11 @@ pub async fn stream(State(state): State<Arc<AppState>>, headers: HeaderMap, body
     }
     let request: Value = match serde_json::from_str(&body) {
         Ok(value @ Value::Object(_)) => value,
-        _ => return (StatusCode::BAD_REQUEST, "JSON-Objekt {method, …} erwartet").into_response(),
+        _ => return (StatusCode::BAD_REQUEST, tc("assist_msg.stream.json_object", &[])).into_response(),
     };
     let method = request["method"].as_str().unwrap_or("").to_owned();
     if !ALLOWED.contains(&method.as_str()) {
-        return (StatusCode::BAD_REQUEST, "unbekannte Aktion").into_response();
+        return (StatusCode::BAD_REQUEST, tc("assist_msg.page.unknown_action", &[])).into_response();
     }
     let (tx, events) = unbounded_channel::<Event>();
     let run = async move {

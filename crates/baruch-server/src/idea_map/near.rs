@@ -32,8 +32,10 @@ pub const DEFAULT_THRESHOLD: f32 = 0.75;
 /// the first [`MAX_NEAR_IDEAS`] by ascending id count, and the message of the map says so. The computation also
 /// runs in `spawn_blocking` so that it occupies no worker thread of the runtime ([`compute`]).
 pub const MAX_NEAR_IDEAS: usize = 1500;
-/// Sentence for `near = false`.
-pub const OFF: &str = "Nähe ausgeschaltet.";
+/// Sentence for `near = false` (language of the request, Round 39a).
+pub fn off() -> String {
+    crate::i18n::tc("ideas_msg.near.off", &[])
+}
 
 /// Comparison key of a tag as in the store (`word_key`): lower case, whitespace to one space.
 pub fn word_key(word: &str) -> String {
@@ -120,7 +122,7 @@ pub async fn compute(
     threshold: f32,
 ) -> Near {
     if !near {
-        return Near { state: NearState::Off, message: OFF.to_owned(), pairs: Vec::new() };
+        return Near { state: NearState::Off, message: off(), pairs: Vec::new() };
     }
     let mut list: Vec<(IdeaId, Vec<String>)> = ideas.iter().map(|i| (i.id, i.words.clone())).collect();
     list.sort_by_key(|(id, _)| *id);
@@ -128,8 +130,8 @@ pub async fn compute(
     list.truncate(MAX_NEAR_IDEAS);
     let cap_note = if capped {
         format!(
-            " Die Karte zeigt {} Einfälle; die Nähe ist nur für die ersten {MAX_NEAR_IDEAS} (nach Nummer) berechnet.",
-            ideas.len()
+            " {}",
+            crate::i18n::tc("ideas_msg.near.capped", &[("count", ideas.len().into()), ("max", MAX_NEAR_IDEAS.into())])
         )
     } else {
         String::new()
@@ -137,10 +139,14 @@ pub async fn compute(
     let (state_word, message, vectors) = match idea_vectors(state, work).await {
         IdeaVectors::Ready(vectors) => {
             let have = ideas.iter().filter(|i| vectors.contains_key(&i.id)).count();
-            let message = format!(
-                "Nähe aus gespeicherten Einbettungen ({have} von {} Einfällen eingebettet) und gleichen \
-                 Schlagwörtern; ab {threshold}, höchstens {limit} je Einfall.",
-                ideas.len()
+            let message = crate::i18n::tc(
+                "ideas_msg.near.ready",
+                &[
+                    ("have", have.into()),
+                    ("count", ideas.len().into()),
+                    ("threshold", threshold.to_string().into()),
+                    ("limit", limit.into()),
+                ],
             );
             (NearState::Ok, message, Some(vectors))
         }
@@ -155,7 +161,7 @@ pub async fn compute(
         Ok(pairs) => Near { state: state_word, message: format!("{message}{cap_note}"), pairs },
         Err(e) => Near {
             state: NearState::Unavailable,
-            message: format!("Die Nähe ließ sich nicht berechnen ({e})."),
+            message: crate::i18n::tc("ideas_msg.near.failed", &[("error", e.to_string().into())]),
             pairs: Vec::new(),
         },
     }

@@ -20,6 +20,7 @@ use baruch_typst::index::{IndexMark, Occurrence, Projector, RegisterView, find_m
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INVALID_PARAMS, METHOD_NOT_FOUND, RpcError};
 
 /// RPC methods of this module.
@@ -37,33 +38,45 @@ fn invalid(message: impl Into<String>) -> RpcError {
 fn int_param(params: &Value, name: &str) -> Result<Option<i64>, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(None),
-        Some(Value::Number(n)) => n.as_i64().map(Some).ok_or_else(|| invalid(format!("{name}: ganze Zahl erwartet"))),
+        Some(Value::Number(n)) => n
+            .as_i64()
+            .map(Some)
+            .ok_or_else(|| invalid(tc("reference_msg.marks.whole_number", &[("name", name.into())]))),
         Some(Value::String(s)) if s.trim().is_empty() => Ok(None),
-        Some(Value::String(s)) => {
-            s.trim().parse().map(Some).map_err(|_| invalid(format!("{name}: ganze Zahl erwartet")))
-        }
-        Some(_) => Err(invalid(format!("{name}: ganze Zahl erwartet"))),
+        Some(Value::String(s)) => s
+            .trim()
+            .parse()
+            .map(Some)
+            .map_err(|_| invalid(tc("reference_msg.marks.whole_number", &[("name", name.into())]))),
+        Some(_) => Err(invalid(tc("reference_msg.marks.whole_number", &[("name", name.into())]))),
     }
 }
 
-fn required(params: &Value, name: &str, what: &str) -> Result<i64, RpcError> {
-    int_param(params, name)?.ok_or_else(|| invalid(format!("{name}: {what} fehlt")))
+fn required(params: &Value, name: &str) -> Result<i64, RpcError> {
+    int_param(params, name)?.ok_or_else(|| {
+        invalid(match name {
+            "key" => tc("reference_msg.marks.key_missing", &[]),
+            "rev" => tc("reference_msg.marks.rev_missing", &[]),
+            "start" => tc("reference_msg.marks.start_missing", &[]),
+            _ => tc("reference_msg.marks.end_missing", &[]),
+        })
+    })
 }
 
 fn rev_param(params: &Value) -> Result<u32, RpcError> {
-    u32::try_from(required(params, "rev", "Fassung")?).map_err(|_| invalid("rev: Nummer einer Fassung erwartet"))
+    u32::try_from(required(params, "rev")?).map_err(|_| invalid(tc("reference_msg.marks.rev_number", &[])))
 }
 
 fn text_param(params: &Value, name: &str) -> Result<String, RpcError> {
     match params.get(name) {
         None | Some(Value::Null) => Ok(String::new()),
         Some(Value::String(s)) => Ok(s.trim().to_owned()),
-        Some(_) => Err(invalid(format!("{name}: Text erwartet"))),
+        Some(_) => Err(invalid(tc("reference_msg.param.text", &[("name", name.into())]))),
     }
 }
 
 fn occurrence_param(params: &Value) -> Result<Occurrence, RpcError> {
-    let wrong = || invalid("occurrence: erwartet „first“, „all“ oder eine Zahl ab 1");
+    let wrong = || invalid(tc("reference_msg.marks.occurrence", &[]));
     match params.get("occurrence") {
         None | Some(Value::Null) => Ok(Occurrence::First),
         Some(Value::Number(n)) => {
@@ -80,11 +93,11 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     match method {
         "index.entries" => entries(state, work, int_param(&params, "key")?).await,
         "index.mark" => {
-            let key = required(&params, "key", "Abschnitt")?;
+            let key = required(&params, "key")?;
             let rev = rev_param(&params)?;
             let word = text_param(&params, "word")?;
             if word.is_empty() {
-                return Err(invalid("word: Wort fehlt"));
+                return Err(invalid(tc("reference_msg.marks.word_missing", &[])));
             }
             let occurrence = occurrence_param(&params)?;
             let register = text_param(&params, "register")?;
@@ -100,16 +113,16 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
             mark(state, work, MarkRequest { key, rev, word, occurrence, mark: index_mark }).await
         }
         "index.unmark" => {
-            let key = required(&params, "key", "Abschnitt")?;
+            let key = required(&params, "key")?;
             let rev = rev_param(&params)?;
-            let start = required(&params, "start", "Anfang der Marke")?;
-            let end = required(&params, "end", "Ende der Marke")?;
+            let start = required(&params, "start")?;
+            let end = required(&params, "end")?;
             let span = (
-                usize::try_from(start).map_err(|_| invalid("start: Byte-Stelle ab 0 erwartet"))?,
-                usize::try_from(end).map_err(|_| invalid("end: Byte-Stelle ab 0 erwartet"))?,
+                usize::try_from(start).map_err(|_| invalid(tc("reference_msg.marks.start_byte", &[])))?,
+                usize::try_from(end).map_err(|_| invalid(tc("reference_msg.marks.end_byte", &[])))?,
             );
             if span.0 >= span.1 {
-                return Err(invalid("start/end: leerer Bereich"));
+                return Err(invalid(tc("reference_msg.marks.empty_range", &[])));
             }
             unmark(state, work, key, rev, span).await
         }
@@ -157,9 +170,9 @@ async fn rewrite(
         .nodes
         .iter()
         .find(|n| n.key == key)
-        .ok_or_else(|| invalid(format!("Den Abschnitt {key} gibt es in diesem Werk nicht.")))?;
+        .ok_or_else(|| invalid(tc("reference_msg.marks.no_section", &[("key", key.into())])))?;
     let revision =
-        node.revision(rev).ok_or_else(|| invalid(format!("Fassung {rev} gibt es in diesem Abschnitt nicht.")))?;
+        node.revision(rev).ok_or_else(|| invalid(tc("reference_msg.marking.no_revision", &[("rev", rev.into())])))?;
     let (body, extra) = change(&revision.body)?;
     let seq = node.id;
     let saved = state.store.save_human_on(work, seq, &body, crate::mirror::HUMAN_NAME, rev).await?;
@@ -183,10 +196,12 @@ async fn rewrite(
 pub async fn mark(state: &AppState, work: WorkId, request: MarkRequest) -> Result<Value, RpcError> {
     let registers = crate::glossary::registers(state, work).await?;
     if !registers.iter().any(|r| r.slug == request.mark.register) {
-        return Err(invalid(format!(
-            "Register „{}“ gibt es in diesem Werk nicht (vorhanden: {}).",
-            request.mark.register,
-            registers.iter().map(|r| r.slug.as_str()).collect::<Vec<_>>().join(", ")
+        return Err(invalid(tc(
+            "reference_msg.marks.no_register",
+            &[
+                ("register", request.mark.register.as_str().into()),
+                ("present", registers.iter().map(|r| r.slug.as_str()).collect::<Vec<_>>().join(", ").into()),
+            ],
         )));
     }
     request.mark.validate().map_err(|e| invalid(e.to_string()))?;
@@ -220,7 +235,7 @@ async fn current_bodies(state: &AppState, work: WorkId, key: Option<i64>) -> Res
     if let Some(key) = key
         && !loaded.nodes.iter().any(|n| n.key == key)
     {
-        return Err(invalid(format!("Den Abschnitt {key} gibt es in diesem Werk nicht.")));
+        return Err(invalid(tc("reference_msg.marks.no_section", &[("key", key.into())])));
     }
     Ok(loaded
         .nodes

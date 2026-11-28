@@ -44,6 +44,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::AppState;
+use crate::i18n::tc;
 use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 use crate::view::Settings;
 
@@ -120,7 +121,10 @@ pub fn readers_of(slugs: &[String]) -> Result<Vec<&'static ReaderProfile>, RpcEr
     for slug in slugs {
         let p = profile(slug.trim()).ok_or_else(|| {
             let known: Vec<&str> = PROFILES.iter().map(|p| p.slug).collect();
-            invalid(format!("Unbekannter Reader „{slug}“ (bekannt: {}).", known.join(", ")))
+            invalid(tc(
+                "export_msg.epub_check.unknown_reader",
+                &[("slug", slug.trim().into()), ("known", known.join(", ").into())],
+            ))
         })?;
         if !out.iter().any(|o| o.slug == p.slug) {
             out.push(p);
@@ -137,7 +141,7 @@ fn build_warning(w: &baruch_epub::EpubWarning) -> Finding {
         code: w.code.clone(),
         severity,
         message: w.message.clone(),
-        path: w.key.map(|k| format!("Abschnitt {k}")),
+        path: w.key.map(|k| tc("export_msg.epub_check.section", &[("key", k.into())])),
         reader: None,
     }
 }
@@ -193,13 +197,15 @@ impl Drop for TempDir {
 async fn epubcheck(tool: EpubcheckTool, bytes: Vec<u8>, timeout: Duration) -> (EpubcheckStatus, Vec<Finding>) {
     static ONE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
     let Ok(_turn) = ONE.acquire().await else {
-        return (EpubcheckStatus::Failed { message: "EPUBCheck: Warteschlange geschlossen".into() }, Vec::new());
+        return (EpubcheckStatus::Failed { message: tc("export_msg.epub_check.queue_closed", &[]) }, Vec::new());
     };
     let run_tool = tool.clone();
     let result = tokio::task::spawn_blocking(crate::i18n::carry(move || {
-        let dir = TempDir::new().map_err(|e| format!("Temp-Ordner für EPUBCheck: {e}"))?;
+        let dir =
+            TempDir::new().map_err(|e| tc("export_msg.epub_check.temp_dir", &[("error", e.to_string().into())]))?;
         let file = dir.0.join("buch.epub");
-        std::fs::write(&file, &bytes).map_err(|e| format!("EPUB für EPUBCheck schreiben: {e}"))?;
+        std::fs::write(&file, &bytes)
+            .map_err(|e| tc("export_msg.epub_check.write_epub", &[("error", e.to_string().into())]))?;
         run_epubcheck(&run_tool, &file, timeout)
     }))
     .await
@@ -228,7 +234,9 @@ pub async fn run_check(
     let (mut findings, xml_tool) =
         tokio::task::spawn_blocking(crate::i18n::carry(move || check_structure(&structure_bytes, xmllint.as_deref())))
             .await
-            .map_err(|e| RpcError::new(INTERNAL, format!("Prüfung abgebrochen: {e}")))?;
+            .map_err(|e| {
+                RpcError::new(INTERNAL, tc("export_msg.epub_check.aborted", &[("error", e.to_string().into())]))
+            })?;
     findings.extend(book.warnings.iter().map(build_warning));
     for reader in readers {
         findings.extend(reader_warnings(&book, reader));
@@ -255,9 +263,11 @@ fn slugs_param(params: &Value) -> Result<Vec<String>, RpcError> {
         None | Some(Value::Null) => Ok(Vec::new()),
         Some(Value::Array(list)) => list
             .iter()
-            .map(|v| v.as_str().map(str::to_owned).ok_or_else(|| invalid("readers: Liste von Slugs erwartet")))
+            .map(|v| {
+                v.as_str().map(str::to_owned).ok_or_else(|| invalid(tc("export_msg.epub_check.readers_list", &[])))
+            })
             .collect(),
-        Some(_) => Err(invalid("readers: Liste von Slugs erwartet")),
+        Some(_) => Err(invalid(tc("export_msg.epub_check.readers_list", &[]))),
     }
 }
 
@@ -265,7 +275,7 @@ fn footnotes_param(params: &Value) -> Result<FootnoteMode, RpcError> {
     match params.get("footnotes") {
         None | Some(Value::Null) => Ok(FootnoteMode::Popup),
         Some(value) => {
-            serde_json::from_value(value.clone()).map_err(|_| invalid("footnotes: „popup“ oder „endnotes“ erwartet"))
+            serde_json::from_value(value.clone()).map_err(|_| invalid(tc("export_msg.epub_check.footnotes", &[])))
         }
     }
 }
@@ -280,7 +290,7 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
     let wanted = match params.get("epubcheck") {
         None | Some(Value::Null) => false,
         Some(Value::Bool(b)) => *b,
-        Some(_) => return Err(invalid("epubcheck: true oder false erwartet")),
+        Some(_) => return Err(invalid(tc("export_msg.epub_check.epubcheck_flag", &[]))),
     };
     let path = process_path();
     Ok(run_check(state, work, &readers, footnotes, wanted, path.as_deref()).await?.to_json())
@@ -296,22 +306,22 @@ pub fn validate_jar(raw: &str) -> Result<Option<String>, String> {
         return Ok(None);
     }
     if path.len() > MAX_JAR_PATH {
-        return Err(format!("EPUBCheck: Der Pfad ist zu lang (höchstens {MAX_JAR_PATH} Bytes)."));
+        return Err(tc("export_msg.epub_check.jar_too_long", &[("max", MAX_JAR_PATH.into())]));
     }
     if path.chars().any(char::is_control) {
-        return Err("EPUBCheck: Der Pfad enthält Steuerzeichen.".into());
+        return Err(tc("export_msg.epub_check.jar_control", &[]));
     }
     let p = Path::new(path);
     if !p.is_absolute() {
-        return Err(format!("EPUBCheck: „{path}“ ist kein absoluter Pfad (z. B. /opt/epubcheck/epubcheck.jar)."));
+        return Err(tc("export_msg.epub_check.jar_relative", &[("path", path.into())]));
     }
     if !p.extension().is_some_and(|e| e.eq_ignore_ascii_case("jar")) {
-        return Err(format!("EPUBCheck: „{path}“ endet nicht auf .jar."));
+        return Err(tc("export_msg.epub_check.jar_extension", &[("path", path.into())]));
     }
     match std::fs::metadata(p) {
         Ok(m) if m.is_file() => Ok(Some(path.to_owned())),
-        Ok(_) => Err(format!("EPUBCheck: „{path}“ ist keine Datei.")),
-        Err(_) => Err(format!("EPUBCheck: „{path}“ gibt es nicht.")),
+        Ok(_) => Err(tc("export_msg.epub_check.jar_not_file", &[("path", path.into())])),
+        Err(_) => Err(tc("export_msg.epub_check.jar_missing", &[("path", path.into())])),
     }
 }
 
@@ -330,10 +340,10 @@ pub async fn call_global(state: &AppState, method: &str, params: Value) -> Resul
     let path = process_path();
     if method == "epub.checker_set" {
         let jar = match params.get("jar") {
-            None => return Err(invalid("jar fehlt: Pfad zum epubcheck.jar oder null zum Entfernen")),
+            None => return Err(invalid(tc("export_msg.epub_check.jar_param_missing", &[]))),
             Some(Value::Null) => None,
             Some(Value::String(s)) => validate_jar(s).map_err(invalid)?,
-            Some(_) => return Err(invalid("jar: Pfad (Text) oder null erwartet")),
+            Some(_) => return Err(invalid(tc("export_msg.epub_check.jar_param", &[]))),
         };
         state.store.set_epubcheck_jar(jar.as_deref()).await?;
     }
@@ -359,7 +369,10 @@ fn templates() -> &'static Environment<'static> {
 }
 
 fn render(name: &str, ctx: Jinja) -> Result<String, String> {
-    templates().get_template(name).and_then(|t| t.render(ctx)).map_err(|e| format!("Vorlage {name}: {e}"))
+    templates()
+        .get_template(name)
+        .and_then(|t| t.render(ctx))
+        .map_err(|e| tc("export_msg.page.template_error", &[("name", name.into()), ("error", e.to_string().into())]))
 }
 
 fn severity_label(s: Severity) -> &'static str {
@@ -378,16 +391,18 @@ fn severity_class(s: Severity) -> &'static str {
     }
 }
 
-fn xml_tool_label(t: &XmlTool) -> &'static str {
+fn xml_tool_label(t: &XmlTool) -> String {
     match t {
-        XmlTool::Xmllint => "xmllint (--noout --nonet)",
-        XmlTool::QuickXml => "quick-xml (eingebaut; xmllint nicht gefunden)",
+        XmlTool::Xmllint => "xmllint (--noout --nonet)".to_owned(),
+        XmlTool::QuickXml => tc("export_msg.epub_check.quick_xml", &[]),
     }
 }
 
 fn tool_label(tool: &EpubcheckTool) -> String {
     match tool {
-        EpubcheckTool::Binary { path } => format!("Programm {}", path.display()),
+        EpubcheckTool::Binary { path } => {
+            tc("export_msg.epub_check.program", &[("path", path.display().to_string().into())])
+        }
         EpubcheckTool::Jar { path } => format!("java -jar {}", path.display()),
     }
 }
@@ -397,31 +412,28 @@ fn epubcheck_view(status: &EpubcheckStatus, available: Option<&EpubcheckTool>) -
     match status {
         EpubcheckStatus::NotRequested => match available {
             Some(tool) => context! {
-                kind => "ready", title => "EPUBCheck gefunden",
-                text => format!("{} – startet nur auf Knopfdruck.", tool_label(tool)),
+                kind => "ready", title => tc("export_msg.epub_check.found_title", &[]),
+                text => tc("export_msg.epub_check.found_text", &[("tool", tool_label(tool).into())]),
             },
             None => context! {
-                kind => "missing", title => "EPUBCheck nicht gefunden",
-                text => "Weder „epubcheck“ im PATH noch ein eingestelltes epubcheck.jar (Einstellungen → Daten). \
-                         Oben steht die eigene Prüfung von Baruch; EPUBCheck wird nie heruntergeladen.",
+                kind => "missing", title => tc("export_msg.epub_check.missing_title", &[]),
+                text => tc("export_msg.epub_check.missing_text", &[]),
             },
         },
         EpubcheckStatus::NotFound => context! {
-            kind => "missing", title => "EPUBCheck nicht gefunden",
-            text => "Weder „epubcheck“ im PATH noch ein eingestelltes epubcheck.jar (Einstellungen → Daten). Oben \
-                     steht die eigene Prüfung von Baruch; EPUBCheck wird nie heruntergeladen.",
+            kind => "missing", title => tc("export_msg.epub_check.missing_title", &[]),
+            text => tc("export_msg.epub_check.missing_text", &[]),
         },
         EpubcheckStatus::Ran { tool, version, ok } => context! {
             kind => if *ok { "ok" } else { "failed" },
-            title => if *ok { "EPUBCheck: bestanden" } else { "EPUBCheck: nicht bestanden" },
-            text => format!(
-                "{}{} – die Meldungen stehen mit „EPUBCheck:“ in der Liste.",
-                tool_label(tool),
-                version.as_deref().map(|v| format!(", Version {v}")).unwrap_or_default()
-            ),
+            title => if *ok { tc("export_msg.epub_check.passed", &[]) } else { tc("export_msg.epub_check.failed", &[]) },
+            text => match version.as_deref() {
+                Some(v) => tc("export_msg.epub_check.ran_version", &[("tool", tool_label(tool).into()), ("version", v.into())]),
+                None => tc("export_msg.epub_check.ran", &[("tool", tool_label(tool).into())]),
+            },
         },
         EpubcheckStatus::Failed { message } => context! {
-            kind => "failed", title => "EPUBCheck lief nicht durch", text => message.as_str(),
+            kind => "failed", title => tc("export_msg.epub_check.not_through", &[]), text => message.as_str(),
         },
     }
 }
@@ -456,8 +468,8 @@ pub async fn preview_panel(state: &AppState, work: WorkId, readers: &[&'static R
         Err(e) => context! { work => work, error => e.message },
     };
     render("fragments/epub_check_panel.html", context! { panel => true, ..ctx }).unwrap_or_else(|e| {
-        let text = minijinja::HtmlEscape(&e).to_string();
-        format!("<p class=\"notice error\" role=\"alert\">Prüfbericht: {text}</p>")
+        let text = tc("export_msg.epub_check.report_error", &[("error", e.as_str().into())]);
+        format!("<p class=\"notice error\" role=\"alert\">{}</p>", minijinja::HtmlEscape(&text))
     })
 }
 
@@ -479,7 +491,7 @@ fn form_choice(pairs: &[(String, String)]) -> Result<(Vec<&'static ReaderProfile
     let footnotes = match pairs.iter().find(|(k, _)| k == "fussnoten").map(|(_, v)| v.trim()) {
         None | Some("") | Some("popup") => FootnoteMode::Popup,
         Some("endnoten") => FootnoteMode::Endnotes,
-        Some(other) => return Err(format!("fussnoten: „popup“ oder „endnoten“, nicht „{other}“.")),
+        Some(other) => return Err(tc("export_msg.epub_check.footnotes_form", &[("other", other.into())])),
     };
     Ok((readers, footnotes))
 }
@@ -493,8 +505,10 @@ async fn page(
 ) -> Response {
     let title = match state.store.work_meta(work).await {
         Ok(meta) => meta.title,
-        Err(StoreError::UnknownWork(_)) => return (StatusCode::NOT_FOUND, "unbekanntes Werk").into_response(),
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(StoreError::UnknownWork(_)) => {
+            return (StatusCode::NOT_FOUND, tc("export_msg.page.unknown_work", &[])).into_response();
+        }
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, export_error(e)).into_response(),
     };
     let settings = Settings::from_cookie_header(headers.get(header::COOKIE).and_then(|v| v.to_str().ok()));
     let (readers, footnotes, choice_error) = match form_choice(pairs) {
@@ -512,11 +526,11 @@ async fn page(
                 let view = epubcheck_view(&checked.report.epubcheck, available.as_ref());
                 match panel {
                     Ok(html) => (StatusCode::OK, Some(html), Some(view), None),
-                    Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+                    Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, export_error(e)).into_response(),
                 }
             }
             Err(e) if e.code == REFUSED => (StatusCode::UNPROCESSABLE_ENTITY, None, None, Some(e.message)),
-            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {}", e.message)).into_response(),
+            Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, export_error(&e.message)).into_response(),
         },
     };
     let choices: Vec<Jinja> = PROFILES
@@ -535,8 +549,13 @@ async fn page(
     };
     match render("epub_check.html", ctx) {
         Ok(html) => (status, Html(html)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Fehler: {e}")).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, export_error(e)).into_response(),
     }
+}
+
+/// „Fehler: …“ in the language of the request.
+fn export_error(error: impl std::fmt::Display) -> String {
+    tc("export_msg.page.error", &[("error", error.to_string().into())])
 }
 
 /// `GET /werke/{id}/epub/pruefung[?leser=…&fussnoten=…]`: report without EPUBCheck.
@@ -548,8 +567,7 @@ async fn check_page(
 ) -> Response {
     // The check builds and packs the whole EPUB and starts xmllint per file: not for foreign pages.
     if crate::guard::cross_site_get(&headers) {
-        return (StatusCode::FORBIDDEN, "Abgelehnt: Die Prüfung entsteht nicht auf Anfrage einer fremden Seite.")
-            .into_response();
+        return (StatusCode::FORBIDDEN, tc("export_msg.epub_check.foreign", &[])).into_response();
     }
     page(&state, &headers, work, &pairs, false).await
 }
@@ -561,7 +579,7 @@ async fn check_act(
     Form(pairs): Form<Vec<(String, String)>>,
 ) -> Response {
     let Some(work) = pairs.iter().find(|(k, _)| k == "work").and_then(|(_, v)| v.trim().parse::<WorkId>().ok()) else {
-        return (StatusCode::UNPROCESSABLE_ENTITY, "Fehler: Werk fehlt.").into_response();
+        return (StatusCode::UNPROCESSABLE_ENTITY, tc("export_msg.page.work_missing", &[])).into_response();
     };
     page(&state, &headers, work, &pairs, true).await
 }
@@ -607,18 +625,23 @@ mod tests {
 
     #[test]
     fn jar_paths_must_be_absolute_existing_jars_without_control_characters() {
-        let dir = std::env::temp_dir();
-        assert_eq!(validate_jar("  "), Ok(None), "leer = entfernen");
-        assert!(validate_jar("epubcheck.jar").unwrap_err().contains("absolut"), "relativ abgelehnt");
-        assert!(validate_jar("/opt/x/epubcheck.zip").unwrap_err().contains(".jar"), "andere Endung abgelehnt");
-        assert!(validate_jar("/opt/gibt-es-nicht/epubcheck.jar").unwrap_err().contains("gibt es nicht"), "fehlt");
-        assert!(validate_jar("/opt/a\u{7}b.jar").unwrap_err().contains("Steuerzeichen"), "Steuerzeichen");
-        let long = format!("/{}.jar", "a".repeat(MAX_JAR_PATH));
-        assert!(validate_jar(&long).unwrap_err().contains("zu lang"), "zu lang");
-        let folder = dir.join(format!("baruch-unit-{}.jar", std::process::id()));
-        std::fs::create_dir_all(&folder).unwrap();
-        assert!(validate_jar(folder.to_str().unwrap()).unwrap_err().contains("keine Datei"), "Ordner ist keine Datei");
-        let _ = std::fs::remove_dir(&folder);
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let dir = std::env::temp_dir();
+            assert_eq!(validate_jar("  "), Ok(None), "leer = entfernen");
+            assert!(validate_jar("epubcheck.jar").unwrap_err().contains("absolut"), "relativ abgelehnt");
+            assert!(validate_jar("/opt/x/epubcheck.zip").unwrap_err().contains(".jar"), "andere Endung abgelehnt");
+            assert!(validate_jar("/opt/gibt-es-nicht/epubcheck.jar").unwrap_err().contains("gibt es nicht"), "fehlt");
+            assert!(validate_jar("/opt/a\u{7}b.jar").unwrap_err().contains("Steuerzeichen"), "Steuerzeichen");
+            let long = format!("/{}.jar", "a".repeat(MAX_JAR_PATH));
+            assert!(validate_jar(&long).unwrap_err().contains("zu lang"), "zu lang");
+            let folder = dir.join(format!("baruch-unit-{}.jar", std::process::id()));
+            std::fs::create_dir_all(&folder).unwrap();
+            assert!(
+                validate_jar(folder.to_str().unwrap()).unwrap_err().contains("keine Datei"),
+                "Ordner ist keine Datei"
+            );
+            let _ = std::fs::remove_dir(&folder);
+        })
     }
 
     #[test]
@@ -722,9 +745,11 @@ mod tests {
 
     #[test]
     fn mapped_template_breaks_are_hints_and_everything_else_from_the_build_is_a_warning() {
-        let w = |code: &str| baruch_epub::EpubWarning { code: code.into(), message: "m".into(), key: Some(3) };
-        assert_eq!(build_warning(&w("TEMPLATE_PAGEBREAK_MAPPED")).severity, Severity::Info, "abgebildet = Hinweis");
-        assert_eq!(build_warning(&w("ISLAND_OMITTED")).severity, Severity::Warning, "ausgelassen = Warnung");
-        assert_eq!(build_warning(&w("ISLAND_OMITTED")).path.as_deref(), Some("Abschnitt 3"), "Abschnitt genannt");
+        crate::i18n::sync_scope(crate::i18n::Lang::De, || {
+            let w = |code: &str| baruch_epub::EpubWarning { code: code.into(), message: "m".into(), key: Some(3) };
+            assert_eq!(build_warning(&w("TEMPLATE_PAGEBREAK_MAPPED")).severity, Severity::Info, "abgebildet = Hinweis");
+            assert_eq!(build_warning(&w("ISLAND_OMITTED")).severity, Severity::Warning, "ausgelassen = Warnung");
+            assert_eq!(build_warning(&w("ISLAND_OMITTED")).path.as_deref(), Some("Abschnitt 3"), "Abschnitt genannt");
+        })
     }
 }
