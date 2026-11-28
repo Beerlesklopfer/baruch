@@ -220,8 +220,8 @@ pub fn line_addresses(answer: &str, personas: &[PersonaRow]) -> Vec<String> {
 /// framed in [`OrderFrame::relay`]).
 pub fn relay_text(from: &str, post: i64, message: &str) -> String {
     let text = format!(
-        "{from} hat dich in Beitrag {post} direkt angesprochen. Gehe auf diese Anrede ein (die Antwort von {from} steht \
-         als Daten im Chat). Die Nachricht des Autors war: {message}"
+        "{from} addressed you directly in post {post}. Respond to this address (the answer of {from} stands as data \
+         in the chat). The message of the author was: {message}"
     );
     text.chars().take(super::MAX_QUESTION_CHARS).collect()
 }
@@ -988,7 +988,7 @@ mod tests {
     #[test]
     fn the_relay_task_is_built_by_baruch_and_names_the_post() {
         let text = relay_text("@lektor", 61, "Wie wirkt der Anfang?");
-        assert!(text.starts_with("@lektor hat dich in Beitrag 61 direkt angesprochen."), "{text}");
+        assert!(text.starts_with("@lektor addressed you directly in post 61."), "{text}");
         assert!(text.ends_with("Wie wirkt der Anfang?"), "die Nachricht des Autors bleibt der Auftrag: {text}");
         assert!(
             relay_text("@x", 1, &"a".repeat(5000)).chars().count() <= crate::assist::MAX_QUESTION_CHARS,

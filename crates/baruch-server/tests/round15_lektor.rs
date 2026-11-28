@@ -172,8 +172,8 @@ async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_persona
     assert_eq!(calls.len(), 2, "ein Aufruf für @exeget, einer für @lektor – keine Zusammenfassungen");
     let text = user(&calls[1]);
     for (piece, why) in [
-        ("Kapitel: 1 Frühjahr", "Kapitelzeile"),
-        ("Kapitelumfeld:", "Überschrift des Umfelds"),
+        ("Chapter: 1 Frühjahr", "Kapitelzeile"),
+        ("Chapter surroundings:", "Überschrift des Umfelds"),
         ("Die Völker erwachen im März.", "Kapiteltext selbst im Wortlaut"),
         (
             "Die ersten Sammlerinnen fliegen an warmen Tagen zum Weidenkätzchen.",
@@ -181,11 +181,11 @@ async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_persona
         ),
         ("An der Tränke stehen morgens die Wasserholerinnen.", "Nachbar danach ganz"),
         (
-            "--- 1.2 Pollen: wird geprüft, steht unten im Wortlaut ---",
+            "--- 1.2 Pollen: under review, given verbatim below ---",
             "der eigene Abschnitt steht im Umfeld nur als Verweis",
         ),
         (
-            "@exeget zu 1.1 Ausflug: <<<befund Kritisch: Die Höschen",
+            "@exeget on 1.1 Ausflug: <<<befund Kritisch: Die Höschen",
             "Befund einer anderen Persona aus dem Kapitel (gerahmt)",
         ),
     ] {
@@ -197,7 +197,7 @@ async fn with_enough_context_the_whole_chapter_and_the_findings_of_other_persona
         1,
         "der Abschnitt steht genau einmal (unten): {text}"
     );
-    let section_at = text.find("Abschnitt 1.2 „Pollen“ (Fassung 1):").expect("Kopf des Abschnitts");
+    let section_at = text.find("Section 1.2 \"Pollen\" (revision 1):").expect("Kopf des Abschnitts");
     assert!(text[section_at..].contains("Gelbe Höschen"), "der Abschnitt im Wortlaut unter seinem Kopf");
     assert!(!text.contains("[… gekürzt"), "keine stille Kürzung mehr: {text}");
 }
@@ -221,8 +221,8 @@ async fn scope_chapter_reviews_the_whole_chapter_and_proposes_each_part_only_as_
     assert_eq!(r["post"]["author"], "@lektor", "Befunde zum Kapitel als Beitrag: {r}");
     let calls = model.calls();
     let text = user(&calls[0]);
-    assert!(text.contains("zu prüfen ist das ganze Kapitel"), "Kopf nennt das ganze Kapitel: {text}");
-    assert!(text.contains("Prüfe das ganze Kapitel"), "Auftrag für das Kapitel: {text}");
+    assert!(text.contains("to be reviewed is the whole chapter"), "Kopf nennt das ganze Kapitel: {text}");
+    assert!(text.contains("Review the whole chapter"), "Auftrag für das Kapitel: {text}");
     for part in ["Die Völker erwachen", "Weidenkätzchen", "Gelbe Höschen", "Wasserholerinnen"] {
         assert!(text.contains(part), "jeder Teil des Kapitels steht im Prüfgegenstand ({part}): {text}");
     }
@@ -267,8 +267,8 @@ async fn scope_chapter_reviews_the_whole_chapter_and_proposes_each_part_only_as_
     assert!(note.contains("1.2 Pollen"), "Bezeichnung der Teile in der Antwort: {note}");
     let calls = model.calls();
     let fourth = user(&calls[4]);
-    assert!(fourth.contains("jetzt ist „1.3 Wasser“ dran"), "Auftrag nennt den Teil: {fourth}");
-    assert!(fourth.contains("Auftrag: straffen"), "Anweisung des Menschen in jedem Teil: {fourth}");
+    assert!(fourth.contains("now it is the turn of \"1.3 Wasser\""), "Auftrag nennt den Teil: {fourth}");
+    assert!(fourth.contains("Task: straffen"), "Anweisung des Menschen in jedem Teil: {fourth}");
 
     let wrong = h.server.rpc("persona.review", json!({ "work": h.work, "key": h.keys[2], "scope": "werk" })).await;
     assert_eq!(wrong["error"]["code"], -32602, "unbekannter Umfang → ehrlicher Fehler: {wrong}");
@@ -346,11 +346,11 @@ async fn a_text_too_long_is_cut_into_overlapping_pieces_and_summaries_come_one_a
         .iter()
         .map(|c| {
             let text = user(c);
-            let head = text.find("Abschnitt 1.2 „Pollen“").expect("Kopf des Prüfstücks");
+            let head = text.find("Section 1.2 \"Pollen\"").expect("Kopf des Prüfstücks");
             text[head..].to_owned()
         })
         .collect();
-    assert!(pieces[0].contains("Stück 1 von"), "Kopf nennt das Stück: {}", pieces[0]);
+    assert!(pieces[0].contains("piece 1 of"), "Kopf nennt das Stück: {}", pieces[0]);
     assert!(pieces[0].contains("Satz 1 über Pollen"), "das erste Stück beginnt am Anfang");
     assert!(pieces.last().unwrap().contains("Satz 150 über Pollen"), "das letzte reicht bis zum Ende");
     for pair in pieces.windows(2) {
@@ -362,7 +362,7 @@ async fn a_text_too_long_is_cut_into_overlapping_pieces_and_summaries_come_one_a
     }
     let environment = user(reviews[0]);
     assert!(
-        environment.contains("(nur Zusammenfassung, nicht wörtlich zitieren)") && environment.contains("Kurz gefasst"),
+        environment.contains("(summary only, do not quote it literally)") && environment.contains("Kurz gefasst"),
         "das Umfeld steht als Zusammenfassung da: {environment}"
     );
 
@@ -556,7 +556,7 @@ async fn the_sword_block_lists_numbered_notes_defuses_module_text_and_marks_unkn
         "[S1] Bibel TestBibel · Spr 6,6 · Lizenz: Testmodul, frei erfunden",
         "[S2] Kommentar TestKommentar · Spr 6,6 · Lizenz: Testmodul, frei erfunden",
         "[S3] Lexikon TestLexikon · Biene · Lizenz: Testmodul, frei erfunden",
-        "Hinweis: Kommentar „Fehlt“ ist nicht installiert.",
+        "Note: Kommentar „Fehlt“ ist nicht installiert.",
     ] {
         assert!(
             text.contains(line),
@@ -568,7 +568,7 @@ async fn the_sword_block_lists_numbered_notes_defuses_module_text_and_marks_unkn
         "Steuertext im Modul entschärft: Marken ersetzt, Zeilen zusammengezogen – er kann den Block nicht verlassen: {text}"
     );
     let block = &text[text.find(bible_facts::BLOCK_TITLE).unwrap()..];
-    let section = block.find("Kapitelumfeld:").unwrap_or(block.len());
+    let section = block.find("Chapter surroundings:").unwrap_or(block.len());
     assert_eq!(block[..section].matches("\n>>>").count(), 3, "genau drei Belegkästen schließen, kein vorzeitiges Ende");
     let body = outcome.post.unwrap().body;
     assert!(body.contains("[S9] (unbekannte Quelle)"), "Angabe ohne Eintrag markiert: {body}");

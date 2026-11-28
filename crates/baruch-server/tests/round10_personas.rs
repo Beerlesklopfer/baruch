@@ -145,29 +145,29 @@ async fn the_context_has_the_shown_version_the_chapter_and_ideas_only_for_the_le
     let first = user(&calls[0]);
     assert!(first.contains("Gelbe Höschen an den Beinen"), "gezeigte Fassung 1, nicht die aktuelle: {first}");
     assert!(!first.contains("Bienenbrot im Wabenrand"), "die aktuelle Fassung 2 steht nicht drin: {first}");
-    assert!(first.contains("(Fassung 1)"), "Nummer der gezeigten Fassung: {first}");
-    assert!(first.contains("Kapitel: 1 Frühjahr"), "Kapitelumfeld: Kapitel: {first}");
+    assert!(first.contains("(revision 1)"), "Nummer der gezeigten Fassung: {first}");
+    assert!(first.contains("Chapter: 1 Frühjahr"), "Kapitelumfeld: Kapitel: {first}");
     // Since Round 15 the whole chapter is there verbatim (not only 300 characters per neighbour).
     assert!(
         first.contains("--- 1.1 Ausflug ---\n<<<\n== Ausflug\n\nDie ersten Sammlerinnen fliegen an warmen Tagen zum Weidenkätzchen."),
         "Nachbar im Wortlaut: {first}"
     );
-    assert!(first.contains("Zielgruppe: Hobby-Imker"), "Werk mit Zielgruppe: {first}");
+    assert!(first.contains("Target audience (Zielgruppe): Hobby-Imker"), "Werk mit Zielgruppe: {first}");
     assert!(
         // Round 17a (L5): every idea framed and defused like a finding.
-        first.contains("Gedächtnis")
-            && first.contains("- Zu diesem Abschnitt: <<<einfall [Bienenbrot] Gärung erklären >>>"),
+        first.contains("Memory (ideas of the author")
+            && first.contains("- On this section: <<<einfall [Bienenbrot] Gärung erklären >>>"),
         "Einfall mit Bezug: {first}"
     );
     assert!(
-        first.contains("- Offen im Werk: <<<einfall [Schwarmzeit] Mai oder Juni? >>>"),
+        first.contains("- Open in the work: <<<einfall [Schwarmzeit] Mai oder Juni? >>>"),
         "offener Einfall ohne Bezug: {first}"
     );
     assert!(!first.contains("Märzbecher"), "Einfälle anderer Abschnitte nicht: {first}");
     assert_eq!(calls[0].max_tokens, 900, "review: 900 Tokens");
     let second = user(&calls[1]);
     assert!(second.contains("Bienenbrot im Wabenrand"), "ohne rev die aktuelle Fassung: {second}");
-    assert!(!second.contains("Gedächtnis"), "nur der Lektor kennt die Einfälle: {second}");
+    assert!(!second.contains("Memory (ideas of the author"), "nur der Lektor kennt die Einfälle: {second}");
 }
 
 #[tokio::test]
@@ -261,8 +261,8 @@ async fn a_proposal_is_exactly_one_proposed_with_the_heading_of_the_shown_versio
         added.author
     );
     assert_eq!(node.current_number(), Some(1), "die aktuelle Fassung bleibt");
-    assert!(user(&b.model.calls()[0]).contains("Auftrag: früher"), "Anweisung im Auftrag");
-    assert!(user(&b.model.calls()[0]).contains("Überschriftszeile, unverändert: = Frühjahr"), "Überschrift vorgegeben");
+    assert!(user(&b.model.calls()[0]).contains("Task: früher"), "Anweisung im Auftrag");
+    assert!(user(&b.model.calls()[0]).contains("heading line, unchanged: = Frühjahr"), "Überschrift vorgegeben");
 
     let same = b.server.rpc("persona.propose", json!({ "work": b.work, "key": b.keys[0], "persona": "@lektor" })).await;
     assert_eq!(error_code(&same), -32000, "gleich der aktuellen → ehrlicher Fehler: {same}");
@@ -370,7 +370,7 @@ async fn a_short_context_drops_the_oldest_chat_posts_and_keeps_the_newest() {
     // Round 30b: with a large context the outline with keys and the rule for jump marks are additionally in the call –
     // but only as long as there is room; with the tight context they are dropped first. Therefore the measurement is
     // done without them.
-    let outline_start = text.find("\n\nGliederung (").expect("bei großem Kontext steht die Gliederung da");
+    let outline_start = text.find("\n\nOutline (").expect("bei großem Kontext steht die Gliederung da");
     let outline_end = text[outline_start + 2..].find("\n\n").map_or(text.len(), |n| outline_start + 2 + n);
     let outline_len = text[outline_start..outline_end].chars().count();
     let total = total - outline_len - baruch_server::assist::context::JUMP_RULE.chars().count() - 2;

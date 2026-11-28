@@ -141,7 +141,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     let status = h.form(&format!("method=persona.review&work={work}&key={key}&rev=1&persona=%40nathan&basis=2")).await;
     assert_eq!(status, StatusCode::SEE_OTHER, "Gegenprüfen über das Formular");
     let user = h.last_user();
-    assert!(user.contains("(Fassung 2)") && user.contains("nasse Tau"), "der Kritiker sieht den Vorschlag: {user}");
+    assert!(user.contains("(revision 2)") && user.contains("nasse Tau"), "der Kritiker sieht den Vorschlag: {user}");
     assert!(user.contains(prompts::OWN_FINDINGS_TITLE) && user.contains(&format!("[B{first}]")), "eigene Befunde");
     let meta = h.last_post_meta("@nathan").await;
     assert_eq!(meta.basis_label, "geprüft: Fassung 2 (Vorschlag von @lektor)", "Kopfzeile nennt den Vorschlag");
@@ -172,7 +172,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
         .await;
     assert!(answer["error"].is_null(), "Chat gelingt: {answer}");
     let user = h.last_user();
-    assert!(user.contains("(Fassung 3)") && user.contains("schreien"), "Chat: Kritiker sieht Vorschlag 3: {user}");
+    assert!(user.contains("(revision 3)") && user.contains("schreien"), "Chat: Kritiker sieht Vorschlag 3: {user}");
     assert!(user.contains(prompts::OWN_FINDINGS_TITLE), "Chat: eigene offene Befunde zum Nachprüfen: {user}");
     let meta = h.last_post_meta("@nathan").await;
     assert_eq!(meta.basis_label, "geprüft: Fassung 3 (Vorschlag von @lektor)", "Chat: Kopfzeile");
@@ -181,7 +181,7 @@ async fn critic_and_lector_iterate_on_proposals_over_all_ways() {
     h.eliezer.push(Reply::text(&["Kritisch: „Hafen“ bleibt blass.\n- Schritt: den Hafen benennen."]));
     let answer = h.mcp(json!({ "work": work, "key": key, "persona": "@nathan", "mode": "review", "rev": 3 })).await;
     let user = h.last_user();
-    assert!(user.contains("(Fassung 3)") && user.contains(prompts::OWN_FINDINGS_TITLE), "MCP review: {user}");
+    assert!(user.contains("(revision 3)") && user.contains(prompts::OWN_FINDINGS_TITLE), "MCP review: {user}");
     assert!(answer.to_string().contains("Vorschlag von @lektor"), "MCP nennt die Prüfgrundlage: {answer}");
     h.eliezer.push(Reply::text(&["= Am Kai\n\nDie Bootsfrau knotet das nasse Tau an den Poller. Möwen rufen.\n"]));
     h.mcp(json!({ "work": work, "key": key, "persona": "@lektor", "mode": "propose", "rev": 3 })).await;
@@ -259,7 +259,7 @@ async fn a_proposal_for_the_whole_chapter_is_based_on_the_chosen_or_shown_versio
     assert_eq!(calls.len(), 2, "je Teil mit Text ein Aufruf");
     let own_call = calls[1]["messages"].to_string();
     assert!(
-        own_call.contains("steigt gurgelnd") && own_call.contains("(Fassung 2)"),
+        own_call.contains("steigt gurgelnd") && own_call.contains("(revision 2)"),
         "der eigene Teil steht in der gezeigten Fassung 2 im Auftrag (nicht in der aktuellen): {own_call}"
     );
     let proposals = result["proposals"].as_array().expect("die Antwort nennt die Vorschläge je Teil");

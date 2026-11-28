@@ -348,7 +348,7 @@ async fn the_invented_work_is_indexed_with_prefixes_and_weak_hits_are_marked_on_
     let calls = model.calls();
     let user = calls.last().unwrap().messages.iter().map(|m| m.content.as_str()).collect::<Vec<_>>().join("\n");
     assert!(
-        user.contains("Ähnlichkeit (schwach, "),
+        user.contains("similarity (weak, "),
         "Begründung: im Belegblock stehen schwache Treffer als „Ähnlichkeit (schwach, n %)“: {user}"
     );
 }

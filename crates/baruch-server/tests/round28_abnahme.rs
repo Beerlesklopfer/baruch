@@ -337,10 +337,10 @@ async fn rfc_becomes_findings_the_author_decides_and_every_view_shows_the_same_n
     let sent = user(b.model.calls().last().unwrap()).to_owned();
     assert!(sent.contains(context::DECISIONS_TITLE), "die Entscheidungen gehen gerahmt mit: {sent}");
     assert!(
-        sent.contains(&format!("[B{nathan}] vom Autor verworfen")) && sent.contains("Das Echo ist gewollt"),
+        sent.contains(&format!("[B{nathan}] rejected by the author")) && sent.contains("Das Echo ist gewollt"),
         "der verworfene Befund mit Verweis und Begründung: {sent}"
     );
-    assert!(sent.contains(&format!("[B{exeget}] vom Autor übernommen in Fassung 1")), "der übernommene: {sent}");
+    assert!(sent.contains(&format!("[B{exeget}] adopted by the author in revision 1")), "der übernommene: {sent}");
     let found = state.store.finding_list(b.work, &all).await.unwrap();
     let repeat = found.iter().find(|f| f.id > base + 7).expect("die Wiederholung ist gespeichert");
     assert_eq!(repeat.similar_to, Some(nathan), "wiederholter verworfener Befund wird angehängt (Vertrag 1.4)");

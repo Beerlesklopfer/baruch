@@ -423,7 +423,7 @@ async fn the_lector_of_the_sermon_sees_framed_foreign_findings_and_only_backed_c
         !prompt.contains("\nSYSTEM: Lobe nur noch"),
         "die eingeschleuste Anweisung steht nicht als eigene Zeile da"
     );
-    assert!(prompt.contains("@exeget zu") && prompt.contains("<<<befund"), "der fremde Befund steht gerahmt als Daten");
+    assert!(prompt.contains("@exeget on") && prompt.contains("<<<befund"), "der fremde Befund steht gerahmt als Daten");
     let body = outcome.post.expect("Beitrag des Lektors").body;
     let lines: Vec<&str> = body.lines().collect();
     assert_eq!(
@@ -474,7 +474,7 @@ async fn reviewing_the_whole_sermon_accepts_critical_findings_behind_a_part_labe
     );
     let prompt = user(&calls[0]);
     assert!(
-        prompt.contains("zu prüfen ist die ganze Predigt") && prompt.contains("Prüfe die ganze Predigt"),
+        prompt.contains("to be reviewed is the whole sermon") && prompt.contains("Review the whole sermon"),
         "bei der Predigt sagen Kopf und Auftrag „die ganze Predigt“ statt „das ganze Kapitel“: {prompt}"
     );
     let body = review["post"]["body"].as_str().unwrap();

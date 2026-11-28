@@ -23,9 +23,27 @@ fn invalid(message: impl Into<String>) -> RpcError {
 }
 
 /// Language of a work, read by prompts and recognitions. A work that cannot be read falls back to German, the
-/// language of every work from before Round 38.
+/// language of every work from before Round 38, and says so on stderr ([`fallback`]; finding of Round 38).
 pub async fn of(state: &AppState, work: WorkId) -> WorkLanguage {
-    state.store.work_language(work).await.unwrap_or_default()
+    let (language, message) = fallback(work, state.store.work_language(work).await);
+    if let Some(message) = message {
+        eprintln!("{message}");
+    }
+    language
+}
+
+/// The language read from the store, or German with a message for stderr if it could not be read (Round 38c,
+/// finding 1: an English work answered in German must not happen silently).
+pub(crate) fn fallback(
+    work: WorkId,
+    read: Result<WorkLanguage, baruch_store::StoreError>,
+) -> (WorkLanguage, Option<String>) {
+    match read {
+        Ok(language) => (language, None),
+        Err(e) => {
+            (WorkLanguage::De, Some(format!("work language of work {work} unreadable, answering in German: {e}")))
+        }
+    }
 }
 
 /// Sets the work language (only the human: RPC and form, not MCP, not `/act`). The value must be exactly
@@ -54,7 +72,33 @@ pub async fn call(state: &AppState, work: WorkId, method: &str, params: Value) -
 
 #[cfg(test)]
 mod tests {
-    use super::handles;
+    use super::{WorkLanguage, fallback, handles};
+
+    #[test]
+    fn a_readable_language_is_kept_without_a_message() {
+        for language in WorkLanguage::ALL {
+            assert_eq!(
+                fallback(7, Ok(language)),
+                (language, None),
+                "a language read from the store is used as it is and nothing is logged"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unreadable_language_falls_back_to_german_and_says_so() {
+        let (language, message) = fallback(7, Err(baruch_store::StoreError::UnknownWork(7)));
+        assert_eq!(language, WorkLanguage::De, "German is the language of every work from before Round 38");
+        let message = message.expect("the fallback must not be silent (finding 1 of Round 38)");
+        assert!(
+            message.starts_with("work language of work 7 unreadable, answering in German: "),
+            "the message names the work and the consequence: {message}"
+        );
+        assert!(
+            message.len() > "work language of work 7 unreadable, answering in German: ".len(),
+            "the message carries the store error after the colon: {message}"
+        );
+    }
 
     #[test]
     fn only_the_two_language_methods_are_handled() {

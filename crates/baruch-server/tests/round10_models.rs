@@ -187,7 +187,7 @@ async fn the_probe_resolves_aliases_sends_a_short_fixed_prompt_and_reports_the_t
     let body = &mock.chat_bodies()[0];
     assert_eq!(body["model"], "llama-3.2-3b-instruct-q4-k-m", "Alias vor dem Senden aufgelöst: {body}");
     assert_eq!(body["max_tokens"], 16, "Kurztest höchstens 16 Token: {body}");
-    assert_eq!(body["messages"], json!([{ "role": "user", "content": "Antworte nur mit: OK" }]), "fester Auftrag");
+    assert_eq!(body["messages"], json!([{ "role": "user", "content": "Answer only with: OK" }]), "fester Auftrag");
 
     model_call(&server, "model.probe", json!({ "model": "qwen3:4b" })).await.expect("zweiter Kurztest");
     assert_eq!(mock.chat_bodies()[1]["model"], "qwen3-4b-q4-k-m", "auch der zweite Alias");

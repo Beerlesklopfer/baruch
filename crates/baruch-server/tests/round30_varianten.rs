@@ -132,12 +132,12 @@ async fn three_variants_are_siblings_on_the_same_base_with_labels_lines_and_find
     assert!(user(&calls[0]).contains(variants::VARIANT_STYLES[0]), "Richtung A: knapp");
     assert!(
         user(&calls[0]).contains(&format!("[B{finding}]"))
-            && user(&calls[0]).contains("besser „Meist leuchtet der Turm“"),
+            && user(&calls[0]).contains("write \"Meist leuchtet der Turm\""),
         "Befund mit Lösung gerahmt im Aufruf: {}",
         user(&calls[0])
     );
     assert!(
-        user(&calls[2]).contains("Schon geschrieben") && user(&calls[2]).contains("A: knapp"),
+        user(&calls[2]).contains("Already written") && user(&calls[2]).contains("A: knapp"),
         "C weiß, was A und B tun"
     );
 

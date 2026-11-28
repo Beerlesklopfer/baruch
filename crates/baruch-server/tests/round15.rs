@@ -307,7 +307,7 @@ async fn a_compressed_chapter_review_without_javascript_shows_the_notice_page_wi
     assert!(calls.iter().any(|c| c.label.contains("Zusammenfassung")), "es wurde zusammengefasst: {}", calls.len());
     let review = calls.iter().rev().find(|c| !c.label.contains("Zusammenfassung")).expect("Prüfaufruf");
     assert!(
-        content(review, Role::User).contains("zu prüfen ist das ganze Kapitel"),
+        content(review, Role::User).contains("to be reviewed is the whole chapter"),
         "scope=chapter aus dem Formular erreicht die RPC: der Auftrag gilt dem ganzen Kapitel"
     );
     let node = t.server.state.store.load_work(t.work).await.unwrap().nodes[1].clone();

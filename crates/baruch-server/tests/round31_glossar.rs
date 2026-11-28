@@ -354,7 +354,7 @@ async fn suggest_asks_the_lector_through_the_model_port_and_only_proposes() {
     assert_eq!(calls[0].persona, "@lektor", "über den Port der Persona");
     let user = &calls[0].messages.last().unwrap().content;
     assert!(user.contains("Die Beete werden umgegraben."), "Text des Abschnitts im Auftrag: {user}");
-    assert!(user.contains("Schon im Glossar") && user.contains("Beet"), "bekannte Begriffe genannt: {user}");
+    assert!(user.contains("Already in the glossary") && user.contains("Beet"), "bekannte Begriffe genannt: {user}");
     let accepted = server.state.store.glossary(work, Some(baruch_store::GlossaryStatus::Accepted)).await.unwrap();
     assert_eq!(accepted.len(), 1, "nichts wird vom Modell angenommen");
 }

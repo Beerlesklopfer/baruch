@@ -55,7 +55,7 @@ use crate::rpc::{INTERNAL, INVALID_PARAMS, METHOD_NOT_FOUND, REFUSED, RpcError};
 /// How long a model list (and a reported context length) is valid.
 pub const CACHE_FOR: Duration = Duration::from_secs(60);
 /// Fixed prompt of the short test.
-pub const PROBE_PROMPT: &str = "Antworte nur mit: OK";
+pub const PROBE_PROMPT: &str = "Answer only with: OK";
 /// `max_tokens` of the short test.
 pub const PROBE_MAX_TOKENS: u32 = 16;
 

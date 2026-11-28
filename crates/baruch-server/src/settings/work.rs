@@ -263,27 +263,31 @@ async fn language_context(
     query: &BTreeMap<String, String>,
 ) -> Result<minijinja::Value, String> {
     let language = state.store.work_language(work).await.map_err(|e| e.to_string())?;
-    let error = query
-        .get("sprachfehler")
-        .map(|_| "Die Werksprache ließ sich nicht speichern: erlaubt sind Deutsch und Englisch; nichts geändert.");
+    let error = query.get("sprachfehler").map(|value| match value.as_str() {
+        // Round 38c, finding 2: the form named a work that does not exist.
+        "werk" => "Die Werksprache ließ sich nicht speichern: dieses Werk gibt es nicht; nichts geändert.",
+        _ => "Die Werksprache ließ sich nicht speichern: erlaubt sind Deutsch und Englisch; nichts geändert.",
+    });
     Ok(context! { code => language.as_str(), error => error })
 }
 
 /// `POST /einstellungen/werk/sprache` (Round 38, behind `guard::same_origin`): `work`, `language` (`de`|`en`). 303 to
-/// `/einstellungen/werk?work=W&ok=sprache#sprache` or `…&sprachfehler=1#sprache` (nothing changed).
+/// `/einstellungen/werk?work=W&ok=sprache#sprache` or `…&sprachfehler=1#sprache` (nothing changed). An unknown
+/// work (or no default work) → `/einstellungen/werk?sprachfehler=werk#sprache` with its own message (Round 38c).
 pub(super) async fn language_act(
     State(state): State<Arc<AppState>>,
     Form(pairs): Form<Vec<(String, String)>>,
 ) -> Response {
+    const NO_WORK: &str = "/einstellungen/werk?sprachfehler=werk#sprache";
     let field = |name: &str| pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.trim().to_owned());
     let work = match field("work").and_then(|w| w.parse::<WorkId>().ok()).filter(|&w| w > 0) {
         Some(w) => match state.store.work_slug(w).await {
             Ok(_) => w,
-            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+            Err(_) => return Redirect::to(NO_WORK).into_response(),
         },
         None => match state.default_work().await {
             Ok(w) => w,
-            Err(_) => return Redirect::to("/einstellungen/werk").into_response(),
+            Err(_) => return Redirect::to(NO_WORK).into_response(),
         },
     };
     let value = field("language").map(Json::String);

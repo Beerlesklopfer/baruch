@@ -5,6 +5,9 @@ Free writing workshop (AGPL-3.0) for books and sermons. Plan: `docs/Plan.md`.
 - Language: the primary language is English for code, comments, commits, developer docs, MCP and RPC. The user
   interface is German and English through catalogs from Round 39 (until then German). Each work has its own
   work language (`de`|`en`); book output and persona answers follow it. Identifiers are English.
+  Exceptions that stay German: the history files (`docs/Backlog.md`, `docs/Fahrplan.md`, `HANDOFF.md`,
+  `CHANGELOG.md`), `docs/schema/`, the user help under `site/content/de/` (English from Round 39b) and every text of
+  the user interface until the catalogs of Round 39a.
 - Never commit, publish or print tokens or keys; keys belong in the keyring (`keyring`).
 - Only the user sets version numbers.
 - Push only after an explicit "ja" (yes) from the user.

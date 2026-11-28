@@ -149,7 +149,7 @@ async fn own_findings_shed_by_the_budget_are_no_longer_counted_as_in_the_order()
     let kept = cut.own_findings.len();
     assert_eq!(cut.own_findings, ids[ids.len() - kept..], "es bleiben die jüngsten (gekürzt wird von vorn)");
     for id in &ids {
-        let shown = text.contains(&format!("[B{id}] zu"));
+        let shown = text.contains(&format!("[B{id}] on"));
         assert_eq!(
             shown,
             cut.own_findings.contains(id),
@@ -238,7 +238,7 @@ async fn repeating_a_relay_post_sends_the_frame_again_and_old_posts_repeat_as_be
     assert!(again.contains(context::RELAY_TITLE), "die Wiederholung trägt den Relay-Rahmen: {again}");
     assert!(again.contains(context::RELAY_TASK), "und den Zusatz zum Auftrag wie beim ersten Mal");
     assert!(
-        again.contains(&format!("@lektor hat dich in Beitrag {lector_post} direkt angesprochen")),
+        again.contains(&format!("@lektor addressed you directly in post {lector_post}")),
         "der Auftragstext ist derselbe"
     );
     let metas = m.server.state.store.post_meta(m.work, &[relay_post, new]).await.unwrap();

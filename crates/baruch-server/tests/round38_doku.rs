@@ -351,6 +351,10 @@ fn the_rules_for_agents_are_english_and_none_is_lost() {
         ("site/content/de/hilfe/", "where the user help lives"),
         ("site/content/de/betrieb.md", "where the description for operators lives"),
         ("developer entry points", "what docs/Bedienung.md and docs/Betrieb.md are since Round 37"),
+        ("Exceptions that stay German", "the rule names its exceptions (finding 4 of Round 38)"),
+        ("catalogs of Round 39a", "the user interface stays German until the catalogs of Round 39a"),
+        ("site/content/de/` (English from Round 39b)", "the user help stays German until Round 39b"),
+        ("`docs/schema/`", "the schema docs stay German"),
     ] {
         assert!(rules.contains(keyword), "AGENTS.md states the new rule – {why}: „{keyword}“");
     }
