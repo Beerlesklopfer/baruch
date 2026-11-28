@@ -314,8 +314,11 @@ async fn an_old_token_with_an_umlaut_keeps_its_old_posts_and_nobody_else_gains_t
             let mut arguments = json!({ "work": m.work, "id": old });
             arguments.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
             let text = refused(&m, &intruder, tool, arguments).await;
-            // Round 39a: MCP answers in English.
-            assert!(text.contains("own"), "{name:?} ohne Token: {tool} am alten Beitrag abgelehnt: {text}");
+            // Round 39a: MCP answers in English; the whole phrase, since "own" alone also matches "unknown".
+            assert!(
+                text.contains("Only your own posts"),
+                "{name:?} ohne Token: {tool} am alten Beitrag abgelehnt: {text}"
+            );
         }
     }
     let untouched = m.server.state.store.post_get(m.work, old).await.unwrap();
@@ -371,8 +374,11 @@ async fn two_old_tokens_that_only_the_new_rule_would_merge_stay_apart() {
             let mut arguments = json!({ "work": m.work, "id": foreign_post });
             arguments.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
             let text = refused(&m, caller, tool, arguments).await;
-            // Round 39a: MCP answers in English.
-            assert!(text.contains("own"), "Token „{who}“: {tool} am Beitrag des anderen Tokens abgelehnt: {text}");
+            // Round 39a: MCP answers in English; the whole phrase, since "own" alone also matches "unknown".
+            assert!(
+                text.contains("Only your own posts"),
+                "Token „{who}“: {tool} am Beitrag des anderen Tokens abgelehnt: {text}"
+            );
         }
     }
     for (id, body, author) in [

@@ -130,7 +130,7 @@ mit neuen Backends oder Abhängigkeiten 150–180 min, Runde 12 180 min; Gutacht
 | R38 | **Part 1 done 2026-11-27, delivered in part** (≈ 162 min from `3fa5806` with review, follow-up `478be2a` and PM close; S1 `4315b01`, integration `511527f`; only a, b, c started, none finished its whole scope – see "Open after Round 38"; rest in R38b and R38c). Plan as it was: A: Englisch für Agenten und Entwickler (Nutzer 2026-11-27, vor 0.9.1): `AGENTS.md`, `SKILLS.md`, Rundenaufträge, MCP und RPC (Texte, `docs/MCP.md`, `docs/RPC.md`), Persona-Prompts mit „antworte in der Werksprache“, Werksprache als Werkseinstellung (Migration, Vorgabe `de`), Entwicklerdoku, Commits englisch, Release-Text englisch; **alle Code-Kommentare auf einmal** (≈ 28 700 Rust, ≈ 1 500 TS, ≈ 300 Templates; nur Kommentare). Kommentar-Zweige zuletzt integrieren. Plan: `~/.cache/baruch-runde/plan-englisch-lokalisierung.md` | a regeln_doku · b mcp_rpc · c kommentare_server · d kommentare_store (+ typst) · e kommentare_rest | 240 |
 | R38b | **Closed 2026-11-28** (≈ 250 min from `174c996` to the integration `36a9e2d`, of which 111 for the contract; review with two low findings, no follow-up; PM close exit 0, 3586 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1609, pgvector tests ran (2026-11-28 00:13–00:18, all 16 workspace crates rebuilt); eight developers, one wave; details under "Open after Round 38", "Round 38b – integrated"). Plan as it was: Comments in English, rest (before 0.9.1): server `src/import.rs` to `src/xref.rs`, server `tests/`, `baruch-store` with `baruch-typst`, the other crates, TypeScript, templates, `scripts/`, `site/tools/`; comments only, `scripts/check-comments-only.py` exit 0 per branch; narrow `scripts/comment-umlaut-allow.txt` at the end | a server_i_p · b server_q_x · c server_tests · d store_typst · e rest (two waves) | 150 |
 | R38c | **Integrated 2026-11-28** (≈ 115 min from `0dc0e09` to the integration commit; S1 `4136ba2`; six developers in two waves, three of them reported before their test runs had finished, so the integrator committed their finished working trees; full run exit 0, 3597 passed, 0 failed, 2 ignored, 218 results "ok"; details under "Round 38c – integrated"). Plan as it was: Developer docs in English, rest (before 0.9.1): `SKILLS.md`, `docs/Plan.md`, `Bedienung.md`, `Verteilung.md`, `WYSIWYG.md`, `Austauschformat.md`, `Architektur.md` (two developers), `MCP.md`, `RPC.md`, each as a whole with its test-pinned strings; task texts to models; the low review findings of Round 38 | skills_plan · mcp_austausch_wysiwyg · rpc_doku · architektur_1 · architektur_2 · modell_texte (two waves) | 120 |
-| R39a | **Integrated 2026-11-28** (S1 `3828d0c`, six developers in two waves: templates_1/2/3, widgets, messages_1/2; merged with `--no-ff`, conflicts only in `tests/main.rs`, the allow list and one test helper; integrator added the page walk `round39a_pages`; details under "Round 39a – integrated"). User interface English (base) and German: Fluent catalogs, `t()` in templates, widgets and server messages, language switch without JavaScript, store messages via `store_text.rs` | templates_1 · templates_2 · templates_3 · widgets · messages_1 · messages_2 | – |
+| R39a | **Closed 2026-11-28** (≈ 245 min from `8e9823b` with review, follow-up `b7ef2be` and PM close; integration `a543263`; PM close exit 0, 3674 passed, 0 failed, 2 ignored, 218 results "ok", server bundle 1682, pgvector tests ran; S1 `3828d0c`, six developers in two waves: templates_1/2/3, widgets, messages_1/2; merged with `--no-ff`, conflicts only in `tests/main.rs`, the allow list and one test helper; integrator added the page walk `round39a_pages`; details under "Round 39a – integrated"). User interface English (base) and German: Fluent catalogs, `t()` in templates, widgets and server messages, language switch without JavaScript, store messages via `store_text.rs` | templates_1 · templates_2 · templates_3 · widgets · messages_1 · messages_2 | 180 |
 | R39 | B: Oberfläche Deutsch und Englisch (vor 0.9.1): Kataloge `en`/`de`, `t()` in minijinja, Sprachwahl ohne JavaScript, Templates, Widgets, Meldungen; Buchausgaben nach Werksprache; Hilfe zweisprachig (Webseite seit dem Nachgang zu R37 mehrsprachig angelegt: `site/content/de/`, Englisch nach `site/content/en/`); vermutlich B1/B2 | B1 geruest · templates · widgets · B2 ausgaben · hilfe | 360 |
 
 ### Nach Runde 37 offen (Prüfung und PM-Abschluss 2026-11-27)
@@ -1791,8 +1791,30 @@ library 0108), one new route `POST /einstellungen/sprache` (S1), no RPC method, 
   the `@alle` command). Contract deviations accepted: templates_3 changed two Rust unit tests and the
   `baruch-library` test (German `t()` for `fragments/library.html`); templates_1 changed the expected strings of a
   unit test in `src/band.rs`; widgets kept 17 allow entries that are identifiers, not names.
-- **Worktrees** `.claude/worktrees/wf_b51eb61c-fd2-{27..32}` and the branches `team/r39a-*` are kept for the PM
-  close.
+- **Worktrees** `.claude/worktrees/wf_b51eb61c-fd2-{27..32}` were removed with their `target/` in the PM close
+  (all six branches merged, no open changes); the branches `team/r39a-*` stay.
+
+### Round 39a – review, follow-up and PM close (2026-11-28)
+
+The review after the integration reported five findings. Follow-up `b7ef2be` and the PM close dealt with them:
+
+- **Fixed (medium):** English texts with a count had no singular form („1 chapters“, „1 hits“; some German ones
+  too, „1 Seiten“). 41 keys and the cover facts line now choose by the number; widgets use `_one`/`_other` pairs.
+  Guard: `tests/round39a_plurals.rs` fails for a new English text with a count and no singular (exceptions listed
+  with reasons). Four keys of the finding already had a singular key picked by the code and stayed.
+- **Fixed (low):** `tests/round27_daten.rs` matched „errors“ and would have pinned the „1 errors“ defect; it now
+  expects „has 1 error;“ (follow-up).
+- **Fixed (low, PM close):** `tests/round23_mcp_namen.rs` checked the English ownership refusal only by „own“, which
+  also matches „unknown“; it now checks „Only your own posts“ (lines 318 and 375).
+- **Open (low):** the language switch is public (`auth::PUBLIC_PATHS`), but neither `anmelden.html` nor
+  `einrichten.html` carries the form, so a visitor who is not signed in can only follow cookie or
+  `Accept-Language`. Suggestion for Round 39b: the same plain form (with `back`) on both pages, with a test.
+- **Open (low):** the form in the menu „Baruch ▾“ (`base.html`) has no hidden `back` field and relies on the
+  Referer; without a Referer the switch lands on `/`. Safe fallback, no open redirect. Suggestion: add `back`
+  with the current path (Round 39b).
+- **Found in the follow-up, open:** `src/cover.rs` (about line 1203) builds the sheet count with
+  `.replace('.', ",")`, so English shows „12,5 sheets“ – should go through `i18n::number`. Texts written as
+  „relation(s)“ and „quotation(s)“ read correctly for any number but could get real singular forms.
 
 ## Nach 0.9.0 offen: Ausnahmen in deny.toml (2026-11-24)
 
